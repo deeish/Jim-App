@@ -4,11 +4,11 @@ A mobile application for planning and generating weekly workout routines using R
 
 ## Features
 
-- 📱 **Simple UI** - Clean and intuitive mobile interface
-- 📅 **Weekly Workout Planning** - View and manage your weekly workout schedule
-- 🤖 **LLM-Powered Generation** - Generate personalized workouts using AI
-- 💪 **Exercise Tracking** - Track sets, reps, and weights for each exercise
-- 🔄 **RESTful API** - Robust backend built with NestJS
+- **Simple UI** - Clean and intuitive mobile interface
+- **Weekly Workout Planning** - View and manage your weekly workout schedule
+- **LLM-Powered Generation** - Generate personalized workouts using AI
+- **Exercise Tracking** - Track sets, reps, and weights for each exercise
+- **RESTful API** - Robust backend built with NestJS
 
 ## Tech Stack
 
