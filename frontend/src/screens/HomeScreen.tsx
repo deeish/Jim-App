@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
+import { colors } from '../theme/colors';
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
@@ -41,7 +42,7 @@ export default function HomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
     padding: 20,
   },
   header: {
@@ -52,41 +53,41 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: colors.text,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 18,
-    color: '#6b7280',
+    color: colors.textTertiary,
   },
   buttonContainer: {
     gap: 16,
   },
   button: {
-    backgroundColor: '#6366f1',
+    backgroundColor: colors.primary,
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 3.84,
     elevation: 5,
   },
   buttonSecondary: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderWidth: 2,
-    borderColor: '#6366f1',
+    borderColor: colors.secondary,
   },
   buttonText: {
-    color: '#fff',
+    color: colors.background,
     fontSize: 18,
     fontWeight: '600',
   },
   buttonTextSecondary: {
-    color: '#6366f1',
+    color: colors.secondary,
   },
 });

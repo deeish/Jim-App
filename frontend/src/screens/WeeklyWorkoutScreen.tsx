@@ -4,6 +4,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { getWeeklyWorkouts } from '../services/workoutService';
 import { Workout } from '../types/workout';
+import { colors } from '../theme/colors';
 
 type WeeklyWorkoutScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'WeeklyWorkout'>;
 
@@ -44,7 +45,7 @@ export default function WeeklyWorkoutScreen({ navigation }: Props) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -82,7 +83,7 @@ export default function WeeklyWorkoutScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -90,16 +91,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dayCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     margin: 12,
     padding: 16,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 3.84,
     elevation: 5,
   },
@@ -112,27 +113,27 @@ const styles = StyleSheet.create({
   dayName: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: colors.text,
   },
   badge: {
-    backgroundColor: '#6366f1',
+    backgroundColor: colors.accent,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
   },
   badgeText: {
-    color: '#fff',
+    color: colors.background,
     fontSize: 12,
     fontWeight: '600',
   },
   workoutName: {
     fontSize: 16,
-    color: '#4b5563',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   noWorkout: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: colors.textMuted,
     fontStyle: 'italic',
     marginTop: 4,
   },

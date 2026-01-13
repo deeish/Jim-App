@@ -5,6 +5,7 @@ import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../App';
 import { getWorkoutById, generateWorkout } from '../services/workoutService';
 import { Workout } from '../types/workout';
+import { colors } from '../theme/colors';
 
 type WorkoutDetailScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
 type WorkoutDetailScreenRouteProp = RouteProp<RootStackParamList, 'WorkoutDetail'>;
@@ -57,7 +58,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -73,7 +74,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
             disabled={generating}
           >
             {generating ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.background} />
             ) : (
               <Text style={styles.generateButtonText}>Generate New Workout</Text>
             )}
@@ -135,7 +136,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -150,23 +151,23 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#6b7280',
+    color: colors.textTertiary,
     marginBottom: 20,
   },
   header: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     padding: 20,
     marginBottom: 12,
   },
   workoutName: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: colors.text,
     marginBottom: 8,
   },
   workoutDay: {
     fontSize: 16,
-    color: '#6366f1',
+    color: colors.primary,
     fontWeight: '600',
   },
   exercisesContainer: {
@@ -175,27 +176,27 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: colors.text,
     marginBottom: 12,
   },
   exerciseCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 3.84,
     elevation: 5,
   },
   exerciseName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
+    color: colors.text,
     marginBottom: 8,
   },
   exerciseDetails: {
@@ -205,31 +206,31 @@ const styles = StyleSheet.create({
   },
   exerciseDetail: {
     fontSize: 14,
-    color: '#4b5563',
+    color: colors.textSecondary,
   },
   exerciseNotes: {
     fontSize: 14,
-    color: '#6b7280',
+    color: colors.textTertiary,
     fontStyle: 'italic',
     marginTop: 8,
   },
   generateButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: colors.primary,
     padding: 18,
     margin: 12,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 3.84,
     elevation: 5,
   },
   generateButtonText: {
-    color: '#fff',
+    color: colors.background,
     fontSize: 18,
     fontWeight: '600',
   },
