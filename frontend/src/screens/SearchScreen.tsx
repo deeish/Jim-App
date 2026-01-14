@@ -18,17 +18,17 @@ const PATTERN_OPTIONS = ['Push', 'Pull', 'Squat', 'Hinge', 'Core', 'Carry'];
 // Expanded lists for "More options" - full list
 const ALL_EXPANDED_MUSCLES = [
   // Chest
-  'Upper Chest', 'Lower Chest', 'Pecs', 'Serratus Anterior',
+  'Upper Chest', 'Lower Chest',
   // Back
-  'Lats', 'Traps', 'Upper Back', 'Middle Back', 'Lower Back', 'Rhomboids', 'Erector Spinae', 'Teres Major', 'Teres Minor',
+  'Upper Back', 'Middle Back', 'Lower Back', 'Lats', 'Traps',
   // Legs
-  'Quads', 'Hamstrings', 'Glutes', 'Calves', 'Hip Flexors', 'Adductors', 'Abductors', 'IT Band', 'Shins',
+  'Quads', 'Hamstrings', 'Glutes', 'Calves', 'Inner Thighs', 'Outer Thighs', 'Hip Flexors', 'Shins',
   // Shoulders
-  'Delts', 'Anterior Delts', 'Lateral Delts', 'Posterior Delts', 'Rotator Cuff',
+  'Front Shoulders', 'Side Shoulders', 'Rear Shoulders', 'Rotator Cuff',
   // Arms
-  'Biceps', 'Triceps', 'Forearms', 'Brachialis', 'Brachioradialis',
+  'Biceps', 'Triceps', 'Forearms',
   // Core
-  'Abs', 'Obliques', 'Transverse Abdominis', 'Rectus Abdominis', 'Lower Back'
+  'Abs', 'Obliques', 'Lower Back'
 ];
 
 const ALL_EXPANDED_EQUIPMENT = [
@@ -56,12 +56,12 @@ const getFilteredMuscles = (selectedMuscle: string | null): string[] => {
   if (!selectedMuscle) return ALL_EXPANDED_MUSCLES;
   
   const muscleMap: Record<string, string[]> = {
-    'Chest': ['Upper Chest', 'Lower Chest', 'Pecs', 'Serratus Anterior'],
-    'Back': ['Lats', 'Traps', 'Upper Back', 'Middle Back', 'Lower Back', 'Rhomboids', 'Erector Spinae', 'Teres Major', 'Teres Minor'],
-    'Legs': ['Quads', 'Hamstrings', 'Glutes', 'Calves', 'Hip Flexors', 'Adductors', 'Abductors', 'IT Band', 'Shins'],
-    'Shoulders': ['Delts', 'Anterior Delts', 'Lateral Delts', 'Posterior Delts', 'Rotator Cuff'],
-    'Arms': ['Biceps', 'Triceps', 'Forearms', 'Brachialis', 'Brachioradialis'],
-    'Core': ['Abs', 'Obliques', 'Transverse Abdominis', 'Rectus Abdominis', 'Lower Back'],
+    'Chest': ['Upper Chest', 'Lower Chest'],
+    'Back': ['Upper Back', 'Middle Back', 'Lower Back', 'Lats', 'Traps'],
+    'Legs': ['Quads', 'Hamstrings', 'Glutes', 'Calves', 'Inner Thighs', 'Outer Thighs', 'Hip Flexors', 'Shins'],
+    'Shoulders': ['Front Shoulders', 'Side Shoulders', 'Rear Shoulders', 'Rotator Cuff'],
+    'Arms': ['Biceps', 'Triceps', 'Forearms'],
+    'Core': ['Abs', 'Obliques', 'Lower Back'],
   };
   
   return muscleMap[selectedMuscle] || ALL_EXPANDED_MUSCLES;
