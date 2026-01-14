@@ -1,207 +1,102 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Modal, TouchableOpacity } from 'react-native';
-import { getWeeklyWorkouts, generateWorkout, updateWorkout } from '../services/workoutService';
-import { Workout } from '../types/workout';
-import DayCard from '../components/DayCard';
-import Button from '../components/Button';
-import LoadingSpinner from '../components/LoadingSpinner';
-import WorkoutDetailModal from '../components/WorkoutDetailModal';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { colors } from '../theme/colors';
 
 const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8'];
+
+// Placeholder workout data
+const placeholderWorkouts: Record<string, Array<{ title: string; details: string; iconColor: string }>> = {
+  Monday: [
+    { title: 'Recovery Day', details: 'Rest and recovery', iconColor: '#9B59B6' },
+  ],
+  Tuesday: [
+    { title: 'Interval Swim', details: 'MS: 4x 200m (1,600 total)', iconColor: '#3498DB' },
+    { title: 'Easy Bike', details: '50 min.', iconColor: '#2ECC71' },
+  ],
+  Wednesday: [
+    { title: 'Interval Run', details: '40 min. w/6 x 1 min. fast', iconColor: '#E67E22' },
+  ],
+  Thursday: [
+    { title: 'Long Bike', details: '90 min. steady pace', iconColor: '#2ECC71' },
+  ],
+  Friday: [
+    { title: 'Easy Swim', details: '30 min. technique focus', iconColor: '#3498DB' },
+  ],
+  Saturday: [
+    { title: 'Long Run', details: '60 min. easy pace', iconColor: '#E67E22' },
+  ],
+  Sunday: [
+    { title: 'Rest Day', details: 'Complete rest', iconColor: '#95A5A6' },
+  ],
+};
 
 export default function PlanScreen() {
-  const [workouts, setWorkouts] = useState<Record<string, Workout>>({});
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
-
-  useEffect(() => {
-    loadWorkouts();
-  }, []);
-
-  const loadWorkouts = async () => {
-    try {
-      setLoading(true);
-      const weeklyWorkouts = await getWeeklyWorkouts();
-      const workoutsMap: Record<string, Workout> = {};
-      weeklyWorkouts.forEach(workout => {
-        if (workout.day) {
-          workoutsMap[workout.day] = workout;
-        }
-      });
-      setWorkouts(workoutsMap);
-    } catch (error: any) {
-      console.error('Error loading workouts:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDayPress = (day: string) => {
-    const workout = workouts[day];
-    if (workout) {
-      setSelectedWorkout(workout);
-      setShowDetailModal(true);
-    } else {
-      setSelectedDay(day);
-      setShowGenerateModal(true);
-    }
-  };
-
-  const handleGenerateForDay = async (day: string) => {
-    try {
-      setGenerating(true);
-      const newWorkout = await generateWorkout(day);
-      setWorkouts(prev => ({ ...prev, [day]: newWorkout }));
-      setShowGenerateModal(false);
-      setSelectedDay(null);
-      Alert.alert('Success', `Workout generated for ${day}!`);
-    } catch (error) {
-      console.error('Error generating workout:', error);
-      Alert.alert('Error', 'Failed to generate workout');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleGenerateAll = async () => {
-    try {
-      setGenerating(true);
-      const promises = daysOfWeek.map(day => generateWorkout(day));
-      const newWorkouts = await Promise.all(promises);
-      const workoutsMap: Record<string, Workout> = {};
-      newWorkouts.forEach(workout => {
-        if (workout.day) {
-          workoutsMap[workout.day] = workout;
-        }
-      });
-      setWorkouts(workoutsMap);
-      Alert.alert('Success', 'Weekly workout plan generated!');
-    } catch (error) {
-      console.error('Error generating workouts:', error);
-      Alert.alert('Error', 'Failed to generate workouts');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleSwapDays = async (fromDay: string, toDay: string) => {
-    const fromWorkout = workouts[fromDay];
-    const toWorkout = workouts[toDay];
-
-    try {
-      if (fromWorkout && toWorkout) {
-        // Swap both
-        await updateWorkout(fromWorkout.id, { day: toDay });
-        await updateWorkout(toWorkout.id, { day: fromDay });
-      } else if (fromWorkout) {
-        // Move workout to empty day
-        await updateWorkout(fromWorkout.id, { day: toDay });
-      } else if (toWorkout) {
-        // Move workout to empty day
-        await updateWorkout(toWorkout.id, { day: fromDay });
-      }
-
-      // Update local state
-      const newWorkouts = { ...workouts };
-      if (fromWorkout) {
-        delete newWorkouts[fromDay];
-        newWorkouts[toDay] = { ...fromWorkout, day: toDay };
-      }
-      if (toWorkout) {
-        delete newWorkouts[toDay];
-        newWorkouts[fromDay] = { ...toWorkout, day: fromDay };
-      }
-      setWorkouts(newWorkouts);
-      Alert.alert('Success', 'Days swapped successfully!');
-    } catch (error) {
-      console.error('Error swapping days:', error);
-      Alert.alert('Error', 'Failed to swap days');
-    }
-  };
-
-  if (loading) {
-    return <LoadingSpinner />;
-  }
+  const [selectedWeek, setSelectedWeek] = useState(0);
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Weekly Plan</Text>
-        <Button
-          title="Generate with AI"
-          onPress={handleGenerateAll}
-          loading={generating}
-          style={styles.generateButton}
-        />
+        <Text style={styles.headerTitle}>Weekly Sprint</Text>
       </View>
 
-      <ScrollView style={styles.content}>
-        {daysOfWeek.map((day) => (
-          <DayCard
-            key={day}
-            day={day}
-            workout={workouts[day]}
-            onPress={() => handleDayPress(day)}
-          />
-        ))}
-      </ScrollView>
+      {/* Week Tabs */}
+      <View style={styles.weekTabsContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.weekTabsContent}
+        >
+          {weeks.map((week, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.weekTab,
+                selectedWeek === index && styles.weekTabActive
+              ]}
+              onPress={() => setSelectedWeek(index)}
+            >
+              <Text style={[
+                styles.weekTabText,
+                selectedWeek === index && styles.weekTabTextActive
+              ]}>
+                {week}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
-      <Modal
-        visible={showGenerateModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowGenerateModal(false)}
+      {/* Days List */}
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Generate Workout</Text>
-            <Text style={styles.modalText}>
-              Generate a workout for {selectedDay}?
-            </Text>
-            <View style={styles.modalButtons}>
-              <Button
-                title="Generate"
-                onPress={() => selectedDay && handleGenerateForDay(selectedDay)}
-                loading={generating}
-                style={styles.modalButton}
-              />
-              <Button
-                title="Cancel"
-                onPress={() => {
-                  setShowGenerateModal(false);
-                  setSelectedDay(null);
-                }}
-                variant="secondary"
-                style={styles.modalButton}
-              />
+        {daysOfWeek.map((day) => {
+          const workouts = placeholderWorkouts[day] || [];
+          return (
+            <View key={day} style={styles.daySection}>
+              <Text style={styles.dayTitle}>{day}</Text>
+              {workouts.map((workout, index) => (
+                <View key={index} style={styles.workoutCard}>
+                  <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
+                    <View style={styles.iconPlaceholder} />
+                  </View>
+                  <View style={styles.workoutContent}>
+                    <Text style={styles.workoutTitle}>{workout.title}</Text>
+                    <Text style={styles.workoutDetails}>{workout.details}</Text>
+                  </View>
+                  <TouchableOpacity>
+                    <Text style={styles.seeMore}>See More &gt;</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
             </View>
-          </View>
-        </View>
-      </Modal>
-
-      {selectedWorkout && (
-        <WorkoutDetailModal
-          visible={showDetailModal}
-          workout={selectedWorkout}
-          onClose={() => {
-            setShowDetailModal(false);
-            setSelectedWorkout(null);
-          }}
-          onSwap={(toDay) => {
-            if (selectedWorkout.day) {
-              handleSwapDays(selectedWorkout.day, toDay);
-              setShowDetailModal(false);
-              setSelectedWorkout(null);
-            }
-          }}
-          onRefresh={loadWorkouts}
-        />
-      )}
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
@@ -214,49 +109,114 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: colors.surface,
     padding: 16,
+    paddingTop: 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    elevation: 2,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  title: {
+  headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
     color: colors.text,
-    marginBottom: 12,
   },
-  generateButton: {
-    minHeight: 48,
+  weekTabsContainer: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    height: 56, // Fixed height to prevent expansion
+    maxHeight: 56, // Ensure it doesn't grow
+  },
+  weekTabsContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: 'center', // Center items vertically
+    gap: 8,
+  },
+  weekTab: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 80,
+    height: 32, // Fixed height for tabs
+  },
+  weekTabActive: {
+    backgroundColor: colors.primary,
+  },
+  weekTabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    lineHeight: 14,
+  },
+  weekTabTextActive: {
+    color: colors.background,
   },
   content: {
     flex: 1,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: colors.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
+  contentContainer: {
+    padding: 16,
   },
-  modalContent: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 24,
-    width: '80%',
-    maxWidth: 400,
+  daySection: {
+    marginBottom: 24,
   },
-  modalTitle: {
-    fontSize: 24,
+  dayTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.text,
     marginBottom: 12,
   },
-  modalText: {
+  workoutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  workoutIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconPlaceholder: {
+    width: 30,
+    height: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 4,
+  },
+  workoutContent: {
+    flex: 1,
+  },
+  workoutTitle: {
     fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  workoutDetails: {
+    fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: 24,
   },
-  modalButtons: {
-    gap: 12,
-  },
-  modalButton: {
-    minHeight: 48,
+  seeMore: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '500',
   },
 });
