@@ -5,241 +5,335 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import Button from '../components/Button';
 
-// Dummy data
-const MUSCLE_OPTIONS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core'];
-const EQUIPMENT_OPTIONS = ['Bodyweight', 'Dumbbell', 'Barbell', 'Cable', 'Machine'];
-const PATTERN_OPTIONS = ['Push', 'Pull', 'Squat', 'Hinge', 'Core', 'Carry'];
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
-// Expanded lists for "More options" - full list
-const ALL_EXPANDED_MUSCLES = [
-  // Chest
-  'Upper Chest', 'Lower Chest',
-  // Back
-  'Upper Back', 'Middle Back', 'Lower Back', 'Lats', 'Traps',
-  // Legs
-  'Quads', 'Hamstrings', 'Glutes', 'Calves', 'Inner Thighs', 'Outer Thighs', 'Hip Flexors', 'Shins',
-  // Shoulders
-  'Front Shoulders', 'Side Shoulders', 'Rear Shoulders', 'Rotator Cuff',
-  // Arms
-  'Biceps', 'Triceps', 'Forearms',
-  // Core
-  'Abs', 'Obliques', 'Lower Back'
-];
-
-const ALL_EXPANDED_EQUIPMENT = [
-  // Bodyweight accessories
-  'TRX', 'Pull-up Bar', 'Dip Bars', 'Parallettes', 'Gymnastic Rings',
-  // Free weights accessories
-  'Kettlebell', 'Medicine Ball', 'Sandbag', 'Weighted Vest',
-  // Resistance equipment
-  'Resistance Band', 'Battle Rope', 'Suspension Trainer',
-  // Machines & specialized
-  'Smith Machine', 'Sled', 'Prowler', 'Rowing Machine', 'Assault Bike', 'Concept2 Rower'
-];
-
-const ALL_EXPANDED_PATTERNS = [
-  // Basic patterns
-  'Push', 'Pull', 'Squat', 'Hinge', 'Core', 'Carry',
-  // Variations
-  'Lunge', 'Step-up', 'Rotation', 'Anti-rotation', 'Flexion', 'Extension',
-  // Exercise types
-  'Isolation', 'Compound', 'Plyometric', 'Static', 'Dynamic', 'Eccentric', 'Isometric'
-];
-
-// Mapping functions to filter expanded options based on quick chip selection
-const getFilteredMuscles = (selectedMuscle: string | null): string[] => {
-  if (!selectedMuscle) return ALL_EXPANDED_MUSCLES;
-  
-  const muscleMap: Record<string, string[]> = {
-    'Chest': ['Upper Chest', 'Lower Chest'],
-    'Back': ['Upper Back', 'Middle Back', 'Lower Back', 'Lats', 'Traps'],
-    'Legs': ['Quads', 'Hamstrings', 'Glutes', 'Calves', 'Inner Thighs', 'Outer Thighs', 'Hip Flexors', 'Shins'],
-    'Shoulders': ['Front Shoulders', 'Side Shoulders', 'Rear Shoulders', 'Rotator Cuff'],
-    'Arms': ['Biceps', 'Triceps', 'Forearms'],
-    'Core': ['Abs', 'Obliques', 'Lower Back'],
-  };
-  
-  return muscleMap[selectedMuscle] || ALL_EXPANDED_MUSCLES;
+// Muscle group hierarchy - parent groups with their sub-muscles
+const MUSCLE_HIERARCHY: Record<string, string[]> = {
+  'Chest': ['Upper Chest', 'Lower Chest'],
+  'Back': ['Upper Back', 'Middle Back', 'Lower Back', 'Lats', 'Traps'],
+  'Legs': ['Quads', 'Hamstrings', 'Glutes', 'Calves', 'Inner Thighs', 'Outer Thighs'],
+  'Shoulders': ['Front Shoulders', 'Side Shoulders', 'Rear Shoulders', 'Rotator Cuff'],
+  'Arms': ['Biceps', 'Triceps', 'Forearms'],
+  'Core': ['Abs', 'Obliques', 'Lower Back'],
 };
 
-const getFilteredEquipment = (selectedEquipment: string | null): string[] => {
-  if (!selectedEquipment) return ALL_EXPANDED_EQUIPMENT;
-  
-  const equipmentMap: Record<string, string[]> = {
-    'Bodyweight': ['TRX', 'Pull-up Bar', 'Dip Bars', 'Parallettes', 'Gymnastic Rings', 'Suspension Trainer'],
-    'Dumbbell': ['Kettlebell', 'Medicine Ball', 'Sandbag', 'Weighted Vest'],
-    'Barbell': ['Smith Machine', 'Sled', 'Prowler'],
-    'Cable': ['Resistance Band', 'Battle Rope', 'Suspension Trainer'],
-    'Machine': ['Smith Machine', 'Sled', 'Prowler', 'Rowing Machine', 'Assault Bike', 'Concept2 Rower'],
-  };
-  
-  return equipmentMap[selectedEquipment] || ALL_EXPANDED_EQUIPMENT;
+// Main muscle groups (parent categories)
+const MAIN_MUSCLE_GROUPS = Object.keys(MUSCLE_HIERARCHY);
+
+// Get all sub-muscles for a given parent
+const getSubMuscles = (parent: string): string[] => {
+  return MUSCLE_HIERARCHY[parent] || [];
 };
 
-const getFilteredPatterns = (selectedPattern: string | null): string[] => {
-  if (!selectedPattern) return ALL_EXPANDED_PATTERNS;
-  
-  const patternMap: Record<string, string[]> = {
-    'Push': ['Push', 'Isolation', 'Compound', 'Plyometric', 'Eccentric'],
-    'Pull': ['Pull', 'Isolation', 'Compound', 'Eccentric'],
-    'Squat': ['Squat', 'Lunge', 'Step-up', 'Plyometric', 'Compound'],
-    'Hinge': ['Hinge', 'Compound', 'Eccentric'],
-    'Core': ['Core', 'Rotation', 'Anti-rotation', 'Flexion', 'Extension', 'Static', 'Isometric'],
-    'Carry': ['Carry', 'Static', 'Isometric'],
-  };
-  
-  return patternMap[selectedPattern] || ALL_EXPANDED_PATTERNS;
+// Get all sub-muscles across all parents
+const getAllSubMuscles = (): string[] => {
+  return Object.values(MUSCLE_HIERARCHY).flat();
 };
+
+const EQUIPMENT_OPTIONS = [
+  // Most common first
+  'Bodyweight', 'Dumbbell', 'Barbell', 'Cable', 'Machine',
+  // Specialized equipment
+  'Kettlebell', 'Resistance Band', 'TRX', 'Pull-up Bar',
+  'Medicine Ball', 'Battle Rope', 'Smith Machine'
+];
+
+// Advanced/optional filters - collapsed by default
+const MOVEMENT_PATTERNS = [
+  'Push', 'Pull', 'Squat', 'Hinge', 'Lunge', 'Carry'
+];
+
 
 interface FilterState {
-  muscle: string | null;
-  equipment: string | null;
-  pattern: string | null;
-  expandedMuscle: string | null;
-  expandedEquipment: string | null;
-  expandedPattern: string | null;
+  searchQuery: string;
+  muscleGroups: string[]; // Parent groups (Chest, Back, etc.)
+  subMuscles: string[]; // Specific muscles (Upper Chest, Lower Chest, etc.)
+  equipment: string[];
+  movementPatterns: string[];
 }
 
 export default function SearchScreen() {
   const [filters, setFilters] = useState<FilterState>({
-    muscle: null,
-    equipment: null,
-    pattern: null,
-    expandedMuscle: null,
-    expandedEquipment: null,
-    expandedPattern: null,
+    searchQuery: '',
+    muscleGroups: [],
+    subMuscles: [],
+    equipment: [],
+    movementPatterns: [],
   });
 
-  const [expandedSections, setExpandedSections] = useState<{
-    muscles: boolean;
-    equipment: boolean;
-    pattern: boolean;
-  }>({
-    muscles: false,
-    equipment: false,
-    pattern: false,
-  });
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  const toggleQuickChip = (category: 'muscle' | 'equipment' | 'pattern', value: string) => {
+  // Toggle a main muscle group (parent)
+  const toggleMuscleGroup = (group: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setFilters(prev => {
-      const newValue = prev[category] === value ? null : value;
-      const updated = { ...prev, [category]: newValue };
+      const isSelected = prev.muscleGroups.includes(group);
+      const subMuscles = getSubMuscles(group);
       
-      // Clear expanded selection if it's no longer valid after filtering
-      if (category === 'muscle') {
-        if (newValue && prev.expandedMuscle) {
-          const filtered = getFilteredMuscles(newValue);
-          if (!filtered.includes(prev.expandedMuscle)) {
-            updated.expandedMuscle = null;
-          }
+      if (isSelected) {
+        // Deselecting parent: remove parent and all its children
+        return {
+          ...prev,
+          muscleGroups: prev.muscleGroups.filter(g => g !== group),
+          subMuscles: prev.subMuscles.filter(m => !subMuscles.includes(m)),
+        };
+      } else {
+        // Selecting parent: add parent and all its children
+        return {
+          ...prev,
+          muscleGroups: [...prev.muscleGroups, group],
+          subMuscles: [...prev.subMuscles, ...subMuscles],
+        };
+      }
+    });
+  };
+
+  // Toggle a specific sub-muscle
+  const toggleSubMuscle = (subMuscle: string, parentGroup: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setFilters(prev => {
+      const isSelected = prev.subMuscles.includes(subMuscle);
+      const subMuscles = getSubMuscles(parentGroup);
+      const selectedSubMuscles = prev.subMuscles.filter(m => subMuscles.includes(m));
+      
+      if (isSelected) {
+        // Deselecting sub-muscle
+        const newSubMuscles = prev.subMuscles.filter(m => m !== subMuscle);
+        const allSubMusclesSelected = subMuscles.every(m => 
+          m === subMuscle || newSubMuscles.includes(m)
+        );
+        
+        // If not all sub-muscles are selected, remove parent from muscleGroups
+        // If parent was selected, we need to check if we should keep it
+        const shouldKeepParent = prev.muscleGroups.includes(parentGroup) && 
+          newSubMuscles.filter(m => subMuscles.includes(m)).length > 0;
+        
+        return {
+          ...prev,
+          subMuscles: newSubMuscles,
+          muscleGroups: shouldKeepParent 
+            ? prev.muscleGroups 
+            : prev.muscleGroups.filter(g => g !== parentGroup),
+        };
+      } else {
+        // Selecting sub-muscle
+        const newSubMuscles = [...prev.subMuscles, subMuscle];
+        const allSubMusclesSelected = subMuscles.every(m => newSubMuscles.includes(m));
+        
+        // If all sub-muscles are now selected, add parent to muscleGroups
+        return {
+          ...prev,
+          subMuscles: newSubMuscles,
+          muscleGroups: allSubMusclesSelected && !prev.muscleGroups.includes(parentGroup)
+            ? [...prev.muscleGroups, parentGroup]
+            : prev.muscleGroups,
+        };
+      }
+    });
+  };
+
+  // Toggle equipment or movement patterns (unchanged)
+  const toggleFilter = (category: 'equipment' | 'movementPatterns', value: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setFilters(prev => {
+      const currentArray = prev[category];
+      const isSelected = currentArray.includes(value);
+      return {
+        ...prev,
+        [category]: isSelected
+          ? currentArray.filter(v => v !== value)
+          : [...currentArray, value],
+      };
+    });
+  };
+
+  // Get selection state for a muscle group
+  const getMuscleGroupState = (group: string): 'none' | 'partial' | 'full' => {
+    const subMuscles = getSubMuscles(group);
+    const selectedSubMuscles = filters.subMuscles.filter(m => subMuscles.includes(m));
+    
+    if (selectedSubMuscles.length === 0) return 'none';
+    if (selectedSubMuscles.length === subMuscles.length) return 'full';
+    return 'partial';
+  };
+
+  const resetFilters = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setFilters({
+      searchQuery: '',
+      muscleGroups: [],
+      subMuscles: [],
+      equipment: [],
+      movementPatterns: [],
+    });
+  };
+
+  const getActiveFilterCount = () => {
+    // Count unique muscle selections (either parent groups or individual sub-muscles)
+    const muscleCount = filters.muscleGroups.length > 0 
+      ? filters.muscleGroups.length 
+      : filters.subMuscles.length;
+    
+    return (
+      muscleCount +
+      filters.equipment.length +
+      filters.movementPatterns.length
+    );
+  };
+
+  const getResultCount = () => {
+    const activeCount = getActiveFilterCount();
+    const hasSearch = filters.searchQuery.trim().length > 0;
+    return (activeCount > 0 || hasSearch) ? Math.floor(Math.random() * 50) + 10 : 0;
+  };
+
+  const resultCount = getResultCount();
+  const activeFilterCount = getActiveFilterCount();
+
+  // Get all active filters for display
+  const getActiveFilters = () => {
+    const active: Array<{ label: string; category: string; value: string; isParent?: boolean }> = [];
+    
+    // Add muscle groups (parents) - show these instead of individual sub-muscles if parent is fully selected
+    filters.muscleGroups.forEach(g => {
+      active.push({ label: g, category: 'muscleGroups', value: g, isParent: true });
+    });
+    
+    // Add sub-muscles that aren't part of a fully selected parent
+    filters.subMuscles.forEach(m => {
+      const parent = Object.keys(MUSCLE_HIERARCHY).find(p => 
+        MUSCLE_HIERARCHY[p].includes(m)
+      );
+      // Only add if parent is not fully selected
+      if (parent && !filters.muscleGroups.includes(parent)) {
+        active.push({ label: m, category: 'subMuscles', value: m });
+      }
+    });
+    
+    filters.equipment.forEach(e => active.push({ label: e, category: 'equipment', value: e }));
+    filters.movementPatterns.forEach(p => active.push({ label: p, category: 'movementPatterns', value: p }));
+    
+    return active;
+  };
+
+  const removeFilter = (category: string, value: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setFilters(prev => {
+      const updated = { ...prev };
+      if (category === 'muscleGroups') {
+        // Remove parent and all its children
+        const subMuscles = getSubMuscles(value);
+        updated.muscleGroups = prev.muscleGroups.filter(v => v !== value);
+        updated.subMuscles = prev.subMuscles.filter(m => !subMuscles.includes(m));
+      } else if (category === 'subMuscles') {
+        // Remove sub-muscle and check if parent should be removed
+        const parent = Object.keys(MUSCLE_HIERARCHY).find(p => 
+          MUSCLE_HIERARCHY[p].includes(value)
+        );
+        updated.subMuscles = prev.subMuscles.filter(v => v !== value);
+        if (parent && prev.muscleGroups.includes(parent)) {
+          updated.muscleGroups = prev.muscleGroups.filter(g => g !== parent);
         }
       } else if (category === 'equipment') {
-        if (newValue && prev.expandedEquipment) {
-          const filtered = getFilteredEquipment(newValue);
-          if (!filtered.includes(prev.expandedEquipment)) {
-            updated.expandedEquipment = null;
-          }
-        }
-      } else if (category === 'pattern') {
-        if (newValue && prev.expandedPattern) {
-          const filtered = getFilteredPatterns(newValue);
-          if (!filtered.includes(prev.expandedPattern)) {
-            updated.expandedPattern = null;
-          }
-        }
+        updated.equipment = prev.equipment.filter(v => v !== value);
+      } else if (category === 'movementPatterns') {
+        updated.movementPatterns = prev.movementPatterns.filter(v => v !== value);
       }
-      
       return updated;
     });
   };
 
-  const toggleExpandedOption = (
-    category: 'expandedMuscle' | 'expandedEquipment' | 'expandedPattern',
-    value: string
-  ) => {
-    setFilters(prev => ({
-      ...prev,
-      [category]: prev[category] === value ? null : value,
-    }));
-  };
-
-  const toggleSection = (section: 'muscles' | 'equipment' | 'pattern') => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
-
-  const resetFilters = () => {
-    setFilters({
-      muscle: null,
-      equipment: null,
-      pattern: null,
-      expandedMuscle: null,
-      expandedEquipment: null,
-      expandedPattern: null,
-    });
-  };
-
-  const getResultCount = () => {
-    // Dummy count - in real app, this would be calculated from filtered data
-    const activeFilters = [
-      filters.muscle,
-      filters.equipment,
-      filters.pattern,
-      filters.expandedMuscle,
-      filters.expandedEquipment,
-      filters.expandedPattern,
-    ].filter(Boolean).length;
-    
-    // Return dummy count based on active filters
-    return activeFilters > 0 ? Math.floor(Math.random() * 50) + 10 : 0;
-  };
-
-  const resultCount = getResultCount();
-
-  // Get filtered lists based on quick chip selections
-  const filteredMuscles = getFilteredMuscles(filters.muscle);
-  const filteredEquipment = getFilteredEquipment(filters.equipment);
-  const filteredPatterns = getFilteredPatterns(filters.pattern);
-
   const Chip = ({ 
     label, 
     isSelected, 
-    onPress 
+    onPress,
+    selectionState,
+    count,
   }: { 
     label: string; 
     isSelected: boolean; 
     onPress: () => void;
+    selectionState?: 'none' | 'partial' | 'full';
+    count?: string;
+  }) => {
+    const showPartial = selectionState === 'partial';
+    return (
+      <TouchableOpacity
+        style={[
+          styles.chip, 
+          isSelected && styles.chipSelected,
+          showPartial && styles.chipPartial,
+        ]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+          {label}
+        </Text>
+        {count && (
+          <Text style={[styles.chipCount, isSelected && styles.chipCountSelected]}>
+            {count}
+          </Text>
+        )}
+        {isSelected && !showPartial && <Text style={styles.chipCheckmark}>✓</Text>}
+        {showPartial && <Text style={styles.chipPartialIndicator}>◐</Text>}
+      </TouchableOpacity>
+    );
+  };
+
+  const ActiveFilterChip = ({
+    label,
+    onRemove,
+  }: {
+    label: string;
+    onRemove: () => void;
   }) => (
-    <TouchableOpacity
-      style={[styles.chip, isSelected && styles.chipSelected]}
-      onPress={onPress}
-    >
-      <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
+    <View style={styles.activeFilterChip}>
+      <Text style={styles.activeFilterText}>{label}</Text>
+      <TouchableOpacity onPress={onRemove} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <Text style={styles.activeFilterRemove}>×</Text>
+      </TouchableOpacity>
+    </View>
   );
 
-  const QuickChipsSection = ({
+  const FilterSection = ({
     title,
     options,
-    selectedValue,
+    selectedValues,
     onSelect,
+    description,
   }: {
     title: string;
     options: string[];
-    selectedValue: string | null;
+    selectedValues: string[];
     onSelect: (value: string) => void;
+    description?: string;
   }) => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {selectedValues.length > 0 && (
+          <View style={styles.sectionBadge}>
+            <Text style={styles.sectionBadgeText}>{selectedValues.length}</Text>
+          </View>
+        )}
+      </View>
+      {description && (
+        <Text style={styles.sectionDescription}>{description}</Text>
+      )}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -249,7 +343,7 @@ export default function SearchScreen() {
           <Chip
             key={option}
             label={option}
-            isSelected={selectedValue === option}
+            isSelected={selectedValues.includes(option)}
             onPress={() => onSelect(option)}
           />
         ))}
@@ -257,68 +351,98 @@ export default function SearchScreen() {
     </View>
   );
 
-  const AccordionSection = ({
-    title,
-    options,
-    selectedValue,
-    onSelect,
-    isExpanded,
-    onToggle,
+  // Refine section for sub-muscles when a parent is selected
+  const RefineSection = ({
+    parentGroup,
+    subMuscles,
+    selectedSubMuscles,
+    onToggleSubMuscle,
   }: {
-    title: string;
-    options: string[];
-    selectedValue: string | null;
-    onSelect: (value: string) => void;
-    isExpanded: boolean;
-    onToggle: () => void;
-  }) => (
-    <View style={styles.accordionSection}>
-      <TouchableOpacity
-        style={styles.accordionHeader}
-        onPress={onToggle}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.accordionTitle}>{title}</Text>
-        <Text style={styles.accordionIcon}>{isExpanded ? '−' : '+'}</Text>
-      </TouchableOpacity>
-      {isExpanded && (
-        <View style={styles.accordionContent}>
-          {options.map((option) => (
-            <TouchableOpacity
-              key={option}
-              style={[
-                styles.accordionItem,
-                selectedValue === option && styles.accordionItemSelected,
-              ]}
-              onPress={() => onSelect(option)}
-            >
-              <Text
-                style={[
-                  styles.accordionItemText,
-                  selectedValue === option && styles.accordionItemTextSelected,
-                ]}
-              >
-                {option}
-              </Text>
-              {selectedValue === option && (
-                <Text style={styles.checkmark}>✓</Text>
-              )}
-            </TouchableOpacity>
-          ))}
+    parentGroup: string;
+    subMuscles: string[];
+    selectedSubMuscles: string[];
+    onToggleSubMuscle: (subMuscle: string) => void;
+  }) => {
+    const selectedCount = selectedSubMuscles.length;
+    const totalCount = subMuscles.length;
+    
+    return (
+      <View style={styles.refineSection}>
+        <View style={styles.refineHeader}>
+          <Text style={styles.refineTitle}>Refine {parentGroup}</Text>
+          <Text style={styles.refineSubtitle}>
+            {selectedCount} of {totalCount} selected
+          </Text>
         </View>
-      )}
-    </View>
-  );
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsContainer}
+        >
+          {subMuscles.map((subMuscle) => (
+            <Chip
+              key={subMuscle}
+              label={subMuscle}
+              isSelected={selectedSubMuscles.includes(subMuscle)}
+              onPress={() => onToggleSubMuscle(subMuscle)}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const activeFilters = getActiveFilters();
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Find Workouts</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>Find Workouts</Text>
+          {activeFilterCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          )}
+        </View>
         <TouchableOpacity onPress={resetFilters} activeOpacity={0.7}>
-          <Text style={styles.resetButton}>Reset</Text>
+          <Text style={[styles.resetButton, activeFilterCount === 0 && styles.resetButtonDisabled]}>
+            Reset
+          </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Search Input */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by name, exercise, or muscle..."
+          placeholderTextColor={colors.textMuted}
+          value={filters.searchQuery}
+          onChangeText={(text) => setFilters(prev => ({ ...prev, searchQuery: text }))}
+          returnKeyType="search"
+        />
+      </View>
+
+      {/* Active Filters */}
+      {activeFilters.length > 0 && (
+        <View style={styles.activeFiltersContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.activeFiltersScroll}
+          >
+            {activeFilters.map((filter, index) => (
+              <ActiveFilterChip
+                key={`${filter.category}-${filter.value}-${index}`}
+                label={filter.label}
+                onRemove={() => removeFilter(filter.category, filter.value)}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Content */}
       <ScrollView
@@ -326,77 +450,139 @@ export default function SearchScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Quick Chips Section */}
-        <QuickChipsSection
-          title="Muscle"
-          options={MUSCLE_OPTIONS}
-          selectedValue={filters.muscle}
-          onSelect={(value) => toggleQuickChip('muscle', value)}
-        />
-
-        <QuickChipsSection
-          title="Equipment"
-          options={EQUIPMENT_OPTIONS}
-          selectedValue={filters.equipment}
-          onSelect={(value) => toggleQuickChip('equipment', value)}
-        />
-
-        <QuickChipsSection
-          title="Movement"
-          options={PATTERN_OPTIONS}
-          selectedValue={filters.pattern}
-          onSelect={(value) => toggleQuickChip('pattern', value)}
-        />
-
-        {/* More Options Section */}
-        <View style={styles.moreOptionsSection}>
-          <Text style={styles.moreOptionsTitle}>More options</Text>
-
-          <AccordionSection
-            title="Muscles"
-            options={filteredMuscles}
-            selectedValue={filters.expandedMuscle}
-            onSelect={(value) => toggleExpandedOption('expandedMuscle', value)}
-            isExpanded={expandedSections.muscles}
-            onToggle={() => toggleSection('muscles')}
-          />
-
-          <AccordionSection
-            title="Equipment"
-            options={filteredEquipment}
-            selectedValue={filters.expandedEquipment}
-            onSelect={(value) => toggleExpandedOption('expandedEquipment', value)}
-            isExpanded={expandedSections.equipment}
-            onToggle={() => toggleSection('equipment')}
-          />
-
-          <AccordionSection
-            title="Movement pattern"
-            options={filteredPatterns}
-            selectedValue={filters.expandedPattern}
-            onSelect={(value) => toggleExpandedOption('expandedPattern', value)}
-            isExpanded={expandedSections.pattern}
-            onToggle={() => toggleSection('pattern')}
-          />
+        {/* Primary Filters - Most Important */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Target Muscles</Text>
+            {(filters.muscleGroups.length > 0 || filters.subMuscles.length > 0) && (
+              <View style={styles.sectionBadge}>
+                <Text style={styles.sectionBadgeText}>
+                  {filters.muscleGroups.length > 0 
+                    ? filters.muscleGroups.length 
+                    : filters.subMuscles.length}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.sectionDescription}>
+            Select muscle groups you want to train
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsContainer}
+          >
+            {MAIN_MUSCLE_GROUPS.map((group) => {
+              const state = getMuscleGroupState(group);
+              const subMuscles = getSubMuscles(group);
+              const selectedSubMuscles = filters.subMuscles.filter(m => subMuscles.includes(m));
+              const isSelected = state === 'full' || state === 'partial';
+              
+              return (
+                <Chip
+                  key={group}
+                  label={group}
+                  isSelected={state === 'full'}
+                  selectionState={state}
+                  count={state === 'partial' ? `${selectedSubMuscles.length}/${subMuscles.length}` : undefined}
+                  onPress={() => toggleMuscleGroup(group)}
+                />
+              );
+            })}
+          </ScrollView>
         </View>
+
+        {/* Refine Sections - Show when a parent group is selected */}
+        {MAIN_MUSCLE_GROUPS.map((group) => {
+          const state = getMuscleGroupState(group);
+          const subMuscles = getSubMuscles(group);
+          const selectedSubMuscles = filters.subMuscles.filter(m => subMuscles.includes(m));
+          
+          // Show refine section if parent is selected (full or partial)
+          if (state !== 'none') {
+            return (
+              <RefineSection
+                key={`refine-${group}`}
+                parentGroup={group}
+                subMuscles={subMuscles}
+                selectedSubMuscles={selectedSubMuscles}
+                onToggleSubMuscle={(subMuscle) => toggleSubMuscle(subMuscle, group)}
+              />
+            );
+          }
+          return null;
+        })}
+
+        <FilterSection
+          title="Equipment Available"
+          options={EQUIPMENT_OPTIONS}
+          selectedValues={filters.equipment}
+          onSelect={(value) => toggleFilter('equipment', value)}
+          description="What equipment do you have access to?"
+        />
+
+        {/* Advanced Filters - Collapsed by default */}
+        <View style={styles.advancedSection}>
+          <TouchableOpacity
+            style={styles.advancedToggle}
+            onPress={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.advancedToggleText}>
+              {showAdvancedFilters ? '▼' : '▶'} Advanced Filters
+            </Text>
+            {filters.movementPatterns.length > 0 && (
+              <View style={styles.advancedBadge}>
+                <Text style={styles.advancedBadgeText}>{filters.movementPatterns.length}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {showAdvancedFilters && (
+            <FilterSection
+              title="Movement Pattern"
+              options={MOVEMENT_PATTERNS}
+              selectedValues={filters.movementPatterns}
+              onSelect={(value) => toggleFilter('movementPatterns', value)}
+              description="Filter by exercise movement type (optional)"
+            />
+          )}
+        </View>
+
+        {/* Results Preview Area */}
+        {resultCount > 0 && (
+          <View style={styles.resultsPreview}>
+            <Text style={styles.resultsPreviewText}>
+              {resultCount} workout{resultCount !== 1 ? 's' : ''} found
+            </Text>
+            <Text style={styles.resultsPreviewHint}>
+              Tap "View Results" below to see workouts
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Sticky Bottom Bar */}
       <View style={styles.bottomBar}>
         <View style={styles.resultCountContainer}>
           <Text style={styles.resultCountText}>
-            Show results ({resultCount})
+            {resultCount > 0 
+              ? `${resultCount} workout${resultCount !== 1 ? 's' : ''} found`
+              : activeFilterCount > 0 || filters.searchQuery.trim().length > 0
+              ? 'No workouts match your filters'
+              : 'Start filtering to find workouts'}
           </Text>
         </View>
-        <View style={styles.applyButtonContainer}>
+        <View style={styles.viewResultsButtonContainer}>
           <Button
-            title="Apply"
+            title="View Results"
             onPress={() => {
-              // Handle apply action
-              console.log('Applying filters:', filters);
+              // Navigate to results or show results
+              console.log('Viewing results with filters:', filters);
             }}
             variant="primary"
-            style={styles.applyButton}
+            style={styles.viewResultsButton}
+            disabled={resultCount === 0}
           />
         </View>
       </View>
@@ -419,15 +605,87 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
     color: colors.text,
   },
+  filterBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  filterBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   resetButton: {
     fontSize: 16,
     color: colors.primary,
     fontWeight: '600',
+  },
+  resetButtonDisabled: {
+    opacity: 0.4,
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  searchInput: {
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  activeFiltersContainer: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingVertical: 12,
+  },
+  activeFiltersScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  activeFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '20',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    marginRight: 8,
+  },
+  activeFilterText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 6,
+  },
+  activeFilterRemove: {
+    color: colors.primary,
+    fontSize: 18,
+    fontWeight: 'bold',
+    lineHeight: 18,
   },
   content: {
     flex: 1,
@@ -439,10 +697,34 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingHorizontal: 16,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+  },
+  sectionBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  sectionBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: colors.textMuted,
     marginBottom: 12,
   },
   chipsContainer: {
@@ -451,13 +733,16 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     marginRight: 8,
+    gap: 6,
   },
   chipSelected: {
     backgroundColor: colors.primary,
@@ -472,68 +757,111 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
-  moreOptionsSection: {
-    marginTop: 32,
-    paddingHorizontal: 16,
-    marginBottom: 24,
+  chipCheckmark: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
-  moreOptionsTitle: {
-    fontSize: 20,
+  chipCount: {
+    fontSize: 11,
+    color: colors.textMuted,
     fontWeight: '600',
-    color: colors.text,
-    marginBottom: 16,
+    marginLeft: 4,
   },
-  accordionSection: {
-    marginBottom: 12,
+  chipCountSelected: {
+    color: '#FFFFFF',
+  },
+  chipPartial: {
+    backgroundColor: colors.primary + '60',
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+  },
+  chipPartialIndicator: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  refineSection: {
+    marginTop: 16,
+    marginHorizontal: 16,
+    padding: 16,
     backgroundColor: colors.surface,
     borderRadius: 12,
-    overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.border,
   },
-  accordionHeader: {
+  refineHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    marginBottom: 12,
   },
-  accordionTitle: {
+  refineTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
-  accordionIcon: {
-    fontSize: 20,
-    color: colors.primary,
-    fontWeight: 'bold',
+  refineSubtitle: {
+    fontSize: 13,
+    color: colors.textMuted,
   },
-  accordionContent: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+  advancedSection: {
+    marginTop: 32,
+    paddingHorizontal: 16,
+    marginBottom: 24,
   },
-  accordionItem: {
+  advancedToggle: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 16,
   },
-  accordionItemSelected: {
-    backgroundColor: colors.primary + '20',
-  },
-  accordionItemText: {
-    fontSize: 15,
+  advancedToggleText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.textSecondary,
   },
-  accordionItemTextSelected: {
-    color: colors.primary,
-    fontWeight: '600',
+  advancedBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
   },
-  checkmark: {
+  advancedBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  resultsPreview: {
+    marginTop: 24,
+    marginHorizontal: 16,
+    padding: 20,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  resultsPreviewText: {
     fontSize: 18,
-    color: colors.primary,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  resultsPreviewHint: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
   },
   bottomBar: {
     flexDirection: 'row',
@@ -561,10 +889,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: '500',
   },
-  applyButtonContainer: {
-    width: 120,
+  viewResultsButtonContainer: {
+    width: 140,
   },
-  applyButton: {
+  viewResultsButton: {
     paddingVertical: 14,
   },
 });
