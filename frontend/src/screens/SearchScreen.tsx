@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,22 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../App';
 import { colors } from '../theme/colors';
 import Button from '../components/Button';
+import { searchExercises, Exercise } from '../services/exerciseService';
+import ExerciseGroupCard from '../components/ExerciseGroupCard';
+import { groupExercises, ExerciseGroup } from '../utils/exerciseGrouping';
+
+type SearchScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Search'>;
+
+type Props = {
+  navigation: SearchScreenNavigationProp;
+};
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -22,12 +34,12 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 // Muscle group hierarchy - parent groups with their sub-muscles
 const MUSCLE_HIERARCHY: Record<string, string[]> = {
-  'Chest': ['Upper Chest', 'Lower Chest'],
-  'Back': ['Upper Back', 'Middle Back', 'Lower Back', 'Lats', 'Traps'],
+  'Chest': ['Upper Chest', 'Mid Chest', 'Lower Chest'],
+  'Back': ['Upper Back', 'Mid Back', 'Lower Back', 'Lats', 'Traps'],
   'Legs': ['Quads', 'Hamstrings', 'Glutes', 'Calves', 'Inner Thighs', 'Outer Thighs'],
-  'Shoulders': ['Front Shoulders', 'Side Shoulders', 'Rear Shoulders', 'Rotator Cuff'],
+  'Shoulders': ['Front Delts', 'Side Delts', 'Rear Delts', 'Rotator Cuff'],
   'Arms': ['Biceps', 'Triceps', 'Forearms'],
-  'Core': ['Abs', 'Obliques', 'Lower Back'],
+  'Core': ['Upper Abs', 'Lower Abs', 'Obliques'],
 };
 
 // Main muscle groups (parent categories)
@@ -65,7 +77,7 @@ interface FilterState {
   movementPatterns: string[];
 }
 
-export default function SearchScreen() {
+export default function SearchScreen({ navigation }: Props) {
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
     muscleGroups: [],
@@ -75,6 +87,11 @@ export default function SearchScreen() {
   });
 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
 
   // Toggle a main muscle group (parent)
   const toggleMuscleGroup = (group: string) => {
@@ -194,13 +211,77 @@ export default function SearchScreen() {
     );
   };
 
-  const getResultCount = () => {
-    const activeCount = getActiveFilterCount();
-    const hasSearch = filters.searchQuery.trim().length > 0;
-    return (activeCount > 0 || hasSearch) ? Math.floor(Math.random() * 50) + 10 : 0;
-  };
+  // Search exercises when filters change
+  const performSearch = useCallback(async (currentFilters: FilterState) => {
+    const activeCount = 
+      currentFilters.muscleGroups.length +
+      currentFilters.subMuscles.length +
+      currentFilters.equipment.length +
+      currentFilters.movementPatterns.length;
+    const hasSearch = currentFilters.searchQuery.trim().length > 0;
+    
+    // Don't search if no filters are active
+    if (activeCount === 0 && !hasSearch) {
+      setExercises([]);
+      setExerciseGroups([]);
+      setIsLoading(false);
+      return;
+    }
 
-  const resultCount = getResultCount();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const searchParams = {
+        searchQuery: currentFilters.searchQuery.trim() || undefined,
+        muscleGroups: currentFilters.muscleGroups.length > 0 ? currentFilters.muscleGroups : undefined,
+        subMuscles: currentFilters.subMuscles.length > 0 ? currentFilters.subMuscles : undefined,
+        equipment: currentFilters.equipment.length > 0 ? currentFilters.equipment : undefined,
+        movementPatterns: currentFilters.movementPatterns.length > 0 ? currentFilters.movementPatterns : undefined,
+      };
+
+      const response = await searchExercises(searchParams);
+      setExercises(response.exercises);
+      // Group exercises by base name
+      const grouped = groupExercises(response.exercises);
+      setExerciseGroups(grouped);
+    } catch (err: any) {
+      console.error('Error searching exercises:', err);
+      setError(err.message || 'Failed to search exercises');
+      setExercises([]);
+      setExerciseGroups([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Debounce search query changes
+  useEffect(() => {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
+    const timeout = setTimeout(() => {
+      performSearch(filters);
+    }, filters.searchQuery.trim().length > 0 ? 500 : 0); // 500ms debounce for text search
+
+    setSearchTimeout(timeout);
+
+    return () => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    };
+  }, [filters.searchQuery, performSearch]);
+
+  // Search immediately when non-text filters change
+  useEffect(() => {
+    if (filters.searchQuery.trim().length === 0) {
+      performSearch(filters);
+    }
+  }, [filters.muscleGroups, filters.subMuscles, filters.equipment, filters.movementPatterns, performSearch]);
+
+  const resultCount = exerciseGroups.length > 0 ? exerciseGroups.length : exercises.length;
   const activeFilterCount = getActiveFilterCount();
 
   // Get all active filters for display
@@ -550,42 +631,86 @@ export default function SearchScreen() {
         </View>
 
         {/* Results Preview Area */}
-        {resultCount > 0 && (
+        {isLoading && (
+          <View style={styles.resultsPreview}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.resultsPreviewHint}>Searching exercises...</Text>
+          </View>
+        )}
+
+        {error && (
+          <View style={styles.resultsPreview}>
+            <Text style={[styles.resultsPreviewText, { color: '#FF6B6B' }]}>
+              Error
+            </Text>
+            <Text style={styles.resultsPreviewHint}>{error}</Text>
+          </View>
+        )}
+
+        {/* Exercise Results List */}
+        {!isLoading && !error && resultCount > 0 && (
+          <View style={styles.resultsSection}>
+            <View style={styles.resultsHeader}>
+              <Text style={styles.resultsHeaderText}>
+                {resultCount} exercise{resultCount !== 1 ? 's' : ''} found
+                {exerciseGroups.length > 0 && exercises.length > exerciseGroups.length && (
+                  <Text style={styles.resultsSubtext}>
+                    {' '}({exercises.length} total including variations)
+                  </Text>
+                )}
+              </Text>
+            </View>
+            {exerciseGroups.map((group, index) => (
+              <ExerciseGroupCard
+                key={`${group.baseName}-${index}`}
+                group={group}
+                onPress={(exercise) => {
+                  navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
+                }}
+                onPressVariation={(exercise) => {
+                  navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
+                }}
+              />
+            ))}
+          </View>
+        )}
+
+        {!isLoading && !error && resultCount === 0 && activeFilterCount > 0 && (
           <View style={styles.resultsPreview}>
             <Text style={styles.resultsPreviewText}>
-              {resultCount} workout{resultCount !== 1 ? 's' : ''} found
+              No exercises found
             </Text>
             <Text style={styles.resultsPreviewHint}>
-              Tap "View Results" below to see workouts
+              Try adjusting your filters
             </Text>
           </View>
         )}
       </ScrollView>
 
-      {/* Sticky Bottom Bar */}
-      <View style={styles.bottomBar}>
-        <View style={styles.resultCountContainer}>
-          <Text style={styles.resultCountText}>
-            {resultCount > 0 
-              ? `${resultCount} workout${resultCount !== 1 ? 's' : ''} found`
-              : activeFilterCount > 0 || filters.searchQuery.trim().length > 0
-              ? 'No workouts match your filters'
-              : 'Start filtering to find workouts'}
-          </Text>
+      {/* Sticky Bottom Bar - Only show when no results or loading */}
+      {(isLoading || resultCount === 0) && (
+        <View style={styles.bottomBar}>
+          <View style={styles.resultCountContainer}>
+            <Text style={styles.resultCountText}>
+              {isLoading
+                ? 'Searching...'
+                : activeFilterCount > 0 || filters.searchQuery.trim().length > 0
+                ? 'No exercises match your filters'
+                : 'Start filtering to find exercises'}
+            </Text>
+          </View>
+          {activeFilterCount > 0 && (
+            <View style={styles.viewResultsButtonContainer}>
+              <Button
+                title="Clear Filters"
+                onPress={resetFilters}
+                variant="secondary"
+                style={styles.viewResultsButton}
+              />
+            </View>
+          )}
         </View>
-        <View style={styles.viewResultsButtonContainer}>
-          <Button
-            title="View Results"
-            onPress={() => {
-              // Navigate to results or show results
-              console.log('Viewing results with filters:', filters);
-            }}
-            variant="primary"
-            style={styles.viewResultsButton}
-            disabled={resultCount === 0}
-          />
-        </View>
-      </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -894,5 +1019,23 @@ const styles = StyleSheet.create({
   },
   viewResultsButton: {
     paddingVertical: 14,
+  },
+  resultsSection: {
+    marginTop: 24,
+    paddingBottom: 20,
+  },
+  resultsHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  resultsHeaderText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  resultsSubtext: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: colors.textMuted,
   },
 });

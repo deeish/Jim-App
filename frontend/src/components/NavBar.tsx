@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from '../screens/HomeScreen';
 import PlanScreen from '../screens/PlanScreen';
 import WorkoutScreen from '../screens/WorkoutScreen';
-import SearchScreen from '../screens/SearchScreen';
+import SearchStackNavigator from '../navigation/SearchStackNavigator';
 import { HomeIcon, CalendarIcon, DumbbellIcon, SearchIcon } from './TabIcons';
 import { colors } from '../theme/colors';
 
@@ -78,7 +78,7 @@ export default function NavBar() {
       />
       <Tab.Screen 
         name="Search" 
-        component={SearchScreen}
+        component={SearchStackNavigator}
         options={{
           tabBarLabel: 'Exercises',
           tabBarIcon: ({ color, focused }) => (

@@ -12,6 +12,8 @@ export type RootStackParamList = {
   Plan: undefined;
   Workout: undefined;
   Search: undefined;
+  ExerciseDetail: { exerciseId: string };
+  WorkoutDetail: { workoutId: string };
 };
 
 export default function App() {
