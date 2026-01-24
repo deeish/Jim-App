@@ -13,8 +13,9 @@ interface ExerciseGroupCardProps {
 export default function ExerciseGroupCard({ group, onPress, onPressVariation }: ExerciseGroupCardProps) {
   const [showVariations, setShowVariations] = useState(false);
   const exercise = group.primaryExercise;
-  const hasVars = hasVariations(group);
   const variationNames = getVariationNames(group);
+  // Only show variations button if there are actual unique variations (different names)
+  const hasVars = variationNames.length > 0;
 
   const handleCardPress = () => {
     if (onPress) {
@@ -42,7 +43,7 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation }: 
             {hasVars && (
               <View style={styles.variationsBadge}>
                 <Text style={styles.variationsBadgeText}>
-                  {group.exercises.length} variants
+                  {variationNames.length} variant{variationNames.length !== 1 ? 's' : ''}
                 </Text>
               </View>
             )}
@@ -97,7 +98,7 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation }: 
             activeOpacity={0.7}
           >
             <Text style={styles.variationsButtonText}>
-              {showVariations ? '▼' : '▶'} Show {group.exercises.length - 1} variation{group.exercises.length - 1 !== 1 ? 's' : ''}
+              {showVariations ? '▼' : '▶'} Show {variationNames.length} variation{variationNames.length !== 1 ? 's' : ''}
             </Text>
           </TouchableOpacity>
         )}
@@ -111,7 +112,11 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation }: 
       {hasVars && showVariations && variationNames.length > 0 && (
         <View style={styles.variationsContainer}>
           {variationNames.map((variationName, index) => {
-            const variationExercise = group.exercises.find(ex => ex.name === variationName);
+            // Find the first exercise with this name (in case of duplicates in dataset)
+            const variationExercise = group.exercises.find(ex => 
+              ex.name.trim().toLowerCase() === variationName.trim().toLowerCase() &&
+              ex.id !== group.primaryExercise.id
+            );
             return (
               <TouchableOpacity
                 key={`${variationName}-${index}`}
@@ -119,7 +124,19 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation }: 
                   styles.variationItem,
                   index === variationNames.length - 1 && styles.variationItemLast
                 ]}
-                onPress={() => handleVariationPress(variationName)}
+                onPress={() => {
+                  if (variationExercise && onPressVariation) {
+                    onPressVariation(variationExercise);
+                  } else {
+                    // Fallback: find any exercise with this name
+                    const fallbackExercise = group.exercises.find(ex => 
+                      ex.name.trim().toLowerCase() === variationName.trim().toLowerCase()
+                    );
+                    if (fallbackExercise && onPressVariation) {
+                      onPressVariation(fallbackExercise);
+                    }
+                  }
+                }}
                 activeOpacity={0.7}
               >
                 <Text style={styles.variationName}>{variationName}</Text>
@@ -130,31 +147,6 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation }: 
         </View>
       )}
       
-      {/* Fallback: If variations should exist but names array is empty, show all exercises except primary */}
-      {hasVars && showVariations && variationNames.length === 0 && (
-        <View style={styles.variationsContainer}>
-          {group.exercises
-            .filter(ex => ex.id !== group.primaryExercise.id)
-            .map((exercise, index) => (
-              <TouchableOpacity
-                key={exercise.id || index}
-                style={[
-                  styles.variationItem,
-                  index === group.exercises.length - 2 && styles.variationItemLast
-                ]}
-                onPress={() => {
-                  if (onPressVariation) {
-                    onPressVariation(exercise);
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.variationName}>{exercise.name}</Text>
-                <Text style={styles.variationArrow}>→</Text>
-              </TouchableOpacity>
-            ))}
-        </View>
-      )}
     </View>
   );
 }

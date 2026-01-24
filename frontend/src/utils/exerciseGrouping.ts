@@ -96,20 +96,37 @@ export function hasVariations(group: ExerciseGroup): boolean {
 
 /**
  * Get variation names (excluding the primary exercise name)
+ * Only returns exercises that have a DIFFERENT name than the primary exercise
+ * Deduplicates by name so each unique variation name appears only once
  */
 export function getVariationNames(group: ExerciseGroup): string[] {
   if (group.exercises.length <= 1) return [];
   
-  // Filter out the primary exercise by ID (more reliable than name matching)
-  const variations = group.exercises.filter(ex => ex.id !== group.primaryExercise.id);
+  const primaryName = group.primaryExercise.name.trim().toLowerCase();
   
-  // If no variations found by ID, try by name (case-insensitive, trimmed)
-  if (variations.length === 0) {
-    const primaryName = group.primaryExercise.name.trim().toLowerCase();
-    return group.exercises
-      .filter(ex => ex.name.trim().toLowerCase() !== primaryName)
-      .map(ex => ex.name);
-  }
+  // Filter out exercises that match the primary exercise by ID OR by name
+  const variations = group.exercises.filter(ex => {
+    // Exclude by ID
+    if (ex.id === group.primaryExercise.id) return false;
+    
+    // Exclude if name matches (case-insensitive, trimmed)
+    const exName = ex.name.trim().toLowerCase();
+    if (exName === primaryName) return false;
+    
+    return true;
+  });
   
-  return variations.map(ex => ex.name);
+  // Get unique variation names (deduplicate by name, case-insensitive)
+  const uniqueNames = new Set<string>();
+  const uniqueVariations: string[] = [];
+  
+  variations.forEach(ex => {
+    const normalizedName = ex.name.trim().toLowerCase();
+    if (!uniqueNames.has(normalizedName)) {
+      uniqueNames.add(normalizedName);
+      uniqueVariations.push(ex.name); // Keep original casing from first occurrence
+    }
+  });
+  
+  return uniqueVariations;
 }

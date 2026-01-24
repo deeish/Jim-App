@@ -20,7 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:mapping": "ts-node scripts/test-exercise-mapping.ts",
     "show:transformation": "ts-node scripts/show-transformation-example.ts",
-    "test:api": "ts-node scripts/test-api.ts"
+    "test:api": "ts-node scripts/test-api.ts",
+    "check:duplicates": "ts-node scripts/check-duplicates.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",
