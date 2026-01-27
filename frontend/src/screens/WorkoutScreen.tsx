@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { CompositeNavigationProp } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getWeeklyWorkouts } from '../services/workoutService';
 import { Workout } from '../types/workout';
 import Button from '../components/Button';
@@ -7,15 +11,22 @@ import ExerciseCard from '../components/ExerciseCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import WorkoutSession from '../components/WorkoutSession';
 import { colors } from '../theme/colors';
+import { RootStackParamList } from '../../App';
+import { RootTabParamList } from '../components/NavBar';
 
 interface WorkoutSessionState {
   workout: Workout;
   currentExerciseIndex: number;
-  currentSetIndex: number;
   startTime: Date;
 }
 
+type WorkoutScreenNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<RootTabParamList, 'Workout'>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
+
 export default function WorkoutScreen() {
+  const navigation = useNavigation<WorkoutScreenNavigationProp>();
   const [todayWorkout, setTodayWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<WorkoutSessionState | null>(null);
@@ -47,12 +58,15 @@ export default function WorkoutScreen() {
     setSession({
       workout: todayWorkout,
       currentExerciseIndex: 0,
-      currentSetIndex: 0,
       startTime: new Date(),
     });
   };
 
-  const handleEndWorkout = () => {
+  const handleEndWorkout = (sessionData?: any) => {
+    if (sessionData) {
+      // Here you could save the workout session data to a backend or local storage
+      console.log('Workout completed:', sessionData);
+    }
     setSession(null);
     loadTodayWorkout(); // Refresh in case workout was updated
   };
@@ -68,6 +82,7 @@ export default function WorkoutScreen() {
         session={session}
         onComplete={handleEndWorkout}
         onUpdate={setSession}
+        navigation={navigation}
       />
     );
   }
@@ -78,7 +93,24 @@ export default function WorkoutScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Today's Workout</Text>
         {todayWorkout && (
-          <Text style={styles.workoutName}>{todayWorkout.name}</Text>
+          <>
+            <Text style={styles.workoutName}>{todayWorkout.name}</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>
+                {todayWorkout.exercises.length} exercises
+              </Text>
+              <Text style={styles.summaryDot}>•</Text>
+              <Text style={styles.summaryText}>
+                ~{todayWorkout.estimatedDuration || Math.ceil(todayWorkout.exercises.length * 3)} min
+              </Text>
+              {todayWorkout.focus && (
+                <>
+                  <Text style={styles.summaryDot}>•</Text>
+                  <Text style={styles.summaryText}>{todayWorkout.focus}</Text>
+                </>
+              )}
+            </View>
+          </>
         )}
       </View>
 
@@ -130,6 +162,21 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.primary,
     fontWeight: '600',
+    marginBottom: 8,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  summaryText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  summaryDot: {
+    fontSize: 14,
+    color: colors.textTertiary,
   },
   content: {
     flex: 1,
