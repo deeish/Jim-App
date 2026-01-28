@@ -8,6 +8,9 @@ import {
   Modal,
   TextInput,
   Alert,
+  Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Workout, ExerciseSession, CompletedSet } from '../types/workout';
 import Button from './Button';
@@ -246,7 +249,6 @@ export default function WorkoutSession({
 
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showEndModal, setShowEndModal] = useState(false);
-  const [showExerciseDetail, setShowExerciseDetail] = useState<number | null>(null);
   const [showNotesModal, setShowNotesModal] = useState<number | null>(null);
   const [exerciseNotes, setExerciseNotes] = useState<Record<number, string>>({});
   const [overallNotes, setOverallNotes] = useState('');
@@ -259,8 +261,23 @@ export default function WorkoutSession({
   const [expandedExerciseIndex, setExpandedExerciseIndex] = useState<number | null>(currentExerciseIndex);
   const [showAdvancedLogging, setShowAdvancedLogging] = useState(false);
   const [showExerciseOptions, setShowExerciseOptions] = useState<number | null>(null);
+  const [showEditPrescriptionModal, setShowEditPrescriptionModal] = useState<number | null>(null);
+  const [focusedSetIndex, setFocusedSetIndex] = useState<number | null>(null);
+  const [toast, setToast] = useState<{ msg: string } | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const scrollViewRef = useRef<ScrollView>(null);
   const exerciseRefs = useRef<Record<number, View | null>>({});
+  const [topSectionHeight, setTopSectionHeight] = useState(0);
+  const topSectionRef = useRef<View>(null);
+
+  const showToast = (msg: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ msg });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = undefined;
+    }, 2000);
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -272,9 +289,18 @@ export default function WorkoutSession({
   }, [session.startTime]);
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    if (seconds < 3600) {
+      // mm:ss format until 59:59
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    } else {
+      // h:mm:ss format after 59:59
+      const hours = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
   };
 
   const getCompletedExercisesCount = () => {
@@ -307,18 +333,23 @@ export default function WorkoutSession({
   };
 
   const handleSetComplete = (exerciseIndex: number, setIndex: number) => {
+    setFocusedSetIndex(null);
     setExerciseSessions((prev) => {
       const updated = [...prev];
-      const wasCompleted = updated[exerciseIndex].completedSets[setIndex].completed;
+      const sets = updated[exerciseIndex].completedSets;
+      const wasCompleted = sets[setIndex].completed;
       updated[exerciseIndex].completedSets[setIndex].completed = !wasCompleted;
-      
-      // Auto-start rest timer after completing a set (if not last set)
-      if (!wasCompleted && setIndex < updated[exerciseIndex].completedSets.length - 1) {
+      // Copy last set: when completing a set, copy its reps/weight to the next set (default for next)
+      if (!wasCompleted && setIndex < sets.length - 1) {
+        const next = setIndex + 1;
+        if (!sets[next].completed) {
+          updated[exerciseIndex].completedSets[next].reps = sets[setIndex].reps;
+          updated[exerciseIndex].completedSets[next].weight = sets[setIndex].weight;
+        }
         setRestTimerSeconds(90);
         setRestTimerActive(true);
         setRestTimerPaused(false);
       }
-      
       return updated;
     });
 
@@ -349,20 +380,112 @@ export default function WorkoutSession({
     });
   };
 
-  const handleAddSet = (exerciseIndex: number) => {
+  const handleSetUpdateDelta = (
+    exerciseIndex: number,
+    setIndex: number,
+    field: 'reps' | 'weight',
+    delta: number
+  ) => {
     setExerciseSessions((prev) => {
       const updated = [...prev];
-      const lastSet = updated[exerciseIndex].completedSets[
-        updated[exerciseIndex].completedSets.length - 1
-      ];
+      const set = updated[exerciseIndex].completedSets[setIndex];
+      if (field === 'reps') {
+        const v = (set.reps ?? 0) + delta;
+        updated[exerciseIndex].completedSets[setIndex].reps = Math.max(1, v);
+      } else {
+        const v = (set.weight ?? 0) + delta;
+        updated[exerciseIndex].completedSets[setIndex].weight = Math.max(0, v);
+      }
+      return updated;
+    });
+  };
+
+  const handleAddSet = (exerciseIndex: number) => {
+    const prevLen = exerciseSessions[exerciseIndex].completedSets.length;
+    const plan = exerciseSessions[exerciseIndex].exercise;
+    const sets = exerciseSessions[exerciseIndex].completedSets;
+    const firstIncomplete = sets.findIndex((s) => !s.completed);
+    const lastSetCompleted = prevLen > 0 && sets[prevLen - 1].completed;
+    const wasOnLastSet =
+      focusedSetIndex === prevLen - 1 || (focusedSetIndex === null && firstIncomplete === prevLen - 1);
+    const shouldJumpToNew =
+      exerciseIndex === currentExerciseIndex && wasOnLastSet && lastSetCompleted;
+
+    setExerciseSessions((prev) => {
+      const updated = [...prev];
+      const arr = updated[exerciseIndex].completedSets;
+      const lastSet = arr.length > 0 ? arr[arr.length - 1] : null;
+      const weight = lastSet?.weight ?? plan.weight ?? 0;
+      const reps = lastSet?.reps ?? plan.reps;
       updated[exerciseIndex].completedSets.push({
-        setNumber: updated[exerciseIndex].completedSets.length + 1,
-        reps: lastSet.reps,
-        weight: lastSet.weight,
+        setNumber: arr.length + 1,
+        reps,
+        weight,
         completed: false,
       });
       return updated;
     });
+    if (shouldJumpToNew) {
+      setFocusedSetIndex(prevLen);
+    }
+    showToast(`Added set (${prevLen + 1} total)`);
+  };
+
+  const handleRemoveSet = (exerciseIndex: number) => {
+    const sets = exerciseSessions[exerciseIndex].completedSets;
+    if (sets.length <= 1) return;
+    const lastSet = sets[sets.length - 1];
+    const shouldConfirm = lastSet.completed; // "has data" = completed
+    const setLabel = sets.length;
+    const newLen = sets.length - 1;
+    const doRemove = () => {
+      setExerciseSessions((prev) => {
+        const u = [...prev];
+        u[exerciseIndex] = {
+          ...prev[exerciseIndex],
+          completedSets: prev[exerciseIndex].completedSets.slice(0, -1),
+        };
+        return u;
+      });
+      setFocusedSetIndex((p) => {
+        if (p === null || exerciseIndex !== currentExerciseIndex) return p;
+        return Math.min(p, newLen - 1);
+      });
+      showToast(`Removed set (${newLen} total)`);
+    };
+    if (shouldConfirm) {
+      Alert.alert(
+        `Remove Set ${setLabel}?`,
+        'This will delete logged data.',
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: doRemove }]
+      );
+    } else {
+      doRemove();
+    }
+  };
+
+  const handleEditPrescriptionSave = (
+    exerciseIndex: number,
+    weight: number,
+    reps: number,
+    applyToRemaining: boolean,
+    rpe?: number
+  ) => {
+    setExerciseSessions((prev) => {
+      const updated = [...prev];
+      const sets = updated[exerciseIndex].completedSets;
+      const incompleteIndices = sets
+        .map((s, i) => (s.completed ? -1 : i))
+        .filter((i) => i >= 0);
+      const toUpdate = applyToRemaining ? incompleteIndices : incompleteIndices.slice(0, 1);
+      toUpdate.forEach((setIdx) => {
+        updated[exerciseIndex].completedSets[setIdx].weight = weight;
+        updated[exerciseIndex].completedSets[setIdx].reps = reps;
+        if (rpe != null) updated[exerciseIndex].completedSets[setIdx].rpe = rpe;
+      });
+      return updated;
+    });
+    setShowEditPrescriptionModal(null);
   };
 
   const scrollToExercise = (index: number) => {
@@ -442,6 +565,7 @@ export default function WorkoutSession({
     setRestTimerActive(false);
     setRestTimerPaused(false);
     setRestTimerSeconds(90);
+    // Auto-transition UI back to lifting state (bottom CTA will reappear automatically)
   };
 
   const handlePrimaryAction = () => {
@@ -449,41 +573,25 @@ export default function WorkoutSession({
       handleEndWorkout();
       return;
     }
-
-    if (restTimerActive) {
-      if (restTimerPaused) {
-        // Resume rest
-        setRestTimerPaused(false);
+    const currentExercise = getCurrentExercise();
+    if (!currentExercise) return;
+    const firstIncompleteIdx = currentExercise.completedSets.findIndex((s) => !s.completed);
+    const effectiveSetIdx = focusedSetIndex ?? firstIncompleteIdx;
+    const targetSet = effectiveSetIdx >= 0 ? currentExercise.completedSets[effectiveSetIdx] : null;
+    const currentDone = !targetSet || targetSet.completed;
+    if (currentDone) {
+      if (currentExerciseIndex < exerciseSessions.length - 1) {
+        setFocusedSetIndex(null);
+        const nextIndex = currentExerciseIndex + 1;
+        setCurrentExerciseIndex(nextIndex);
+        setExpandedExerciseIndex(nextIndex);
+        onUpdate({ ...session, currentExerciseIndex: nextIndex });
+        setTimeout(() => scrollToExercise(nextIndex), 100);
       } else {
-        // Skip rest
-        handleRestTimerComplete();
+        handleEndWorkout();
       }
     } else {
-      const nextSet = getNextIncompleteSet();
-      if (!nextSet) {
-        // Move to next exercise
-        if (currentExerciseIndex < exerciseSessions.length - 1) {
-          const nextIndex = currentExerciseIndex + 1;
-          setCurrentExerciseIndex(nextIndex);
-          setExpandedExerciseIndex(nextIndex);
-          onUpdate({
-            ...session,
-            currentExerciseIndex: nextIndex,
-          });
-          setTimeout(() => {
-            scrollToExercise(nextIndex);
-          }, 100);
-        } else {
-          handleEndWorkout();
-        }
-      } else {
-        // Complete next set
-        const currentExercise = getCurrentExercise();
-        const setIndex = currentExercise.completedSets.findIndex((set) => !set.completed);
-        if (setIndex !== -1) {
-          handleSetComplete(currentExerciseIndex, setIndex);
-        }
-      }
+      handleSetComplete(currentExerciseIndex, effectiveSetIdx);
     }
   };
 
@@ -492,19 +600,23 @@ export default function WorkoutSession({
       return 'Finish Workout';
     }
     if (restTimerActive) {
-      return restTimerPaused ? 'Resume Rest' : 'Skip Rest';
+      return null;
     }
     const currentExercise = getCurrentExercise();
     if (!currentExercise) return 'Start Workout';
-    
-    const completedSetsCount = currentExercise.completedSets.filter((set) => set.completed).length;
     const totalSets = currentExercise.completedSets.length;
-    const nextSet = getNextIncompleteSet();
-    
-    if (!nextSet) {
-      return 'Next Exercise';
+    const firstIncompleteIdx = currentExercise.completedSets.findIndex((s) => !s.completed);
+    const effectiveSetIdx = focusedSetIndex ?? firstIncompleteIdx;
+    const nextSet = effectiveSetIdx >= 0 ? currentExercise.completedSets[effectiveSetIdx] : null;
+    if (!nextSet || nextSet.completed) {
+      // Current exercise fully completed — show "Start [NextExerciseName]" when there is a next exercise
+      if (currentExerciseIndex < exerciseSessions.length - 1) {
+        const nextExercise = exerciseSessions[currentExerciseIndex + 1].exercise;
+        return `Start ${nextExercise.name}`;
+      }
+      return 'Finish Workout';
     }
-    return `Complete Set ${completedSetsCount + 1}/${totalSets}`;
+    return `Complete Set ${effectiveSetIdx + 1}/${totalSets}`;
   };
 
   const currentExerciseSession = exerciseSessions[currentExerciseIndex];
@@ -532,92 +644,81 @@ export default function WorkoutSession({
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.workoutName}>{session.workout.name}</Text>
-            <Text style={styles.workoutDate}>
-              {session.workout.day || new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-            </Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.duration}>
-              {session.workout.estimatedDuration
-                ? `Est. ${session.workout.estimatedDuration} min`
-                : `${formatTime(elapsedTime)} (${Math.floor(elapsedTime / 60)} min)`}
-            </Text>
-            {session.workout.focus && (
-              <Text style={styles.focus}>{session.workout.focus}</Text>
-            )}
-            <TouchableOpacity
-              style={styles.headerMenuButton}
-              onPress={handleEndWorkout}
-            >
-              <Text style={styles.headerMenuButtonText}>⋯</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
-      {/* Session Progress */}
-      <View style={styles.progressSection}>
-        <View style={styles.progressHeader}>
-          <Text style={styles.progressText}>
-            {completedExercises} / {totalExercises} exercises completed
-          </Text>
-          {(() => {
-            const currentExercise = getCurrentExercise();
-            const isCurrentExerciseComplete = currentExercise?.completedSets.every((set) => set.completed);
-            if (isCurrentExerciseComplete && currentExerciseIndex < exerciseSessions.length - 1) {
-              return (
-                <Text style={styles.nextExerciseText}>
-                  Next exercise: {exerciseSessions[currentExerciseIndex + 1].exercise.name}
-                </Text>
-              );
-            }
-            return null;
-          })()}
-        </View>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${progress}%` }]} />
-        </View>
-      </View>
-
-      {/* Rest Timer - Compact banner when active, or Start Rest button */}
-      {restTimerActive ? (
-        <RestBanner
-          seconds={restTimerSeconds}
-          isPaused={restTimerPaused}
-          onPause={() => setRestTimerPaused(true)}
-          onResume={() => setRestTimerPaused(false)}
-          onSkip={handleRestTimerComplete}
-          onAddTime={(additional) => setRestTimerSeconds((prev) => prev + additional)}
-        />
-      ) : (() => {
-        const currentExercise = getCurrentExercise();
-        const completedSetsCount = currentExercise?.completedSets.filter((set) => set.completed).length || 0;
-        const totalSets = currentExercise?.completedSets.length || 0;
-        // Show "Start Rest" if there are completed sets but rest hasn't started
-        if (completedSetsCount > 0 && completedSetsCount < totalSets) {
-          return (
-            <View style={styles.restBanner}>
-              <Text style={styles.restBannerText}>Rest recommended</Text>
+      {/* Header and Progress Section - measured for rest banner positioning */}
+      <View 
+        ref={topSectionRef}
+        onLayout={(event) => {
+          const { height } = event.nativeEvent.layout;
+          setTopSectionHeight(height);
+        }}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.workoutName}>{session.workout.name}</Text>
+              <Text style={styles.workoutDate}>
+                {session.workout.day || new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+              </Text>
+            </View>
+            <View style={styles.headerRight}>
+              <Text style={styles.duration}>
+                {session.workout.estimatedDuration
+                  ? `Est. ${session.workout.estimatedDuration} min`
+                  : `Elapsed ${formatTime(elapsedTime)}`}
+              </Text>
+              {session.workout.focus && (
+                <Text style={styles.focus}>{session.workout.focus}</Text>
+              )}
               <TouchableOpacity
-                style={styles.restBannerButton}
-                onPress={() => {
-                  setRestTimerSeconds(90);
-                  setRestTimerActive(true);
-                  setRestTimerPaused(false);
-                }}
+                style={styles.headerMenuButton}
+                onPress={handleEndWorkout}
               >
-                <Text style={styles.restBannerButtonText}>Start Rest</Text>
+                <Text style={styles.headerMenuButtonText}>⋯</Text>
               </TouchableOpacity>
             </View>
-          );
-        }
-        return null;
-      })()}
+          </View>
+        </View>
+
+        {/* Session Progress */}
+        <View style={styles.progressSection}>
+          <View style={styles.progressHeader}>
+            <Text style={styles.progressText}>
+              {completedExercises} / {totalExercises} exercises completed
+            </Text>
+            {(() => {
+              const currentExercise = getCurrentExercise();
+              const isCurrentExerciseComplete = currentExercise?.completedSets.every((set) => set.completed);
+              // Only show next exercise if current exercise is complete
+              if (isCurrentExerciseComplete && currentExerciseIndex < exerciseSessions.length - 1) {
+                return (
+                  <Text style={styles.nextExerciseText}>
+                    Next exercise: {exerciseSessions[currentExerciseIndex + 1].exercise.name}
+                  </Text>
+                );
+              }
+              return null;
+            })()}
+          </View>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: `${progress}%` }]} />
+          </View>
+        </View>
+      </View>
+
+      {/* Rest Timer - Overlay banner (doesn't take layout space) */}
+      {restTimerActive && (
+        <View style={[styles.restBannerOverlay, { top: topSectionHeight }]}>
+          <RestBanner
+            seconds={restTimerSeconds}
+            isPaused={restTimerPaused}
+            onPause={() => setRestTimerPaused(true)}
+            onResume={() => setRestTimerPaused(false)}
+            onSkip={handleRestTimerComplete}
+            onAddTime={(additional) => setRestTimerSeconds((prev) => prev + additional)}
+          />
+        </View>
+      )}
 
       {/* Exercise List */}
       <ScrollView 
@@ -637,30 +738,16 @@ export default function WorkoutSession({
               index={index}
               isCurrent={index === currentExerciseIndex}
               isExpanded={expandedExerciseIndex === index}
-              onExpand={() => {
-                // Auto-collapse others when expanding a new one
-                setExpandedExerciseIndex(index);
-                if (index !== currentExerciseIndex) {
-                  setCurrentExerciseIndex(index);
-                  onUpdate({
-                    ...session,
-                    currentExerciseIndex: index,
-                  });
-                }
-                setTimeout(() => {
-                  scrollToExercise(index);
-                }, 100);
-              }}
               onCollapse={() => {
-                // Don't allow collapsing the current exercise
-                if (index !== currentExerciseIndex) {
-                  setExpandedExerciseIndex(null);
-                }
+                // Collapse this card (including active) to compact state: title + prescription + set pills
+                setExpandedExerciseIndex(null);
               }}
               onSetComplete={handleSetComplete}
               onSetUpdate={handleSetUpdate}
+              onSetUpdateDelta={handleSetUpdateDelta}
               onAddSet={handleAddSet}
-              onExercisePress={() => setShowExerciseDetail(index)}
+              onRemoveSet={handleRemoveSet}
+              restTimerActive={restTimerActive}
               onNotesPress={() => setShowNotesModal(index)}
               onOptionsPress={() => setShowExerciseOptions(index)}
               notes={exerciseNotes[index] || ''}
@@ -669,28 +756,24 @@ export default function WorkoutSession({
               onToggleAdvancedLogging={() => setShowAdvancedLogging(!showAdvancedLogging)}
               onSkip={handleSkipExercise}
               onReplace={handleReplaceExercise}
+              exercise={exerciseSession.exercise}
+              onEditPrescription={() => setShowEditPrescriptionModal(index)}
+              focusedSetIndex={index === currentExerciseIndex ? focusedSetIndex : null}
+              onFocusSet={(setIdx) => setFocusedSetIndex(setIdx)}
             />
           </View>
         ))}
       </ScrollView>
 
-      {/* Primary CTA */}
-      <View style={styles.footer}>
-        <Button
-          title={getPrimaryActionLabel()}
-          onPress={handlePrimaryAction}
-          style={styles.primaryButton}
-        />
-      </View>
-
-      {/* Exercise Detail Modal */}
-      {showExerciseDetail !== null && (
-        <ExerciseDetailModal
-          visible={showExerciseDetail !== null}
-          exercise={exerciseSessions[showExerciseDetail].exercise}
-          onClose={() => setShowExerciseDetail(null)}
-          navigation={navigation}
-        />
+      {/* Primary CTA - Hidden during rest */}
+      {!restTimerActive && (
+        <View style={styles.footer}>
+          <Button
+            title={getPrimaryActionLabel() || 'Continue'}
+            onPress={handlePrimaryAction}
+            style={styles.primaryButton}
+          />
+        </View>
       )}
 
       {/* Exercise Options Modal */}
@@ -714,8 +797,38 @@ export default function WorkoutSession({
             setShowExerciseOptions(null);
             setShowNotesModal(showExerciseOptions);
           }}
+          onAddSet={() => {
+            if (showExerciseOptions !== null) {
+              handleAddSet(showExerciseOptions);
+            }
+          }}
+          onToggleAdvancedLogging={() => setShowAdvancedLogging(!showAdvancedLogging)}
+          showAdvancedLogging={showAdvancedLogging}
         />
       )}
+
+      {/* Edit Prescription Modal */}
+      {showEditPrescriptionModal !== null && (() => {
+        const es = exerciseSessions[showEditPrescriptionModal];
+        const nextSet = es?.completedSets.find((s) => !s.completed);
+        const defaultWeight = nextSet?.weight ?? es?.exercise?.weight ?? 0;
+        const defaultReps = nextSet?.reps ?? es?.exercise?.reps ?? 10;
+        const defaultRpe = nextSet?.rpe;
+        return (
+          <EditPrescriptionModal
+            visible={true}
+            exerciseName={es?.exercise?.name ?? ''}
+            initialWeight={defaultWeight}
+            initialReps={defaultReps}
+            initialRpe={defaultRpe}
+            hasRemainingSets={(es?.completedSets.filter((s) => !s.completed).length ?? 0) > 1}
+            onSave={(weight, reps, applyToRemaining, rpe) =>
+              handleEditPrescriptionSave(showEditPrescriptionModal, weight, reps, applyToRemaining, rpe)
+            }
+            onClose={() => setShowEditPrescriptionModal(null)}
+          />
+        );
+      })()}
 
       {/* Notes Modal */}
       {showNotesModal !== null && (
@@ -778,6 +891,13 @@ export default function WorkoutSession({
           </View>
         </View>
       </Modal>
+
+      {/* Toast: "Added set (4 total)" / "Removed set (3 total)" */}
+      {toast && (
+        <View style={styles.toastContainer}>
+          <Text style={styles.toastText}>{toast.msg}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -788,12 +908,13 @@ function ExerciseCard({
   index,
   isCurrent,
   isExpanded,
-  onExpand,
   onCollapse,
   onSetComplete,
   onSetUpdate,
+  onSetUpdateDelta,
   onAddSet,
-  onExercisePress,
+  onRemoveSet,
+  restTimerActive = false,
   onNotesPress,
   onOptionsPress,
   notes,
@@ -802,17 +923,22 @@ function ExerciseCard({
   onToggleAdvancedLogging,
   onSkip,
   onReplace,
+  exercise,
+  onEditPrescription,
+  focusedSetIndex,
+  onFocusSet,
 }: {
   exerciseSession: ExerciseSession;
   index: number;
   isCurrent: boolean;
   isExpanded: boolean;
-  onExpand: () => void;
   onCollapse: () => void;
   onSetComplete: (exerciseIndex: number, setIndex: number) => void;
   onSetUpdate: (exerciseIndex: number, setIndex: number, field: 'reps' | 'weight' | 'rpe', value: number) => void;
+  onSetUpdateDelta: (exerciseIndex: number, setIndex: number, field: 'reps' | 'weight', delta: number) => void;
   onAddSet: (exerciseIndex: number) => void;
-  onExercisePress: () => void;
+  onRemoveSet: (exerciseIndex: number) => void;
+  restTimerActive?: boolean;
   onNotesPress: () => void;
   onOptionsPress: () => void;
   notes: string;
@@ -821,24 +947,37 @@ function ExerciseCard({
   onToggleAdvancedLogging: () => void;
   onSkip: () => void;
   onReplace: () => void;
+  exercise: any;
+  onEditPrescription: () => void;
+  focusedSetIndex: number | null;
+  onFocusSet: (setIndex: number) => void;
 }) {
-  const exercise = exerciseSession.exercise;
+  const [showHistoryExpanded, setShowHistoryExpanded] = useState(false);
+  const [weightStep, setWeightStep] = useState(5);
+  const [editingReps, setEditingReps] = useState(false);
+  const [editingWeight, setEditingWeight] = useState(false);
+  const [editRepsValue, setEditRepsValue] = useState('');
+  const [editWeightValue, setEditWeightValue] = useState('');
+  const repeatRef = useRef<{ timeout?: ReturnType<typeof setTimeout>; interval?: ReturnType<typeof setInterval> }>({});
+  const exerciseData = exercise || exerciseSession.exercise;
+  const firstIncompleteIdx = exerciseSession.completedSets.findIndex((s) => !s.completed);
+  const nextSetIdx = focusedSetIndex ?? firstIncompleteIdx;
+  useEffect(() => {
+    setEditingReps(false);
+    setEditingWeight(false);
+  }, [nextSetIdx]);
   const completedSets = exerciseSession.completedSets.filter((set) => set.completed);
   const lastWeight = completedSets.length > 0 
     ? completedSets[completedSets.length - 1].weight 
-    : exercise.weight;
+    : exerciseData.weight;
 
-  // Collapsed view
+  // Collapsed view: title + prescription + set pills. Not clickable; expansion follows current exercise.
   if (!isExpanded) {
     return (
-      <TouchableOpacity
-        style={[styles.exerciseCardCollapsed, isCurrent && styles.exerciseCardCurrent]}
-        onPress={onExpand}
-        activeOpacity={0.7}
-      >
+      <View style={[styles.exerciseCardCollapsed, isCurrent && styles.exerciseCardCurrent]}>
         <View style={styles.exerciseCardCollapsedContent}>
           <View style={styles.exerciseCardCollapsedHeader}>
-            <Text style={styles.exerciseCardNameCollapsed}>{exercise.name}</Text>
+            <Text style={styles.exerciseCardNameCollapsed}>{exerciseData.name}</Text>
             {isCurrent && (
               <View style={styles.activeBadge}>
                 <Text style={styles.activeBadgeText}>Active</Text>
@@ -846,45 +985,57 @@ function ExerciseCard({
             )}
           </View>
           <Text style={styles.exerciseCardInfoCollapsed}>
-            {exercise.sets}×{exercise.reps}
-            {lastWeight ? ` @ ${lastWeight}` : exercise.weight ? ` @ ${exercise.weight}` : ''}
+            {exerciseSession.completedSets.length}×{exerciseData.reps}
+            {exerciseData.weight === 0 || (!exerciseData.weight && !lastWeight) ? ' (BW)' : (lastWeight || exerciseData.weight) ? ` @ ${lastWeight || exerciseData.weight}` : ''}
           </Text>
+          <View style={styles.exerciseCardCollapsedPills}>
+            {exerciseSession.completedSets.map((set, setIdx) => (
+              <View
+                key={setIdx}
+                style={[
+                  styles.setTrackerPillCollapsed,
+                  set.completed && styles.setTrackerPillCompleted,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.setTrackerPillText,
+                    set.completed && styles.setTrackerPillTextCompleted,
+                  ]}
+                >
+                  {set.completed ? '✓' : setIdx + 1}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
-        <TouchableOpacity
-          onPress={(e) => {
-            e.stopPropagation();
-            onOptionsPress();
-          }}
-          style={styles.optionsButton}
-        >
+        <TouchableOpacity onPress={onOptionsPress} style={styles.optionsButton}>
           <Text style={styles.optionsButtonText}>⋯</Text>
         </TouchableOpacity>
-      </TouchableOpacity>
+      </View>
     );
   }
 
-  // Expanded view
+  // Expanded view — Row 1: title+ACTIVE, Row 2: Plan (tappable) + Last, Row 3: pills + Set N/total, Row 4: Reps/Weight steppers, compact log
+  const nextSet = nextSetIdx >= 0 ? exerciseSession.completedSets[nextSetIdx] : null;
+  const completedCount = exerciseSession.completedSets.filter((s) => s.completed).length;
+  const totalSets = exerciseSession.completedSets.length;
+  const lastCompleted = completedCount > 0 ? exerciseSession.completedSets[completedCount - 1] : null;
+  const planLabel = `Plan: ${exerciseData.sets}×${exerciseData.reps}${exerciseData.weight != null && exerciseData.weight !== 0 ? ` @ ${exerciseData.weight}` : exerciseData.weight === 0 ? ' (BW)' : ''}`;
+
   return (
     <View style={[styles.exerciseCard, isCurrent && styles.exerciseCardCurrent]}>
-      <View style={styles.exerciseCardHeader}>
+      {/* Row 1: Exercise name + ACTIVE badge + options/collapse */}
+      <View style={[styles.exerciseCardHeader, isCurrent && styles.exerciseCardHeaderCurrent]}>
         <View style={styles.exerciseCardHeaderLeft}>
           <View style={styles.exerciseCardHeaderTitleRow}>
-            <Text style={styles.exerciseCardName}>{exercise.name}</Text>
+            <Text style={styles.exerciseCardName}>{exerciseData.name}</Text>
             {isCurrent && (
               <View style={styles.activeBadge}>
                 <Text style={styles.activeBadgeText}>Active</Text>
               </View>
             )}
           </View>
-          {exercise.targetMuscles && exercise.targetMuscles.length > 0 && (
-            <View style={styles.muscleTags}>
-              {exercise.targetMuscles.slice(0, 3).map((muscle, i) => (
-                <View key={i} style={styles.muscleTag}>
-                  <Text style={styles.muscleTagText}>{muscle}</Text>
-                </View>
-              ))}
-            </View>
-          )}
         </View>
         <View style={styles.exerciseCardHeaderRight}>
           <TouchableOpacity onPress={onOptionsPress} style={styles.optionsButton}>
@@ -896,70 +1047,251 @@ function ExerciseCard({
         </View>
       </View>
 
-      <Text style={styles.exerciseCardInfo}>
-        {exercise.sets}×{exercise.reps}
-        {exercise.weight ? ` @ ${exercise.weight}` : ''}
-      </Text>
-
-      {/* Completed Sets (read-only) */}
-      {completedSets.length > 0 && (
-        <View style={styles.completedSetsContainer}>
-          <Text style={styles.completedSetsLabel}>Completed:</Text>
-          <View style={styles.completedSetsList}>
-            {completedSets.map((set, i) => (
-              <View key={i} style={styles.completedSetBadge}>
-                <Text style={styles.completedSetText}>
-                  {set.reps}×{set.weight ? set.weight : 'BW'}
-                  {showAdvancedLogging && set.rpe && ` • RPE ${set.rpe}`}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
+      {/* Row 2: Plan (tappable) + optional "Last: 7 @ 215" */}
+      <View style={[styles.prescriptionRow, isCurrent && styles.prescriptionRowTappable]}>
+        {isCurrent ? (
+          <TouchableOpacity
+            style={styles.prescriptionRowTouchable}
+            onPress={onEditPrescription}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.exerciseCardInfo}>{planLabel}</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.exerciseCardInfo}>{planLabel}</Text>
+        )}
+      </View>
+      {lastCompleted != null && (
+        <Text style={styles.lastSetLine}>
+          Last set today: {lastCompleted.reps}×{lastCompleted.weight != null && lastCompleted.weight > 0 ? lastCompleted.weight : 'BW'}
+        </Text>
       )}
 
-      {/* Set Tracker */}
+      {/* Row 3: Set pills (tappable when active) + Set x/y + [ – ] [ + ] */}
       <View style={styles.setTrackerContainer}>
-        <Text style={styles.setTrackerLabel}>
-          Sets: {completedSets.length}/{exerciseSession.completedSets.length}
-        </Text>
         <View style={styles.setTrackerDots}>
+          {exerciseSession.completedSets.map((set, setIdx) => {
+            const isFocused = isCurrent && nextSetIdx === setIdx;
+            const isFuture = !set.completed && !isFocused;
+            const pill = (
+              <View
+                key={setIdx}
+                style={[
+                  styles.setTrackerPill,
+                  set.completed && styles.setTrackerPillCompleted,
+                  isFocused && styles.setTrackerPillFocused,
+                  isFuture && styles.setTrackerPillFuture,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.setTrackerPillText,
+                    set.completed && styles.setTrackerPillTextCompleted,
+                    isFocused && !set.completed && styles.setTrackerPillTextFocused,
+                    isFuture && styles.setTrackerPillTextFuture,
+                  ]}
+                >
+                  {set.completed ? '✓' : setIdx + 1}
+                </Text>
+              </View>
+            );
+            if (isCurrent && onFocusSet) {
+              return (
+                <TouchableOpacity
+                  key={setIdx}
+                  onPress={() => onFocusSet(setIdx)}
+                  activeOpacity={0.7}
+                >
+                  {pill}
+                </TouchableOpacity>
+              );
+            }
+            return pill;
+          })}
+        </View>
+        <View style={styles.setTrackerRightRow}>
+          <Text style={styles.setProgressLabel}>
+            Set {nextSetIdx >= 0 ? nextSetIdx + 1 : totalSets}/{totalSets}
+          </Text>
+          {isCurrent && (
+            <>
+              <TouchableOpacity
+                style={[styles.setPillControl, (totalSets <= 1 || restTimerActive) && styles.setPillControlDisabled]}
+                onPress={() => onRemoveSet(index)}
+                disabled={totalSets <= 1 || restTimerActive}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Text style={[styles.setPillControlText, (totalSets <= 1 || restTimerActive) && styles.setPillControlTextDisabled]}>−</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.setPillControl, restTimerActive && styles.setPillControlDisabled]}
+                onPress={() => onAddSet(index)}
+                disabled={restTimerActive}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Text style={[styles.setPillControlText, restTimerActive && styles.setPillControlTextDisabled]}>+</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
+
+      {/* Row 4: Reps / Weight steppers — tap value to type, long-press +/- to repeat, weight step 5/2.5/10 */}
+      {isCurrent && nextSet != null && (() => {
+        const stepReps = (delta: number) => onSetUpdateDelta(index, nextSetIdx, 'reps', delta);
+        const stepWeight = (delta: number) => onSetUpdateDelta(index, nextSetIdx, 'weight', delta);
+        const startRepeat = (delta: number, field: 'reps' | 'weight') => {
+          const step = () => (field === 'reps' ? stepReps(delta) : stepWeight(delta));
+          step();
+          repeatRef.current.timeout = setTimeout(() => {
+            repeatRef.current.interval = setInterval(step, 100);
+          }, 500);
+        };
+        const stopRepeat = () => {
+          if (repeatRef.current.timeout) clearTimeout(repeatRef.current.timeout);
+          if (repeatRef.current.interval) clearInterval(repeatRef.current.interval);
+          repeatRef.current = {};
+        };
+        return (
+          <View style={styles.loggingControlsRow}>
+            <View style={styles.stepperBlock}>
+              <Text style={styles.stepperLabel}>Reps</Text>
+              <View style={styles.stepper}>
+                <TouchableOpacity
+                  style={styles.stepperButton}
+                  onPressIn={() => startRepeat(-1, 'reps')}
+                  onPressOut={stopRepeat}
+                >
+                  <Text style={styles.stepperButtonText}>−</Text>
+                </TouchableOpacity>
+                {editingReps ? (
+                  <TextInput
+                    style={styles.stepperValueInput}
+                    value={editRepsValue}
+                    onChangeText={setEditRepsValue}
+                    keyboardType="number-pad"
+                    autoFocus
+                    onBlur={() => {
+                      const n = parseInt(editRepsValue, 10);
+                      if (!isNaN(n) && n >= 1) onSetUpdate(index, nextSetIdx, 'reps', n);
+                      setEditingReps(false);
+                    }}
+                  />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.stepperValueTouch}
+                    onPress={() => {
+                      setEditRepsValue(String(nextSet.reps));
+                      setEditingReps(true);
+                    }}
+                  >
+                    <Text style={styles.stepperValue}>{nextSet.reps}</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.stepperButton}
+                  onPressIn={() => startRepeat(1, 'reps')}
+                  onPressOut={stopRepeat}
+                >
+                  <Text style={styles.stepperButtonText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.stepperBlock}>
+              <Text style={styles.stepperLabel}>Weight</Text>
+              <View style={styles.stepper}>
+                <TouchableOpacity
+                  style={styles.stepperButton}
+                  onPressIn={() => startRepeat(-weightStep, 'weight')}
+                  onPressOut={stopRepeat}
+                >
+                  <Text style={styles.stepperButtonText}>−</Text>
+                </TouchableOpacity>
+                {editingWeight ? (
+                  <TextInput
+                    style={styles.stepperValueInput}
+                    value={editWeightValue}
+                    onChangeText={setEditWeightValue}
+                    keyboardType="decimal-pad"
+                    autoFocus
+                    onBlur={() => {
+                      const s = editWeightValue.trim();
+                      const n = s === '' || s.toLowerCase() === 'bw' ? 0 : parseFloat(s);
+                      if (!isNaN(n) && n >= 0) onSetUpdate(index, nextSetIdx, 'weight', n);
+                      setEditingWeight(false);
+                    }}
+                  />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.stepperValueTouch}
+                    onPress={() => {
+                      setEditWeightValue(nextSet.weight != null ? String(nextSet.weight) : '');
+                      setEditingWeight(true);
+                    }}
+                  >
+                    <Text style={styles.stepperValue}>
+                      {nextSet.weight != null && nextSet.weight > 0 ? nextSet.weight : 'BW'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.stepperButton}
+                  onPressIn={() => startRepeat(weightStep, 'weight')}
+                  onPressOut={stopRepeat}
+                >
+                  <Text style={styles.stepperButtonText}>+</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.weightStepRow}>
+                {([5, 2.5, 10] as const).map((step) => (
+                  <TouchableOpacity
+                    key={String(step)}
+                    style={[styles.weightStepChip, weightStep === step && styles.weightStepChipActive]}
+                    onPress={() => setWeightStep(step)}
+                  >
+                    <Text style={[styles.weightStepChipText, weightStep === step && styles.weightStepChipTextActive]}>
+                      {step}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        );
+      })()}
+
+      {/* "View sets" / chevron — history hidden by default */}
+      {totalSets > 0 && (
+        <TouchableOpacity
+          style={styles.viewSetsRow}
+          onPress={() => setShowHistoryExpanded((v) => !v)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.viewSetsLabel}>
+            {showHistoryExpanded ? 'Hide sets' : 'View sets'}
+          </Text>
+          <Text style={styles.viewSetsChevron}>{showHistoryExpanded ? ' ⌃' : ' ›'}</Text>
+        </TouchableOpacity>
+      )}
+      {totalSets > 0 && showHistoryExpanded && (
+        <View style={styles.compactLogRow}>
           {exerciseSession.completedSets.map((set, setIdx) => (
-            <View key={setIdx} style={styles.setTrackerDot}>
-              <Text style={[
-                styles.setTrackerDotText,
-                set.completed && styles.setTrackerDotCompleted
-              ]}>
-                {set.completed ? '✓' : '○'}
+            <View key={setIdx} style={styles.setHistoryChip}>
+              <Text style={styles.setHistoryChipText}>
+                {setIdx + 1}: {set.completed ? `${set.reps}×${set.weight != null && set.weight > 0 ? set.weight : 'BW'}` : '—'}
               </Text>
             </View>
           ))}
         </View>
-      </View>
-
-      {/* Add Set Button */}
-      <TouchableOpacity
-        style={styles.addSetButton}
-        onPress={() => onAddSet(index)}
-      >
-        <Text style={styles.addSetButtonText}>+ Add Set</Text>
-      </TouchableOpacity>
+      )}
 
       {notes && (
         <View style={styles.exerciseNotesPreview}>
           <Text style={styles.exerciseNotesPreviewText}>{notes}</Text>
         </View>
       )}
-
-      {/* Advanced Logging Toggle */}
-      <TouchableOpacity
-        style={styles.advancedToggle}
-        onPress={onToggleAdvancedLogging}
-      >
-        <Text style={styles.advancedToggleText}>
-          {showAdvancedLogging ? '− Hide RPE' : '+ Add RPE'}
-        </Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -1065,6 +1397,9 @@ function ExerciseOptionsModal({
   onEditLoad,
   onSkip,
   onNotes,
+  onAddSet,
+  onToggleAdvancedLogging,
+  showAdvancedLogging,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -1072,6 +1407,9 @@ function ExerciseOptionsModal({
   onEditLoad: () => void;
   onSkip: () => void;
   onNotes: () => void;
+  onAddSet: () => void;
+  onToggleAdvancedLogging: () => void;
+  showAdvancedLogging: boolean;
 }) {
   return (
     <Modal
@@ -1098,6 +1436,26 @@ function ExerciseOptionsModal({
             <TouchableOpacity style={styles.optionItem} onPress={onSwap}>
               <Text style={styles.optionItemText}>Swap Exercise</Text>
             </TouchableOpacity>
+
+            <View style={styles.optionDivider} />
+
+            <TouchableOpacity style={styles.optionItem} onPress={() => {
+              onAddSet();
+              onClose();
+            }}>
+              <Text style={styles.optionItemText}>+ Add Set</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.optionItem} onPress={() => {
+              onToggleAdvancedLogging();
+              onClose();
+            }}>
+              <Text style={styles.optionItemText}>
+                {showAdvancedLogging ? '− Hide RPE' : '+ Add RPE'}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.optionDivider} />
+
             <TouchableOpacity style={[styles.optionItem, styles.optionItemDestructive]} onPress={onSkip}>
               <Text style={[styles.optionItemText, styles.optionItemDestructiveText]}>Skip Exercise</Text>
             </TouchableOpacity>
@@ -1108,18 +1466,45 @@ function ExerciseOptionsModal({
   );
 }
 
-// Exercise Detail Modal
-function ExerciseDetailModal({
+// Edit Set Modal (bottom sheet) — Weight/Reps steppers, optional RPE, Apply to remaining
+function EditPrescriptionModal({
   visible,
-  exercise,
+  exerciseName,
+  initialWeight,
+  initialReps,
+  initialRpe,
+  hasRemainingSets,
+  onSave,
   onClose,
-  navigation,
 }: {
   visible: boolean;
-  exercise: any;
+  exerciseName: string;
+  initialWeight: number;
+  initialReps: number;
+  initialRpe?: number;
+  hasRemainingSets: boolean;
+  onSave: (weight: number, reps: number, applyToRemaining: boolean, rpe?: number) => void;
   onClose: () => void;
-  navigation?: NativeStackNavigationProp<RootStackParamList>;
 }) {
+  const [weight, setWeight] = useState(initialWeight);
+  const [reps, setReps] = useState(initialReps);
+  const [rpe, setRpe] = useState<number | undefined>(initialRpe);
+  const [applyToRemaining, setApplyToRemaining] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setWeight(initialWeight);
+      setReps(initialReps);
+      setRpe(initialRpe);
+      setApplyToRemaining(false);
+    }
+  }, [visible, initialWeight, initialReps, initialRpe]);
+
+  const handleSave = () => {
+    if (reps < 1) return;
+    onSave(weight, reps, applyToRemaining, rpe);
+  };
+
   return (
     <Modal
       visible={visible}
@@ -1127,34 +1512,114 @@ function ExerciseDetailModal({
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.exerciseDetailModal}>
-          <View style={styles.exerciseDetailHeader}>
-            <Text style={styles.exerciseDetailTitle}>{exercise.name}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={styles.modalCloseText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.exerciseDetailContent}>
-            {exercise.notes && (
-              <View style={styles.exerciseDetailSection}>
-                <Text style={styles.exerciseDetailSectionTitle}>Form Cues</Text>
-                <Text style={styles.exerciseDetailText}>{exercise.notes}</Text>
+      <TouchableOpacity
+        style={styles.editPrescriptionOverlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <View style={styles.editPrescriptionModalContainer}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={styles.editPrescriptionModal}
+          >
+            <View style={styles.editPrescriptionModalHandle} />
+            <View style={styles.editPrescriptionModalHeader}>
+              <View style={styles.editPrescriptionModalHeaderText}>
+                <Text style={styles.editPrescriptionModalTitle}>Edit set</Text>
+                <Text style={styles.editPrescriptionModalSubtitle} numberOfLines={1}>
+                  {exerciseName}
+                </Text>
               </View>
-            )}
-            {exercise.exerciseId && navigation && (
+              <TouchableOpacity onPress={onClose} style={styles.editPrescriptionModalClose}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.editPrescriptionModalBody}>
+              <View style={styles.editPrescriptionField}>
+                <Text style={styles.editPrescriptionLabel}>Weight (lbs)</Text>
+                <View style={styles.editModalStepperRow}>
+                  <TouchableOpacity
+                    style={styles.stepperButton}
+                    onPress={() => setWeight((w) => Math.max(0, w - 5))}
+                  >
+                    <Text style={styles.stepperButtonText}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.editModalStepperValue}>{weight}</Text>
+                  <TouchableOpacity
+                    style={styles.stepperButton}
+                    onPress={() => setWeight((w) => w + 5)}
+                  >
+                    <Text style={styles.stepperButtonText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.editPrescriptionField}>
+                <Text style={styles.editPrescriptionLabel}>Reps</Text>
+                <View style={styles.editModalStepperRow}>
+                  <TouchableOpacity
+                    style={styles.stepperButton}
+                    onPress={() => setReps((r) => Math.max(1, r - 1))}
+                  >
+                    <Text style={styles.stepperButtonText}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.editModalStepperValue}>{reps}</Text>
+                  <TouchableOpacity
+                    style={styles.stepperButton}
+                    onPress={() => setReps((r) => r + 1)}
+                  >
+                    <Text style={styles.stepperButtonText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.editPrescriptionField}>
+                <Text style={styles.editPrescriptionLabel}>RPE (optional)</Text>
+                <View style={styles.editModalStepperRow}>
+                  <TouchableOpacity
+                    style={styles.stepperButton}
+                    onPress={() => setRpe((v) => (v == null ? undefined : v <= 1 ? undefined : v - 1))}
+                  >
+                    <Text style={styles.stepperButtonText}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.editModalStepperValue}>{rpe ?? '—'}</Text>
+                  <TouchableOpacity
+                    style={styles.stepperButton}
+                    onPress={() => setRpe((v) => Math.min(10, (v ?? 0) + 1))}
+                  >
+                    <Text style={styles.stepperButtonText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {hasRemainingSets && (
+                <View style={styles.editPrescriptionToggleRow}>
+                  <Text style={styles.editPrescriptionToggleLabel}>
+                    Apply to remaining sets
+                  </Text>
+                  <Switch
+                    value={applyToRemaining}
+                    onValueChange={setApplyToRemaining}
+                    trackColor={{ false: colors.border, true: colors.primary + '80' }}
+                    thumbColor={applyToRemaining ? colors.primary : colors.textTertiary}
+                  />
+                </View>
+              )}
+            </View>
+            <View style={styles.editPrescriptionModalFooter}>
               <Button
-                title="View Full Details"
-                onPress={() => {
-                  onClose();
-                  navigation.navigate('ExerciseDetail', { exerciseId: exercise.exerciseId });
-                }}
-                style={styles.exerciseDetailButton}
+                title="Cancel"
+                onPress={onClose}
+                variant="secondary"
+                style={styles.editPrescriptionModalButton}
               />
-            )}
-          </ScrollView>
+              <Button
+                title="Save"
+                onPress={handleSave}
+                style={styles.editPrescriptionModalButton}
+              />
+            </View>
+          </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     </Modal>
   );
 }
@@ -1240,6 +1705,8 @@ function WorkoutFinishScreen({
   onComplete: () => void;
   onBack: () => void;
 }) {
+  const [isSaved, setIsSaved] = useState(false);
+  
   const totalSets = exerciseSessions.reduce(
     (total, es) => total + es.completedSets.filter((set) => set.completed).length,
     0
@@ -1254,9 +1721,26 @@ function WorkoutFinishScreen({
   }, 0);
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    if (seconds < 3600) {
+      // mm:ss format until 59:59
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    } else {
+      // h:mm:ss format after 59:59
+      const hours = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+  };
+
+  const handleSave = () => {
+    setIsSaved(true);
+    // Auto-complete after showing saved state
+    setTimeout(() => {
+      onComplete();
+    }, 1000);
   };
 
   return (
@@ -1266,7 +1750,7 @@ function WorkoutFinishScreen({
       <View style={styles.finishStats}>
         <View style={styles.finishStat}>
           <Text style={styles.finishStatValue}>{formatTime(elapsedTime)}</Text>
-          <Text style={styles.finishStatLabel}>Total Time ({Math.floor(elapsedTime / 60)} min)</Text>
+          <Text style={styles.finishStatLabel}>Total Time</Text>
         </View>
         <View style={styles.finishStat}>
           <Text style={styles.finishStatValue}>{totalSets}</Text>
@@ -1281,8 +1765,9 @@ function WorkoutFinishScreen({
 
       <View style={styles.finishActions}>
         <Button
-          title="Save Workout"
-          onPress={onComplete}
+          title={isSaved ? "Saved ✓" : "Save Workout"}
+          onPress={handleSave}
+          disabled={isSaved}
           style={styles.finishButton}
         />
         <Button
@@ -1291,12 +1776,14 @@ function WorkoutFinishScreen({
           variant="secondary"
           style={styles.finishButton}
         />
-        <TouchableOpacity
-          style={styles.finishBackButton}
-          onPress={onBack}
-        >
-          <Text style={styles.finishBackButtonText}>← Back to Workout</Text>
-        </TouchableOpacity>
+        {!isSaved && (
+          <TouchableOpacity
+            style={styles.finishBackButton}
+            onPress={onBack}
+          >
+            <Text style={styles.finishBackButtonText}>← Back to Workout</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -1368,20 +1855,34 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   progressBar: {
-    height: 10,
+    height: 12,
     backgroundColor: colors.border,
-    borderRadius: 5,
+    borderRadius: 6,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     backgroundColor: colors.primary,
-    borderRadius: 5,
+    borderRadius: 6,
   },
   nextExerciseText: {
     fontSize: 14,
     color: colors.textTertiary,
     marginTop: 4,
+  },
+  restBannerOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   restBanner: {
     backgroundColor: colors.primary + '20',
@@ -1513,24 +2014,47 @@ const styles = StyleSheet.create({
   exerciseCardInfoCollapsed: {
     fontSize: 14,
     color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  exerciseCardCollapsedPills: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  setTrackerPillCollapsed: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
   },
   exerciseCard: {
     backgroundColor: colors.surface,
     margin: 12,
-    padding: 16,
+    padding: 12,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
   },
   exerciseCardCurrent: {
-    borderColor: colors.primary,
-    borderWidth: 2,
+    borderColor: colors.primary + '99',
+    borderWidth: 1,
   },
   exerciseCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  exerciseCardHeaderCurrent: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary + '99',
+    marginLeft: -12,
+    paddingLeft: 12,
+    marginBottom: 8,
   },
   exerciseCardHeaderLeft: {
     flex: 1,
@@ -1583,10 +2107,37 @@ const styles = StyleSheet.create({
   exerciseCardInfo: {
     fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: 16,
+    marginBottom: 8,
+  },
+  prescriptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  prescriptionRowTappable: {
+    marginHorizontal: -4,
+    marginLeft: -4,
+  },
+  prescriptionRowTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingVertical: 8,
+    paddingRight: 8,
+  },
+  prescriptionEditHint: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginLeft: 8,
+  },
+  editPrescriptionText: {
+    fontSize: 16,
+    color: colors.primary,
+    marginLeft: 4,
   },
   completedSetsContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
+    marginTop: 8,
   },
   completedSetsLabel: {
     fontSize: 14,
@@ -1614,20 +2165,218 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: colors.background,
-    borderRadius: 8,
+    marginBottom: 12,
+    paddingVertical: 4,
   },
-  setTrackerLabel: {
-    fontSize: 14,
+  setProgressLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  lastSetLine: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginBottom: 8,
+  },
+  loggingControlsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 12,
+  },
+  stepperBlock: {
+    flex: 1,
+  },
+  stepperLabel: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginBottom: 4,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stepperButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepperButtonText: {
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
   },
-  setTrackerDots: {
+  stepperValue: {
+    minWidth: 44,
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    textAlign: 'center',
+  },
+  stepperValueTouch: {
+    minWidth: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  stepperValueInput: {
+    width: 52,
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    textAlign: 'center',
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  weightStepRow: {
     flexDirection: 'row',
     gap: 8,
+    marginTop: 8,
+  },
+  weightStepChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  weightStepChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '20',
+  },
+  weightStepChipText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  weightStepChipTextActive: {
+    color: colors.primary,
+  },
+  viewSetsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    marginBottom: 4,
+  },
+  viewSetsLabel: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  viewSetsChevron: {
+    fontSize: 13,
+    color: colors.primary,
+    marginLeft: 4,
+  },
+  compactLogRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  setHistoryChip: {
+    backgroundColor: colors.background,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  setHistoryChipText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  compactLogItem: {
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
+  setTrackerPillFocused: {
+    borderColor: colors.primary,
+    borderWidth: 2,
+  },
+  setTrackerPillFuture: {
+    borderColor: colors.border,
+    backgroundColor: 'transparent',
+    opacity: 0.7,
+  },
+  setTrackerPillTextFocused: {
+    color: colors.primary,
+  },
+  setTrackerPillTextFuture: {
+    color: colors.textTertiary,
+  },
+  setTrackerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  setPillControl: {
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 10,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  setPillControlDisabled: {
+    opacity: 0.5,
+  },
+  setPillControlText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  setPillControlTextDisabled: {
+    color: colors.textTertiary,
+  },
+  setTrackerLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  setTrackerDots: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    flex: 1,
+  },
+  setTrackerPill: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  setTrackerPillCompleted: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  setTrackerPillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textTertiary,
+  },
+  setTrackerPillTextCompleted: {
+    color: '#FFFFFF',
   },
   setTrackerDot: {
     width: 32,
@@ -1774,6 +2523,24 @@ const styles = StyleSheet.create({
   primaryButton: {
     minHeight: 56,
   },
+  toastContainer: {
+    position: 'absolute',
+    bottom: 100,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toastText: {
+    backgroundColor: colors.text,
+    color: colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: '500',
+    overflow: 'hidden',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: colors.overlay,
@@ -1858,6 +2625,12 @@ const styles = StyleSheet.create({
   optionsList: {
     padding: 8,
   },
+  optionDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 8,
+    marginHorizontal: 8,
+  },
   optionItem: {
     padding: 16,
     borderBottomWidth: 1,
@@ -1873,47 +2646,109 @@ const styles = StyleSheet.create({
   optionItemDestructiveText: {
     color: colors.error,
   },
-  exerciseDetailModal: {
+  editPrescriptionOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  editPrescriptionModalContainer: {
+    width: '100%',
+  },
+  editPrescriptionModal: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '80%',
     width: '100%',
-    position: 'absolute',
-    bottom: 0,
+    paddingBottom: 24,
   },
-  exerciseDetailHeader: {
+  editPrescriptionModalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  editPrescriptionModalHeader: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 12,
   },
-  exerciseDetailTitle: {
-    fontSize: 24,
+  editPrescriptionModalHeaderText: {
+    flex: 1,
+  },
+  editPrescriptionModalTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.text,
+    marginBottom: 2,
   },
-  exerciseDetailContent: {
-    padding: 20,
+  editPrescriptionModalSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
-  exerciseDetailSection: {
-    marginBottom: 20,
+  editPrescriptionModalClose: {
+    padding: 4,
   },
-  exerciseDetailSectionTitle: {
+  editPrescriptionModalBody: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    gap: 16,
+  },
+  editPrescriptionField: {
+    marginBottom: 16,
+  },
+  editPrescriptionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  editPrescriptionInput: {
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.text,
+    fontSize: 16,
+  },
+  editModalStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  editModalStepperValue: {
+    minWidth: 48,
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 12,
+    textAlign: 'center',
   },
-  exerciseDetailText: {
+  editPrescriptionToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginTop: 8,
+  },
+  editPrescriptionToggleLabel: {
     fontSize: 16,
-    color: colors.textSecondary,
-    lineHeight: 24,
+    color: colors.text,
   },
-  exerciseDetailButton: {
-    marginTop: 20,
+  editPrescriptionModalFooter: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  editPrescriptionModalButton: {
+    flex: 1,
   },
   notesModal: {
     backgroundColor: colors.surface,
