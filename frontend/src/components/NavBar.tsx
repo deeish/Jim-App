@@ -2,7 +2,7 @@ import React from 'react';
 import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from '../screens/HomeScreen';
-import PlanScreen from '../screens/PlanScreen';
+import PlanStackNavigator from '../navigation/PlanStackNavigator';
 import WorkoutScreen from '../screens/WorkoutScreen';
 import SearchStackNavigator from '../navigation/SearchStackNavigator';
 import { HomeIcon, CalendarIcon, DumbbellIcon, SearchIcon } from './TabIcons';
@@ -60,7 +60,7 @@ export default function NavBar() {
       />
       <Tab.Screen 
         name="Plan" 
-        component={PlanScreen}
+        component={PlanStackNavigator}
         options={{
           tabBarIcon: ({ color, focused }) => (
             <CalendarIcon color={color} size={focused ? 26 : 24} />

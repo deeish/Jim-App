@@ -10,7 +10,11 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../App';
 import { colors } from '../theme/colors';
+
+type PlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Plan'>;
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -25,6 +29,9 @@ interface PlanWorkout {
   durationMinutes: number;
   intensity: Intensity;
   type: WorkoutType;
+  source?: 'manual' | 'ai'; // Track where workout came from
+  locked?: boolean; // Lock this workout/day from regeneration
+  draftId?: string; // Link to draft if this is from a draft
 }
 
 // Get Monday of the week containing d
@@ -68,26 +75,26 @@ function isTodayDate(d: Date): boolean {
 // Placeholder plan state (would come from API/context in real app)
 const initialPlan: Record<string, PlanWorkout[]> = {
   Monday: [
-    { id: 'm1', title: 'Recovery Day', detailLine: 'Stretch & mobility', iconColor: '#9B59B6', durationMinutes: 15, intensity: 'Easy', type: 'recovery' },
+    { id: 'm1', title: 'Recovery Day', detailLine: 'Stretch & mobility', iconColor: '#9B59B6', durationMinutes: 15, intensity: 'Easy', type: 'recovery', source: 'manual' },
   ],
   Tuesday: [
-    { id: 't1', title: 'Interval Swim', detailLine: '4x 200m (1,600 total)', iconColor: '#3498DB', durationMinutes: 45, intensity: 'Hard', type: 'cardio' },
-    { id: 't2', title: 'Easy Bike', detailLine: 'Zone 2', iconColor: '#2ECC71', durationMinutes: 50, intensity: 'Easy', type: 'cardio' },
+    { id: 't1', title: 'Interval Swim', detailLine: '4x 200m (1,600 total)', iconColor: '#3498DB', durationMinutes: 45, intensity: 'Hard', type: 'cardio', source: 'manual' },
+    { id: 't2', title: 'Easy Bike', detailLine: 'Zone 2', iconColor: '#2ECC71', durationMinutes: 50, intensity: 'Easy', type: 'cardio', source: 'manual' },
   ],
   Wednesday: [
-    { id: 'w1', title: 'Interval Run', detailLine: '6×1 min hard', iconColor: '#E67E22', durationMinutes: 40, intensity: 'Hard', type: 'cardio' },
+    { id: 'w1', title: 'Interval Run', detailLine: '6×1 min hard', iconColor: '#E67E22', durationMinutes: 40, intensity: 'Hard', type: 'cardio', source: 'manual' },
   ],
   Thursday: [
-    { id: 'th1', title: 'Long Bike', detailLine: 'Steady pace', iconColor: '#2ECC71', durationMinutes: 90, intensity: 'Medium', type: 'cardio' },
+    { id: 'th1', title: 'Long Bike', detailLine: 'Steady pace', iconColor: '#2ECC71', durationMinutes: 90, intensity: 'Medium', type: 'cardio', source: 'manual' },
   ],
   Friday: [
-    { id: 'f1', title: 'Upper Body', detailLine: '6 exercises · push focus', iconColor: '#C7A46A', durationMinutes: 60, intensity: 'Hard', type: 'strength' },
+    { id: 'f1', title: 'Upper Body', detailLine: '6 exercises · push focus', iconColor: '#C7A46A', durationMinutes: 60, intensity: 'Hard', type: 'strength', source: 'manual' },
   ],
   Saturday: [
-    { id: 's1', title: 'Long Run', detailLine: 'Easy pace', iconColor: '#E67E22', durationMinutes: 60, intensity: 'Easy', type: 'cardio' },
+    { id: 's1', title: 'Long Run', detailLine: 'Easy pace', iconColor: '#E67E22', durationMinutes: 60, intensity: 'Easy', type: 'cardio', source: 'manual' },
   ],
   Sunday: [
-    { id: 'su1', title: 'Rest Day', detailLine: '—', iconColor: '#95A5A6', durationMinutes: 0, intensity: 'Easy', type: 'recovery' },
+    { id: 'su1', title: 'Rest Day', detailLine: '—', iconColor: '#95A5A6', durationMinutes: 0, intensity: 'Easy', type: 'recovery', source: 'manual' },
   ],
 };
 
@@ -130,13 +137,18 @@ function hasBackToBackHardDays(plan: Record<string, PlanWorkout[]>): boolean {
 
 const GOAL_CONTEXT = 'Fat loss • 4x/week • Beginner';
 
-export default function PlanScreen() {
+type Props = {
+  navigation?: PlanScreenNavigationProp;
+};
+
+export default function PlanScreen({ navigation }: Props) {
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [plan, setPlan] = useState<Record<string, PlanWorkout[]>>(initialPlan);
   const [contextWorkout, setContextWorkout] = useState<{ workout: PlanWorkout; day: string } | null>(null);
   const [workoutToMove, setWorkoutToMove] = useState<{ workout: PlanWorkout; day: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [showBackToBackModal, setShowBackToBackModal] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const contentScrollRef = React.useRef<ScrollView>(null);
   const weekRange = getWeekDateRange(selectedWeek);
   const loadBalance = computeLoadBalance(plan);
@@ -225,6 +237,10 @@ export default function PlanScreen() {
     ]);
   }, []);
 
+  const handleAIGenerate = useCallback(() => {
+    navigation?.navigate('GeneratePlan');
+  }, [navigation]);
+
   const jumpToCurrentWeek = useCallback(() => {
     setSelectedWeek(0);
     contentScrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -251,21 +267,64 @@ export default function PlanScreen() {
     setShowBackToBackModal(false);
   }, []);
 
+  const formatWorkoutDetailLine = (workout: PlanWorkout): string => {
+    let detail = workout.detailLine;
+    
+    // Replace · with • for consistency
+    detail = detail.replace(/·/g, '•');
+    
+    // Card consistency: Show structured descriptor only (no duration - that's in day header)
+    // Card = specifics (zone/intervals/exercise count)
+    // Day header = totals (time, sessions, difficulty)
+    
+    if (workout.type === 'cardio') {
+      // Cardio: Zone 2 / Intervals • 6×1 min hard
+      // Don't add duration - it's already in day header totals
+      // Keep only structured info: zone type, interval structure, etc.
+    } else if (workout.type === 'strength') {
+      // Strength: 6 exercises • Push focus
+      // Keep exercise count and focus - no duration
+    } else if (workout.type === 'recovery') {
+      // Recovery: Stretch / Mobility
+      // Keep activity type - no duration (in day header)
+    }
+    
+    return detail;
+  };
+
+  const getWorkoutTypeLabel = (type: WorkoutType): string => {
+    return type.charAt(0).toUpperCase() + type.slice(1);
+  };
+
+  const getDaySummary = (workouts: PlanWorkout[]): string => {
+    if (workouts.length === 0) return 'Rest (no time)';
+    const totalMin = workouts.reduce((s, w) => s + w.durationMinutes, 0);
+    const sessionCount = workouts.length;
+    
+    // Check if it's a rest day
+    if (workouts.length === 1 && workouts[0]?.title === 'Rest Day') {
+      return 'Rest (no time)';
+    }
+    
+    // Filter out rest days for intensity calculation
+    const activeWorkouts = workouts.filter(w => w.title !== 'Rest Day');
+    if (activeWorkouts.length === 0) {
+      return 'Rest (no time)';
+    }
+    
+    const intensityLabel = activeWorkouts.some(w => w.intensity === 'Hard') ? 'Hard' : activeWorkouts.some(w => w.intensity === 'Medium') ? 'Medium' : 'Easy';
+    
+    return `${totalMin} min • ${sessionCount} ${sessionCount === 1 ? 'session' : 'sessions'} • ${intensityLabel}`;
+  };
+
   return (
     <View style={styles.container}>
-      {/* Planner header: goal + compact CTAs */}
+      {/* Compressed header: Weekly Sprint + subtitle only */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.headerTitles}>
             <Text style={styles.headerTitle}>Weekly Sprint</Text>
             <Text style={styles.goalContext}>{GOAL_CONTEXT}</Text>
-            <View style={styles.loadBalance}>
-              <Text style={styles.loadBalanceText}>Strength {loadBalance.strength}</Text>
-              <Text style={styles.loadBalanceDot}>•</Text>
-              <Text style={styles.loadBalanceText}>Cardio {loadBalance.cardio}</Text>
-              <Text style={styles.loadBalanceDot}>•</Text>
-              <Text style={styles.loadBalanceText}>Recovery {loadBalance.recovery}</Text>
-            </View>
           </View>
           <View style={styles.ctaRow}>
             <TouchableOpacity
@@ -275,15 +334,39 @@ export default function PlanScreen() {
             >
               {adding ? <ActivityIndicator size="small" color={colors.background} /> : <Text style={styles.ctaCompactText}>+ Add</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.ctaCompact, styles.ctaSecondary]} onPress={handleAddOrGenerate}>
+            <TouchableOpacity style={[styles.ctaCompact, styles.ctaSecondary]} onPress={handleAIGenerate}>
               <Text style={styles.ctaCompactTextSecondary}>AI Generate</Text>
             </TouchableOpacity>
           </View>
         </View>
+        
+        {/* Collapsible Details section */}
+        <TouchableOpacity
+          style={styles.detailsToggle}
+          onPress={() => setShowDetails(!showDetails)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.detailsToggleContent}>
+            <Text style={styles.detailsToggleText}>
+              Details ({loadBalance.strength} Strength • {loadBalance.cardio} Cardio • {loadBalance.recovery} Recovery)
+            </Text>
+            <Text style={styles.detailsToggleIcon}>{showDetails ? ' ▾' : ' ▸'}</Text>
+          </View>
+        </TouchableOpacity>
+        
         {backToBackHard && (
           <TouchableOpacity
             style={styles.backToBackWarning}
-            onPress={() => setShowBackToBackModal(true)}
+            onPress={() => {
+              // Option 1: Show manual fix modal (existing)
+              // setShowBackToBackModal(true);
+              
+              // Option 2: Use AI Fix (new)
+              navigation?.navigate('GeneratePlan', {
+                // In a real implementation, pass context for AI Fix
+                // For now, just navigate to generate
+              } as any);
+            }}
             activeOpacity={0.8}
           >
             <Text style={styles.backToBackWarningText}>⚠ Back-to-back hard days — tap to fix</Text>
@@ -291,18 +374,13 @@ export default function PlanScreen() {
         )}
       </View>
 
-      {/* Week nav: ‹ Prev | Week of Jan 26 – Feb 1 | Next › */}
+      {/* Tight week navigation: ‹ Week of Jan 26 – Feb 1 › */}
       <View style={styles.weekRow}>
         <TouchableOpacity style={styles.weekNavArrow} onPress={() => setSelectedWeek(Math.max(0, selectedWeek - 1))}>
           <Text style={styles.weekNavArrowText}>‹</Text>
         </TouchableOpacity>
         <View style={styles.weekNavCenter}>
           <Text style={styles.weekNavLabel}>Week of {formatWeekRange(weekRange.start, weekRange.end)}</Text>
-          {!isCurrentWeek && (
-            <TouchableOpacity style={styles.jumpToCurrent} onPress={jumpToCurrentWeek}>
-              <Text style={styles.jumpToCurrentText}>Today</Text>
-            </TouchableOpacity>
-          )}
         </View>
         <TouchableOpacity style={styles.weekNavArrow} onPress={() => setSelectedWeek(Math.min(7, selectedWeek + 1))}>
           <Text style={styles.weekNavArrowText}>›</Text>
@@ -320,9 +398,7 @@ export default function PlanScreen() {
           const workouts = plan[day] || [];
           const dayDate = getDateForDay(selectedWeek, day);
           const isToday = isTodayDate(dayDate);
-          const totalMin = workouts.reduce((s, w) => s + w.durationMinutes, 0);
-          const sessionCount = workouts.length;
-          const intensityLabel = workouts.some(w => w.intensity === 'Hard') ? 'Hard' : workouts.some(w => w.intensity === 'Medium') ? 'Medium' : 'Easy';
+          const daySummaryText = getDaySummary(workouts);
 
           return (
             <View key={day} style={styles.daySection}>
@@ -336,11 +412,14 @@ export default function PlanScreen() {
                     </View>
                   )}
                 </View>
-                {workouts.length > 0 ? (
-                  <Text style={styles.daySummary}>
-                    {totalMin > 0 ? `${totalMin} min` : '—'} · {sessionCount} {sessionCount === 1 ? 'session' : 'sessions'} · {intensityLabel}
-                  </Text>
-                ) : null}
+                <View style={styles.daySummaryContainer}>
+                  <View style={styles.daySummaryRow}>
+                    <Text style={styles.daySummary}>{daySummaryText}</Text>
+                    {workouts.length > 1 && (
+                      <Text style={styles.dayHelperText}> • {workouts.length} workouts</Text>
+                    )}
+                  </View>
+                </View>
               </View>
 
               {workouts.length === 0 ? (
@@ -349,33 +428,70 @@ export default function PlanScreen() {
                   onPress={handleAddOrGenerate}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.emptyDayText}>No workout planned</Text>
-                  <Text style={styles.emptyDayHint}>Add / Generate / Rest day</Text>
+                  <Text style={styles.emptyDayAddIcon}>+</Text>
+                  <Text style={styles.emptyDayText}>Add workout</Text>
                 </TouchableOpacity>
               ) : (
                 <View style={[styles.workoutStack, workouts.length > 1 && styles.workoutStackTight]}>
-                  {workouts.map((workout) => (
-                    <Pressable
-                      key={workout.id}
-                      style={({ pressed }) => [styles.workoutCard, pressed && styles.workoutCardPressed]}
-                      onPress={() => handleCardPress(workout, day)}
-                    >
-                      <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
-                        <View style={styles.iconPlaceholder} />
-                      </View>
-                      <View style={styles.workoutContent}>
-                        <Text style={styles.workoutTitle}>{workout.title}</Text>
-                        <Text style={styles.workoutDetailLine}>{workout.detailLine}</Text>
-                      </View>
-                      <TouchableOpacity
-                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                        style={styles.moreButton}
-                        onPress={() => openContextMenu(workout, day)}
+                  {workouts.map((workout) => {
+                    const isRestDay = workout.title === 'Rest Day';
+                    const showMoreButton = isToday; // Only show ... for Today's day
+                    
+                    // Render rest day as a normal card (matching visual language)
+                    if (isRestDay) {
+                      return (
+                        <Pressable
+                          key={workout.id}
+                          style={({ pressed }) => [styles.workoutCard, styles.restDayCard, pressed && styles.workoutCardPressed]}
+                          onPress={() => handleCardPress(workout, day)}
+                        >
+                          <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
+                            <Text style={styles.workoutTypeBadge}>R</Text>
+                          </View>
+                          <View style={styles.workoutContent}>
+                            <Text style={styles.workoutTitle}>Rest Day</Text>
+                            <Text style={styles.workoutDetailLine}>Off / Optional walk</Text>
+                          </View>
+                          {showMoreButton && (
+                            <TouchableOpacity
+                              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                              style={styles.moreButton}
+                              onPress={() => openContextMenu(workout, day)}
+                            >
+                              <Text style={styles.moreButtonText}>⋯</Text>
+                            </TouchableOpacity>
+                          )}
+                        </Pressable>
+                      );
+                    }
+                    
+                    return (
+                      <Pressable
+                        key={workout.id}
+                        style={({ pressed }) => [styles.workoutCard, pressed && styles.workoutCardPressed]}
+                        onPress={() => handleCardPress(workout, day)}
                       >
-                        <Text style={styles.moreButtonText}>⋯</Text>
-                      </TouchableOpacity>
-                    </Pressable>
-                  ))}
+                        <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
+                          <Text style={styles.workoutTypeBadge}>{getWorkoutTypeLabel(workout.type).charAt(0)}</Text>
+                        </View>
+                        <View style={styles.workoutContent}>
+                          <Text style={styles.workoutTitle}>{workout.title}</Text>
+                          <Text style={styles.workoutDetailLine}>
+                            {formatWorkoutDetailLine(workout)}
+                          </Text>
+                        </View>
+                        {showMoreButton && (
+                          <TouchableOpacity
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            style={styles.moreButton}
+                            onPress={() => openContextMenu(workout, day)}
+                          >
+                            <Text style={styles.moreButtonText}>⋯</Text>
+                          </TouchableOpacity>
+                        )}
+                      </Pressable>
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -434,8 +550,7 @@ export default function PlanScreen() {
       <Modal visible={showBackToBackModal} transparent animationType="fade">
         <Pressable style={styles.moveOverlay} onPress={() => setShowBackToBackModal(false)}>
           <Pressable style={styles.backToBackBox} onPress={() => {}}>
-            <Text style={styles.backToBackTitle}>Ease back-to-back hard days</Text>
-            <Text style={styles.backToBackSubtitle}>Pick a fix or dismiss</Text>
+            <Text style={styles.backToBackTitle}>Fix suggestions</Text>
             {backToBackSuggestions.map((s, i) => (
               <TouchableOpacity
                 key={i}
@@ -444,11 +559,24 @@ export default function PlanScreen() {
               >
                 <Text style={styles.backToBackOptionText}>
                   {s.kind === 'move'
-                    ? `Move ${s.workout.title} (${s.fromDay}) → ${s.toDay}`
-                    : `Swap ${s.dayA} & ${s.dayB}`}
+                    ? `Move ${s.workout.title} from ${s.fromDay} to ${s.toDay}`
+                    : `Swap ${s.dayA} with ${s.dayB}`}
                 </Text>
               </TouchableOpacity>
             ))}
+            {backToBackSuggestions.length > 0 && backToBackSuggestions[0].kind === 'move' && (
+              <TouchableOpacity
+                style={styles.backToBackOption}
+                onPress={() => {
+                  // Make Wednesday 'easy' instead - would need to modify workout intensity
+                  setShowBackToBackModal(false);
+                }}
+              >
+                <Text style={styles.backToBackOptionText}>
+                  Make {backToBackSuggestions[0].kind === 'move' ? backToBackSuggestions[0].fromDay : 'Wednesday'} 'easy' instead
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.backToBackDismiss} onPress={() => setShowBackToBackModal(false)}>
               <Text style={styles.moveCancelText}>Dismiss</Text>
             </TouchableOpacity>
@@ -466,8 +594,8 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: colors.surface,
-    padding: 16,
-    paddingTop: 20,
+    padding: 12,
+    paddingTop: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -481,29 +609,34 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: colors.text,
   },
   goalContext: {
     fontSize: 12,
     color: colors.primary,
-    marginTop: 4,
+    marginTop: 2,
     fontWeight: '600',
   },
-  loadBalance: {
+  detailsToggle: {
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  detailsToggleContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    gap: 6,
   },
-  loadBalanceText: {
-    fontSize: 11,
-    color: colors.textMuted,
+  detailsToggleText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
-  loadBalanceDot: {
-    fontSize: 11,
-    color: colors.textMuted,
+  detailsToggleIcon: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
   ctaRow: {
     flexDirection: 'row',
@@ -534,7 +667,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   backToBackWarning: {
-    marginTop: 10,
+    marginTop: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
     backgroundColor: 'rgba(217, 119, 69, 0.2)',
@@ -549,20 +682,20 @@ const styles = StyleSheet.create({
   weekRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingVertical: 10,
+    paddingVertical: 6,
     paddingHorizontal: 12,
   },
   weekNavArrow: {
-    padding: 8,
-    minWidth: 40,
+    padding: 4,
+    minWidth: 32,
     alignItems: 'center',
   },
   weekNavArrowText: {
-    fontSize: 24,
+    fontSize: 20,
     color: colors.primary,
     fontWeight: '600',
   },
@@ -571,49 +704,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: 8,
   },
   weekNavLabel: {
     fontSize: 13,
     color: colors.text,
     fontWeight: '600',
   },
-  jumpToCurrent: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: colors.secondary,
-  },
-  jumpToCurrentText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.background,
-  },
   content: {
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
+    padding: 12,
     paddingBottom: 32,
   },
   daySection: {
-    marginBottom: 22,
+    marginBottom: 18,
   },
   dayHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 10,
-    flexWrap: 'wrap',
-    gap: 6,
+    alignItems: 'center',
+    marginBottom: 8,
   },
   dayTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   dayTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: colors.text,
   },
@@ -637,9 +757,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.background,
   },
+  daySummaryContainer: {
+    alignItems: 'flex-end',
+  },
+  daySummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
   daySummary: {
     fontSize: 12,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  dayHelperText: {
+    fontSize: 12,
     color: colors.textMuted,
+    fontWeight: '500',
   },
   emptyDay: {
     backgroundColor: colors.surface,
@@ -648,17 +781,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderStyle: 'dashed',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyDayAddIcon: {
+    fontSize: 20,
+    color: colors.primary,
+    fontWeight: '600',
   },
   emptyDayText: {
     fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
+    color: colors.primary,
+    fontWeight: '600',
   },
   emptyDayHint: {
     fontSize: 13,
     color: colors.textMuted,
     textAlign: 'center',
     marginTop: 4,
+  },
+  restDayCard: {
+    opacity: 0.7,
   },
   workoutStack: {
     gap: 12,
@@ -672,7 +817,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 12,
-    paddingRight: 40,
+    paddingRight: 12,
     elevation: 2,
     shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
@@ -684,24 +829,23 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   workoutIcon: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: 8,
     marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  iconPlaceholder: {
-    width: 26,
-    height: 26,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 4,
+  workoutTypeBadge: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.background,
   },
   workoutContent: {
     flex: 1,
   },
   workoutTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 2,
@@ -804,12 +948,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     paddingHorizontal: 16,
     paddingTop: 16,
-  },
-  backToBackSubtitle: {
-    fontSize: 13,
-    color: colors.textMuted,
-    paddingHorizontal: 16,
-    paddingTop: 4,
+    paddingBottom: 8,
   },
   backToBackOption: {
     padding: 14,
