@@ -58,6 +58,9 @@ export type RootStackParamList = {
       workoutDetailLevel: 'simple' | 'detailed';
       strengthFormat: 'straight sets' | 'supersets' | 'circuit';
       cardioFormat: 'intervals' | 'steady-state' | 'tempo';
+      trainingSplitPreference?: string | null;
+      customSplitHint?: string;
+      equipmentAccess?: string[];
     };
     draftId: string;
   };

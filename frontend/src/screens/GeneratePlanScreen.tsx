@@ -31,7 +31,7 @@ type CardioEquipment = 'treadmill' | 'bike' | 'rower' | 'none';
 type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
 type StrengthSplitPreference = 'full body' | 'upper-lower' | 'ppl' | '3-day full body' | 'surprise me';
-type TrainingSplitPreference = 'full body' | 'upper-lower' | 'ppl' | 'ai decide';
+type TrainingSplitPreference = 'full body' | 'upper-lower' | 'ppl' | 'ai decide' | 'custom';
 type HybridGoalRatio = 'more strength' | 'balanced' | 'more cardio';
 type EquipmentAccess = 'dumbbells' | 'bands' | 'pull-up bar' | 'barbell' | 'machines' | 'none';
 type CardioModality = 'run' | 'bike' | 'swim' | 'row' | 'elliptical';
@@ -99,6 +99,7 @@ interface GeneratePlanInputs {
   strengthFormat: StrengthFormat;
   cardioFormat: CardioFormat;
   trainingSplitPreference: TrainingSplitPreference | null;
+  customSplitHint: string;
   equipmentAccess: EquipmentAccess[];
 }
 
@@ -224,6 +225,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
     strengthFormat: 'straight sets',
     cardioFormat: 'intervals',
     trainingSplitPreference: null,
+    customSplitHint: '',
     equipmentAccess: [],
   });
   const [generating, setGenerating] = useState(false);
@@ -368,6 +370,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           strengthFormat: inputs.strengthFormat,
           cardioFormat: inputs.cardioFormat,
           trainingSplitPreference: inputs.trainingSplitPreference,
+          customSplitHint: inputs.customSplitHint?.trim() || undefined,
           equipmentAccess: inputs.equipmentAccess,
         },
         draftId: `draft-${Date.now()}`,
@@ -590,26 +593,35 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           </View>
         </View>
 
-        {/* Training split preference */}
-        {(inputs.goal === 'strength' || inputs.goal === 'hybrid' || inputs.goal === 'fat loss') && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Training split preference</Text>
-            <Text style={styles.sectionSubtitle}>How should workouts be structured?</Text>
-            <View style={styles.optionsRow}>
-              {(['full body', 'upper-lower', 'ppl', 'ai decide'] as TrainingSplitPreference[]).map(split => (
-                <TouchableOpacity
-                  key={split}
-                  style={[styles.optionButton, inputs.trainingSplitPreference === split && styles.optionButtonSelected]}
-                  onPress={() => setInputs(prev => ({ ...prev, trainingSplitPreference: split }))}
-                >
-                  <Text style={[styles.optionButtonText, inputs.trainingSplitPreference === split && styles.optionButtonTextSelected]}>
-                    {split === 'full body' ? 'Full Body' : split === 'upper-lower' ? 'Upper/Lower' : split === 'ppl' ? 'PPL' : 'AI Decide'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+        {/* Training split preference — right after workout duration */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Training split preference</Text>
+          <Text style={styles.sectionSubtitle}>How should workouts be structured?</Text>
+          <View style={styles.optionsRow}>
+            {(['full body', 'upper-lower', 'ppl', 'ai decide', 'custom'] as TrainingSplitPreference[]).map(split => (
+              <TouchableOpacity
+                key={split}
+                style={[styles.optionButton, inputs.trainingSplitPreference === split && styles.optionButtonSelected]}
+                onPress={() => setInputs(prev => ({ ...prev, trainingSplitPreference: split }))}
+              >
+                <Text style={[styles.optionButtonText, inputs.trainingSplitPreference === split && styles.optionButtonTextSelected]}>
+                  {split === 'full body' ? 'Full Body' : split === 'upper-lower' ? 'Upper/Lower' : split === 'ppl' ? 'PPL' : split === 'ai decide' ? 'AI Decide' : 'Custom (I have a split)'}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        )}
+          {inputs.trainingSplitPreference === 'custom' && (
+            <TextInput
+              style={styles.customSplitInput}
+              placeholder="Write your split (ex: chest/tri, back/bi…)"
+              placeholderTextColor={colors.textMuted}
+              value={inputs.customSplitHint}
+              onChangeText={(text) => setInputs(prev => ({ ...prev, customSplitHint: text }))}
+              multiline
+              maxLength={300}
+            />
+          )}
+        </View>
 
         {/* Equipment access */}
         {inputs.primaryLocation === 'home' && (
@@ -714,7 +726,10 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                     <TouchableOpacity
                       key={cardio}
                       style={[styles.optionButton, inputs.cardioEquipment === cardio && styles.optionButtonSelected]}
-                      onPress={() => handleCardioEquipmentSelect(cardio)}
+                      onPress={() => setInputs(prev => ({
+                        ...prev,
+                        cardioEquipment: prev.cardioEquipment === cardio ? null : cardio,
+                      }))}
                     >
                       <Text style={[styles.optionButtonText, inputs.cardioEquipment === cardio && styles.optionButtonTextSelected]}>
                         {cardio.charAt(0).toUpperCase() + cardio.slice(1)}
@@ -1026,7 +1041,10 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                   <TouchableOpacity
                     key={level}
                     style={[styles.optionButton, inputs.currentActivityLevel === level && styles.optionButtonSelected]}
-                    onPress={() => setInputs(prev => ({ ...prev, currentActivityLevel: level }))}
+                    onPress={() => setInputs(prev => ({
+                      ...prev,
+                      currentActivityLevel: prev.currentActivityLevel === level ? null : level,
+                    }))}
                   >
                     <Text style={[styles.optionButtonText, inputs.currentActivityLevel === level && styles.optionButtonTextSelected]}>
                       {level === '0' ? '0' : level === '1-2' ? '1–2' : level === '3-4' ? '3–4' : '5+'} days/week
@@ -1293,7 +1311,10 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                     <TouchableOpacity
                       key={split}
                       style={[styles.optionButton, inputs.strengthSplitPreference === split && styles.optionButtonSelected]}
-                      onPress={() => setInputs(prev => ({ ...prev, strengthSplitPreference: split }))}
+                      onPress={() => setInputs(prev => ({
+                        ...prev,
+                        strengthSplitPreference: prev.strengthSplitPreference === split ? null : split,
+                      }))}
                     >
                       <Text style={[styles.optionButtonText, inputs.strengthSplitPreference === split && styles.optionButtonTextSelected]}>
                         {split === 'full body' ? 'Full Body' : split === 'upper-lower' ? 'Upper-Lower' : split === 'ppl' ? 'PPL' : split === '3-day full body' ? '3-day Full Body' : 'Surprise me'}
@@ -1345,7 +1366,10 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                       <TouchableOpacity
                         key={priority}
                         style={[styles.optionButton, inputs.focusPriority === priority && styles.optionButtonSelected]}
-                        onPress={() => setInputs(prev => ({ ...prev, focusPriority: priority }))}
+                        onPress={() => setInputs(prev => ({
+                          ...prev,
+                          focusPriority: prev.focusPriority === priority ? null : priority,
+                        }))}
                       >
                         <Text style={[styles.optionButtonText, inputs.focusPriority === priority && styles.optionButtonTextSelected]}>
                           {priority.charAt(0).toUpperCase() + priority.slice(1)}
@@ -1357,7 +1381,10 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                       <TouchableOpacity
                         key={priority}
                         style={[styles.optionButton, inputs.focusPriority === priority && styles.optionButtonSelected]}
-                        onPress={() => setInputs(prev => ({ ...prev, focusPriority: priority }))}
+                        onPress={() => setInputs(prev => ({
+                          ...prev,
+                          focusPriority: prev.focusPriority === priority ? null : priority,
+                        }))}
                       >
                         <Text style={[styles.optionButtonText, inputs.focusPriority === priority && styles.optionButtonTextSelected]}>
                           {priority.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
@@ -1577,6 +1604,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     minHeight: 40,
+  },
+  customSplitInput: {
+    marginTop: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    color: colors.text,
+    minHeight: 72,
+    textAlignVertical: 'top',
   },
   timeSeparator: {
     fontSize: 16,
