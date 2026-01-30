@@ -264,7 +264,7 @@ export default function WorkoutSession({
   const [showEditPrescriptionModal, setShowEditPrescriptionModal] = useState<number | null>(null);
   const [focusedSetIndex, setFocusedSetIndex] = useState<number | null>(null);
   const [toast, setToast] = useState<{ msg: string } | null>(null);
-  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const exerciseRefs = useRef<Record<number, View | null>>({});
   const [topSectionHeight, setTopSectionHeight] = useState(0);
@@ -275,7 +275,7 @@ export default function WorkoutSession({
     setToast({ msg });
     toastTimeoutRef.current = setTimeout(() => {
       setToast(null);
-      toastTimeoutRef.current = undefined;
+      toastTimeoutRef.current = null;
     }, 2000);
   };
 
@@ -1809,10 +1809,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerRight: {
-    alignItems: 'flex-end',
     flexDirection: 'row',
-    gap: 12,
     alignItems: 'center',
+    gap: 12,
   },
   workoutName: {
     fontSize: 24,

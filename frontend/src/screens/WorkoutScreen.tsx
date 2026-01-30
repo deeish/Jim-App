@@ -82,7 +82,7 @@ export default function WorkoutScreen() {
         session={session}
         onComplete={handleEndWorkout}
         onUpdate={setSession}
-        navigation={navigation}
+        navigation={navigation as unknown as NativeStackNavigationProp<RootStackParamList>}
       />
     );
   }

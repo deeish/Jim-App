@@ -12,6 +12,7 @@ export type RootStackParamList = {
   Plan: undefined;
   Workout: undefined;
   Search: undefined;
+  WeeklyWorkout: undefined;
   ExerciseDetail: { exerciseId: string };
   WorkoutDetail: { workoutId: string };
   GeneratePlan: undefined;

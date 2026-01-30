@@ -348,11 +348,10 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           weekdayMaxMinutes: inputs.weekdayMaxMinutes,
           weekendMaxMinutes: inputs.weekendMaxMinutes,
           perDayTimeCaps: Object.fromEntries(
-            Object.entries(inputs.perDayTimeCaps).map(([day, cap]) => [
-              day,
-              cap === 'default' ? null : cap,
-            ])
-          ) as Record<string, number | null>,
+            Object.entries(inputs.perDayTimeCaps)
+              .map(([day, cap]) => [day, cap === 'default' ? null : cap] as const)
+              .filter((entry): entry is [string, number] => entry[1] !== null)
+          ) as Record<string, number>,
           progressionStyle: inputs.progressionStyle,
           deloadEnabled: inputs.deloadEnabled,
           deloadFrequency: inputs.deloadFrequency,
@@ -1326,7 +1325,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
             )}
 
 
-            {(inputs.goal === 'cardio' || inputs.goal === 'endurance' || inputs.goal === 'hybrid') && (
+            {(inputs.goal === 'endurance' || inputs.goal === 'hybrid') && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Cardio modality preferences</Text>
                 <Text style={styles.sectionSubtitle}>Preferred cardio types (select multiple)</Text>

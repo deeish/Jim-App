@@ -99,7 +99,7 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
           });
           doubleSessionCount++;
         }
-      } else if (inputs.goal === 'cardio' || inputs.goal === 'endurance') {
+      } else if (inputs.goal === 'endurance') {
         const workoutType = index % 2 === 0 ? 'Interval Run' : 'Long Run';
         workouts.push({
           id: `draft-w${weekNum}-${day}-1`,
