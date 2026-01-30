@@ -322,7 +322,13 @@ export default function GeneratePlanScreen({ navigation }: Props) {
     }
 
     setGenerating(true);
-    
+
+    // Normalize perDayTimeCaps: only include days with a numeric cap (omit 'default' / undefined)
+    const perDayTimeCapsForPreview: Record<string, number> = {};
+    for (const [day, cap] of Object.entries(inputs.perDayTimeCaps)) {
+      if (typeof cap === 'number') perDayTimeCapsForPreview[day] = cap;
+    }
+
     setTimeout(() => {
       setGenerating(false);
       navigation.navigate('PlanPreview', {
@@ -347,11 +353,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           cardioModalityPreference: inputs.cardioModalityPreference,
           weekdayMaxMinutes: inputs.weekdayMaxMinutes,
           weekendMaxMinutes: inputs.weekendMaxMinutes,
-          perDayTimeCaps: Object.fromEntries(
-            Object.entries(inputs.perDayTimeCaps)
-              .map(([day, cap]) => [day, cap === 'default' ? null : cap] as const)
-              .filter((entry): entry is [string, number] => entry[1] !== null)
-          ) as Record<string, number>,
+          perDayTimeCaps: perDayTimeCapsForPreview,
           progressionStyle: inputs.progressionStyle,
           deloadEnabled: inputs.deloadEnabled,
           deloadFrequency: inputs.deloadFrequency,
@@ -622,37 +624,6 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           )}
         </View>
 
-        {/* Equipment access */}
-        {inputs.primaryLocation === 'home' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Equipment access</Text>
-            <Text style={styles.sectionSubtitle}>What equipment do you have at home?</Text>
-            <View style={styles.chipsRow}>
-              {(['dumbbells', 'bands', 'pull-up bar', 'barbell', 'machines', 'none'] as EquipmentAccess[]).map(equipment => {
-                const isSelected = inputs.equipmentAccess.includes(equipment);
-                return (
-                  <TouchableOpacity
-                    key={equipment}
-                    style={[styles.chip, isSelected && styles.chipSelected]}
-                    onPress={() => {
-                      setInputs(prev => ({
-                        ...prev,
-                        equipmentAccess: isSelected
-                          ? prev.equipmentAccess.filter(e => e !== equipment)
-                          : [...prev.equipmentAccess, equipment],
-                      }));
-                    }}
-                  >
-                    <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                      {equipment === 'pull-up bar' ? 'Pull-up Bar' : equipment.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        )}
-
         {/* Hybrid control */}
         {inputs.goal === 'hybrid' && (
           <View style={styles.section}>
@@ -692,6 +663,37 @@ export default function GeneratePlanScreen({ navigation }: Props) {
             ))}
           </View>
         </View>
+
+        {/* Equipment access — shown right below Primary location when Home is selected */}
+        {inputs.primaryLocation === 'home' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Equipment access</Text>
+            <Text style={styles.sectionSubtitle}>What equipment do you have at home?</Text>
+            <View style={styles.chipsRow}>
+              {(['dumbbells', 'bands', 'pull-up bar', 'barbell', 'machines', 'none'] as EquipmentAccess[]).map(equipment => {
+                const isSelected = inputs.equipmentAccess.includes(equipment);
+                return (
+                  <TouchableOpacity
+                    key={equipment}
+                    style={[styles.chip, isSelected && styles.chipSelected]}
+                    onPress={() => {
+                      setInputs(prev => ({
+                        ...prev,
+                        equipmentAccess: isSelected
+                          ? prev.equipmentAccess.filter(e => e !== equipment)
+                          : [...prev.equipmentAccess, equipment],
+                      }));
+                    }}
+                  >
+                    <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                      {equipment === 'pull-up bar' ? 'Pull-up Bar' : equipment.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {inputs.primaryLocation && (
           <>
