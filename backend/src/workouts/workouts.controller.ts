@@ -39,7 +39,10 @@ export class WorkoutsController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateWorkoutDto: Partial<CreateWorkoutDto>) {
+  update(
+    @Param('id') id: string,
+    @Body() updateWorkoutDto: Partial<CreateWorkoutDto>,
+  ) {
     return this.workoutsService.update(id, updateWorkoutDto);
   }
 

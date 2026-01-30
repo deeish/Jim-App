@@ -16,7 +16,9 @@ export class WorkoutsService {
     private workoutGeneratorService: WorkoutGeneratorService,
   ) {}
 
-  async create(createWorkoutDto: CreateWorkoutDto): Promise<WorkoutWithExercises> {
+  async create(
+    createWorkoutDto: CreateWorkoutDto,
+  ): Promise<WorkoutWithExercises> {
     return this.prisma.workout.create({
       data: {
         name: createWorkoutDto.name,
@@ -67,7 +69,10 @@ export class WorkoutsService {
     return workout;
   }
 
-  async update(id: string, updateWorkoutDto: Partial<CreateWorkoutDto>): Promise<WorkoutWithExercises> {
+  async update(
+    id: string,
+    updateWorkoutDto: Partial<CreateWorkoutDto>,
+  ): Promise<WorkoutWithExercises> {
     // Check if workout exists
     await this.findOne(id);
 
@@ -82,7 +87,9 @@ export class WorkoutsService {
       where: { id },
       data: {
         ...(updateWorkoutDto.name && { name: updateWorkoutDto.name }),
-        ...(updateWorkoutDto.day !== undefined && { day: updateWorkoutDto.day }),
+        ...(updateWorkoutDto.day !== undefined && {
+          day: updateWorkoutDto.day,
+        }),
         ...(updateWorkoutDto.exercises && {
           exercises: {
             create: updateWorkoutDto.exercises,
@@ -96,18 +103,21 @@ export class WorkoutsService {
   }
 
   async remove(id: string): Promise<void> {
-    const result = await this.prisma.workout.delete({
-      where: { id },
-    }).catch(() => {
-      throw new NotFoundException(`Workout with ID ${id} not found`);
-    });
+    await this.prisma.workout
+      .delete({
+        where: { id },
+      })
+      .catch(() => {
+        throw new NotFoundException(`Workout with ID ${id} not found`);
+      });
   }
 
-  async generate(generateWorkoutDto: GenerateWorkoutDto): Promise<WorkoutWithExercises> {
+  async generate(
+    generateWorkoutDto: GenerateWorkoutDto,
+  ): Promise<WorkoutWithExercises> {
     // Use the workout generator service to create a workout
-    const generatedWorkout = await this.workoutGeneratorService.generateWorkout(
-      generateWorkoutDto,
-    );
+    const generatedWorkout =
+      await this.workoutGeneratorService.generateWorkout(generateWorkoutDto);
 
     // Save the generated workout to the database
     return this.create(generatedWorkout);

@@ -6,7 +6,9 @@ import { CreateWorkoutDto } from './dto/create-workout.dto';
 export class WorkoutGeneratorService {
   // This is a placeholder for LLM integration
   // You can integrate with OpenAI, Anthropic, or other LLM services here
-  async generateWorkout(generateWorkoutDto: GenerateWorkoutDto): Promise<CreateWorkoutDto> {
+  async generateWorkout(
+    generateWorkoutDto: GenerateWorkoutDto,
+  ): Promise<CreateWorkoutDto> {
     const { day, preferences } = generateWorkoutDto;
 
     // For now, this is a simple rule-based generator
@@ -39,8 +41,13 @@ export class WorkoutGeneratorService {
         { name: 'Lunges', sets: 3, reps: 12, weight: 45 },
         { name: 'Calf Raises', sets: 3, reps: 15, weight: 90 },
       ],
-      'cardio': [
-        { name: 'Running', sets: 1, reps: 30, notes: '30 minutes at moderate pace' },
+      cardio: [
+        {
+          name: 'Running',
+          sets: 1,
+          reps: 30,
+          notes: '30 minutes at moderate pace',
+        },
         { name: 'Jump Rope', sets: 5, reps: 60, notes: '60 seconds per set' },
         { name: 'Burpees', sets: 3, reps: 15 },
         { name: 'Mountain Climbers', sets: 3, reps: 20, notes: '20 per side' },
