@@ -29,9 +29,35 @@ const DEFAULT_EQUIPMENT_ORDER = 12;
 @Injectable()
 export class ExercisesService implements OnModuleInit {
   private exercises: TransformedExercise[] = [];
+  /** exerciseId -> YouTube video ID (from data/exercise-videos.json) */
+  private videoMap = new Map<string, string>();
 
   async onModuleInit() {
     await this.loadExercises();
+    this.loadVideoMap();
+  }
+
+  private loadVideoMap() {
+    const videosFile = path.join(process.cwd(), 'data', 'exercise-videos.json');
+    try {
+      const raw = fs.readFileSync(videosFile, 'utf-8');
+      const data = JSON.parse(raw) as Record<string, string>;
+      this.videoMap = new Map(
+        Object.entries(data).filter(
+          ([, id]) => typeof id === 'string' && id.trim().length > 0,
+        ),
+      );
+      if (this.videoMap.size > 0) {
+        console.log(`✅ Loaded ${this.videoMap.size} exercise video mappings`);
+      }
+    } catch {
+      // File missing or invalid: no videos
+    }
+  }
+
+  private withVideo(exercise: TransformedExercise): TransformedExercise {
+    const youtubeId = this.videoMap.get(exercise.id);
+    return youtubeId ? { ...exercise, youtubeId } : exercise;
   }
 
   private async loadExercises() {
@@ -59,7 +85,7 @@ export class ExercisesService implements OnModuleInit {
   }
 
   findAll(): TransformedExercise[] {
-    return this.exercises;
+    return this.exercises.map((e) => this.withVideo(e));
   }
 
   search(searchDto: SearchExercisesDto): TransformedExercise[] {
@@ -141,11 +167,12 @@ export class ExercisesService implements OnModuleInit {
       return (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' });
     });
 
-    return results;
+    return results.map((e) => this.withVideo(e));
   }
 
   findOne(id: string): TransformedExercise | undefined {
-    return this.exercises.find((ex) => ex.id === id);
+    const ex = this.exercises.find((e) => e.id === id);
+    return ex ? this.withVideo(ex) : undefined;
   }
 
   getStats() {

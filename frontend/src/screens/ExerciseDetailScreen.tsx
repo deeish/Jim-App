@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -13,6 +14,13 @@ import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../App';
 import { getExerciseById, Exercise } from '../services/exerciseService';
 import { colors } from '../theme/colors';
+
+const YOUTUBE_SEARCH_BASE = 'https://www.youtube.com/results?search_query=';
+
+function getYouTubeSearchUrl(exerciseName: string): string {
+  const query = `${exerciseName.trim()} Demo`;
+  return YOUTUBE_SEARCH_BASE + encodeURIComponent(query);
+}
 
 type ExerciseDetailScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ExerciseDetail'>;
 type ExerciseDetailScreenRouteProp = RouteProp<RootStackParamList, 'ExerciseDetail'>;
@@ -171,6 +179,20 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           </View>
         )}
 
+        {/* Watch demo: opens YouTube search so user can pick a video */}
+        <View style={styles.videoSection}>
+          <Text style={styles.videoSectionTitle}>Watch demo</Text>
+          <Text style={styles.videoSectionHint}>
+            Search YouTube for demo videos and pick one that works for you.
+          </Text>
+          <TouchableOpacity
+            style={styles.youtubeButton}
+            onPress={() => Linking.openURL(getYouTubeSearchUrl(exercise.name))}
+          >
+            <Text style={styles.youtubeButtonText}>Watch demo on YouTube</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Aliases */}
         {exercise.aliases && exercise.aliases.length > 0 && (
           <View style={styles.section}>
@@ -215,6 +237,38 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   backButtonText: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  videoSection: {
+    padding: 20,
+    paddingTop: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  videoSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  videoSectionHint: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  youtubeButton: {
+    backgroundColor: colors.primary + '25',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  youtubeButtonText: {
     fontSize: 16,
     color: colors.primary,
     fontWeight: '600',

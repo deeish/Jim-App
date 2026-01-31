@@ -20,6 +20,8 @@ export interface Exercise {
   movementPatterns: string[];
   difficulty?: string;
   instructions?: string[];
+  /** YouTube video ID for demo video on detail screen (from backend exercise-videos.json). */
+  youtubeId?: string;
   [key: string]: any; // Allow other fields
 }
 

@@ -153,6 +153,8 @@ export interface TransformedExercise {
   movementPatterns: string[];
   /** From raw data: "Compound" | "Isolation" etc. Used for common-first sort. */
   type?: string;
+  /** YouTube video ID (from exercise-videos.json) for demo video on detail screen. */
+  youtubeId?: string;
   [key: string]: any; // Preserve other fields
 }
 
