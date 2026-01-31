@@ -27,6 +27,16 @@ export class CreateExerciseDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Library exercise id (e.g. from exercises API). Links to reference data. */
+  @IsOptional()
+  @IsString()
+  exerciseId?: string;
+
+  /** Order within the workout. Defaults to array index when creating. */
+  @IsOptional()
+  @IsNumber()
+  orderIndex?: number;
 }
 
 export class CreateWorkoutDto {

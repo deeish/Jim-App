@@ -1,5 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
+// MVP schema: see backend/SCHEMA_DESIGN.md for full design.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,27 +11,201 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Workout {
-  id        String    @id @default(uuid())
-  name      String
-  day       String?
-  exercises Exercise[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+// ---------------------------------------------------------------------------
+// User (required for logs; optional owner for plans/workouts until auth)
+// ---------------------------------------------------------------------------
+model User {
+  id        String   @id @default(uuid())
+  email     String?
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@map("workouts")
+  workoutPlans WorkoutPlan[]
+  workouts     Workout[]
+  workoutLogs  WorkoutLog[]
+
+  @@map("users")
 }
 
-model Exercise {
+// ---------------------------------------------------------------------------
+// Workout plan (multi-week template)
+// ---------------------------------------------------------------------------
+model WorkoutPlan {
   id        String   @id @default(uuid())
+  userId    String?
   name      String
-  sets      Int
-  reps      Int
-  weight    Float?
-  notes     String?
-  workoutId String
-  workout   Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@map("exercises")
+  user         User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  planWorkouts PlanWorkout[]
+  workouts     Workout[]
+
+  @@map("workout_plans")
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Plan workout slot (e.g. "Upper Body" on Friday, Week 2)
+// ---------------------------------------------------------------------------
+model PlanWorkout {
+  id              String   @id @default(uuid())
+  workoutPlanId   String
+  weekNumber      Int      // 1-based week in plan
+  dayOfWeek       String   // "Monday" .. "Sunday"
+  title           String
+  detailLine      String?
+  type            String   // "strength" | "cardio" | "recovery"
+  durationMinutes Int
+  intensity       String?  // "Easy" | "Medium" | "Hard"
+  orderInDay      Int      @default(0) // when multiple workouts per day
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workoutPlan WorkoutPlan @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade)
+  exercises   PlanExercise[]
+  workouts     Workout[]
+
+  @@map("plan_workouts")
+  @@index([workoutPlanId])
+  @@index([workoutPlanId, weekNumber, dayOfWeek])
+}
+
+// ---------------------------------------------------------------------------
+// Exercise in a plan workout (exerciseId = library id from JSON)
+// ---------------------------------------------------------------------------
+model PlanExercise {
+  id            String   @id @default(uuid())
+  planWorkoutId String
+  exerciseId    String   // library exercise id (e.g. "bench_press_barbell_flat")
+  name          String?
+  sets          Int
+  reps          Int
+  weight        Float?
+  notes         String?
+  orderIndex    Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  planWorkout PlanWorkout @relation(fields: [planWorkoutId], references: [id], onDelete: Cascade)
+
+  @@map("plan_exercises")
+  @@index([planWorkoutId])
+}
+
+// ---------------------------------------------------------------------------
+// Workout template (standalone or created from a plan)
+// ---------------------------------------------------------------------------
+model Workout {
+  id                 String    @id @default(uuid())
+  userId             String?
+  name               String
+  day                String?
+  estimatedDuration  Int?      // minutes
+  focus              String?
+  workoutPlanId      String?
+  planWorkoutId      String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user         User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  workoutPlan  WorkoutPlan?    @relation(fields: [workoutPlanId], references: [id], onDelete: SetNull)
+  planWorkout  PlanWorkout?    @relation(fields: [planWorkoutId], references: [id], onDelete: SetNull)
+  exercises    WorkoutExercise[]
+  workoutLogs  WorkoutLog[]
+
+  @@map("workouts")
+  @@index([userId])
+  @@index([workoutPlanId])
+  @@index([planWorkoutId])
+}
+
+// ---------------------------------------------------------------------------
+// Exercise in a workout (exerciseId = library id; optional for legacy data)
+// ---------------------------------------------------------------------------
+model WorkoutExercise {
+  id         String   @id @default(uuid())
+  workoutId  String
+  exerciseId String?  // library exercise id
+  name       String
+  sets       Int
+  reps       Int
+  weight     Float?
+  notes      String?
+  orderIndex Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  @@map("workout_exercises")
   @@index([workoutId])
+}
+
+// ---------------------------------------------------------------------------
+// Completed workout session (log)
+// ---------------------------------------------------------------------------
+model WorkoutLog {
+  id               String    @id @default(uuid())
+  userId           String
+  workoutId        String
+  startedAt        DateTime
+  completedAt      DateTime?
+  totalTimeSeconds Int?
+  totalSets        Int?
+  totalVolume      Float?
+  overallNotes     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  entries WorkoutLogEntry[]
+
+  @@map("workout_logs")
+  @@index([userId])
+  @@index([workoutId])
+  @@index([startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// One exercise within a logged session
+// ---------------------------------------------------------------------------
+model WorkoutLogEntry {
+  id           String   @id @default(uuid())
+  workoutLogId String
+  exerciseId   String   // library exercise id
+  name         String?
+  orderIndex   Int      @default(0)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workoutLog     WorkoutLog    @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+  completedSets  CompletedSet[]
+
+  @@map("workout_log_entries")
+  @@index([workoutLogId])
+}
+
+// ---------------------------------------------------------------------------
+// One set within a log entry
+// ---------------------------------------------------------------------------
+model CompletedSet {
+  id                 String   @id @default(uuid())
+  workoutLogEntryId  String
+  setNumber          Int
+  reps               Int
+  weight             Float?
+  rpe                Int?     // 1-10
+  completed           Boolean  @default(true)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workoutLogEntry WorkoutLogEntry @relation(fields: [workoutLogEntryId], references: [id], onDelete: Cascade)
+
+  @@map("completed_sets")
+  @@index([workoutLogEntryId])
 }

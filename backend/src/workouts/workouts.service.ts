@@ -24,7 +24,15 @@ export class WorkoutsService {
         name: createWorkoutDto.name,
         day: createWorkoutDto.day,
         exercises: {
-          create: createWorkoutDto.exercises,
+          create: createWorkoutDto.exercises.map((e, i) => ({
+            name: e.name,
+            sets: e.sets,
+            reps: e.reps,
+            weight: e.weight,
+            notes: e.notes,
+            exerciseId: e.exerciseId ?? undefined,
+            orderIndex: e.orderIndex ?? i,
+          })),
         },
       },
       include: {
@@ -78,8 +86,9 @@ export class WorkoutsService {
 
     // If exercises are being updated, delete existing ones first
     if (updateWorkoutDto.exercises) {
-      await this.prisma.exercise.deleteMany({
-        where: { workoutId: id },
+      await this.prisma.workout.update({
+        where: { id },
+        data: { exercises: { deleteMany: {} } },
       });
     }
 
@@ -92,7 +101,15 @@ export class WorkoutsService {
         }),
         ...(updateWorkoutDto.exercises && {
           exercises: {
-            create: updateWorkoutDto.exercises,
+            create: updateWorkoutDto.exercises.map((e, i) => ({
+              name: e.name,
+              sets: e.sets,
+              reps: e.reps,
+              weight: e.weight,
+              notes: e.notes,
+              exerciseId: e.exerciseId ?? undefined,
+              orderIndex: e.orderIndex ?? i,
+            })),
           },
         }),
       },

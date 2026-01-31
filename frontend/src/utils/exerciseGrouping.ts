@@ -70,21 +70,22 @@ export function groupExercises(exercises: Exercise[]): ExerciseGroup[] {
   });
   
   // Convert to array and select primary exercise
+  // Preserve insertion order (Map iteration order) so backend sort is respected:
+  // common exercises first, then Compound, equipment preference, name.
   const groups: ExerciseGroup[] = Array.from(groupsMap.entries()).map(([baseName, exerciseList]) => {
     // Primary exercise is the one with the shortest name (usually the base version)
-    const primaryExercise = exerciseList.reduce((prev, current) => 
+    const primaryExercise = exerciseList.reduce((prev, current) =>
       current.name.length < prev.name.length ? current : prev
     );
-    
+
     return {
       baseName,
       exercises: exerciseList,
       primaryExercise,
     };
   });
-  
-  // Sort groups by base name
-  return groups.sort((a, b) => a.baseName.localeCompare(b.baseName));
+
+  return groups;
 }
 
 /**

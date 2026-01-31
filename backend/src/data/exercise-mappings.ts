@@ -151,6 +151,8 @@ export interface TransformedExercise {
   secondaryMuscleGroups: string[];
   equipment: string[];
   movementPatterns: string[];
+  /** From raw data: "Compound" | "Isolation" etc. Used for common-first sort. */
+  type?: string;
   [key: string]: any; // Preserve other fields
 }
 
@@ -198,6 +200,7 @@ export function transformExercise(raw: RawExercise): TransformedExercise {
     secondaryMuscleGroups,
     equipment,
     movementPatterns,
+    type: raw.type,
     // Remove old ID fields
     primaryMuscleGroupId: undefined,
     subMuscleIds: undefined,

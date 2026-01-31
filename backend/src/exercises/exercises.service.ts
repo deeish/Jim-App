@@ -6,7 +6,25 @@ import {
   RawExercise,
   TransformedExercise,
 } from '../data/exercise-mappings';
+import { getCommonExerciseRank } from '../data/common-exercise-ids';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
+
+/** Lower = show first. Used to prefer Barbell/Dumbbell/Bodyweight/Cable/Machine. */
+const EQUIPMENT_ORDER: Record<string, number> = {
+  Barbell: 0,
+  Dumbbell: 1,
+  Bodyweight: 2,
+  Cable: 3,
+  Machine: 4,
+  'Smith Machine': 5,
+  Kettlebell: 6,
+  'Pull-up Bar': 7,
+  'Resistance Band': 8,
+  TRX: 9,
+  'Medicine Ball': 10,
+  'Battle Rope': 11,
+};
+const DEFAULT_EQUIPMENT_ORDER = 12;
 
 @Injectable()
 export class ExercisesService implements OnModuleInit {
@@ -97,6 +115,31 @@ export class ExercisesService implements OnModuleInit {
         ),
       );
     }
+
+    // Sort: common list first, then Compound, then equipment preference, then name
+    results.sort((a, b) => {
+      const rankA = getCommonExerciseRank(a.id);
+      const rankB = getCommonExerciseRank(b.id);
+      if (rankA !== rankB) return rankA - rankB;
+
+      const compoundA = (a.type ?? '').toLowerCase() === 'compound' ? 0 : 1;
+      const compoundB = (b.type ?? '').toLowerCase() === 'compound' ? 0 : 1;
+      if (compoundA !== compoundB) return compoundA - compoundB;
+
+      const equipA = Math.min(
+        ...(a.equipment?.length
+          ? a.equipment.map((eq) => EQUIPMENT_ORDER[eq] ?? DEFAULT_EQUIPMENT_ORDER)
+          : [DEFAULT_EQUIPMENT_ORDER]),
+      );
+      const equipB = Math.min(
+        ...(b.equipment?.length
+          ? b.equipment.map((eq) => EQUIPMENT_ORDER[eq] ?? DEFAULT_EQUIPMENT_ORDER)
+          : [DEFAULT_EQUIPMENT_ORDER]),
+      );
+      if (equipA !== equipB) return equipA - equipB;
+
+      return (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' });
+    });
 
     return results;
   }
