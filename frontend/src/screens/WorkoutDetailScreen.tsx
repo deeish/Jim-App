@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../App';
 import { getWorkoutById, generateWorkout } from '../services/workoutService';
 import { Workout } from '../types/workout';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 
 type WorkoutDetailScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
 type WorkoutDetailScreenRouteProp = RouteProp<RootStackParamList, 'WorkoutDetail'>;
@@ -17,9 +17,54 @@ type Props = {
 
 export default function WorkoutDetailScreen({ navigation, route }: Props) {
   const { workoutId } = route.params || {};
+  const { colors } = useTheme();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: { flex: 1, backgroundColor: colors.background },
+        loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+        emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+        emptyText: { fontSize: 18, color: colors.textTertiary, marginBottom: 20 },
+        header: { backgroundColor: colors.surface, padding: 20, marginBottom: 12 },
+        workoutName: { fontSize: 28, fontWeight: 'bold', color: colors.text, marginBottom: 8 },
+        workoutDay: { fontSize: 16, color: colors.primary, fontWeight: '600' },
+        exercisesContainer: { padding: 12 },
+        sectionTitle: { fontSize: 20, fontWeight: 'bold', color: colors.text, marginBottom: 12 },
+        exerciseCard: {
+          backgroundColor: colors.surface,
+          padding: 16,
+          borderRadius: 12,
+          marginBottom: 12,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.3,
+          shadowRadius: 3.84,
+          elevation: 5,
+        },
+        exerciseName: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 8 },
+        exerciseDetails: { flexDirection: 'row', gap: 16, marginBottom: 8 },
+        exerciseDetail: { fontSize: 14, color: colors.textSecondary },
+        exerciseNotes: { fontSize: 14, color: colors.textTertiary, fontStyle: 'italic', marginTop: 8 },
+        generateButton: {
+          backgroundColor: colors.primary,
+          padding: 18,
+          margin: 12,
+          borderRadius: 12,
+          alignItems: 'center',
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.3,
+          shadowRadius: 3.84,
+          elevation: 5,
+        },
+        generateButtonText: { color: colors.background, fontSize: 18, fontWeight: '600' },
+      }),
+    [colors]
+  );
 
   useEffect(() => {
     if (workoutId) {
@@ -132,106 +177,3 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 18,
-    color: colors.textTertiary,
-    marginBottom: 20,
-  },
-  header: {
-    backgroundColor: colors.surface,
-    padding: 20,
-    marginBottom: 12,
-  },
-  workoutName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  workoutDay: {
-    fontSize: 16,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  exercisesContainer: {
-    padding: 12,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 12,
-  },
-  exerciseCard: {
-    backgroundColor: colors.surface,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: colors.shadow,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  exerciseName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  exerciseDetails: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 8,
-  },
-  exerciseDetail: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  exerciseNotes: {
-    fontSize: 14,
-    color: colors.textTertiary,
-    fontStyle: 'italic',
-    marginTop: 8,
-  },
-  generateButton: {
-    backgroundColor: colors.primary,
-    padding: 18,
-    margin: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: colors.shadow,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  generateButtonText: {
-    color: colors.background,
-    fontSize: 18,
-    fontWeight: '600',
-  },
-});

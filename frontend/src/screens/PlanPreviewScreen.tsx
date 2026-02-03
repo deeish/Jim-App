@@ -13,7 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../App';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
+import { colors as themeColors } from '../theme/colors';
 
 type PlanPreviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlanPreview'>;
 type PlanPreviewScreenRouteProp = RouteProp<RootStackParamList, 'PlanPreview'>;
@@ -194,6 +195,7 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
 }
 
 export default function PlanPreviewScreen({ navigation, route }: Props) {
+  const { colors } = useTheme();
   const { inputs, draftId } = route.params;
   const [applying, setApplying] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState(1);
@@ -636,10 +638,10 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = useMemo(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
   },
   header: {
     flexDirection: 'row',
@@ -648,21 +650,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
+    borderBottomColor: themeColors.border,
+    backgroundColor: themeColors.surface,
   },
   backButton: {
     padding: 4,
   },
   backButtonText: {
     fontSize: 16,
-    color: colors.primary,
+    color: themeColors.primary,
     fontWeight: '600',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: themeColors.text,
   },
   headerSpacer: {
     width: 60,
@@ -670,8 +672,8 @@ const styles = StyleSheet.create({
   weekTabs: {
     maxHeight: 50,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
+    borderBottomColor: themeColors.border,
+    backgroundColor: themeColors.surface,
   },
   weekTabsContent: {
     paddingHorizontal: 8,
@@ -683,21 +685,21 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   weekTabActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: themeColors.primary,
   },
   weekTabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   weekTabTextActive: {
-    color: colors.background,
+    color: themeColors.background,
   },
   summaryCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: themeColors.border,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -708,42 +710,42 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     marginBottom: 4,
   },
   summaryValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.text,
+    color: themeColors.text,
   },
   hardDaysWarning: {
-    color: colors.warning,
+    color: themeColors.warning,
   },
   regenerateControls: {
     maxHeight: 50,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: themeColors.border,
   },
   regenerateButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginRight: 8,
     borderRadius: 6,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   regenerateButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: themeColors.primary,
+    borderColor: themeColors.primary,
   },
   regenerateButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   content: {
     flex: 1,
@@ -764,7 +766,7 @@ const styles = StyleSheet.create({
   dayTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: colors.text,
+    color: themeColors.text,
   },
   dayActions: {
     flexDirection: 'row',
@@ -774,33 +776,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 4,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   dayActionButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: themeColors.primary,
+    borderColor: themeColors.primary,
   },
   dayActionText: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   dayActionTextActive: {
-    color: colors.background,
+    color: themeColors.background,
   },
   emptyDay: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     borderStyle: 'dashed',
   },
   emptyDayText: {
     fontSize: 14,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     textAlign: 'center',
   },
   workoutStack: {
@@ -809,12 +811,12 @@ const styles = StyleSheet.create({
   workoutCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: 12,
     padding: 12,
     position: 'relative',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   changeBadge: {
     position: 'absolute',
@@ -839,7 +841,7 @@ const styles = StyleSheet.create({
   workoutTypeBadge: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.background,
+    color: themeColors.background,
   },
   workoutContent: {
     flex: 1,
@@ -847,24 +849,24 @@ const styles = StyleSheet.create({
   workoutTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
     marginBottom: 2,
   },
   workoutDetailLine: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   moveIndicator: {
     marginLeft: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: colors.primary,
+    backgroundColor: themeColors.primary,
     borderRadius: 4,
   },
   moveIndicatorText: {
     fontSize: 10,
     fontWeight: '600',
-    color: colors.background,
+    color: themeColors.background,
   },
   footer: {
     flexDirection: 'row',
@@ -872,12 +874,12 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 32,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
+    borderTopColor: themeColors.border,
+    backgroundColor: themeColors.surface,
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: themeColors.primary,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
@@ -886,22 +888,22 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.background,
+    color: themeColors.background,
   },
   secondaryButton: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   secondaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   modalOverlay: {
     flex: 1,
@@ -909,7 +911,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 20,
@@ -918,12 +920,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: colors.text,
+    color: themeColors.text,
     marginBottom: 8,
   },
   modalSubtitle: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     marginBottom: 20,
   },
   modalOptions: {
@@ -931,15 +933,15 @@ const styles = StyleSheet.create({
   },
   modalOption: {
     padding: 16,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   modalOptionText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
   },
   modalCancel: {
     marginTop: 16,
@@ -949,6 +951,6 @@ const styles = StyleSheet.create({
   modalCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
-});
+}), [themeColors]);

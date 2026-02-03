@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 
 type PlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Plan'>;
 
@@ -142,6 +142,7 @@ type Props = {
 };
 
 export default function PlanScreen({ navigation }: Props) {
+  const { colors } = useTheme();
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [plan, setPlan] = useState<Record<string, PlanWorkout[]>>(initialPlan);
   const [contextWorkout, setContextWorkout] = useState<{ workout: PlanWorkout; day: string } | null>(null);
@@ -155,6 +156,199 @@ export default function PlanScreen({ navigation }: Props) {
   const backToBackSuggestions = getBackToBackSuggestions(plan);
   const backToBackHard = backToBackSuggestions.length > 0;
   const isCurrentWeek = selectedWeek === 0;
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: colors.background,
+        },
+        header: {
+          backgroundColor: colors.surface,
+          padding: 12,
+          paddingTop: 12,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        },
+        headerTop: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 12,
+        },
+        headerTitles: { flex: 1 },
+        headerTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text },
+        goalContext: { fontSize: 12, color: colors.primary, marginTop: 2, fontWeight: '600' },
+        detailsToggle: { marginTop: 8, paddingVertical: 6, paddingHorizontal: 4 },
+        detailsToggleContent: { flexDirection: 'row', alignItems: 'center' },
+        detailsToggleText: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
+        detailsToggleIcon: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
+        ctaRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+        ctaCompact: {
+          backgroundColor: colors.primary,
+          paddingVertical: 8,
+          paddingHorizontal: 12,
+          borderRadius: 8,
+          minWidth: 64,
+          alignItems: 'center',
+        },
+        ctaSecondary: {
+          backgroundColor: colors.surface,
+          borderWidth: 1,
+          borderColor: colors.border,
+        },
+        ctaCompactText: { fontSize: 13, fontWeight: '600', color: colors.background },
+        ctaCompactTextSecondary: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+        backToBackWarning: {
+          marginTop: 8,
+          paddingHorizontal: 10,
+          paddingVertical: 6,
+          backgroundColor: 'rgba(217, 119, 69, 0.2)',
+          borderRadius: 8,
+          alignSelf: 'flex-start',
+        },
+        backToBackWarningText: { fontSize: 12, color: colors.warning, fontWeight: '500' },
+        weekRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.surface,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+          paddingVertical: 6,
+          paddingHorizontal: 12,
+        },
+        weekNavArrow: { padding: 4, minWidth: 32, alignItems: 'center' },
+        weekNavArrowText: { fontSize: 20, color: colors.primary, fontWeight: '600' },
+        weekNavCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+        weekNavLabel: { fontSize: 13, color: colors.text, fontWeight: '600' },
+        content: { flex: 1 },
+        contentContainer: { padding: 12, paddingBottom: 32 },
+        daySection: { marginBottom: 18 },
+        dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+        dayTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+        dayTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
+        todayChip: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: colors.secondary,
+          paddingHorizontal: 8,
+          paddingVertical: 4,
+          borderRadius: 6,
+          gap: 4,
+        },
+        todayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.background },
+        todayText: { fontSize: 11, fontWeight: '600', color: colors.background },
+        daySummaryContainer: { alignItems: 'flex-end' },
+        daySummaryRow: { flexDirection: 'row', alignItems: 'baseline' },
+        daySummary: { fontSize: 12, color: colors.text, fontWeight: '600' },
+        dayHelperText: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
+        emptyDay: {
+          backgroundColor: colors.surface,
+          borderRadius: 12,
+          padding: 20,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderStyle: 'dashed',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+        },
+        emptyDayAddIcon: { fontSize: 20, color: colors.primary, fontWeight: '600' },
+        emptyDayText: { fontSize: 15, color: colors.primary, fontWeight: '600' },
+        emptyDayHint: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
+        restDayCard: { opacity: 0.7 },
+        workoutStack: { gap: 12 },
+        workoutStackTight: { gap: 6 },
+        workoutCard: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: colors.surface,
+          borderRadius: 12,
+          padding: 12,
+          paddingRight: 12,
+          elevation: 2,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          position: 'relative',
+        },
+        workoutCardPressed: { opacity: 0.85 },
+        workoutIcon: {
+          width: 44,
+          height: 44,
+          borderRadius: 8,
+          marginRight: 12,
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
+        workoutTypeBadge: { fontSize: 16, fontWeight: '700', color: colors.background },
+        workoutContent: { flex: 1 },
+        workoutTitle: { fontSize: 15, fontWeight: '600', color: colors.text, marginBottom: 2 },
+        workoutDetailLine: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+        moreButton: { position: 'absolute', top: 8, right: 8, padding: 4 },
+        moreButtonText: { fontSize: 18, color: colors.textMuted, fontWeight: '700' },
+        menuOverlay: {
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 24,
+        },
+        menuBox: {
+          backgroundColor: colors.surface,
+          borderRadius: 12,
+          width: '100%',
+          maxWidth: 320,
+          overflow: 'hidden',
+        },
+        menuItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+        menuItemText: { fontSize: 16, color: colors.text },
+        menuItemTextMuted: { fontSize: 16, color: colors.textMuted },
+        menuItemDanger: { color: colors.error },
+        moveOverlay: {
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 24,
+        },
+        moveBox: {
+          backgroundColor: colors.surface,
+          borderRadius: 12,
+          width: '100%',
+          maxWidth: 320,
+          overflow: 'hidden',
+        },
+        moveTitle: { fontSize: 18, fontWeight: '700', color: colors.text, padding: 16, paddingBottom: 8 },
+        moveDayItem: { padding: 14, paddingLeft: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+        moveDayText: { fontSize: 16, color: colors.text },
+        moveCancel: { padding: 16, alignItems: 'center' },
+        moveCancelText: { fontSize: 16, color: colors.textMuted },
+        backToBackBox: {
+          backgroundColor: colors.surface,
+          borderRadius: 12,
+          width: '100%',
+          maxWidth: 320,
+          overflow: 'hidden',
+        },
+        backToBackTitle: {
+          fontSize: 18,
+          fontWeight: '700',
+          color: colors.text,
+          paddingHorizontal: 16,
+          paddingTop: 16,
+          paddingBottom: 8,
+        },
+        backToBackOption: { padding: 14, paddingLeft: 16, borderTopWidth: 1, borderTopColor: colors.border },
+        backToBackOptionText: { fontSize: 15, color: colors.primary, fontWeight: '600' },
+        backToBackDismiss: { padding: 16, alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.border },
+      }),
+    [colors]
+  );
 
   const handleCardPress = useCallback((workout: PlanWorkout, day: string) => {
     // Navigate to workout detail or open sheet (placeholder)
@@ -586,385 +780,3 @@ export default function PlanScreen({ navigation }: Props) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    backgroundColor: colors.surface,
-    padding: 12,
-    paddingTop: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  headerTitles: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  goalContext: {
-    fontSize: 12,
-    color: colors.primary,
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  detailsToggle: {
-    marginTop: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-  },
-  detailsToggleContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  detailsToggleText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  detailsToggleIcon: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  ctaRow: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
-  ctaCompact: {
-    backgroundColor: colors.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    minWidth: 64,
-    alignItems: 'center',
-  },
-  ctaSecondary: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  ctaCompactText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.background,
-  },
-  ctaCompactTextSecondary: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  backToBackWarning: {
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(217, 119, 69, 0.2)',
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  backToBackWarningText: {
-    fontSize: 12,
-    color: colors.warning,
-    fontWeight: '500',
-  },
-  weekRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  weekNavArrow: {
-    padding: 4,
-    minWidth: 32,
-    alignItems: 'center',
-  },
-  weekNavArrowText: {
-    fontSize: 20,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  weekNavCenter: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  weekNavLabel: {
-    fontSize: 13,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  content: {
-    flex: 1,
-  },
-  contentContainer: {
-    padding: 12,
-    paddingBottom: 32,
-  },
-  daySection: {
-    marginBottom: 18,
-  },
-  dayHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  dayTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  dayTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  todayChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.secondary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 4,
-  },
-  todayDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.background,
-  },
-  todayText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.background,
-  },
-  daySummaryContainer: {
-    alignItems: 'flex-end',
-  },
-  daySummaryRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  daySummary: {
-    fontSize: 12,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  dayHelperText: {
-    fontSize: 12,
-    color: colors.textMuted,
-    fontWeight: '500',
-  },
-  emptyDay: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  emptyDayAddIcon: {
-    fontSize: 20,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  emptyDayText: {
-    fontSize: 15,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  emptyDayHint: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  restDayCard: {
-    opacity: 0.7,
-  },
-  workoutStack: {
-    gap: 12,
-  },
-  workoutStackTight: {
-    gap: 6,
-  },
-  workoutCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 12,
-    paddingRight: 12,
-    elevation: 2,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    position: 'relative',
-  },
-  workoutCardPressed: {
-    opacity: 0.85,
-  },
-  workoutIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  workoutTypeBadge: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.background,
-  },
-  workoutContent: {
-    flex: 1,
-  },
-  workoutTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 2,
-  },
-  workoutDetailLine: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  moreButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    padding: 4,
-  },
-  moreButtonText: {
-    fontSize: 18,
-    color: colors.textMuted,
-    fontWeight: '700',
-  },
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  menuBox: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    width: '100%',
-    maxWidth: 320,
-    overflow: 'hidden',
-  },
-  menuItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  menuItemText: {
-    fontSize: 16,
-    color: colors.text,
-  },
-  menuItemTextMuted: {
-    fontSize: 16,
-    color: colors.textMuted,
-  },
-  menuItemDanger: {
-    color: colors.error,
-  },
-  moveOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  moveBox: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    width: '100%',
-    maxWidth: 320,
-    overflow: 'hidden',
-  },
-  moveTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    padding: 16,
-    paddingBottom: 8,
-  },
-  moveDayItem: {
-    padding: 14,
-    paddingLeft: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  moveDayText: {
-    fontSize: 16,
-    color: colors.text,
-  },
-  moveCancel: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  moveCancelText: {
-    fontSize: 16,
-    color: colors.textMuted,
-  },
-  backToBackBox: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    width: '100%',
-    maxWidth: 320,
-    overflow: 'hidden',
-  },
-  backToBackTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  backToBackOption: {
-    padding: 14,
-    paddingLeft: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  backToBackOptionText: {
-    fontSize: 15,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  backToBackDismiss: {
-    padding: 16,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-});

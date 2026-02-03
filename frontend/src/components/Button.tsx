@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 
 interface ButtonProps {
   title: string;
@@ -12,15 +12,42 @@ interface ButtonProps {
   textStyle?: TextStyle;
 }
 
-export default function Button({ 
-  title, 
-  onPress, 
-  variant = 'primary', 
-  loading = false, 
+export default function Button({
+  title,
+  onPress,
+  variant = 'primary',
+  loading = false,
   disabled = false,
   style,
-  textStyle 
+  textStyle,
 }: ButtonProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        button: {
+          padding: 18,
+          borderRadius: 12,
+          alignItems: 'center',
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 3.84,
+          elevation: 5,
+        },
+        primary: { backgroundColor: colors.primary },
+        secondary: {
+          backgroundColor: colors.surface,
+          borderWidth: 2,
+          borderColor: colors.secondary,
+        },
+        disabled: { opacity: 0.6 },
+        buttonText: { fontSize: 18, fontWeight: '600' },
+        primaryText: { color: '#FFFFFF' },
+        secondaryText: { color: colors.secondary },
+      }),
+    [colors]
+  );
   return (
     <TouchableOpacity
       style={[
@@ -35,51 +62,10 @@ export default function Button({
       {loading ? (
         <ActivityIndicator color={variant === 'primary' ? '#FFFFFF' : colors.primary} />
       ) : (
-        <Text style={[
-          styles.buttonText,
-          variant === 'primary' ? styles.primaryText : styles.secondaryText,
-          textStyle,
-        ]}>
+        <Text style={[styles.buttonText, variant === 'primary' ? styles.primaryText : styles.secondaryText, textStyle]}>
           {title}
         </Text>
       )}
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  button: {
-    padding: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: colors.shadow,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  primary: {
-    backgroundColor: colors.primary,
-  },
-  secondary: {
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.secondary,
-  },
-  disabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  primaryText: {
-    color: '#FFFFFF',
-  },
-  secondaryText: {
-    color: colors.secondary,
-  },
-});

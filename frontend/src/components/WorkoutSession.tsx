@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { Workout, ExerciseSession, CompletedSet } from '../types/workout';
 import Button from './Button';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
+import { colors as themeColors } from '../theme/colors';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 
@@ -234,6 +235,7 @@ export default function WorkoutSession({
   onUpdate,
   navigation,
 }: WorkoutSessionProps) {
+  const { colors } = useTheme();
   const [exerciseSessions, setExerciseSessions] = useState<ExerciseSession[]>(() => {
     return session.workout.exercises.map((exercise, index) => ({
       exerciseIndex: index,
@@ -1486,6 +1488,7 @@ function EditPrescriptionModal({
   onSave: (weight: number, reps: number, applyToRemaining: boolean, rpe?: number) => void;
   onClose: () => void;
 }) {
+  const { colors } = useTheme();
   const [weight, setWeight] = useState(initialWeight);
   const [reps, setReps] = useState(initialReps);
   const [rpe, setRpe] = useState<number | undefined>(initialRpe);
@@ -1666,7 +1669,7 @@ function NotesModal({
             placeholder="Add notes (e.g., 'felt heavy', 'elbow pain')..."
             multiline
             numberOfLines={6}
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
           />
           <View style={styles.notesModalButtons}>
             <Button
@@ -1789,16 +1792,16 @@ function WorkoutFinishScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = useMemo(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
   },
   header: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: themeColors.border,
   },
   headerTop: {
     flexDirection: 'row',
@@ -1816,34 +1819,34 @@ const styles = StyleSheet.create({
   workoutName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: colors.text,
+    color: themeColors.text,
     marginBottom: 4,
   },
   workoutDate: {
     fontSize: 16,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   duration: {
     fontSize: 16,
-    color: colors.primary,
+    color: themeColors.primary,
     fontWeight: '600',
   },
   focus: {
     fontSize: 14,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
   },
   headerMenuButton: {
     padding: 8,
   },
   headerMenuButtonText: {
     fontSize: 24,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
   },
   progressSection: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: themeColors.border,
   },
   progressHeader: {
     marginBottom: 8,
@@ -1851,22 +1854,22 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
   },
   progressBar: {
     height: 12,
-    backgroundColor: colors.border,
+    backgroundColor: themeColors.border,
     borderRadius: 6,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.primary,
+    backgroundColor: themeColors.primary,
     borderRadius: 6,
   },
   nextExerciseText: {
     fontSize: 14,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
     marginTop: 4,
   },
   restBannerOverlay: {
@@ -1884,19 +1887,19 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   restBanner: {
-    backgroundColor: colors.primary + '20',
+    backgroundColor: themeColors.primary + '20',
     paddingHorizontal: 16,
     paddingVertical: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: themeColors.border,
   },
   restBannerText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.primary,
+    color: themeColors.primary,
   },
   restBannerControls: {
     flexDirection: 'row',
@@ -1905,15 +1908,15 @@ const styles = StyleSheet.create({
   restBannerButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   restBannerButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
   },
   restTimerWidgetContainer: {
     paddingHorizontal: 16,
@@ -1921,34 +1924,34 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   restTimerWidget: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   restTimerWidgetText: {
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
   restTimerContainer: {
-    backgroundColor: colors.primary + '20',
+    backgroundColor: themeColors.primary + '20',
     padding: 16,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: themeColors.border,
   },
   restTimerLabel: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     marginBottom: 8,
   },
   restTimerTime: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: colors.primary,
+    color: themeColors.primary,
     marginBottom: 12,
   },
   restTimerControls: {
@@ -1956,15 +1959,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   restTimerButton: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   restTimerButtonText: {
-    color: colors.text,
+    color: themeColors.text,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1972,13 +1975,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   exerciseCardCollapsed: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     margin: 12,
     marginBottom: 8,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1995,10 +1998,10 @@ const styles = StyleSheet.create({
   exerciseCardNameCollapsed: {
     fontSize: 18,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
   },
   activeBadge: {
-    backgroundColor: colors.primary,
+    backgroundColor: themeColors.primary,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -2012,7 +2015,7 @@ const styles = StyleSheet.create({
   },
   exerciseCardInfoCollapsed: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     marginBottom: 8,
   },
   exerciseCardCollapsedPills: {
@@ -2023,23 +2026,23 @@ const styles = StyleSheet.create({
     minWidth: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
   },
   exerciseCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     margin: 12,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   exerciseCardCurrent: {
-    borderColor: colors.primary + '99',
+    borderColor: themeColors.primary + '99',
     borderWidth: 1,
   },
   exerciseCardHeader: {
@@ -2050,7 +2053,7 @@ const styles = StyleSheet.create({
   },
   exerciseCardHeaderCurrent: {
     borderLeftWidth: 3,
-    borderLeftColor: colors.primary + '99',
+    borderLeftColor: themeColors.primary + '99',
     marginLeft: -12,
     paddingLeft: 12,
     marginBottom: 8,
@@ -2071,7 +2074,7 @@ const styles = StyleSheet.create({
   exerciseCardName: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: colors.text,
+    color: themeColors.text,
   },
   muscleTags: {
     flexDirection: 'row',
@@ -2079,14 +2082,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   muscleTag: {
-    backgroundColor: colors.primary + '15',
+    backgroundColor: themeColors.primary + '15',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
   muscleTagText: {
     fontSize: 12,
-    color: colors.primary,
+    color: themeColors.primary,
     fontWeight: '500',
   },
   optionsButton: {
@@ -2094,18 +2097,18 @@ const styles = StyleSheet.create({
   },
   optionsButtonText: {
     fontSize: 20,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
   },
   collapseButton: {
     padding: 4,
   },
   collapseButtonText: {
     fontSize: 24,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
   },
   exerciseCardInfo: {
     fontSize: 16,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     marginBottom: 8,
   },
   prescriptionRow: {
@@ -2126,12 +2129,12 @@ const styles = StyleSheet.create({
   },
   prescriptionEditHint: {
     fontSize: 12,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
     marginLeft: 8,
   },
   editPrescriptionText: {
     fontSize: 16,
-    color: colors.primary,
+    color: themeColors.primary,
     marginLeft: 4,
   },
   completedSetsContainer: {
@@ -2140,7 +2143,7 @@ const styles = StyleSheet.create({
   },
   completedSetsLabel: {
     fontSize: 14,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
     marginBottom: 8,
   },
   completedSetsList: {
@@ -2149,16 +2152,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   completedSetBadge: {
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   completedSetText: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   setTrackerContainer: {
     flexDirection: 'row',
@@ -2170,11 +2173,11 @@ const styles = StyleSheet.create({
   setProgressLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   lastSetLine: {
     fontSize: 12,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
     marginBottom: 8,
   },
   loggingControlsRow: {
@@ -2187,7 +2190,7 @@ const styles = StyleSheet.create({
   },
   stepperLabel: {
     fontSize: 12,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
     marginBottom: 4,
   },
   stepper: {
@@ -2199,22 +2202,22 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   stepperButtonText: {
     fontSize: 18,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
   },
   stepperValue: {
     minWidth: 44,
     fontSize: 18,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
     textAlign: 'center',
   },
   stepperValueTouch: {
@@ -2227,12 +2230,12 @@ const styles = StyleSheet.create({
     width: 52,
     fontSize: 18,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
     textAlign: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     paddingVertical: 4,
     paddingHorizontal: 4,
   },
@@ -2246,20 +2249,20 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.background,
   },
   weightStepChipActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '20',
+    borderColor: themeColors.primary,
+    backgroundColor: themeColors.primary + '20',
   },
   weightStepChipText: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '600',
   },
   weightStepChipTextActive: {
-    color: colors.primary,
+    color: themeColors.primary,
   },
   viewSetsRow: {
     flexDirection: 'row',
@@ -2269,12 +2272,12 @@ const styles = StyleSheet.create({
   },
   viewSetsLabel: {
     fontSize: 13,
-    color: colors.primary,
+    color: themeColors.primary,
     fontWeight: '600',
   },
   viewSetsChevron: {
     fontSize: 13,
-    color: colors.primary,
+    color: themeColors.primary,
     marginLeft: 4,
   },
   compactLogRow: {
@@ -2285,36 +2288,36 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   setHistoryChip: {
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   setHistoryChipText: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '500',
   },
   compactLogItem: {
     fontSize: 12,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
   },
   setTrackerPillFocused: {
-    borderColor: colors.primary,
+    borderColor: themeColors.primary,
     borderWidth: 2,
   },
   setTrackerPillFuture: {
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     backgroundColor: 'transparent',
     opacity: 0.7,
   },
   setTrackerPillTextFocused: {
-    color: colors.primary,
+    color: themeColors.primary,
   },
   setTrackerPillTextFuture: {
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
   },
   setTrackerRightRow: {
     flexDirection: 'row',
@@ -2325,9 +2328,9 @@ const styles = StyleSheet.create({
     minWidth: 44,
     minHeight: 44,
     borderRadius: 10,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
@@ -2338,15 +2341,15 @@ const styles = StyleSheet.create({
   setPillControlText: {
     fontSize: 18,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
   },
   setPillControlTextDisabled: {
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
   },
   setTrackerLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   setTrackerDots: {
     flexDirection: 'row',
@@ -2358,21 +2361,21 @@ const styles = StyleSheet.create({
     minWidth: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 8,
   },
   setTrackerPillCompleted: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: themeColors.primary,
+    borderColor: themeColors.primary,
   },
   setTrackerPillText: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
   },
   setTrackerPillTextCompleted: {
     color: '#FFFFFF',
@@ -2381,18 +2384,18 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   setTrackerDotText: {
     fontSize: 16,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
   },
   setTrackerDotCompleted: {
-    color: colors.primary,
+    color: themeColors.primary,
     fontWeight: 'bold',
   },
   currentSetContainer: {
@@ -2401,7 +2404,7 @@ const styles = StyleSheet.create({
   currentSetLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
     marginBottom: 12,
   },
   setsContainer: {
@@ -2409,21 +2412,21 @@ const styles = StyleSheet.create({
   },
   setRowReadOnly: {
     padding: 12,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     marginBottom: 8,
   },
   setRowReadOnlyText: {
     fontSize: 16,
-    color: colors.text,
+    color: themeColors.text,
     fontWeight: '500',
     marginBottom: 4,
   },
   setRowEditHint: {
     fontSize: 12,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
     fontStyle: 'italic',
   },
   setRow: {
@@ -2435,7 +2438,7 @@ const styles = StyleSheet.create({
   setRowDoneButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.primary,
+    backgroundColor: themeColors.primary,
     borderRadius: 6,
   },
   setRowDoneButtonText: {
@@ -2448,13 +2451,13 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   setCheckboxCompleted: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: themeColors.primary,
+    borderColor: themeColors.primary,
   },
   setCheckboxCheck: {
     color: '#FFFFFF',
@@ -2465,16 +2468,16 @@ const styles = StyleSheet.create({
     width: 30,
     fontSize: 16,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   setInput: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     padding: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.text,
+    borderColor: themeColors.border,
+    color: themeColors.text,
     fontSize: 16,
   },
   setInputRpe: {
@@ -2484,23 +2487,23 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: themeColors.border,
     marginTop: 8,
   },
   addSetButtonText: {
-    color: colors.primary,
+    color: themeColors.primary,
     fontSize: 16,
     fontWeight: '600',
   },
   exerciseNotesPreview: {
     marginTop: 8,
     padding: 8,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderRadius: 8,
   },
   exerciseNotesPreviewText: {
     fontSize: 14,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
     fontStyle: 'italic',
   },
   advancedToggle: {
@@ -2509,15 +2512,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   advancedToggleText: {
-    color: colors.primary,
+    color: themeColors.primary,
     fontSize: 14,
     fontWeight: '600',
   },
   footer: {
     padding: 16,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: themeColors.border,
   },
   primaryButton: {
     minHeight: 56,
@@ -2531,8 +2534,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   toastText: {
-    backgroundColor: colors.text,
-    color: colors.surface,
+    backgroundColor: themeColors.text,
+    color: themeColors.surface,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
@@ -2542,12 +2545,12 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: colors.overlay,
+    backgroundColor: themeColors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: 12,
     padding: 24,
     width: '80%',
@@ -2556,17 +2559,17 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: colors.text,
+    color: themeColors.text,
     marginBottom: 12,
   },
   modalText: {
     fontSize: 16,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     marginBottom: 8,
   },
   modalSubtext: {
     fontSize: 14,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
     marginBottom: 24,
   },
   modalButtons: {
@@ -2580,27 +2583,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalButtonCancel: {
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   modalButtonConfirm: {
-    backgroundColor: colors.error,
+    backgroundColor: themeColors.error,
   },
   modalButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
   },
   modalButtonConfirmText: {
     color: '#FFFFFF',
   },
   modalCloseText: {
     fontSize: 24,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
   },
   optionsModal: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     width: '100%',
@@ -2614,47 +2617,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: themeColors.border,
   },
   optionsModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: colors.text,
+    color: themeColors.text,
   },
   optionsList: {
     padding: 8,
   },
   optionDivider: {
     height: 1,
-    backgroundColor: colors.border,
+    backgroundColor: themeColors.border,
     marginVertical: 8,
     marginHorizontal: 8,
   },
   optionItem: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: themeColors.border,
   },
   optionItemText: {
     fontSize: 16,
-    color: colors.text,
+    color: themeColors.text,
   },
   optionItemDestructive: {
     borderBottomWidth: 0,
   },
   optionItemDestructiveText: {
-    color: colors.error,
+    color: themeColors.error,
   },
   editPrescriptionOverlay: {
     flex: 1,
-    backgroundColor: colors.overlay,
+    backgroundColor: themeColors.overlay,
     justifyContent: 'flex-end',
   },
   editPrescriptionModalContainer: {
     width: '100%',
   },
   editPrescriptionModal: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     width: '100%',
@@ -2663,7 +2666,7 @@ const styles = StyleSheet.create({
   editPrescriptionModalHandle: {
     width: 40,
     height: 4,
-    backgroundColor: colors.border,
+    backgroundColor: themeColors.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 12,
@@ -2683,12 +2686,12 @@ const styles = StyleSheet.create({
   editPrescriptionModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: colors.text,
+    color: themeColors.text,
     marginBottom: 2,
   },
   editPrescriptionModalSubtitle: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   editPrescriptionModalClose: {
     padding: 4,
@@ -2704,16 +2707,16 @@ const styles = StyleSheet.create({
   editPrescriptionLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     marginBottom: 8,
   },
   editPrescriptionInput: {
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderRadius: 8,
     padding: 14,
     borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.text,
+    borderColor: themeColors.border,
+    color: themeColors.text,
     fontSize: 16,
   },
   editModalStepperRow: {
@@ -2725,7 +2728,7 @@ const styles = StyleSheet.create({
     minWidth: 48,
     fontSize: 18,
     fontWeight: '600',
-    color: colors.text,
+    color: themeColors.text,
     textAlign: 'center',
   },
   editPrescriptionToggleRow: {
@@ -2734,12 +2737,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: themeColors.border,
     marginTop: 8,
   },
   editPrescriptionToggleLabel: {
     fontSize: 16,
-    color: colors.text,
+    color: themeColors.text,
   },
   editPrescriptionModalFooter: {
     flexDirection: 'row',
@@ -2750,7 +2753,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   notesModal: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '60%',
@@ -2764,24 +2767,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: themeColors.border,
   },
   notesModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: colors.text,
+    color: themeColors.text,
   },
   notesInput: {
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderRadius: 8,
     padding: 16,
     margin: 20,
-    color: colors.text,
+    color: themeColors.text,
     fontSize: 16,
     minHeight: 120,
     textAlignVertical: 'top',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   notesModalButtons: {
     flexDirection: 'row',
@@ -2793,7 +2796,7 @@ const styles = StyleSheet.create({
   },
   finishContainer: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -2801,7 +2804,7 @@ const styles = StyleSheet.create({
   finishTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: colors.text,
+    color: themeColors.text,
     marginBottom: 40,
   },
   finishStats: {
@@ -2817,17 +2820,17 @@ const styles = StyleSheet.create({
   finishStatValue: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: colors.primary,
+    color: themeColors.primary,
     marginBottom: 8,
   },
   finishStatLabel: {
     fontSize: 14,
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
     marginTop: 4,
   },
   finishStatSubtext: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     marginTop: 2,
   },
   finishActions: {
@@ -2843,7 +2846,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   finishBackButtonText: {
-    color: colors.textTertiary,
+    color: themeColors.textTertiary,
     fontSize: 16,
   },
-});
+}), [themeColors]);

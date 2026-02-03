@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../App';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
+import { colors as themeColors } from '../theme/colors';
 
 type GeneratePlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'GeneratePlan'>;
 type GeneratePlanScreenRouteProp = RouteProp<RootStackParamList, 'GeneratePlan'>;
@@ -180,6 +181,7 @@ function getProgressionTargetOptions(goal: Goal | null): ProgressionTarget[] {
 }
 
 export default function GeneratePlanScreen({ navigation }: Props) {
+  const { colors } = useTheme();
   const [inputs, setInputs] = useState<GeneratePlanInputs>({
     goal: null,
     programType: null,
@@ -1422,15 +1424,15 @@ export default function GeneratePlanScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = useMemo(() => StyleSheet.create({
   outerContainer: {
     flex: 1,
     width: '100%',
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
   },
   header: {
     flexDirection: 'row',
@@ -1439,15 +1441,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
+    borderBottomColor: themeColors.border,
+    backgroundColor: themeColors.surface,
   },
   backButton: {
     padding: 4,
   },
   backButtonText: {
     fontSize: 16,
-    color: colors.primary,
+    color: themeColors.primary,
     fontWeight: '600',
   },
   headerTitleContainer: {
@@ -1457,11 +1459,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: themeColors.text,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '500',
     marginTop: 2,
   },
@@ -1487,12 +1489,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: themeColors.text,
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     marginBottom: 12,
   },
   optionsRow: {
@@ -1504,21 +1506,21 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   optionButtonSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: themeColors.primary,
+    borderColor: themeColors.primary,
   },
   optionButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   optionButtonTextSelected: {
-    color: colors.background,
+    color: themeColors.background,
   },
   daysGrid: {
     flexDirection: 'row',
@@ -1528,7 +1530,7 @@ const styles = StyleSheet.create({
   },
   daysPerWeekText: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '500',
     marginTop: 4,
   },
@@ -1536,23 +1538,23 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     minWidth: 50,
     alignItems: 'center',
   },
   dayToggleSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: themeColors.primary,
+    borderColor: themeColors.primary,
   },
   dayToggleText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   dayToggleTextSelected: {
-    color: colors.background,
+    color: themeColors.background,
   },
   numberInputRow: {
     flexDirection: 'row',
@@ -1563,21 +1565,21 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   numberButtonText: {
     fontSize: 18,
-    color: colors.text,
+    color: themeColors.text,
     fontWeight: '600',
   },
   numberDisplay: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: themeColors.text,
     minWidth: 40,
     textAlign: 'center',
   },
@@ -1592,47 +1594,47 @@ const styles = StyleSheet.create({
   },
   timeLabel: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     marginBottom: 4,
   },
   timeInputField: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 10,
     fontSize: 16,
-    color: colors.text,
+    color: themeColors.text,
     minHeight: 40,
   },
   customSplitInput: {
     marginTop: 10,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
     fontSize: 15,
-    color: colors.text,
+    color: themeColors.text,
     minHeight: 72,
     textAlignVertical: 'top',
   },
   timeSeparator: {
     fontSize: 16,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   timeUnit: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   chipsRowMargin: {
     marginTop: 8,
   },
   chipGroupLabel: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     fontWeight: '600',
     marginRight: 8,
     width: '100%',
@@ -1642,11 +1644,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: themeColors.border,
   },
   daysPerWeekLabel: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -1654,21 +1656,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 6,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   chipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: themeColors.primary,
+    borderColor: themeColors.primary,
   },
   chipText: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '600',
   },
   chipTextSelected: {
-    color: colors.background,
+    color: themeColors.background,
   },
   chipDisabled: {
     opacity: 0.4,
@@ -1678,13 +1680,13 @@ const styles = StyleSheet.create({
   },
   warningText: {
     fontSize: 12,
-    color: colors.warning,
+    color: themeColors.warning,
     fontStyle: 'italic',
     marginBottom: 8,
   },
   definitionText: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     fontStyle: 'italic',
     marginBottom: 12,
   },
@@ -1693,26 +1695,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     marginBottom: 16,
   },
   advancedToggleText: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '600',
   },
   advancedToggleIcon: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
   },
   advancedDurationSection: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: themeColors.border,
   },
   sessionCapRow: {
     flexDirection: 'row',
@@ -1722,7 +1724,7 @@ const styles = StyleSheet.create({
   },
   sessionCapLabel: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '600',
     minWidth: 80,
   },
@@ -1734,21 +1736,21 @@ const styles = StyleSheet.create({
   },
   sessionCapInput: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     borderRadius: 6,
     padding: 8,
     fontSize: 14,
-    color: colors.text,
+    color: themeColors.text,
   },
   sessionCapSeparator: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   sessionCapUnit: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -1763,17 +1765,17 @@ const styles = StyleSheet.create({
     width: 50,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.border,
+    backgroundColor: themeColors.border,
     padding: 2,
   },
   toggleSwitchOn: {
-    backgroundColor: colors.primary,
+    backgroundColor: themeColors.primary,
   },
   toggleThumb: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
   },
   toggleThumbOn: {
     transform: [{ translateX: 22 }],
@@ -1785,7 +1787,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: themeColors.border,
   },
   constraintRow: {
     flexDirection: 'row',
@@ -1796,18 +1798,18 @@ const styles = StyleSheet.create({
   },
   constraintLabel: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     marginBottom: 8,
   },
   perDayCapsSection: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: themeColors.border,
   },
   helperText: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     fontStyle: 'italic',
     marginBottom: 12,
   },
@@ -1821,13 +1823,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 6,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   shortcutButtonText: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '600',
   },
   perDayCapsGrid: {
@@ -1840,14 +1842,14 @@ const styles = StyleSheet.create({
     width: '48%',
     minWidth: 140,
     padding: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   perDayCapLabel: {
     fontSize: 13,
-    color: colors.text,
+    color: themeColors.text,
     marginBottom: 8,
     fontWeight: '600',
     textAlign: 'center',
@@ -1863,24 +1865,24 @@ const styles = StyleSheet.create({
     width: 40,
     height: 22,
     borderRadius: 11,
-    backgroundColor: colors.border,
+    backgroundColor: themeColors.border,
     padding: 2,
   },
   customToggleSwitchOn: {
-    backgroundColor: colors.primary,
+    backgroundColor: themeColors.primary,
   },
   customToggleThumb: {
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
   },
   customToggleThumbOn: {
     transform: [{ translateX: 18 }],
   },
   customToggleLabel: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '500',
   },
   dayCapStepper: {
@@ -1893,33 +1895,33 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 6,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   dayCapButtonText: {
     fontSize: 16,
-    color: colors.text,
+    color: themeColors.text,
     fontWeight: '600',
   },
   dayCapInput: {
     width: 60,
     height: 32,
-    backgroundColor: colors.background,
+    backgroundColor: themeColors.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
     borderRadius: 6,
     paddingHorizontal: 8,
     fontSize: 14,
-    color: colors.text,
+    color: themeColors.text,
     textAlign: 'center',
     fontWeight: '600',
   },
   defaultIndicator: {
     fontSize: 11,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     fontStyle: 'italic',
     textAlign: 'center',
     marginTop: 4,
@@ -1935,60 +1937,60 @@ const styles = StyleSheet.create({
   },
   timeAvailabilityLabel: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     marginBottom: 8,
   },
   timeAvailabilityUnit: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     marginTop: 4,
   },
   splitPreview: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: 8,
     padding: 12,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: themeColors.border,
   },
   splitPreviewContent: {
     flex: 1,
   },
   splitPreviewLabel: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     marginBottom: 4,
     fontWeight: '600',
   },
   splitPreviewText: {
     fontSize: 13,
-    color: colors.text,
+    color: themeColors.text,
     fontWeight: '500',
   },
   splitPreviewHint: {
     fontSize: 11,
-    color: colors.textMuted,
+    color: themeColors.textMuted,
     marginTop: 4,
     fontStyle: 'italic',
   },
   splitPreviewArrow: {
     fontSize: 18,
-    color: colors.primary,
+    color: themeColors.primary,
     fontWeight: '600',
     marginLeft: 8,
   },
   footerContainer: {
-    backgroundColor: colors.surface,
+    backgroundColor: themeColors.surface,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: themeColors.border,
   },
   footer: {
     padding: 16,
   },
   generateButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: themeColors.primary,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
@@ -2000,6 +2002,6 @@ const styles = StyleSheet.create({
   generateButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.background,
+    color: themeColors.background,
   },
-});
+}), [themeColors]);

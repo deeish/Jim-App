@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 import Button from '../components/Button';
 import { searchExercises, Exercise } from '../services/exerciseService';
 import ExerciseGroupCard from '../components/ExerciseGroupCard';
@@ -78,6 +78,7 @@ interface FilterState {
 }
 
 export default function SearchScreen({ navigation }: Props) {
+  const { colors } = useTheme();
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
     muscleGroups: [],
@@ -475,6 +476,191 @@ export default function SearchScreen({ navigation }: Props) {
 
   const activeFilters = getActiveFilters();
 
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: { flex: 1, backgroundColor: colors.background },
+        header: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: 16,
+          paddingVertical: 16,
+          backgroundColor: colors.surface,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        },
+        headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+        headerTitle: { fontSize: 28, fontWeight: 'bold', color: colors.text },
+        filterBadge: {
+          backgroundColor: colors.primary,
+          borderRadius: 12,
+          minWidth: 24,
+          height: 24,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: 8,
+        },
+        filterBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+        resetButton: { fontSize: 16, color: colors.primary, fontWeight: '600' },
+        resetButtonDisabled: { opacity: 0.4 },
+        searchContainer: {
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          backgroundColor: colors.surface,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        },
+        searchInput: {
+          backgroundColor: colors.background,
+          borderRadius: 12,
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          fontSize: 16,
+          color: colors.text,
+          borderWidth: 1,
+          borderColor: colors.border,
+        },
+        activeFiltersContainer: {
+          backgroundColor: colors.surface,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+          paddingVertical: 12,
+        },
+        activeFiltersScroll: { paddingHorizontal: 16, gap: 8 },
+        activeFilterChip: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: colors.primary + '20',
+          borderRadius: 20,
+          paddingHorizontal: 12,
+          paddingVertical: 6,
+          borderWidth: 1,
+          borderColor: colors.primary,
+          marginRight: 8,
+        },
+        activeFilterText: { color: colors.primary, fontSize: 14, fontWeight: '600', marginRight: 6 },
+        activeFilterRemove: { color: colors.primary, fontSize: 18, fontWeight: 'bold', lineHeight: 18 },
+        content: { flex: 1 },
+        contentContainer: { paddingBottom: 100 },
+        section: { marginTop: 24, paddingHorizontal: 16 },
+        sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+        sectionTitle: { fontSize: 18, fontWeight: '600', color: colors.text },
+        sectionBadge: {
+          backgroundColor: colors.primary,
+          borderRadius: 10,
+          minWidth: 20,
+          height: 20,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: 6,
+        },
+        sectionBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+        sectionDescription: { fontSize: 14, color: colors.textMuted, marginBottom: 12 },
+        chipsContainer: { flexDirection: 'row', gap: 8, paddingRight: 16 },
+        chip: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          borderRadius: 20,
+          backgroundColor: colors.surface,
+          borderWidth: 1.5,
+          borderColor: colors.border,
+          marginRight: 8,
+          gap: 6,
+        },
+        chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+        chipText: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
+        chipTextSelected: { color: '#FFFFFF', fontWeight: '600' },
+        chipCheckmark: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold' },
+        chipCount: { fontSize: 11, color: colors.textMuted, fontWeight: '600', marginLeft: 4 },
+        chipCountSelected: { color: '#FFFFFF' },
+        chipPartial: {
+          backgroundColor: colors.primary + '60',
+          borderColor: colors.primary,
+          borderStyle: 'dashed',
+        },
+        chipPartialIndicator: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold', marginLeft: 4 },
+        refineSection: {
+          marginTop: 16,
+          marginHorizontal: 16,
+          padding: 16,
+          backgroundColor: colors.surface,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+        },
+        refineHeader: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+        },
+        refineTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
+        refineSubtitle: { fontSize: 13, color: colors.textMuted },
+        advancedSection: { marginTop: 32, paddingHorizontal: 16, marginBottom: 24 },
+        advancedToggle: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          backgroundColor: colors.surface,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+          marginBottom: 16,
+        },
+        advancedToggleText: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
+        advancedBadge: {
+          backgroundColor: colors.primary,
+          borderRadius: 10,
+          minWidth: 20,
+          height: 20,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: 6,
+        },
+        advancedBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+        resultsPreview: {
+          marginTop: 24,
+          marginHorizontal: 16,
+          padding: 20,
+          backgroundColor: colors.surface,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+          alignItems: 'center',
+        },
+        resultsPreviewText: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 8 },
+        resultsPreviewHint: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
+        bottomBar: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 8,
+        },
+        resultCountContainer: { flex: 1, marginRight: 12 },
+        resultCountText: { fontSize: 16, color: colors.textSecondary, fontWeight: '500' },
+        viewResultsButtonContainer: { width: 140 },
+        viewResultsButton: { paddingVertical: 14 },
+        resultsSection: { marginTop: 24, paddingBottom: 20 },
+        resultsHeader: { paddingHorizontal: 16, paddingBottom: 12 },
+        resultsHeaderText: { fontSize: 20, fontWeight: '600', color: colors.text },
+        resultsSubtext: { fontSize: 14, fontWeight: '400', color: colors.textMuted },
+      }),
+    [colors]
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -714,328 +900,3 @@ export default function SearchScreen({ navigation }: Props) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  filterBadge: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  filterBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  resetButton: {
-    fontSize: 16,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  resetButtonDisabled: {
-    opacity: 0.4,
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  searchInput: {
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: colors.text,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  activeFiltersContainer: {
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingVertical: 12,
-  },
-  activeFiltersScroll: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  activeFilterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary + '20',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    marginRight: 8,
-  },
-  activeFilterText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
-    marginRight: 6,
-  },
-  activeFilterRemove: {
-    color: colors.primary,
-    fontSize: 18,
-    fontWeight: 'bold',
-    lineHeight: 18,
-  },
-  content: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingBottom: 100, // Space for bottom bar
-  },
-  section: {
-    marginTop: 24,
-    paddingHorizontal: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  sectionBadge: {
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  sectionBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  sectionDescription: {
-    fontSize: 14,
-    color: colors.textMuted,
-    marginBottom: 12,
-  },
-  chipsContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingRight: 16,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    marginRight: 8,
-    gap: 6,
-  },
-  chipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  chipText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  chipTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  chipCheckmark: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  chipCount: {
-    fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  chipCountSelected: {
-    color: '#FFFFFF',
-  },
-  chipPartial: {
-    backgroundColor: colors.primary + '60',
-    borderColor: colors.primary,
-    borderStyle: 'dashed',
-  },
-  chipPartialIndicator: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
-  refineSection: {
-    marginTop: 16,
-    marginHorizontal: 16,
-    padding: 16,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  refineHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  refineTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  refineSubtitle: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  advancedSection: {
-    marginTop: 32,
-    paddingHorizontal: 16,
-    marginBottom: 24,
-  },
-  advancedToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 16,
-  },
-  advancedToggleText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  advancedBadge: {
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  advancedBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  resultsPreview: {
-    marginTop: 24,
-    marginHorizontal: 16,
-    padding: 20,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  resultsPreviewText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  resultsPreviewHint: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  bottomBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    shadowColor: colors.shadow,
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  resultCountContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
-  resultCountText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  viewResultsButtonContainer: {
-    width: 140,
-  },
-  viewResultsButton: {
-    paddingVertical: 14,
-  },
-  resultsSection: {
-    marginTop: 24,
-    paddingBottom: 20,
-  },
-  resultsHeader: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  resultsHeaderText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  resultsSubtext: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: colors.textMuted,
-  },
-});

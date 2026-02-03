@@ -154,17 +154,23 @@ export class ExercisesService implements OnModuleInit {
 
       const equipA = Math.min(
         ...(a.equipment?.length
-          ? a.equipment.map((eq) => EQUIPMENT_ORDER[eq] ?? DEFAULT_EQUIPMENT_ORDER)
+          ? a.equipment.map(
+              (eq) => EQUIPMENT_ORDER[eq] ?? DEFAULT_EQUIPMENT_ORDER,
+            )
           : [DEFAULT_EQUIPMENT_ORDER]),
       );
       const equipB = Math.min(
         ...(b.equipment?.length
-          ? b.equipment.map((eq) => EQUIPMENT_ORDER[eq] ?? DEFAULT_EQUIPMENT_ORDER)
+          ? b.equipment.map(
+              (eq) => EQUIPMENT_ORDER[eq] ?? DEFAULT_EQUIPMENT_ORDER,
+            )
           : [DEFAULT_EQUIPMENT_ORDER]),
       );
       if (equipA !== equipB) return equipA - equipB;
 
-      return (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' });
+      return (a.name ?? '').localeCompare(b.name ?? '', undefined, {
+        sensitivity: 'base',
+      });
     });
 
     return results.map((e) => this.withVideo(e));

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { CompositeNavigationProp } from '@react-navigation/native';
@@ -10,7 +10,7 @@ import Button from '../components/Button';
 import ExerciseCard from '../components/ExerciseCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import WorkoutSession from '../components/WorkoutSession';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 import { RootStackParamList } from '../../App';
 import { RootTabParamList } from '../components/NavBar';
 
@@ -27,9 +27,41 @@ type WorkoutScreenNavigationProp = CompositeNavigationProp<
 
 export default function WorkoutScreen() {
   const navigation = useNavigation<WorkoutScreenNavigationProp>();
+  const { colors } = useTheme();
   const [todayWorkout, setTodayWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<WorkoutSessionState | null>(null);
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: { flex: 1, backgroundColor: colors.background },
+        header: {
+          backgroundColor: colors.surface,
+          padding: 20,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        },
+        title: { fontSize: 28, fontWeight: 'bold', color: colors.text, marginBottom: 8 },
+        workoutName: { fontSize: 18, color: colors.primary, fontWeight: '600', marginBottom: 8 },
+        summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+        summaryText: { fontSize: 14, color: colors.textSecondary },
+        summaryDot: { fontSize: 14, color: colors.textTertiary },
+        content: { flex: 1 },
+        exercisesContainer: { padding: 12 },
+        emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+        emptyText: { fontSize: 20, color: colors.textTertiary, marginBottom: 8, fontWeight: '600' },
+        emptySubtext: { fontSize: 16, color: colors.textMuted, textAlign: 'center' },
+        footer: {
+          padding: 16,
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+        },
+        startButton: { minHeight: 56 },
+      }),
+    [colors]
+  );
 
   useEffect(() => {
     loadTodayWorkout();
@@ -140,74 +172,3 @@ export default function WorkoutScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    backgroundColor: colors.surface,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  workoutName: {
-    fontSize: 18,
-    color: colors.primary,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  summaryText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  summaryDot: {
-    fontSize: 14,
-    color: colors.textTertiary,
-  },
-  content: {
-    flex: 1,
-  },
-  exercisesContainer: {
-    padding: 12,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 20,
-    color: colors.textTertiary,
-    marginBottom: 8,
-    fontWeight: '600',
-  },
-  emptySubtext: {
-    fontSize: 16,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  footer: {
-    padding: 16,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  startButton: {
-    minHeight: 56,
-  },
-});

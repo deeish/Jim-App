@@ -7,7 +7,7 @@ import { View } from 'react-native';
 
 import NavBar from './src/components/NavBar';
 import ProfileScreen from './src/screens/ProfileScreen';
-import { colors } from './src/theme/colors';
+import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 
 export type RootNavigatorParamList = {
   Main: undefined;
@@ -76,23 +76,32 @@ export type RootStackParamList = {
 
 const RootStack = createNativeStackNavigator<RootNavigatorParamList>();
 
+function AppContent() {
+  const { colors, isDark } = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <NavigationContainer>
+        <RootStack.Navigator
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: colors.background },
+          }}
+        >
+          <RootStack.Screen name="Main" component={NavBar} />
+          <RootStack.Screen name="Profile" component={ProfileScreen} />
+        </RootStack.Navigator>
+      </NavigationContainer>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+    </View>
+  );
+}
+
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <NavigationContainer>
-          <RootStack.Navigator
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
-            }}
-          >
-            <RootStack.Screen name="Main" component={NavBar} />
-            <RootStack.Screen name="Profile" component={ProfileScreen} />
-          </RootStack.Navigator>
-          <StatusBar style="light" />
-        </NavigationContainer>
-      </View>
-    </SafeAreaProvider>
+    <ThemeProvider>
+      <SafeAreaProvider>
+        <AppContent />
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }

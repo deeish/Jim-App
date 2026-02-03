@@ -6,7 +6,7 @@ import PlanStackNavigator from '../navigation/PlanStackNavigator';
 import WorkoutScreen from '../screens/WorkoutScreen';
 import SearchStackNavigator from '../navigation/SearchStackNavigator';
 import { HomeIcon, CalendarIcon, DumbbellIcon, SearchIcon } from './TabIcons';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 
 export type RootTabParamList = {
   Home: undefined;
@@ -18,6 +18,7 @@ export type RootTabParamList = {
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 export default function NavBar() {
+  const { colors } = useTheme();
   return (
     <Tab.Navigator
       initialRouteName="Home"
