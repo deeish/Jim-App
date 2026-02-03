@@ -1,11 +1,18 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View } from 'react-native';
 
 import NavBar from './src/components/NavBar';
+import ProfileScreen from './src/screens/ProfileScreen';
 import { colors } from './src/theme/colors';
+
+export type RootNavigatorParamList = {
+  Main: undefined;
+  Profile: undefined;
+};
 
 export type RootStackParamList = {
   Home: undefined;
@@ -67,12 +74,22 @@ export type RootStackParamList = {
   };
 };
 
+const RootStack = createNativeStackNavigator<RootNavigatorParamList>();
+
 export default function App() {
   return (
     <SafeAreaProvider>
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         <NavigationContainer>
-          <NavBar />
+          <RootStack.Navigator
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.background },
+            }}
+          >
+            <RootStack.Screen name="Main" component={NavBar} />
+            <RootStack.Screen name="Profile" component={ProfileScreen} />
+          </RootStack.Navigator>
           <StatusBar style="light" />
         </NavigationContainer>
       </View>

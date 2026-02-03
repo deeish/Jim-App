@@ -6,6 +6,11 @@ interface IconProps {
   size?: number;
 }
 
+interface ProfileIconProps extends IconProps {
+  /** Ring/border color; defaults to color. Use a contrasting color (e.g. primary) so ring is distinct. */
+  ringColor?: string;
+}
+
 export function CalendarIcon({ color, size = 24 }: IconProps) {
   return (
     <View style={[styles.iconContainer, { width: size, height: size }]}>
@@ -64,10 +69,36 @@ export function HomeIcon({ color, size = 24 }: IconProps) {
   );
 }
 
+export function ProfileIcon({ color, size = 24, ringColor }: ProfileIconProps) {
+  const ring = ringColor ?? color;
+  return (
+    <View
+      style={[
+        styles.iconContainer,
+        styles.profileRing,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderWidth: 2,
+          borderColor: ring,
+        },
+      ]}
+    >
+      {/* Person silhouette: circle head + body, inset so ring is clearly separate */}
+      <View style={[styles.profileHead, { backgroundColor: color }]} />
+      <View style={[styles.profileBody, { backgroundColor: color }]} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  profileRing: {
+    overflow: 'hidden',
   },
   calendarBase: {
     width: 20,
@@ -145,5 +176,21 @@ const styles = StyleSheet.create({
     bottom: 3,
     left: 5,
     borderRadius: 1,
+  },
+  profileHead: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    position: 'absolute',
+    top: 5,
+    left: 11,
+  },
+  profileBody: {
+    width: 12,
+    height: 8,
+    borderRadius: 6,
+    position: 'absolute',
+    bottom: 5,
+    left: 8,
   },
 });
