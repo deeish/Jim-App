@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
+import { getCurrentPlan } from '../services/planService';
+import type { ApiPlanWorkout } from '../services/planService';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 type PlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Plan'>;
 
@@ -73,31 +77,45 @@ function isTodayDate(d: Date): boolean {
   return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
 }
 
-// Placeholder plan state (would come from API/context in real app)
-const initialPlan: Record<string, PlanWorkout[]> = {
-  Monday: [
-    { id: 'm1', title: 'Recovery Day', detailLine: 'Stretch & mobility', iconColor: '#9B59B6', durationMinutes: 15, intensity: 'Easy', type: 'recovery', source: 'manual' },
-  ],
-  Tuesday: [
-    { id: 't1', title: 'Interval Swim', detailLine: '4x 200m (1,600 total)', iconColor: '#3498DB', durationMinutes: 45, intensity: 'Hard', type: 'cardio', source: 'manual' },
-    { id: 't2', title: 'Easy Bike', detailLine: 'Zone 2', iconColor: '#2ECC71', durationMinutes: 50, intensity: 'Easy', type: 'cardio', source: 'manual' },
-  ],
-  Wednesday: [
-    { id: 'w1', title: 'Interval Run', detailLine: '6×1 min hard', iconColor: '#E67E22', durationMinutes: 40, intensity: 'Hard', type: 'cardio', source: 'manual' },
-  ],
-  Thursday: [
-    { id: 'th1', title: 'Long Bike', detailLine: 'Steady pace', iconColor: '#2ECC71', durationMinutes: 90, intensity: 'Medium', type: 'cardio', source: 'manual' },
-  ],
-  Friday: [
-    { id: 'f1', title: 'Upper Body', detailLine: '6 exercises · push focus', iconColor: '#C7A46A', durationMinutes: 60, intensity: 'Hard', type: 'strength', source: 'manual' },
-  ],
-  Saturday: [
-    { id: 's1', title: 'Long Run', detailLine: 'Easy pace', iconColor: '#E67E22', durationMinutes: 60, intensity: 'Easy', type: 'cardio', source: 'manual' },
-  ],
-  Sunday: [
-    { id: 'su1', title: 'Rest Day', detailLine: '—', iconColor: '#95A5A6', durationMinutes: 0, intensity: 'Easy', type: 'recovery', source: 'manual' },
-  ],
+const ICON_COLORS: Record<string, string> = {
+  strength: '#C7A46A',
+  cardio: '#E67E22',
+  recovery: '#9B59B6',
 };
+
+function apiSlotToPlanWorkout(pw: ApiPlanWorkout): PlanWorkout {
+  return {
+    id: pw.id,
+    title: pw.title,
+    detailLine: pw.detailLine ?? '—',
+    iconColor: ICON_COLORS[pw.type] ?? '#95A5A6',
+    durationMinutes: pw.durationMinutes,
+    intensity: (pw.intensity as Intensity) ?? 'Easy',
+    type: pw.type as WorkoutType,
+    source: 'ai',
+  };
+}
+
+function planWorkoutsToByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, Record<string, PlanWorkout[]>> {
+  const byWeek: Record<number, Record<string, PlanWorkout[]>> = {};
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const weeks = [...new Set(planWorkouts.map((pw) => pw.weekNumber))];
+  weeks.forEach((week) => {
+    byWeek[week] = {};
+    days.forEach((d) => { byWeek[week][d] = []; });
+  });
+  planWorkouts
+    .slice()
+    .sort((a, b) => a.orderInDay - b.orderInDay)
+    .forEach((pw) => {
+      if (!byWeek[pw.weekNumber]) {
+        byWeek[pw.weekNumber] = {};
+        days.forEach((d) => { byWeek[pw.weekNumber][d] = []; });
+      }
+      byWeek[pw.weekNumber][pw.dayOfWeek].push(apiSlotToPlanWorkout(pw));
+    });
+  return byWeek;
+}
 
 function computeLoadBalance(plan: Record<string, PlanWorkout[]>): { strength: number; cardio: number; recovery: number } {
   let strength = 0, cardio = 0, recovery = 0;
@@ -142,16 +160,60 @@ type Props = {
   navigation?: PlanScreenNavigationProp;
 };
 
+const EMPTY_PLAN: Record<string, PlanWorkout[]> = {
+  Monday: [], Tuesday: [], Wednesday: [], Thursday: [], Friday: [], Saturday: [], Sunday: [],
+};
+
 export default function PlanScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const [selectedWeek, setSelectedWeek] = useState(0);
-  const [plan, setPlan] = useState<Record<string, PlanWorkout[]>>(initialPlan);
+  const [planByWeek, setPlanByWeek] = useState<Record<number, Record<string, PlanWorkout[]>>>({});
+  const [planLoading, setPlanLoading] = useState(true);
+  const [planError, setPlanError] = useState<string | null>(null);
   const [contextWorkout, setContextWorkout] = useState<{ workout: PlanWorkout; day: string } | null>(null);
   const [workoutToMove, setWorkoutToMove] = useState<{ workout: PlanWorkout; day: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [showBackToBackModal, setShowBackToBackModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const contentScrollRef = React.useRef<ScrollView>(null);
+
+  const loadPlan = useCallback(async () => {
+    setPlanLoading(true);
+    setPlanError(null);
+    try {
+      const apiPlan = await getCurrentPlan();
+      if (apiPlan?.planWorkouts?.length) {
+        setPlanByWeek(planWorkoutsToByWeek(apiPlan.planWorkouts));
+      } else {
+        setPlanByWeek({});
+      }
+    } catch (err: any) {
+      console.error('Failed to load plan:', err);
+      const status = err.response?.status;
+      const message =
+        status === 401
+          ? 'Session expired. You’ll be signed out — sign in again.'
+          : err.message === 'Network Error' || !err.response
+            ? 'Could not reach the server. Is the backend running?'
+            : 'Could not load plan. Try again.';
+      setPlanError(message);
+      setPlanByWeek({});
+    } finally {
+      setPlanLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPlan();
+    }, [loadPlan])
+  );
+
+  const plan = useMemo(() => {
+    const weekNum = selectedWeek + 1;
+    return planByWeek[weekNum] ?? EMPTY_PLAN;
+  }, [planByWeek, selectedWeek]);
+
   const weekRange = getWeekDateRange(selectedWeek);
   const loadBalance = computeLoadBalance(plan);
   const backToBackSuggestions = getBackToBackSuggestions(plan);
@@ -372,59 +434,24 @@ export default function PlanScreen({ navigation }: Props) {
   }, [contextWorkout, closeContextMenu]);
 
   const confirmMove = useCallback((toDay: string) => {
-    if (!workoutToMove || toDay === workoutToMove.day) {
-      setWorkoutToMove(null);
-      return;
-    }
-    const fromDay = workoutToMove.day;
-    const workout = workoutToMove.workout;
-    setPlan(prev => {
-      const next = { ...prev };
-      next[fromDay] = (next[fromDay] || []).filter(w => w.id !== workout.id);
-      next[toDay] = [...(next[toDay] || []), workout];
-      return next;
-    });
     setWorkoutToMove(null);
-  }, [workoutToMove]);
+    Alert.alert('Plan is read-only', 'To change your plan, use Generate Plan then Apply to Plan.');
+  }, []);
 
   const handleDuplicate = useCallback(() => {
-    if (!contextWorkout) return;
-    const { workout, day } = contextWorkout;
-    const copy = { ...workout, id: `${workout.id}-copy-${Date.now()}` };
-    setPlan(prev => ({
-      ...prev,
-      [day]: [...(prev[day] || []), copy],
-    }));
     closeContextMenu();
-  }, [contextWorkout, closeContextMenu]);
+    Alert.alert('Plan is read-only', 'To change your plan, use Generate Plan then Apply to Plan.');
+  }, [closeContextMenu]);
 
   const handleDelete = useCallback(() => {
-    if (!contextWorkout) return;
-    Alert.alert('Delete workout', `Remove "${contextWorkout.workout.title}" from ${contextWorkout.day}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          setPlan(prev => ({
-            ...prev,
-            [contextWorkout.day]: (prev[contextWorkout.day] || []).filter(w => w.id !== contextWorkout.workout.id),
-          }));
-          closeContextMenu();
-        },
-      },
-    ]);
-  }, [contextWorkout, closeContextMenu]);
+    closeContextMenu();
+    Alert.alert('Plan is read-only', 'To change your plan, use Generate Plan then Apply to Plan.');
+  }, [closeContextMenu]);
 
   const handleMarkRestDay = useCallback(() => {
-    if (!contextWorkout) return;
-    const { day } = contextWorkout;
-    setPlan(prev => ({
-      ...prev,
-      [day]: [{ id: `rest-${day}-${Date.now()}`, title: 'Rest Day', detailLine: '—', iconColor: '#95A5A6', durationMinutes: 0, intensity: 'Easy', type: 'recovery' as WorkoutType }],
-    }));
     closeContextMenu();
-  }, [contextWorkout, closeContextMenu]);
+    Alert.alert('Plan is read-only', 'To change your plan, use Generate Plan then Apply to Plan.');
+  }, [closeContextMenu]);
 
   const handleAddOrGenerate = useCallback(() => {
     setAdding(true);
@@ -442,25 +469,9 @@ export default function PlanScreen({ navigation }: Props) {
     contentScrollRef.current?.scrollTo({ y: 0, animated: true });
   }, []);
 
-  const applyBackToBackFix = useCallback((s: BackToBackSuggestion) => {
-    if (s.kind === 'move') {
-      setPlan(prev => {
-        const next = { ...prev };
-        next[s.fromDay] = (next[s.fromDay] || []).filter(w => w.id !== s.workout.id);
-        next[s.toDay] = [...(next[s.toDay] || []), s.workout];
-        return next;
-      });
-    } else {
-      setPlan(prev => {
-        const next = { ...prev };
-        const a = next[s.dayA] || [];
-        const b = next[s.dayB] || [];
-        next[s.dayA] = b;
-        next[s.dayB] = a;
-        return next;
-      });
-    }
+  const applyBackToBackFix = useCallback(() => {
     setShowBackToBackModal(false);
+    Alert.alert('Plan is read-only', 'To change your plan, use Generate Plan then Apply to Plan.');
   }, []);
 
   const formatWorkoutDetailLine = (workout: PlanWorkout): string => {
@@ -512,6 +523,21 @@ export default function PlanScreen({ navigation }: Props) {
     
     return `${totalMin} min • ${sessionCount} ${sessionCount === 1 ? 'session' : 'sessions'} • ${intensityLabel}`;
   };
+
+  if (planLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (planError) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+        <Text style={[styles.headerTitle, { color: colors.text, marginBottom: 8 }]}>{planError}</Text>
+        <TouchableOpacity onPress={loadPlan} style={{ padding: 12, backgroundColor: colors.primary, borderRadius: 8 }}>
+          <Text style={{ color: colors.background, fontWeight: '600' }}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -758,7 +784,7 @@ export default function PlanScreen({ navigation }: Props) {
               <TouchableOpacity
                 key={i}
                 style={styles.backToBackOption}
-                onPress={() => applyBackToBackFix(s)}
+                onPress={() => applyBackToBackFix()}
               >
                 <Text style={styles.backToBackOptionText}>
                   {s.kind === 'move'

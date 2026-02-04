@@ -3,42 +3,95 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
 import NavBar from './src/components/NavBar';
 import ProfileScreen from './src/screens/ProfileScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import SignupScreen from './src/screens/SignupScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
 
 export type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
 
+type AuthStackParamList = {
+  Login: undefined;
+  Signup: undefined;
+};
+
 const RootStack = createNativeStackNavigator<RootNavigatorParamList>();
+const AuthStackNav = createNativeStackNavigator<AuthStackParamList>();
+
+function AuthStack() {
+  const { colors } = useTheme();
+  return (
+    <AuthStackNav.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
+      <AuthStackNav.Screen name="Login" component={LoginScreen} />
+      <AuthStackNav.Screen name="Signup" component={SignupScreen} />
+    </AuthStackNav.Navigator>
+  );
+}
 
 function AppContent() {
   const { colors, isDark } = useTheme();
+  const { session, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={[styles.loading, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.textMuted }]}>
+          Loading…
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <NavigationContainer>
-        <RootStack.Navigator
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.background },
-          }}
-        >
-          <RootStack.Screen name="Main" component={NavBar} />
-          <RootStack.Screen name="Profile" component={ProfileScreen} />
-        </RootStack.Navigator>
+        {session ? (
+          <RootStack.Navigator
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.background },
+            }}
+          >
+            <RootStack.Screen name="Main" component={NavBar} />
+            <RootStack.Screen name="Profile" component={ProfileScreen} />
+          </RootStack.Navigator>
+        ) : (
+          <AuthStack />
+        )}
       </NavigationContainer>
       <StatusBar style={isDark ? 'light' : 'dark'} />
     </View>
   );
 }
 
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: { fontSize: 16 },
+});
+
 export default function App() {
   return (
     <ThemeProvider>
       <SafeAreaProvider>
-        <AppContent />
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
       </SafeAreaProvider>
     </ThemeProvider>
   );

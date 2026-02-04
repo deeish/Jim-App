@@ -15,6 +15,7 @@ import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { colors as themeColors } from '../theme/colors';
+import { createPlan, type PlanSlot } from '../services/planService';
 
 type PlanPreviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlanPreview'>;
 type PlanPreviewScreenRouteProp = RouteProp<RootStackParamList, 'PlanPreview'>;
@@ -354,11 +355,33 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   
   const handleApply = async () => {
     setApplying(true);
-    // In a real app, this would save the draft to the plan
-    setTimeout(() => {
-      setApplying(false);
+    try {
+      const slots: PlanSlot[] = [];
+      planData.forEach((week) => {
+        DAYS_OF_WEEK.forEach((dayOfWeek) => {
+          const workouts = week.workouts[dayOfWeek] ?? [];
+          workouts.forEach((w, orderInDay) => {
+            slots.push({
+              weekNumber: week.weekNumber,
+              dayOfWeek,
+              title: w.title,
+              detailLine: w.detailLine ?? undefined,
+              type: w.type,
+              durationMinutes: w.durationMinutes,
+              intensity: w.intensity,
+              orderInDay,
+            });
+          });
+        });
+      });
+      await createPlan({ name: `Plan ${new Date().toLocaleDateString()}`, slots });
       navigation.navigate('Plan');
-    }, 1000);
+    } catch (err) {
+      console.error('Failed to apply plan:', err);
+      Alert.alert('Could not save plan', 'Check your connection and try again.');
+    } finally {
+      setApplying(false);
+    }
   };
   
   const getChangeBadgeStyle = (changeType?: string) => {

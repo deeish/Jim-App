@@ -51,3 +51,35 @@ export interface WorkoutSessionState {
   restTimeRemaining: number;
   restTimerPaused: boolean;
 }
+
+// Workout log (history) types
+export interface WorkoutLogEntrySet {
+  setNumber: number;
+  reps: number;
+  weight?: number;
+  rpe?: number;
+  completed: boolean;
+  notes?: string;
+}
+
+export interface WorkoutLogEntry {
+  id: string;
+  exerciseId: string;
+  name: string | null;
+  orderIndex: number;
+  notes: string | null;
+  completedSets: WorkoutLogEntrySet[];
+}
+
+export interface WorkoutLog {
+  id: string;
+  workoutId: string;
+  startedAt: string;
+  completedAt: string | null;
+  totalTimeSeconds: number | null;
+  totalSets: number | null;
+  totalVolume: number | null;
+  overallNotes: string | null;
+  workout: Workout;
+  entries: WorkoutLogEntry[];
+}

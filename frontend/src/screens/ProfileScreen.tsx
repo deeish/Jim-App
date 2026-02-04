@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { ProfileIcon } from '../components/TabIcons';
 import { useTheme } from '../theme/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import type { ColorPalette } from '../theme/colors';
 
 function SectionHeader({ title, colors }: { title: string; colors: ColorPalette }) {
@@ -100,7 +101,8 @@ const layoutStyles = StyleSheet.create({
   backButton: {},
   backLabel: { fontSize: 16, fontWeight: '600' },
   headerTitle: { fontSize: 18, fontWeight: '700' },
-  headerRight: { width: 60 },
+  headerRight: { minWidth: 60, alignItems: 'flex-end' },
+  headerSignOut: { fontSize: 15, fontWeight: '600' },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 24, paddingTop: 24 },
   profileCard: {
@@ -113,6 +115,14 @@ const layoutStyles = StyleSheet.create({
   avatarWrap: { marginBottom: 12 },
   profileName: { fontSize: 20, fontWeight: '700' },
   profileHint: { fontSize: 13, marginTop: 4 },
+  signOutButton: {
+    marginTop: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderRadius: 10,
+  },
+  signOutText: { fontSize: 15, fontWeight: '600' },
   sectionCard: {
     borderRadius: 12,
     marginBottom: 28,
@@ -126,6 +136,7 @@ const styles = { ...staticStyles, ...layoutStyles };
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const { colors, isDark, setTheme } = useTheme();
+  const { user, signOut } = useAuth();
   const [weightUnitKg, setWeightUnitKg] = useState(true);
   const [notificationsOn, setNotificationsOn] = useState(true);
   const [goal, setGoal] = useState<string>('Strength');
@@ -152,6 +163,11 @@ export default function ProfileScreen() {
     [colors]
   );
 
+  const handleSignOut = useCallback(async () => {
+    await signOut();
+    // Session is now null; AppContent will render AuthStack (Login screen)
+  }, [signOut]);
+
   return (
     <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
       <View style={[styles.header, themedStyles.header]}>
@@ -163,7 +179,16 @@ export default function ProfileScreen() {
           <Text style={[styles.backLabel, themedStyles.backLabel]}>← Back</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, themedStyles.headerTitle]}>Profile</Text>
-        <View style={styles.headerRight} />
+        <View style={styles.headerRight}>
+          {user ? (
+            <TouchableOpacity
+              onPress={handleSignOut}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Text style={[styles.headerSignOut, { color: colors.error }]}>Sign out</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
       <ScrollView
@@ -181,10 +206,20 @@ export default function ProfileScreen() {
               size={64}
             />
           </View>
-          <Text style={[styles.profileName, themedStyles.profileName]}>Your name</Text>
-          <Text style={[styles.profileHint, themedStyles.profileHint]}>
-            Tap to add or edit (coming soon)
+          <Text style={[styles.profileName, themedStyles.profileName]}>
+            {user?.email ?? 'Your name'}
           </Text>
+          <Text style={[styles.profileHint, themedStyles.profileHint]}>
+            {user?.email ? 'Signed in with Supabase' : 'Tap to add or edit (coming soon)'}
+          </Text>
+          {user ? (
+            <TouchableOpacity
+              onPress={handleSignOut}
+              style={[styles.signOutButton, { borderColor: colors.error }]}
+            >
+              <Text style={[styles.signOutText, { color: colors.error }]}>Sign out</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Settings */}

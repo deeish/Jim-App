@@ -18,6 +18,7 @@ web-build/
 *.log
 *.tmp
 
-# Environment variables
+# Environment variables (never commit secrets)
 .env
 .env.local
+.env.*.local

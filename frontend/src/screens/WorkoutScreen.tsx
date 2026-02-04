@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { getWeeklyWorkouts } from '../services/workoutService';
+import { getWeeklyWorkouts, saveWorkoutLog } from '../services/workoutService';
 import { Workout } from '../types/workout';
 import Button from '../components/Button';
 import ExerciseCard from '../components/ExerciseCard';
@@ -31,6 +31,7 @@ export default function WorkoutScreen() {
   const [todayWorkout, setTodayWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<WorkoutSessionState | null>(null);
+  const [savingLog, setSavingLog] = useState(false);
 
   const styles = useMemo(
     () =>
@@ -94,10 +95,31 @@ export default function WorkoutScreen() {
     });
   };
 
-  const handleEndWorkout = (sessionData?: any) => {
+  const handleEndWorkout = async (sessionData?: any) => {
     if (sessionData) {
-      // Here you could save the workout session data to a backend or local storage
-      console.log('Workout completed:', sessionData);
+      setSavingLog(true);
+      try {
+        await saveWorkoutLog({
+          workout: sessionData.workout,
+          exercises: sessionData.exercises,
+          startTime: sessionData.startTime,
+          endTime: sessionData.endTime,
+          totalTime: sessionData.totalTime,
+          totalSets: sessionData.totalSets,
+          totalVolume: sessionData.totalVolume,
+          overallNotes: sessionData.overallNotes,
+          exerciseNotes: sessionData.exerciseNotes,
+        });
+      } catch (err) {
+        console.error('Failed to save workout log:', err);
+        Alert.alert(
+          'Save failed',
+          'Your workout was completed but could not be saved to history. Check your connection and try again.',
+          [{ text: 'OK' }]
+        );
+      } finally {
+        setSavingLog(false);
+      }
     }
     setSession(null);
     loadTodayWorkout(); // Refresh in case workout was updated

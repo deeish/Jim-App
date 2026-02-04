@@ -18,11 +18,13 @@ export class WorkoutsService {
 
   async create(
     createWorkoutDto: CreateWorkoutDto,
+    userId: string,
   ): Promise<WorkoutWithExercises> {
     return this.prisma.workout.create({
       data: {
         name: createWorkoutDto.name,
         day: createWorkoutDto.day,
+        userId,
         exercises: {
           create: createWorkoutDto.exercises.map((e, i) => ({
             name: e.name,
@@ -41,8 +43,9 @@ export class WorkoutsService {
     });
   }
 
-  async findAll(): Promise<WorkoutWithExercises[]> {
+  async findAll(userId: string): Promise<WorkoutWithExercises[]> {
     return this.prisma.workout.findMany({
+      where: { userId },
       include: {
         exercises: true,
       },
@@ -52,37 +55,54 @@ export class WorkoutsService {
     });
   }
 
-  async findWeekly(): Promise<WorkoutWithExercises[]> {
+  async findWeekly(userId: string): Promise<WorkoutWithExercises[]> {
+    const currentPlan = await this.prisma.workoutPlan.findFirst({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (currentPlan) {
+      const planWorkouts = await this.prisma.workout.findMany({
+        where: { workoutPlanId: currentPlan.id },
+        include: { exercises: true },
+        orderBy: { day: 'asc' },
+      });
+      if (planWorkouts.length > 0) return planWorkouts;
+    }
     return this.prisma.workout.findMany({
-      include: {
-        exercises: true,
-      },
-      orderBy: {
-        day: 'asc',
-      },
+      where: { userId },
+      include: { exercises: true },
+      orderBy: { day: 'asc' },
     });
   }
 
-  async findOne(id: string): Promise<WorkoutWithExercises> {
+  async findOne(id: string, userId: string): Promise<WorkoutWithExercises> {
     const workout = await this.prisma.workout.findUnique({
       where: { id },
       include: {
         exercises: true,
+        workoutPlan: true,
       },
     });
 
     if (!workout) {
       throw new NotFoundException(`Workout with ID ${id} not found`);
     }
-    return workout;
+    const owned =
+      workout.userId === userId ||
+      (workout.workoutPlanId && workout.workoutPlan?.userId === userId);
+    if (!owned) {
+      throw new NotFoundException(`Workout with ID ${id} not found`);
+    }
+    const { workoutPlan, ...rest } = workout;
+    return { ...rest, workoutPlan: undefined } as WorkoutWithExercises;
   }
 
   async update(
     id: string,
     updateWorkoutDto: Partial<CreateWorkoutDto>,
+    userId: string,
   ): Promise<WorkoutWithExercises> {
-    // Check if workout exists
-    await this.findOne(id);
+    await this.findOne(id, userId);
 
     // If exercises are being updated, delete existing ones first
     if (updateWorkoutDto.exercises) {
@@ -119,24 +139,19 @@ export class WorkoutsService {
     });
   }
 
-  async remove(id: string): Promise<void> {
-    await this.prisma.workout
-      .delete({
-        where: { id },
-      })
-      .catch(() => {
-        throw new NotFoundException(`Workout with ID ${id} not found`);
-      });
+  async remove(id: string, userId: string): Promise<void> {
+    await this.findOne(id, userId);
+    await this.prisma.workout.delete({
+      where: { id },
+    });
   }
 
   async generate(
     generateWorkoutDto: GenerateWorkoutDto,
+    userId: string,
   ): Promise<WorkoutWithExercises> {
-    // Use the workout generator service to create a workout
     const generatedWorkout =
       await this.workoutGeneratorService.generateWorkout(generateWorkoutDto);
-
-    // Save the generated workout to the database
-    return this.create(generatedWorkout);
+    return this.create(generatedWorkout, userId);
   }
 }
