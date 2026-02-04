@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
@@ -185,6 +186,7 @@ export default function PlanScreen({ navigation }: Props) {
         detailsToggleText: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
         detailsToggleIcon: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
         ctaRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+        calendarIconButton: { padding: 8 },
         ctaCompact: {
           backgroundColor: colors.primary,
           paddingVertical: 8,
@@ -521,6 +523,13 @@ export default function PlanScreen({ navigation }: Props) {
             <Text style={styles.goalContext}>{GOAL_CONTEXT}</Text>
           </View>
           <View style={styles.ctaRow}>
+            <TouchableOpacity
+              style={styles.calendarIconButton}
+              onPress={() => navigation?.navigate('Calendar')}
+              accessibilityLabel="Open calendar"
+            >
+              <Ionicons name="calendar-outline" size={22} color={colors.text} />
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.ctaCompact}
               onPress={handleAddOrGenerate}

@@ -17,6 +17,7 @@ export type RootStackParamList = {
   ExerciseDetail: { exerciseId: string };
   WorkoutDetail: { workoutId: string };
   GeneratePlan: undefined;
+  Calendar: undefined;
   PlanPreview: {
     inputs: {
       goal: 'fat loss' | 'strength' | 'endurance' | 'hybrid';

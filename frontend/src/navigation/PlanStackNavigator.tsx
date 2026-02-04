@@ -4,6 +4,7 @@ import type { RootStackParamList } from '../types/navigation';
 import PlanScreen from '../screens/PlanScreen';
 import GeneratePlanScreen from '../screens/GeneratePlanScreen';
 import PlanPreviewScreen from '../screens/PlanPreviewScreen';
+import CalendarScreen from '../screens/CalendarScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -15,6 +16,7 @@ export default function PlanStackNavigator() {
       }}
     >
       <Stack.Screen name="Plan" component={PlanScreen} />
+      <Stack.Screen name="Calendar" component={CalendarScreen} />
       <Stack.Screen name="GeneratePlan" component={GeneratePlanScreen} />
       <Stack.Screen name="PlanPreview" component={PlanPreviewScreen} />
     </Stack.Navigator>
