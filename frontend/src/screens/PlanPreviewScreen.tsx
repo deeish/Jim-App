@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from '../../App';
+import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { colors as themeColors } from '../theme/colors';
 
@@ -638,7 +638,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = useMemo(() => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: themeColors.background,
@@ -953,4 +953,4 @@ const styles = useMemo(() => StyleSheet.create({
     fontWeight: '600',
     color: themeColors.textSecondary,
   },
-}), [themeColors]);
+});

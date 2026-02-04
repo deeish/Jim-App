@@ -1,6 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App';
+import type { RootStackParamList } from '../types/navigation';
 import SearchScreen from '../screens/SearchScreen';
 import ExerciseDetailScreen from '../screens/ExerciseDetailScreen';
 

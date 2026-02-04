@@ -1,6 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App';
+import type { RootStackParamList } from '../types/navigation';
 import PlanScreen from '../screens/PlanScreen';
 import GeneratePlanScreen from '../screens/GeneratePlanScreen';
 import PlanPreviewScreen from '../screens/PlanPreviewScreen';

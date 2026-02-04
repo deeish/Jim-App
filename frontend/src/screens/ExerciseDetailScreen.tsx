@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from '../../App';
+import type { RootStackParamList } from '../types/navigation';
 import { getExerciseById, Exercise } from '../services/exerciseService';
 import { useTheme } from '../theme/ThemeContext';
 

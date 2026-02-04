@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import type { ReactNode } from 'react';
+import { createContext, useContext, useState, useMemo } from 'react';
 import { darkColors, lightColors, ColorPalette } from './colors';
 
 export type ThemeMode = 'light' | 'dark';
@@ -12,7 +13,7 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
+export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<ThemeMode>('dark');
   const value = useMemo(
     () => ({

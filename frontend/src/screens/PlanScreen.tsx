@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App';
+import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 
 type PlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Plan'>;

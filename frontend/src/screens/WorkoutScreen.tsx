@@ -11,7 +11,7 @@ import ExerciseCard from '../components/ExerciseCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import WorkoutSession from '../components/WorkoutSession';
 import { useTheme } from '../theme/ThemeContext';
-import { RootStackParamList } from '../../App';
+import type { RootStackParamList } from '../types/navigation';
 import { RootTabParamList } from '../components/NavBar';
 
 interface WorkoutSessionState {

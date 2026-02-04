@@ -16,7 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
-import { RootNavigatorParamList } from '../../App';
+import type { RootNavigatorParamList } from '../types/navigation';
 
 type ProfileNavProp = NativeStackNavigationProp<RootNavigatorParamList, 'Profile'>;
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from '../../App';
+import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { colors as themeColors } from '../theme/colors';
 
@@ -1424,7 +1424,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
   );
 }
 
-const styles = useMemo(() => StyleSheet.create({
+const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
     width: '100%',
@@ -2004,4 +2004,4 @@ const styles = useMemo(() => StyleSheet.create({
     fontWeight: '600',
     color: themeColors.background,
   },
-}), [themeColors]);
+});

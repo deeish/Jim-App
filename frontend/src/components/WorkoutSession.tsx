@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import Button from './Button';
 import { useTheme } from '../theme/ThemeContext';
 import { colors as themeColors } from '../theme/colors';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App';
+import type { RootStackParamList } from '../types/navigation';
 
 interface WorkoutSessionState {
   workout: Workout;
@@ -1792,7 +1792,7 @@ function WorkoutFinishScreen({
   );
 }
 
-const styles = useMemo(() => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: themeColors.background,
@@ -2849,4 +2849,4 @@ const styles = useMemo(() => StyleSheet.create({
     color: themeColors.textTertiary,
     fontSize: 16,
   },
-}), [themeColors]);
+});
