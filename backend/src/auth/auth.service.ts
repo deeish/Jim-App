@@ -1,7 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import * as jose from 'jose';
+import * as jwt from 'jsonwebtoken';
+import type { JwksClient } from 'jwks-rsa';
+const jwksRsa = require('jwks-rsa') as typeof import('jwks-rsa');
 
 export interface JwtPayload {
   sub: string;
@@ -10,31 +12,122 @@ export interface JwtPayload {
 
 @Injectable()
 export class AuthService {
+  private jwksClient: JwksClient | null = null;
+
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {}
 
-  /** Verify Supabase JWT and return payload (sub, email). */
-  async verifyToken(token: string): Promise<JwtPayload> {
-    const secret = this.config.get<string>('SUPABASE_JWT_SECRET');
-    if (!secret) {
-      throw new UnauthorizedException('Auth not configured');
+  /** Get JWKS client for Supabase public key discovery (RS256/ES256). */
+  private getJwksClient(): JwksClient | null {
+    if (this.jwksClient) return this.jwksClient;
+    const supabaseUrl = this.config.get<string>('SUPABASE_URL');
+    if (!supabaseUrl) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[Auth] SUPABASE_URL not configured');
+      }
+      return null;
     }
     try {
-      const key = new TextEncoder().encode(secret);
-      const { payload } = await jose.jwtVerify(token, key, {
-        algorithms: ['HS256'],
+      const jwksUri = `${supabaseUrl}/auth/v1/.well-known/jwks.json`;
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Auth] Creating JWKS client for:', jwksUri);
+      }
+      this.jwksClient = jwksRsa({
+        jwksUri,
+        cache: true,
+        cacheMaxAge: 600000, // 10 minutes
       });
-      const sub = payload.sub as string;
-      if (!sub) throw new UnauthorizedException('Invalid token');
-      return {
-        sub,
-        email: (payload.email as string) ?? undefined,
-      };
-    } catch {
-      throw new UnauthorizedException('Invalid or expired token');
+      return this.jwksClient;
+    } catch (err: any) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[Auth] Failed to create JWKS client:', err?.message ?? err);
+      }
+      return null;
     }
+  }
+
+  /** Verify Supabase JWT (supports HS256 legacy secret and RS256/ES256 signing keys). */
+  async verifyToken(token: string): Promise<JwtPayload> {
+    // Decode header to check algorithm
+    const decoded = jwt.decode(token, { complete: true }) as {
+      header?: { alg?: string; kid?: string };
+      payload?: { sub?: string; email?: string };
+    } | null;
+
+    if (!decoded?.header) {
+      throw new UnauthorizedException('Invalid token format');
+    }
+
+    const alg = decoded.header.alg;
+    const kid = decoded.header.kid;
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Auth] Token algorithm:', alg, 'kid:', kid);
+    }
+
+    // Try HS256 with legacy JWT secret first
+    if (alg === 'HS256') {
+      const secret = this.config.get<string>('SUPABASE_JWT_SECRET');
+      if (!secret) {
+        throw new UnauthorizedException('Auth not configured');
+      }
+      try {
+        const payload = jwt.verify(token, secret, {
+          algorithms: ['HS256'],
+        }) as { sub?: string; email?: string };
+        const sub = payload.sub;
+        if (!sub) throw new UnauthorizedException('Invalid token');
+        return { sub, email: payload.email ?? undefined };
+      } catch (err: any) {
+        const message = err?.message ?? 'Unknown';
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[Auth] HS256 verify failed:', message);
+        }
+        throw new UnauthorizedException('Invalid or expired token');
+      }
+    }
+
+    // Try RS256/ES256 with JWKS (new signing keys)
+    if (alg === 'RS256' || alg === 'ES256') {
+      if (!kid) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[Auth] Token missing kid (key ID) for', alg);
+        }
+        throw new UnauthorizedException('Token missing key identifier');
+      }
+      const client = this.getJwksClient();
+      if (!client) {
+        const supabaseUrl = this.config.get<string>('SUPABASE_URL');
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[Auth] JWKS client not available. SUPABASE_URL:', supabaseUrl);
+        }
+        throw new UnauthorizedException('JWKS not available');
+      }
+      try {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[Auth] Fetching signing key for kid:', kid);
+        }
+        const key = await client.getSigningKey(kid);
+        const publicKey = key.getPublicKey();
+        const payload = jwt.verify(token, publicKey, {
+          algorithms: [alg],
+        }) as { sub?: string; email?: string };
+        const sub = payload.sub;
+        if (!sub) throw new UnauthorizedException('Invalid token');
+        return { sub, email: payload.email ?? undefined };
+      } catch (err: any) {
+        const message = err?.message ?? 'Unknown';
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(`[Auth] ${alg} verify failed:`, message);
+          if (err.stack) console.warn('[Auth] Stack:', err.stack);
+        }
+        throw new UnauthorizedException('Invalid or expired token');
+      }
+    }
+
+    throw new UnauthorizedException(`Unsupported algorithm: ${alg}`);
   }
 
   /** Upsert user by Supabase id (sub) so we have a local User record. */

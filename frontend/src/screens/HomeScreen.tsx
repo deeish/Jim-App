@@ -8,7 +8,6 @@ import {
   Pressable,
   Platform,
   Share,
-  Alert,
   ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import type { RootNavigatorParamList } from '../types/navigation';
 
 type ProfileNavProp = NativeStackNavigationProp<RootNavigatorParamList, 'Profile'>;
@@ -23,6 +23,7 @@ type ProfileNavProp = NativeStackNavigationProp<RootNavigatorParamList, 'Profile
 export default function HomeScreen() {
   const navigation = useNavigation<ProfileNavProp>();
   const { colors } = useTheme();
+  const { signOut } = useAuth();
   const [menuVisible, setMenuVisible] = useState(false);
 
   const openMenu = () => setMenuVisible(true);
@@ -47,10 +48,9 @@ export default function HomeScreen() {
     }
   };
 
-  const onSignOut = () => {
+  const onSignOut = async () => {
     closeMenu();
-    // Placeholder until auth is implemented
-    Alert.alert('Sign out', 'Sign out will be available when you add account sign-in.');
+    await signOut();
   };
 
   const themedStyles = useMemo(

@@ -352,7 +352,41 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     setSelectedDayForSwap(day);
     setSwapModalVisible(true);
   }, []);
-  
+
+  const handleReplaceWithType = useCallback((newType: WorkoutType) => {
+    if (!selectedDayForSwap) return;
+    const day = selectedDayForSwap;
+    setPlanData(prev => prev.map(week => {
+      if (week.weekNumber !== selectedWeek) return week;
+      const existing = week.workouts[day]?.[0];
+      const durationMinutes = existing?.durationMinutes ?? 45;
+      const templates: Record<WorkoutType, Pick<PlanWorkout, 'title' | 'detailLine' | 'iconColor' | 'intensity'>> = {
+        cardio: { title: 'Cardio', detailLine: 'Zone 2 or intervals', iconColor: '#E67E22', intensity: 'Medium' },
+        strength: { title: 'Strength', detailLine: 'Full body or split', iconColor: '#C7A46A', intensity: 'Medium' },
+        recovery: { title: 'Recovery', detailLine: 'Stretch / mobility', iconColor: '#9B59B6', intensity: 'Easy' },
+      };
+      const t = templates[newType];
+      const newWorkout: PlanWorkout = {
+        id: `draft-swap-${week.weekNumber}-${day}-${Date.now()}`,
+        title: t.title,
+        detailLine: t.detailLine,
+        iconColor: t.iconColor,
+        durationMinutes,
+        intensity: t.intensity,
+        type: newType,
+        changeType: 'replaced',
+        source: 'ai',
+        week: week.weekNumber,
+      };
+      return {
+        ...week,
+        workouts: { ...week.workouts, [day]: [newWorkout] },
+      };
+    }));
+    setSwapModalVisible(false);
+    setSelectedDayForSwap(null);
+  }, [selectedWeek, selectedDayForSwap]);
+
   const handleApply = async () => {
     setApplying(true);
     try {
@@ -601,28 +635,19 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             <View style={styles.modalOptions}>
               <TouchableOpacity
                 style={styles.modalOption}
-                onPress={() => {
-                  Alert.alert('Swap', 'Workout swapped (mock)');
-                  setSwapModalVisible(false);
-                }}
+                onPress={() => handleReplaceWithType('cardio')}
               >
                 <Text style={styles.modalOptionText}>Replace with Cardio</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalOption}
-                onPress={() => {
-                  Alert.alert('Swap', 'Workout swapped (mock)');
-                  setSwapModalVisible(false);
-                }}
+                onPress={() => handleReplaceWithType('strength')}
               >
                 <Text style={styles.modalOptionText}>Replace with Strength</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalOption}
-                onPress={() => {
-                  Alert.alert('Swap', 'Workout swapped (mock)');
-                  setSwapModalVisible(false);
-                }}
+                onPress={() => handleReplaceWithType('recovery')}
               >
                 <Text style={styles.modalOptionText}>Replace with Recovery</Text>
               </TouchableOpacity>

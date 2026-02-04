@@ -34,7 +34,7 @@ export interface ApiPlan {
 }
 
 export async function getCurrentPlan(): Promise<ApiPlan | null> {
-  const response = await api.get<ApiPlan | null>('/plans/current');
+  const response = await api.get<ApiPlan | null>('/plans/me');
   return response.data;
 }
 

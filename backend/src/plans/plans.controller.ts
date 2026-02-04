@@ -19,7 +19,7 @@ import { UserId } from '../auth/user-id.decorator';
 export class PlansController {
   constructor(private readonly plansService: PlansService) {}
 
-  @Get('current')
+  @Get('me')
   getCurrent(@UserId() userId: string) {
     return this.plansService.getCurrent(userId);
   }

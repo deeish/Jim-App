@@ -11,23 +11,36 @@ export const api = axios.create({
 
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
-    const {
+    let {
       data: { session },
     } = await supabase.auth.getSession();
+    // On web, session can take a moment to hydrate from storage; retry a few times
+    for (let i = 0; i < 3 && !session?.access_token; i++) {
+      await new Promise((r) => setTimeout(r, 80 * (i + 1)));
+      const again = await supabase.auth.getSession();
+      session = again.data.session;
+    }
     if (session?.access_token) {
       config.headers.Authorization = `Bearer ${session.access_token}`;
+    }
+    if (__DEV__ && config.url?.includes('plans')) {
+      console.log('[API] Request to', config.url, 'has token:', !!session?.access_token);
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// On 401 (invalid/expired token), sign out so user is sent to login
+// On 401 with a token we sent = invalid/expired → sign out. If we never sent a token, don't sign out (avoids race where session wasn't attached yet).
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     if (error.response?.status === 401) {
-      await supabase.auth.signOut();
+      const headers = error.config?.headers as Record<string, string> | undefined;
+      const hadToken = !!(headers?.Authorization ?? headers?.authorization);
+      if (hadToken) {
+        await supabase.auth.signOut();
+      }
     }
     return Promise.reject(error);
   }
