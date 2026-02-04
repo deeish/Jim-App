@@ -12,7 +12,10 @@ export type RootStackParamList = {
   Home: undefined;
   Plan: undefined;
   Workout: undefined;
-  Search: undefined;
+  Search: {
+    addToPlan?: { day: string; weekIndex: number };
+    addToWorkout?: { workoutId: string; workoutName: string; existingExerciseIds?: string[] };
+  } | undefined;
   WeeklyWorkout: undefined;
   ExerciseDetail: { exerciseId: string };
   WorkoutDetail: { workoutId: string };

@@ -24,7 +24,8 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${session.access_token}`;
     }
     if (__DEV__ && config.url?.includes('plans')) {
-      console.log('[API] Request to', config.url, 'has token:', !!session?.access_token);
+      const method = (config.method ?? 'get').toUpperCase();
+      console.log(`[API] ${method}`, config.url, 'token:', !!session?.access_token);
     }
     return config;
   },

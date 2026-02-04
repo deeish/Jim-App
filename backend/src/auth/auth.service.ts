@@ -31,9 +31,6 @@ export class AuthService {
     }
     try {
       const jwksUri = `${supabaseUrl}/auth/v1/.well-known/jwks.json`;
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[Auth] Creating JWKS client for:', jwksUri);
-      }
       this.jwksClient = jwksRsa({
         jwksUri,
         cache: true,
@@ -62,10 +59,6 @@ export class AuthService {
 
     const alg = decoded.header.alg;
     const kid = decoded.header.kid;
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[Auth] Token algorithm:', alg, 'kid:', kid);
-    }
 
     // Try HS256 with legacy JWT secret first
     if (alg === 'HS256') {
@@ -106,9 +99,6 @@ export class AuthService {
         throw new UnauthorizedException('JWKS not available');
       }
       try {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[Auth] Fetching signing key for kid:', kid);
-        }
         const key = await client.getSigningKey(kid);
         const publicKey = key.getPublicKey();
         const payload = jwt.verify(token, publicKey, {

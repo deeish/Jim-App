@@ -53,9 +53,21 @@ function AppContent() {
     );
   }
 
+  const navTheme = {
+    dark: isDark,
+    colors: {
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.text,
+      border: colors.border,
+      notification: colors.accent,
+    },
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <NavigationContainer>
+      <NavigationContainer theme={navTheme}>
         {session ? (
           <RootStack.Navigator
             screenOptions={{

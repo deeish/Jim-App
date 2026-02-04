@@ -18,6 +18,8 @@ export interface Workout {
   updatedAt?: string;
   estimatedDuration?: number; // in minutes
   focus?: string; // e.g., "Full Body", "Push", "Legs"
+  /** When workout was created from a plan slot, links to PlanWorkout.id */
+  planWorkoutId?: string | null;
 }
 
 // Workout session types

@@ -1,4 +1,5 @@
 import { api } from '../api/client';
+import type { Workout } from '../types/workout';
 
 export interface PlanSlot {
   weekNumber: number;
@@ -38,6 +39,17 @@ export async function getCurrentPlan(): Promise<ApiPlan | null> {
   return response.data;
 }
 
+export interface CurrentPlanWithWeekly {
+  plan: ApiPlan | null;
+  weeklyWorkouts: Workout[];
+}
+
+/** Single call for Plan screen: plan + weekly workouts (faster than two requests). */
+export async function getCurrentPlanWithWeekly(): Promise<CurrentPlanWithWeekly> {
+  const response = await api.get<CurrentPlanWithWeekly>('/plans/me/with-weekly');
+  return response.data;
+}
+
 export async function getPlanById(id: string): Promise<ApiPlan> {
   const response = await api.get<ApiPlan>(`/plans/${id}`);
   return response.data;
@@ -56,4 +68,19 @@ export async function createPlan(body: CreatePlanBody): Promise<ApiPlan> {
 export async function updatePlan(id: string, body: CreatePlanBody): Promise<ApiPlan> {
   const response = await api.patch<ApiPlan>(`/plans/${id}`, body);
   return response.data;
+}
+
+/** Remove a single slot from the plan. Returns the updated plan. */
+export async function removePlanSlot(planId: string, slotId: string): Promise<ApiPlan> {
+  const url = `/plans/${planId}/slots/remove`;
+  const body = { slotId };
+  console.warn('[planService] removePlanSlot POST', url, body);
+  try {
+    const response = await api.post<ApiPlan>(url, body);
+    console.warn('[planService] removePlanSlot OK, slots:', response.data?.planWorkouts?.length);
+    return response.data;
+  } catch (e: any) {
+    console.warn('[planService] removePlanSlot FAILED', e?.response?.status, e?.response?.data ?? e?.message);
+    throw e;
+  }
 }

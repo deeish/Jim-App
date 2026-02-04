@@ -8,9 +8,13 @@ interface ExerciseGroupCardProps {
   group: ExerciseGroup;
   onPress?: (exercise: Exercise) => void;
   onPressVariation?: (exercise: Exercise) => void;
+  /** When true, card shows selected state (e.g. for add-to-plan mode). */
+  isSelected?: boolean;
+  /** When true, card is greyed out and not tappable (e.g. already in workout). */
+  isDisabled?: boolean;
 }
 
-export default function ExerciseGroupCard({ group, onPress, onPressVariation }: ExerciseGroupCardProps) {
+export default function ExerciseGroupCard({ group, onPress, onPressVariation, isSelected, isDisabled }: ExerciseGroupCardProps) {
   const { colors } = useTheme();
   const [showVariations, setShowVariations] = useState(false);
   const exercise = group.primaryExercise;
@@ -183,12 +187,14 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation }: 
   );
 
   const handleCardPress = () => {
+    if (isDisabled) return;
     if (onPress) {
       onPress(exercise);
     }
   };
 
   const handleVariationPress = (variationName: string) => {
+    if (isDisabled) return;
     const variationExercise = group.exercises.find(ex => ex.name === variationName);
     if (variationExercise && onPressVariation) {
       onPressVariation(variationExercise);
@@ -198,9 +204,14 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation }: 
   return (
     <View style={styles.container}>
       <TouchableOpacity
-        style={styles.card}
+        style={[
+          styles.card,
+          isSelected && { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primary + '12' },
+          isDisabled && { opacity: 0.5 },
+        ]}
         onPress={handleCardPress}
-        activeOpacity={0.7}
+        activeOpacity={isDisabled ? 1 : 0.7}
+        disabled={isDisabled}
       >
         <View style={styles.header}>
           <View style={styles.titleContainer}>
@@ -269,7 +280,11 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation }: 
         )}
 
         <View style={styles.footer}>
-          <Text style={styles.tapHint}>Tap for more information →</Text>
+          {isDisabled ? (
+            <Text style={[styles.tapHint, { color: colors.textMuted }]}>Already in workout</Text>
+          ) : (
+            <Text style={styles.tapHint}>Tap for more information →</Text>
+          )}
         </View>
       </TouchableOpacity>
 
@@ -290,6 +305,7 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation }: 
                   index === variationNames.length - 1 && styles.variationItemLast
                 ]}
                 onPress={() => {
+                  if (isDisabled) return;
                   if (variationExercise && onPressVariation) {
                     onPressVariation(variationExercise);
                   } else {
@@ -302,7 +318,8 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation }: 
                     }
                   }
                 }}
-                activeOpacity={0.7}
+                activeOpacity={isDisabled ? 1 : 0.7}
+                disabled={isDisabled}
               >
                 <Text style={styles.variationName}>{variationName}</Text>
                 <Text style={styles.variationArrow}>→</Text>

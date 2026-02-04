@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { createContext, useContext, useState, useMemo } from 'react';
+import { View } from 'react-native';
 import { darkColors, lightColors, ColorPalette } from './colors';
 
 export type ThemeMode = 'light' | 'dark';
@@ -24,9 +25,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }),
     [theme]
   );
+  const backgroundColor = theme === 'dark' ? darkColors.background : lightColors.background;
   return (
     <ThemeContext.Provider value={value}>
-      {children}
+      <View style={{ flex: 1, backgroundColor }}>
+        {children}
+      </View>
     </ThemeContext.Provider>
   );
 }

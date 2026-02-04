@@ -11,7 +11,7 @@ import { useTheme } from '../theme/ThemeContext';
 export type RootTabParamList = {
   Home: undefined;
   Plan: undefined;
-  Workout: undefined;
+  Workout: { workoutId?: string; fromPlan?: boolean } | undefined;
   Search: undefined;
 };
 

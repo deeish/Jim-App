@@ -20,6 +20,27 @@ export class PlansService {
     return plan;
   }
 
+  /** Current plan + weekly workouts in one call (faster for Plan screen). */
+  async getCurrentWithWeekly(userId: string) {
+    const plan = await this.prisma.workoutPlan.findFirst({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        planWorkouts: {
+          orderBy: [{ weekNumber: 'asc' }, { dayOfWeek: 'asc' }, { orderInDay: 'asc' }],
+        },
+      },
+    });
+    const weeklyWorkouts = plan
+      ? await this.prisma.workout.findMany({
+          where: { workoutPlanId: plan.id },
+          include: { exercises: true },
+          orderBy: { day: 'asc' },
+        })
+      : [];
+    return { plan, weeklyWorkouts };
+  }
+
   async getById(id: string, userId: string) {
     const plan = await this.prisma.workoutPlan.findUnique({
       where: { id },
@@ -75,6 +96,7 @@ export class PlansService {
     });
     if (!plan) return;
 
+    const userId = plan.userId ?? undefined;
     for (const pw of plan.planWorkouts) {
       if (pw.weekNumber !== 1) continue;
       await this.prisma.workout.create({
@@ -85,6 +107,7 @@ export class PlansService {
           focus: pw.detailLine ?? undefined,
           workoutPlanId,
           planWorkoutId: pw.id,
+          userId,
         },
       });
     }
@@ -136,5 +159,39 @@ export class PlansService {
 
     await this.createWorkoutsForPlan(plan.id);
     return this.getById(plan.id, userId);
+  }
+
+  /** Remove a single slot from the plan. Unlinks the linked Workout if any. */
+  async removeSlot(planId: string, slotId: string, userId: string) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[PlansService] removeSlot', { planId, slotId });
+    }
+    if (!slotId) {
+      if (process.env.NODE_ENV !== 'production') console.warn('[PlansService] removeSlot: slotId is missing');
+      throw new NotFoundException('Slot ID is required');
+    }
+    const plan = await this.prisma.workoutPlan.findUnique({
+      where: { id: planId },
+      include: { planWorkouts: true },
+    });
+    if (!plan) throw new NotFoundException(`Plan with ID ${planId} not found`);
+    if (plan.userId && plan.userId !== userId) {
+      throw new NotFoundException(`Plan with ID ${planId} not found`);
+    }
+    const slot = plan.planWorkouts.find((pw) => pw.id === slotId);
+    if (!slot) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[PlansService] removeSlot: slot not in plan', { slotId, planSlotIds: plan.planWorkouts.map((pw) => pw.id) });
+      }
+      throw new NotFoundException(`Slot with ID ${slotId} not found in this plan`);
+    }
+    await this.prisma.$transaction([
+      this.prisma.workout.updateMany({
+        where: { planWorkoutId: slotId },
+        data: { workoutPlanId: null, planWorkoutId: null },
+      }),
+      this.prisma.planWorkout.delete({ where: { id: slotId } }),
+    ]);
+    return this.getById(planId, userId);
   }
 }

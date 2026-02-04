@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
@@ -18,6 +20,7 @@ type Props = {
 export default function WorkoutDetailScreen({ navigation, route }: Props) {
   const { workoutId } = route.params || {};
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -62,9 +65,70 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
           elevation: 5,
         },
         generateButtonText: { color: colors.background, fontSize: 18, fontWeight: '600' },
+        startButton: {
+          backgroundColor: colors.secondary,
+          padding: 18,
+          margin: 12,
+          marginBottom: 8,
+          borderRadius: 12,
+          alignItems: 'center',
+        },
+        startButtonText: { color: colors.background, fontSize: 18, fontWeight: '600' },
+        addExercisesButton: {
+          backgroundColor: colors.surface,
+          borderWidth: 1,
+          borderColor: colors.primary,
+          padding: 14,
+          marginHorizontal: 12,
+          marginBottom: 12,
+          borderRadius: 12,
+          alignItems: 'center',
+        },
+        addExercisesButtonText: { color: colors.primary, fontSize: 16, fontWeight: '600' },
+        backBar: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+          backgroundColor: colors.surface,
+        },
+        backButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingRight: 16 },
+        backButtonText: { fontSize: 17, fontWeight: '600', color: colors.primary },
       }),
     [colors]
   );
+
+  const handleAddExercises = () => {
+    if (!workout?.id) return;
+    const existingExerciseIds = (workout.exercises || [])
+      .map(e => e.exerciseId)
+      .filter((id): id is string => !!id);
+    const tabNav = (navigation as any)?.getParent?.()?.getParent?.();
+    if (tabNav) {
+      tabNav.navigate('Search', {
+        screen: 'Search',
+        params: {
+          addToWorkout: {
+            workoutId: workout.id,
+            workoutName: workout.name,
+            existingExerciseIds,
+          },
+        },
+      });
+      navigation.goBack();
+    }
+  };
+
+  const handleStartWorkout = () => {
+    if (!workout?.id) return;
+    const tabNav = (navigation as any)?.getParent?.()?.getParent?.();
+    if (tabNav) {
+      tabNav.navigate('Workout', { workoutId: workout.id });
+      navigation.goBack();
+    }
+  };
 
   useEffect(() => {
     if (workoutId) {
@@ -100,10 +164,26 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
     }
   };
 
+  const BackBar = () => (
+    <View style={[styles.backBar, { paddingTop: 12 + insets.top }]}>
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+        accessibilityLabel="Go back"
+      >
+        <Ionicons name="arrow-back" size={24} color={colors.primary} />
+        <Text style={styles.backButtonText}>Back</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <BackBar />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
       </View>
     );
   }
@@ -111,6 +191,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   if (!workout) {
     return (
       <View style={styles.container}>
+        <BackBar />
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No workout selected</Text>
           <TouchableOpacity
@@ -130,50 +211,57 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.workoutName}>{workout.name}</Text>
-        {workout.day && (
-          <Text style={styles.workoutDay}>{workout.day}</Text>
-        )}
-      </View>
-
-      <View style={styles.exercisesContainer}>
-        <Text style={styles.sectionTitle}>Exercises</Text>
-        {workout.exercises.map((exercise, index) => (
-          <View key={index} style={styles.exerciseCard}>
-            <Text style={styles.exerciseName}>{exercise.name}</Text>
-            <View style={styles.exerciseDetails}>
-              <Text style={styles.exerciseDetail}>
-                Sets: {exercise.sets}
-              </Text>
-              <Text style={styles.exerciseDetail}>
-                Reps: {exercise.reps}
-              </Text>
-              {exercise.weight && (
+    <View style={styles.container}>
+      <BackBar />
+      <ScrollView style={{ flex: 1 }}>
+        <View style={styles.header}>
+          <Text style={styles.workoutName}>{workout.name}</Text>
+          {workout.day && (
+            <Text style={styles.workoutDay}>{workout.day}</Text>
+          )}
+        </View>
+        <View style={styles.exercisesContainer}>
+          <Text style={styles.sectionTitle}>Exercises</Text>
+          <TouchableOpacity style={styles.addExercisesButton} onPress={handleAddExercises}>
+            <Text style={styles.addExercisesButtonText}>+ Add exercises from library</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.startButton} onPress={handleStartWorkout}>
+            <Text style={styles.startButtonText}>Start workout</Text>
+          </TouchableOpacity>
+          {workout.exercises.map((exercise, index) => (
+            <View key={index} style={styles.exerciseCard}>
+              <Text style={styles.exerciseName}>{exercise.name}</Text>
+              <View style={styles.exerciseDetails}>
                 <Text style={styles.exerciseDetail}>
-                  Weight: {exercise.weight} lbs
+                  Sets: {exercise.sets}
                 </Text>
+                <Text style={styles.exerciseDetail}>
+                  Reps: {exercise.reps}
+                </Text>
+                {exercise.weight && (
+                  <Text style={styles.exerciseDetail}>
+                    Weight: {exercise.weight} lbs
+                  </Text>
+                )}
+              </View>
+              {exercise.notes && (
+                <Text style={styles.exerciseNotes}>{exercise.notes}</Text>
               )}
             </View>
-            {exercise.notes && (
-              <Text style={styles.exerciseNotes}>{exercise.notes}</Text>
-            )}
-          </View>
-        ))}
-      </View>
-
-      <TouchableOpacity
-        style={styles.generateButton}
-        onPress={handleGenerateWorkout}
-        disabled={generating}
-      >
-        {generating ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.generateButtonText}>Generate New Workout</Text>
-        )}
-      </TouchableOpacity>
-    </ScrollView>
+          ))}
+        </View>
+        <TouchableOpacity
+          style={styles.generateButton}
+          onPress={handleGenerateWorkout}
+          disabled={generating}
+        >
+          {generating ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.generateButtonText}>Generate New Workout</Text>
+          )}
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
   );
 }

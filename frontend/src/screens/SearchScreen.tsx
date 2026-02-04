@@ -11,8 +11,10 @@ import {
   Platform,
   UIManager,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
@@ -20,8 +22,13 @@ import Button from '../components/Button';
 import { searchExercises, Exercise } from '../services/exerciseService';
 import ExerciseGroupCard from '../components/ExerciseGroupCard';
 import { groupExercises, ExerciseGroup } from '../utils/exerciseGrouping';
+import { getCurrentPlan, updatePlan, createPlan } from '../services/planService';
+import type { ApiPlanWorkout } from '../services/planService';
+import { getWeeklyWorkouts, updateWorkout, getWorkoutById } from '../services/workoutService';
+import type { PlanSlot } from '../services/planService';
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Search'>;
+type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 
 type Props = {
   navigation: SearchScreenNavigationProp;
@@ -78,6 +85,10 @@ interface FilterState {
 }
 
 export default function SearchScreen({ navigation }: Props) {
+  const route = useRoute<SearchScreenRouteProp>();
+  const addToPlan = route.params?.addToPlan;
+  const addToWorkout = route.params?.addToWorkout;
+  const addMode = addToPlan ? 'plan' : addToWorkout ? 'workout' : null;
   const { colors } = useTheme();
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
@@ -93,6 +104,8 @@ export default function SearchScreen({ navigation }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [addingToPlan, setAddingToPlan] = useState(false);
 
   // Toggle a main muscle group (parent)
   const toggleMuscleGroup = (group: string) => {
@@ -337,6 +350,170 @@ export default function SearchScreen({ navigation }: Props) {
       return updated;
     });
   };
+
+  const toggleSelectForAddToPlan = useCallback((exerciseId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(exerciseId)) next.delete(exerciseId);
+      else next.add(exerciseId);
+      return next;
+    });
+  }, []);
+
+  /** Derive a short workout title from selected exercises' primary muscle groups (e.g. "Chest & Triceps"). */
+  const deriveWorkoutTitle = useCallback((selected: Exercise[]): string => {
+    const groups = [...new Set(selected.map(e => e.primaryMuscleGroup).filter(Boolean))];
+    if (groups.length === 0) return 'Custom';
+    if (groups.length === 1) return groups[0];
+    return groups.slice(0, 3).join(' & ');
+  }, []);
+
+  const submitAddToPlan = useCallback(async () => {
+    if (!addToPlan || selectedIds.size === 0) return;
+    const { day, weekIndex } = addToPlan;
+    const selectedExercises = exercises.filter(e => selectedIds.has(e.id));
+    if (selectedExercises.length === 0) {
+      Alert.alert('No exercises', 'Selected exercises could not be found. Try searching again and reselect.');
+      return;
+    }
+
+    const workoutExercises = selectedExercises.map((e, i) => ({
+      name: e.name,
+      sets: 3,
+      reps: 10,
+      exerciseId: e.id,
+      orderIndex: i,
+    }));
+
+    setAddingToPlan(true);
+    try {
+      const plan = await getCurrentPlan();
+      const weekNumber = weekIndex + 1;
+      const slotTitle = deriveWorkoutTitle(selectedExercises);
+      const newSlot: PlanSlot = {
+        weekNumber,
+        dayOfWeek: day,
+        title: slotTitle,
+        detailLine: `${selectedExercises.length} exercises`,
+        type: 'strength',
+        durationMinutes: Math.max(30, selectedExercises.length * 5),
+        orderInDay: 0,
+      };
+
+      let newPlanWorkoutId: string | null = null;
+
+      if (plan) {
+        const existingSlots: PlanSlot[] = plan.planWorkouts.map((pw: ApiPlanWorkout) => ({
+          weekNumber: pw.weekNumber,
+          dayOfWeek: pw.dayOfWeek,
+          title: pw.title,
+          detailLine: pw.detailLine ?? undefined,
+          type: pw.type,
+          durationMinutes: pw.durationMinutes,
+          intensity: pw.intensity ?? undefined,
+          orderInDay: pw.orderInDay,
+        }));
+        const existingForDay = existingSlots.filter(s => s.dayOfWeek === day && s.weekNumber === weekNumber);
+        newSlot.orderInDay = existingForDay.length;
+        const updatedPlan = await updatePlan(plan.id, {
+          name: plan.name,
+          slots: [...existingSlots, newSlot],
+        });
+        const newPlanWorkout = updatedPlan.planWorkouts.find(
+          (pw: ApiPlanWorkout) => pw.dayOfWeek === day && pw.weekNumber === weekNumber && pw.orderInDay === newSlot.orderInDay
+        );
+        if (newPlanWorkout) newPlanWorkoutId = newPlanWorkout.id;
+      } else {
+        const createdPlan = await createPlan({ name: 'My Plan', slots: [newSlot] });
+        if (createdPlan.planWorkouts.length > 0) newPlanWorkoutId = createdPlan.planWorkouts[0].id;
+      }
+
+      if (newPlanWorkoutId && weekNumber === 1) {
+        const weekly = await getWeeklyWorkouts();
+        const linkedWorkout = weekly.find(w => w.planWorkoutId === newPlanWorkoutId);
+        if (linkedWorkout) {
+          await updateWorkout(linkedWorkout.id, { exercises: workoutExercises });
+        }
+      }
+
+      setSelectedIds(new Set());
+      const tabNav = (navigation as any)?.getParent?.();
+      if (tabNav) tabNav.navigate('Plan');
+      const successMsg =
+        weekNumber === 1
+          ? `Added ${selectedExercises.length} exercise(s) to ${day}.`
+          : `Added "${slotTitle}" to ${day} (week ${weekNumber}). You can start it when that week begins.`;
+      Alert.alert('Done', successMsg);
+    } catch (err: any) {
+      console.error('Add to plan failed:', err);
+      const status = err.response?.status;
+      const message =
+        status === 401
+          ? 'Session expired. Sign in again.'
+          : err.message === 'Network Error' || !err.response
+            ? 'Could not reach the server. Check your connection.'
+            : err.response?.data?.message ?? err.message ?? 'Could not add workout to plan.';
+      Alert.alert('Error', message);
+    } finally {
+      setAddingToPlan(false);
+    }
+  }, [addToPlan, exercises, selectedIds, navigation, deriveWorkoutTitle]);
+
+  const submitAddToWorkout = useCallback(async () => {
+    if (!addToWorkout || selectedIds.size === 0) return;
+    const selectedExercises = exercises.filter(e => selectedIds.has(e.id));
+    if (selectedExercises.length === 0) {
+      Alert.alert('No exercises', 'Selected exercises could not be found. Try searching again and reselect.');
+      return;
+    }
+
+    const newExercises = selectedExercises.map((e, i) => ({
+      name: e.name,
+      sets: 3,
+      reps: 10,
+      exerciseId: e.id,
+      orderIndex: i,
+    }));
+
+    setAddingToPlan(true);
+    try {
+      const workout = await getWorkoutById(addToWorkout.workoutId);
+      const existingExercises = (workout.exercises || []).map((ex, idx) => ({
+        name: ex.name,
+        sets: ex.sets,
+        reps: ex.reps,
+        weight: ex.weight,
+        notes: ex.notes,
+        exerciseId: ex.exerciseId,
+        orderIndex: idx,
+      }));
+      const merged = [
+        ...existingExercises,
+        ...newExercises.map((e, i) => ({ ...e, orderIndex: existingExercises.length + i })),
+      ];
+      await updateWorkout(addToWorkout.workoutId, { exercises: merged });
+
+      setSelectedIds(new Set());
+      navigation.setParams({ addToWorkout: undefined });
+      const tabNav = (navigation as any)?.getParent?.();
+      if (tabNav) tabNav.navigate('Workout', { workoutId: addToWorkout.workoutId });
+      Alert.alert('Done', `Added ${selectedExercises.length} exercise(s) to ${addToWorkout.workoutName}.`);
+    } catch (err: any) {
+      console.error('Add to workout failed:', err);
+      const status = err.response?.status;
+      const message =
+        status === 401
+          ? 'Session expired. Sign in again.'
+          : status === 404
+            ? 'Workout no longer exists. It may have been deleted.'
+            : err.message === 'Network Error' || !err.response
+              ? 'Could not reach the server. Check your connection.'
+              : err.response?.data?.message ?? err.message ?? 'Could not add exercises to workout.';
+      Alert.alert('Error', message);
+    } finally {
+      setAddingToPlan(false);
+    }
+  }, [addToWorkout, exercises, selectedIds, navigation]);
 
   const Chip = ({ 
     label, 
@@ -657,12 +834,56 @@ export default function SearchScreen({ navigation }: Props) {
         resultsHeader: { paddingHorizontal: 16, paddingBottom: 12 },
         resultsHeaderText: { fontSize: 20, fontWeight: '600', color: colors.text },
         resultsSubtext: { fontSize: 14, fontWeight: '400', color: colors.textMuted },
+        addToPlanBanner: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          borderBottomWidth: 1,
+        },
+        addToPlanBannerText: { fontSize: 14, fontWeight: '600', flex: 1 },
+        addToPlanCancelText: { fontSize: 15, fontWeight: '600' },
+        addToPlanFooter: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: 16,
+          paddingVertical: 14,
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+        },
+        addToPlanFooterText: { fontSize: 16, fontWeight: '600', color: colors.text },
+        addToPlanFooterButton: { minWidth: 160 },
       }),
     [colors]
   );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Add to plan / add to workout banner */}
+      {addMode && (
+        <View style={[styles.addToPlanBanner, { backgroundColor: colors.primary + '22', borderColor: colors.primary }]}>
+          <Text style={[styles.addToPlanBannerText, { color: colors.text }]}>
+            {addToPlan
+              ? `Adding to ${addToPlan.day} — tap exercises to select`
+              : addToWorkout
+                ? `Adding to "${addToWorkout.workoutName}" — tap exercises to select`
+                : ''}
+          </Text>
+          <TouchableOpacity
+            onPress={() => {
+              setSelectedIds(new Set());
+              navigation.setParams({ addToPlan: undefined, addToWorkout: undefined });
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={[styles.addToPlanCancelText, { color: colors.primary }]}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -846,18 +1067,27 @@ export default function SearchScreen({ navigation }: Props) {
                 )}
               </Text>
             </View>
-            {exerciseGroups.map((group, index) => (
-              <ExerciseGroupCard
-                key={`${group.baseName}-${index}`}
-                group={group}
-                onPress={(exercise) => {
-                  navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-                }}
-                onPressVariation={(exercise) => {
-                  navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-                }}
-              />
-            ))}
+            {exerciseGroups.map((group, index) => {
+              const isAnyInGroupSelected = group.exercises.some(e => selectedIds.has(e.id));
+              const existingIds = addToWorkout?.existingExerciseIds ?? [];
+              const isAlreadyInWorkout = existingIds.length > 0 && group.exercises.some(e => existingIds.includes(e.id));
+              return (
+                <ExerciseGroupCard
+                  key={`${group.baseName}-${index}`}
+                  group={group}
+                  isSelected={addMode ? isAnyInGroupSelected : undefined}
+                  isDisabled={isAlreadyInWorkout}
+                  onPress={(exercise) => {
+                    if (addMode) toggleSelectForAddToPlan(exercise.id);
+                    else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
+                  }}
+                  onPressVariation={(exercise) => {
+                    if (addMode) toggleSelectForAddToPlan(exercise.id);
+                    else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
+                  }}
+                />
+              );
+            })}
           </View>
         )}
 
@@ -874,7 +1104,7 @@ export default function SearchScreen({ navigation }: Props) {
       </ScrollView>
 
       {/* Sticky Bottom Bar - Only show when no results or loading */}
-      {(isLoading || resultCount === 0) && (
+      {(isLoading || resultCount === 0) && !addMode && (
         <View style={styles.bottomBar}>
           <View style={styles.resultCountContainer}>
             <Text style={styles.resultCountText}>
@@ -895,6 +1125,29 @@ export default function SearchScreen({ navigation }: Props) {
               />
             </View>
           )}
+        </View>
+      )}
+
+      {/* Add to plan / add to workout footer */}
+      {addMode && (
+        <View style={styles.addToPlanFooter}>
+          <Text style={styles.addToPlanFooterText}>
+            {selectedIds.size} selected
+          </Text>
+          <Button
+            title={
+              addingToPlan
+                ? 'Adding…'
+                : addToPlan
+                  ? `Add to ${addToPlan.day}`
+                  : addToWorkout
+                    ? `Add to ${addToWorkout.workoutName}`
+                    : 'Add'
+            }
+            onPress={addToWorkout ? submitAddToWorkout : submitAddToPlan}
+            disabled={selectedIds.size === 0 || addingToPlan}
+            style={styles.addToPlanFooterButton}
+          />
         </View>
       )}
     </SafeAreaView>

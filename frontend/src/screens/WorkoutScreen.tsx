@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { getWeeklyWorkouts, saveWorkoutLog } from '../services/workoutService';
+import { Ionicons } from '@expo/vector-icons';
+import { getWeeklyWorkouts, getWorkoutById, saveWorkoutLog } from '../services/workoutService';
 import { Workout } from '../types/workout';
 import Button from '../components/Button';
 import ExerciseCard from '../components/ExerciseCard';
@@ -25,18 +27,40 @@ type WorkoutScreenNavigationProp = CompositeNavigationProp<
   NativeStackNavigationProp<RootStackParamList>
 >;
 
+type WorkoutScreenRouteProp = RouteProp<RootTabParamList, 'Workout'>;
+
 export default function WorkoutScreen() {
   const navigation = useNavigation<WorkoutScreenNavigationProp>();
+  const route = useRoute<WorkoutScreenRouteProp>();
+  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const workoutIdParam = route.params?.workoutId;
+  const fromPlan = route.params?.fromPlan === true;
   const [todayWorkout, setTodayWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<WorkoutSessionState | null>(null);
   const [savingLog, setSavingLog] = useState(false);
 
+  const goBackToPlan = () => {
+    const tabNav = (navigation as any)?.getParent?.();
+    if (tabNav) tabNav.navigate('Plan');
+  };
+
   const styles = useMemo(
     () =>
       StyleSheet.create({
         container: { flex: 1, backgroundColor: colors.background },
+        backBar: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+          backgroundColor: colors.surface,
+        },
+        backButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingRight: 12 },
+        backButtonText: { fontSize: 16, fontWeight: '600' },
         header: {
           backgroundColor: colors.surface,
           padding: 20,
@@ -60,13 +84,52 @@ export default function WorkoutScreen() {
           borderTopColor: colors.border,
         },
         startButton: { minHeight: 56 },
+        addExercisesLink: { paddingVertical: 8, paddingHorizontal: 0, marginBottom: 8 },
+        addExercisesLinkText: { fontSize: 15, fontWeight: '600' },
       }),
     [colors]
   );
 
+  const handleAddExercises = () => {
+    if (!todayWorkout?.id) return;
+    const existingExerciseIds = (todayWorkout.exercises || [])
+      .map(e => e.exerciseId)
+      .filter((id): id is string => !!id);
+    const tabNav = (navigation as any)?.getParent?.();
+    if (tabNav) {
+      tabNav.navigate('Search', {
+        screen: 'Search',
+        params: {
+          addToWorkout: {
+            workoutId: todayWorkout.id,
+            workoutName: todayWorkout.name,
+            existingExerciseIds,
+          },
+        },
+      });
+    }
+  };
+
   useEffect(() => {
-    loadTodayWorkout();
-  }, []);
+    if (workoutIdParam) {
+      loadWorkoutById(workoutIdParam);
+    } else {
+      loadTodayWorkout();
+    }
+  }, [workoutIdParam]);
+
+  const loadWorkoutById = async (id: string) => {
+    try {
+      setLoading(true);
+      const workout = await getWorkoutById(id);
+      setTodayWorkout(workout);
+    } catch (error) {
+      console.error('Error loading workout:', error);
+      setTodayWorkout(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadTodayWorkout = async () => {
     try {
@@ -141,11 +204,20 @@ export default function WorkoutScreen() {
     );
   }
 
-  // Show today's workout with start button
+  // Show workout with start button (today's or selected from Plan)
+  const headerTitle = workoutIdParam ? (todayWorkout?.name ?? 'Workout') : "Today's Workout";
   return (
     <View style={styles.container}>
+      {fromPlan && (
+        <View style={[styles.backBar, { paddingTop: Math.max(insets.top, 10) }]}>
+          <TouchableOpacity style={styles.backButton} onPress={goBackToPlan} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={24} color={colors.primary} />
+            <Text style={[styles.backButtonText, { color: colors.primary }]}>Back</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <View style={styles.header}>
-        <Text style={styles.title}>Today's Workout</Text>
+        <Text style={styles.title}>{headerTitle}</Text>
         {todayWorkout && (
           <>
             <Text style={styles.workoutName}>{todayWorkout.name}</Text>
@@ -171,6 +243,11 @@ export default function WorkoutScreen() {
       {todayWorkout ? (
         <ScrollView style={styles.content}>
           <View style={styles.exercisesContainer}>
+            <TouchableOpacity style={styles.addExercisesLink} onPress={handleAddExercises}>
+              <Text style={[styles.addExercisesLinkText, { color: colors.primary }]}>
+                + Add exercises from library
+              </Text>
+            </TouchableOpacity>
             {todayWorkout.exercises.map((exercise, index) => (
               <ExerciseCard key={index} exercise={exercise} index={index} />
             ))}
