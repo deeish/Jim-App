@@ -16,8 +16,8 @@ export default function PlanStackNavigator() {
         headerShown: false,
       }}
     >
-      <Stack.Screen name="Plan" component={PlanScreen} />
-      <Stack.Screen name="Calendar" component={CalendarScreen} />
+      <Stack.Screen name="PlanList" component={PlanScreen} />
+      <Stack.Screen name="History" component={CalendarScreen} />
       <Stack.Screen name="GeneratePlan" component={GeneratePlanScreen} />
       <Stack.Screen name="PlanPreview" component={PlanPreviewScreen} />
       <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />

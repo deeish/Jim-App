@@ -35,6 +35,13 @@ export default function HomeScreen() {
     (parent as any)?.navigate('Profile');
   };
 
+  const goToHistory = () => {
+    const tabNav = navigation.getParent() as any;
+    if (tabNav?.navigate) {
+      tabNav.navigate('Plan', { screen: 'History' });
+    }
+  };
+
   const onInviteFriend = async () => {
     closeMenu();
     try {
@@ -130,7 +137,20 @@ export default function HomeScreen() {
       </Modal>
 
       <View style={styles.content}>
-        {/* Add your home features here */}
+        <TouchableOpacity
+          style={[styles.historyCard, themedStyles.menuCard]}
+          onPress={goToHistory}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="calendar-outline" size={28} color={colors.primary} />
+          <View style={styles.historyCardText}>
+            <Text style={[styles.historyCardTitle, themedStyles.title]}>Workout history</Text>
+            <Text style={[styles.historyCardSubtitle, themedStyles.subtitle]}>
+              View past workouts and logs by day
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -169,6 +189,23 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 8,
+  },
+  historyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 14,
+  },
+  historyCardText: { flex: 1 },
+  historyCardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  historyCardSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
   },
   menuBackdrop: {
     flex: 1,

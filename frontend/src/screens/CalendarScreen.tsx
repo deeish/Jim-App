@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getWorkoutLogs } from '../services/workoutService';
 import type { WorkoutLog, WorkoutLogEntry, WorkoutLogEntrySet } from '../types/workout';
 
-type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Calendar'>;
+type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'History'>;
 
 type Props = {
   navigation: CalendarScreenNavigationProp;
@@ -103,7 +103,12 @@ function DayDetailSection({
   return (
     <View>
       <View style={styles.dayDetailHeader}>
-        <Text style={[styles.dayDetailTitle, { color: colors.text }]}>{dateLabel}</Text>
+        <View>
+          <Text style={[styles.dayDetailTitle, { color: colors.text }]}>{dateLabel}</Text>
+          <Text style={[styles.dayDetailSubtitle, { color: colors.textMuted }]}>
+            {logs.length} {logs.length === 1 ? 'workout' : 'workouts'} this day
+          </Text>
+        </View>
         <TouchableOpacity onPress={onClearSelection} hitSlop={12}>
           <Ionicons name="close-circle-outline" size={24} color={colors.textMuted} />
         </TouchableOpacity>
@@ -125,11 +130,6 @@ function DayDetailSection({
             {log.totalSets != null && (
               <Text style={[styles.logMeta, { color: colors.textSecondary }]}>
                 {log.totalSets} sets
-              </Text>
-            )}
-            {log.totalVolume != null && log.totalVolume > 0 && (
-              <Text style={[styles.logMeta, { color: colors.textSecondary }]}>
-                {Math.round(log.totalVolume).toLocaleString()} lb volume
               </Text>
             )}
           </View>
@@ -259,7 +259,7 @@ export default function CalendarScreen({ navigation }: Props) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Calendar</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>History</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -324,16 +324,30 @@ export default function CalendarScreen({ navigation }: Props) {
                       >
                         {day}
                       </Text>
-                      {getLogsForDay(day).length > 0 && (
-                        <View
-                          style={[
-                            styles.logDot,
-                            {
-                              backgroundColor: isToday(day) ? colors.background : colors.primary,
-                            },
-                          ]}
-                        />
-                      )}
+                      {(() => {
+                        const dayLogs = getLogsForDay(day);
+                        if (dayLogs.length === 0) return null;
+                        return (
+                          <View
+                            style={[
+                              styles.logBadge,
+                              {
+                                backgroundColor: isToday(day) ? colors.background : colors.primary,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.logBadgeText,
+                                { color: isToday(day) ? colors.primary : colors.background },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {dayLogs.length}
+                            </Text>
+                          </View>
+                        );
+                      })()}
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -459,6 +473,20 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
   },
+  logBadge: {
+    position: 'absolute',
+    bottom: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  logBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
   hintRow: {
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -483,6 +511,10 @@ const styles = StyleSheet.create({
   dayDetailTitle: {
     fontSize: 20,
     fontWeight: '700',
+  },
+  dayDetailSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
   },
   emptyDayText: {
     fontSize: 15,

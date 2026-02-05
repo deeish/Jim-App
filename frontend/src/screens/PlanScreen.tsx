@@ -254,7 +254,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         detailsToggleText: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
         detailsToggleIcon: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
         ctaRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-        calendarIconButton: { padding: 8 },
+        historyLabelButton: { paddingVertical: 8, paddingHorizontal: 12 },
+        historyLabelText: { fontSize: 14, fontWeight: '600' },
         ctaCompact: {
           backgroundColor: colors.primary,
           paddingVertical: 8,
@@ -528,7 +529,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       const tabNav = (navigation as any)?.getParent?.();
       if (tabNav) {
         tabNav.navigate('Search', {
-          screen: 'Search',
+          screen: 'SearchList',
           params: {
             addToWorkout: {
               workoutId: linkedWorkout.id,
@@ -586,7 +587,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       const tabNav = (navigation as any)?.getParent?.();
       if (tabNav) {
         tabNav.navigate('Search', {
-          screen: 'Search',
+          screen: 'SearchList',
           params: { addToPlan: { day, weekIndex: selectedWeek } },
         });
       }
@@ -684,11 +685,11 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           </View>
           <View style={styles.ctaRow}>
             <TouchableOpacity
-              style={styles.calendarIconButton}
-              onPress={() => navigation.navigate('Calendar')}
-              accessibilityLabel="Open calendar"
+              style={styles.historyLabelButton}
+              onPress={() => navigation.navigate('History')}
+              accessibilityLabel="Workout history"
             >
-              <Ionicons name="calendar-outline" size={22} color={colors.text} />
+              <Text style={[styles.historyLabelText, { color: colors.primary }]}>History</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.ctaCompact, styles.ctaSecondary]} onPress={handleAIGenerate}>
               <Text style={styles.ctaCompactTextSecondary}>AI Generate</Text>

@@ -11,8 +11,13 @@ export type RootNavigatorParamList = {
 export type RootStackParamList = {
   Home: undefined;
   Plan: undefined;
+  PlanList: undefined;
   Workout: undefined;
   Search: {
+    addToPlan?: { day: string; weekIndex: number };
+    addToWorkout?: { workoutId: string; workoutName: string; existingExerciseIds?: string[] };
+  } | undefined;
+  SearchList: {
     addToPlan?: { day: string; weekIndex: number };
     addToWorkout?: { workoutId: string; workoutName: string; existingExerciseIds?: string[] };
   } | undefined;
@@ -20,7 +25,7 @@ export type RootStackParamList = {
   ExerciseDetail: { exerciseId: string };
   WorkoutDetail: { workoutId: string };
   GeneratePlan: undefined;
-  Calendar: undefined;
+  History: undefined;
   PlanPreview: {
     inputs: {
       goal: 'fat loss' | 'strength' | 'endurance' | 'hybrid';

@@ -108,7 +108,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
     const tabNav = (navigation as any)?.getParent?.()?.getParent?.();
     if (tabNav) {
       tabNav.navigate('Search', {
-        screen: 'Search',
+        screen: 'SearchList',
         params: {
           addToWorkout: {
             workoutId: workout.id,

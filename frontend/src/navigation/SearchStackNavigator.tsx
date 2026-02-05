@@ -13,7 +13,7 @@ export default function SearchStackNavigator() {
         headerShown: false,
       }}
     >
-      <Stack.Screen name="Search" component={SearchScreen} />
+      <Stack.Screen name="SearchList" component={SearchScreen} />
       <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
     </Stack.Navigator>
   );

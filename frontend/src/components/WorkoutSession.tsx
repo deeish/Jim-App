@@ -1714,14 +1714,6 @@ function WorkoutFinishScreen({
     (total, es) => total + es.completedSets.filter((set) => set.completed).length,
     0
   );
-  const totalVolume = exerciseSessions.reduce((total, es) => {
-    return (
-      total +
-      es.completedSets
-        .filter((set) => set.completed && set.weight) // Exclude bodyweight exercises
-        .reduce((vol, set) => vol + (set.reps || 0) * (set.weight || 0), 0)
-    );
-  }, 0);
 
   const formatTime = (seconds: number) => {
     if (seconds < 3600) {
@@ -1758,11 +1750,6 @@ function WorkoutFinishScreen({
         <View style={styles.finishStat}>
           <Text style={styles.finishStatValue}>{totalSets}</Text>
           <Text style={styles.finishStatLabel}>Total Sets</Text>
-        </View>
-        <View style={styles.finishStat}>
-          <Text style={styles.finishStatValue}>{totalVolume.toLocaleString()}</Text>
-          <Text style={styles.finishStatLabel}>Total Volume (lbs)</Text>
-          <Text style={styles.finishStatSubtext}>Excludes bodyweight</Text>
         </View>
       </View>
 
