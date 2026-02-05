@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -102,9 +102,47 @@ interface GeneratePlanInputs {
   trainingSplitPreference: TrainingSplitPreference | null;
   customSplitHint: string;
   equipmentAccess: EquipmentAccess[];
+  age: number | null;
 }
 
 const DAYS_OF_WEEK: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** Hook for hold-to-repeat on +/- buttons: first tap runs once, then repeat after delay. */
+function useHoldToRepeat(
+  onStep: () => void,
+  options?: { delayBeforeRepeat?: number; intervalMs?: number }
+) {
+  const delay = options?.delayBeforeRepeat ?? 400;
+  const intervalMs = options?.intervalMs ?? 80;
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onStepRef = useRef(onStep);
+  onStepRef.current = onStep;
+
+  const clear = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  const onPressIn = useCallback(() => {
+    onStepRef.current();
+    timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = null;
+      intervalRef.current = setInterval(() => onStepRef.current(), intervalMs);
+    }, delay);
+  }, [delay, intervalMs]);
+
+  const onPressOut = useCallback(() => clear(), [clear]);
+  useEffect(() => () => clear(), [clear]);
+
+  return { onPressIn, onPressOut };
+}
 
 function getDefaultTrainingDays(daysPerWeek: number): DayOfWeek[] {
   const patterns: Record<number, DayOfWeek[]> = {
@@ -229,9 +267,28 @@ export default function GeneratePlanScreen({ navigation }: Props) {
     trainingSplitPreference: null,
     customSplitHint: '',
     equipmentAccess: [],
+    age: null,
   });
   const [generating, setGenerating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const stepWeeksDown = useCallback(() => setInputs(prev => ({ ...prev, weeks: Math.max(1, prev.weeks - 1) })), []);
+  const stepWeeksUp = useCallback(() => setInputs(prev => ({ ...prev, weeks: Math.min(8, prev.weeks + 1) })), []);
+  const stepAgeDown = useCallback(() => setInputs(prev => ({ ...prev, age: prev.age != null ? Math.max(13, prev.age - 1) : null })), []);
+  const stepAgeUp = useCallback(() => setInputs(prev => ({ ...prev, age: prev.age != null ? Math.min(100, prev.age + 1) : 25 })), []);
+  const stepMaxHardInRowDown = useCallback(() => setInputs(prev => ({ ...prev, maxHardDaysInRow: Math.max(1, prev.maxHardDaysInRow - 1) })), []);
+  const stepMaxHardInRowUp = useCallback(() => setInputs(prev => ({ ...prev, maxHardDaysInRow: Math.min(2, prev.maxHardDaysInRow + 1) })), []);
+  const stepMaxHardPerWeekDown = useCallback(() => setInputs(prev => ({ ...prev, maxHardDaysPerWeek: Math.max(2, prev.maxHardDaysPerWeek - 1) })), []);
+  const stepMaxHardPerWeekUp = useCallback(() => setInputs(prev => ({ ...prev, maxHardDaysPerWeek: Math.min(3, prev.maxHardDaysPerWeek + 1) })), []);
+
+  const holdWeeksDown = useHoldToRepeat(stepWeeksDown);
+  const holdWeeksUp = useHoldToRepeat(stepWeeksUp);
+  const holdAgeDown = useHoldToRepeat(stepAgeDown);
+  const holdAgeUp = useHoldToRepeat(stepAgeUp);
+  const holdMaxHardInRowDown = useHoldToRepeat(stepMaxHardInRowDown);
+  const holdMaxHardInRowUp = useHoldToRepeat(stepMaxHardInRowUp);
+  const holdMaxHardPerWeekDown = useHoldToRepeat(stepMaxHardPerWeekDown);
+  const holdMaxHardPerWeekUp = useHoldToRepeat(stepMaxHardPerWeekUp);
   
   const weeklySplitVariations = inputs.goal && inputs.programType
     ? generateWeeklySplitVariations(inputs.goal, inputs.programType, inputs.trainingDays)
@@ -310,16 +367,13 @@ export default function GeneratePlanScreen({ navigation }: Props) {
     setInputs(prev => ({ ...prev, cardioEquipment: cardio }));
   };
 
-  const handleExperienceSelect = (level: ExperienceLevel) => {
-    setInputs(prev => ({ ...prev, experienceLevel: level }));
-  };
-
   const handleProgressionTargetSelect = (target: ProgressionTarget) => {
     setInputs(prev => ({ ...prev, progressionTarget: target }));
   };
 
   const handleGenerate = async () => {
-    if (!inputs.goal || !inputs.primaryLocation || !inputs.availableEquipment.length || !inputs.experienceLevel || !inputs.trainingDays.length || !inputs.progressionStyle) {
+    const progressionStyle = inputs.progressionStyle ?? 'build';
+    if (!inputs.goal || !inputs.primaryLocation || !inputs.availableEquipment.length || !inputs.trainingDays.length) {
       return;
     }
 
@@ -341,22 +395,22 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           trainingDays: inputs.trainingDays,
           autoScheduleMode: false,
           restDayPreference: inputs.restDayPreference,
-          allowDoubleSessions: inputs.allowDoubleSessions,
-          maxDoubleDaysPerWeek: inputs.maxDoubleDaysPerWeek,
+          allowDoubleSessions: false,
+          maxDoubleDaysPerWeek: 0,
           weeks: inputs.weeks,
           timePerSession: inputs.timePerSession,
           primaryLocation: inputs.primaryLocation,
           availableEquipment: inputs.availableEquipment,
           detailedEquipment: inputs.detailedEquipment,
           cardioEquipment: inputs.cardioEquipment,
-          experienceLevel: inputs.experienceLevel!,
+          experienceLevel: inputs.experienceLevel ?? 'intermediate',
           strengthSplitPreference: inputs.strengthSplitPreference,
           hybridGoalRatio: inputs.hybridGoalRatio,
           cardioModalityPreference: inputs.cardioModalityPreference,
           weekdayMaxMinutes: inputs.weekdayMaxMinutes,
           weekendMaxMinutes: inputs.weekendMaxMinutes,
           perDayTimeCaps: perDayTimeCapsForPreview,
-          progressionStyle: inputs.progressionStyle,
+          progressionStyle: inputs.progressionStyle ?? 'build',
           deloadEnabled: inputs.deloadEnabled,
           deloadFrequency: inputs.deloadFrequency,
           difficultyRamp: inputs.difficultyRamp,
@@ -375,6 +429,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           trainingSplitPreference: inputs.trainingSplitPreference,
           customSplitHint: inputs.customSplitHint?.trim() || undefined,
           equipmentAccess: inputs.equipmentAccess,
+          age: inputs.age ?? undefined,
         },
         draftId: `draft-${Date.now()}`,
       });
@@ -387,9 +442,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
     inputs.primaryLocation && 
     inputs.availableEquipment.length > 0 && 
     (inputs.primaryLocation === 'gym' || inputs.cardioEquipment !== null) &&
-    inputs.experienceLevel && 
-    inputs.trainingDays.length > 0 && 
-    inputs.progressionStyle &&
+    inputs.trainingDays.length > 0 &&
     inputs.timePerSession.min > 0 && 
     inputs.timePerSession.max > 0;
 
@@ -499,56 +552,22 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {/* Double Sessions */}
-        <View style={styles.section}>
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleLabelContainer}>
-              <Text style={styles.sectionTitle}>Allow double sessions?</Text>
-              <Text style={styles.sectionSubtitle}>2 workouts on the same day</Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.toggleSwitch, inputs.allowDoubleSessions && styles.toggleSwitchOn]}
-              onPress={() => setInputs(prev => ({ ...prev, allowDoubleSessions: !prev.allowDoubleSessions }))}
-            >
-              <View style={[styles.toggleThumb, inputs.allowDoubleSessions && styles.toggleThumbOn]} />
-            </TouchableOpacity>
-          </View>
-          {inputs.allowDoubleSessions && (
-            <View style={styles.doubleSessionsRow}>
-              <Text style={styles.sectionSubtitle}>Max double days per week:</Text>
-              <View style={styles.numberInputRow}>
-                <TouchableOpacity
-                  style={styles.numberButton}
-                  onPress={() => setInputs(prev => ({ ...prev, maxDoubleDaysPerWeek: Math.max(1, prev.maxDoubleDaysPerWeek - 1) }))}
-                >
-                  <Text style={styles.numberButtonText}>−</Text>
-                </TouchableOpacity>
-                <Text style={styles.numberDisplay}>{inputs.maxDoubleDaysPerWeek}</Text>
-                <TouchableOpacity
-                  style={styles.numberButton}
-                  onPress={() => setInputs(prev => ({ ...prev, maxDoubleDaysPerWeek: Math.min(2, prev.maxDoubleDaysPerWeek + 1) }))}
-                >
-                  <Text style={styles.numberButtonText}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </View>
-
         {/* Weeks */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Weeks to generate</Text>
           <View style={styles.numberInputRow}>
             <TouchableOpacity
               style={styles.numberButton}
-              onPress={() => setInputs(prev => ({ ...prev, weeks: Math.max(1, prev.weeks - 1) }))}
+              onPressIn={holdWeeksDown.onPressIn}
+              onPressOut={holdWeeksDown.onPressOut}
             >
               <Text style={styles.numberButtonText}>−</Text>
             </TouchableOpacity>
             <Text style={styles.numberDisplay}>{inputs.weeks}</Text>
             <TouchableOpacity
               style={styles.numberButton}
-              onPress={() => setInputs(prev => ({ ...prev, weeks: Math.min(8, prev.weeks + 1) }))}
+              onPressIn={holdWeeksUp.onPressIn}
+              onPressOut={holdWeeksUp.onPressOut}
             >
               <Text style={styles.numberButtonText}>+</Text>
             </TouchableOpacity>
@@ -594,6 +613,39 @@ export default function GeneratePlanScreen({ navigation }: Props) {
             </View>
             <Text style={styles.timeUnit}>min</Text>
           </View>
+        </View>
+
+        {/* Age */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Age</Text>
+          <Text style={styles.sectionSubtitle}>Optional – can help tailor the plan</Text>
+          <View style={styles.numberInputRow}>
+            <TouchableOpacity
+              style={styles.numberButton}
+              onPressIn={holdAgeDown.onPressIn}
+              onPressOut={holdAgeDown.onPressOut}
+            >
+              <Text style={styles.numberButtonText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.numberDisplay}>
+              {inputs.age != null ? inputs.age : '—'}
+            </Text>
+            <TouchableOpacity
+              style={styles.numberButton}
+              onPressIn={holdAgeUp.onPressIn}
+              onPressOut={holdAgeUp.onPressOut}
+            >
+              <Text style={styles.numberButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+          {inputs.age != null && (
+            <TouchableOpacity
+              style={{ marginTop: 8 }}
+              onPress={() => setInputs(prev => ({ ...prev, age: null }))}
+            >
+              <Text style={[styles.sectionSubtitle, { color: themeColors.primary }]}>Clear</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Training split preference — right after workout duration */}
@@ -745,49 +797,6 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           </>
         )}
 
-        {/* Experience Level */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Beginner / Intermediate / Advanced?</Text>
-          <View style={styles.optionsRow}>
-            {(['beginner', 'intermediate', 'advanced'] as ExperienceLevel[]).map(level => (
-              <TouchableOpacity
-                key={level}
-                style={[styles.optionButton, inputs.experienceLevel === level && styles.optionButtonSelected]}
-                onPress={() => handleExperienceSelect(level)}
-              >
-                <Text style={[styles.optionButtonText, inputs.experienceLevel === level && styles.optionButtonTextSelected]}>
-                  {level.charAt(0).toUpperCase() + level.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Progression Style */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Progression style</Text>
-          <Text style={styles.sectionSubtitle}>How should the plan change week to week?</Text>
-          <View style={styles.optionsRow}>
-            {(['build', 'build + deload', 'maintain'] as ProgressionStyle[]).map(style => (
-              <TouchableOpacity
-                key={style}
-                style={[styles.optionButton, inputs.progressionStyle === style && styles.optionButtonSelected]}
-                onPress={() => {
-                  setInputs(prev => ({
-                    ...prev,
-                    progressionStyle: style,
-                    deloadEnabled: style === 'build + deload',
-                  }));
-                }}
-              >
-                <Text style={[styles.optionButtonText, inputs.progressionStyle === style && styles.optionButtonTextSelected]}>
-                  {style === 'build' ? 'Build' : style === 'build + deload' ? 'Build + Deload' : 'Maintain'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
         {/* Advanced Options Accordion */}
         <TouchableOpacity
           style={styles.advancedToggle}
@@ -800,6 +809,31 @@ export default function GeneratePlanScreen({ navigation }: Props) {
 
         {showAdvanced && (
           <>
+            {/* Progression Style */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Progression style</Text>
+              <Text style={styles.sectionSubtitle}>How should the plan change week to week?</Text>
+              <View style={styles.optionsRow}>
+                {(['build', 'build + deload', 'maintain'] as ProgressionStyle[]).map(style => (
+                  <TouchableOpacity
+                    key={style}
+                    style={[styles.optionButton, inputs.progressionStyle === style && styles.optionButtonSelected]}
+                    onPress={() => {
+                      setInputs(prev => ({
+                        ...prev,
+                        progressionStyle: style,
+                        deloadEnabled: style === 'build + deload',
+                      }));
+                    }}
+                  >
+                    <Text style={[styles.optionButtonText, inputs.progressionStyle === style && styles.optionButtonTextSelected]}>
+                      {style === 'build' ? 'Build' : style === 'build + deload' ? 'Build + Deload' : 'Maintain'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
             {/* Advanced duration overrides */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Advanced duration overrides (optional)</Text>
@@ -949,14 +983,16 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                   <View style={styles.numberInputRow}>
                     <TouchableOpacity
                       style={styles.numberButton}
-                      onPress={() => setInputs(prev => ({ ...prev, maxHardDaysInRow: Math.max(1, prev.maxHardDaysInRow - 1) }))}
+                      onPressIn={holdMaxHardInRowDown.onPressIn}
+                      onPressOut={holdMaxHardInRowDown.onPressOut}
                     >
                       <Text style={styles.numberButtonText}>−</Text>
                     </TouchableOpacity>
                     <Text style={styles.numberDisplay}>{inputs.maxHardDaysInRow}</Text>
                     <TouchableOpacity
                       style={styles.numberButton}
-                      onPress={() => setInputs(prev => ({ ...prev, maxHardDaysInRow: Math.min(2, prev.maxHardDaysInRow + 1) }))}
+                      onPressIn={holdMaxHardInRowUp.onPressIn}
+                      onPressOut={holdMaxHardInRowUp.onPressOut}
                     >
                       <Text style={styles.numberButtonText}>+</Text>
                     </TouchableOpacity>
@@ -967,14 +1003,16 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                   <View style={styles.numberInputRow}>
                     <TouchableOpacity
                       style={styles.numberButton}
-                      onPress={() => setInputs(prev => ({ ...prev, maxHardDaysPerWeek: Math.max(2, prev.maxHardDaysPerWeek - 1) }))}
+                      onPressIn={holdMaxHardPerWeekDown.onPressIn}
+                      onPressOut={holdMaxHardPerWeekDown.onPressOut}
                     >
                       <Text style={styles.numberButtonText}>−</Text>
                     </TouchableOpacity>
                     <Text style={styles.numberDisplay}>{inputs.maxHardDaysPerWeek}</Text>
                     <TouchableOpacity
                       style={styles.numberButton}
-                      onPress={() => setInputs(prev => ({ ...prev, maxHardDaysPerWeek: Math.min(3, prev.maxHardDaysPerWeek + 1) }))}
+                      onPressIn={holdMaxHardPerWeekUp.onPressIn}
+                      onPressOut={holdMaxHardPerWeekUp.onPressOut}
                     >
                       <Text style={styles.numberButtonText}>+</Text>
                     </TouchableOpacity>

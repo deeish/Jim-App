@@ -72,6 +72,7 @@ export type RootStackParamList = {
       trainingSplitPreference?: string | null;
       customSplitHint?: string;
       equipmentAccess?: string[];
+      age?: number;
     };
     draftId: string;
   };
