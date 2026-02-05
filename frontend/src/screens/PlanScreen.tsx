@@ -16,7 +16,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot } from '../services/planService';
-import type { ApiPlanWorkout } from '../services/planService';
+import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import type { Workout } from '../types/workout';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -155,8 +155,6 @@ function hasBackToBackHardDays(plan: Record<string, PlanWorkout[]>): boolean {
   return getBackToBackSuggestions(plan).length > 0;
 }
 
-const GOAL_CONTEXT = 'Fat loss • 4x/week • Beginner';
-
 type Props = {
   navigation?: PlanScreenNavigationProp;
 };
@@ -180,6 +178,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [detailSheetWorkout, setDetailSheetWorkout] = useState<{ workout: PlanWorkout; day: string; date: Date } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ slotId: string; day: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState<ApiPlan | null>(null);
   const contentScrollRef = React.useRef<ScrollView>(null);
 
   const loadPlan = useCallback(async () => {
@@ -187,6 +186,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     setPlanError(null);
     try {
       const { plan: apiPlan, weeklyWorkouts: weekly } = await getCurrentPlanWithWeekly();
+      setCurrentPlan(apiPlan ?? null);
       if (apiPlan?.planWorkouts?.length) {
         setPlanByWeek(planWorkoutsToByWeek(apiPlan.planWorkouts));
       } else {
@@ -222,6 +222,13 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
 
   const weekRange = getWeekDateRange(selectedWeek);
   const loadBalance = computeLoadBalance(plan);
+  const headerSubtitle = useMemo(() => {
+    const parts: string[] = [];
+    if (loadBalance.strength) parts.push(`${loadBalance.strength} strength`);
+    if (loadBalance.cardio) parts.push(`${loadBalance.cardio} cardio`);
+    if (loadBalance.recovery) parts.push(`${loadBalance.recovery} recovery`);
+    return parts.length ? parts.join(', ') : null;
+  }, [loadBalance.strength, loadBalance.cardio, loadBalance.recovery]);
   const backToBackSuggestions = getBackToBackSuggestions(plan);
   const backToBackHard = backToBackSuggestions.length > 0;
   const isCurrentWeek = selectedWeek === 0;
@@ -676,12 +683,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Compressed header: Weekly Sprint + subtitle only */}
+      {/* Dynamic header: plan name + optional subtitle from load balance */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.headerTitles}>
-            <Text style={styles.headerTitle}>Weekly Sprint</Text>
-            <Text style={styles.goalContext}>{GOAL_CONTEXT}</Text>
+            <Text style={styles.headerTitle}>{currentPlan?.name ?? 'My Plan'}</Text>
+            {headerSubtitle ? (
+              <Text style={styles.goalContext}>{headerSubtitle}</Text>
+            ) : null}
           </View>
           <View style={styles.ctaRow}>
             <TouchableOpacity
