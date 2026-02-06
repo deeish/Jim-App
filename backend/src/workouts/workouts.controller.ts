@@ -40,6 +40,35 @@ export class WorkoutsController {
     return this.workoutsService.findWeekly(userId);
   }
 
+  @Get('saved/ids')
+  async getSavedIds(@UserId() userId: string): Promise<{ workoutIds: string[] }> {
+    const workoutIds = await this.workoutsService.getSavedWorkoutIds(userId);
+    return { workoutIds };
+  }
+
+  @Get('saved')
+  findSaved(@UserId() userId: string) {
+    return this.workoutsService.findSavedWorkouts(userId);
+  }
+
+  @Post(':id/save')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async saveWorkout(
+    @Param('id') id: string,
+    @UserId() userId: string,
+  ): Promise<void> {
+    await this.workoutsService.saveWorkout(id, userId);
+  }
+
+  @Delete(':id/save')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async unsaveWorkout(
+    @Param('id') id: string,
+    @UserId() userId: string,
+  ): Promise<void> {
+    await this.workoutsService.unsaveWorkout(id, userId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @UserId() userId: string) {
     return this.workoutsService.findOne(id, userId);
@@ -67,5 +96,11 @@ export class WorkoutsController {
     @UserId() userId: string,
   ) {
     return this.workoutsService.generate(generateWorkoutDto, userId);
+  }
+
+  @Post('preview')
+  @HttpCode(HttpStatus.OK)
+  preview(@Body() generateWorkoutDto: GenerateWorkoutDto) {
+    return this.workoutsService.previewGenerate(generateWorkoutDto);
   }
 }

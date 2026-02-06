@@ -47,6 +47,11 @@ export class CreateWorkoutDto {
   @IsString()
   day?: string;
 
+  /** Short personable explanation of why this workout on this day (e.g. from LLM). */
+  @IsOptional()
+  @IsString()
+  reasoning?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateExerciseDto)

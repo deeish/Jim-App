@@ -21,9 +21,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workoutPlans WorkoutPlan[]
-  workouts     Workout[]
-  workoutLogs  WorkoutLog[]
+  workoutPlans    WorkoutPlan[]
+  workouts        Workout[]
+  workoutLogs     WorkoutLog[]
+  savedWorkouts   SavedWorkout[]
+  savedExercises  SavedExercise[]
 
   @@map("users")
 }
@@ -104,6 +106,7 @@ model Workout {
   day                String?
   estimatedDuration  Int?      // minutes
   focus              String?
+  reasoning          String?  // Why this workout on this day (from LLM)
   workoutPlanId      String?
   planWorkoutId      String?
   createdAt          DateTime  @default(now())
@@ -114,11 +117,47 @@ model Workout {
   planWorkout  PlanWorkout?    @relation(fields: [planWorkoutId], references: [id], onDelete: SetNull)
   exercises    WorkoutExercise[]
   workoutLogs  WorkoutLog[]
+  savedBy      SavedWorkout[]
 
   @@map("workouts")
   @@index([userId])
   @@index([workoutPlanId])
   @@index([planWorkoutId])
+}
+
+// ---------------------------------------------------------------------------
+// User "likes" / saved workouts (store in a category for quick access)
+// ---------------------------------------------------------------------------
+model SavedWorkout {
+  id        String   @id @default(uuid())
+  userId    String
+  workoutId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workoutId])
+  @@map("saved_workouts")
+  @@index([userId])
+  @@index([workoutId])
+}
+
+// ---------------------------------------------------------------------------
+// User "likes" / saved exercises (library exercise ids from Find Workouts)
+// ---------------------------------------------------------------------------
+model SavedExercise {
+  id         String   @id @default(uuid())
+  userId     String
+  exerciseId String   // library exercise id (e.g. flat_bench_press_barbell)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, exerciseId])
+  @@map("saved_exercises")
+  @@index([userId])
+  @@index([exerciseId])
 }
 
 // ---------------------------------------------------------------------------

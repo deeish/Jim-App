@@ -181,6 +181,50 @@ export class ExercisesService implements OnModuleInit {
     return ex ? this.withVideo(ex) : undefined;
   }
 
+  /** Return exercises for the given library ids (for saved-exercises list). */
+  findByIds(ids: string[]): TransformedExercise[] {
+    const set = new Set(ids);
+    return this.exercises
+      .filter((e) => set.has(e.id))
+      .map((e) => this.withVideo(e))
+      .sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+  }
+
+  /**
+   * Returns a list of exercises suitable for workout generation: filtered by focus and equipment,
+   * optionally excluding recently used IDs for variety. Sorted by common-first, then compound.
+   */
+  getCandidatesForGenerator(options: {
+    focus: string;
+    equipment?: string[];
+    excludeIds?: string[];
+    limit?: number;
+  }): TransformedExercise[] {
+    const { focus, equipment = [], excludeIds = [], limit = 70 } = options;
+    const focusNorm = focus.toLowerCase().split(/\+|&|,/)[0].trim();
+    const muscleGroups = this.focusToMuscleGroups(focusNorm);
+    let results = this.search({
+      muscleGroups: muscleGroups.length ? muscleGroups : undefined,
+      equipment: equipment.length ? equipment : undefined,
+    });
+    if (excludeIds.length) {
+      const excludeSet = new Set(excludeIds);
+      results = results.filter((e) => !excludeSet.has(e.id));
+    }
+    return results.slice(0, limit);
+  }
+
+  private focusToMuscleGroups(focus: string): string[] {
+    const map: Record<string, string[]> = {
+      'upper body': ['Chest', 'Back', 'Shoulders', 'Arms'],
+      'lower body': ['Legs', 'Core'],
+      'full body': ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core'],
+      cardio: ['Legs', 'Core'],
+    };
+    const key = Object.keys(map).find((k) => focus.includes(k));
+    return key ? map[key] : ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core'];
+  }
+
   getStats() {
     const stats = {
       total: this.exercises.length,

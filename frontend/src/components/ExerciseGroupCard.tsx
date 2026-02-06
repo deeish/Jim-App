@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Exercise } from '../services/exerciseService';
 import { ExerciseGroup, hasVariations, getVariationNames } from '../utils/exerciseGrouping';
 import { useTheme } from '../theme/ThemeContext';
+import ExerciseLikeButton from './ExerciseLikeButton';
 
 interface ExerciseGroupCardProps {
   group: ExerciseGroup;
@@ -12,9 +13,13 @@ interface ExerciseGroupCardProps {
   isSelected?: boolean;
   /** When true, card is greyed out and not tappable (e.g. already in workout). */
   isDisabled?: boolean;
+  /** Whether this exercise is saved/liked. When set with onLikePress, shows heart button. */
+  saved?: boolean;
+  onLikePress?: () => void;
+  savingLike?: boolean;
 }
 
-export default function ExerciseGroupCard({ group, onPress, onPressVariation, isSelected, isDisabled }: ExerciseGroupCardProps) {
+export default function ExerciseGroupCard({ group, onPress, onPressVariation, isSelected, isDisabled, saved, onLikePress, savingLike }: ExerciseGroupCardProps) {
   const { colors } = useTheme();
   const [showVariations, setShowVariations] = useState(false);
   const exercise = group.primaryExercise;
@@ -224,11 +229,25 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation, is
               </View>
             )}
           </View>
-          {exercise.difficulty && (
-            <View style={styles.difficultyBadge}>
-              <Text style={styles.difficultyText}>{exercise.difficulty}</Text>
-            </View>
-          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {onLikePress != null && (
+              <View onStartShouldSetResponder={() => true} collapsable={false}>
+                <ExerciseLikeButton
+                  exerciseId={exercise.id}
+                  saved={saved ?? false}
+                  onSave={onLikePress}
+                  onUnsave={onLikePress}
+                  disabled={savingLike}
+                  size={22}
+                />
+              </View>
+            )}
+            {exercise.difficulty && (
+              <View style={styles.difficultyBadge}>
+                <Text style={styles.difficultyText}>{exercise.difficulty}</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {exercise.description && (

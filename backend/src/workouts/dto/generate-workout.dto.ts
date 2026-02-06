@@ -5,6 +5,11 @@ export class GenerateWorkoutDto {
   @IsString()
   day?: string;
 
+  /** When set, recent workouts are used to avoid repeating the same exercises (variety). */
+  @IsOptional()
+  @IsString()
+  userId?: string;
+
   @IsOptional()
   @IsObject()
   preferences?: {

@@ -5,7 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
-import { getWorkoutById, generateWorkout } from '../services/workoutService';
+import { getWorkoutById, generateWorkout, saveWorkout, unsaveWorkout } from '../services/workoutService';
+import WorkoutLikeButton from '../components/WorkoutLikeButton';
 import { Workout } from '../types/workout';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -24,6 +25,8 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [savingLike, setSavingLike] = useState(false);
 
   const styles = useMemo(
     () =>
@@ -88,6 +91,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         backBar: {
           flexDirection: 'row',
           alignItems: 'center',
+          justifyContent: 'space-between',
           paddingHorizontal: 16,
           paddingVertical: 12,
           borderBottomWidth: 1,
@@ -96,6 +100,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         },
         backButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingRight: 16 },
         backButtonText: { fontSize: 17, fontWeight: '600', color: colors.primary },
+        saveButton: { padding: 8 },
       }),
     [colors]
   );
@@ -142,11 +147,30 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
       setLoading(true);
       const data = await getWorkoutById(workoutId);
       setWorkout(data);
+      setSaved(!!(data as Workout & { saved?: boolean }).saved);
     } catch (error) {
       console.error('Error loading workout:', error);
       Alert.alert('Error', 'Failed to load workout');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleSave = async () => {
+    if (!workout?.id || savingLike) return;
+    setSavingLike(true);
+    try {
+      if (saved) {
+        await unsaveWorkout(workout.id);
+        setSaved(false);
+      } else {
+        await saveWorkout(workout.id);
+        setSaved(true);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSavingLike(false);
     }
   };
 
@@ -174,6 +198,17 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         <Ionicons name="arrow-back" size={24} color={colors.primary} />
         <Text style={styles.backButtonText}>Back</Text>
       </TouchableOpacity>
+      {workout?.id && (
+        <WorkoutLikeButton
+          workoutId={workout.id}
+          saved={saved}
+          onSave={handleToggleSave}
+          onUnsave={handleToggleSave}
+          disabled={savingLike}
+          size={26}
+          style={styles.saveButton}
+        />
+      )}
     </View>
   );
 

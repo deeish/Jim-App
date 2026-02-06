@@ -16,6 +16,7 @@ import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { colors as themeColors } from '../theme/colors';
 import { createPlan, type PlanSlot } from '../services/planService';
+import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
 
 type PlanPreviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlanPreview'>;
 type PlanPreviewScreenRouteProp = RouteProp<RootStackParamList, 'PlanPreview'>;
@@ -102,15 +103,16 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
           doubleSessionCount++;
         }
       } else if (inputs.goal === 'endurance') {
-        const workoutType = index % 2 === 0 ? 'Interval Run' : 'Long Run';
+        // Mixed days: strength + run (no cardio-only days)
+        const strengthPart = index % 2 === 0 ? 'Lower Body' : 'Full Body';
         workouts.push({
           id: `draft-w${weekNum}-${day}-1`,
-          title: workoutType,
-          detailLine: index % 2 === 0 ? '6×1 min hard' : 'Zone 2',
-          iconColor: '#E67E22',
+          title: `${strengthPart} + Run`,
+          detailLine: index % 2 === 0 ? '4 exercises + 20 min run' : '5 exercises + 15 min run',
+          iconColor: '#C7A46A',
           durationMinutes: Math.round(inputs.timePerSession.min * weekMultiplier),
-          intensity: index === 0 ? 'Hard' : 'Easy',
-          type: 'cardio',
+          intensity: index === 0 ? 'Hard' : 'Medium',
+          type: 'strength',
           changeType: 'new',
           source: 'ai',
           draftId: draftId,
@@ -134,36 +136,23 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
           doubleSessionCount++;
         }
       } else {
-        // Hybrid or fat loss
-        if (index % 3 === 0) {
-          workouts.push({
-            id: `draft-w${weekNum}-${day}-1`,
-            title: 'Upper Body',
-            detailLine: '6 exercises • Push focus',
-            iconColor: '#C7A46A',
-            durationMinutes: Math.round(inputs.timePerSession.min * weekMultiplier),
-            intensity: 'Hard',
-            type: 'strength',
-            changeType: 'new',
-            source: 'ai',
-            draftId: draftId,
-            week: weekNum,
-          });
-        } else {
-          workouts.push({
-            id: `draft-w${weekNum}-${day}-1`,
-            title: 'Interval Run',
-            detailLine: '6×1 min hard',
-            iconColor: '#E67E22',
-            durationMinutes: Math.round((inputs.timePerSession.min - 10) * weekMultiplier),
-            intensity: 'Hard',
-            type: 'cardio',
-            changeType: 'new',
-            source: 'ai',
-            draftId: draftId,
-            week: weekNum,
-          });
-        }
+        // Hybrid or fat loss: strength-focused days only (no standalone cardio)
+        const types = ['Upper Body', 'Lower Body', 'Full Body'];
+        const workoutType = types[index % 3];
+        const detailLines = ['6 exercises • Push focus', '6 exercises • Legs & core', '5 exercises • Full body'];
+        workouts.push({
+          id: `draft-w${weekNum}-${day}-1`,
+          title: workoutType,
+          detailLine: detailLines[index % 3],
+          iconColor: '#C7A46A',
+          durationMinutes: Math.round(inputs.timePerSession.min * weekMultiplier),
+          intensity: index === 0 ? 'Hard' : 'Medium',
+          type: 'strength',
+          changeType: 'new',
+          source: 'ai',
+          draftId: draftId,
+          week: weekNum,
+        });
         
         if (isDoubleDay) {
           workouts.push({
@@ -204,6 +193,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const [swapModalVisible, setSwapModalVisible] = useState(false);
   const [selectedDayForSwap, setSelectedDayForSwap] = useState<string | null>(null);
   const [moveMode, setMoveMode] = useState<{ workoutId: string; fromDay: string } | null>(null);
+  const [previewCard, setPreviewCard] = useState<{ workout: PlanWorkout; day: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] = useState<WorkoutPreview | null>(null);
   
   // Generate full plan for all weeks
   const [planData, setPlanData] = useState<WeekPlan[]>(() => 
@@ -240,6 +232,35 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     return { sessions, strength, cardio, recovery, hardDays };
   }, [currentWeek]);
   
+  const intensityToDifficulty = (intensity: Intensity): 'beginner' | 'intermediate' | 'advanced' => {
+    if (intensity === 'Easy') return 'beginner';
+    if (intensity === 'Hard') return 'advanced';
+    return 'intermediate';
+  };
+
+  const handleCardPress = useCallback(async (workout: PlanWorkout, day: string) => {
+    if (workout.type === 'recovery') {
+      setPreviewCard({ workout, day });
+      setPreviewData({ name: workout.title, exercises: [], reasoning: workout.detailLine });
+      return;
+    }
+    setPreviewCard({ workout, day });
+    setPreviewLoading(true);
+    setPreviewData(null);
+    try {
+      const result = await generateWorkoutPreview(day, {
+        focus: workout.title,
+        duration: workout.durationMinutes,
+        difficulty: intensityToDifficulty(workout.intensity),
+      });
+      setPreviewData(result);
+    } catch (e) {
+      setPreviewData({ name: workout.title, exercises: [], reasoning: 'Could not load preview.' });
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, []);
+
   const handleRegenerateWeek = async (weekNum: number) => {
     setRegenerating(`week-${weekNum}`);
     // Simulate regeneration
@@ -585,6 +606,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                       <TouchableOpacity
                         key={workout.id}
                         style={styles.workoutCard}
+                        onPress={() => handleCardPress(workout, day)}
                         onLongPress={() => handleMoveWorkout(workout.id, day)}
                         activeOpacity={0.7}
                       >
@@ -618,6 +640,67 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           );
         })}
       </ScrollView>
+
+      {/* Workout detail preview modal: exercises + reasoning */}
+      <Modal
+        visible={!!previewCard}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setPreviewCard(null); setPreviewData(null); }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '80%' }]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {previewCard && (
+                <>
+                  <Text style={styles.modalTitle}>{previewCard.workout.title}</Text>
+                  <Text style={styles.modalSubtitle}>
+                    {previewCard.day} • {previewCard.workout.durationMinutes} min • {previewCard.workout.intensity}
+                  </Text>
+                  {previewLoading ? (
+                    <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 24 }} />
+                  ) : previewData ? (
+                    <>
+                      {previewData.reasoning ? (
+                        <View style={styles.previewReasoning}>
+                          <Text style={styles.previewReasoningLabel}>Why this workout</Text>
+                          <Text style={styles.previewReasoningText}>{previewData.reasoning}</Text>
+                        </View>
+                      ) : null}
+                      {previewData.exercises?.length ? (
+                        <View style={styles.previewExercises}>
+                          <Text style={styles.previewExercisesLabel}>Exercises</Text>
+                          {(previewData.exercises || [])
+                            .slice()
+                            .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
+                            .map((ex, idx) => (
+                              <View key={idx} style={styles.previewExerciseRow}>
+                                <Text style={styles.previewExerciseName}>{ex.name}</Text>
+                                <Text style={styles.previewExerciseMeta}>
+                                  {ex.sets} × {ex.reps}
+                                  {ex.weight != null ? ` @ ${ex.weight} lb` : ''}
+                                  {ex.notes ? ` • ${ex.notes}` : ''}
+                                </Text>
+                              </View>
+                            ))}
+                        </View>
+                      ) : (
+                        <Text style={styles.previewNoExercises}>No exercises for this slot.</Text>
+                      )}
+                    </>
+                  ) : null}
+                </>
+              )}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.modalCancel}
+              onPress={() => { setPreviewCard(null); setPreviewData(null); }}
+            >
+              <Text style={styles.modalCancelText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Swap Workout Modal */}
       <Modal
@@ -975,6 +1058,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: themeColors.textSecondary,
     marginBottom: 20,
+  },
+  previewReasoning: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: themeColors.background,
+    borderRadius: 8,
+  },
+  previewReasoningLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: themeColors.textSecondary,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  previewReasoningText: {
+    fontSize: 15,
+    color: themeColors.text,
+    lineHeight: 22,
+  },
+  previewExercises: {
+    marginBottom: 16,
+  },
+  previewExercisesLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: themeColors.textSecondary,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  previewExerciseRow: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: themeColors.border,
+  },
+  previewExerciseName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: themeColors.text,
+  },
+  previewExerciseMeta: {
+    fontSize: 14,
+    color: themeColors.textSecondary,
+    marginTop: 2,
+  },
+  previewNoExercises: {
+    fontSize: 14,
+    color: themeColors.textMuted,
+    fontStyle: 'italic',
   },
   modalOptions: {
     gap: 12,

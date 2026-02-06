@@ -70,3 +70,50 @@ export const getExerciseStats = async (): Promise<ExerciseStats> => {
   const response = await api.get<ExerciseStats>('/exercises/stats');
   return response.data;
 };
+
+// --- Saved / liked exercises (Find Workouts) ---
+
+export const getSavedExerciseIds = async (): Promise<string[]> => {
+  try {
+    const response = await api.get<{ exerciseIds: string[] }>('/exercises/saved/ids');
+    const ids = response.data.exerciseIds;
+    if (__DEV__) console.log('[exerciseService] getSavedExerciseIds OK', ids?.length ?? 0, 'ids:', ids);
+    return ids;
+  } catch (e) {
+    if (__DEV__) console.warn('[exerciseService] getSavedExerciseIds failed', e);
+    throw e;
+  }
+};
+
+/** Full exercise objects for the user's saved list (for "Saved exercises" view). */
+export const getSavedExercises = async (): Promise<Exercise[]> => {
+  try {
+    const response = await api.get<{ exercises: Exercise[] }>('/exercises/saved');
+    const list = response.data.exercises ?? [];
+    if (__DEV__) console.log('[exerciseService] getSavedExercises OK', list.length);
+    return list;
+  } catch (e) {
+    if (__DEV__) console.warn('[exerciseService] getSavedExercises failed', e);
+    throw e;
+  }
+};
+
+export const saveExercise = async (exerciseId: string): Promise<void> => {
+  try {
+    await api.post(`/exercises/${encodeURIComponent(exerciseId)}/save`);
+    if (__DEV__) console.log('[exerciseService] saveExercise OK', exerciseId);
+  } catch (e) {
+    if (__DEV__) console.warn('[exerciseService] saveExercise failed', exerciseId, e);
+    throw e;
+  }
+};
+
+export const unsaveExercise = async (exerciseId: string): Promise<void> => {
+  try {
+    await api.delete(`/exercises/${encodeURIComponent(exerciseId)}/save`);
+    if (__DEV__) console.log('[exerciseService] unsaveExercise OK', exerciseId);
+  } catch (e) {
+    if (__DEV__) console.warn('[exerciseService] unsaveExercise failed', exerciseId, e);
+    throw e;
+  }
+};

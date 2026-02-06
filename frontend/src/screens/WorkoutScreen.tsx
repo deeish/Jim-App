@@ -6,12 +6,13 @@ import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { getWeeklyWorkouts, getWorkoutById, saveWorkoutLog } from '../services/workoutService';
+import { getWeeklyWorkouts, getWorkoutById, saveWorkoutLog, getSavedWorkoutIds, saveWorkout, unsaveWorkout } from '../services/workoutService';
 import { Workout } from '../types/workout';
 import Button from '../components/Button';
 import ExerciseCard from '../components/ExerciseCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import WorkoutSession from '../components/WorkoutSession';
+import WorkoutLikeButton from '../components/WorkoutLikeButton';
 import { useTheme } from '../theme/ThemeContext';
 import type { RootStackParamList } from '../types/navigation';
 import { RootTabParamList } from '../components/NavBar';
@@ -40,6 +41,8 @@ export default function WorkoutScreen() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<WorkoutSessionState | null>(null);
   const [savingLog, setSavingLog] = useState(false);
+  const [savedWorkoutIds, setSavedWorkoutIds] = useState<string[]>([]);
+  const [savingLike, setSavingLike] = useState(false);
 
   const goBackToPlan = () => {
     const tabNav = (navigation as any)?.getParent?.();
@@ -134,7 +137,11 @@ export default function WorkoutScreen() {
   const loadTodayWorkout = async () => {
     try {
       setLoading(true);
-      const weeklyWorkouts = await getWeeklyWorkouts();
+      const [weeklyWorkouts, ids] = await Promise.all([
+        getWeeklyWorkouts(),
+        getSavedWorkoutIds().catch(() => []),
+      ]);
+      setSavedWorkoutIds(ids);
       const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
       const workout = weeklyWorkouts.find(w => w.day === today);
       setTodayWorkout(workout || null);
@@ -142,6 +149,25 @@ export default function WorkoutScreen() {
       console.error('Error loading today\'s workout:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleLike = async () => {
+    if (!todayWorkout?.id || savingLike) return;
+    setSavingLike(true);
+    try {
+      const isSaved = savedWorkoutIds.includes(todayWorkout.id);
+      if (isSaved) {
+        await unsaveWorkout(todayWorkout.id);
+        setSavedWorkoutIds((prev) => prev.filter((id) => id !== todayWorkout.id));
+      } else {
+        await saveWorkout(todayWorkout.id);
+        setSavedWorkoutIds((prev) => [...prev, todayWorkout.id]);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSavingLike(false);
     }
   };
 
@@ -217,7 +243,19 @@ export default function WorkoutScreen() {
         </View>
       )}
       <View style={styles.header}>
-        <Text style={styles.title}>{headerTitle}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <Text style={styles.title}>{headerTitle}</Text>
+          {todayWorkout?.id && (
+            <WorkoutLikeButton
+              workoutId={todayWorkout.id}
+              saved={savedWorkoutIds.includes(todayWorkout.id)}
+              onSave={handleToggleLike}
+              onUnsave={handleToggleLike}
+              disabled={savingLike}
+              size={26}
+            />
+          )}
+        </View>
         {todayWorkout && (
           <>
             <Text style={styles.workoutName}>{todayWorkout.name}</Text>

@@ -26,6 +26,7 @@ export type RootStackParamList = {
   WorkoutDetail: { workoutId: string };
   GeneratePlan: undefined;
   History: undefined;
+  PlanList: { openSaved?: boolean } | undefined;
   PlanPreview: {
     inputs: {
       goal: 'fat loss' | 'strength' | 'endurance' | 'hybrid';

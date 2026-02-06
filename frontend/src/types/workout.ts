@@ -1,10 +1,12 @@
 export interface Exercise {
+  id?: string;
   name: string;
   sets: number;
   reps: number;
   weight?: number;
   notes?: string;
   exerciseId?: string; // Link to exercise library
+  orderIndex?: number;
   primaryMuscleGroup?: string;
   targetMuscles?: string[];
 }
@@ -18,8 +20,12 @@ export interface Workout {
   updatedAt?: string;
   estimatedDuration?: number; // in minutes
   focus?: string; // e.g., "Full Body", "Push", "Legs"
+  /** Short explanation of why this workout on this day (from AI). */
+  reasoning?: string | null;
   /** When workout was created from a plan slot, links to PlanWorkout.id */
   planWorkoutId?: string | null;
+  /** True if the current user has saved this workout (from API). */
+  saved?: boolean;
 }
 
 // Workout session types

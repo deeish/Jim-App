@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { WorkoutGeneratorService } from '../workouts/workout-generator.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 
 @Injectable()
 export class PlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workoutGenerator: WorkoutGeneratorService,
+  ) {}
 
   /** Current plan = most recently updated plan for this user. */
   async getCurrent(userId: string) {
@@ -88,7 +92,30 @@ export class PlansService {
     return this.getById(plan.id, userId);
   }
 
-  /** Create a Workout for each PlanWorkout in week 1 so weekly/today flow has one per day. */
+  /** Monday of the week containing the given date (local). */
+  private getWeekStart(d: Date): Date {
+    const copy = new Date(d);
+    const day = copy.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    copy.setDate(copy.getDate() + diff);
+    copy.setHours(0, 0, 0, 0);
+    return copy;
+  }
+
+  /** True if dayOfWeek (e.g. "Monday") is today or in the future for the current week. */
+  private isDayTodayOrFuture(dayOfWeek: string): boolean {
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const dayIndex = DAYS.indexOf(dayOfWeek);
+    if (dayIndex < 0) return true;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekStart = this.getWeekStart(today);
+    const slotDate = new Date(weekStart);
+    slotDate.setDate(slotDate.getDate() + dayIndex);
+    return slotDate.getTime() >= today.getTime();
+  }
+
+  /** Create a Workout for each PlanWorkout in week 1 (only for today and future days), with exercises from Groq (or rule-based fallback). */
   private async createWorkoutsForPlan(workoutPlanId: string) {
     const plan = await this.prisma.workoutPlan.findUnique({
       where: { id: workoutPlanId },
@@ -99,18 +126,51 @@ export class PlansService {
     const userId = plan.userId ?? undefined;
     for (const pw of plan.planWorkouts) {
       if (pw.weekNumber !== 1) continue;
+      if (!this.isDayTodayOrFuture(pw.dayOfWeek)) continue;
+
+      const difficulty = this.intensityToDifficulty(pw.intensity);
+      const generated = await this.workoutGenerator.generateWorkout({
+        day: pw.dayOfWeek,
+        userId: userId ?? undefined,
+        preferences: {
+          focus: pw.title,
+          duration: pw.durationMinutes,
+          difficulty,
+          equipment: undefined,
+        },
+      });
+
       await this.prisma.workout.create({
         data: {
-          name: pw.title,
+          name: generated.name,
           day: pw.dayOfWeek,
           estimatedDuration: pw.durationMinutes,
           focus: pw.detailLine ?? undefined,
+          reasoning: generated.reasoning ?? undefined,
           workoutPlanId,
           planWorkoutId: pw.id,
           userId,
+          exercises: {
+            create: generated.exercises.map((e, i) => ({
+              name: e.name,
+              sets: e.sets,
+              reps: e.reps,
+              weight: e.weight ?? undefined,
+              notes: e.notes ?? undefined,
+              exerciseId: e.exerciseId ?? undefined,
+              orderIndex: e.orderIndex ?? i,
+            })),
+          },
         },
       });
     }
+  }
+
+  private intensityToDifficulty(intensity: string | null): 'beginner' | 'intermediate' | 'advanced' {
+    if (!intensity) return 'intermediate';
+    if (intensity === 'Easy') return 'beginner';
+    if (intensity === 'Hard') return 'advanced';
+    return 'intermediate';
   }
 
   async update(id: string, dto: CreatePlanDto, userId: string) {

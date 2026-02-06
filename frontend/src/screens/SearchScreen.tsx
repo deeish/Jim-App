@@ -14,12 +14,12 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, RouteProp } from '@react-navigation/native';
+import { useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import Button from '../components/Button';
-import { searchExercises, Exercise } from '../services/exerciseService';
+import { searchExercises, Exercise, getSavedExerciseIds, getSavedExercises, saveExercise, unsaveExercise } from '../services/exerciseService';
 import ExerciseGroupCard from '../components/ExerciseGroupCard';
 import { groupExercises, ExerciseGroup } from '../utils/exerciseGrouping';
 import { getCurrentPlan, updatePlan, createPlan } from '../services/planService';
@@ -106,6 +106,81 @@ export default function SearchScreen({ navigation }: Props) {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addingToPlan, setAddingToPlan] = useState(false);
+  const [savedExerciseIds, setSavedExerciseIds] = useState<string[]>([]);
+  const [savingLikeId, setSavingLikeId] = useState<string | null>(null);
+  const [showSavedList, setShowSavedList] = useState(false);
+  const [savedExercisesList, setSavedExercisesList] = useState<Exercise[]>([]);
+  const [loadingSavedList, setLoadingSavedList] = useState(false);
+
+  // Load saved exercise ids on mount
+  useEffect(() => {
+    let cancelled = false;
+    getSavedExerciseIds()
+      .then((ids) => {
+        if (!cancelled) {
+          if (__DEV__) console.log('[SearchScreen] initial savedExerciseIds', ids?.length ?? 0, ids);
+          setSavedExerciseIds(ids ?? []);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          if (__DEV__) console.warn('[SearchScreen] initial getSavedExerciseIds failed', e);
+          setSavedExerciseIds([]);
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Refetch saved ids when screen gains focus (e.g. back from detail) so hearts stay in sync
+  useFocusEffect(
+    useCallback(() => {
+      getSavedExerciseIds()
+        .then((ids) => {
+          if (__DEV__) console.log('[SearchScreen] focus: refreshed savedExerciseIds', ids?.length ?? 0);
+          setSavedExerciseIds(ids ?? []);
+        })
+        .catch((e) => {
+          if (__DEV__) console.warn('[SearchScreen] focus: getSavedExerciseIds failed', e);
+        });
+    }, [])
+  );
+
+  // When opening saved list, fetch full saved exercises
+  const openSavedList = useCallback(async () => {
+    setShowSavedList(true);
+    setLoadingSavedList(true);
+    try {
+      const list = await getSavedExercises();
+      setSavedExercisesList(list);
+    } catch {
+      setSavedExercisesList([]);
+    } finally {
+      setLoadingSavedList(false);
+    }
+  }, []);
+
+  const handleToggleExerciseLike = useCallback(async (exerciseId: string) => {
+    if (savingLikeId) return;
+    if (__DEV__) console.log('[SearchScreen] handleToggleExerciseLike', exerciseId, 'currently saved:', savedExerciseIds.includes(exerciseId));
+    setSavingLikeId(exerciseId);
+    try {
+      const isSaved = savedExerciseIds.includes(exerciseId);
+      if (isSaved) {
+        await unsaveExercise(exerciseId);
+        setSavedExerciseIds((prev) => prev.filter((id) => id !== exerciseId));
+        setSavedExercisesList((prev) => prev.filter((e) => e.id !== exerciseId));
+        if (__DEV__) console.log('[SearchScreen] unsaved exercise', exerciseId);
+      } else {
+        await saveExercise(exerciseId);
+        setSavedExerciseIds((prev) => [...prev, exerciseId]);
+        if (__DEV__) console.log('[SearchScreen] saved exercise', exerciseId);
+      }
+    } catch (e) {
+      if (__DEV__) console.warn('[SearchScreen] handleToggleExerciseLike failed', exerciseId, e);
+    } finally {
+      setSavingLikeId(null);
+    }
+  }, [savedExerciseIds, savingLikeId]);
 
   // Toggle a main muscle group (parent)
   const toggleMuscleGroup = (group: string) => {
@@ -856,6 +931,21 @@ export default function SearchScreen({ navigation }: Props) {
         },
         addToPlanFooterText: { fontSize: 16, fontWeight: '600', color: colors.text },
         addToPlanFooterButton: { minWidth: 160 },
+        savedListContainer: { paddingHorizontal: 16, paddingBottom: 24 },
+        savedListBack: { paddingVertical: 12, marginBottom: 8 },
+        savedListBackText: { fontSize: 16, fontWeight: '600' },
+        savedListTitle: { fontSize: 22, fontWeight: '700', color: colors.text, marginBottom: 16 },
+        savedExercisesRow: {
+          marginTop: 20,
+          marginHorizontal: 16,
+          padding: 16,
+          backgroundColor: colors.surface,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+        },
+        savedExercisesRowText: { fontSize: 17, fontWeight: '600' },
+        savedExercisesRowHint: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
       }),
     [colors]
   );
@@ -901,6 +991,54 @@ export default function SearchScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
+      {showSavedList ? (
+        <View style={styles.savedListContainer}>
+          <TouchableOpacity
+            style={styles.savedListBack}
+            onPress={() => setShowSavedList(false)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.savedListBackText, { color: colors.primary }]}>← All exercises</Text>
+          </TouchableOpacity>
+          <Text style={styles.savedListTitle}>Saved exercises</Text>
+          {loadingSavedList ? (
+            <View style={styles.resultsPreview}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : savedExercisesList.length === 0 ? (
+            <View style={styles.resultsPreview}>
+              <Text style={styles.resultsPreviewText}>No saved exercises</Text>
+              <Text style={styles.resultsPreviewHint}>Tap the heart on any exercise to save it here</Text>
+            </View>
+          ) : (
+            <View style={styles.resultsSection}>
+              {groupExercises(savedExercisesList).map((group, index) => {
+                const existingIds = addToWorkout?.existingExerciseIds ?? [];
+                const isAlreadyInWorkout = existingIds.length > 0 && group.exercises.some(e => existingIds.includes(e.id));
+                return (
+                  <ExerciseGroupCard
+                    key={`saved-${group.baseName}-${index}`}
+                    group={group}
+                    isDisabled={isAlreadyInWorkout}
+                    saved={true}
+                    onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
+                    savingLike={savingLikeId === group.primaryExercise.id}
+                    onPress={(exercise) => {
+                      if (addMode) toggleSelectForAddToPlan(exercise.id);
+                      else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
+                    }}
+                    onPressVariation={(exercise) => {
+                      if (addMode) toggleSelectForAddToPlan(exercise.id);
+                      else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
+                    }}
+                  />
+                );
+              })}
+            </View>
+          )}
+        </View>
+      ) : (
+        <>
       {/* Search Input */}
       <View style={styles.searchContainer}>
         <TextInput
@@ -1037,6 +1175,19 @@ export default function SearchScreen({ navigation }: Props) {
           )}
         </View>
 
+        {!addMode && savedExerciseIds.length > 0 && (
+          <TouchableOpacity
+            style={styles.savedExercisesRow}
+            onPress={openSavedList}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.savedExercisesRowText, { color: colors.primary }]}>
+              Saved exercises ({savedExerciseIds.length})
+            </Text>
+            <Text style={styles.savedExercisesRowHint}>Tap to view</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Results Preview Area */}
         {isLoading && (
           <View style={styles.resultsPreview}>
@@ -1077,6 +1228,9 @@ export default function SearchScreen({ navigation }: Props) {
                   group={group}
                   isSelected={addMode ? isAnyInGroupSelected : undefined}
                   isDisabled={isAlreadyInWorkout}
+                  saved={savedExerciseIds.includes(group.primaryExercise.id)}
+                  onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
+                  savingLike={savingLikeId === group.primaryExercise.id}
                   onPress={(exercise) => {
                     if (addMode) toggleSelectForAddToPlan(exercise.id);
                     else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
@@ -1102,9 +1256,11 @@ export default function SearchScreen({ navigation }: Props) {
           </View>
         )}
       </ScrollView>
+        </>
+      )}
 
-      {/* Sticky Bottom Bar - Only show when no results or loading */}
-      {(isLoading || resultCount === 0) && !addMode && (
+      {/* Sticky Bottom Bar - Only show when no results or loading (and not viewing saved list) */}
+      {(isLoading || resultCount === 0) && !addMode && !showSavedList && (
         <View style={styles.bottomBar}>
           <View style={styles.resultCountContainer}>
             <Text style={styles.resultCountText}>

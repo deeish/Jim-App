@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp } from '@react-navigation/native';
+import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
-import { getExerciseById, Exercise } from '../services/exerciseService';
+import { getExerciseById, Exercise, getSavedExerciseIds, saveExercise, unsaveExercise } from '../services/exerciseService';
 import { useTheme } from '../theme/ThemeContext';
+import ExerciseLikeButton from '../components/ExerciseLikeButton';
 
 const YOUTUBE_SEARCH_BASE = 'https://www.youtube.com/results?search_query=';
 
@@ -35,6 +36,8 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saved, setSaved] = useState(false);
+  const [savingLike, setSavingLike] = useState(false);
 
   const styles = useMemo(
     () =>
@@ -140,22 +143,65 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     [colors]
   );
 
-  useEffect(() => {
-    if (exerciseId) {
-      loadExercise();
-    }
-  }, [exerciseId]);
-
-  const loadExercise = async () => {
+  const loadExercise = useCallback(async () => {
     if (!exerciseId) return;
     try {
       setLoading(true);
-      const data = await getExerciseById(exerciseId);
+      const [data, savedIds] = await Promise.all([
+        getExerciseById(exerciseId),
+        getSavedExerciseIds().catch((e) => {
+          if (__DEV__) console.warn('[ExerciseDetail] getSavedExerciseIds failed', e);
+          return [];
+        }),
+      ]);
       setExercise(data);
+      const isSaved = savedIds.includes(exerciseId);
+      if (__DEV__) console.log('[ExerciseDetail] loadExercise', exerciseId, 'saved:', isSaved, 'savedIds:', savedIds);
+      setSaved(isSaved);
     } catch (error) {
-      console.error('Error loading exercise:', error);
+      if (__DEV__) console.error('[ExerciseDetail] Error loading exercise:', error);
     } finally {
       setLoading(false);
+    }
+  }, [exerciseId]);
+
+  // Refetch saved state when screen gains focus so heart stays in sync with list (e.g. user liked on list then opened detail)
+  useFocusEffect(
+    useCallback(() => {
+      if (exerciseId && !loading && exercise) {
+        getSavedExerciseIds()
+          .then((ids) => {
+            const isSaved = ids.includes(exerciseId);
+            if (__DEV__) console.log('[ExerciseDetail] focus: refreshed saved state', exerciseId, 'saved:', isSaved);
+            setSaved(isSaved);
+          })
+          .catch((e) => { if (__DEV__) console.warn('[ExerciseDetail] focus: getSavedExerciseIds failed', e); });
+      }
+    }, [exerciseId, loading, exercise])
+  );
+
+  useEffect(() => {
+    if (exerciseId) loadExercise();
+  }, [exerciseId, loadExercise]);
+
+  const handleToggleLike = async () => {
+    if (!exerciseId || savingLike) return;
+    if (__DEV__) console.log('[ExerciseDetail] handleToggleLike', exerciseId, 'currently saved:', saved);
+    setSavingLike(true);
+    try {
+      if (saved) {
+        await unsaveExercise(exerciseId);
+        setSaved(false);
+        if (__DEV__) console.log('[ExerciseDetail] unsaved', exerciseId);
+      } else {
+        await saveExercise(exerciseId);
+        setSaved(true);
+        if (__DEV__) console.log('[ExerciseDetail] saved', exerciseId);
+      }
+    } catch (e) {
+      if (__DEV__) console.warn('[ExerciseDetail] handleToggleLike failed', exerciseId, e);
+    } finally {
+      setSavingLike(false);
     }
   };
 
@@ -195,14 +241,24 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Exercise Name */}
+        {/* Exercise Name + Like + Difficulty */}
         <View style={styles.titleSection}>
           <Text style={styles.exerciseName}>{exercise.name}</Text>
-          {exercise.difficulty && (
-            <View style={styles.difficultyBadge}>
-              <Text style={styles.difficultyText}>{exercise.difficulty}</Text>
-            </View>
-          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <ExerciseLikeButton
+              exerciseId={exercise.id}
+              saved={saved}
+              onSave={handleToggleLike}
+              onUnsave={handleToggleLike}
+              disabled={savingLike}
+              size={26}
+            />
+            {exercise.difficulty && (
+              <View style={styles.difficultyBadge}>
+                <Text style={styles.difficultyText}>{exercise.difficulty}</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Description */}

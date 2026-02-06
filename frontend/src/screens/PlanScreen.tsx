@@ -12,13 +12,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot } from '../services/planService';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import type { Workout } from '../types/workout';
 import LoadingSpinner from '../components/LoadingSpinner';
+import SavedWorkoutsScreen from './SavedWorkoutsScreen';
 
 type PlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Plan'>;
 
@@ -166,6 +168,7 @@ const EMPTY_PLAN: Record<string, PlanWorkout[]> = {
 export default function PlanScreen({ navigation: navigationProp }: Props) {
   const navFromHook = useNavigation<PlanScreenNavigationProp>();
   const navigation = navigationProp ?? navFromHook;
+  const route = useRoute<RouteProp<RootStackParamList, 'PlanList'>>();
   const { colors } = useTheme();
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [planByWeek, setPlanByWeek] = useState<Record<number, Record<string, PlanWorkout[]>>>({});
@@ -175,6 +178,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [showBackToBackModal, setShowBackToBackModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
+  const [savedModalVisible, setSavedModalVisible] = useState(false);
   const [detailSheetWorkout, setDetailSheetWorkout] = useState<{ workout: PlanWorkout; day: string; date: Date } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ slotId: string; day: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -212,7 +216,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   useFocusEffect(
     useCallback(() => {
       loadPlan();
-    }, [loadPlan])
+      if (route.params?.openSaved) {
+        setSavedModalVisible(true);
+        navigation.setParams({ openSaved: undefined } as any);
+      }
+      return () => {
+        setSavedModalVisible(false);
+      };
+    }, [loadPlan, route.params?.openSaved, navigation])
   );
 
   const plan = useMemo(() => {
@@ -428,13 +439,32 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           backgroundColor: colors.surface,
           borderRadius: 16,
           width: '100%',
-          maxWidth: 340,
+          maxWidth: 380,
+          maxHeight: '85%',
           overflow: 'hidden',
         },
-        detailSheetTitle: { fontSize: 20, fontWeight: '700', color: colors.text, paddingHorizontal: 20, paddingTop: 20 },
+        detailSheetScroll: { maxHeight: 400 },
+        detailSheetTitleRow: { paddingHorizontal: 20, paddingTop: 20 },
+        detailSheetTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
         detailSheetMeta: { fontSize: 14, color: colors.textSecondary, paddingHorizontal: 20, paddingTop: 8 },
         detailSheetDetail: { fontSize: 15, color: colors.textTertiary, paddingHorizontal: 20, paddingTop: 4 },
-        detailSheetActions: { flexDirection: 'row', gap: 12, padding: 20, paddingTop: 16 },
+        detailSheetReasoning: {
+          marginTop: 16,
+          paddingHorizontal: 20,
+          paddingVertical: 12,
+          backgroundColor: colors.background,
+          borderRadius: 12,
+          marginHorizontal: 20,
+        },
+        detailSheetReasoningLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+        detailSheetReasoningText: { fontSize: 15, color: colors.text, lineHeight: 22 },
+        detailSheetExercises: { marginTop: 16, paddingHorizontal: 20, paddingBottom: 12 },
+        detailSheetExercisesLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+        detailSheetExerciseRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+        detailSheetExerciseName: { fontSize: 16, fontWeight: '600', color: colors.text },
+        detailSheetExerciseMeta: { fontSize: 14, color: colors.textSecondary, marginTop: 2 },
+        detailSheetNoExercises: { fontSize: 14, color: colors.textTertiary, fontStyle: 'italic', paddingHorizontal: 20, marginTop: 12 },
+        detailSheetActions: { flexDirection: 'row', gap: 12, padding: 20, paddingTop: 16, flexWrap: 'wrap' },
         detailSheetPrimary: {
           flex: 1,
           backgroundColor: colors.primary,
@@ -466,32 +496,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const handleCardPress = useCallback(
     (workout: PlanWorkout, day: string) => {
       const dayDate = getDateForDay(selectedWeek, day);
-      const isToday = isTodayDate(dayDate);
-
       if (workout.title === 'Rest Day') {
         setDetailSheetWorkout({ workout, day, date: dayDate });
         return;
       }
-
-      if (isToday) {
-        const linkedWorkout = resolveWorkoutForPlanSlot(workout.id);
-        const tabNav = (navigation as any)?.getParent?.();
-        if (tabNav) {
-          tabNav.navigate('Workout', linkedWorkout
-            ? { workoutId: linkedWorkout.id, fromPlan: true }
-            : { fromPlan: true });
-        }
-        return;
-      }
-
-      const linkedWorkout = resolveWorkoutForPlanSlot(workout.id);
-      if (linkedWorkout) {
-        navigation.navigate('WorkoutDetail', { workoutId: linkedWorkout.id });
-      } else {
-        setDetailSheetWorkout({ workout, day, date: dayDate });
-      }
+      // Always open detail sheet so user sees exercises + reasoning, then can View full or Start
+      setDetailSheetWorkout({ workout, day, date: dayDate });
     },
-    [navigation, selectedWeek, resolveWorkoutForPlanSlot]
+    [selectedWeek]
   );
 
   const closeDetailSheet = useCallback(() => setDetailSheetWorkout(null), []);
@@ -699,6 +711,13 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               accessibilityLabel="Workout history"
             >
               <Text style={[styles.historyLabelText, { color: colors.primary }]}>History</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.historyLabelButton}
+              onPress={() => setSavedModalVisible(true)}
+              accessibilityLabel="Saved workouts"
+            >
+              <Text style={[styles.historyLabelText, { color: colors.primary }]}>Saved workouts</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.ctaCompact, styles.ctaSecondary]} onPress={handleAIGenerate}>
               <Text style={styles.ctaCompactTextSecondary}>AI Generate</Text>
@@ -969,35 +988,101 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         </Pressable>
       </Modal>
 
-      {/* Workout detail sheet (other day or rest day) */}
+      {/* Workout detail sheet: reasoning, exercises, and actions */}
       <Modal visible={!!detailSheetWorkout} transparent animationType="fade">
         <Pressable style={styles.menuOverlay} onPress={closeDetailSheet}>
-          {detailSheetWorkout && (
-            <Pressable style={styles.detailSheetBox} onPress={(e) => e.stopPropagation()}>
-              <Text style={styles.detailSheetTitle}>{detailSheetWorkout.workout.title}</Text>
-              <Text style={styles.detailSheetMeta}>
-                {detailSheetWorkout.workout.type} • {detailSheetWorkout.workout.durationMinutes} min
-                {detailSheetWorkout.workout.intensity ? ` • ${detailSheetWorkout.workout.intensity}` : ''}
-              </Text>
-              <Text style={styles.detailSheetDetail}>
-                {formatWorkoutDetailLine(detailSheetWorkout.workout)}
-              </Text>
-              <Text style={[styles.detailSheetDetail, { paddingTop: 8 }]}>
-                {detailSheetWorkout.day} • {detailSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </Text>
-              <View style={styles.detailSheetActions}>
-                <TouchableOpacity style={styles.detailSheetSecondary} onPress={closeDetailSheet}>
-                  <Text style={styles.detailSheetSecondaryText}>Back</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.detailSheetPrimary} onPress={handleStartAnyway}>
-                  <Text style={styles.detailSheetPrimaryText}>
-                    {detailSheetWorkout.workout.title === 'Rest Day' ? 'OK' : 'Start anyway'}
+          {detailSheetWorkout && (() => {
+            const linked = resolveWorkoutForPlanSlot(detailSheetWorkout.workout.id);
+            const isRestDay = detailSheetWorkout.workout.title === 'Rest Day';
+            const isToday = isTodayDate(detailSheetWorkout.date);
+            return (
+              <Pressable style={styles.detailSheetBox} onPress={(e) => e.stopPropagation()}>
+                <ScrollView style={styles.detailSheetScroll} showsVerticalScrollIndicator={false}>
+                  <View style={styles.detailSheetTitleRow}>
+                    <Text style={styles.detailSheetTitle}>{detailSheetWorkout.workout.title}</Text>
+                  </View>
+                  <Text style={styles.detailSheetMeta}>
+                    {detailSheetWorkout.workout.type} • {detailSheetWorkout.workout.durationMinutes} min
+                    {detailSheetWorkout.workout.intensity ? ` • ${detailSheetWorkout.workout.intensity}` : ''}
                   </Text>
-                </TouchableOpacity>
-              </View>
-            </Pressable>
-          )}
+                  <Text style={[styles.detailSheetDetail, { marginTop: 4 }]}>
+                    {detailSheetWorkout.day} • {detailSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </Text>
+
+                  {!isRestDay && linked?.reasoning ? (
+                    <View style={styles.detailSheetReasoning}>
+                      <Text style={styles.detailSheetReasoningLabel}>Why this workout</Text>
+                      <Text style={styles.detailSheetReasoningText}>{linked.reasoning}</Text>
+                    </View>
+                  ) : null}
+
+                  {!isRestDay && linked?.exercises?.length ? (
+                    <View style={styles.detailSheetExercises}>
+                      <Text style={styles.detailSheetExercisesLabel}>Exercises</Text>
+                      {(linked.exercises || [])
+                        .slice()
+                        .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
+                        .map((ex, idx) => (
+                          <View key={ex.id ?? idx} style={styles.detailSheetExerciseRow}>
+                            <Text style={styles.detailSheetExerciseName}>{ex.name}</Text>
+                            <Text style={styles.detailSheetExerciseMeta}>
+                              {ex.sets} × {ex.reps}
+                              {ex.weight != null ? ` @ ${ex.weight} lb` : ''}
+                              {ex.notes ? ` • ${ex.notes}` : ''}
+                            </Text>
+                          </View>
+                        ))}
+                    </View>
+                  ) : !isRestDay && !linked?.exercises?.length ? (
+                    <Text style={styles.detailSheetNoExercises}>
+                      No exercises yet for this slot. They’re generated when you create your plan.
+                    </Text>
+                  ) : null}
+
+                  {isRestDay ? (
+                    <Text style={styles.detailSheetDetail}>Off / Optional walk</Text>
+                  ) : null}
+                </ScrollView>
+                <View style={styles.detailSheetActions}>
+                  <TouchableOpacity style={styles.detailSheetSecondary} onPress={closeDetailSheet}>
+                    <Text style={styles.detailSheetSecondaryText}>Back</Text>
+                  </TouchableOpacity>
+                  {!isRestDay && linked && (
+                    <TouchableOpacity
+                      style={styles.detailSheetSecondary}
+                      onPress={() => {
+                        closeDetailSheet();
+                        navigation.navigate('WorkoutDetail', { workoutId: linked.id });
+                      }}
+                    >
+                      <Text style={styles.detailSheetSecondaryText}>View full workout</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity style={styles.detailSheetPrimary} onPress={handleStartAnyway}>
+                    <Text style={styles.detailSheetPrimaryText}>
+                      {isRestDay ? 'OK' : isToday ? 'Start workout' : 'Start anyway'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </Pressable>
+            );
+          })()}
         </Pressable>
+      </Modal>
+
+      {/* Saved workouts as a pop-up modal (not a stack screen) so switching tabs shows Plan again */}
+      <Modal
+        visible={savedModalVisible}
+        animationType="slide"
+        onRequestClose={() => setSavedModalVisible(false)}
+      >
+        <SavedWorkoutsScreen
+          onClose={() => setSavedModalVisible(false)}
+          onSelectWorkout={(workoutId) => {
+            setSavedModalVisible(false);
+            navigation.navigate('WorkoutDetail', { workoutId });
+          }}
+        />
       </Modal>
     </View>
   );

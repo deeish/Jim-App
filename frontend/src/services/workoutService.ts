@@ -19,6 +19,25 @@ export const generateWorkout = async (day?: string, preferences?: any): Promise<
   return response.data;
 };
 
+/** Generated workout shape without id (for plan preview). */
+export interface WorkoutPreview {
+  name: string;
+  day?: string;
+  reasoning?: string;
+  exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; orderIndex?: number }>;
+}
+
+export const generateWorkoutPreview = async (
+  day?: string,
+  preferences?: { focus?: string; duration?: number; difficulty?: string; equipment?: string[] }
+): Promise<WorkoutPreview> => {
+  const response = await api.post<WorkoutPreview>('/workouts/preview', {
+    day,
+    preferences,
+  });
+  return response.data;
+};
+
 export const createWorkout = async (workout: Partial<Workout>): Promise<Workout> => {
   const response = await api.post('/workouts', workout);
   return response.data;
@@ -31,6 +50,26 @@ export const updateWorkout = async (id: string, workout: Partial<Workout>): Prom
 
 export const deleteWorkout = async (id: string): Promise<void> => {
   await api.delete(`/workouts/${id}`);
+};
+
+// --- Saved / liked workouts ---
+
+export const getSavedWorkoutIds = async (): Promise<string[]> => {
+  const response = await api.get<{ workoutIds: string[] }>('/workouts/saved/ids');
+  return response.data.workoutIds;
+};
+
+export const getSavedWorkouts = async (): Promise<Workout[]> => {
+  const response = await api.get<Workout[]>('/workouts/saved');
+  return response.data;
+};
+
+export const saveWorkout = async (workoutId: string): Promise<void> => {
+  await api.post(`/workouts/${workoutId}/save`);
+};
+
+export const unsaveWorkout = async (workoutId: string): Promise<void> => {
+  await api.delete(`/workouts/${workoutId}/save`);
 };
 
 // --- Workout logs (history) ---
