@@ -51,6 +51,30 @@ interface WeekPlan {
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+/** Map frontend equipment keys to backend/exercise library display names. */
+function mapEquipmentToBackend(equipment: string[]): string[] {
+  const map: Record<string, string> = {
+    barbell: 'Barbell',
+    dumbbells: 'Dumbbell',
+    machines: 'Machine',
+    cable: 'Cable',
+    kettlebells: 'Kettlebell',
+    'pull-up bar': 'Pull-up Bar',
+    bands: 'Resistance Band',
+    'cardio machines': 'Machine',
+  };
+  return equipment.map((e) => map[e.toLowerCase()] ?? e.charAt(0).toUpperCase() + e.slice(1));
+}
+
+/** Map frontend programType to backend program template id. */
+function programTypeToTemplateId(programType: string): string | undefined {
+  const p = (programType || '').toLowerCase();
+  if (p.includes('push-pull-legs') || p === 'ppl') return 'ppl';
+  if (p.includes('upper-lower')) return 'upper-lower-4';
+  if (p.includes('full body')) return 'full-body-3';
+  return undefined;
+}
+
 // Generate plan for all weeks
 function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs'], draftId: string): WeekPlan[] {
   const weeks: WeekPlan[] = [];
@@ -252,6 +276,12 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         focus: workout.title,
         duration: workout.durationMinutes,
         difficulty: intensityToDifficulty(workout.intensity),
+        goal: inputs.goal ?? undefined,
+        experience: inputs.experienceLevel ?? undefined,
+        equipment: inputs.availableEquipment?.length ? mapEquipmentToBackend(inputs.availableEquipment) : undefined,
+        limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
+        programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
+        programDayFocus: workout.title,
       });
       setPreviewData(result);
     } catch (e) {
@@ -259,7 +289,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     } finally {
       setPreviewLoading(false);
     }
-  }, []);
+  }, [inputs.goal, inputs.experienceLevel, inputs.availableEquipment, inputs.avoidList, inputs.programType]);
 
   const handleRegenerateWeek = async (weekNum: number) => {
     setRegenerating(`week-${weekNum}`);
@@ -429,7 +459,15 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           });
         });
       });
-      await createPlan({ name: `Plan ${new Date().toLocaleDateString()}`, slots });
+      await createPlan({
+        name: `Plan ${new Date().toLocaleDateString()}`,
+        slots,
+        goal: inputs.goal ?? undefined,
+        experience: inputs.experienceLevel ?? undefined,
+        equipment: inputs.availableEquipment?.length ? mapEquipmentToBackend(inputs.availableEquipment) : undefined,
+        limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
+        programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
+      });
       navigation.navigate('Plan');
     } catch (err) {
       console.error('Failed to apply plan:', err);
@@ -661,10 +699,26 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                     <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 24 }} />
                   ) : previewData ? (
                     <>
-                      {previewData.reasoning ? (
+                      {(previewData.warmUp || previewData.reasoning || previewData.coolDown) ? (
                         <View style={styles.previewReasoning}>
-                          <Text style={styles.previewReasoningLabel}>Why this workout</Text>
-                          <Text style={styles.previewReasoningText}>{previewData.reasoning}</Text>
+                          {previewData.warmUp ? (
+                            <>
+                              <Text style={styles.previewReasoningLabel}>Warm-up</Text>
+                              <Text style={styles.previewReasoningText}>{previewData.warmUp}</Text>
+                            </>
+                          ) : null}
+                          {previewData.reasoning ? (
+                            <>
+                              <Text style={[styles.previewReasoningLabel, previewData.warmUp && { marginTop: 12 }]}>Why this workout</Text>
+                              <Text style={styles.previewReasoningText}>{previewData.reasoning}</Text>
+                            </>
+                          ) : null}
+                          {previewData.coolDown ? (
+                            <>
+                              <Text style={[styles.previewReasoningLabel, (previewData.warmUp || previewData.reasoning) && { marginTop: 12 }]}>Cool-down</Text>
+                              <Text style={styles.previewReasoningText}>{previewData.coolDown}</Text>
+                            </>
+                          ) : null}
                         </View>
                       ) : null}
                       {previewData.exercises?.length ? (
@@ -679,8 +733,10 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                                 <Text style={styles.previewExerciseMeta}>
                                   {ex.sets} × {ex.reps}
                                   {ex.weight != null ? ` @ ${ex.weight} lb` : ''}
-                                  {ex.notes ? ` • ${ex.notes}` : ''}
                                 </Text>
+                                {ex.notes ? (
+                                  <Text style={styles.previewExerciseNotes}>Focus: {ex.notes}</Text>
+                                ) : null}
                               </View>
                             ))}
                         </View>
@@ -1103,6 +1159,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: themeColors.textSecondary,
     marginTop: 2,
+  },
+  previewExerciseNotes: {
+    fontSize: 13,
+    color: themeColors.textTertiary,
+    fontStyle: 'italic',
+    marginTop: 4,
   },
   previewNoExercises: {
     fontSize: 14,

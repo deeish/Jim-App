@@ -88,7 +88,7 @@ export class PlansService {
       },
     });
 
-    await this.createWorkoutsForPlan(plan.id);
+    await this.createWorkoutsForPlan(plan.id, userId, this.getGeneratorContextFromDto(dto));
     return this.getById(plan.id, userId);
   }
 
@@ -116,14 +116,18 @@ export class PlansService {
   }
 
   /** Create a Workout for each PlanWorkout in week 1 (only for today and future days), with exercises from Groq (or rule-based fallback). */
-  private async createWorkoutsForPlan(workoutPlanId: string) {
+  private async createWorkoutsForPlan(
+    workoutPlanId: string,
+    userId?: string,
+    generatorContext?: { goal?: string; experience?: string; equipment?: string[]; limitations?: string[]; programTemplateId?: string },
+  ) {
     const plan = await this.prisma.workoutPlan.findUnique({
       where: { id: workoutPlanId },
       include: { planWorkouts: true },
     });
     if (!plan) return;
 
-    const userId = plan.userId ?? undefined;
+    const uid = userId ?? plan.userId ?? undefined;
     for (const pw of plan.planWorkouts) {
       if (pw.weekNumber !== 1) continue;
       if (!this.isDayTodayOrFuture(pw.dayOfWeek)) continue;
@@ -131,12 +135,17 @@ export class PlansService {
       const difficulty = this.intensityToDifficulty(pw.intensity);
       const generated = await this.workoutGenerator.generateWorkout({
         day: pw.dayOfWeek,
-        userId: userId ?? undefined,
+        userId: uid ?? undefined,
         preferences: {
           focus: pw.title,
           duration: pw.durationMinutes,
           difficulty,
-          equipment: undefined,
+          equipment: generatorContext?.equipment,
+          goal: generatorContext?.goal,
+          experience: generatorContext?.experience,
+          limitations: generatorContext?.limitations,
+          programTemplateId: generatorContext?.programTemplateId,
+          programDayFocus: pw.title,
         },
       });
 
@@ -147,6 +156,8 @@ export class PlansService {
           estimatedDuration: pw.durationMinutes,
           focus: pw.detailLine ?? undefined,
           reasoning: generated.reasoning ?? undefined,
+          warmUp: generated.warmUp ?? undefined,
+          coolDown: generated.coolDown ?? undefined,
           workoutPlanId,
           planWorkoutId: pw.id,
           userId,
@@ -164,6 +175,16 @@ export class PlansService {
         },
       });
     }
+  }
+
+  private getGeneratorContextFromDto(dto: CreatePlanDto): Parameters<PlansService['createWorkoutsForPlan']>[2] {
+    return {
+      goal: dto.goal,
+      experience: dto.experience,
+      equipment: dto.equipment,
+      limitations: dto.limitations,
+      programTemplateId: dto.programTemplateId,
+    };
   }
 
   private intensityToDifficulty(intensity: string | null): 'beginner' | 'intermediate' | 'advanced' {
@@ -217,7 +238,7 @@ export class PlansService {
       },
     });
 
-    await this.createWorkoutsForPlan(plan.id);
+    await this.createWorkoutsForPlan(plan.id, userId, this.getGeneratorContextFromDto(dto));
     return this.getById(plan.id, userId);
   }
 

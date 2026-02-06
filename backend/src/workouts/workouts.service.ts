@@ -44,6 +44,8 @@ export class WorkoutsService {
       day: createWorkoutDto.day,
       userId,
       reasoning: createWorkoutDto.reasoning ?? undefined,
+      warmUp: createWorkoutDto.warmUp ?? undefined,
+      coolDown: createWorkoutDto.coolDown ?? undefined,
       exercises: {
         create: createWorkoutDto.exercises.map((e, i) => ({
           name: e.name,

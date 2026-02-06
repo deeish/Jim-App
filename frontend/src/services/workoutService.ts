@@ -24,12 +24,24 @@ export interface WorkoutPreview {
   name: string;
   day?: string;
   reasoning?: string;
+  warmUp?: string;
+  coolDown?: string;
   exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; orderIndex?: number }>;
 }
 
 export const generateWorkoutPreview = async (
   day?: string,
-  preferences?: { focus?: string; duration?: number; difficulty?: string; equipment?: string[] }
+  preferences?: {
+    focus?: string;
+    duration?: number;
+    difficulty?: string;
+    equipment?: string[];
+    goal?: string;
+    experience?: string;
+    limitations?: string[];
+    programTemplateId?: string;
+    programDayFocus?: string;
+  }
 ): Promise<WorkoutPreview> => {
   const response = await api.post<WorkoutPreview>('/workouts/preview', {
     day,

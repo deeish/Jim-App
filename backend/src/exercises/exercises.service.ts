@@ -216,6 +216,11 @@ export class ExercisesService implements OnModuleInit {
 
   private focusToMuscleGroups(focus: string): string[] {
     const map: Record<string, string[]> = {
+      push: ['Chest', 'Shoulders', 'Arms'],
+      pull: ['Back', 'Arms'],
+      legs: ['Legs', 'Core'],
+      upper: ['Chest', 'Back', 'Shoulders', 'Arms'],
+      lower: ['Legs', 'Core'],
       'upper body': ['Chest', 'Back', 'Shoulders', 'Arms'],
       'lower body': ['Legs', 'Core'],
       'full body': ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core'],

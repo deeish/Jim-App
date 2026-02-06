@@ -1068,6 +1068,9 @@ function ExerciseCard({
           Last set today: {lastCompleted.reps}×{lastCompleted.weight != null && lastCompleted.weight > 0 ? lastCompleted.weight : 'BW'}
         </Text>
       )}
+      {exerciseData.notes ? (
+        <Text style={styles.exerciseFocusLine}>Focus: {exerciseData.notes}</Text>
+      ) : null}
 
       {/* Row 3: Set pills (tappable when active) + Set x/y + [ – ] [ + ] */}
       <View style={styles.setTrackerContainer}>
@@ -2165,6 +2168,12 @@ const styles = StyleSheet.create({
   lastSetLine: {
     fontSize: 12,
     color: themeColors.textTertiary,
+    marginBottom: 8,
+  },
+  exerciseFocusLine: {
+    fontSize: 12,
+    color: themeColors.textTertiary,
+    fontStyle: 'italic',
     marginBottom: 8,
   },
   loggingControlsRow: {

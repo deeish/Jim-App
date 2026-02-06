@@ -57,4 +57,31 @@ export class CreatePlanDto {
   @ValidateNested({ each: true })
   @Type(() => PlanSlotDto)
   slots: PlanSlotDto[];
+
+  /** User goal for workout generation (e.g. strength, hypertrophy, endurance). */
+  @IsOptional()
+  @IsString()
+  goal?: string;
+
+  /** Experience level (beginner, intermediate, advanced). */
+  @IsOptional()
+  @IsString()
+  experience?: string;
+
+  /** Available equipment for generated workouts. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  equipment?: string[];
+
+  /** Limitations to respect (e.g. "bad knee", "no barbell"). */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  limitations?: string[];
+
+  /** Program template id for reasoning (e.g. "ppl", "upper-lower-4"). */
+  @IsOptional()
+  @IsString()
+  programTemplateId?: string;
 }

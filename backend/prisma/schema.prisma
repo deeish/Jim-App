@@ -107,6 +107,8 @@ model Workout {
   estimatedDuration  Int?      // minutes
   focus              String?
   reasoning          String?  // Why this workout on this day (from LLM)
+  warmUp             String?  // Optional warm-up instructions (from LLM)
+  coolDown           String?  // Optional cool-down instructions (from LLM)
   workoutPlanId      String?
   planWorkoutId      String?
   createdAt          DateTime  @default(now())

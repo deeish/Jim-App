@@ -58,6 +58,16 @@ export async function getPlanById(id: string): Promise<ApiPlan> {
 export interface CreatePlanBody {
   name?: string;
   slots: PlanSlot[];
+  /** User goal for workout generation (e.g. strength, hypertrophy, endurance). */
+  goal?: string;
+  /** Experience level (beginner, intermediate, advanced). */
+  experience?: string;
+  /** Available equipment for generated workouts (e.g. Barbell, Dumbbell). */
+  equipment?: string[];
+  /** Limitations to respect (e.g. bad knee, no barbell). */
+  limitations?: string[];
+  /** Program template id (e.g. ppl, upper-lower-4). */
+  programTemplateId?: string;
 }
 
 export async function createPlan(body: CreatePlanBody): Promise<ApiPlan> {

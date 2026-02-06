@@ -22,6 +22,10 @@ export interface Workout {
   focus?: string; // e.g., "Full Body", "Push", "Legs"
   /** Short explanation of why this workout on this day (from AI). */
   reasoning?: string | null;
+  /** Optional warm-up instructions (from AI). */
+  warmUp?: string | null;
+  /** Optional cool-down instructions (from AI). */
+  coolDown?: string | null;
   /** When workout was created from a plan slot, links to PlanWorkout.id */
   planWorkoutId?: string | null;
   /** True if the current user has saved this workout (from API). */

@@ -52,6 +52,16 @@ export class CreateWorkoutDto {
   @IsString()
   reasoning?: string;
 
+  /** Optional warm-up instructions (1-2 sentences from LLM). */
+  @IsOptional()
+  @IsString()
+  warmUp?: string;
+
+  /** Optional cool-down instructions (1-2 sentences from LLM). */
+  @IsOptional()
+  @IsString()
+  coolDown?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateExerciseDto)

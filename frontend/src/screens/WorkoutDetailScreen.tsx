@@ -39,6 +39,10 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         workoutName: { fontSize: 28, fontWeight: 'bold', color: colors.text, marginBottom: 8 },
         workoutDay: { fontSize: 16, color: colors.primary, fontWeight: '600' },
         exercisesContainer: { padding: 12 },
+        guideSection: { paddingHorizontal: 12, paddingBottom: 16 },
+        guideBlock: { marginBottom: 14 },
+        guideLabel: { fontSize: 14, fontWeight: '600', color: colors.primary, marginBottom: 4 },
+        guideText: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
         sectionTitle: { fontSize: 20, fontWeight: 'bold', color: colors.text, marginBottom: 12 },
         exerciseCard: {
           backgroundColor: colors.surface,
@@ -255,6 +259,30 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
             <Text style={styles.workoutDay}>{workout.day}</Text>
           )}
         </View>
+
+        {(workout.warmUp || workout.reasoning || workout.coolDown) ? (
+          <View style={styles.guideSection}>
+            {workout.warmUp ? (
+              <View style={styles.guideBlock}>
+                <Text style={styles.guideLabel}>Warm-up</Text>
+                <Text style={styles.guideText}>{workout.warmUp}</Text>
+              </View>
+            ) : null}
+            {workout.reasoning ? (
+              <View style={styles.guideBlock}>
+                <Text style={styles.guideLabel}>Why this workout</Text>
+                <Text style={styles.guideText}>{workout.reasoning}</Text>
+              </View>
+            ) : null}
+            {workout.coolDown ? (
+              <View style={styles.guideBlock}>
+                <Text style={styles.guideLabel}>Cool-down</Text>
+                <Text style={styles.guideText}>{workout.coolDown}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         <View style={styles.exercisesContainer}>
           <Text style={styles.sectionTitle}>Exercises</Text>
           <TouchableOpacity style={styles.addExercisesButton} onPress={handleAddExercises}>

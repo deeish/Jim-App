@@ -463,6 +463,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         detailSheetExerciseRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
         detailSheetExerciseName: { fontSize: 16, fontWeight: '600', color: colors.text },
         detailSheetExerciseMeta: { fontSize: 14, color: colors.textSecondary, marginTop: 2 },
+        detailSheetExerciseNotes: { fontSize: 13, color: colors.textTertiary, fontStyle: 'italic', marginTop: 4 },
         detailSheetNoExercises: { fontSize: 14, color: colors.textTertiary, fontStyle: 'italic', paddingHorizontal: 20, marginTop: 12 },
         detailSheetActions: { flexDirection: 'row', gap: 12, padding: 20, paddingTop: 16, flexWrap: 'wrap' },
         detailSheetPrimary: {
@@ -1009,10 +1010,26 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                     {detailSheetWorkout.day} • {detailSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </Text>
 
-                  {!isRestDay && linked?.reasoning ? (
+                  {!isRestDay && (linked?.warmUp || linked?.reasoning || linked?.coolDown) ? (
                     <View style={styles.detailSheetReasoning}>
-                      <Text style={styles.detailSheetReasoningLabel}>Why this workout</Text>
-                      <Text style={styles.detailSheetReasoningText}>{linked.reasoning}</Text>
+                      {linked.warmUp ? (
+                        <>
+                          <Text style={styles.detailSheetReasoningLabel}>Warm-up</Text>
+                          <Text style={styles.detailSheetReasoningText}>{linked.warmUp}</Text>
+                        </>
+                      ) : null}
+                      {linked.reasoning ? (
+                        <>
+                          <Text style={[styles.detailSheetReasoningLabel, linked.warmUp && { marginTop: 12 }]}>Why this workout</Text>
+                          <Text style={styles.detailSheetReasoningText}>{linked.reasoning}</Text>
+                        </>
+                      ) : null}
+                      {linked.coolDown ? (
+                        <>
+                          <Text style={[styles.detailSheetReasoningLabel, (linked.warmUp || linked.reasoning) && { marginTop: 12 }]}>Cool-down</Text>
+                          <Text style={styles.detailSheetReasoningText}>{linked.coolDown}</Text>
+                        </>
+                      ) : null}
                     </View>
                   ) : null}
 
@@ -1028,8 +1045,10 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                             <Text style={styles.detailSheetExerciseMeta}>
                               {ex.sets} × {ex.reps}
                               {ex.weight != null ? ` @ ${ex.weight} lb` : ''}
-                              {ex.notes ? ` • ${ex.notes}` : ''}
                             </Text>
+                            {ex.notes ? (
+                              <Text style={styles.detailSheetExerciseNotes}>Focus: {ex.notes}</Text>
+                            ) : null}
                           </View>
                         ))}
                     </View>
