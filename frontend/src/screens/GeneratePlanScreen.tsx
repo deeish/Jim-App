@@ -59,8 +59,6 @@ type StrengthFocusPriority = 'upper' | 'lower' | 'balanced';
 type HybridFocusPriority = 'strength priority' | 'cardio priority';
 type FocusPriority = StrengthFocusPriority | HybridFocusPriority;
 type AvoidItem = 'knees' | 'shoulders' | 'lower back' | 'avoid running' | 'avoid barbell' | 'avoid jumping' | 'avoid overhead';
-type CurrentActivityLevel = '0' | '1-2' | '3-4' | '5+';
-type PreferredExercise = 'bench' | 'squat' | 'deadlift' | 'pull-ups' | 'overhead press' | 'rows';
 type WorkoutDetailLevel = 'simple' | 'detailed';
 type StrengthFormat = 'straight sets' | 'supersets' | 'circuit';
 type CardioFormat = 'intervals' | 'steady-state' | 'tempo';
@@ -109,8 +107,6 @@ interface GeneratePlanInputs {
     cardio: { min: number; max: number };
     recovery: { min: number; max: number };
   };
-  currentActivityLevel: CurrentActivityLevel | null;
-  preferredExercises: PreferredExercise[];
   weekdayWeekendSplit: boolean;
   workoutDetailLevel: WorkoutDetailLevel;
   strengthFormat: StrengthFormat;
@@ -133,7 +129,8 @@ type CardioPref = 'none' | 'easy' | 'mixed';
 type RotationRule = 'repeat_weekly' | 'rotate_forward' | 'auto_balance';
 
 export interface DayTemplate {
-  primary: PrimaryMuscle | null;
+  /** Main focus: 1–2 muscles. Min 1, max 2. */
+  primaries: PrimaryMuscle[];
   secondaries: SecondaryMuscle[];
 }
 export interface CustomSplitData {
@@ -153,17 +150,22 @@ export interface SavedCustomSplit extends CustomSplitData {
 const PRIMARY_OPTIONS: PrimaryMuscle[] = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Full Body'];
 const SECONDARY_OPTIONS: SecondaryMuscle[] = ['Triceps', 'Biceps', 'Forearms', 'Core', 'Calves'];
 const ROTATION_LABELS: Record<RotationRule, string> = {
-  repeat_weekly: 'Repeat weekly',
-  rotate_forward: 'Rotate forward',
-  auto_balance: 'Auto-balance',
+  repeat_weekly: 'Repeat pattern',
+  rotate_forward: 'Shift each week',
+  auto_balance: 'Balance recovery',
+};
+const ROTATION_EXAMPLES: Record<RotationRule, string> = {
+  repeat_weekly: 'Same mapping every week.',
+  rotate_forward: 'Day 1 moves to the next workout day next week.',
+  auto_balance: 'Avoid repeating same muscle groups too close together.',
 };
 
 /** Base templates pre-fill Day 1..N. build(n) returns array of DayTemplate. */
 const TEMPLATES: { id: string; label: string; build: (n: number) => DayTemplate[] }[] = [
-  { id: 'bodypart', label: 'Body Part Split', build: (n) => Array.from({ length: n }, (_, i) => (i < 5 ? { primary: (['Chest', 'Back', 'Legs', 'Shoulders', 'Arms'] as PrimaryMuscle[])[i], secondaries: [] } : { primary: null, secondaries: [] })) },
-  { id: 'ppl', label: 'PPL', build: (n) => Array.from({ length: n }, (_, i) => ({ primary: (['Chest', 'Back', 'Legs'] as PrimaryMuscle[])[i % 3], secondaries: [] })) },
-  { id: 'ul', label: 'Upper/Lower', build: (n) => Array.from({ length: n }, (_, i) => ({ primary: (i % 2 === 0 ? 'Chest' : 'Legs') as PrimaryMuscle, secondaries: [] })) },
-  { id: 'blank', label: 'Blank', build: (n) => Array.from({ length: n }, () => ({ primary: null, secondaries: [] })) },
+  { id: 'bodypart', label: 'Body Part Split', build: (n) => Array.from({ length: n }, (_, i) => (i < 5 ? { primaries: [(['Chest', 'Back', 'Legs', 'Shoulders', 'Arms'] as PrimaryMuscle[])[i]], secondaries: [] } : { primaries: [], secondaries: [] })) },
+  { id: 'ppl', label: 'PPL', build: (n) => Array.from({ length: n }, (_, i) => ({ primaries: [(['Chest', 'Back', 'Legs'] as PrimaryMuscle[])[i % 3]], secondaries: [] })) },
+  { id: 'ul', label: 'Upper/Lower', build: (n) => Array.from({ length: n }, (_, i) => ({ primaries: [(i % 2 === 0 ? 'Chest' : 'Legs') as PrimaryMuscle], secondaries: [] })) },
+  { id: 'blank', label: 'Blank', build: (n) => Array.from({ length: n }, () => ({ primaries: [], secondaries: [] })) },
 ];
 
 function normalizeCustomSplit(
@@ -174,17 +176,25 @@ function normalizeCustomSplit(
     return { templates: [], rotationRule: 'repeat_weekly', abs: 'none', cardio: 'none' };
   }
   if ('templates' in value && Array.isArray(value.templates)) {
-    return { name: value.name, id: value.id, templates: value.templates, rotationRule: value.rotationRule ?? 'repeat_weekly', abs: value.abs, cardio: value.cardio };
+    const templates = (value.templates as DayTemplate[]).map((t) => {
+      const primaries: PrimaryMuscle[] = 'primaries' in t && Array.isArray(t.primaries) ? (t.primaries as PrimaryMuscle[]).slice(0, 2) : ('primary' in t && (t as { primary?: PrimaryMuscle | null }).primary ? [(t as { primary: PrimaryMuscle }).primary] : []);
+      return { primaries, secondaries: t.secondaries ?? [] };
+    });
+    return { name: value.name, id: value.id, templates, rotationRule: value.rotationRule ?? 'repeat_weekly', abs: value.abs, cardio: value.cardio };
   }
-  const days = (value as { days?: Partial<Record<DayOfWeek, DayTemplate>> }).days;
-  const templates = orderedDays.map((d) => days?.[d] ?? { primary: null, secondaries: [] });
+  const days = (value as { days?: Partial<Record<DayOfWeek, { primary?: PrimaryMuscle | null; primaries?: PrimaryMuscle[]; secondaries?: SecondaryMuscle[] }>> }).days;
+  const templates = orderedDays.map((d) => {
+    const row = days?.[d];
+    const primaries = row?.primaries?.slice(0, 2) ?? (row?.primary ? [row.primary] : []);
+    return { primaries, secondaries: row?.secondaries ?? [] };
+  });
   return { templates, rotationRule: 'repeat_weekly', abs: value.abs, cardio: value.cardio };
 }
 
 function autoNameFromTemplates(templates: DayTemplate[]): string {
   return templates
     .slice(0, 6)
-    .map((t) => (t.primary ? t.primary + (t.secondaries.length ? '+' + t.secondaries.slice(0, 2).map((s) => s.slice(0, 2)).join('+') : '') : '—'))
+    .map((t) => (t.primaries.length ? t.primaries.join('+') + (t.secondaries.length ? '+' + t.secondaries.slice(0, 2).map((s) => s.slice(0, 2)).join('+') : '') : '—'))
     .join(' • ');
 }
 
@@ -332,7 +342,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
     deloadFrequency: 4,
     difficultyRamp: 50,
     progressionTarget: null,
-    maxHardDaysInRow: 1,
+    maxHardDaysInRow: 1, // 1 = avoid back-to-back, 2 = allow
     maxHardDaysPerWeek: 2,
     focusPriority: null,
     avoidList: [],
@@ -341,8 +351,6 @@ export default function GeneratePlanScreen({ navigation }: Props) {
       cardio: { min: 20, max: 45 },
       recovery: { min: 10, max: 20 },
     },
-    currentActivityLevel: null,
-    preferredExercises: [],
     weekdayWeekendSplit: false,
     workoutDetailLevel: 'simple',
     strengthFormat: 'straight sets',
@@ -365,7 +373,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
   const defaultTemplateCount = Math.max(1, orderedTrainingDays.length);
 
   const getDefaultDraft = useCallback((): CustomSplitData => {
-    const templates = Array.from({ length: defaultTemplateCount }, () => ({ primary: null, secondaries: [] as SecondaryMuscle[] }));
+    const templates = Array.from({ length: defaultTemplateCount }, () => ({ primaries: [], secondaries: [] as SecondaryMuscle[] }));
     return { templates, rotationRule: 'repeat_weekly', abs: 'none', cardio: 'none' };
   }, [defaultTemplateCount]);
 
@@ -391,11 +399,6 @@ export default function GeneratePlanScreen({ navigation }: Props) {
   const stepWeeksUp = useCallback(() => setInputs(prev => ({ ...prev, weeks: Math.min(8, prev.weeks + 1) })), []);
   const stepAgeDown = useCallback(() => setInputs(prev => ({ ...prev, age: prev.age != null ? Math.max(13, prev.age - 1) : null })), []);
   const stepAgeUp = useCallback(() => setInputs(prev => ({ ...prev, age: prev.age != null ? Math.min(100, prev.age + 1) : 25 })), []);
-  const stepMaxHardInRowDown = useCallback(() => setInputs(prev => ({ ...prev, maxHardDaysInRow: Math.max(1, prev.maxHardDaysInRow - 1) })), []);
-  const stepMaxHardInRowUp = useCallback(() => setInputs(prev => ({ ...prev, maxHardDaysInRow: Math.min(2, prev.maxHardDaysInRow + 1) })), []);
-  const stepMaxHardPerWeekDown = useCallback(() => setInputs(prev => ({ ...prev, maxHardDaysPerWeek: Math.max(2, prev.maxHardDaysPerWeek - 1) })), []);
-  const stepMaxHardPerWeekUp = useCallback(() => setInputs(prev => ({ ...prev, maxHardDaysPerWeek: Math.min(3, prev.maxHardDaysPerWeek + 1) })), []);
-
   const stepDurationMinDown = useCallback(() => setInputs(prev => {
     const current = prev.timePerSession.min;
     const next = Math.max(DURATION_MIN, Math.round((current - DURATION_STEP) / DURATION_STEP) * DURATION_STEP);
@@ -422,10 +425,6 @@ export default function GeneratePlanScreen({ navigation }: Props) {
   const holdWeeksUp = useHoldToRepeat(stepWeeksUp);
   const holdAgeDown = useHoldToRepeat(stepAgeDown);
   const holdAgeUp = useHoldToRepeat(stepAgeUp);
-  const holdMaxHardInRowDown = useHoldToRepeat(stepMaxHardInRowDown);
-  const holdMaxHardInRowUp = useHoldToRepeat(stepMaxHardInRowUp);
-  const holdMaxHardPerWeekDown = useHoldToRepeat(stepMaxHardPerWeekDown);
-  const holdMaxHardPerWeekUp = useHoldToRepeat(stepMaxHardPerWeekUp);
   const holdDurationMinDown = useHoldToRepeat(stepDurationMinDown);
   const holdDurationMinUp = useHoldToRepeat(stepDurationMinUp);
   const holdDurationMaxDown = useHoldToRepeat(stepDurationMaxDown);
@@ -564,8 +563,6 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           focusPriority: inputs.focusPriority,
           avoidList: inputs.avoidList,
           sessionCaps: inputs.sessionCaps,
-          currentActivityLevel: inputs.currentActivityLevel,
-          preferredExercises: inputs.preferredExercises,
           weekdayWeekendSplit: inputs.weekdayWeekendSplit,
           workoutDetailLevel: inputs.workoutDetailLevel,
           strengthFormat: inputs.strengthFormat,
@@ -774,16 +771,14 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           <Text style={styles.sectionTitle}>Training split preference</Text>
           <Text style={styles.sectionSubtitle}>Pick a structure, or let the app choose the best one.</Text>
           <View style={styles.optionsRowCompact}>
-            {(['full body', 'upper-lower', 'ppl', 'body part', 'ai decide', 'custom'] as TrainingSplitPreference[]).map(split => {
+            {(['full body', 'upper-lower', 'ppl', 'body part', 'custom'] as TrainingSplitPreference[]).map(split => {
               const days = daysPerWeek;
               const pplDisabled = days >= 2 && days <= 3;
               const bodyPartDisabled = days <= 3;
               const isDisabled =
                 (split === 'ppl' && pplDisabled) || (split === 'body part' && bodyPartDisabled);
               const isRecommendedSplit = recommendation && (split === recommendation.recommendedSplit);
-              const isSelected =
-                inputs.trainingSplitPreference === split ||
-                (split === 'ai decide' && (inputs.trainingSplitPreference === 'ai decide' || inputs.trainingSplitPreference === null));
+              const isSelected = inputs.trainingSplitPreference === split;
               const handleSplitPress = () => {
                 if (isDisabled) return;
                 if (split === 'custom') {
@@ -862,7 +857,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                       isSelected && styles.optionButtonTextCompactSelected,
                       isDisabled && styles.optionButtonTextCompactDisabled,
                     ]}>
-                      {split === 'full body' ? 'Full Body' : split === 'upper-lower' ? 'Upper/Lower' : split === 'ppl' ? 'Push/Pull/Legs' : split === 'ai decide' ? 'Auto (recommended)' : 'Custom'}
+                      {split === 'full body' ? 'Full Body' : split === 'upper-lower' ? 'Upper/Lower' : split === 'ppl' ? 'Push/Pull/Legs' : 'Custom'}
                     </Text>
                     {isRecommendedSplit && (
                       <TouchableOpacity
@@ -925,7 +920,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
               {showRecommendationDetails && (
                 <View style={styles.recommendationExpanded}>
                   {(() => {
-                    const isUsingRecommended = inputs.trainingSplitPreference === null || inputs.trainingSplitPreference === 'ai decide';
+                    const isUsingRecommended = inputs.trainingSplitPreference === recommendation.recommendedSplit;
                     const weekdaysForPreview = inputs.trainingDays.length > 0 ? inputs.trainingDays : (recommendation.suggestedDaySchedules[0] ?? []);
                     const preview =
                       weekdaysForPreview.length > 0
@@ -948,7 +943,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                         {!isUsingRecommended && (
                           <TouchableOpacity
                             style={styles.useRecommendedButton}
-                            onPress={() => setInputs(prev => ({ ...prev, trainingSplitPreference: 'ai decide' }))}
+                            onPress={() => setInputs(prev => ({ ...prev, trainingSplitPreference: recommendation.recommendedSplit }))}
                             activeOpacity={0.8}
                           >
                             <Text style={styles.useRecommendedButtonText}>Use recommended</Text>
@@ -1025,19 +1020,19 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                 ))}
               </View>
 
-              {/* Step 2: Day templates */}
-              <Text style={styles.customSplitStepLabel}>Step 2: Edit Day templates</Text>
+              {/* Step 2: Workout days (templates) */}
+              <Text style={styles.customSplitStepLabel}>Step 2: Build your workout days (templates)</Text>
               <ScrollView style={styles.customSplitScroll} showsVerticalScrollIndicator={false}>
-                {(customSplitDraft.templates.length ? customSplitDraft.templates : [{ primary: null, secondaries: [] }]).map((dayData, idx) => (
-                  <View key={idx} style={styles.customSplitDayCard}>
+                {(customSplitDraft.templates.length ? customSplitDraft.templates : [{ primaries: [], secondaries: [] }]).map((dayData, idx) => (
+                  <View key={`template-${idx}`} style={styles.customSplitDayCard} collapsable={false}>
                     <View style={styles.customSplitDayCardHeader}>
                       <Text style={styles.customSplitDayName}>Day {idx + 1}</Text>
                       <View style={styles.customSplitDayActions}>
                         <TouchableOpacity
                           style={styles.customSplitDayActionBtn}
                           onPress={() => setCustomSplitDraft((prev) => {
-                            const t = [...(prev.templates.length ? prev.templates : [{ primary: null, secondaries: [] }])];
-                            t.splice(idx + 1, 0, { primary: dayData.primary, secondaries: [...dayData.secondaries] });
+                            const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], secondaries: [] }])];
+                            t.splice(idx + 1, 0, { primaries: [...dayData.primaries], secondaries: [...dayData.secondaries] });
                             return { ...prev, templates: t };
                           })}
                         >
@@ -1046,8 +1041,8 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                         <TouchableOpacity
                           style={styles.customSplitDayActionBtn}
                           onPress={() => setCustomSplitDraft((prev) => {
-                            const t = [...(prev.templates.length ? prev.templates : [{ primary: null, secondaries: [] }])];
-                            t.splice(idx + 1, 0, { primary: null, secondaries: [] as SecondaryMuscle[] });
+                            const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], secondaries: [] }])];
+                            t.splice(idx + 1, 0, { primaries: [], secondaries: [] as SecondaryMuscle[] });
                             return { ...prev, templates: t };
                           })}
                         >
@@ -1058,7 +1053,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                             style={styles.customSplitDayActionBtn}
                             onPress={() => setCustomSplitDraft((prev) => {
                               const t = prev.templates.filter((_, i) => i !== idx);
-                              return { ...prev, templates: t.length ? t : [{ primary: null, secondaries: [] }] };
+                              return { ...prev, templates: t.length ? t : [{ primaries: [], secondaries: [] }] };
                             })}
                           >
                             <Text style={styles.customSplitDayActionTextDanger}>Remove</Text>
@@ -1066,57 +1061,76 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                         )}
                       </View>
                     </View>
-                    <Text style={styles.customSplitDayLabel}>Primary</Text>
-                    <View style={styles.customSplitChipsRow}>
-                      {PRIMARY_OPTIONS.map((opt) => (
-                        <TouchableOpacity
-                          key={opt}
-                          style={[styles.customSplitChip, dayData.primary === opt && styles.customSplitChipSelected]}
-                          onPress={() => setCustomSplitDraft((prev) => {
-                            const t = [...(prev.templates.length ? prev.templates : [{ primary: null, secondaries: [] }])];
-                            if (t[idx]) t[idx] = { ...t[idx], primary: opt };
-                            return { ...prev, templates: t };
-                          })}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={[styles.customSplitChipText, dayData.primary === opt && styles.customSplitChipTextSelected]}>{opt}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    <Text style={styles.customSplitDayLabel}>Secondary (0–2)</Text>
-                    <View style={styles.customSplitChipsRow}>
-                      {SECONDARY_OPTIONS.map((opt) => {
-                        const selected = dayData.secondaries.includes(opt);
-                        const canAdd = selected || dayData.secondaries.length < 2;
-                        return (
-                          <TouchableOpacity
-                            key={opt}
-                            style={[styles.customSplitChip, selected && styles.customSplitChipSelected, !canAdd && styles.customSplitChipDisabled]}
-                            onPress={() => {
-                              if (!canAdd) return;
-                              setCustomSplitDraft((prev) => {
-                                const t = [...(prev.templates.length ? prev.templates : [{ primary: null, secondaries: [] }])];
+                    <View style={styles.customSplitDayCardBody}>
+                      <View style={styles.customSplitLabelRow}>
+                        <Text style={styles.customSplitDayLabel}>Main focus (pick 1–2)</Text>
+                        <Text style={styles.customSplitCounter}>{dayData.primaries.length}/2 selected</Text>
+                      </View>
+                      <View style={styles.customSplitChipsRow}>
+                        {PRIMARY_OPTIONS.map((opt) => {
+                          const selected = dayData.primaries.includes(opt);
+                          const canAdd = !selected && dayData.primaries.length < 2;
+                          const canTap = selected || canAdd;
+                          return (
+                            <TouchableOpacity
+                              key={opt}
+                              style={[styles.customSplitChip, selected && styles.customSplitChipSelected, !canTap && styles.customSplitChipDisabled]}
+                              onPress={() => {
+                                if (!canTap) return;
+                                setCustomSplitDraft((prev) => {
+                                  const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], secondaries: [] }])];
+                                  if (!t[idx]) return prev;
+                                  const next = selected ? t[idx].primaries.filter((p) => p !== opt) : [...t[idx].primaries, opt].slice(0, 2);
+                                  t[idx] = { ...t[idx], primaries: next };
+                                  return { ...prev, templates: t };
+                                });
+                              }}
+                              activeOpacity={0.8}
+                              disabled={!canTap}
+                            >
+                              <Text style={[styles.customSplitChipText, selected && styles.customSplitChipTextSelected]}>{opt}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                      <View style={styles.customSplitLabelRow}>
+                        <Text style={styles.customSplitDayLabel}>Add-ons (pick 0–2)</Text>
+                        <Text style={styles.customSplitCounter}>{dayData.secondaries.length}/2 selected</Text>
+                      </View>
+                      <View style={styles.customSplitChipsRow}>
+                        {SECONDARY_OPTIONS.map((opt) => {
+                          const selected = dayData.secondaries.includes(opt);
+                          const canAdd = selected || dayData.secondaries.length < 2;
+                          return (
+                            <TouchableOpacity
+                              key={opt}
+                              style={[styles.customSplitChip, selected && styles.customSplitChipSelected, !canAdd && styles.customSplitChipDisabled]}
+                              onPress={() => {
+                                if (!canAdd) return;
+                                setCustomSplitDraft((prev) => {
+const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], secondaries: [] }])];
                                 if (!t[idx]) return prev;
                                 const next = selected ? t[idx].secondaries.filter((s) => s !== opt) : [...t[idx].secondaries, opt];
                                 t[idx] = { ...t[idx], secondaries: next };
-                                return { ...prev, templates: t };
-                              });
-                            }}
-                            activeOpacity={0.8}
-                            disabled={!canAdd}
-                          >
-                            <Text style={[styles.customSplitChipText, selected && styles.customSplitChipTextSelected]}>{opt}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
+                                  return { ...prev, templates: t };
+                                });
+                              }}
+                              activeOpacity={0.8}
+                              disabled={!canAdd}
+                            >
+                              <Text style={[styles.customSplitChipText, selected && styles.customSplitChipTextSelected]}>{opt}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
                     </View>
                   </View>
                 ))}
                 <TouchableOpacity
                   style={styles.customSplitAddDayBtn}
-                  onPress={() => setCustomSplitDraft((prev) => ({ ...prev, templates: [...(prev.templates.length ? prev.templates : [{ primary: null, secondaries: [] }]), { primary: null, secondaries: [] }] }))}
+                  onPress={() => setCustomSplitDraft((prev) => ({ ...prev, templates: [...(prev.templates.length ? prev.templates : [{ primaries: [], secondaries: [] }]), { primaries: [], secondaries: [] }] }))}
                 >
-                  <Text style={styles.customSplitAddDayBtnText}>+ Add day</Text>
+                  <Text style={styles.customSplitAddDayBtnText}>+ Add workout day</Text>
                 </TouchableOpacity>
 
                 {/* How should we cycle? */}
@@ -1133,6 +1147,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                     </TouchableOpacity>
                   ))}
                 </View>
+                <Text style={styles.customSplitCycleExample}>{ROTATION_EXAMPLES[customSplitDraft.rotationRule]}</Text>
 
                 {/* Add-ons */}
                 <View style={styles.customSplitAddons}>
@@ -1174,7 +1189,12 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                 <TouchableOpacity
                   style={styles.customSplitSaveBtn}
                   onPress={() => {
-                    const templates = customSplitDraft.templates.length ? customSplitDraft.templates : [{ primary: null, secondaries: [] }];
+                    const templates = customSplitDraft.templates.length ? customSplitDraft.templates : [{ primaries: [], secondaries: [] }];
+                    const missingMain = templates.some((t) => t.primaries.length < 1);
+                    if (missingMain) {
+                      Alert.alert('Main focus required', 'Each workout day needs at least one main focus (pick 1–2).');
+                      return;
+                    }
                     const name = (customSplitDraft.name?.trim() || autoNameFromTemplates(templates)) || 'Custom split';
                     const payload: CustomSplitData = { ...customSplitDraft, templates, name };
                     const saved: SavedCustomSplit = { ...payload, id: payload.id ?? `split-${Date.now()}`, name, createdAt: Date.now() };
@@ -1401,6 +1421,25 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           </>
         )}
 
+        {/* Workout detail level — always shown at bottom of core (Gym and Home) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Workout detail level</Text>
+          <Text style={styles.sectionSubtitle}>How detailed should workouts be?</Text>
+          <View style={styles.optionsRow}>
+            {(['simple', 'detailed'] as WorkoutDetailLevel[]).map(level => (
+              <TouchableOpacity
+                key={level}
+                style={[styles.optionButton, inputs.workoutDetailLevel === level && styles.optionButtonSelected]}
+                onPress={() => setInputs(prev => ({ ...prev, workoutDetailLevel: level }))}
+              >
+                <Text style={[styles.optionButtonText, inputs.workoutDetailLevel === level && styles.optionButtonTextSelected]}>
+                  {level === 'simple' ? 'Simple (title + duration + type)' : 'Detailed (full exercise list + sets/reps)'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         {/* Advanced Options Accordion */}
         <TouchableOpacity
           style={styles.advancedToggle}
@@ -1576,52 +1615,18 @@ export default function GeneratePlanScreen({ navigation }: Props) {
               </View>
             </View>
 
-            {/* Hard day limits */}
+            {/* Avoid back-to-back intense days — toggle only (default ON) */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Hard day limits</Text>
-              <Text style={styles.sectionSubtitle}>Prevent back-to-back hard days</Text>
-              <Text style={styles.definitionText}>A "hard day" is a workout with high intensity, heavy weights, or maximum effort exercises.</Text>
-              <View style={styles.constraintRow}>
-                <View style={styles.constraintItem}>
-                  <Text style={styles.constraintLabel}>Max hard days in a row:</Text>
-                  <View style={styles.numberInputRow}>
-                    <TouchableOpacity
-                      style={styles.numberButton}
-                      onPressIn={holdMaxHardInRowDown.onPressIn}
-                      onPressOut={holdMaxHardInRowDown.onPressOut}
-                    >
-                      <Text style={styles.numberButtonText}>−</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.numberDisplay}>{inputs.maxHardDaysInRow}</Text>
-                    <TouchableOpacity
-                      style={styles.numberButton}
-                      onPressIn={holdMaxHardInRowUp.onPressIn}
-                      onPressOut={holdMaxHardInRowUp.onPressOut}
-                    >
-                      <Text style={styles.numberButtonText}>+</Text>
-                    </TouchableOpacity>
-                  </View>
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleLabelContainer}>
+                  <Text style={styles.sectionSubtitle}>Avoid back-to-back intense days</Text>
                 </View>
-                <View style={styles.constraintItem}>
-                  <Text style={styles.constraintLabel}>Max hard days/week:</Text>
-                  <View style={styles.numberInputRow}>
-                    <TouchableOpacity
-                      style={styles.numberButton}
-                      onPressIn={holdMaxHardPerWeekDown.onPressIn}
-                      onPressOut={holdMaxHardPerWeekDown.onPressOut}
-                    >
-                      <Text style={styles.numberButtonText}>−</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.numberDisplay}>{inputs.maxHardDaysPerWeek}</Text>
-                    <TouchableOpacity
-                      style={styles.numberButton}
-                      onPressIn={holdMaxHardPerWeekUp.onPressIn}
-                      onPressOut={holdMaxHardPerWeekUp.onPressOut}
-                    >
-                      <Text style={styles.numberButtonText}>+</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                <TouchableOpacity
+                  style={[styles.toggleSwitch, inputs.maxHardDaysInRow === 1 && styles.toggleSwitchOn]}
+                  onPress={() => setInputs(prev => ({ ...prev, maxHardDaysInRow: prev.maxHardDaysInRow === 1 ? 2 : 1 }))}
+                >
+                  <View style={[styles.toggleThumb, inputs.maxHardDaysInRow === 1 && styles.toggleThumbOn]} />
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -1671,82 +1676,6 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                     >
                       <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
                         {item.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Current activity level (optional)</Text>
-              <Text style={styles.sectionSubtitle}>How many days/week are you currently training?</Text>
-              <View style={styles.optionsRow}>
-                {(['0', '1-2', '3-4', '5+'] as CurrentActivityLevel[]).map(level => (
-                  <TouchableOpacity
-                    key={level}
-                    style={[styles.optionButton, inputs.currentActivityLevel === level && styles.optionButtonSelected]}
-                    onPress={() => setInputs(prev => ({
-                      ...prev,
-                      currentActivityLevel: prev.currentActivityLevel === level ? null : level,
-                    }))}
-                  >
-                    <Text style={[styles.optionButtonText, inputs.currentActivityLevel === level && styles.optionButtonTextSelected]}>
-                      {level === '0' ? '0' : level === '1-2' ? '1–2' : level === '3-4' ? '3–4' : '5+'} days/week
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Preferred exercises (optional)</Text>
-              <Text style={styles.sectionSubtitle}>Include these exercises when possible</Text>
-              {inputs.avoidList.includes('avoid barbell') && (
-                <Text style={styles.warningText}>Note: Barbell exercises (squat, deadlift, bench) are disabled because "Avoid Barbell" is selected.</Text>
-              )}
-              <View style={styles.chipsRow}>
-                {(['bench', 'squat', 'deadlift', 'pull-ups', 'overhead press', 'rows'] as PreferredExercise[]).map(exercise => {
-                  const isSelected = inputs.preferredExercises.includes(exercise);
-                  const isBarbellExercise = ['bench', 'squat', 'deadlift'].includes(exercise);
-                  const isDisabled = inputs.avoidList.includes('avoid barbell') && isBarbellExercise;
-                  return (
-                    <TouchableOpacity
-                      key={exercise}
-                      style={[
-                        styles.chip, 
-                        isSelected && styles.chipSelected,
-                        isDisabled && styles.chipDisabled
-                      ]}
-                      onPress={() => {
-                        if (isDisabled) return;
-                        setInputs(prev => {
-                          // If selecting a barbell exercise while avoid barbell is active, remove avoid barbell
-                          if (isBarbellExercise && !isSelected && prev.avoidList.includes('avoid barbell')) {
-                            return {
-                              ...prev,
-                              avoidList: prev.avoidList.filter(a => a !== 'avoid barbell'),
-                              preferredExercises: [...prev.preferredExercises, exercise],
-                            };
-                          }
-                          return {
-                            ...prev,
-                            preferredExercises: isSelected
-                              ? prev.preferredExercises.filter(e => e !== exercise)
-                              : [...prev.preferredExercises, exercise],
-                          };
-                        });
-                      }}
-                      disabled={isDisabled}
-                    >
-                      <Text style={[
-                        styles.chipText, 
-                        isSelected && styles.chipTextSelected,
-                        isDisabled && styles.chipTextDisabled
-                      ]}>
-                        {exercise === 'pull-ups' ? 'Pull-Ups' : 
-                         exercise === 'overhead press' ? 'Overhead Press' :
-                         exercise.charAt(0).toUpperCase() + exercise.slice(1)}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -1927,24 +1856,6 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                   </View>
                 </View>
               )}
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Workout detail level</Text>
-              <Text style={styles.sectionSubtitle}>How detailed should workouts be?</Text>
-              <View style={styles.optionsRow}>
-                {(['simple', 'detailed'] as WorkoutDetailLevel[]).map(level => (
-                  <TouchableOpacity
-                    key={level}
-                    style={[styles.optionButton, inputs.workoutDetailLevel === level && styles.optionButtonSelected]}
-                    onPress={() => setInputs(prev => ({ ...prev, workoutDetailLevel: level }))}
-                  >
-                    <Text style={[styles.optionButtonText, inputs.workoutDetailLevel === level && styles.optionButtonTextSelected]}>
-                      {level === 'simple' ? 'Simple (title + duration + type)' : 'Detailed (full exercise list + sets/reps)'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
 
             {(inputs.goal === 'strength' || inputs.goal === 'hybrid') && (
@@ -2670,6 +2581,21 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: themeColors.border,
+    overflow: 'hidden',
+  },
+  customSplitDayCardBody: {
+    marginTop: 4,
+  },
+  customSplitLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  customSplitCounter: {
+    fontSize: 11,
+    color: themeColors.textMuted,
   },
   customSplitDayCardHeader: {
     flexDirection: 'row',
@@ -2740,6 +2666,13 @@ const styles = StyleSheet.create({
   },
   customSplitChipDisabled: {
     opacity: 0.5,
+  },
+  customSplitCycleExample: {
+    fontSize: 11,
+    color: themeColors.textMuted,
+    marginTop: 6,
+    marginBottom: 4,
+    fontStyle: 'italic',
   },
   customSplitChipText: {
     fontSize: 12,
