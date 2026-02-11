@@ -7,13 +7,22 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { colors as themeColors } from '../theme/colors';
+import {
+  normalizeContext,
+  getRecommendation,
+  mapPatternToWeekdays,
+  splitFamilyToLabel,
+  DAY_TYPE_LABELS,
+} from '../lib/planRecommendation';
 
 type GeneratePlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'GeneratePlan'>;
 type GeneratePlanScreenRouteProp = RouteProp<RootStackParamList, 'GeneratePlan'>;
@@ -25,14 +34,20 @@ type Props = {
 
 type Goal = 'fat loss' | 'strength' | 'endurance' | 'hybrid';
 type PrimaryLocation = 'gym' | 'home';
-type ProgramType = 'full body' | 'upper-lower' | 'push-pull-legs' | '5x5 style' | 'strength + cardio split' | 'circuit focus' | 'mixed' | 'base + intervals + long' | 'interval focus' | 'base building' | '2 strength + 2 cardio' | '3+2 split' | 'alternating';
+/** Plan style = training emphasis only. Week structure is from Recommended split + Training split preference. */
+type PlanStyle =
+  | 'lift_zone2' | 'lift_intervals' | 'circuit_leaning'
+  | 'heavy_compounds' | 'powerbuilding' | 'strength_conditioning'
+  | 'base_building' | 'intervals_focus' | 'mixed_endurance'
+  | 'even_split' | 'strength_bias' | 'muscle_bias';
+type ProgramType = PlanStyle;
 type EquipmentItem = 'barbell' | 'dumbbells' | 'machines' | 'cable' | 'kettlebells' | 'pull-up bar' | 'bands' | 'cardio machines' | 'none';
 type DetailedEquipment = 'barbell' | 'rack' | 'cables' | 'machines' | 'dumbbells' | 'pull-up bar' | 'cardio machines' | 'pool access';
 type CardioEquipment = 'treadmill' | 'bike' | 'rower' | 'none';
 type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
 type StrengthSplitPreference = 'full body' | 'upper-lower' | 'ppl' | '3-day full body' | 'surprise me';
-type TrainingSplitPreference = 'full body' | 'upper-lower' | 'ppl' | 'ai decide' | 'custom';
+type TrainingSplitPreference = 'full body' | 'upper-lower' | 'ppl' | 'body part' | 'ai decide' | 'custom';
 type HybridGoalRatio = 'more strength' | 'balanced' | 'more cardio';
 type EquipmentAccess = 'dumbbells' | 'bands' | 'pull-up bar' | 'barbell' | 'machines' | 'none';
 type CardioModality = 'run' | 'bike' | 'swim' | 'row' | 'elliptical';
@@ -49,10 +64,9 @@ type StrengthFormat = 'straight sets' | 'supersets' | 'circuit';
 type CardioFormat = 'intervals' | 'steady-state' | 'tempo';
 type RestDayPreference = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | 'none';
 
-interface WeeklySplit {
+interface PlanStyleOption {
+  value: PlanStyle;
   label: string;
-  preview: string;
-  programType: ProgramType;
 }
 
 interface GeneratePlanInputs {
@@ -107,6 +121,27 @@ interface GeneratePlanInputs {
 
 const DAYS_OF_WEEK: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+const GOAL_LABELS: Record<Goal, string> = {
+  'fat loss': 'Fat loss',
+  strength: 'Strength',
+  endurance: 'Endurance',
+  hybrid: 'Balanced (Strength + Muscle)',
+};
+
+const GOAL_DESCRIPTORS: Record<Goal, string> = {
+  'fat loss': 'Lift to keep muscle + add cardio/steps',
+  strength: 'Heavier compounds + longer rest',
+  endurance: 'More cardio volume + strength support',
+  hybrid: 'Strength and cardio in one plan',
+};
+
+const DEFAULT_GYM_EQUIPMENT: EquipmentItem[] = ['barbell', 'dumbbells', 'machines', 'cable', 'kettlebells', 'pull-up bar', 'bands', 'cardio machines'];
+
+const DURATION_PRESETS = [30, 45, 60, 75] as const;
+const DURATION_MIN = 15;
+const DURATION_MAX = 180;
+const DURATION_STEP = 5;
+
 /** Hook for hold-to-repeat on +/- buttons: first tap runs once, then repeat after delay. */
 function useHoldToRepeat(
   onStep: () => void,
@@ -157,52 +192,33 @@ function getDefaultTrainingDays(daysPerWeek: number): DayOfWeek[] {
   return patterns[daysPerWeek] || DAYS_OF_WEEK.slice(0, daysPerWeek);
 }
 
-function generateWeeklySplitVariations(goal: Goal, programType: ProgramType, trainingDays: DayOfWeek[]): WeeklySplit[] {
-  const variations: WeeklySplit[] = [];
-  
-  if (goal === 'strength') {
-    if (programType === 'full body') {
-      variations.push({
-        label: 'Full Body',
-        preview: trainingDays.map(d => `${d.slice(0, 3)} Full Body`).join(' • '),
-        programType: 'full body',
-      });
-    } else if (programType === 'upper-lower') {
-      variations.push({
-        label: 'Upper-Lower',
-        preview: trainingDays.map((d, i) => `${d.slice(0, 3)} ${i % 2 === 0 ? 'Upper' : 'Lower'}`).join(' • '),
-        programType: 'upper-lower',
-      });
-    }
-  } else if (goal === 'hybrid') {
-    if (programType === '2 strength + 2 cardio') {
-      variations.push({
-        label: '2+2 Split',
-        preview: trainingDays.map((d, i) => `${d.slice(0, 3)} ${i % 2 === 0 ? 'Strength' : 'Cardio'}`).join(' • '),
-        programType: '2 strength + 2 cardio',
-      });
-    }
-  }
-  
-  return variations.length > 0 ? variations : [{
-    label: 'Custom',
-    preview: trainingDays.map(d => d.slice(0, 3)).join(' • '),
-    programType: programType,
-  }];
-}
-
-function getProgramTypeOptions(goal: Goal | null): ProgramType[] {
+function getPlanStyleOptions(goal: Goal | null): PlanStyleOption[] {
   if (!goal) return [];
-  
   switch (goal) {
-    case 'strength':
-      return ['full body', 'upper-lower', 'push-pull-legs', '5x5 style'];
     case 'fat loss':
-      return ['strength + cardio split', 'circuit focus', 'mixed'];
+      return [
+        { value: 'lift_zone2', label: 'Steady cardio + lifting (easy pace)' },
+        { value: 'lift_intervals', label: 'Intervals + lifting (hard but shorter)' },
+        { value: 'circuit_leaning', label: 'Circuit-style lifting (faster pace)' },
+      ];
+    case 'strength':
+      return [
+        { value: 'heavy_compounds', label: 'Heavy strength focus (lower reps)' },
+        { value: 'powerbuilding', label: 'Strength + muscle focus (more accessories)' },
+        { value: 'strength_conditioning', label: 'Strength + cardio (mixed)' },
+      ];
     case 'endurance':
-      return ['base + intervals + long', 'interval focus', 'base building'];
+      return [
+        { value: 'base_building', label: 'Build endurance base (easy steady work)' },
+        { value: 'intervals_focus', label: 'Speed/interval focus (hard efforts)' },
+        { value: 'mixed_endurance', label: 'Balanced endurance (steady + intervals)' },
+      ];
     case 'hybrid':
-      return ['2 strength + 2 cardio', '3+2 split', 'alternating'];
+      return [
+        { value: 'even_split', label: 'Balanced' },
+        { value: 'strength_bias', label: 'More strength' },
+        { value: 'muscle_bias', label: 'More muscle (more volume)' },
+      ];
     default:
       return [];
   }
@@ -216,6 +232,14 @@ function getProgressionTargetOptions(goal: Goal | null): ProgressionTarget[] {
   } else {
     return ['add time', 'add intensity', 'mix'];
   }
+}
+
+/** Display label for split (recommended/alternative or user selection). */
+function splitDisplayLabel(split: string | null): string {
+  if (!split) return '';
+  if (split === 'custom') return 'Custom';
+  if (split === 'ai decide') return 'Auto (recommended)';
+  return splitFamilyToLabel(split as Parameters<typeof splitFamilyToLabel>[0]);
 }
 
 export default function GeneratePlanScreen({ navigation }: Props) {
@@ -271,6 +295,8 @@ export default function GeneratePlanScreen({ navigation }: Props) {
   });
   const [generating, setGenerating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showWhyBullets, setShowWhyBullets] = useState(false);
+  const [showRecommendationDetails, setShowRecommendationDetails] = useState(false);
 
   const stepWeeksDown = useCallback(() => setInputs(prev => ({ ...prev, weeks: Math.max(1, prev.weeks - 1) })), []);
   const stepWeeksUp = useCallback(() => setInputs(prev => ({ ...prev, weeks: Math.min(8, prev.weeks + 1) })), []);
@@ -281,6 +307,28 @@ export default function GeneratePlanScreen({ navigation }: Props) {
   const stepMaxHardPerWeekDown = useCallback(() => setInputs(prev => ({ ...prev, maxHardDaysPerWeek: Math.max(2, prev.maxHardDaysPerWeek - 1) })), []);
   const stepMaxHardPerWeekUp = useCallback(() => setInputs(prev => ({ ...prev, maxHardDaysPerWeek: Math.min(3, prev.maxHardDaysPerWeek + 1) })), []);
 
+  const stepDurationMinDown = useCallback(() => setInputs(prev => {
+    const current = prev.timePerSession.min;
+    const next = Math.max(DURATION_MIN, Math.round((current - DURATION_STEP) / DURATION_STEP) * DURATION_STEP);
+    const max = Math.max(next, prev.timePerSession.max);
+    return { ...prev, timePerSession: { min: next, max } };
+  }), []);
+  const stepDurationMinUp = useCallback(() => setInputs(prev => {
+    const current = prev.timePerSession.min;
+    const next = Math.min(prev.timePerSession.max, Math.min(DURATION_MAX, Math.round((current + DURATION_STEP) / DURATION_STEP) * DURATION_STEP));
+    return { ...prev, timePerSession: { ...prev.timePerSession, min: next } };
+  }), []);
+  const stepDurationMaxDown = useCallback(() => setInputs(prev => {
+    const current = prev.timePerSession.max;
+    const next = Math.max(prev.timePerSession.min, Math.max(DURATION_MIN, Math.round((current - DURATION_STEP) / DURATION_STEP) * DURATION_STEP));
+    return { ...prev, timePerSession: { ...prev.timePerSession, max: next } };
+  }), []);
+  const stepDurationMaxUp = useCallback(() => setInputs(prev => {
+    const current = prev.timePerSession.max;
+    const next = Math.min(DURATION_MAX, Math.round((current + DURATION_STEP) / DURATION_STEP) * DURATION_STEP);
+    return { ...prev, timePerSession: { ...prev.timePerSession, max: next } };
+  }), []);
+
   const holdWeeksDown = useHoldToRepeat(stepWeeksDown);
   const holdWeeksUp = useHoldToRepeat(stepWeeksUp);
   const holdAgeDown = useHoldToRepeat(stepAgeDown);
@@ -289,14 +337,28 @@ export default function GeneratePlanScreen({ navigation }: Props) {
   const holdMaxHardInRowUp = useHoldToRepeat(stepMaxHardInRowUp);
   const holdMaxHardPerWeekDown = useHoldToRepeat(stepMaxHardPerWeekDown);
   const holdMaxHardPerWeekUp = useHoldToRepeat(stepMaxHardPerWeekUp);
-  
-  const weeklySplitVariations = inputs.goal && inputs.programType
-    ? generateWeeklySplitVariations(inputs.goal, inputs.programType, inputs.trainingDays)
-    : [];
-  
-  const currentSplit = weeklySplitVariations[inputs.programVariationIndex] || null;
-  
+  const holdDurationMinDown = useHoldToRepeat(stepDurationMinDown);
+  const holdDurationMinUp = useHoldToRepeat(stepDurationMinUp);
+  const holdDurationMaxDown = useHoldToRepeat(stepDurationMaxDown);
+  const holdDurationMaxUp = useHoldToRepeat(stepDurationMaxUp);
+
   const daysPerWeek = inputs.trainingDays.length;
+  const recContext = React.useMemo(
+    () =>
+      normalizeContext({
+        goal: inputs.goal,
+        planStyle: inputs.programType,
+        trainingDays: inputs.trainingDays,
+        timePerSession: inputs.timePerSession,
+        trainingSplitPreference: inputs.trainingSplitPreference,
+      }),
+    [inputs.goal, inputs.programType, inputs.trainingDays, inputs.timePerSession, inputs.trainingSplitPreference]
+  );
+  const recommendation = React.useMemo(() => getRecommendation(recContext), [recContext]);
+  const effectiveSplitPreference =
+    inputs.trainingSplitPreference === 'ai decide' || inputs.trainingSplitPreference === null
+      ? (recommendation?.recommendedSplit ?? null)
+      : inputs.trainingSplitPreference;
 
   const planSummary = `${daysPerWeek} day${daysPerWeek !== 1 ? 's' : ''}/week • ${inputs.weeks} week${inputs.weeks !== 1 ? 's' : ''} • ${inputs.timePerSession.min}–${inputs.timePerSession.max} min`;
 
@@ -317,14 +379,6 @@ export default function GeneratePlanScreen({ navigation }: Props) {
       ...prev,
       programType,
       programVariationIndex: 0,
-    }));
-  };
-
-  const handleCycleSplitVariation = () => {
-    if (weeklySplitVariations.length <= 1) return;
-    setInputs(prev => ({
-      ...prev,
-      programVariationIndex: (prev.programVariationIndex + 1) % weeklySplitVariations.length,
     }));
   };
 
@@ -351,6 +405,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
       ...prev,
       primaryLocation: location,
       cardioEquipment: location === 'home' ? null : prev.cardioEquipment,
+      availableEquipment: location === 'gym' ? DEFAULT_GYM_EQUIPMENT : prev.availableEquipment,
     }));
   };
 
@@ -426,7 +481,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           workoutDetailLevel: inputs.workoutDetailLevel,
           strengthFormat: inputs.strengthFormat,
           cardioFormat: inputs.cardioFormat,
-          trainingSplitPreference: inputs.trainingSplitPreference,
+          trainingSplitPreference: effectiveSplitPreference ?? inputs.trainingSplitPreference,
           customSplitHint: inputs.customSplitHint?.trim() || undefined,
           equipmentAccess: inputs.equipmentAccess,
           age: inputs.age ?? undefined,
@@ -436,14 +491,12 @@ export default function GeneratePlanScreen({ navigation }: Props) {
     }, 1500);
   };
 
-  const canGenerate = 
-    inputs.goal && 
-    inputs.programType && 
-    inputs.primaryLocation && 
-    inputs.availableEquipment.length > 0 && 
-    (inputs.primaryLocation === 'gym' || inputs.cardioEquipment !== null) &&
+  const canGenerate =
+    !!inputs.goal &&
     inputs.trainingDays.length > 0 &&
-    inputs.timePerSession.min > 0 && 
+    !!inputs.primaryLocation &&
+    (inputs.primaryLocation === 'gym' || (inputs.availableEquipment.length > 0 && inputs.cardioEquipment !== null)) &&
+    inputs.timePerSession.min > 0 &&
     inputs.timePerSession.max > 0;
 
 
@@ -471,62 +524,25 @@ export default function GeneratePlanScreen({ navigation }: Props) {
         {/* Goal Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>What's your goal?</Text>
-          <View style={styles.optionsRow}>
+          <View style={styles.goalChipsRow}>
             {(['fat loss', 'strength', 'endurance', 'hybrid'] as Goal[]).map(goal => (
               <TouchableOpacity
                 key={goal}
-                style={[styles.optionButton, inputs.goal === goal && styles.optionButtonSelected]}
+                style={[styles.goalChip, inputs.goal === goal && styles.goalChipSelected]}
                 onPress={() => handleGoalSelect(goal)}
               >
-                <Text style={[styles.optionButtonText, inputs.goal === goal && styles.optionButtonTextSelected]}>
-                  {goal.charAt(0).toUpperCase() + goal.slice(1)}
+                <Text style={[styles.goalChipTitle, inputs.goal === goal && styles.goalChipTitleSelected]}>
+                  {GOAL_LABELS[goal]}
+                </Text>
+                <Text style={[styles.goalChipDescriptor, inputs.goal === goal && styles.goalChipDescriptorSelected]}>
+                  {GOAL_DESCRIPTORS[goal]}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {inputs.goal && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Program type</Text>
-            <Text style={styles.sectionSubtitle}>Choose your training split</Text>
-            <View style={styles.optionsRow}>
-              {getProgramTypeOptions(inputs.goal).map(programType => (
-                <TouchableOpacity
-                  key={programType}
-                  style={[styles.optionButton, inputs.programType === programType && styles.optionButtonSelected]}
-                  onPress={() => handleProgramTypeSelect(programType)}
-                >
-                  <Text style={[styles.optionButtonText, inputs.programType === programType && styles.optionButtonTextSelected]}>
-                    {programType.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            {currentSplit && (
-              <TouchableOpacity
-                style={styles.splitPreview}
-                onPress={handleCycleSplitVariation}
-                activeOpacity={0.7}
-                disabled={weeklySplitVariations.length <= 1}
-              >
-                <View style={styles.splitPreviewContent}>
-                  <Text style={styles.splitPreviewLabel}>Week layout:</Text>
-                  <Text style={styles.splitPreviewText}>{currentSplit.preview}</Text>
-                  {weeklySplitVariations.length > 1 && (
-                    <Text style={styles.splitPreviewHint}>Tap to cycle variations</Text>
-                  )}
-                </View>
-                {weeklySplitVariations.length > 1 && (
-                  <Text style={styles.splitPreviewArrow}>›</Text>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Training Days */}
+        {/* Training days */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Training days</Text>
           <Text style={styles.sectionSubtitle}>Select which days you want to train</Text>
@@ -552,9 +568,348 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {/* Weeks */}
+        {/* Workout duration — presets + optional range */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Weeks to generate</Text>
+          <Text style={styles.sectionTitle}>Workout duration</Text>
+          <Text style={styles.sectionSubtitle}>How long should workouts be?</Text>
+          {(() => {
+            const { min, max } = inputs.timePerSession;
+            const isPreset = min === max && DURATION_PRESETS.includes(min as 30 | 45 | 60 | 75);
+            const isRange = !isPreset;
+            return (
+              <>
+                <View style={styles.durationChipsRow}>
+                  {DURATION_PRESETS.map(mins => {
+                    const selected = isPreset && min === mins;
+                    return (
+                      <TouchableOpacity
+                        key={mins}
+                        style={[styles.durationChip, selected && styles.durationChipSelected]}
+                        onPress={() => setInputs(prev => ({ ...prev, timePerSession: { min: mins, max: mins } }))}
+                      >
+                        <Text style={[styles.durationChipText, selected && styles.durationChipTextSelected]}>
+                          {mins} min
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  <TouchableOpacity
+                    style={[styles.durationChip, isRange && styles.durationChipSelected]}
+                    onPress={() => {
+                      if (!isRange) {
+                        setInputs(prev => ({ ...prev, timePerSession: { min: 30, max: 60 } }));
+                      }
+                    }}
+                  >
+                    <Text style={[styles.durationChipText, isRange && styles.durationChipTextSelected]}>
+                      Range
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {isRange && (
+                  <View style={styles.durationRangeControl}>
+                    <View style={styles.durationRangeRow}>
+                      <Text style={styles.durationRangeLabel}>Min</Text>
+                      <View style={styles.numberInputRow}>
+                        <TouchableOpacity
+                          style={styles.numberButton}
+                          onPressIn={holdDurationMinDown.onPressIn}
+                          onPressOut={holdDurationMinDown.onPressOut}
+                        >
+                          <Text style={styles.numberButtonText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.numberDisplay}>{min}</Text>
+                        <TouchableOpacity
+                          style={styles.numberButton}
+                          onPressIn={holdDurationMinUp.onPressIn}
+                          onPressOut={holdDurationMinUp.onPressOut}
+                        >
+                          <Text style={styles.numberButtonText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.durationRangeUnit}>min</Text>
+                    </View>
+                    <View style={styles.durationRangeRow}>
+                      <Text style={styles.durationRangeLabel}>Max</Text>
+                      <View style={styles.numberInputRow}>
+                        <TouchableOpacity
+                          style={styles.numberButton}
+                          onPressIn={holdDurationMaxDown.onPressIn}
+                          onPressOut={holdDurationMaxDown.onPressOut}
+                        >
+                          <Text style={styles.numberButtonText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.numberDisplay}>{max}</Text>
+                        <TouchableOpacity
+                          style={styles.numberButton}
+                          onPressIn={holdDurationMaxUp.onPressIn}
+                          onPressOut={holdDurationMaxUp.onPressOut}
+                        >
+                          <Text style={styles.numberButtonText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.durationRangeUnit}>min</Text>
+                    </View>
+                  </View>
+                )}
+              </>
+            );
+          })()}
+        </View>
+
+        {/* Plan style (conditional on goal) */}
+        {inputs.goal && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Plan style</Text>
+            <Text style={styles.sectionSubtitle}>How should this plan prioritize your goal?</Text>
+            <Text style={styles.sectionHelper}>This affects intensity and cardio style. The split decides how lifting days are organized.</Text>
+            <View style={styles.optionsRow}>
+              {getPlanStyleOptions(inputs.goal).map(option => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[styles.optionButton, inputs.programType === option.value && styles.optionButtonSelected]}
+                  onPress={() => handleProgramTypeSelect(option.value)}
+                >
+                  <Text style={[styles.optionButtonText, inputs.programType === option.value && styles.optionButtonTextSelected]}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Training split preference — includes Recommended badge and compact recommendation row */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Training split preference</Text>
+          <Text style={styles.sectionSubtitle}>Pick a structure, or let the app choose the best one.</Text>
+          <View style={styles.optionsRowCompact}>
+            {(['full body', 'upper-lower', 'ppl', 'body part', 'ai decide', 'custom'] as TrainingSplitPreference[]).map(split => {
+              const days = daysPerWeek;
+              const pplDisabled = days >= 2 && days <= 3;
+              const bodyPartDisabled = days <= 3;
+              const isDisabled =
+                (split === 'ppl' && pplDisabled) || (split === 'body part' && bodyPartDisabled);
+              const isRecommendedSplit = recommendation && (split === recommendation.recommendedSplit);
+              const isSelected =
+                inputs.trainingSplitPreference === split ||
+                (split === 'ai decide' && (inputs.trainingSplitPreference === 'ai decide' || inputs.trainingSplitPreference === null));
+              const handleSplitPress = () => {
+                if (isDisabled) return;
+                setInputs(prev => ({ ...prev, trainingSplitPreference: split }));
+                if (recommendation && split === recommendation.recommendedSplit) setShowRecommendationDetails(true);
+              };
+
+              if (split === 'body part') {
+                return (
+                  <View
+                    key={split}
+                    style={[
+                      styles.optionButtonCompact,
+                      isSelected && styles.optionButtonCompactSelected,
+                      isDisabled && styles.optionButtonCompactDisabled,
+                      styles.optionButtonBodyPartRowCompact,
+                    ]}
+                  >
+                    <TouchableOpacity
+                      style={styles.optionButtonBodyPartLabelCompact}
+                      onPress={handleSplitPress}
+                      disabled={isDisabled}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[
+                        styles.optionButtonTextCompact,
+                        isSelected && styles.optionButtonTextCompactSelected,
+                        isDisabled && styles.optionButtonTextCompactDisabled,
+                      ]}>
+                        Body Part Days
+                      </Text>
+                      {isRecommendedSplit && (
+                        <TouchableOpacity
+                          onPress={() => { setInputs(prev => ({ ...prev, trainingSplitPreference: 'body part' })); setShowRecommendationDetails(true); }}
+                          style={styles.recommendedBadgeCompact}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.recommendedBadgeTextCompact}>Recommended</Text>
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => Alert.alert('Body Part Days', 'One muscle group per day (e.g. chest, back, legs). Good for volume and recovery.')}
+                      style={styles.chipInfoIconCompact}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              }
+
+              return (
+                <TouchableOpacity
+                  key={split}
+                  style={[
+                    styles.optionButtonCompact,
+                    isSelected && styles.optionButtonCompactSelected,
+                    isDisabled && styles.optionButtonCompactDisabled,
+                  ]}
+                  onPress={handleSplitPress}
+                  disabled={isDisabled}
+                >
+                  <View style={styles.optionButtonContentCompact}>
+                    <Text style={[
+                      styles.optionButtonTextCompact,
+                      isSelected && styles.optionButtonTextCompactSelected,
+                      isDisabled && styles.optionButtonTextCompactDisabled,
+                    ]}>
+                      {split === 'full body' ? 'Full Body' : split === 'upper-lower' ? 'Upper/Lower' : split === 'ppl' ? 'Push/Pull/Legs' : split === 'ai decide' ? 'Auto (recommended)' : 'Custom'}
+                    </Text>
+                    {isRecommendedSplit && (
+                      <TouchableOpacity
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        onPress={() => setShowRecommendationDetails(true)}
+                        style={styles.recommendedBadgeCompact}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.recommendedBadgeTextCompact}>Recommended</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {inputs.trainingSplitPreference === 'custom' && (
+            <TextInput
+              style={styles.customSplitInput}
+              placeholder="Write your split (ex: chest/tri, back/bi…)"
+              placeholderTextColor={colors.textMuted}
+              value={inputs.customSplitHint}
+              onChangeText={(text) => setInputs(prev => ({ ...prev, customSplitHint: text }))}
+              multiline
+              maxLength={300}
+            />
+          )}
+
+          {/* Compact recommendation row — single line + chevron; collapsed by default; tap row or Recommended badge to expand */}
+          {recommendation && (
+            <>
+              <TouchableOpacity
+                style={styles.recommendationCompactRow}
+                onPress={() => setShowRecommendationDetails((v) => !v)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.recommendationCompactText} numberOfLines={1}>
+                  Recommended: {(() => {
+                    const showDayCounts = recommendation.cardioDays > 0 || recommendation.recoveryDays > 0;
+                    const useShortFormat = showDayCounts && recommendation.recommendedLiftingLabel;
+                    const goalDisplayName = inputs.goal === 'hybrid' ? 'Balanced' : inputs.goal === 'fat loss' ? 'Fat Loss' : inputs.goal === 'strength' ? 'Strength' : inputs.goal === 'endurance' ? 'Endurance' : '';
+                    const shortTitle = `${daysPerWeek}-day ${goalDisplayName} Mix`;
+                    return useShortFormat ? shortTitle : (recommendation.recommendedStructureName ?? splitFamilyToLabel(recommendation.recommendedSplit));
+                  })()}
+                </Text>
+                <Ionicons
+                  name={showRecommendationDetails ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={themeColors.primary}
+                  style={styles.recommendationChevron}
+                />
+              </TouchableOpacity>
+
+              {/* Expanded panel — 3 layers: (1) split + alternative, (2) one-line why, (3) weekly pattern (lighter) */}
+              {showRecommendationDetails && (
+                <View style={styles.recommendationExpanded}>
+                  {(() => {
+                    const isUsingRecommended = inputs.trainingSplitPreference === null || inputs.trainingSplitPreference === 'ai decide';
+                    const weekdaysForPreview = inputs.trainingDays.length > 0 ? inputs.trainingDays : (recommendation.suggestedDaySchedules[0] ?? []);
+                    const preview =
+                      weekdaysForPreview.length > 0
+                        ? mapPatternToWeekdays(recommendation.recommendedPattern, weekdaysForPreview, recommendation.recommendedDayLabels)
+                        : recommendation.recommendedPattern.map((d) => DAY_TYPE_LABELS[d] ?? d).join(' • ');
+                    const oneLineWhy = (recommendation.reasonText?.split('.')[0] ?? '') + (recommendation.reasonText?.includes('.') ? '.' : '');
+                    return (
+                      <>
+                        <Text style={styles.recommendationExpandedTitle}>
+                          {recommendation.recommendedStructureName ?? splitFamilyToLabel(recommendation.recommendedSplit)}
+                        </Text>
+                        {recommendation.alternativeSplit && (
+                          <Text style={styles.recommendationExpandedAlternative}>
+                            Alternative: {recommendation.alternativeStructureName ?? splitFamilyToLabel(recommendation.alternativeSplit)}
+                          </Text>
+                        )}
+                        <Text style={styles.recommendationExpandedWhy}>{oneLineWhy}</Text>
+                        <Text style={styles.recommendedSplitPreviewLabel}>Weekly pattern</Text>
+                        <Text style={styles.recommendationPatternLighter}>{preview}</Text>
+                        {!isUsingRecommended && (
+                          <TouchableOpacity
+                            style={styles.useRecommendedButton}
+                            onPress={() => setInputs(prev => ({ ...prev, trainingSplitPreference: 'ai decide' }))}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.useRecommendedButtonText}>Use recommended</Text>
+                          </TouchableOpacity>
+                        )}
+                        {recommendation.warning && (
+                          <Text style={styles.recommendedSplitWarning}>{recommendation.warning}</Text>
+                        )}
+                        {recommendation.recoverySuggestion && (
+                          <Text style={styles.recommendedSplitRecoverySuggestion}>{recommendation.recoverySuggestion}</Text>
+                        )}
+                        {daysPerWeek === 7 && (
+                          <Text style={styles.recommendedSplitGuardrail}>Includes at least 1 rest day — 7 hard days/week isn’t recommended.</Text>
+                        )}
+                        {recommendation.suggestedDaySchedules.length > 0 && (
+                          <View style={styles.suggestedSchedulesSection}>
+                            <Text style={styles.suggestedSchedulesLabel}>Suggested week layouts:</Text>
+                            <View style={styles.suggestedSchedulesRow}>
+                              {recommendation.suggestedDaySchedules.map((days, i) => (
+                                <TouchableOpacity
+                                  key={i}
+                                  style={styles.suggestedScheduleChip}
+                                  onPress={() => setInputs((prev) => ({ ...prev, trainingDays: days as DayOfWeek[] }))}
+                                  activeOpacity={0.8}
+                                >
+                                  <Text style={styles.suggestedScheduleChipText}>
+                                    {days.map((d) => d.slice(0, 2)).join('/')}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          </View>
+                        )}
+                      </>
+                    );
+                  })()}
+                </View>
+              )}
+            </>
+          )}
+        </View>
+
+        {/* Primary location */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Primary location</Text>
+          <Text style={styles.sectionSubtitle}>Where will you train?</Text>
+          <View style={styles.optionsRow}>
+            {(['gym', 'home'] as PrimaryLocation[]).map(location => (
+              <TouchableOpacity
+                key={location}
+                style={[styles.optionButton, inputs.primaryLocation === location && styles.optionButtonSelected]}
+                onPress={() => handlePrimaryLocationSelect(location)}
+              >
+                <Text style={[styles.optionButtonText, inputs.primaryLocation === location && styles.optionButtonTextSelected]}>
+                  {location.charAt(0).toUpperCase() + location.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Weeks to generate — de-emphasized (output-size control) */}
+        <View style={[styles.section, styles.sectionDeemphasized]}>
+          <Text style={styles.sectionTitleDeemphasized}>Weeks to generate</Text>
+          <Text style={styles.sectionSubtitle}>Output length (e.g. 1 for preview)</Text>
           <View style={styles.numberInputRow}>
             <TouchableOpacity
               style={styles.numberButton}
@@ -574,51 +929,10 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           </View>
         </View>
 
-        {/* Duration */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Workout duration</Text>
-          <Text style={styles.sectionSubtitle}>How long should workouts be?</Text>
-          <View style={styles.timeRangeRow}>
-            <View style={styles.timeInput}>
-              <Text style={styles.timeLabel}>Min</Text>
-              <TextInput
-                style={styles.timeInputField}
-                value={inputs.timePerSession.min.toString()}
-                onChangeText={(text) => {
-                  const num = parseInt(text) || 0;
-                  setInputs(prev => {
-                    const newMin = Math.max(15, Math.min(120, num));
-                    const newMax = newMin > prev.timePerSession.max ? newMin : prev.timePerSession.max;
-                    return { ...prev, timePerSession: { min: newMin, max: newMax } };
-                  });
-                }}
-                keyboardType="numeric"
-              />
-            </View>
-            <Text style={styles.timeSeparator}>–</Text>
-            <View style={styles.timeInput}>
-              <Text style={styles.timeLabel}>Max</Text>
-              <TextInput
-                style={styles.timeInputField}
-                value={inputs.timePerSession.max.toString()}
-                onChangeText={(text) => {
-                  const num = parseInt(text) || 0;
-                  setInputs(prev => {
-                    const newMax = Math.max(prev.timePerSession.min, Math.min(180, num));
-                    return { ...prev, timePerSession: { ...prev.timePerSession, max: newMax } };
-                  });
-                }}
-                keyboardType="numeric"
-              />
-            </View>
-            <Text style={styles.timeUnit}>min</Text>
-          </View>
-        </View>
-
-        {/* Age */}
+        {/* Age (optional) */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Age</Text>
-          <Text style={styles.sectionSubtitle}>Optional – can help tailor the plan</Text>
+          <Text style={styles.sectionSubtitle}>Optional. Used to adjust recovery and progression rate.</Text>
           <View style={styles.numberInputRow}>
             <TouchableOpacity
               style={styles.numberButton}
@@ -648,37 +962,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           )}
         </View>
 
-        {/* Training split preference — right after workout duration */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Training split preference</Text>
-          <Text style={styles.sectionSubtitle}>How should workouts be structured?</Text>
-          <View style={styles.optionsRow}>
-            {(['full body', 'upper-lower', 'ppl', 'ai decide', 'custom'] as TrainingSplitPreference[]).map(split => (
-              <TouchableOpacity
-                key={split}
-                style={[styles.optionButton, inputs.trainingSplitPreference === split && styles.optionButtonSelected]}
-                onPress={() => setInputs(prev => ({ ...prev, trainingSplitPreference: split }))}
-              >
-                <Text style={[styles.optionButtonText, inputs.trainingSplitPreference === split && styles.optionButtonTextSelected]}>
-                  {split === 'full body' ? 'Full Body' : split === 'upper-lower' ? 'Upper/Lower' : split === 'ppl' ? 'PPL' : split === 'ai decide' ? 'AI Decide' : 'Custom (I have a split)'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {inputs.trainingSplitPreference === 'custom' && (
-            <TextInput
-              style={styles.customSplitInput}
-              placeholder="Write your split (ex: chest/tri, back/bi…)"
-              placeholderTextColor={colors.textMuted}
-              value={inputs.customSplitHint}
-              onChangeText={(text) => setInputs(prev => ({ ...prev, customSplitHint: text }))}
-              multiline
-              maxLength={300}
-            />
-          )}
-        </View>
-
-        {/* Hybrid control */}
+        {/* Hybrid control (conditional on goal) */}
         {inputs.goal === 'hybrid' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Hybrid emphasis</Text>
@@ -699,26 +983,8 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* Equipment */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Primary location</Text>
-          <Text style={styles.sectionSubtitle}>Where will you train?</Text>
-          <View style={styles.optionsRow}>
-            {(['gym', 'home'] as PrimaryLocation[]).map(location => (
-              <TouchableOpacity
-                key={location}
-                style={[styles.optionButton, inputs.primaryLocation === location && styles.optionButtonSelected]}
-                onPress={() => handlePrimaryLocationSelect(location)}
-              >
-                <Text style={[styles.optionButtonText, inputs.primaryLocation === location && styles.optionButtonTextSelected]}>
-                  {location.charAt(0).toUpperCase() + location.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Equipment access — shown right below Primary location when Home is selected */}
+        {/* Equipment — required when Home; Gym assumes standard equipment */}
+        {/* Equipment access — shown immediately when Home is selected */}
         {inputs.primaryLocation === 'home' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Equipment access</Text>
@@ -749,11 +1015,12 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           </View>
         )}
 
-        {inputs.primaryLocation && (
+        {/* Gym: assume standard equipment (no selector). Home: equipment selector shown above. */}
+        {inputs.primaryLocation === 'home' && (
           <>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Available equipment</Text>
-              <Text style={styles.sectionSubtitle}>Select what you have access to</Text>
+              <Text style={styles.sectionSubtitle}>Select what you have at home (required for exercise selection)</Text>
               <View style={styles.chipsRow}>
                 {(['barbell', 'dumbbells', 'machines', 'cable', 'kettlebells', 'pull-up bar', 'bands', 'cardio machines', 'none'] as EquipmentItem[]).map(equipment => {
                   const isSelected = inputs.availableEquipment.includes(equipment);
@@ -772,28 +1039,26 @@ export default function GeneratePlanScreen({ navigation }: Props) {
               </View>
             </View>
 
-            {inputs.primaryLocation === 'home' && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Cardio equipment</Text>
-                <Text style={styles.sectionSubtitle}>Do you have: treadmill/bike/rower or none?</Text>
-                <View style={styles.optionsRow}>
-                  {(['treadmill', 'bike', 'rower', 'none'] as CardioEquipment[]).map(cardio => (
-                    <TouchableOpacity
-                      key={cardio}
-                      style={[styles.optionButton, inputs.cardioEquipment === cardio && styles.optionButtonSelected]}
-                      onPress={() => setInputs(prev => ({
-                        ...prev,
-                        cardioEquipment: prev.cardioEquipment === cardio ? null : cardio,
-                      }))}
-                    >
-                      <Text style={[styles.optionButtonText, inputs.cardioEquipment === cardio && styles.optionButtonTextSelected]}>
-                        {cardio.charAt(0).toUpperCase() + cardio.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Cardio equipment</Text>
+              <Text style={styles.sectionSubtitle}>Do you have: treadmill/bike/rower or none?</Text>
+              <View style={styles.optionsRow}>
+                {(['treadmill', 'bike', 'rower', 'none'] as CardioEquipment[]).map(cardio => (
+                  <TouchableOpacity
+                    key={cardio}
+                    style={[styles.optionButton, inputs.cardioEquipment === cardio && styles.optionButtonSelected]}
+                    onPress={() => setInputs(prev => ({
+                      ...prev,
+                      cardioEquipment: prev.cardioEquipment === cardio ? null : cardio,
+                    }))}
+                  >
+                    <Text style={[styles.optionButtonText, inputs.cardioEquipment === cardio && styles.optionButtonTextSelected]}>
+                      {cardio.charAt(0).toUpperCase() + cardio.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            )}
+            </View>
           </>
         )}
 
@@ -1358,7 +1623,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                       }))}
                     >
                       <Text style={[styles.optionButtonText, inputs.strengthSplitPreference === split && styles.optionButtonTextSelected]}>
-                        {split === 'full body' ? 'Full Body' : split === 'upper-lower' ? 'Upper-Lower' : split === 'ppl' ? 'PPL' : split === '3-day full body' ? '3-day Full Body' : 'Surprise me'}
+                        {split === 'full body' ? 'Full Body' : split === 'upper-lower' ? 'Upper-Lower' : split === 'ppl' ? 'Push/Pull/Legs' : split === '3-day full body' ? '3-day Full Body' : 'Surprise me'}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -1535,10 +1800,119 @@ const styles = StyleSheet.create({
     color: themeColors.textSecondary,
     marginBottom: 12,
   },
+  sectionHelper: {
+    fontSize: 12,
+    color: themeColors.textMuted,
+    marginBottom: 10,
+    fontStyle: 'italic',
+  },
   optionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  optionsRowCompact: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  optionButtonCompact: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  optionButtonCompactSelected: {
+    backgroundColor: themeColors.primary,
+    borderColor: themeColors.primary,
+  },
+  optionButtonTextCompact: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: themeColors.textSecondary,
+  },
+  optionButtonTextCompactSelected: {
+    color: themeColors.background,
+  },
+  optionButtonCompactDisabled: {
+    opacity: 0.5,
+  },
+  optionButtonTextCompactDisabled: {
+    color: themeColors.textMuted,
+  },
+  optionButtonContentCompact: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 3,
+  },
+  optionButtonBodyPartRowCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  optionButtonBodyPartLabelCompact: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  recommendedBadgeCompact: {
+    backgroundColor: themeColors.primary + '22',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  recommendedBadgeTextCompact: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: themeColors.primary,
+  },
+  chipInfoIconCompact: {
+    padding: 4,
+    marginLeft: 2,
+  },
+  goalChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  goalChip: {
+    flex: 1,
+    minWidth: '47%',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  goalChipSelected: {
+    backgroundColor: themeColors.primary,
+    borderColor: themeColors.primary,
+  },
+  goalChipTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: themeColors.text,
+    marginBottom: 4,
+  },
+  goalChipTitleSelected: {
+    color: themeColors.background,
+  },
+  goalChipDescriptor: {
+    fontSize: 11,
+    color: themeColors.textMuted,
+    lineHeight: 14,
+  },
+  goalChipDescriptorSelected: {
+    color: themeColors.background,
+    opacity: 0.9,
   },
   optionButton: {
     paddingVertical: 10,
@@ -1559,6 +1933,270 @@ const styles = StyleSheet.create({
   },
   optionButtonTextSelected: {
     color: themeColors.background,
+  },
+  optionButtonDisabled: {
+    opacity: 0.5,
+  },
+  optionButtonTextDisabled: {
+    color: themeColors.textMuted,
+  },
+  optionButtonContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  optionButtonBodyPartRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  optionButtonBodyPartLabel: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  recommendedBadge: {
+    backgroundColor: themeColors.primary + '22',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  recommendedBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: themeColors.primary,
+  },
+  chipInfoIcon: {
+    padding: 6,
+    marginLeft: 4,
+  },
+  recommendationCompactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: themeColors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  recommendationCompactText: {
+    fontSize: 13,
+    color: themeColors.textSecondary,
+    flex: 1,
+  },
+  recommendationChevron: {
+    marginLeft: 8,
+  },
+  recommendationExpanded: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: themeColors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  recommendationExpandedTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: themeColors.text,
+    marginBottom: 4,
+  },
+  recommendationExpandedAlternative: {
+    fontSize: 13,
+    color: themeColors.textSecondary,
+    marginBottom: 8,
+  },
+  recommendationExpandedWhy: {
+    fontSize: 12,
+    color: themeColors.textMuted,
+    fontStyle: 'italic',
+    marginBottom: 10,
+  },
+  recommendationPatternLighter: {
+    fontSize: 11,
+    color: themeColors.textMuted,
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  recommendedSplitCard: {
+    backgroundColor: themeColors.surface,
+    borderRadius: 8,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  recommendedSplitRowTappable: {
+    marginBottom: 4,
+  },
+  recommendedSplitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  recommendedSplitTapHint: {
+    fontSize: 11,
+    color: themeColors.primary,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  recommendedSplitStateBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    marginBottom: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: themeColors.primary + '18',
+  },
+  recommendedSplitStateText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: themeColors.primary,
+  },
+  useRecommendedButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    marginBottom: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.primary,
+  },
+  useRecommendedButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: themeColors.primary,
+  },
+  recommendedSplitRowYouSelected: {
+    marginTop: 4,
+    marginBottom: 0,
+  },
+  recommendedSplitLabel: {
+    fontSize: 13,
+    color: themeColors.textMuted,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  recommendedSplitValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: themeColors.text,
+  },
+  recommendedSplitValueMuted: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: themeColors.textSecondary,
+  },
+  recommendedSplitValueYouSelected: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: themeColors.primary,
+  },
+  recommendedSplitReason: {
+    fontSize: 12,
+    color: themeColors.textMuted,
+    fontStyle: 'italic',
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  recommendedSplitWarning: {
+    fontSize: 11,
+    color: themeColors.warning,
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  recommendedSplitRecoverySuggestion: {
+    fontSize: 11,
+    color: themeColors.textMuted,
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  recommendedSplitGuardrail: {
+    fontSize: 12,
+    color: themeColors.textSecondary,
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  recommendedSplitPreviewLabel: {
+    fontSize: 11,
+    color: themeColors.textSecondary,
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  recommendedSplitPreview: {
+    fontSize: 12,
+    color: themeColors.textSecondary,
+    fontWeight: '500',
+  },
+  whyButton: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+  },
+  whyButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: themeColors.primary,
+  },
+  reasonBullets: {
+    marginTop: 6,
+    paddingLeft: 8,
+  },
+  reasonBulletText: {
+    fontSize: 11,
+    color: themeColors.textMuted,
+    marginBottom: 2,
+  },
+  suggestedSchedulesSection: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: themeColors.border,
+  },
+  suggestedSchedulesLabel: {
+    fontSize: 11,
+    color: themeColors.textMuted,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  suggestedSchedulesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  suggestedScheduleChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  suggestedScheduleChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: themeColors.textSecondary,
+  },
+  sectionDeemphasized: {
+    opacity: 0.85,
+  },
+  sectionTitleDeemphasized: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: themeColors.textSecondary,
+    marginBottom: 4,
   },
   daysGrid: {
     flexDirection: 'row',
@@ -1620,6 +2258,53 @@ const styles = StyleSheet.create({
     color: themeColors.text,
     minWidth: 40,
     textAlign: 'center',
+  },
+  durationChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  durationChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  durationChipSelected: {
+    backgroundColor: themeColors.primary,
+    borderColor: themeColors.primary,
+  },
+  durationChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: themeColors.textSecondary,
+  },
+  durationChipTextSelected: {
+    color: themeColors.background,
+  },
+  durationRangeControl: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: themeColors.border,
+    gap: 12,
+  },
+  durationRangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  durationRangeLabel: {
+    fontSize: 13,
+    color: themeColors.textMuted,
+    fontWeight: '600',
+    minWidth: 32,
+  },
+  durationRangeUnit: {
+    fontSize: 13,
+    color: themeColors.textMuted,
   },
   timeRangeRow: {
     flexDirection: 'row',
