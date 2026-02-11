@@ -234,14 +234,6 @@ function getProgressionTargetOptions(goal: Goal | null): ProgressionTarget[] {
   }
 }
 
-/** Display label for split (recommended/alternative or user selection). */
-function splitDisplayLabel(split: string | null): string {
-  if (!split) return '';
-  if (split === 'custom') return 'Custom';
-  if (split === 'ai decide') return 'Auto (recommended)';
-  return splitFamilyToLabel(split as Parameters<typeof splitFamilyToLabel>[0]);
-}
-
 export default function GeneratePlanScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const [inputs, setInputs] = useState<GeneratePlanInputs>({
@@ -295,7 +287,6 @@ export default function GeneratePlanScreen({ navigation }: Props) {
   });
   const [generating, setGenerating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showWhyBullets, setShowWhyBullets] = useState(false);
   const [showRecommendationDetails, setShowRecommendationDetails] = useState(false);
 
   const stepWeeksDown = useCallback(() => setInputs(prev => ({ ...prev, weeks: Math.max(1, prev.weeks - 1) })), []);
@@ -2026,41 +2017,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 10,
   },
-  recommendedSplitCard: {
-    backgroundColor: themeColors.surface,
-    borderRadius: 8,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-  },
-  recommendedSplitRowTappable: {
-    marginBottom: 4,
-  },
-  recommendedSplitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  recommendedSplitTapHint: {
-    fontSize: 11,
-    color: themeColors.primary,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  recommendedSplitStateBadge: {
-    alignSelf: 'flex-start',
-    marginTop: 4,
-    marginBottom: 2,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: themeColors.primary + '18',
-  },
-  recommendedSplitStateText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: themeColors.primary,
-  },
   useRecommendedButton: {
     alignSelf: 'flex-start',
     marginTop: 8,
@@ -2076,38 +2032,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: themeColors.primary,
-  },
-  recommendedSplitRowYouSelected: {
-    marginTop: 4,
-    marginBottom: 0,
-  },
-  recommendedSplitLabel: {
-    fontSize: 13,
-    color: themeColors.textMuted,
-    fontWeight: '600',
-    marginRight: 8,
-  },
-  recommendedSplitValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: themeColors.text,
-  },
-  recommendedSplitValueMuted: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: themeColors.textSecondary,
-  },
-  recommendedSplitValueYouSelected: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: themeColors.primary,
-  },
-  recommendedSplitReason: {
-    fontSize: 12,
-    color: themeColors.textMuted,
-    fontStyle: 'italic',
-    marginTop: 8,
-    marginBottom: 6,
   },
   recommendedSplitWarning: {
     fontSize: 11,
@@ -2134,29 +2058,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: themeColors.textSecondary,
     marginTop: 6,
-    marginBottom: 2,
-  },
-  recommendedSplitPreview: {
-    fontSize: 12,
-    color: themeColors.textSecondary,
-    fontWeight: '500',
-  },
-  whyButton: {
-    alignSelf: 'flex-start',
-    marginTop: 6,
-  },
-  whyButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: themeColors.primary,
-  },
-  reasonBullets: {
-    marginTop: 6,
-    paddingLeft: 8,
-  },
-  reasonBulletText: {
-    fontSize: 11,
-    color: themeColors.textMuted,
     marginBottom: 2,
   },
   suggestedSchedulesSection: {
