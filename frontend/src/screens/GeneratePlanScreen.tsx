@@ -8,6 +8,8 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -115,11 +117,76 @@ interface GeneratePlanInputs {
   cardioFormat: CardioFormat;
   trainingSplitPreference: TrainingSplitPreference | null;
   customSplitHint: string;
+  /** When user saves a custom split from the sheet */
+  customSplit: CustomSplitData | null;
   equipmentAccess: EquipmentAccess[];
   age: number | null;
 }
 
 const DAYS_OF_WEEK: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+// Custom split builder — Day templates (Day 1, Day 2, …) + rotation rule; app maps to selected weekdays
+type PrimaryMuscle = 'Chest' | 'Back' | 'Legs' | 'Shoulders' | 'Arms' | 'Full Body';
+type SecondaryMuscle = 'Triceps' | 'Biceps' | 'Forearms' | 'Core' | 'Calves';
+type AbsPref = 'none' | 'sometimes' | 'often';
+type CardioPref = 'none' | 'easy' | 'mixed';
+type RotationRule = 'repeat_weekly' | 'rotate_forward' | 'auto_balance';
+
+export interface DayTemplate {
+  primary: PrimaryMuscle | null;
+  secondaries: SecondaryMuscle[];
+}
+export interface CustomSplitData {
+  name?: string;
+  id?: string;
+  templates: DayTemplate[];
+  rotationRule: RotationRule;
+  abs: AbsPref;
+  cardio: CardioPref;
+}
+export interface SavedCustomSplit extends CustomSplitData {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
+const PRIMARY_OPTIONS: PrimaryMuscle[] = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Full Body'];
+const SECONDARY_OPTIONS: SecondaryMuscle[] = ['Triceps', 'Biceps', 'Forearms', 'Core', 'Calves'];
+const ROTATION_LABELS: Record<RotationRule, string> = {
+  repeat_weekly: 'Repeat weekly',
+  rotate_forward: 'Rotate forward',
+  auto_balance: 'Auto-balance',
+};
+
+/** Base templates pre-fill Day 1..N. build(n) returns array of DayTemplate. */
+const TEMPLATES: { id: string; label: string; build: (n: number) => DayTemplate[] }[] = [
+  { id: 'bodypart', label: 'Body Part Split', build: (n) => Array.from({ length: n }, (_, i) => (i < 5 ? { primary: (['Chest', 'Back', 'Legs', 'Shoulders', 'Arms'] as PrimaryMuscle[])[i], secondaries: [] } : { primary: null, secondaries: [] })) },
+  { id: 'ppl', label: 'PPL', build: (n) => Array.from({ length: n }, (_, i) => ({ primary: (['Chest', 'Back', 'Legs'] as PrimaryMuscle[])[i % 3], secondaries: [] })) },
+  { id: 'ul', label: 'Upper/Lower', build: (n) => Array.from({ length: n }, (_, i) => ({ primary: (i % 2 === 0 ? 'Chest' : 'Legs') as PrimaryMuscle, secondaries: [] })) },
+  { id: 'blank', label: 'Blank', build: (n) => Array.from({ length: n }, () => ({ primary: null, secondaries: [] })) },
+];
+
+function normalizeCustomSplit(
+  value: CustomSplitData | null | undefined,
+  orderedDays: DayOfWeek[]
+): CustomSplitData {
+  if (!value) {
+    return { templates: [], rotationRule: 'repeat_weekly', abs: 'none', cardio: 'none' };
+  }
+  if ('templates' in value && Array.isArray(value.templates)) {
+    return { name: value.name, id: value.id, templates: value.templates, rotationRule: value.rotationRule ?? 'repeat_weekly', abs: value.abs, cardio: value.cardio };
+  }
+  const days = (value as { days?: Partial<Record<DayOfWeek, DayTemplate>> }).days;
+  const templates = orderedDays.map((d) => days?.[d] ?? { primary: null, secondaries: [] });
+  return { templates, rotationRule: 'repeat_weekly', abs: value.abs, cardio: value.cardio };
+}
+
+function autoNameFromTemplates(templates: DayTemplate[]): string {
+  return templates
+    .slice(0, 6)
+    .map((t) => (t.primary ? t.primary + (t.secondaries.length ? '+' + t.secondaries.slice(0, 2).map((s) => s.slice(0, 2)).join('+') : '') : '—'))
+    .join(' • ');
+}
 
 const GOAL_LABELS: Record<Goal, string> = {
   'fat loss': 'Fat loss',
@@ -282,12 +349,43 @@ export default function GeneratePlanScreen({ navigation }: Props) {
     cardioFormat: 'intervals',
     trainingSplitPreference: null,
     customSplitHint: '',
+    customSplit: null,
     equipmentAccess: [],
     age: null,
   });
   const [generating, setGenerating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showRecommendationDetails, setShowRecommendationDetails] = useState(false);
+  const [showCustomSplitSheet, setShowCustomSplitSheet] = useState(false);
+  const [customSplitDraft, setCustomSplitDraft] = useState<CustomSplitData>({ templates: [], rotationRule: 'repeat_weekly', abs: 'none', cardio: 'none' });
+  const [savedCustomSplits, setSavedCustomSplits] = useState<SavedCustomSplit[]>([]);
+  const [showSavedSplitsPicker, setShowSavedSplitsPicker] = useState(false);
+
+  const orderedTrainingDays = inputs.trainingDays.length ? [...inputs.trainingDays].sort((a, b) => DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b)) : [];
+  const defaultTemplateCount = Math.max(1, orderedTrainingDays.length);
+
+  const getDefaultDraft = useCallback((): CustomSplitData => {
+    const templates = Array.from({ length: defaultTemplateCount }, () => ({ primary: null, secondaries: [] as SecondaryMuscle[] }));
+    return { templates, rotationRule: 'repeat_weekly', abs: 'none', cardio: 'none' };
+  }, [defaultTemplateCount]);
+
+  const week1MappingPreview = useCallback((draft: CustomSplitData) => {
+    const N = draft.templates.length;
+    if (!N || !orderedTrainingDays.length) return '—';
+    return orderedTrainingDays
+      .map((_, i) => `Day ${(i % N) + 1}`)
+      .join(' • ');
+  }, [orderedTrainingDays]);
+
+  const week2StartsAtPreview = useCallback((draft: CustomSplitData) => {
+    if (draft.rotationRule !== 'rotate_forward') return null;
+    const N = draft.templates.length;
+    const D = orderedTrainingDays.length;
+    if (!N || !D) return null;
+    const startIndex = D % N;
+    if (startIndex === 0) return null;
+    return `Day ${startIndex + 1}`;
+  }, [orderedTrainingDays]);
 
   const stepWeeksDown = useCallback(() => setInputs(prev => ({ ...prev, weeks: Math.max(1, prev.weeks - 1) })), []);
   const stepWeeksUp = useCallback(() => setInputs(prev => ({ ...prev, weeks: Math.min(8, prev.weeks + 1) })), []);
@@ -474,6 +572,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           cardioFormat: inputs.cardioFormat,
           trainingSplitPreference: effectiveSplitPreference ?? inputs.trainingSplitPreference,
           customSplitHint: inputs.customSplitHint?.trim() || undefined,
+          customSplit: (inputs.trainingSplitPreference === 'custom' && inputs.customSplit ? inputs.customSplit : undefined) as RootStackParamList['PlanPreview']['inputs']['customSplit'],
           equipmentAccess: inputs.equipmentAccess,
           age: inputs.age ?? undefined,
         },
@@ -687,6 +786,15 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                 (split === 'ai decide' && (inputs.trainingSplitPreference === 'ai decide' || inputs.trainingSplitPreference === null));
               const handleSplitPress = () => {
                 if (isDisabled) return;
+                if (split === 'custom') {
+                  const normalized = normalizeCustomSplit(inputs.customSplit, orderedTrainingDays);
+                  const draft = normalized.templates.length > 0
+                    ? normalized
+                    : { ...getDefaultDraft(), name: normalized.name, id: normalized.id };
+                  setCustomSplitDraft(draft);
+                  setShowCustomSplitSheet(true);
+                  return;
+                }
                 setInputs(prev => ({ ...prev, trainingSplitPreference: split }));
                 if (recommendation && split === recommendation.recommendedSplit) setShowRecommendationDetails(true);
               };
@@ -771,20 +879,25 @@ export default function GeneratePlanScreen({ navigation }: Props) {
               );
             })}
           </View>
-          {inputs.trainingSplitPreference === 'custom' && (
-            <TextInput
-              style={styles.customSplitInput}
-              placeholder="Write your split (ex: chest/tri, back/bi…)"
-              placeholderTextColor={colors.textMuted}
-              value={inputs.customSplitHint}
-              onChangeText={(text) => setInputs(prev => ({ ...prev, customSplitHint: text }))}
-              multiline
-              maxLength={300}
-            />
+          {/* When custom split is saved: show compact label + View/Edit. Otherwise show Recommended row (don't show both). */}
+          {inputs.trainingSplitPreference === 'custom' && inputs.customSplit && (
+            <View style={styles.customSplitSavedBlock}>
+              <TouchableOpacity style={styles.recommendationCompactRow} onPress={() => { setCustomSplitDraft(normalizeCustomSplit(inputs.customSplit, orderedTrainingDays)); setShowCustomSplitSheet(true); }} activeOpacity={0.8}>
+                <Text style={styles.recommendationCompactText} numberOfLines={1}>
+                  {inputs.customSplit.name ? `Custom: ${inputs.customSplit.name}` : 'Custom split saved'}
+                </Text>
+                <Text style={styles.recommendationEditLink}>View/Edit</Text>
+              </TouchableOpacity>
+              <View style={styles.customSplitSavedActions}>
+                <Text style={styles.customSplitLastUsed}>Last used: {inputs.customSplit.name || autoNameFromTemplates(inputs.customSplit.templates) || '—'}</Text>
+                <TouchableOpacity onPress={() => setShowSavedSplitsPicker(true)} activeOpacity={0.8}>
+                  <Text style={styles.recommendationEditLink}>Choose saved split…</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
-
-          {/* Compact recommendation row — single line + chevron; collapsed by default; tap row or Recommended badge to expand */}
-          {recommendation && (
+          {/* Compact recommendation row — only when not using a saved custom split */}
+          {recommendation && !(inputs.trainingSplitPreference === 'custom' && inputs.customSplit) && (
             <>
               <TouchableOpacity
                 style={styles.recommendationCompactRow}
@@ -877,6 +990,241 @@ export default function GeneratePlanScreen({ navigation }: Props) {
             </>
           )}
         </View>
+
+        {/* Custom split builder — bottom sheet (Day templates + rotation) */}
+        <Modal visible={showCustomSplitSheet} animationType="slide" transparent onRequestClose={() => setShowCustomSplitSheet(false)}>
+          <Pressable style={styles.customSplitBackdrop} onPress={() => setShowCustomSplitSheet(false)}>
+            <Pressable style={styles.customSplitPanel} onPress={(e) => e.stopPropagation()}>
+              <Text style={styles.customSplitTitle}>Build your split</Text>
+              <Text style={styles.customSplitSubtitle}>Define Day 1, Day 2… We'll map them to your selected weekdays.</Text>
+
+              {/* Optional split name */}
+              <TextInput
+                style={styles.customSplitNameInput}
+                placeholder="Split name (optional)"
+                placeholderTextColor={themeColors.textMuted}
+                value={customSplitDraft.name ?? ''}
+                onChangeText={(text) => setCustomSplitDraft((prev) => ({ ...prev, name: text.trim() || undefined }))}
+              />
+
+              {/* Step 1: Base template */}
+              <Text style={styles.customSplitStepLabel}>Step 1: Choose a base template (optional)</Text>
+              <View style={styles.customSplitTemplatesRow}>
+                {TEMPLATES.map((t) => (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={styles.customSplitTemplateBtn}
+                    onPress={() => setCustomSplitDraft((prev) => {
+                      const n = Math.max(prev.templates.length || defaultTemplateCount, defaultTemplateCount);
+                      return { ...prev, templates: t.build(n) };
+                    })}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.customSplitTemplateBtnText}>{t.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Step 2: Day templates */}
+              <Text style={styles.customSplitStepLabel}>Step 2: Edit Day templates</Text>
+              <ScrollView style={styles.customSplitScroll} showsVerticalScrollIndicator={false}>
+                {(customSplitDraft.templates.length ? customSplitDraft.templates : [{ primary: null, secondaries: [] }]).map((dayData, idx) => (
+                  <View key={idx} style={styles.customSplitDayCard}>
+                    <View style={styles.customSplitDayCardHeader}>
+                      <Text style={styles.customSplitDayName}>Day {idx + 1}</Text>
+                      <View style={styles.customSplitDayActions}>
+                        <TouchableOpacity
+                          style={styles.customSplitDayActionBtn}
+                          onPress={() => setCustomSplitDraft((prev) => {
+                            const t = [...(prev.templates.length ? prev.templates : [{ primary: null, secondaries: [] }])];
+                            t.splice(idx + 1, 0, { primary: dayData.primary, secondaries: [...dayData.secondaries] });
+                            return { ...prev, templates: t };
+                          })}
+                        >
+                          <Text style={styles.customSplitDayActionText}>Duplicate</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.customSplitDayActionBtn}
+                          onPress={() => setCustomSplitDraft((prev) => {
+                            const t = [...(prev.templates.length ? prev.templates : [{ primary: null, secondaries: [] }])];
+                            t.splice(idx + 1, 0, { primary: null, secondaries: [] as SecondaryMuscle[] });
+                            return { ...prev, templates: t };
+                          })}
+                        >
+                          <Text style={styles.customSplitDayActionText}>Add below</Text>
+                        </TouchableOpacity>
+                        {customSplitDraft.templates.length > 1 && (
+                          <TouchableOpacity
+                            style={styles.customSplitDayActionBtn}
+                            onPress={() => setCustomSplitDraft((prev) => {
+                              const t = prev.templates.filter((_, i) => i !== idx);
+                              return { ...prev, templates: t.length ? t : [{ primary: null, secondaries: [] }] };
+                            })}
+                          >
+                            <Text style={styles.customSplitDayActionTextDanger}>Remove</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                    <Text style={styles.customSplitDayLabel}>Primary</Text>
+                    <View style={styles.customSplitChipsRow}>
+                      {PRIMARY_OPTIONS.map((opt) => (
+                        <TouchableOpacity
+                          key={opt}
+                          style={[styles.customSplitChip, dayData.primary === opt && styles.customSplitChipSelected]}
+                          onPress={() => setCustomSplitDraft((prev) => {
+                            const t = [...(prev.templates.length ? prev.templates : [{ primary: null, secondaries: [] }])];
+                            if (t[idx]) t[idx] = { ...t[idx], primary: opt };
+                            return { ...prev, templates: t };
+                          })}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[styles.customSplitChipText, dayData.primary === opt && styles.customSplitChipTextSelected]}>{opt}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <Text style={styles.customSplitDayLabel}>Secondary (0–2)</Text>
+                    <View style={styles.customSplitChipsRow}>
+                      {SECONDARY_OPTIONS.map((opt) => {
+                        const selected = dayData.secondaries.includes(opt);
+                        const canAdd = selected || dayData.secondaries.length < 2;
+                        return (
+                          <TouchableOpacity
+                            key={opt}
+                            style={[styles.customSplitChip, selected && styles.customSplitChipSelected, !canAdd && styles.customSplitChipDisabled]}
+                            onPress={() => {
+                              if (!canAdd) return;
+                              setCustomSplitDraft((prev) => {
+                                const t = [...(prev.templates.length ? prev.templates : [{ primary: null, secondaries: [] }])];
+                                if (!t[idx]) return prev;
+                                const next = selected ? t[idx].secondaries.filter((s) => s !== opt) : [...t[idx].secondaries, opt];
+                                t[idx] = { ...t[idx], secondaries: next };
+                                return { ...prev, templates: t };
+                              });
+                            }}
+                            activeOpacity={0.8}
+                            disabled={!canAdd}
+                          >
+                            <Text style={[styles.customSplitChipText, selected && styles.customSplitChipTextSelected]}>{opt}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={styles.customSplitAddDayBtn}
+                  onPress={() => setCustomSplitDraft((prev) => ({ ...prev, templates: [...(prev.templates.length ? prev.templates : [{ primary: null, secondaries: [] }]), { primary: null, secondaries: [] }] }))}
+                >
+                  <Text style={styles.customSplitAddDayBtnText}>+ Add day</Text>
+                </TouchableOpacity>
+
+                {/* How should we cycle? */}
+                <Text style={styles.customSplitStepLabel}>How should we cycle this?</Text>
+                <View style={styles.customSplitChipsRow}>
+                  {(['repeat_weekly', 'rotate_forward', 'auto_balance'] as RotationRule[]).map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[styles.customSplitChip, customSplitDraft.rotationRule === opt && styles.customSplitChipSelected]}
+                      onPress={() => setCustomSplitDraft((prev) => ({ ...prev, rotationRule: opt }))}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.customSplitChipText, customSplitDraft.rotationRule === opt && styles.customSplitChipTextSelected]}>{ROTATION_LABELS[opt]}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Add-ons */}
+                <View style={styles.customSplitAddons}>
+                  <Text style={styles.customSplitDayLabel}>Abs</Text>
+                  <View style={styles.customSplitChipsRow}>
+                    {(['none', 'sometimes', 'often'] as AbsPref[]).map((opt) => (
+                      <TouchableOpacity key={opt} style={[styles.customSplitChip, customSplitDraft.abs === opt && styles.customSplitChipSelected]} onPress={() => setCustomSplitDraft((prev) => ({ ...prev, abs: opt }))} activeOpacity={0.8}>
+                        <Text style={[styles.customSplitChipText, customSplitDraft.abs === opt && styles.customSplitChipTextSelected]}>{opt}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={styles.customSplitDayLabel}>Cardio</Text>
+                  <View style={styles.customSplitChipsRow}>
+                    {(['none', 'easy', 'mixed'] as CardioPref[]).map((opt) => (
+                      <TouchableOpacity key={opt} style={[styles.customSplitChip, customSplitDraft.cardio === opt && styles.customSplitChipSelected]} onPress={() => setCustomSplitDraft((prev) => ({ ...prev, cardio: opt }))} activeOpacity={0.8}>
+                        <Text style={[styles.customSplitChipText, customSplitDraft.cardio === opt && styles.customSplitChipTextSelected]}>{opt}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Step 3: Preview */}
+                <Text style={styles.customSplitStepLabel}>Step 3: Preview</Text>
+                <Text style={styles.customSplitPreviewLabel}>Your selected days</Text>
+                <Text style={styles.customSplitPreviewLine}>{orderedTrainingDays.length ? orderedTrainingDays.map((d) => d.slice(0, 3)).join(' ') : '—'}</Text>
+                <Text style={styles.customSplitPreviewLabel}>Week 1 mapping</Text>
+                <Text style={styles.customSplitPreviewLine}>{week1MappingPreview(customSplitDraft)}</Text>
+                {week2StartsAtPreview(customSplitDraft) && (
+                  <Text style={styles.customSplitPreviewLine}>Week 2 starts at {week2StartsAtPreview(customSplitDraft)}</Text>
+                )}
+                <View style={{ height: 80 }} />
+              </ScrollView>
+
+              {/* Sticky footer */}
+              <View style={styles.customSplitFooter}>
+                <TouchableOpacity style={styles.customSplitCancelBtn} onPress={() => setShowCustomSplitSheet(false)} activeOpacity={0.8}>
+                  <Text style={styles.customSplitCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.customSplitSaveBtn}
+                  onPress={() => {
+                    const templates = customSplitDraft.templates.length ? customSplitDraft.templates : [{ primary: null, secondaries: [] }];
+                    const name = (customSplitDraft.name?.trim() || autoNameFromTemplates(templates)) || 'Custom split';
+                    const payload: CustomSplitData = { ...customSplitDraft, templates, name };
+                    const saved: SavedCustomSplit = { ...payload, id: payload.id ?? `split-${Date.now()}`, name, createdAt: Date.now() };
+                    setSavedCustomSplits((prev) => {
+                      const without = prev.filter((s) => s.id !== saved.id);
+                      return [...without, saved];
+                    });
+                    setInputs((prev) => ({ ...prev, trainingSplitPreference: 'custom', customSplit: { ...payload, id: saved.id } }));
+                    setShowCustomSplitSheet(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.customSplitSaveBtnText}>Save split</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* Choose saved split — modal list */}
+        <Modal visible={showSavedSplitsPicker} animationType="slide" transparent onRequestClose={() => setShowSavedSplitsPicker(false)}>
+          <Pressable style={styles.customSplitBackdrop} onPress={() => setShowSavedSplitsPicker(false)}>
+            <View style={[styles.customSplitPanel, { maxHeight: '60%' }]}>
+              <Text style={styles.customSplitTitle}>Choose saved split</Text>
+              <ScrollView style={styles.customSplitScroll}>
+                {savedCustomSplits.length === 0 ? (
+                  <Text style={styles.customSplitPreviewLine}>No saved splits yet. Create one in View/Edit.</Text>
+                ) : (
+                  savedCustomSplits.map((s) => (
+                    <TouchableOpacity
+                      key={s.id}
+                      style={styles.customSplitSavedRow}
+                      onPress={() => {
+                        setInputs((prev) => ({ ...prev, trainingSplitPreference: 'custom', customSplit: { ...s } }));
+                        setShowSavedSplitsPicker(false);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.customSplitSavedRowName}>{s.name}</Text>
+                      <Text style={styles.customSplitPreviewLine} numberOfLines={1}>{autoNameFromTemplates(s.templates)}</Text>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+              <TouchableOpacity style={styles.customSplitCancelBtn} onPress={() => setShowSavedSplitsPicker(false)}>
+                <Text style={styles.customSplitCancelBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
 
         {/* Primary location */}
         <View style={styles.section}>
@@ -1983,6 +2331,11 @@ const styles = StyleSheet.create({
     color: themeColors.textSecondary,
     flex: 1,
   },
+  recommendationEditLink: {
+    fontSize: 13,
+    color: themeColors.primary,
+    fontWeight: '600',
+  },
   recommendationChevron: {
     marginLeft: 8,
   },
@@ -2244,6 +2597,232 @@ const styles = StyleSheet.create({
     color: themeColors.text,
     minHeight: 72,
     textAlignVertical: 'top',
+  },
+  customSplitBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  customSplitPanel: {
+    backgroundColor: themeColors.background,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '85%',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  customSplitTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: themeColors.text,
+    marginBottom: 4,
+  },
+  customSplitSubtitle: {
+    fontSize: 14,
+    color: themeColors.textSecondary,
+    marginBottom: 12,
+  },
+  customSplitNameInput: {
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    color: themeColors.text,
+    marginBottom: 12,
+    backgroundColor: themeColors.surface,
+  },
+  customSplitStepLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: themeColors.text,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  customSplitTemplatesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  customSplitTemplateBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: themeColors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  customSplitTemplateBtnText: {
+    fontSize: 13,
+    color: themeColors.text,
+    fontWeight: '600',
+  },
+  customSplitScroll: {
+    maxHeight: 320,
+  },
+  customSplitDayCard: {
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: themeColors.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  customSplitDayCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  customSplitDayName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: themeColors.text,
+  },
+  customSplitDayActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  customSplitDayActionBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  customSplitDayActionText: {
+    fontSize: 12,
+    color: themeColors.primary,
+    fontWeight: '600',
+  },
+  customSplitDayActionTextDanger: {
+    fontSize: 12,
+    color: themeColors.error ?? '#c00',
+    fontWeight: '600',
+  },
+  customSplitAddDayBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: themeColors.border,
+    borderRadius: 8,
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  customSplitAddDayBtnText: {
+    fontSize: 14,
+    color: themeColors.primary,
+    fontWeight: '600',
+  },
+  customSplitDayLabel: {
+    fontSize: 12,
+    color: themeColors.textMuted,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  customSplitChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  customSplitChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: themeColors.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  customSplitChipSelected: {
+    borderColor: themeColors.primary,
+    backgroundColor: themeColors.primary + '20',
+  },
+  customSplitChipDisabled: {
+    opacity: 0.5,
+  },
+  customSplitChipText: {
+    fontSize: 12,
+    color: themeColors.textSecondary,
+  },
+  customSplitChipTextSelected: {
+    color: themeColors.primary,
+    fontWeight: '600',
+  },
+  customSplitAddons: {
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  customSplitPreviewLabel: {
+    fontSize: 12,
+    color: themeColors.textMuted,
+    marginBottom: 4,
+  },
+  customSplitPreviewLine: {
+    fontSize: 13,
+    color: themeColors.text,
+  },
+  customSplitWarning: {
+    fontSize: 12,
+    color: themeColors.warning ?? themeColors.error,
+    marginTop: 6,
+  },
+  customSplitFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: themeColors.border,
+  },
+  customSplitCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  customSplitCancelBtnText: {
+    fontSize: 15,
+    color: themeColors.textSecondary,
+  },
+  customSplitSaveBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: themeColors.primary,
+  },
+  customSplitSaveBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  customSplitSavedBlock: {
+    marginTop: 10,
+  },
+  customSplitSavedActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingHorizontal: 12,
+  },
+  customSplitLastUsed: {
+    fontSize: 12,
+    color: themeColors.textMuted,
+  },
+  customSplitSavedRow: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: themeColors.border,
+  },
+  customSplitSavedRowName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: themeColors.text,
+    marginBottom: 2,
   },
   timeSeparator: {
     fontSize: 16,

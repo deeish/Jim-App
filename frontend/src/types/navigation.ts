@@ -72,6 +72,14 @@ export type RootStackParamList = {
       cardioFormat: 'intervals' | 'steady-state' | 'tempo';
       trainingSplitPreference?: string | null;
       customSplitHint?: string;
+      customSplit?: {
+        name?: string;
+        id?: string;
+        templates: { primary: string | null; secondaries: string[] }[];
+        rotationRule: 'repeat_weekly' | 'rotate_forward' | 'auto_balance';
+        abs: string;
+        cardio: string;
+      } | null;
       equipmentAccess?: string[];
       age?: number;
     };
