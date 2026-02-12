@@ -66,4 +66,8 @@ export class CreateWorkoutDto {
   @ValidateNested({ each: true })
   @Type(() => CreateExerciseDto)
   exercises: CreateExerciseDto[];
+
+  /** Optional cardio finisher (not in exercises[]). Used when focus includes "+ run" or "+ cardio". */
+  @IsOptional()
+  cardioFinisher?: { suggestion: string };
 }

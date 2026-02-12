@@ -25,7 +25,8 @@ api.interceptors.request.use(
     }
     if (__DEV__ && config.url?.includes('plans')) {
       const method = (config.method ?? 'get').toUpperCase();
-      console.log(`[API] ${method}`, config.url, 'token:', !!session?.access_token);
+      const fullUrl = config.baseURL ? `${config.baseURL.replace(/\/$/, '')}${config.url?.startsWith('/') ? '' : '/'}${config.url ?? ''}` : config.url;
+      console.log(`[API] ${method}`, fullUrl, '| token:', !!session?.access_token);
     }
     return config;
   },
@@ -36,6 +37,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
+    if (__DEV__ && error.config) {
+      const fullUrl = error.config.baseURL
+        ? `${error.config.baseURL.replace(/\/$/, '')}${error.config.url?.startsWith('/') ? '' : '/'}${error.config.url ?? ''}`
+        : error.config.url;
+      const status = error.response?.status;
+      const code = (error as { code?: string }).code;
+      if (status === 404) {
+        console.warn('[API] 404 Not Found:', fullUrl, '– Check that the backend is running and the route exists.');
+      } else if (code === 'ECONNABORTED') {
+        console.warn('[API] Request timed out:', fullUrl);
+      } else if (code === 'ERR_NETWORK' || code === 'ECONNREFUSED') {
+        console.warn('[API] Connection failed:', fullUrl, '– Start backend: cd backend && npm run start:dev');
+      } else if (status && status >= 400) {
+        console.warn('[API] Error', status, fullUrl);
+      }
+    }
     if (error.response?.status === 401) {
       const headers = error.config?.headers as Record<string, string> | undefined;
       const hadToken = !!(headers?.Authorization ?? headers?.authorization);

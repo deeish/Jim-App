@@ -27,5 +27,11 @@ export class GenerateWorkoutDto {
     programTemplateId?: string;
     /** This day's role in the program (e.g. "Push", "Upper 1") for reasoning */
     programDayFocus?: string;
+    /** "simple" = fewer exercises, shorter reasoning; "detailed" = more exercises, longer warmup/cooldown/reasoning */
+    detailLevel?: 'simple' | 'detailed';
+    /** Exercise IDs to exclude (e.g. already used this week) for variety */
+    excludeExerciseIds?: string[];
+    /** Exercise names to exclude (e.g. "Deadlift") when replacing one exercise */
+    excludeExerciseNames?: string[];
   };
 }

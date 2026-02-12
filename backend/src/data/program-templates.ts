@@ -13,7 +13,11 @@ export type FocusKey =
   | 'upper body'
   | 'lower body'
   | 'cardio'
-  | 'recovery';
+  | 'recovery'
+  | 'chest'
+  | 'back'
+  | 'shoulders'
+  | 'arms';
 
 export interface ProgramDay {
   /** Display label e.g. "Push", "Upper", "Lower" */
@@ -80,7 +84,7 @@ export const PROGRAM_TEMPLATES: ProgramTemplate[] = [
   },
 ];
 
-/** Normalize frontend focus text (e.g. "Upper Body", "Lower Body + Run") to a key we can map to slots. */
+/** Normalize frontend focus text (e.g. "Upper Body", "Chest", "Back") to a key we can map to slots. */
 export function normalizeFocusToKey(focus: string): FocusKey | string {
   const lower = focus.toLowerCase().trim();
   if (/^push\b/.test(lower)) return 'push';
@@ -89,6 +93,10 @@ export function normalizeFocusToKey(focus: string): FocusKey | string {
   if (/^upper\b/.test(lower) || lower === 'upper body') return 'upper';
   if (/full body|\+ *run|\+ *cardio/.test(lower)) return lower.includes('run') || lower.includes('cardio') ? 'full body' : 'full body';
   if (/cardio|recovery/.test(lower)) return lower.includes('recovery') ? 'recovery' : 'cardio';
+  if (/^chest\b/.test(lower)) return 'chest';
+  if (/^back\b/.test(lower)) return 'back';
+  if (/^shoulders?\b/.test(lower)) return 'shoulders';
+  if (/^arms\b/.test(lower)) return 'arms';
   return lower.split(/\+|&|,/)[0].trim() || 'full body';
 }
 
@@ -173,6 +181,27 @@ export const SLOTS_BY_FOCUS: Record<string, SlotDefinition[]> = {
     { role: 'accessory_1', description: 'Upper pull (row or pulldown)', min: 1, max: 1 },
     { role: 'accessory_2', description: 'Accessory (arms, shoulders, or core)', min: 1, max: 1 },
     { role: 'finisher', description: 'Optional core or cardio', min: 0, max: 1 },
+  ],
+  chest: [
+    { role: 'main_compound_1', description: 'Horizontal push (bench press)', min: 1, max: 1 },
+    { role: 'main_compound_2', description: 'Incline or variation', min: 1, max: 1 },
+    { role: 'accessory_1', description: 'Chest isolation (fly, crossover)', min: 1, max: 1 },
+    { role: 'accessory_2', description: 'Optional dip or push-up', min: 0, max: 1 },
+  ],
+  back: [
+    { role: 'main_compound_1', description: 'Vertical pull (pulldown, pull-up)', min: 1, max: 1 },
+    { role: 'main_compound_2', description: 'Horizontal pull (row)', min: 1, max: 1 },
+    { role: 'accessory_1', description: 'Back or bicep isolation', min: 1, max: 1 },
+  ],
+  shoulders: [
+    { role: 'main_compound_1', description: 'Overhead press', min: 1, max: 1 },
+    { role: 'accessory_1', description: 'Lateral or front raise', min: 1, max: 1 },
+    { role: 'accessory_2', description: 'Rear delt or isolation', min: 1, max: 1 },
+  ],
+  arms: [
+    { role: 'main_compound_1', description: 'Triceps (pushdown, extension, dip)', min: 1, max: 1 },
+    { role: 'main_compound_2', description: 'Biceps (curl)', min: 1, max: 1 },
+    { role: 'accessory_1', description: 'Additional arm isolation', min: 1, max: 1 },
   ],
   cardio: [],
   recovery: [],

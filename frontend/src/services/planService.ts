@@ -80,6 +80,79 @@ export async function updatePlan(id: string, body: CreatePlanBody): Promise<ApiP
   return response.data;
 }
 
+/** Request body for POST /plans/generate-sessions (LLM-generated session content). */
+export interface GenerateSessionsRequest {
+  goal?: string;
+  location?: 'gym' | 'home';
+  detailLevel?: 'simple' | 'detailed';
+  avoidConstraints?: string[];
+  makeItEasier?: boolean;
+  sessions: Array<{
+    type: 'strength' | 'cardio' | 'recovery';
+    title?: string;
+    durationMin: number;
+    durationMax: number;
+    isHardDay: boolean;
+    weekIndex: number;
+    weekday: string;
+    avoidConstraints?: string[];
+  }>;
+}
+
+/** One session in the generate-sessions response. */
+export interface GenerateSessionResult {
+  weekIndex: number;
+  weekday: string;
+  name: string;
+  reasoning?: string;
+  warmUp?: string;
+  coolDown?: string;
+  /** Optional cardio finisher (not in exercises). */
+  cardioFinisher?: { suggestion: string };
+  exercises: Array<{
+    name: string;
+    sets: number;
+    reps: number;
+    weight?: number;
+    notes?: string;
+    exerciseId?: string;
+  }>;
+}
+
+const GENERATE_SESSIONS_TIMEOUT_MS = 90_000;
+
+export async function generateSessions(body: GenerateSessionsRequest): Promise<{ sessions: GenerateSessionResult[] }> {
+  const response = await api.post<{ sessions: GenerateSessionResult[] }>('/plans/generate-sessions', body, {
+    timeout: GENERATE_SESSIONS_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+/** Request for POST /plans/generate-single-session (regenerate one session, e.g. to replace an exercise). */
+export interface GenerateSingleSessionRequest {
+  goal?: string;
+  location?: 'gym' | 'home';
+  detailLevel?: 'simple' | 'detailed';
+  avoidConstraints?: string[];
+  type: 'strength' | 'cardio' | 'recovery';
+  title?: string;
+  durationMin: number;
+  durationMax: number;
+  isHardDay: boolean;
+  weekIndex: number;
+  weekday: string;
+  excludeExerciseNames?: string[];
+}
+
+export async function generateSingleSession(
+  body: GenerateSingleSessionRequest
+): Promise<GenerateSessionResult> {
+  const response = await api.post<GenerateSessionResult>('/plans/generate-single-session', body, {
+    timeout: 60000,
+  });
+  return response.data;
+}
+
 /** Remove a single slot from the plan. Returns the updated plan. */
 export async function removePlanSlot(planId: string, slotId: string): Promise<ApiPlan> {
   const url = `/plans/${planId}/slots/remove`;

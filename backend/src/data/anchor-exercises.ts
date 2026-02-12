@@ -75,7 +75,7 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
   ],
 };
 
-/** Get anchor exercise IDs for a focus (normalized key). Returns empty array for cardio/recovery. */
+/** Get anchor exercise IDs for a focus (normalized key). Returns empty array for cardio/recovery/body-part. */
 export function getAnchorIdsForFocus(focus: string): string[] {
   const key = focus.toLowerCase().trim();
   if (/^push\b/.test(key)) return ANCHOR_EXERCISES_BY_FOCUS.push ?? [];
@@ -83,5 +83,6 @@ export function getAnchorIdsForFocus(focus: string): string[] {
   if (/^legs\b|^lower\b|lower body/.test(key)) return ANCHOR_EXERCISES_BY_FOCUS.lower ?? ANCHOR_EXERCISES_BY_FOCUS['lower body'] ?? [];
   if (/^upper\b|upper body/.test(key)) return ANCHOR_EXERCISES_BY_FOCUS.upper ?? ANCHOR_EXERCISES_BY_FOCUS['upper body'] ?? [];
   if (/full body/.test(key)) return ANCHOR_EXERCISES_BY_FOCUS['full body'] ?? [];
+  if (/^chest\b|^back\b|^shoulders?\b|^arms\b/.test(key)) return [];
   return [];
 }

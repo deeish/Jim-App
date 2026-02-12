@@ -25,6 +25,7 @@ import {
   splitFamilyToLabel,
   DAY_TYPE_LABELS,
 } from '../lib/planRecommendation';
+import { buildPlanInputs, planInputsToFormPatch } from '../lib/planInputs';
 
 type GeneratePlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'GeneratePlan'>;
 type GeneratePlanScreenRouteProp = RouteProp<RootStackParamList, 'GeneratePlan'>;
@@ -145,6 +146,7 @@ export interface SavedCustomSplit extends CustomSplitData {
   id: string;
   name: string;
   createdAt: number;
+  lastUsedAt?: number;
 }
 
 const PRIMARY_OPTIONS: PrimaryMuscle[] = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Full Body'];
@@ -311,7 +313,7 @@ function getProgressionTargetOptions(goal: Goal | null): ProgressionTarget[] {
   }
 }
 
-export default function GeneratePlanScreen({ navigation }: Props) {
+export default function GeneratePlanScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const [inputs, setInputs] = useState<GeneratePlanInputs>({
     goal: null,
@@ -366,8 +368,16 @@ export default function GeneratePlanScreen({ navigation }: Props) {
   const [showRecommendationDetails, setShowRecommendationDetails] = useState(false);
   const [showCustomSplitSheet, setShowCustomSplitSheet] = useState(false);
   const [customSplitDraft, setCustomSplitDraft] = useState<CustomSplitData>({ templates: [], rotationRule: 'repeat_weekly', abs: 'none', cardio: 'none' });
+  const [allowMultipleMainFocus, setAllowMultipleMainFocus] = useState(false);
   const [savedCustomSplits, setSavedCustomSplits] = useState<SavedCustomSplit[]>([]);
   const [showSavedSplitsPicker, setShowSavedSplitsPicker] = useState(false);
+
+  const editFromSnapshot = route.params?.editFromSnapshot;
+  useEffect(() => {
+    if (!editFromSnapshot) return;
+    const patch = planInputsToFormPatch(editFromSnapshot) as Partial<GeneratePlanInputs>;
+    setInputs((prev) => ({ ...prev, ...patch }));
+  }, [editFromSnapshot]);
 
   const orderedTrainingDays = inputs.trainingDays.length ? [...inputs.trainingDays].sort((a, b) => DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b)) : [];
   const defaultTemplateCount = Math.max(1, orderedTrainingDays.length);
@@ -530,7 +540,29 @@ export default function GeneratePlanScreen({ navigation }: Props) {
 
     setTimeout(() => {
       setGenerating(false);
+      const planInputs = buildPlanInputs({
+        form: {
+          goal: inputs.goal!,
+          programType: inputs.programType ?? '',
+          trainingDays: inputs.trainingDays,
+          timePerSession: inputs.timePerSession,
+          primaryLocation: inputs.primaryLocation,
+          weeks: inputs.weeks,
+          workoutDetailLevel: inputs.workoutDetailLevel,
+          progressionStyle: inputs.progressionStyle,
+          maxHardDaysInRow: inputs.maxHardDaysInRow,
+          maxHardDaysPerWeek: inputs.maxHardDaysPerWeek,
+          avoidList: inputs.avoidList,
+          sessionCaps: inputs.sessionCaps,
+          useAdvancedDurationCaps: inputs.useAdvancedDurationCaps,
+          trainingSplitPreference: inputs.trainingSplitPreference,
+          customSplit: inputs.trainingSplitPreference === 'custom' && inputs.customSplit ? inputs.customSplit : null,
+        },
+        effectiveSplitPreference: effectiveSplitPreference ?? null,
+        useRecommended: !!(recommendation && effectiveSplitPreference === recommendation.recommendedSplit),
+      });
       navigation.navigate('PlanPreview', {
+        planInputs,
         inputs: {
           goal: inputs.goal!,
           programType: inputs.programType || '',
@@ -787,6 +819,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                     ? normalized
                     : { ...getDefaultDraft(), name: normalized.name, id: normalized.id };
                   setCustomSplitDraft(draft);
+                  setAllowMultipleMainFocus(draft.templates.some((t) => t.primaries.length > 1));
                   setShowCustomSplitSheet(true);
                   return;
                 }
@@ -877,7 +910,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
           {/* When custom split is saved: show compact label + View/Edit. Otherwise show Recommended row (don't show both). */}
           {inputs.trainingSplitPreference === 'custom' && inputs.customSplit && (
             <View style={styles.customSplitSavedBlock}>
-              <TouchableOpacity style={styles.recommendationCompactRow} onPress={() => { setCustomSplitDraft(normalizeCustomSplit(inputs.customSplit, orderedTrainingDays)); setShowCustomSplitSheet(true); }} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.recommendationCompactRow} onPress={() => { const d = normalizeCustomSplit(inputs.customSplit, orderedTrainingDays); setCustomSplitDraft(d); setAllowMultipleMainFocus(d.templates.some((t) => t.primaries.length > 1)); setShowCustomSplitSheet(true); }} activeOpacity={0.8}>
                 <Text style={styles.recommendationCompactText} numberOfLines={1}>
                   {inputs.customSplit.name ? `Custom: ${inputs.customSplit.name}` : 'Custom split saved'}
                 </Text>
@@ -1022,6 +1055,20 @@ export default function GeneratePlanScreen({ navigation }: Props) {
 
               {/* Step 2: Workout days (templates) */}
               <Text style={styles.customSplitStepLabel}>Step 2: Build your workout days (templates)</Text>
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleLabelContainer}>
+                  <Text style={styles.customSplitDayLabel}>Advanced: allow multiple main focuses</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.toggleSwitch, allowMultipleMainFocus && styles.toggleSwitchOn]}
+                  onPress={() => setAllowMultipleMainFocus((v) => !v)}
+                >
+                  <View style={[styles.toggleThumb, allowMultipleMainFocus && styles.toggleThumbOn]} />
+                </TouchableOpacity>
+              </View>
+              {allowMultipleMainFocus && (
+                <Text style={styles.customSplitWarning}>Volume may be high; keep sessions longer.</Text>
+              )}
               <ScrollView style={styles.customSplitScroll} showsVerticalScrollIndicator={false}>
                 {(customSplitDraft.templates.length ? customSplitDraft.templates : [{ primaries: [], secondaries: [] }]).map((dayData, idx) => (
                   <View key={`template-${idx}`} style={styles.customSplitDayCard} collapsable={false}>
@@ -1063,13 +1110,18 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                     </View>
                     <View style={styles.customSplitDayCardBody}>
                       <View style={styles.customSplitLabelRow}>
-                        <Text style={styles.customSplitDayLabel}>Main focus (pick 1–2)</Text>
-                        <Text style={styles.customSplitCounter}>{dayData.primaries.length}/2 selected</Text>
+                        <Text style={styles.customSplitDayLabel}>
+                          {allowMultipleMainFocus ? 'Main focus (pick 1–2)' : 'Main focus (pick 1)'}
+                        </Text>
+                        <Text style={styles.customSplitCounter}>
+                          {dayData.primaries.length}/{allowMultipleMainFocus ? 2 : 1} selected
+                        </Text>
                       </View>
                       <View style={styles.customSplitChipsRow}>
                         {PRIMARY_OPTIONS.map((opt) => {
+                          const maxPrimaries = allowMultipleMainFocus ? 2 : 1;
                           const selected = dayData.primaries.includes(opt);
-                          const canAdd = !selected && dayData.primaries.length < 2;
+                          const canAdd = !selected && dayData.primaries.length < maxPrimaries;
                           const canTap = selected || canAdd;
                           return (
                             <TouchableOpacity
@@ -1080,7 +1132,7 @@ export default function GeneratePlanScreen({ navigation }: Props) {
                                 setCustomSplitDraft((prev) => {
                                   const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], secondaries: [] }])];
                                   if (!t[idx]) return prev;
-                                  const next = selected ? t[idx].primaries.filter((p) => p !== opt) : [...t[idx].primaries, opt].slice(0, 2);
+                                  const next = selected ? t[idx].primaries.filter((p) => p !== opt) : [...t[idx].primaries, opt].slice(0, allowMultipleMainFocus ? 2 : 1);
                                   t[idx] = { ...t[idx], primaries: next };
                                   return { ...prev, templates: t };
                                 });
@@ -1197,7 +1249,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                     }
                     const name = (customSplitDraft.name?.trim() || autoNameFromTemplates(templates)) || 'Custom split';
                     const payload: CustomSplitData = { ...customSplitDraft, templates, name };
-                    const saved: SavedCustomSplit = { ...payload, id: payload.id ?? `split-${Date.now()}`, name, createdAt: Date.now() };
+                    const now = Date.now();
+                    const saved: SavedCustomSplit = { ...payload, id: payload.id ?? `split-${now}`, name, createdAt: now, lastUsedAt: now };
                     setSavedCustomSplits((prev) => {
                       const without = prev.filter((s) => s.id !== saved.id);
                       return [...without, saved];
@@ -1228,7 +1281,9 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                       key={s.id}
                       style={styles.customSplitSavedRow}
                       onPress={() => {
-                        setInputs((prev) => ({ ...prev, trainingSplitPreference: 'custom', customSplit: { ...s } }));
+                        const updated = { ...s, lastUsedAt: Date.now() };
+                        setInputs((prev) => ({ ...prev, trainingSplitPreference: 'custom', customSplit: updated }));
+                        setSavedCustomSplits((prev) => prev.map((x) => (x.id === s.id ? updated : x)));
                         setShowSavedSplitsPicker(false);
                       }}
                       activeOpacity={0.8}

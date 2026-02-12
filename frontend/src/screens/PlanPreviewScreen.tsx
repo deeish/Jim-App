@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,10 @@ import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { colors as themeColors } from '../theme/colors';
-import { createPlan, type PlanSlot } from '../services/planService';
+import { createPlan, generateSingleSession, type PlanSlot } from '../services/planService';
 import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
+import { runPipeline, runPipelineSafe, planDraftToWeekPlans, type PipelineDebugInfo } from '../lib/planPipeline';
+import type { PlanDraft } from '../types/plan';
 
 type PlanPreviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlanPreview'>;
 type PlanPreviewScreenRouteProp = RouteProp<RootStackParamList, 'PlanPreview'>;
@@ -208,9 +210,16 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
   return weeks;
 }
 
+function getInitialPlanData(
+  inputs: RootStackParamList['PlanPreview']['inputs'],
+  draftId: string
+): WeekPlan[] {
+  return generateFullPlan(inputs, draftId);
+}
+
 export default function PlanPreviewScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
-  const { inputs, draftId } = route.params;
+  const { inputs, draftId, planInputs } = route.params;
   const [applying, setApplying] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [regenerating, setRegenerating] = useState<string | null>(null);
@@ -220,11 +229,45 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const [previewCard, setPreviewCard] = useState<{ workout: PlanWorkout; day: string } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<WorkoutPreview | null>(null);
-  
-  // Generate full plan for all weeks
-  const [planData, setPlanData] = useState<WeekPlan[]>(() => 
-    generateFullPlan(inputs, draftId)
+  const [replacingExerciseName, setReplacingExerciseName] = useState<string | null>(null);
+
+  const [loadingPreview, setLoadingPreview] = useState(!!planInputs);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null);
+  const [planData, setPlanData] = useState<WeekPlan[]>(() =>
+    planInputs ? [] : getInitialPlanData(inputs, draftId)
   );
+  const [debugInfo, setDebugInfo] = useState<PipelineDebugInfo | null>(null);
+  const [debugPanelOpen, setDebugPanelOpen] = useState(false);
+
+  useEffect(() => {
+    if (!planInputs) return;
+    setGenerateError(null);
+    setLoadingPreview(true);
+    let cancelled = false;
+    const frameId = requestAnimationFrame(async () => {
+      try {
+        const result = await runPipelineSafe(planInputs, draftId, {
+          captureDebug: __DEV__,
+          repairIfInvalid: true,
+        });
+        if (cancelled) return;
+        if (result.ok) {
+          setPlanDraft(result.draft);
+          setPlanData(planDraftToWeekPlans(result.draft) as WeekPlan[]);
+          if (result.debug) setDebugInfo(result.debug);
+        } else {
+          setGenerateError(result.error || "Couldn't generate. Try again.");
+        }
+      } finally {
+        if (!cancelled) setLoadingPreview(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frameId);
+    };
+  }, [planInputs, draftId]);
   
   const currentWeek = planData.find(w => w.weekNumber === selectedWeek) || planData[0];
   
@@ -291,57 +334,126 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     }
   }, [inputs.goal, inputs.experienceLevel, inputs.availableEquipment, inputs.avoidList, inputs.programType]);
 
+  const handleRetryGenerate = useCallback(async () => {
+    if (!planInputs) return;
+    setGenerateError(null);
+    setLoadingPreview(true);
+    try {
+      const result = await runPipelineSafe(planInputs, draftId, {
+        captureDebug: __DEV__,
+        repairIfInvalid: true,
+      });
+      if (result.ok) {
+        setPlanDraft(result.draft);
+        setPlanData(planDraftToWeekPlans(result.draft) as WeekPlan[]);
+        if (result.debug) setDebugInfo(result.debug);
+      } else {
+        setGenerateError(result.error || "Couldn't generate. Try again.");
+      }
+    } finally {
+      setLoadingPreview(false);
+    }
+  }, [planInputs, draftId]);
+
   const handleRegenerateWeek = async (weekNum: number) => {
     setRegenerating(`week-${weekNum}`);
-    // Simulate regeneration
-    setTimeout(() => {
-      const newPlan = generateFullPlan(inputs, draftId);
-      setPlanData(prev => prev.map(w => 
-        w.weekNumber === weekNum ? newPlan[weekNum - 1] : w
-      ));
+    try {
+      if (planInputs) {
+        const result = await runPipelineSafe(planInputs, draftId, { repairIfInvalid: true });
+        if (!result.ok) {
+          Alert.alert('Regeneration failed', result.error || "Couldn't generate. Try again.");
+          return;
+        }
+        setPlanDraft(result.draft);
+        const weekPlans = planDraftToWeekPlans(result.draft) as WeekPlan[];
+        setPlanData((prev) =>
+          prev.map((w) => (w.weekNumber === weekNum ? weekPlans[weekNum - 1] : w))
+        );
+      } else {
+        await new Promise((r) => setTimeout(r, 1500));
+        const newPlan = generateFullPlan(inputs, draftId);
+        setPlanData((prev) =>
+          prev.map((w) => (w.weekNumber === weekNum ? newPlan[weekNum - 1] : w))
+        );
+      }
+    } catch (_e) {
+      Alert.alert('Regeneration failed', "Couldn't generate. Try again.");
+    } finally {
       setRegenerating(null);
-    }, 1500);
+    }
   };
-  
+
   const handleRegenerateCardioOnly = async () => {
     setRegenerating('cardio');
-    // Simulate regenerating only cardio workouts
-    setTimeout(() => {
-      setPlanData(prev => prev.map(week => ({
-        ...week,
-        workouts: Object.fromEntries(
-          Object.entries(week.workouts).map(([day, workouts]) => [
-            day,
-            workouts.map(w => 
-              w.type === 'cardio' 
-                ? { ...w, title: 'New Cardio', detailLine: 'Regenerated', changeType: 'replaced' as const }
-                : w
-            )
-          ])
-        )
-      })));
+    try {
+      if (planInputs) {
+        const result = await runPipelineSafe(planInputs, draftId, { repairIfInvalid: true });
+        if (!result.ok) {
+          Alert.alert('Regeneration failed', result.error || "Couldn't generate. Try again.");
+          return;
+        }
+        setPlanDraft(result.draft);
+        setPlanData(planDraftToWeekPlans(result.draft) as WeekPlan[]);
+      } else {
+        await new Promise((r) => setTimeout(r, 1500));
+        setPlanData((prev) =>
+          prev.map((week) => ({
+            ...week,
+            workouts: Object.fromEntries(
+              Object.entries(week.workouts).map(([day, workouts]) => [
+                day,
+                workouts.map((w) =>
+                  w.type === 'cardio'
+                    ? { ...w, title: 'New Cardio', detailLine: 'Regenerated', changeType: 'replaced' as const }
+                    : w
+                ),
+              ])
+            ),
+          }))
+        );
+      }
+    } catch (_e) {
+      Alert.alert('Regeneration failed', "Couldn't generate. Try again.");
+    } finally {
       setRegenerating(null);
-    }, 1500);
+    }
   };
-  
+
   const handleMakeEasier = async () => {
     setRegenerating('easier');
-    setTimeout(() => {
-      setPlanData(prev => prev.map(week => ({
-        ...week,
-        workouts: Object.fromEntries(
-          Object.entries(week.workouts).map(([day, workouts]) => [
-            day,
-            workouts.map(w => ({
-              ...w,
-              intensity: w.intensity === 'Hard' ? 'Medium' : w.intensity === 'Medium' ? 'Easy' : w.intensity,
-              changeType: w.intensity !== 'Easy' ? 'replaced' as const : w.changeType,
-            }))
-          ])
-        )
-      })));
+    try {
+      if (planInputs) {
+        const result = await runPipelineSafe(planInputs, draftId, { repairIfInvalid: true, makeItEasier: true });
+        if (!result.ok) {
+          Alert.alert('Regeneration failed', result.error || "Couldn't generate. Try again.");
+          return;
+        }
+        setPlanDraft(result.draft);
+        setPlanData(planDraftToWeekPlans(result.draft) as WeekPlan[]);
+      } else {
+        await new Promise((r) => setTimeout(r, 1500));
+        setPlanData((prev) =>
+          prev.map((week) => ({
+            ...week,
+            workouts: Object.fromEntries(
+              Object.entries(week.workouts).map(([day, workouts]) => [
+                day,
+                workouts.map((w) => ({
+                  ...w,
+                  intensity:
+                    w.intensity === 'Hard' ? 'Medium' : w.intensity === 'Medium' ? 'Easy' : w.intensity,
+                  changeType: w.intensity !== 'Easy' ? ('replaced' as const) : w.changeType,
+                })),
+              ])
+            ),
+          }))
+        );
+      }
+    } catch (_e) {
+      Alert.alert('Regeneration failed', "Couldn't generate. Try again.");
+    } finally {
       setRegenerating(null);
-    }, 1500);
+    }
   };
   
   const handleSwapModality = async (from: string, to: string) => {
@@ -404,6 +516,126 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     setSwapModalVisible(true);
   }, []);
 
+  const handleRemoveWorkout = useCallback(
+    (day: string) => {
+      if (!planDraft) return;
+      if (previewCard?.day === day) {
+        setPreviewCard(null);
+        setPreviewData(null);
+      }
+      const updated: PlanDraft = {
+        ...planDraft,
+        weeks: planDraft.weeks.map((w) =>
+          w.weekIndex === selectedWeek
+            ? {
+                ...w,
+                days: w.days.map((d) =>
+                  d.weekday === day ? { ...d, session: null } : d,
+                ),
+              }
+            : w,
+        ),
+      };
+      setPlanDraft(updated);
+      setPlanData(planDraftToWeekPlans(updated) as WeekPlan[]);
+    },
+    [planDraft, selectedWeek, previewCard?.day],
+  );
+
+  const handleReplaceExercise = useCallback(
+    async (exerciseName: string) => {
+      if (!previewCard || !planDraft || !planInputs) return;
+      const week = planDraft.weeks.find((w) => w.weekIndex === selectedWeek);
+      const dayDraft = week?.days.find((d) => d.weekday === previewCard.day);
+      const session = dayDraft?.session;
+      if (!session) return;
+      setReplacingExerciseName(exerciseName);
+      try {
+        const avoidConstraints = [
+          ...(planInputs.injuriesAvoid?.bodyAreas ?? []),
+          ...(planInputs.injuriesAvoid?.movementsOrEquipment ?? []),
+        ];
+        const goal =
+          planInputs.goal === 'fat_loss'
+            ? 'fat loss'
+            : planInputs.goal === 'balanced'
+              ? 'hybrid'
+              : planInputs.goal;
+        const result = await generateSingleSession({
+          goal,
+          location: planInputs.location,
+          detailLevel: planInputs.detailLevel,
+          avoidConstraints: avoidConstraints.length ? avoidConstraints : undefined,
+          type: session.type,
+          title: session.title,
+          durationMin: session.durationMin,
+          durationMax: session.durationMax,
+          isHardDay: session.isHardDay,
+          weekIndex: selectedWeek,
+          weekday: previewCard.day,
+          excludeExerciseNames: [exerciseName],
+        });
+        const newSession: import('../types/plan').SessionDraft = {
+          type: session.type,
+          title: result.name,
+          focusTags: session.focusTags,
+          durationMin: session.durationMin,
+          durationMax: session.durationMax,
+          isHardDay: session.isHardDay,
+          warmup: result.warmUp,
+          whyThisWorkout: result.reasoning,
+          cooldown: result.coolDown,
+          exercises: (result.exercises ?? []).map((e) => ({
+            exerciseId: e.exerciseId ?? null,
+            name: e.name ?? 'Exercise',
+            sets: typeof e.sets === 'number' ? e.sets : 3,
+            reps: typeof e.reps === 'number' ? String(e.reps) : '8–10',
+            notes: e.notes,
+          })),
+        };
+        if (newSession.exercises.length === 0) {
+          newSession.exercises = [{ exerciseId: null, name: 'Generated', sets: 3, reps: '8–10' }];
+        }
+        const updated: PlanDraft = {
+          ...planDraft,
+          weeks: planDraft.weeks.map((w) =>
+            w.weekIndex === selectedWeek
+              ? {
+                  ...w,
+                  days: w.days.map((d) =>
+                    d.weekday === previewCard.day
+                      ? { ...d, session: newSession }
+                      : d,
+                  ),
+                }
+              : w,
+          ),
+        };
+        setPlanDraft(updated);
+        setPlanData(planDraftToWeekPlans(updated) as WeekPlan[]);
+        setPreviewData({
+          name: result.name,
+          reasoning: result.reasoning,
+          warmUp: result.warmUp,
+          coolDown: result.coolDown,
+          exercises: (result.exercises ?? []).map((e) => ({
+            name: e.name,
+            sets: e.sets,
+            reps: e.reps,
+            weight: e.weight,
+            notes: e.notes,
+            orderIndex: 0,
+          })),
+        });
+      } catch (e) {
+        Alert.alert('Replace failed', (e as Error)?.message ?? "Couldn't replace exercise. Try again.");
+      } finally {
+        setReplacingExerciseName(null);
+      }
+    },
+    [previewCard, planDraft, planInputs, selectedWeek],
+  );
+
   const handleReplaceWithType = useCallback((newType: WorkoutType) => {
     if (!selectedDayForSwap) return;
     const day = selectedDayForSwap;
@@ -459,10 +691,17 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           });
         });
       });
+      const goalForApi = planInputs
+        ? planInputs.goal === 'fat_loss'
+          ? 'fat loss'
+          : planInputs.goal === 'balanced'
+            ? 'hybrid'
+            : planInputs.goal
+        : inputs.goal;
       await createPlan({
         name: `Plan ${new Date().toLocaleDateString()}`,
         slots,
-        goal: inputs.goal ?? undefined,
+        goal: goalForApi ?? undefined,
         experience: inputs.experienceLevel ?? undefined,
         equipment: inputs.availableEquipment?.length ? mapEquipmentToBackend(inputs.availableEquipment) : undefined,
         limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
@@ -499,6 +738,25 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         <Text style={styles.headerTitle}>Preview Plan</Text>
         <View style={styles.headerSpacer} />
       </View>
+
+      {loadingPreview && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.text }]}>Generating your plan… This may take a minute.</Text>
+        </View>
+      )}
+
+      {generateError && !loadingPreview && (
+        <View style={[styles.errorCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.errorTitle, { color: colors.text }]}>Couldn't generate. Try again.</Text>
+          <Text style={[styles.errorDetail, { color: colors.textSecondary }]} numberOfLines={2}>
+            {generateError}
+          </Text>
+          <TouchableOpacity style={[styles.retryButton, { backgroundColor: colors.primary }]} onPress={handleRetryGenerate}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Week Tabs */}
       <ScrollView 
@@ -565,17 +823,32 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             <Text style={styles.regenerateButtonText}>Regenerate Week</Text>
           )}
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.regenerateButton, regenerating === 'cardio' && styles.regenerateButtonActive]}
-          onPress={handleRegenerateCardioOnly}
-          disabled={!!regenerating}
-        >
-          {regenerating === 'cardio' ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Text style={styles.regenerateButtonText}>Regenerate Cardio</Text>
-          )}
-        </TouchableOpacity>
+        {weekSummary.cardio > 0 ? (
+          <>
+            <TouchableOpacity
+              style={[styles.regenerateButton, regenerating === 'cardio' && styles.regenerateButtonActive]}
+              onPress={handleRegenerateCardioOnly}
+              disabled={!!regenerating}
+            >
+              {regenerating === 'cardio' ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Text style={styles.regenerateButtonText}>Regenerate Cardio</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.regenerateButton, regenerating === 'swap' && styles.regenerateButtonActive]}
+              onPress={() => handleSwapModality('run', 'bike')}
+              disabled={!!regenerating}
+            >
+              {regenerating === 'swap' ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Text style={styles.regenerateButtonText}>Swap Run → Bike</Text>
+              )}
+            </TouchableOpacity>
+          </>
+        ) : null}
         <TouchableOpacity
           style={[styles.regenerateButton, regenerating === 'easier' && styles.regenerateButtonActive]}
           onPress={handleMakeEasier}
@@ -585,17 +858,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
             <Text style={styles.regenerateButtonText}>Make It Easier</Text>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.regenerateButton, regenerating === 'swap' && styles.regenerateButtonActive]}
-          onPress={() => handleSwapModality('run', 'bike')}
-          disabled={!!regenerating}
-        >
-          {regenerating === 'swap' ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Text style={styles.regenerateButtonText}>Swap Run → Bike</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -611,12 +873,20 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                 <Text style={styles.dayTitle}>{day}</Text>
                 <View style={styles.dayActions}>
                   {workouts.length > 0 && (
-                    <TouchableOpacity
-                      style={styles.dayActionButton}
-                      onPress={() => handleSwapWorkout(day)}
-                    >
-                      <Text style={styles.dayActionText}>Swap</Text>
-                    </TouchableOpacity>
+                    <>
+                      <TouchableOpacity
+                        style={styles.dayActionButton}
+                        onPress={() => handleRemoveWorkout(day)}
+                      >
+                        <Text style={styles.dayActionText}>Remove</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.dayActionButton}
+                        onPress={() => handleSwapWorkout(day)}
+                      >
+                        <Text style={styles.dayActionText}>Swap</Text>
+                      </TouchableOpacity>
+                    </>
                   )}
                   {moveMode && (
                     <TouchableOpacity
@@ -729,14 +999,29 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                             .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
                             .map((ex, idx) => (
                               <View key={idx} style={styles.previewExerciseRow}>
-                                <Text style={styles.previewExerciseName}>{ex.name}</Text>
-                                <Text style={styles.previewExerciseMeta}>
-                                  {ex.sets} × {ex.reps}
-                                  {ex.weight != null ? ` @ ${ex.weight} lb` : ''}
-                                </Text>
-                                {ex.notes ? (
-                                  <Text style={styles.previewExerciseNotes}>Focus: {ex.notes}</Text>
-                                ) : null}
+                                <View style={styles.previewExerciseTextBlock}>
+                                  <Text style={styles.previewExerciseName}>{ex.name}</Text>
+                                  <Text style={styles.previewExerciseMeta}>
+                                    {ex.sets} × {ex.reps}
+                                    {ex.weight != null ? ` @ ${ex.weight} lb` : ''}
+                                  </Text>
+                                  {ex.notes ? (
+                                    <Text style={styles.previewExerciseNotes}>Focus: {ex.notes}</Text>
+                                  ) : null}
+                                </View>
+                                {planDraft && planInputs && (
+                                  <TouchableOpacity
+                                    style={[styles.dayActionButton, styles.previewReplaceButton]}
+                                    onPress={() => handleReplaceExercise(ex.name)}
+                                    disabled={!!replacingExerciseName}
+                                  >
+                                    {replacingExerciseName === ex.name ? (
+                                      <ActivityIndicator size="small" color={colors.primary} />
+                                    ) : (
+                                      <Text style={styles.dayActionText}>Replace</Text>
+                                    )}
+                                  </TouchableOpacity>
+                                )}
                               </View>
                             ))}
                         </View>
@@ -801,10 +1086,60 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         </View>
       </Modal>
 
+      {typeof __DEV__ !== 'undefined' && __DEV__ && debugInfo && (
+        <View style={[styles.debugPanel, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
+          <TouchableOpacity
+            style={styles.debugPanelHeader}
+            onPress={() => setDebugPanelOpen((o) => !o)}
+          >
+            <Text style={[styles.debugPanelTitle, { color: themeColors.text }]}>
+              🐛 Debug: Pipeline
+            </Text>
+            <Text style={[styles.debugPanelToggle, { color: themeColors.primary }]}>
+              {debugPanelOpen ? '▼' : '▶'}
+            </Text>
+          </TouchableOpacity>
+          {debugPanelOpen && (
+            <ScrollView style={styles.debugPanelContent} nestedScrollEnabled>
+              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>PlanInputs</Text>
+              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+                {JSON.stringify(debugInfo.planInputs, null, 2)}
+              </Text>
+              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>WeekSkeleton</Text>
+              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+                {JSON.stringify(debugInfo.weekSkeleton, null, 2)}
+              </Text>
+              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>TemplateAssignments</Text>
+              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+                {JSON.stringify(debugInfo.templateAssignments, null, 2)}
+              </Text>
+              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>SessionSpecs (to Grok)</Text>
+              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+                {JSON.stringify(debugInfo.sessionSpecs, null, 2)}
+              </Text>
+              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>Raw Grok response</Text>
+              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+                {JSON.stringify(debugInfo.rawGrokResponse, null, 2)}
+              </Text>
+              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>Normalization / validation</Text>
+              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+                {JSON.stringify(debugInfo.normalizationWarnings, null, 2)}
+              </Text>
+            </ScrollView>
+          )}
+        </View>
+      )}
+
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.secondaryButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (planInputs) {
+              navigation.navigate('GeneratePlan', { editFromSnapshot: planInputs });
+            } else {
+              navigation.goBack();
+            }
+          }}
           disabled={applying}
         >
           <Text style={styles.secondaryButtonText}>Edit Inputs</Text>
@@ -812,7 +1147,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         <TouchableOpacity
           style={styles.primaryButton}
           onPress={handleApply}
-          disabled={applying}
+          disabled={applying || planData.length === 0}
         >
           {applying ? (
             <ActivityIndicator size="small" color={colors.background} />
@@ -855,6 +1190,75 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 60,
+  },
+  loadingOverlay: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+  },
+  errorCard: {
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  errorDetail: {
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  retryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  retryButtonText: {
+    color: themeColors.background,
+    fontWeight: '600',
+  },
+  debugPanel: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    maxHeight: 320,
+  },
+  debugPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+  },
+  debugPanelTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  debugPanelToggle: {
+    fontSize: 12,
+  },
+  debugPanelContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    maxHeight: 280,
+  },
+  debugSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  debugJson: {
+    fontSize: 11,
+    fontFamily: 'monospace',
   },
   weekTabs: {
     maxHeight: 50,
@@ -1146,9 +1550,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   previewExerciseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: themeColors.border,
+  },
+  previewExerciseTextBlock: {
+    flex: 1,
+    marginRight: 12,
+  },
+  previewReplaceButton: {
+    alignSelf: 'center',
+    flexShrink: 0,
   },
   previewExerciseName: {
     fontSize: 16,

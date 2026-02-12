@@ -3,6 +3,8 @@
  * that causes "Cannot read properties of null (reading 'useMemo')" on load.
  */
 
+import type { PlanInputs } from './plan';
+
 export type RootNavigatorParamList = {
   Main: undefined;
   Profile: undefined;
@@ -11,7 +13,7 @@ export type RootNavigatorParamList = {
 export type RootStackParamList = {
   Home: undefined;
   Plan: undefined;
-  PlanList: undefined;
+  PlanList: { openSaved?: boolean } | undefined;
   Workout: undefined;
   Search: {
     addToPlan?: { day: string; weekIndex: number };
@@ -24,10 +26,11 @@ export type RootStackParamList = {
   WeeklyWorkout: undefined;
   ExerciseDetail: { exerciseId: string };
   WorkoutDetail: { workoutId: string };
-  GeneratePlan: undefined;
+  GeneratePlan: { editFromSnapshot?: PlanInputs } | undefined;
   History: undefined;
-  PlanList: { openSaved?: boolean } | undefined;
   PlanPreview: {
+    /** Canonical snapshot when user taps Generate; use this downstream. */
+    planInputs?: PlanInputs;
     inputs: {
       goal: 'fat loss' | 'strength' | 'endurance' | 'hybrid';
       programType: string;

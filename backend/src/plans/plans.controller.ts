@@ -12,6 +12,8 @@ import {
 import { PlansService } from './plans.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { RemoveSlotDto } from './dto/remove-slot.dto';
+import { GenerateSessionsDto } from './dto/generate-sessions.dto';
+import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 
@@ -39,6 +41,18 @@ export class PlansController {
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreatePlanDto, @UserId() userId: string) {
     return this.plansService.create(dto, userId);
+  }
+
+  @Post('generate-sessions')
+  @HttpCode(HttpStatus.OK)
+  generateSessions(@Body() dto: GenerateSessionsDto) {
+    return this.plansService.generateSessions(dto);
+  }
+
+  @Post('generate-single-session')
+  @HttpCode(HttpStatus.OK)
+  generateSingleSession(@Body() dto: GenerateSingleSessionDto) {
+    return this.plansService.generateSingleSession(dto);
   }
 
   @Patch(':id')
