@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp, useFocusEffect } from '@react-navigation/native';
+import { CommonActions, RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { getExerciseById, Exercise, getSavedExerciseIds, saveExercise, unsaveExercise } from '../services/exerciseService';
 import { useTheme } from '../theme/ThemeContext';
@@ -23,6 +24,47 @@ function getYouTubeSearchUrl(exerciseName: string): string {
   return YOUTUBE_SEARCH_BASE + encodeURIComponent(query);
 }
 
+/** Bottom tab navigator that hosts Plan / Search / Home (layout can add wrappers, so walk parents). */
+function getBottomTabNavigator(navigation: { getParent?: () => any }): any {
+  let parent = navigation?.getParent?.();
+  while (parent) {
+    const st = parent.getState?.();
+    const names: string[] | undefined = st?.routeNames;
+    if (st?.type === 'tab' || (names?.includes?.('Plan') && names?.includes?.('Search') && names?.includes?.('Home'))) {
+      return parent;
+    }
+    parent = parent.getParent?.();
+  }
+  return null;
+}
+
+/**
+ * Find the native stack that hosts SearchList + ExerciseDetail and reset it so Exercises tab
+ * shows the browse list (avoids goBack() hitting the wrong navigator after switching tabs).
+ */
+function resetSearchStackToSearchList(navigation: { getParent?: () => any }): void {
+  let parent: any = navigation?.getParent?.();
+  for (let i = 0; i < 8 && parent; i++) {
+    const st = parent.getState?.();
+    const names: string[] | undefined = st?.routeNames;
+    if (Array.isArray(names) && names.includes('SearchList') && names.includes('ExerciseDetail')) {
+      parent.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'SearchList' }],
+        }),
+      );
+      return;
+    }
+    parent = parent.getParent?.();
+  }
+  if (__DEV__) {
+    console.warn(
+      '[ExerciseDetail] resetSearchStackToSearchList: no navigator with SearchList + ExerciseDetail (parent walk exhausted). Exercises tab may stay on ExerciseDetail.',
+    );
+  }
+}
+
 type ExerciseDetailScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ExerciseDetail'>;
 type ExerciseDetailScreenRouteProp = RouteProp<RootStackParamList, 'ExerciseDetail'>;
 
@@ -32,7 +74,7 @@ type Props = {
 };
 
 export default function ExerciseDetailScreen({ navigation, route }: Props) {
-  const { exerciseId } = route.params || {};
+  const { exerciseId, returnToPlanPreview, planPreviewParams, returnToPlanCard } = route.params || {};
   const { colors } = useTheme();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,7 +193,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         getExerciseById(exerciseId),
         getSavedExerciseIds().catch((e) => {
           if (__DEV__) console.warn('[ExerciseDetail] getSavedExerciseIds failed', e);
-          return [];
+          return [] as string[];
         }),
       ]);
       setExercise(data);
@@ -180,9 +222,60 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     }, [exerciseId, loading, exercise])
   );
 
+  // Plan → ExerciseDetail (cross-tab): leaving this screen for any reason (tab change, nested nav) must
+  // not leave ExerciseDetail on top of the Search stack, or the Exercises tab stays "stuck" on detail.
+  useFocusEffect(
+    useCallback(() => {
+      return (): void => {
+        if (!returnToPlanPreview) return;
+        resetSearchStackToSearchList(navigation);
+      };
+    }, [returnToPlanPreview, navigation]),
+  );
+
   useEffect(() => {
     if (exerciseId) loadExercise();
   }, [exerciseId, loadExercise]);
+
+  const handleBack = useCallback(() => {
+    if (returnToPlanPreview) {
+      const params = returnToPlanCard
+        ? { ...planPreviewParams, returnToPlanCard }
+        : planPreviewParams;
+
+      if (planPreviewParams) {
+        const tabNav = getBottomTabNavigator(navigation);
+        const nestedNavigate = {
+          name: 'Plan' as const,
+          params: {
+            screen: 'PlanPreview' as const,
+            params,
+          },
+        };
+        if (tabNav?.dispatch) {
+          tabNav.dispatch(CommonActions.navigate(nestedNavigate));
+        } else {
+          (navigation as any).dispatch(CommonActions.navigate(nestedNavigate));
+        }
+        // After Plan is focused, clear Search stack without using goBack (can pop the wrong navigator).
+        setTimeout(() => resetSearchStackToSearchList(navigation), 0);
+        return;
+      }
+      // If we weren't given the preview params, safest option is to just go back.
+      if (navigation.canGoBack()) navigation.goBack();
+      return;
+    }
+    navigation.goBack();
+  }, [returnToPlanPreview, navigation, planPreviewParams, returnToPlanCard]);
+
+  useEffect(() => {
+    if (!returnToPlanPreview) return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [returnToPlanPreview, handleBack]);
 
   const handleToggleLike = async () => {
     if (!exerciseId || savingLike) return;
@@ -220,7 +313,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>Exercise not found</Text>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={handleBack}>
             <Text style={styles.backButton}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -233,7 +326,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={handleBack}
           style={styles.backButtonContainer}
         >
           <Text style={styles.backButtonText}>← Back</Text>

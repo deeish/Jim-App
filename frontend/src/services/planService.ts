@@ -12,6 +12,18 @@ export interface PlanSlot {
   orderInDay?: number;
 }
 
+export interface ApiPlanExercise {
+  id: string;
+  planWorkoutId: string;
+  exerciseId: string;
+  name: string | null;
+  sets: number;
+  reps: number;
+  weight: number | null;
+  notes: string | null;
+  orderIndex: number;
+}
+
 export interface ApiPlanWorkout {
   id: string;
   workoutPlanId: string;
@@ -23,12 +35,15 @@ export interface ApiPlanWorkout {
   durationMinutes: number;
   intensity: string | null;
   orderInDay: number;
+  exercises?: ApiPlanExercise[];
 }
 
 export interface ApiPlan {
   id: string;
   name: string;
   userId: string | null;
+  /** Monday when program week 1 starts (ISO date string from API). */
+  weekAnchorMonday?: string | null;
   createdAt: string;
   updatedAt: string;
   planWorkouts: ApiPlanWorkout[];
@@ -57,6 +72,8 @@ export async function getPlanById(id: string): Promise<ApiPlan> {
 
 export interface CreatePlanBody {
   name?: string;
+  /** YYYY-MM-DD — Monday of the week program week 1 is tied to. */
+  weekAnchorMonday?: string;
   slots: PlanSlot[];
   /** User goal for workout generation (e.g. strength, hypertrophy, endurance). */
   goal?: string;

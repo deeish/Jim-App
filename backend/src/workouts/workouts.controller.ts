@@ -40,6 +40,15 @@ export class WorkoutsController {
     return this.workoutsService.findWeekly(userId);
   }
 
+  @Post('plan-slot/:planWorkoutId/materialize')
+  @HttpCode(HttpStatus.CREATED)
+  materializePlanSlot(
+    @Param('planWorkoutId') planWorkoutId: string,
+    @UserId() userId: string,
+  ) {
+    return this.workoutsService.materializeFromPlanSlot(planWorkoutId, userId);
+  }
+
   @Get('saved/ids')
   async getSavedIds(@UserId() userId: string): Promise<{ workoutIds: string[] }> {
     const workoutIds = await this.workoutsService.getSavedWorkoutIds(userId);

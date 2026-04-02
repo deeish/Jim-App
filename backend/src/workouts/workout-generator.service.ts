@@ -30,6 +30,29 @@ export interface LastPerformance {
   setNumber?: number;
 }
 
+/**
+ * Scales exercise count to session length so typical 45–60m strength work feels complete.
+ * Prompt range + backfill minimum; cardio/recovery stay lighter.
+ */
+function exerciseTargetsForSession(
+  durationMinutes: number,
+  detailLevel: 'simple' | 'detailed',
+  isCardioOrRecovery: boolean,
+): { minExercises: number; promptRange: string } {
+  if (isCardioOrRecovery) {
+    return { minExercises: 3, promptRange: '3-6' };
+  }
+  const d = Math.max(25, Math.min(120, durationMinutes));
+  if (detailLevel === 'simple') {
+    if (d <= 40) return { minExercises: 4, promptRange: '4-5' };
+    if (d <= 55) return { minExercises: 5, promptRange: '5-6' };
+    return { minExercises: 6, promptRange: '6-8' };
+  }
+  if (d <= 38) return { minExercises: 5, promptRange: '5-6' };
+  if (d <= 55) return { minExercises: 6, promptRange: '6-8' };
+  return { minExercises: 7, promptRange: '7-10' };
+}
+
 @Injectable()
 export class WorkoutGeneratorService {
   constructor(
@@ -282,6 +305,243 @@ export class WorkoutGeneratorService {
     return result;
   }
 
+  /**
+   * Generate a full multi-day program in one LLM call so the model sees the whole week
+   * and can produce a coherent plan (e.g. PPL, Upper/Lower). Returns null on parse failure
+   * or if not enough candidates; caller should fall back to per-session generation.
+   * Token usage: ~65 exercises (compact id/name/m) + system/user text ≈ 2k input tokens;
+   * output max 4096. Well under Groq llama-3.3-70b context (131k).
+   */
+  async generateFullProgram(
+    options: {
+      sessions: Array<{ weekIndex: number; weekday: string; title?: string; type: string; durationMin: number; durationMax: number; isHardDay: boolean }>;
+      goal?: string;
+      equipment?: string[];
+      limitations?: string[];
+      detailLevel?: 'simple' | 'detailed';
+      makeItEasier?: boolean;
+    },
+    apiKey: string,
+  ): Promise<Array<{
+    weekIndex: number;
+    weekday: string;
+    name: string;
+    reasoning?: string;
+    warmUp?: string;
+    coolDown?: string;
+    cardioFinisher?: { suggestion: string };
+    exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; exerciseId?: string }>;
+  }> | null> {
+    const { sessions, goal = 'hypertrophy', equipment = [], limitations = [], detailLevel = 'detailed', makeItEasier = false } = options;
+    if (sessions.length < 2 || sessions.length > 7) return null;
+
+    const difficulty = makeItEasier ? 'beginner' : 'intermediate';
+    const setRep = getSetRepGuidelines(goal, difficulty);
+
+    const rawCandidates = this.exercisesService.getCandidatesForGenerator({
+      focus: 'full body',
+      equipment: equipment.length ? equipment : undefined,
+      excludeIds: [],
+      limit: 65,
+    });
+    const toCandidate = (e: { id: string; name: string; primaryMuscleGroup: string; equipment?: string[]; movementPatterns?: string[] }): CandidateExercise => ({
+      id: e.id,
+      name: e.name,
+      primaryMuscleGroup: e.primaryMuscleGroup,
+      equipment: e.equipment ?? [],
+      movementPatterns: e.movementPatterns ?? [],
+      variationGroup: this.getVariationGroupFromName(e.name),
+      equipmentType: (e.equipment && e.equipment[0]) ? e.equipment[0] : 'mixed',
+    });
+    const candidates = rawCandidates.map(toCandidate);
+    if (candidates.length < 20) return null;
+
+    const candidateJson = JSON.stringify(
+      candidates.map((c) => ({ id: c.id, name: c.name, m: c.primaryMuscleGroup })),
+      null,
+      0,
+    );
+
+    const dayLines = sessions.map((s, i) => {
+      const focus = (s.title ?? s.type).trim() || 'full body';
+      const duration = Math.round((s.durationMin + s.durationMax) / 2);
+      const fk = normalizeFocusToKey(focus);
+      const isCardioOrRec = fk === 'cardio' || fk === 'recovery';
+      const { promptRange } = exerciseTargetsForSession(duration, detailLevel, isCardioOrRec);
+      return `Day ${i + 1} (${focus}, ${s.weekday}, ~${duration} min): Choose ${promptRange} exercises from the list that fit this day's focus (enough volume for ~${duration} minutes). Use ONLY exercise "id" values from the list. Main compounds first, then accessories. Within this day use only one movement variant (e.g. one bench press, not flat + incline in same day).`;
+    }).join('\n');
+
+    const focusCounts = new Map<string, number>();
+    for (const s of sessions) {
+      const focus = (s.title ?? s.type).trim() || 'full body';
+      focusCounts.set(focus, (focusCounts.get(focus) ?? 0) + 1);
+    }
+    const hasRepeatedFocus = [...focusCounts.values()].some((c) => c > 1);
+    const varietyInstruction = hasRepeatedFocus
+      ? '\nImportant: Multiple days have the same focus (e.g. several Push or Pull days). Vary exercise selection across those days—do not repeat the same exercise lineup on every Push day. Pick different compounds and accessories so each week feels fresh.'
+      : '';
+
+    const equipmentStr = equipment.length ? equipment.join(', ') : 'general gym equipment';
+    const limitationsBlock = limitations.length > 0
+      ? `\nLimitations (respect these): ${limitations.slice(0, 8).join('; ').slice(0, 200)}.`
+      : '';
+
+    const systemPrompt = `You are a certified fitness trainer designing a full weekly program in one response. You must choose exercises ONLY from the provided list by their "id". Respond with exactly one JSON object, no markdown.
+
+Structure:
+- "programSummary": string (2-4 sentences describing the program and how the days work together).
+- "days": array of objects, one per day, in the same order as the day list below. Each day object must have:
+  - "name": string (workout title, e.g. "Push Day - Chest & Shoulders")
+  - "reasoning": string (1-3 sentences on why this day is structured this way)
+  - "warmUp": string (1-2 sentences)
+  - "coolDown": string (1-2 sentences)
+  - "exercises": array of objects, each with "exerciseId" (must be an id from the list), "sets" (number), "reps" (number), and optionally "notes" (string). Order: main compounds first, then accessories.
+For the first two exercises of each day, prefer the strongest, well-known primary compounds for that day's pattern (e.g. main bench or push-up variant for horizontal push; pull-up or row for pull; squat or leg press for legs)—not redundant variations of the same pattern on the same day.
+Rep selection: pick rep numbers in the middle of the allowed range; main compounds can be slightly lower reps than accessories (2–4 reps lower is fine).
+When the program has multiple days with the same focus (e.g. Push on day 1 and Push on day 4), vary which exercises you pick for each so the user gets variety across weeks—avoid repeating the same workout.`;
+
+    const userPrompt = `Design a ${sessions.length}-day program. Use ONLY exercise "id" values from this list (m = muscle group):
+${candidateJson}
+
+${dayLines}
+${varietyInstruction}
+
+Set/rep: ${setRep.description} (${setRep.setsMin}-${setRep.setsMax} sets, ${setRep.repsMin}-${setRep.repsMax} reps). Goal: ${goal}. Difficulty: ${difficulty}. Equipment: ${equipmentStr}.${limitationsBlock}
+
+Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.length} objects). Each day: "name", "reasoning", "warmUp", "coolDown", "exercises" (array of {"exerciseId": "<id from list>", "sets", "reps", "notes"?}).`;
+
+    const groq = new Groq({ apiKey });
+    let response: { choices?: Array<{ message?: { content?: string } }> };
+    try {
+      response = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.6,
+        max_tokens: 4096,
+      });
+    } catch {
+      return null;
+    }
+
+    const raw = response.choices?.[0]?.message?.content?.trim();
+    if (!raw) return null;
+
+    let parsed: { programSummary?: string; days?: Array<{ name?: string; reasoning?: string; warmUp?: string; coolDown?: string; exercises?: Array<{ exerciseId?: string; sets?: number; reps?: number; notes?: string }> }> };
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+
+    if (!parsed.days || !Array.isArray(parsed.days) || parsed.days.length < sessions.length) return null;
+
+    const idToCandidate = new Map(candidates.map((c) => [c.id, c]));
+    const results: Array<{ weekIndex: number; weekday: string; name: string; reasoning?: string; warmUp?: string; coolDown?: string; cardioFinisher?: { suggestion: string }; exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; exerciseId?: string }> }> = [];
+
+    for (let i = 0; i < sessions.length; i++) {
+      const spec = sessions[i];
+      const day = parsed.days[i];
+      const duration = Math.round((spec.durationMin + spec.durationMax) / 2);
+      const fk = normalizeFocusToKey((spec.title ?? spec.type).trim() || 'full body');
+      const isCardioOrRec = fk === 'cardio' || fk === 'recovery';
+      const minExercisesPerDay = exerciseTargetsForSession(duration, detailLevel, isCardioOrRec).minExercises;
+      const usedIdsThisDay = new Set<string>();
+
+      const exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; exerciseId?: string }> = [];
+
+      if (day?.exercises?.length) {
+        for (const ex of day.exercises) {
+          const id = ex.exerciseId?.trim();
+          let candidate = id ? idToCandidate.get(id) : null;
+          if (!candidate && id) {
+            const fallback = candidates.find((c) => !usedIdsThisDay.has(c.id));
+            if (fallback) candidate = fallback;
+          }
+          const name = candidate ? candidate.name : 'Exercise';
+          const sets = Math.max(setRep.setsMin, Math.min(setRep.setsMax, Math.round(Number(ex.sets) || setRep.setsMin)));
+          const reps = Math.max(setRep.repsMin, Math.min(setRep.repsMax, Math.round(Number(ex.reps) || setRep.repsMin)));
+          exercises.push({
+            name,
+            sets,
+            reps,
+            notes: ex.notes != null ? String(ex.notes) : undefined,
+            exerciseId: candidate ? candidate.id : undefined,
+          });
+          if (candidate) usedIdsThisDay.add(candidate.id);
+        }
+      }
+
+      while (exercises.length < minExercisesPerDay) {
+        const next = candidates.find((c) => !usedIdsThisDay.has(c.id));
+        if (!next) break;
+        exercises.push({
+          name: next.name,
+          sets: setRep.setsMin,
+          reps: Math.round((setRep.repsMin + setRep.repsMax) / 2),
+          exerciseId: next.id,
+        });
+        usedIdsThisDay.add(next.id);
+      }
+
+      results.push({
+        weekIndex: spec.weekIndex,
+        weekday: spec.weekday,
+        name: (day?.name && String(day.name).trim()) || `${(spec.title ?? spec.type) ?? 'Workout'} - ${spec.weekday}`,
+        reasoning: day?.reasoning != null ? String(day.reasoning).trim().slice(0, 500) : undefined,
+        warmUp: day?.warmUp != null ? String(day.warmUp).trim().slice(0, 300) : undefined,
+        coolDown: day?.coolDown != null ? String(day.coolDown).trim().slice(0, 300) : undefined,
+        exercises,
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Try to generate a full program in one LLM call. Returns null if no API key,
+   * parse failure, or wrong session count; caller should fall back to per-session generation.
+   */
+  async tryGenerateFullProgram(dto: {
+    sessions: Array<{ weekIndex: number; weekday: string; title?: string; type: string; durationMin: number; durationMax: number; isHardDay: boolean }>;
+    goal?: string;
+    location?: 'gym' | 'home';
+    detailLevel?: 'simple' | 'detailed';
+    makeItEasier?: boolean;
+    avoidConstraints?: string[];
+  }): Promise<Array<{
+    weekIndex: number;
+    weekday: string;
+    name: string;
+    reasoning?: string;
+    warmUp?: string;
+    coolDown?: string;
+    cardioFinisher?: { suggestion: string };
+    exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; exerciseId?: string }>;
+  }> | null> {
+    const apiKey = this.config.get<string>('GROQ_API_KEY');
+    if (!apiKey?.trim() || dto.sessions.length < 2 || dto.sessions.length > 7) return null;
+
+    const equipment = dto.location === 'home'
+      ? ['Dumbbell', 'Resistance Band', 'Bodyweight']
+      : undefined;
+
+    return this.generateFullProgram(
+      {
+        sessions: dto.sessions,
+        goal: dto.goal ?? 'hypertrophy',
+        equipment,
+        limitations: dto.avoidConstraints ?? [],
+        detailLevel: dto.detailLevel ?? 'detailed',
+        makeItEasier: dto.makeItEasier === true,
+      },
+      apiKey,
+    );
+  }
+
   private async generateWithGroq(
     dto: GenerateWorkoutDto,
     apiKey: string,
@@ -308,6 +568,8 @@ export class WorkoutGeneratorService {
 
     const slots = getSlotsForFocus(focus);
     const isCardioOrRecovery = focusKey === 'cardio' || focusKey === 'recovery';
+    const targets = exerciseTargetsForSession(duration, detailLevel, isCardioOrRecovery);
+    const exerciseRange = targets.promptRange;
     const mixedCardio = focusKey === 'full body' && (focus.toLowerCase().includes('run') || focus.toLowerCase().includes('cardio'));
 
     const avoidIds = [...new Set(preferences?.excludeExerciseIds ?? [])];
@@ -364,10 +626,13 @@ export class WorkoutGeneratorService {
       'Provide "warmUp" and "coolDown" as separate strings (1-2 sentences each). Do not put them inside "reasoning".';
 
     const mixedCardioHint = mixedCardio
-      ? ' Choose 4-5 strength exercises from the list only (all must have an id from the list). Do NOT put cardio in the exercises array. Optionally include a separate "cardioFinisher" object: { "suggestion": "e.g. Run 10 min or Row 500 m" } for a short cardio finisher after the workout.'
+      ? ` Choose ${exerciseRange} strength exercises from the list only (all must have an id from the list). Do NOT put cardio in the exercises array. Optionally include a separate "cardioFinisher" object: { "suggestion": "e.g. Run 10 min or Row 500 m" } for a short cardio finisher after the workout.`
       : '';
 
-    const exerciseRange = isSimple ? '4-5' : '4-7';
+    const volumeHint = isCardioOrRecovery
+      ? ''
+      : `\nVolume: For ~${duration} minutes, include at least ${targets.minExercises} distinct exercises with enough total work that the session feels like a real workout, not a minimal list.`;
+
     const reasoningHint = isSimple
       ? 'Keep "reasoning" to 1-2 short sentences.'
       : '"reasoning": string (2-4 sentences). Reference the program and day. Be specific; no filler praise.';
@@ -396,6 +661,7 @@ ${warmUpCoolDown}
 ${lastPerfBlock}
 ${avoidBlock}
 ${mixedCardioHint}
+${volumeHint}
 
 Vary exercise selection when possible so the user gets fresh workouts.
 
@@ -415,7 +681,7 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
       ],
       response_format: { type: 'json_object' },
       temperature: 0.62,
-      max_tokens: 2048,
+      max_tokens: 3072,
     });
 
     const raw = response.choices?.[0]?.message?.content?.trim();
@@ -481,7 +747,7 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
     this.deduplicateSimilarExercises(exercises, candidates, setsMin, repsMin);
     this.enforceMuscleGroupBalance(exercises, candidates, focusKey, setsMin, repsMin);
     this.sortExercisesBySlotOrder(exercises, candidates, focusKey);
-    this.validateAndBackfillExercises(exercises, candidates, setsMin, repsMin, 4);
+    this.validateAndBackfillExercises(exercises, candidates, setsMin, repsMin, targets.minExercises);
 
     const reasoning = parsed.reasoning
       ? String(parsed.reasoning).trim().slice(0, 500)
@@ -896,18 +1162,22 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
     const setsMin = guidelines.setsMin;
     const repsMin = guidelines.repsMin;
 
-    const detailLevel = preferences?.detailLevel ?? 'detailed';
+    const detailLevel = (preferences?.detailLevel ?? 'detailed') as 'simple' | 'detailed';
     const isSimple = detailLevel === 'simple';
+    const sessionDuration = typeof preferences?.duration === 'number' ? preferences.duration : 45;
+    const targets = exerciseTargetsForSession(
+      sessionDuration,
+      detailLevel,
+      focusKey === 'cardio' || focusKey === 'recovery',
+    );
     let chosen: CandidateExercise[] = [];
     if (candidates.length >= 4) {
-      const count = isSimple
-        ? 4
-        : difficulty === 'beginner'
-          ? 4
-          : difficulty === 'advanced'
-            ? 7
-            : 5;
       const balanced = this.balanceCandidateOrderForPrompt(candidates, focusKey);
+      let count = targets.minExercises;
+      if (isSimple) count = Math.min(count, 5);
+      if (difficulty === 'beginner') count = Math.max(4, count - 1);
+      if (difficulty === 'advanced') count = count + 1;
+      count = Math.min(Math.max(count, 4), balanced.length);
       chosen = balanced.slice(0, Math.min(count, balanced.length));
     }
 

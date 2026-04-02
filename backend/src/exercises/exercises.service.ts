@@ -230,7 +230,33 @@ export class ExercisesService implements OnModuleInit {
       'full body': ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core'],
       cardio: ['Legs', 'Core'],
     };
-    const key = Object.keys(map).find((k) => focus.includes(k));
+    const f = focus.toLowerCase();
+    const keyMatches = (k: string) =>
+      k.includes(' ')
+        ? f.includes(k)
+        : new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(f);
+
+    // Titles like "Chest and Back" (no upper/lower) → both muscle groups
+    if (/\bchest\b/.test(f) && /\bback\b/.test(f) && !/\bupper\b/.test(f) && !/\blower\b/.test(f)) {
+      return ['Chest', 'Back'];
+    }
+    /** Broader split keywords before isolated muscles so "Upper Day - Chest and Back" matches upper, not chest. */
+    const orderedKeys = [
+      'upper body',
+      'lower body',
+      'full body',
+      'push',
+      'pull',
+      'legs',
+      'upper',
+      'lower',
+      'shoulders',
+      'arms',
+      'chest',
+      'back',
+      'cardio',
+    ];
+    const key = orderedKeys.find((k) => keyMatches(k));
     return key ? map[key] : ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core'];
   }
 

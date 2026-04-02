@@ -327,8 +327,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     weeks: 1,
     timePerSession: { min: 30, max: 60 },
     useAdvancedDurationCaps: false,
-    primaryLocation: null,
-    availableEquipment: [],
+    primaryLocation: 'gym',
+    availableEquipment: [...DEFAULT_GYM_EQUIPMENT],
     detailedEquipment: [],
     cardioEquipment: null,
     experienceLevel: null,
@@ -377,7 +377,15 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     if (!editFromSnapshot) return;
     const patch = planInputsToFormPatch(editFromSnapshot) as Partial<GeneratePlanInputs>;
     setInputs((prev) => ({ ...prev, ...patch }));
+    setShowAdvanced(true);
   }, [editFromSnapshot]);
+
+  useEffect(() => {
+    if (!showAdvanced) {
+      setShowCustomSplitSheet(false);
+      setShowSavedSplitsPicker(false);
+    }
+  }, [showAdvanced]);
 
   const orderedTrainingDays = inputs.trainingDays.length ? [...inputs.trainingDays].sort((a, b) => DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b)) : [];
   const defaultTemplateCount = Math.max(1, orderedTrainingDays.length);
@@ -686,6 +694,115 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
             {daysPerWeek} day{daysPerWeek !== 1 ? 's' : ''}/week selected
           </Text>
         </View>
+
+        <TouchableOpacity
+          style={styles.advancedToggle}
+          onPress={() => setShowAdvanced(!showAdvanced)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.advancedToggleText}>Advanced (optional)</Text>
+          <Text style={styles.advancedToggleIcon}>{showAdvanced ? '▼' : '▶'}</Text>
+        </TouchableOpacity>
+
+        {showAdvanced && (
+          <>
+        {/* Primary location — first: constrains available exercises */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Primary location</Text>
+          <Text style={styles.sectionSubtitle}>Where will you train?</Text>
+          <View style={styles.optionsRow}>
+            {(['gym', 'home'] as PrimaryLocation[]).map(location => (
+              <TouchableOpacity
+                key={location}
+                style={[styles.optionButton, inputs.primaryLocation === location && styles.optionButtonSelected]}
+                onPress={() => handlePrimaryLocationSelect(location)}
+              >
+                <Text style={[styles.optionButtonText, inputs.primaryLocation === location && styles.optionButtonTextSelected]}>
+                  {location.charAt(0).toUpperCase() + location.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Equipment — required when Home; Gym assumes standard equipment */}
+        {/* Equipment access — shown immediately when Home is selected */}
+        {inputs.primaryLocation === 'home' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Equipment access</Text>
+            <Text style={styles.sectionSubtitle}>What equipment do you have at home?</Text>
+            <View style={styles.chipsRow}>
+              {(['dumbbells', 'bands', 'pull-up bar', 'barbell', 'machines', 'none'] as EquipmentAccess[]).map(equipment => {
+                const isSelected = inputs.equipmentAccess.includes(equipment);
+                return (
+                  <TouchableOpacity
+                    key={equipment}
+                    style={[styles.chip, isSelected && styles.chipSelected]}
+                    onPress={() => {
+                      setInputs(prev => ({
+                        ...prev,
+                        equipmentAccess: isSelected
+                          ? prev.equipmentAccess.filter(e => e !== equipment)
+                          : [...prev.equipmentAccess, equipment],
+                      }));
+                    }}
+                  >
+                    <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                      {equipment === 'pull-up bar' ? 'Pull-up Bar' : equipment.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Gym: assume standard equipment (no selector). Home: equipment selector shown above. */}
+        {inputs.primaryLocation === 'home' && (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Available equipment</Text>
+              <Text style={styles.sectionSubtitle}>Select what you have at home (required for exercise selection)</Text>
+              <View style={styles.chipsRow}>
+                {(['barbell', 'dumbbells', 'machines', 'cable', 'kettlebells', 'pull-up bar', 'bands', 'cardio machines', 'none'] as EquipmentItem[]).map(equipment => {
+                  const isSelected = inputs.availableEquipment.includes(equipment);
+                  return (
+                    <TouchableOpacity
+                      key={equipment}
+                      style={[styles.chip, isSelected && styles.chipSelected]}
+                      onPress={() => handleEquipmentToggle(equipment)}
+                    >
+                      <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                        {equipment.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Cardio equipment</Text>
+              <Text style={styles.sectionSubtitle}>Do you have: treadmill/bike/rower or none?</Text>
+              <View style={styles.optionsRow}>
+                {(['treadmill', 'bike', 'rower', 'none'] as CardioEquipment[]).map(cardio => (
+                  <TouchableOpacity
+                    key={cardio}
+                    style={[styles.optionButton, inputs.cardioEquipment === cardio && styles.optionButtonSelected]}
+                    onPress={() => setInputs(prev => ({
+                      ...prev,
+                      cardioEquipment: prev.cardioEquipment === cardio ? null : cardio,
+                    }))}
+                  >
+                    <Text style={[styles.optionButtonText, inputs.cardioEquipment === cardio && styles.optionButtonTextSelected]}>
+                      {cardio.charAt(0).toUpperCase() + cardio.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
 
         {/* Workout duration — presets + optional range */}
         <View style={styles.section}>
@@ -1301,25 +1418,6 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
           </Pressable>
         </Modal>
 
-        {/* Primary location */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Primary location</Text>
-          <Text style={styles.sectionSubtitle}>Where will you train?</Text>
-          <View style={styles.optionsRow}>
-            {(['gym', 'home'] as PrimaryLocation[]).map(location => (
-              <TouchableOpacity
-                key={location}
-                style={[styles.optionButton, inputs.primaryLocation === location && styles.optionButtonSelected]}
-                onPress={() => handlePrimaryLocationSelect(location)}
-              >
-                <Text style={[styles.optionButtonText, inputs.primaryLocation === location && styles.optionButtonTextSelected]}>
-                  {location.charAt(0).toUpperCase() + location.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
         {/* Weeks to generate — de-emphasized (output-size control) */}
         <View style={[styles.section, styles.sectionDeemphasized]}>
           <Text style={styles.sectionTitleDeemphasized}>Weeks to generate</Text>
@@ -1397,86 +1495,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
           </View>
         )}
 
-        {/* Equipment — required when Home; Gym assumes standard equipment */}
-        {/* Equipment access — shown immediately when Home is selected */}
-        {inputs.primaryLocation === 'home' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Equipment access</Text>
-            <Text style={styles.sectionSubtitle}>What equipment do you have at home?</Text>
-            <View style={styles.chipsRow}>
-              {(['dumbbells', 'bands', 'pull-up bar', 'barbell', 'machines', 'none'] as EquipmentAccess[]).map(equipment => {
-                const isSelected = inputs.equipmentAccess.includes(equipment);
-                return (
-                  <TouchableOpacity
-                    key={equipment}
-                    style={[styles.chip, isSelected && styles.chipSelected]}
-                    onPress={() => {
-                      setInputs(prev => ({
-                        ...prev,
-                        equipmentAccess: isSelected
-                          ? prev.equipmentAccess.filter(e => e !== equipment)
-                          : [...prev.equipmentAccess, equipment],
-                      }));
-                    }}
-                  >
-                    <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                      {equipment === 'pull-up bar' ? 'Pull-up Bar' : equipment.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        )}
-
-        {/* Gym: assume standard equipment (no selector). Home: equipment selector shown above. */}
-        {inputs.primaryLocation === 'home' && (
-          <>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Available equipment</Text>
-              <Text style={styles.sectionSubtitle}>Select what you have at home (required for exercise selection)</Text>
-              <View style={styles.chipsRow}>
-                {(['barbell', 'dumbbells', 'machines', 'cable', 'kettlebells', 'pull-up bar', 'bands', 'cardio machines', 'none'] as EquipmentItem[]).map(equipment => {
-                  const isSelected = inputs.availableEquipment.includes(equipment);
-                  return (
-                    <TouchableOpacity
-                      key={equipment}
-                      style={[styles.chip, isSelected && styles.chipSelected]}
-                      onPress={() => handleEquipmentToggle(equipment)}
-                    >
-                      <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                        {equipment.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Cardio equipment</Text>
-              <Text style={styles.sectionSubtitle}>Do you have: treadmill/bike/rower or none?</Text>
-              <View style={styles.optionsRow}>
-                {(['treadmill', 'bike', 'rower', 'none'] as CardioEquipment[]).map(cardio => (
-                  <TouchableOpacity
-                    key={cardio}
-                    style={[styles.optionButton, inputs.cardioEquipment === cardio && styles.optionButtonSelected]}
-                    onPress={() => setInputs(prev => ({
-                      ...prev,
-                      cardioEquipment: prev.cardioEquipment === cardio ? null : cardio,
-                    }))}
-                  >
-                    <Text style={[styles.optionButtonText, inputs.cardioEquipment === cardio && styles.optionButtonTextSelected]}>
-                      {cardio.charAt(0).toUpperCase() + cardio.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </>
-        )}
-
-        {/* Workout detail level — always shown at bottom of core (Gym and Home) */}
+        {/* Workout detail level (Advanced) */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Workout detail level</Text>
           <Text style={styles.sectionSubtitle}>How detailed should workouts be?</Text>
@@ -1495,18 +1514,6 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
           </View>
         </View>
 
-        {/* Advanced Options Accordion */}
-        <TouchableOpacity
-          style={styles.advancedToggle}
-          onPress={() => setShowAdvanced(!showAdvanced)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.advancedToggleText}>Advanced (optional)</Text>
-          <Text style={styles.advancedToggleIcon}>{showAdvanced ? '▼' : '▶'}</Text>
-        </TouchableOpacity>
-
-        {showAdvanced && (
-          <>
             {/* Progression Style */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Progression style</Text>

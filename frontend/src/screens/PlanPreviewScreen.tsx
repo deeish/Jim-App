@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Modal,
   Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { CommonActions, useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -17,8 +19,15 @@ import { useTheme } from '../theme/ThemeContext';
 import { colors as themeColors } from '../theme/colors';
 import { createPlan, generateSingleSession, type PlanSlot } from '../services/planService';
 import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
-import { runPipeline, runPipelineSafe, planDraftToWeekPlans, type PipelineDebugInfo } from '../lib/planPipeline';
-import type { PlanDraft } from '../types/plan';
+import {
+  runPipeline,
+  runPipelineSafe,
+  planDraftToWeekPlans,
+  formatDraftReps,
+  type PipelineDebugInfo,
+} from '../lib/planPipeline';
+import type { PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
+import { formatLocalYmd, getWeekStartMonday } from '../lib/planCalendar';
 
 type PlanPreviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlanPreview'>;
 type PlanPreviewScreenRouteProp = RouteProp<RootStackParamList, 'PlanPreview'>;
@@ -52,6 +61,100 @@ interface WeekPlan {
 }
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** Cache Groq workout previews so reopening the same card does not call the API again. */
+function groqPreviewCacheKey(week: number, day: string, workoutId: string): string {
+  return `${week}|${day}|${workoutId}`;
+}
+
+/** Open exercise library detail from Plan stack (ExerciseDetail lives under Search tab). */
+function navigateToTabExerciseDetail(
+  navigation: PlanPreviewScreenNavigationProp,
+  exerciseId: string,
+  planPreviewParams: any,
+  returnToPlanCard?: { weekNumber: number; day: string; workoutId: string },
+): void {
+  const nav = navigation as any;
+  const tabNav = nav?.getParent?.()?.getParent?.() ?? nav?.getParent?.();
+  if (tabNav?.navigate) {
+    tabNav.navigate('Search', {
+      screen: 'ExerciseDetail',
+      params: { exerciseId, returnToPlanPreview: true, planPreviewParams, returnToPlanCard },
+    });
+  }
+}
+
+const REASONING_PREVIEW_CHARS = 220;
+
+type ReasoningSectionKey = 'warmUp' | 'reasoning' | 'coolDown';
+
+function clipReasoningParagraph(text: string, maxChars: number): { short: string; needsMore: boolean } {
+  const t = text.trim();
+  if (t.length <= maxChars) return { short: t, needsMore: false };
+  let cut = t.slice(0, maxChars);
+  const lastSpace = cut.lastIndexOf(' ');
+  if (lastSpace > maxChars * 0.55) cut = cut.slice(0, lastSpace);
+  return { short: `${cut.trim()}…`, needsMore: true };
+}
+
+function formatWorkoutTypeLabel(type: PlanWorkout['type']): string {
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function progressionHintFromPlanInputs(planInputs: PlanInputs | undefined): string | null {
+  if (!planInputs) return null;
+  if (!planInputs.progressionStyle) {
+    return 'Progression: when sets feel solid, add a small amount of weight or 1–2 reps next week.';
+  }
+  switch (planInputs.progressionStyle) {
+    case 'build':
+      return 'Progression: add weight or reps when you hit the top of each rep range on all sets.';
+    case 'build_deload':
+      return 'Progression: build for a few weeks, then use a lighter deload week before ramping again.';
+    case 'maintain':
+      return 'Progression: keep loads steady; prioritize technique and recovery.';
+    default:
+      return 'Progression: when sets feel solid, add a small amount of weight or 1–2 reps next week.';
+  }
+}
+
+function parseRepScalar(reps: string): number {
+  const m = String(reps).match(/\d+/);
+  return m ? parseInt(m[0], 10) : 8;
+}
+
+function legacyGoalToPlanGoal(
+  g: 'fat loss' | 'strength' | 'endurance' | 'hybrid',
+): PlanInputs['goal'] {
+  if (g === 'fat loss') return 'fat_loss';
+  if (g === 'hybrid') return 'balanced';
+  if (g === 'endurance') return 'endurance';
+  return 'strength';
+}
+
+/** Modal payload from pipeline session (single source of truth with the week list). */
+function workoutPreviewFromSessionDraft(
+  session: SessionDraft,
+  cardTitle: string,
+  goal: PlanInputs['goal'],
+): WorkoutPreview {
+  const working = session.exercises.filter((e) => (e.sets ?? 0) > 0);
+  return {
+    name: cardTitle,
+    reasoning: session.whyThisWorkout,
+    warmUp: session.warmup,
+    coolDown: session.cooldown,
+    exercises: working.map((e, idx) => ({
+      name: e.name,
+      sets: e.sets,
+      reps: /\d+\s*[–-]\s*\d+/.test(String(e.reps))
+        ? e.reps
+        : formatDraftReps(parseRepScalar(e.reps), goal),
+      orderIndex: idx,
+      exerciseId: e.exerciseId ?? undefined,
+    })),
+  };
+}
 
 /** Map frontend equipment keys to backend/exercise library display names. */
 function mapEquipmentToBackend(equipment: string[]): string[] {
@@ -219,7 +322,8 @@ function getInitialPlanData(
 
 export default function PlanPreviewScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
-  const { inputs, draftId, planInputs } = route.params;
+  const { inputs, draftId, planInputs, returnToPlanCard } = route.params;
+  const isFocused = useIsFocused();
   const [applying, setApplying] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [regenerating, setRegenerating] = useState<string | null>(null);
@@ -229,7 +333,10 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const [previewCard, setPreviewCard] = useState<{ workout: PlanWorkout; day: string } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<WorkoutPreview | null>(null);
+  /** True when modal shows PlanDraft session; false after "alternate" Groq preview. */
+  const [previewUsesDraft, setPreviewUsesDraft] = useState(true);
   const [replacingExerciseName, setReplacingExerciseName] = useState<string | null>(null);
+  const [expandedReasoning, setExpandedReasoning] = useState<Partial<Record<ReasoningSectionKey, boolean>>>({});
 
   const [loadingPreview, setLoadingPreview] = useState(!!planInputs);
   const [generateError, setGenerateError] = useState<string | null>(null);
@@ -237,8 +344,18 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const [planData, setPlanData] = useState<WeekPlan[]>(() =>
     planInputs ? [] : getInitialPlanData(inputs, draftId)
   );
+  const [cardToReopen, setCardToReopen] = useState(returnToPlanCard ?? null);
+  useEffect(() => {
+    setCardToReopen(returnToPlanCard ?? null);
+  }, [returnToPlanCard?.workoutId, returnToPlanCard?.weekNumber, returnToPlanCard?.day]);
   const [debugInfo, setDebugInfo] = useState<PipelineDebugInfo | null>(null);
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
+
+  const groqPreviewCacheRef = useRef<Map<string, WorkoutPreview>>(new Map());
+
+  useEffect(() => {
+    groqPreviewCacheRef.current.clear();
+  }, [planDraft]);
 
   useEffect(() => {
     if (!planInputs) return;
@@ -268,52 +385,271 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       cancelAnimationFrame(frameId);
     };
   }, [planInputs, draftId]);
+
+  useEffect(() => {
+    setExpandedReasoning({});
+  }, [previewCard?.day, previewCard?.workout.id]);
+
+  // When user switches away from Plan tab, hide modals so global RN Modal doesn't block the other tab.
+  useEffect(() => {
+    if (isFocused) return;
+    setPreviewCard(null);
+    setPreviewData(null);
+    setPreviewLoading(false);
+    setPreviewUsesDraft(true);
+    setSwapModalVisible(false);
+  }, [isFocused]);
+  
+  // When returning from ExerciseDetail, reopen the exact workout card.
+  useEffect(() => {
+    if (!cardToReopen || !planInputs) return;
+    if (!planDraft) return; // need planDraft to show draft-based session exercises
+
+    let cancelled = false;
+    const run = async (): Promise<void> => {
+      try {
+        setExpandedReasoning({});
+        setSelectedWeek(cardToReopen.weekNumber);
+
+        const weekPlan = planData.find((w) => w.weekNumber === cardToReopen.weekNumber);
+        const workout =
+          weekPlan?.workouts[cardToReopen.day]?.find((w) => w.id === cardToReopen.workoutId) ??
+          weekPlan?.workouts[cardToReopen.day]?.[0];
+
+        if (!workout) {
+          if (!cancelled) setCardToReopen(null);
+          return;
+        }
+
+        // Show the card immediately; if we need Groq fallback we can still replace previewData.
+        setPreviewCard({ workout, day: cardToReopen.day });
+        setPreviewData(null);
+        setPreviewLoading(true);
+
+        if (workout.type === 'recovery') {
+          setPreviewUsesDraft(true);
+          setPreviewData({ name: workout.title, exercises: [], reasoning: workout.detailLine });
+          return;
+        }
+
+        const wkDraft = planDraft.weeks.find((w) => w.weekIndex === cardToReopen.weekNumber);
+        const dayDraft = wkDraft?.days.find((d) => d.weekday === cardToReopen.day);
+        const session = dayDraft?.session;
+
+        if (session?.exercises?.length) {
+          if (!cancelled) {
+            setPreviewData(workoutPreviewFromSessionDraft(session, workout.title, planInputs.goal));
+            setPreviewUsesDraft(true);
+          }
+          return;
+        }
+
+        // Groq fallback (cache avoids repeated calls when user taps back multiple times).
+        const cacheKey = groqPreviewCacheKey(cardToReopen.weekNumber, cardToReopen.day, workout.id);
+        const cached = groqPreviewCacheRef.current.get(cacheKey);
+        if (cached) {
+          if (!cancelled) {
+            setPreviewUsesDraft(false);
+            setPreviewData(cached);
+          }
+          return;
+        }
+
+        const result = await generateWorkoutPreview(cardToReopen.day, {
+          focus: workout.title,
+          duration: workout.durationMinutes,
+          difficulty: intensityToDifficulty(workout.intensity),
+          goal: inputs.goal ?? undefined,
+          experience: inputs.experienceLevel ?? undefined,
+          equipment: inputs.availableEquipment?.length ? mapEquipmentToBackend(inputs.availableEquipment) : undefined,
+          limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
+          programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
+          programDayFocus: workout.title,
+        });
+
+        const planGoal = legacyGoalToPlanGoal(inputs.goal);
+        const mapped: WorkoutPreview = {
+          ...result,
+          exercises: (result.exercises ?? []).map((e, idx) => ({
+            name: e.name,
+            sets: e.sets,
+            reps:
+              typeof e.reps === 'number' ? formatDraftReps(e.reps, planGoal) : String(e.reps ?? ''),
+            weight: e.weight,
+            notes: e.notes,
+            orderIndex: idx,
+            exerciseId: typeof (e as { exerciseId?: string }).exerciseId === 'string'
+              ? (e as { exerciseId: string }).exerciseId
+              : undefined,
+          })),
+        };
+
+        groqPreviewCacheRef.current.set(cacheKey, mapped);
+        if (!cancelled) {
+          setPreviewUsesDraft(false);
+          setPreviewData(mapped);
+        }
+      } catch (_e) {
+        if (!cancelled) setPreviewData({ name: cardToReopen?.workoutId ?? 'Workout', exercises: [], reasoning: 'Could not load preview.' });
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+        if (!cancelled) setCardToReopen(null);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [cardToReopen, planDraft, planData, planInputs, inputs]);
   
   const currentWeek = planData.find(w => w.weekNumber === selectedWeek) || planData[0];
   
   // Calculate summaries for current week
   const weekSummary = useMemo(() => {
-    if (!currentWeek) return { sessions: 0, strength: 0, cardio: 0, recovery: 0, hardDays: 0 };
-    
+    if (!currentWeek) return { sessions: 0, strength: 0, cardio: 0, recovery: 0 };
+
     let sessions = 0;
     let strength = 0;
     let cardio = 0;
     let recovery = 0;
-    let hardDays = 0;
-    
+
     DAYS_OF_WEEK.forEach(day => {
       const workouts = currentWeek.workouts[day] || [];
       sessions += workouts.length;
-      
+
       workouts.forEach(workout => {
         if (workout.type === 'strength') strength++;
         else if (workout.type === 'cardio') cardio++;
         else if (workout.type === 'recovery') recovery++;
-        
-        if (workout.intensity === 'Hard') {
-          hardDays++;
-        }
       });
     });
-    
-    return { sessions, strength, cardio, recovery, hardDays };
+
+    return { sessions, strength, cardio, recovery };
   }, [currentWeek]);
-  
+
   const intensityToDifficulty = (intensity: Intensity): 'beginner' | 'intermediate' | 'advanced' => {
     if (intensity === 'Easy') return 'beginner';
     if (intensity === 'Hard') return 'advanced';
     return 'intermediate';
   };
 
-  const handleCardPress = useCallback(async (workout: PlanWorkout, day: string) => {
-    if (workout.type === 'recovery') {
+  const handlePreviewExerciseRowPress = useCallback(
+    (
+      exerciseName: string,
+      exerciseId?: string,
+      returnToPlanCard?: { weekNumber: number; day: string; workoutId: string },
+    ) => {
+      const id = exerciseId?.trim();
+      if (!id) {
+        Alert.alert(
+          'Exercise details',
+          `“${exerciseName}” isn’t linked to the library yet. Open the Exercises tab and search by name.`,
+        );
+        return;
+      }
+      // Close the modal before navigating so the new screen isn't shown "behind" the preview overlay.
+      setPreviewCard(null);
+      setPreviewData(null);
+      setPreviewLoading(false);
+      setPreviewUsesDraft(true);
+      navigateToTabExerciseDetail(navigation, id, { inputs, draftId, planInputs }, returnToPlanCard);
+    },
+    [navigation],
+  );
+
+  const handleCardPress = useCallback(
+    async (workout: PlanWorkout, day: string) => {
+      if (workout.type === 'recovery') {
+        setPreviewCard({ workout, day });
+        setPreviewUsesDraft(true);
+        setPreviewData({ name: workout.title, exercises: [], reasoning: workout.detailLine });
+        return;
+      }
       setPreviewCard({ workout, day });
-      setPreviewData({ name: workout.title, exercises: [], reasoning: workout.detailLine });
-      return;
-    }
-    setPreviewCard({ workout, day });
+
+      if (planDraft && planInputs) {
+        const wk = planDraft.weeks.find((w) => w.weekIndex === selectedWeek);
+        const dayDraft = wk?.days.find((d) => d.weekday === day);
+        const session = dayDraft?.session;
+        if (session?.exercises?.length) {
+          groqPreviewCacheRef.current.delete(
+            groqPreviewCacheKey(selectedWeek, day, workout.id),
+          );
+          setPreviewLoading(false);
+          setPreviewData(workoutPreviewFromSessionDraft(session, workout.title, planInputs.goal));
+          setPreviewUsesDraft(true);
+          return;
+        }
+      }
+
+      const cacheKey = groqPreviewCacheKey(selectedWeek, day, workout.id);
+      const cached = groqPreviewCacheRef.current.get(cacheKey);
+      if (cached) {
+        setPreviewUsesDraft(false);
+        setPreviewLoading(false);
+        setPreviewData(cached);
+        return;
+      }
+
+      setPreviewUsesDraft(false);
+      setPreviewLoading(true);
+      setPreviewData(null);
+      try {
+        const result = await generateWorkoutPreview(day, {
+          focus: workout.title,
+          duration: workout.durationMinutes,
+          difficulty: intensityToDifficulty(workout.intensity),
+          goal: inputs.goal ?? undefined,
+          experience: inputs.experienceLevel ?? undefined,
+          equipment: inputs.availableEquipment?.length ? mapEquipmentToBackend(inputs.availableEquipment) : undefined,
+          limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
+          programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
+          programDayFocus: workout.title,
+        });
+        const planGoal = legacyGoalToPlanGoal(inputs.goal);
+        const mapped: WorkoutPreview = {
+          ...result,
+          exercises: (result.exercises ?? []).map((e, idx) => ({
+            name: e.name,
+            sets: e.sets,
+            reps:
+              typeof e.reps === 'number'
+                ? formatDraftReps(e.reps, planGoal)
+                : String(e.reps ?? ''),
+            weight: e.weight,
+            notes: e.notes,
+            orderIndex: idx,
+            exerciseId: typeof (e as { exerciseId?: string }).exerciseId === 'string'
+              ? (e as { exerciseId: string }).exerciseId
+              : undefined,
+          })),
+        };
+        groqPreviewCacheRef.current.set(cacheKey, mapped);
+        setPreviewData(mapped);
+      } catch (_e) {
+        setPreviewData({ name: workout.title, exercises: [], reasoning: 'Could not load preview.' });
+      } finally {
+        setPreviewLoading(false);
+      }
+    },
+    [
+      inputs.goal,
+      inputs.experienceLevel,
+      inputs.availableEquipment,
+      inputs.avoidList,
+      inputs.programType,
+      planDraft,
+      planInputs,
+      selectedWeek,
+    ],
+  );
+
+  const handleRegenerateAlternatePreview = useCallback(async () => {
+    if (!previewCard || !planInputs) return;
+    const { workout, day } = previewCard;
+    if (workout.type === 'recovery') return;
     setPreviewLoading(true);
-    setPreviewData(null);
     try {
       const result = await generateWorkoutPreview(day, {
         focus: workout.title,
@@ -326,13 +662,44 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
         programDayFocus: workout.title,
       });
-      setPreviewData(result);
-    } catch (e) {
-      setPreviewData({ name: workout.title, exercises: [], reasoning: 'Could not load preview.' });
+      const mapped: WorkoutPreview = {
+        ...result,
+        exercises: (result.exercises ?? []).map((e, idx) => ({
+          name: e.name,
+          sets: e.sets,
+          reps:
+            typeof e.reps === 'number'
+              ? formatDraftReps(e.reps, planInputs.goal)
+              : String(e.reps ?? ''),
+          weight: e.weight,
+          notes: e.notes,
+          orderIndex: idx,
+          exerciseId: typeof (e as { exerciseId?: string }).exerciseId === 'string'
+            ? (e as { exerciseId: string }).exerciseId
+            : undefined,
+        })),
+      };
+      groqPreviewCacheRef.current.set(
+        groqPreviewCacheKey(selectedWeek, day, workout.id),
+        mapped,
+      );
+      setPreviewData(mapped);
+      setPreviewUsesDraft(false);
+    } catch (_e) {
+      Alert.alert('Preview failed', 'Could not generate alternate preview. Try again.');
     } finally {
       setPreviewLoading(false);
     }
-  }, [inputs.goal, inputs.experienceLevel, inputs.availableEquipment, inputs.avoidList, inputs.programType]);
+  }, [
+    previewCard,
+    planInputs,
+    selectedWeek,
+    inputs.goal,
+    inputs.experienceLevel,
+    inputs.availableEquipment,
+    inputs.avoidList,
+    inputs.programType,
+  ]);
 
   const handleRetryGenerate = useCallback(async () => {
     if (!planInputs) return;
@@ -589,7 +956,10 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             exerciseId: e.exerciseId ?? null,
             name: e.name ?? 'Exercise',
             sets: typeof e.sets === 'number' ? e.sets : 3,
-            reps: typeof e.reps === 'number' ? String(e.reps) : '8–10',
+            reps:
+              typeof e.reps === 'number'
+                ? formatDraftReps(e.reps, planInputs.goal)
+                : '8–12',
             notes: e.notes,
           })),
         };
@@ -618,15 +988,22 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           reasoning: result.reasoning,
           warmUp: result.warmUp,
           coolDown: result.coolDown,
-          exercises: (result.exercises ?? []).map((e) => ({
+          exercises: (result.exercises ?? []).map((e, idx) => ({
             name: e.name,
             sets: e.sets,
-            reps: e.reps,
+            reps:
+              typeof e.reps === 'number'
+                ? formatDraftReps(e.reps, planInputs.goal)
+                : String(e.reps ?? '8–12'),
             weight: e.weight,
             notes: e.notes,
-            orderIndex: 0,
+            orderIndex: idx,
+            exerciseId: typeof (e as { exerciseId?: string }).exerciseId === 'string'
+              ? (e as { exerciseId: string }).exerciseId
+              : undefined,
           })),
         });
+        setPreviewUsesDraft(false);
       } catch (e) {
         Alert.alert('Replace failed', (e as Error)?.message ?? "Couldn't replace exercise. Try again.");
       } finally {
@@ -700,6 +1077,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         : inputs.goal;
       await createPlan({
         name: `Plan ${new Date().toLocaleDateString()}`,
+        weekAnchorMonday: formatLocalYmd(getWeekStartMonday(new Date())),
         slots,
         goal: goalForApi ?? undefined,
         experience: inputs.experienceLevel ?? undefined,
@@ -707,7 +1085,13 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
         programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
       });
-      navigation.navigate('Plan');
+      // Plan tab stack root is PlanList (calendar). Reset so Preview/Generate aren’t left on the stack.
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'PlanList' }],
+        }),
+      );
     } catch (err) {
       console.error('Failed to apply plan:', err);
       Alert.alert('Could not save plan', 'Check your connection and try again.');
@@ -799,95 +1183,99 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             <Text style={styles.summaryLabel}>Cardio</Text>
             <Text style={styles.summaryValue}>{weekSummary.cardio}</Text>
           </View>
-          {weekSummary.hardDays > 0 && (
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Hard Days</Text>
-              <Text style={[styles.summaryValue, styles.hardDaysWarning]}>
-                {weekSummary.hardDays}
-              </Text>
-            </View>
-          )}
         </View>
       </View>
 
-      {/* Regenerate Controls */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.regenerateControls}>
-        <TouchableOpacity
-          style={[styles.regenerateButton, regenerating === `week-${selectedWeek}` && styles.regenerateButtonActive]}
-          onPress={() => handleRegenerateWeek(selectedWeek)}
-          disabled={!!regenerating}
-        >
-          {regenerating === `week-${selectedWeek}` ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Text style={styles.regenerateButtonText}>Regenerate Week</Text>
-          )}
-        </TouchableOpacity>
-        {weekSummary.cardio > 0 ? (
-          <>
-            <TouchableOpacity
-              style={[styles.regenerateButton, regenerating === 'cardio' && styles.regenerateButtonActive]}
-              onPress={handleRegenerateCardioOnly}
-              disabled={!!regenerating}
-            >
-              {regenerating === 'cardio' ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Text style={styles.regenerateButtonText}>Regenerate Cardio</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.regenerateButton, regenerating === 'swap' && styles.regenerateButtonActive]}
-              onPress={() => handleSwapModality('run', 'bike')}
-              disabled={!!regenerating}
-            >
-              {regenerating === 'swap' ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Text style={styles.regenerateButtonText}>Swap Run → Bike</Text>
-              )}
-            </TouchableOpacity>
-          </>
-        ) : null}
-        <TouchableOpacity
-          style={[styles.regenerateButton, regenerating === 'easier' && styles.regenerateButtonActive]}
-          onPress={handleMakeEasier}
-          disabled={!!regenerating}
-        >
-          {regenerating === 'easier' ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Text style={styles.regenerateButtonText}>Make It Easier</Text>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
+      {/* Adjust this week — secondary to Apply; same actions as before */}
+      <View style={styles.adjustWeekSection}>
+        <Text style={styles.adjustWeekLabel}>Adjust this week</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.adjustWeekScrollContent}>
+          <TouchableOpacity
+            style={[styles.regenerateButton, regenerating === `week-${selectedWeek}` && styles.regenerateButtonActive]}
+            onPress={() => handleRegenerateWeek(selectedWeek)}
+            disabled={!!regenerating}
+          >
+            {regenerating === `week-${selectedWeek}` ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={styles.regenerateButtonText}>Regenerate Week</Text>
+            )}
+          </TouchableOpacity>
+          {weekSummary.cardio > 0 ? (
+            <>
+              <TouchableOpacity
+                style={[styles.regenerateButton, regenerating === 'cardio' && styles.regenerateButtonActive]}
+                onPress={handleRegenerateCardioOnly}
+                disabled={!!regenerating}
+              >
+                {regenerating === 'cardio' ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Text style={styles.regenerateButtonText}>Regenerate Cardio</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.regenerateButton, regenerating === 'swap' && styles.regenerateButtonActive]}
+                onPress={() => handleSwapModality('run', 'bike')}
+                disabled={!!regenerating}
+              >
+                {regenerating === 'swap' ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Text style={styles.regenerateButtonText}>Swap Run → Bike</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          ) : null}
+          <TouchableOpacity
+            style={[styles.regenerateButton, regenerating === 'easier' && styles.regenerateButtonActive]}
+            onPress={handleMakeEasier}
+            disabled={!!regenerating}
+          >
+            {regenerating === 'easier' ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={styles.regenerateButtonText}>Make It Easier</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {DAYS_OF_WEEK.map(day => {
           const workouts = currentWeek?.workouts[day] || [];
           const isMoveTarget = moveMode && moveMode.fromDay !== day;
-          
+
+          if (workouts.length === 0) {
+            return (
+              <View key={day} style={styles.restDayRow}>
+                <Text style={styles.restDayName}>{day}</Text>
+                <Text style={styles.restDayBadge}>Rest</Text>
+              </View>
+            );
+          }
+
           return (
             <View key={day} style={styles.daySection}>
               <View style={styles.dayHeader}>
                 <Text style={styles.dayTitle}>{day}</Text>
                 <View style={styles.dayActions}>
-                  {workouts.length > 0 && (
-                    <>
-                      <TouchableOpacity
-                        style={styles.dayActionButton}
-                        onPress={() => handleRemoveWorkout(day)}
-                      >
-                        <Text style={styles.dayActionText}>Remove</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.dayActionButton}
-                        onPress={() => handleSwapWorkout(day)}
-                      >
-                        <Text style={styles.dayActionText}>Swap</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
+                  <TouchableOpacity
+                    style={styles.dayActionIcon}
+                    onPress={() => handleRemoveWorkout(day)}
+                    accessibilityLabel="Remove workout"
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={themeColors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.dayActionIcon}
+                    onPress={() => handleSwapWorkout(day)}
+                    accessibilityLabel="Swap workout"
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="swap-horizontal" size={22} color={themeColors.textSecondary} />
+                  </TouchableOpacity>
                   {moveMode && (
                     <TouchableOpacity
                       style={[styles.dayActionButton, isMoveTarget && styles.dayActionButtonActive]}
@@ -901,49 +1289,43 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                 </View>
               </View>
 
-              {workouts.length === 0 ? (
-                <View style={styles.emptyDay}>
-                  <Text style={styles.emptyDayText}>No workout planned</Text>
-                </View>
-              ) : (
-                <View style={styles.workoutStack}>
-                  {workouts.map((workout) => {
-                    const badgeStyle = getChangeBadgeStyle(workout.changeType);
-                    
-                    return (
-                      <TouchableOpacity
-                        key={workout.id}
-                        style={styles.workoutCard}
-                        onPress={() => handleCardPress(workout, day)}
-                        onLongPress={() => handleMoveWorkout(workout.id, day)}
-                        activeOpacity={0.7}
-                      >
-                        {workout.changeType && (
-                          <View style={[styles.changeBadge, { backgroundColor: badgeStyle.backgroundColor }]}>
-                            <Text style={[styles.changeBadgeText, { color: badgeStyle.color }]}>
-                              {workout.changeType.toUpperCase()}
-                            </Text>
-                          </View>
-                        )}
-                        <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
-                          <Text style={styles.workoutTypeBadge}>
-                            {workout.type.charAt(0).toUpperCase()}
+              <View style={styles.workoutStack}>
+                {workouts.map(workout => {
+                  const badgeStyle = getChangeBadgeStyle(workout.changeType);
+
+                  return (
+                    <TouchableOpacity
+                      key={workout.id}
+                      style={styles.workoutCard}
+                      onPress={() => handleCardPress(workout, day)}
+                      onLongPress={() => handleMoveWorkout(workout.id, day)}
+                      activeOpacity={0.7}
+                    >
+                      {workout.changeType && (
+                        <View style={[styles.changeBadge, { backgroundColor: badgeStyle.backgroundColor }]}>
+                          <Text style={[styles.changeBadgeText, { color: badgeStyle.color }]}>
+                            {workout.changeType.toUpperCase()}
                           </Text>
                         </View>
-                        <View style={styles.workoutContent}>
-                          <Text style={styles.workoutTitle}>{workout.title}</Text>
-                          <Text style={styles.workoutDetailLine}>{workout.detailLine}</Text>
+                      )}
+                      <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
+                        <Text style={styles.workoutTypeBadge}>
+                          {workout.type.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.workoutContent}>
+                        <Text style={styles.workoutTitle}>{workout.title}</Text>
+                        <Text style={styles.workoutDetailLine}>{workout.detailLine}</Text>
+                      </View>
+                      {moveMode?.workoutId === workout.id && (
+                        <View style={styles.moveIndicator}>
+                          <Text style={styles.moveIndicatorText}>Moving...</Text>
                         </View>
-                        {moveMode?.workoutId === workout.id && (
-                          <View style={styles.moveIndicator}>
-                            <Text style={styles.moveIndicatorText}>Moving...</Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
           );
         })}
@@ -951,7 +1333,8 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
 
       {/* Workout detail preview modal: exercises + reasoning */}
       <Modal
-        visible={!!previewCard}
+        // `Modal` is a global overlay; gate by focus so it can't block the other tab.
+        visible={!!previewCard && isFocused}
         transparent
         animationType="slide"
         onRequestClose={() => { setPreviewCard(null); setPreviewData(null); }}
@@ -963,8 +1346,41 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                 <>
                   <Text style={styles.modalTitle}>{previewCard.workout.title}</Text>
                   <Text style={styles.modalSubtitle}>
-                    {previewCard.day} • {previewCard.workout.durationMinutes} min • {previewCard.workout.intensity}
+                    {previewCard.day} • {previewCard.workout.durationMinutes} min • {formatWorkoutTypeLabel(previewCard.workout.type)}
                   </Text>
+                  {planInputs ? (
+                    <Text style={styles.progressionHint}>
+                      {progressionHintFromPlanInputs(planInputs)}
+                    </Text>
+                  ) : null}
+                  {planInputs && previewCard.workout.type !== 'recovery' && previewUsesDraft ? (
+                    <TouchableOpacity
+                      style={styles.alternatePreviewButton}
+                      onPress={handleRegenerateAlternatePreview}
+                      disabled={previewLoading}
+                    >
+                      <Text style={styles.alternatePreviewText}>Generate alternate preview</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {planInputs && previewCard.workout.type !== 'recovery' && !previewUsesDraft ? (
+                    <TouchableOpacity
+                      style={styles.alternatePreviewButton}
+                      onPress={() => {
+                        if (!previewCard || !planDraft || !planInputs) return;
+                        const wk = planDraft.weeks.find((w) => w.weekIndex === selectedWeek);
+                        const dayDraft = wk?.days.find((d) => d.weekday === previewCard.day);
+                        const session = dayDraft?.session;
+                        if (session?.exercises?.length) {
+                          setPreviewData(
+                            workoutPreviewFromSessionDraft(session, previewCard.workout.title, planInputs.goal),
+                          );
+                          setPreviewUsesDraft(true);
+                        }
+                      }}
+                    >
+                      <Text style={styles.alternatePreviewText}>Back to plan exercises</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   {previewLoading ? (
                     <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 24 }} />
                   ) : previewData ? (
@@ -974,19 +1390,67 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                           {previewData.warmUp ? (
                             <>
                               <Text style={styles.previewReasoningLabel}>Warm-up</Text>
-                              <Text style={styles.previewReasoningText}>{previewData.warmUp}</Text>
+                              {(() => {
+                                const expanded = !!expandedReasoning.warmUp;
+                                const { short, needsMore } = clipReasoningParagraph(previewData.warmUp, REASONING_PREVIEW_CHARS);
+                                return (
+                                  <>
+                                    <Text style={styles.previewReasoningText}>{expanded ? previewData.warmUp : short}</Text>
+                                    {needsMore ? (
+                                      <TouchableOpacity
+                                        onPress={() => setExpandedReasoning(p => ({ ...p, warmUp: !p.warmUp }))}
+                                        hitSlop={{ top: 6, bottom: 6 }}
+                                      >
+                                        <Text style={styles.reasoningToggleText}>{expanded ? 'Show less' : 'Show more'}</Text>
+                                      </TouchableOpacity>
+                                    ) : null}
+                                  </>
+                                );
+                              })()}
                             </>
                           ) : null}
                           {previewData.reasoning ? (
                             <>
-                              <Text style={[styles.previewReasoningLabel, previewData.warmUp && { marginTop: 12 }]}>Why this workout</Text>
-                              <Text style={styles.previewReasoningText}>{previewData.reasoning}</Text>
+                              <Text style={[styles.previewReasoningLabel, !!previewData.warmUp && { marginTop: 12 }]}>Why this workout</Text>
+                              {(() => {
+                                const expanded = !!expandedReasoning.reasoning;
+                                const { short, needsMore } = clipReasoningParagraph(previewData.reasoning, REASONING_PREVIEW_CHARS);
+                                return (
+                                  <>
+                                    <Text style={styles.previewReasoningText}>{expanded ? previewData.reasoning : short}</Text>
+                                    {needsMore ? (
+                                      <TouchableOpacity
+                                        onPress={() => setExpandedReasoning(p => ({ ...p, reasoning: !p.reasoning }))}
+                                        hitSlop={{ top: 6, bottom: 6 }}
+                                      >
+                                        <Text style={styles.reasoningToggleText}>{expanded ? 'Show less' : 'Show more'}</Text>
+                                      </TouchableOpacity>
+                                    ) : null}
+                                  </>
+                                );
+                              })()}
                             </>
                           ) : null}
                           {previewData.coolDown ? (
                             <>
-                              <Text style={[styles.previewReasoningLabel, (previewData.warmUp || previewData.reasoning) && { marginTop: 12 }]}>Cool-down</Text>
-                              <Text style={styles.previewReasoningText}>{previewData.coolDown}</Text>
+                              <Text style={[styles.previewReasoningLabel, (!!previewData.warmUp || !!previewData.reasoning) && { marginTop: 12 }]}>Cool-down</Text>
+                              {(() => {
+                                const expanded = !!expandedReasoning.coolDown;
+                                const { short, needsMore } = clipReasoningParagraph(previewData.coolDown, REASONING_PREVIEW_CHARS);
+                                return (
+                                  <>
+                                    <Text style={styles.previewReasoningText}>{expanded ? previewData.coolDown : short}</Text>
+                                    {needsMore ? (
+                                      <TouchableOpacity
+                                        onPress={() => setExpandedReasoning(p => ({ ...p, coolDown: !p.coolDown }))}
+                                        hitSlop={{ top: 6, bottom: 6 }}
+                                      >
+                                        <Text style={styles.reasoningToggleText}>{expanded ? 'Show less' : 'Show more'}</Text>
+                                      </TouchableOpacity>
+                                    ) : null}
+                                  </>
+                                );
+                              })()}
                             </>
                           ) : null}
                         </View>
@@ -999,26 +1463,39 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                             .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
                             .map((ex, idx) => (
                               <View key={idx} style={styles.previewExerciseRow}>
-                                <View style={styles.previewExerciseTextBlock}>
+                                <TouchableOpacity
+                                  style={styles.previewExerciseTextBlock}
+                                  onPress={() =>
+                                    previewCard
+                                      ? handlePreviewExerciseRowPress(ex.name, ex.exerciseId, {
+                                          weekNumber: selectedWeek,
+                                          day: previewCard.day,
+                                          workoutId: previewCard.workout.id,
+                                        })
+                                      : handlePreviewExerciseRowPress(ex.name, ex.exerciseId)
+                                  }
+                                  activeOpacity={0.65}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`View ${ex.name} in exercise library`}
+                                >
                                   <Text style={styles.previewExerciseName}>{ex.name}</Text>
                                   <Text style={styles.previewExerciseMeta}>
                                     {ex.sets} × {ex.reps}
                                     {ex.weight != null ? ` @ ${ex.weight} lb` : ''}
                                   </Text>
-                                  {ex.notes ? (
-                                    <Text style={styles.previewExerciseNotes}>Focus: {ex.notes}</Text>
-                                  ) : null}
-                                </View>
+                                </TouchableOpacity>
                                 {planDraft && planInputs && (
                                   <TouchableOpacity
-                                    style={[styles.dayActionButton, styles.previewReplaceButton]}
+                                    style={styles.previewReplaceIconBtn}
                                     onPress={() => handleReplaceExercise(ex.name)}
                                     disabled={!!replacingExerciseName}
+                                    accessibilityLabel={`Replace ${ex.name}`}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                   >
                                     {replacingExerciseName === ex.name ? (
                                       <ActivityIndicator size="small" color={colors.primary} />
                                     ) : (
-                                      <Text style={styles.dayActionText}>Replace</Text>
+                                      <Ionicons name="refresh-outline" size={22} color={themeColors.textSecondary} />
                                     )}
                                   </TouchableOpacity>
                                 )}
@@ -1045,7 +1522,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
 
       {/* Swap Workout Modal */}
       <Modal
-        visible={swapModalVisible}
+        visible={swapModalVisible && isFocused}
         transparent
         animationType="slide"
         onRequestClose={() => setSwapModalVisible(false)}
@@ -1309,16 +1786,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: themeColors.text,
   },
-  hardDaysWarning: {
-    color: themeColors.warning,
-  },
-  regenerateControls: {
-    maxHeight: 50,
-    paddingVertical: 8,
+  adjustWeekSection: {
+    paddingTop: 8,
+    paddingBottom: 10,
     paddingHorizontal: 12,
     backgroundColor: themeColors.surface,
     borderBottomWidth: 1,
     borderBottomColor: themeColors.border,
+  },
+  adjustWeekLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: themeColors.textMuted,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  adjustWeekScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 2,
   },
   regenerateButton: {
     paddingHorizontal: 16,
@@ -1383,18 +1870,31 @@ const styles = StyleSheet.create({
   dayActionTextActive: {
     color: themeColors.background,
   },
-  emptyDay: {
-    backgroundColor: themeColors.surface,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    borderStyle: 'dashed',
+  dayActionIcon: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    borderRadius: 4,
   },
-  emptyDayText: {
+  restDayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginBottom: 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: themeColors.border,
+  },
+  restDayName: {
     fontSize: 14,
+    fontWeight: '600',
     color: themeColors.textMuted,
-    textAlign: 'center',
+  },
+  restDayBadge: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: themeColors.textMuted,
+    opacity: 0.9,
   },
   workoutStack: {
     gap: 12,
@@ -1517,7 +2017,29 @@ const styles = StyleSheet.create({
   modalSubtitle: {
     fontSize: 14,
     color: themeColors.textSecondary,
-    marginBottom: 20,
+    marginBottom: 8,
+  },
+  progressionHint: {
+    fontSize: 13,
+    color: themeColors.textMuted,
+    lineHeight: 19,
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  alternatePreviewButton: {
+    alignSelf: 'flex-start',
+    marginBottom: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.background,
+  },
+  alternatePreviewText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: themeColors.primary,
   },
   previewReasoning: {
     marginBottom: 16,
@@ -1538,6 +2060,12 @@ const styles = StyleSheet.create({
     color: themeColors.text,
     lineHeight: 22,
   },
+  reasoningToggleText: {
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: '600',
+    color: themeColors.primary,
+  },
   previewExercises: {
     marginBottom: 16,
   },
@@ -1552,7 +2080,8 @@ const styles = StyleSheet.create({
   previewExerciseRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 14,
+    marginBottom: 4,
     borderBottomWidth: 1,
     borderBottomColor: themeColors.border,
   },
@@ -1560,8 +2089,15 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
-  previewReplaceButton: {
-    alignSelf: 'center',
+  previewReplaceIconBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: themeColors.background,
+    borderWidth: 1,
+    borderColor: themeColors.border,
     flexShrink: 0,
   },
   previewExerciseName: {
@@ -1573,12 +2109,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: themeColors.textSecondary,
     marginTop: 2,
-  },
-  previewExerciseNotes: {
-    fontSize: 13,
-    color: themeColors.textTertiary,
-    fontStyle: 'italic',
-    marginTop: 4,
   },
   previewNoExercises: {
     fontSize: 14,

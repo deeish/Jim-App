@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsIn,
   Min,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -52,6 +53,12 @@ export class CreatePlanDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  /** Monday of the calendar week when program week 1 starts (YYYY-MM-DD). */
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  weekAnchorMonday?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

@@ -35,6 +35,28 @@ const WEEKDAYS: Weekday[] = [
   'Sunday',
 ];
 
+/** Rep range string for draft + preview (API often returns one number). */
+export function formatDraftReps(reps: number, goal: PlanInputs['goal']): string {
+  const n = Math.round(Number(reps));
+  if (!Number.isFinite(n) || n < 1) return '8–12';
+  if (goal === 'strength') {
+    const lo = Math.max(3, n - 2);
+    let hi = Math.min(12, n + 2);
+    if (hi < lo) hi = lo;
+    return `${lo}–${hi}`;
+  }
+  if (goal === 'endurance') {
+    const lo = Math.max(12, n - 3);
+    let hi = Math.min(25, n + 5);
+    if (hi < lo) hi = lo;
+    return `${lo}–${hi}`;
+  }
+  const lo = Math.max(6, n - 2);
+  let hi = Math.min(15, n + 4);
+  if (hi < lo) hi = lo;
+  return `${lo}–${hi}`;
+}
+
 function goalToRecommendation(goal: PlanInputs['goal']): Goal | null {
   if (goal === 'fat_loss') return 'fat loss';
   if (goal === 'strength') return 'strength';
@@ -316,7 +338,8 @@ function buildGenerateSessionsRequest(
 // --- Normalize API response into WeekDraft[] (Stage 6)
 function normalizeSessionsResponse(
   weekSpecs: WeekSessionSpecs[],
-  apiSessions: GenerateSessionResult[]
+  apiSessions: GenerateSessionResult[],
+  planInputs: PlanInputs
 ): { weeks: WeekDraft[] } {
   const byKey = new Map<string, GenerateSessionResult>();
   for (const s of apiSessions) {
@@ -336,7 +359,10 @@ function normalizeSessionsResponse(
         exerciseId: e.exerciseId ?? null,
         name: e.name ?? 'Exercise',
         sets: typeof e.sets === 'number' ? e.sets : 3,
-        reps: typeof e.reps === 'number' ? String(e.reps) : '8–10',
+        reps:
+          typeof e.reps === 'number'
+            ? formatDraftReps(e.reps, planInputs.goal)
+            : String(e.reps ?? '8–12'),
         notes: e.notes,
       }));
       const session: SessionDraft = {
@@ -379,7 +405,7 @@ async function stages5And6FromApi(
       `Generate sessions: expected ${request.sessions.length} sessions, got ${sessions.length}`
     );
   }
-  const { weeks } = normalizeSessionsResponse(weekSpecs, sessions);
+  const { weeks } = normalizeSessionsResponse(weekSpecs, sessions, planInputs);
   return { weeks, rawGrokResponse: sessions };
 }
 
@@ -613,6 +639,14 @@ const TYPE_COLORS: Record<string, string> = {
   recovery: '#9B59B6',
 };
 
+/** One line for Preview cards — keeps the week list scannable; full copy stays in SessionDraft.whyThisWorkout for tooling/debug. */
+function previewDetailLineFromSession(session: SessionDraft, durationRounded: number): string {
+  const n = session.exercises?.length ?? 0;
+  const typeLabel =
+    session.type === 'strength' ? 'Strength' : session.type === 'cardio' ? 'Cardio' : 'Recovery';
+  return `${durationRounded} min · ${typeLabel} · ${n} exercise${n === 1 ? '' : 's'}`;
+}
+
 /**
  * Convert a PlanDraft to the legacy WeekPlan[] shape so the Preview screen
  * can render without changing its UI. Preview "renders from PlanDraft" by
@@ -631,7 +665,7 @@ export function planDraftToWeekPlans(draft: PlanDraft): WeekPlanAdapter[] {
       workouts[d.weekday].push({
         id: `draft-${draft.draftId}-w${w.weekIndex}-${d.weekday}-1`,
         title: session.title,
-        detailLine: session.whyThisWorkout ?? `${session.exercises.length} exercises`,
+        detailLine: previewDetailLineFromSession(session, duration),
         iconColor: TYPE_COLORS[session.type] ?? '#C7A46A',
         durationMinutes: duration,
         intensity: session.isHardDay ? 'Hard' : session.type === 'recovery' ? 'Easy' : 'Medium',

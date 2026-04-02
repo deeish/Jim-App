@@ -1,16 +1,36 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkoutGeneratorService } from '../workouts/workout-generator.service';
+import { ExercisesService } from '../exercises/exercises.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
+import {
+  enrichGeneratedSession,
+  type GeneratedSession,
+} from './session-enrichment';
 
 @Injectable()
 export class PlansService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly workoutGenerator: WorkoutGeneratorService,
+    private readonly exercises: ExercisesService,
   ) {}
+
+  /** Plan slots with ordered plan_exercises (for Plan screen detail + materialize). */
+  private planWorkoutsInclude() {
+    return {
+      orderBy: [
+        { weekNumber: 'asc' as const },
+        { dayOfWeek: 'asc' as const },
+        { orderInDay: 'asc' as const },
+      ],
+      include: {
+        exercises: { orderBy: { orderIndex: 'asc' as const } },
+      },
+    };
+  }
 
   /** Current plan = most recently updated plan for this user. */
   async getCurrent(userId: string) {
@@ -18,9 +38,7 @@ export class PlansService {
       where: { userId },
       orderBy: { updatedAt: 'desc' },
       include: {
-        planWorkouts: {
-          orderBy: [{ weekNumber: 'asc' }, { dayOfWeek: 'asc' }, { orderInDay: 'asc' }],
-        },
+        planWorkouts: this.planWorkoutsInclude(),
       },
     });
     return plan;
@@ -32,9 +50,7 @@ export class PlansService {
       where: { userId },
       orderBy: { updatedAt: 'desc' },
       include: {
-        planWorkouts: {
-          orderBy: [{ weekNumber: 'asc' }, { dayOfWeek: 'asc' }, { orderInDay: 'asc' }],
-        },
+        planWorkouts: this.planWorkoutsInclude(),
       },
     });
     const weeklyWorkouts = plan
@@ -51,9 +67,7 @@ export class PlansService {
     const plan = await this.prisma.workoutPlan.findUnique({
       where: { id },
       include: {
-        planWorkouts: {
-          orderBy: [{ weekNumber: 'asc' }, { dayOfWeek: 'asc' }, { orderInDay: 'asc' }],
-        },
+        planWorkouts: this.planWorkoutsInclude(),
       },
     });
     if (!plan) throw new NotFoundException(`Plan with ID ${id} not found`);
@@ -63,13 +77,22 @@ export class PlansService {
     return plan;
   }
 
+  private dateOnlyFromYmd(ymd: string): Date {
+    return new Date(`${ymd}T12:00:00.000Z`);
+  }
+
   async create(dto: CreatePlanDto, userId: string) {
     const name = dto.name ?? `Plan ${new Date().toLocaleDateString()}`;
+
+    const weekAnchorMonday = dto.weekAnchorMonday
+      ? this.dateOnlyFromYmd(dto.weekAnchorMonday)
+      : null;
 
     const plan = await this.prisma.workoutPlan.create({
       data: {
         name,
         userId,
+        weekAnchorMonday,
         planWorkouts: {
           create: dto.slots.map((s) => ({
             weekNumber: s.weekNumber,
@@ -84,9 +107,7 @@ export class PlansService {
         },
       },
       include: {
-        planWorkouts: {
-          orderBy: [{ weekNumber: 'asc' }, { dayOfWeek: 'asc' }, { orderInDay: 'asc' }],
-        },
+        planWorkouts: this.planWorkoutsInclude(),
       },
     });
 
@@ -117,7 +138,63 @@ export class PlansService {
     return slotDate.getTime() >= today.getTime();
   }
 
-  /** Create a Workout for each PlanWorkout in week 1 (only for today and future days), with exercises from Groq (or rule-based fallback). */
+  private static readonly PLAN_DAYS = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ] as const;
+
+  /** UTC midnight ms for the calendar day of `d` (interpreted in UTC). */
+  private utcStartOfDayFromDate(d: Date): number {
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
+
+  /** Calendar date (UTC) of this plan slot from anchor Monday + program week + weekday. */
+  private slotUtcStartFromAnchor(
+    anchorMonday: Date,
+    weekNumber: number,
+    dayOfWeek: string,
+  ): number {
+    const dayIndex = PlansService.PLAN_DAYS.indexOf(dayOfWeek as (typeof PlansService.PLAN_DAYS)[number]);
+    const idx = dayIndex < 0 ? 0 : dayIndex;
+    const base = this.utcStartOfDayFromDate(anchorMonday);
+    const deltaDays = (weekNumber - 1) * 7 + idx;
+    return base + deltaDays * 86400000;
+  }
+
+  /** Monday 00:00 UTC and Sunday 00:00 UTC of the ISO week containing `now`. */
+  private utcWeekRangeContaining(now: Date): { weekStartMs: number; weekEndMs: number } {
+    const y = now.getUTCFullYear();
+    const m0 = now.getUTCMonth();
+    const d = now.getUTCDate();
+    const dow = now.getUTCDay();
+    const diff = dow === 0 ? -6 : 1 - dow;
+    const mondayMs = Date.UTC(y, m0, d + diff);
+    const sundayMs = mondayMs + 6 * 86400000;
+    return { weekStartMs: mondayMs, weekEndMs: sundayMs };
+  }
+
+  /** True if this slot should get an auto-generated Workout now (today or later, same UTC calendar week as today). */
+  private shouldGenerateWorkoutForSlotAnchored(
+    anchorMonday: Date,
+    pw: { weekNumber: number; dayOfWeek: string },
+    now: Date,
+  ): boolean {
+    const slotMs = this.slotUtcStartFromAnchor(anchorMonday, pw.weekNumber, pw.dayOfWeek);
+    const todayMs = this.utcStartOfDayFromDate(now);
+    if (slotMs < todayMs) return false;
+    const { weekStartMs, weekEndMs } = this.utcWeekRangeContaining(now);
+    return slotMs >= weekStartMs && slotMs <= weekEndMs;
+  }
+
+  /**
+   * Create Workout rows for plan slots in the current UTC calendar week that are today or future,
+   * using weekAnchorMonday to map program weeks to real dates. Legacy (no anchor): week 1 only + local isDayTodayOrFuture.
+   */
   private async createWorkoutsForPlan(
     workoutPlanId: string,
     userId?: string,
@@ -130,9 +207,16 @@ export class PlansService {
     if (!plan) return;
 
     const uid = userId ?? plan.userId ?? undefined;
+    const now = new Date();
+    const anchor = plan.weekAnchorMonday;
+
     for (const pw of plan.planWorkouts) {
-      if (pw.weekNumber !== 1) continue;
-      if (!this.isDayTodayOrFuture(pw.dayOfWeek)) continue;
+      if (anchor) {
+        if (!this.shouldGenerateWorkoutForSlotAnchored(anchor, pw, now)) continue;
+      } else {
+        if (pw.weekNumber !== 1) continue;
+        if (!this.isDayTodayOrFuture(pw.dayOfWeek)) continue;
+      }
 
       const difficulty = this.intensityToDifficulty(pw.intensity);
       const generated = await this.workoutGenerator.generateWorkout({
@@ -176,6 +260,22 @@ export class PlansService {
           },
         },
       });
+
+      await this.prisma.planExercise.deleteMany({ where: { planWorkoutId: pw.id } });
+      await this.prisma.planExercise.createMany({
+        data: generated.exercises.map((e, i) => ({
+          planWorkoutId: pw.id,
+          exerciseId:
+            (e.exerciseId && String(e.exerciseId).trim()) ||
+            `generated_${pw.id.replace(/-/g, '').slice(0, 12)}_${i}`,
+          name: e.name,
+          sets: e.sets,
+          reps: e.reps,
+          weight: e.weight ?? null,
+          notes: e.notes ?? null,
+          orderIndex: e.orderIndex ?? i,
+        })),
+      });
     }
   }
 
@@ -208,6 +308,13 @@ export class PlansService {
 
     const name = dto.name ?? existing.name;
 
+    const weekAnchorMonday =
+      dto.weekAnchorMonday !== undefined
+        ? dto.weekAnchorMonday
+          ? this.dateOnlyFromYmd(dto.weekAnchorMonday)
+          : null
+        : undefined;
+
     await this.prisma.$transaction([
       this.prisma.workout.updateMany({
         where: { workoutPlanId: id },
@@ -220,6 +327,7 @@ export class PlansService {
       where: { id },
       data: {
         name,
+        ...(weekAnchorMonday !== undefined ? { weekAnchorMonday } : {}),
         planWorkouts: {
           create: dto.slots.map((s) => ({
             weekNumber: s.weekNumber,
@@ -234,9 +342,7 @@ export class PlansService {
         },
       },
       include: {
-        planWorkouts: {
-          orderBy: [{ weekNumber: 'asc' }, { dayOfWeek: 'asc' }, { orderInDay: 'asc' }],
-        },
+        planWorkouts: this.planWorkoutsInclude(),
       },
     });
 
@@ -278,6 +384,47 @@ export class PlansService {
       location === 'home'
         ? [...PlansService.HOME_EQUIPMENT]
         : undefined;
+
+    const fullProgram = await this.workoutGenerator.tryGenerateFullProgram({
+      sessions: dto.sessions.map((s) => ({
+        weekIndex: s.weekIndex,
+        weekday: s.weekday,
+        title: s.title,
+        type: s.type,
+        durationMin: s.durationMin,
+        durationMax: s.durationMax,
+        isHardDay: s.isHardDay,
+      })),
+      goal,
+      location,
+      detailLevel,
+      makeItEasier,
+      avoidConstraints: limitations,
+    });
+
+    if (fullProgram && fullProgram.length === dto.sessions.length) {
+      const results = fullProgram.map((session, i) => {
+        const spec = dto.sessions[i];
+        const avoidPhrases = [...new Set([...limitations, ...(spec?.avoidConstraints ?? [])])].filter(Boolean);
+        const filteredExercises = this.filterExercisesByAvoidList(
+          session.exercises,
+          avoidPhrases,
+        );
+        return {
+          weekIndex: session.weekIndex,
+          weekday: session.weekday,
+          name: session.name,
+          reasoning: session.reasoning,
+          warmUp: session.warmUp,
+          coolDown: session.coolDown,
+          cardioFinisher: session.cardioFinisher,
+          exercises: filteredExercises,
+        };
+      });
+      const enriched = await this.applySessionEnrichment(results, dto);
+      return { sessions: enriched };
+    }
+
     const results: Array<{
       weekIndex: number;
       weekday: string;
@@ -366,7 +513,38 @@ export class PlansService {
         exercises: filteredExercises,
       });
     }
-    return { sessions: results };
+    const enriched = await this.applySessionEnrichment(results, dto);
+    return { sessions: enriched };
+  }
+
+  /** Validate / repair session lists: compound ordering, pull balance, warm-up tied to main lift. */
+  private async applySessionEnrichment(
+    sessions: GeneratedSession[],
+    dto: GenerateSessionsDto,
+  ): Promise<GeneratedSession[]> {
+    const equipment =
+      dto.location === 'home'
+        ? [...PlansService.HOME_EQUIPMENT]
+        : undefined;
+    return Promise.all(
+      sessions.map((s, i) => {
+        const spec = dto.sessions[i];
+        if (!spec) return Promise.resolve(s);
+        const avoidPhrases = [
+          ...new Set([
+            ...(dto.avoidConstraints ?? []),
+            ...(spec.avoidConstraints ?? []),
+          ]),
+        ].filter((p) => typeof p === 'string' && p.trim().length >= 2);
+        return enrichGeneratedSession(
+          s,
+          spec,
+          this.exercises,
+          equipment,
+          avoidPhrases,
+        );
+      }),
+    );
   }
 
   async generateSingleSession(dto: GenerateSingleSessionDto) {
@@ -376,7 +554,9 @@ export class PlansService {
     const limitations = dto.avoidConstraints ?? [];
     const difficulty = dto.isHardDay ? 'advanced' : 'intermediate';
     const duration = Math.round((dto.durationMin + dto.durationMax) / 2);
-    const avoidPhrases = (dto.avoidConstraints ?? []).filter((p) => p.trim().length >= 2);
+    const avoidPhrases = (dto.avoidConstraints ?? []).filter(
+      (p) => typeof p === 'string' && p.trim().length >= 2,
+    );
 
     const generated = await this.workoutGenerator.generateWorkout({
       day: dto.weekday,
@@ -405,7 +585,7 @@ export class PlansService {
       avoidPhrases,
     );
 
-    return {
+    const session: GeneratedSession = {
       weekIndex: dto.weekIndex,
       weekday: dto.weekday,
       name: generated.name,
@@ -414,6 +594,13 @@ export class PlansService {
       coolDown: generated.coolDown,
       exercises: filteredExercises,
     };
+    return enrichGeneratedSession(
+      session,
+      dto,
+      this.exercises,
+      equipment,
+      avoidPhrases,
+    );
   }
 
   /** Remove exercises whose name or notes match any avoid phrase (case-insensitive). Phrases shorter than 2 chars are ignored to avoid over-matching. */

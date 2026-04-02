@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import HomeScreen from '../screens/HomeScreen';
 import PlanStackNavigator from '../navigation/PlanStackNavigator';
 import WorkoutScreen from '../screens/WorkoutScreen';
@@ -22,6 +23,9 @@ export default function NavBar() {
   return (
     <Tab.Navigator
       initialRouteName="Home"
+      // Without this, Android hardware back can jump to the *previous* tab (e.g. Plan/PlanPreview)
+      // while the user is on Exercises — tab "history" feels like leaving the exercise list.
+      backBehavior="none"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
@@ -86,6 +90,19 @@ export default function NavBar() {
             <SearchIcon color={color} size={focused ? 26 : 24} />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            const root = navigation.getState();
+            const searchRoute = root.routes.find((r: { name: string }) => r.name === 'Search');
+            const focusedChild = searchRoute ? getFocusedRouteNameFromRoute(searchRoute as never) : undefined;
+            // Search stack had ExerciseDetail (or any non-root screen) on top — e.g. after Plan → exercise
+            // row or library → detail, then another tab. Re-tapping "Exercises" must show the library again.
+            if (focusedChild && focusedChild !== 'SearchList') {
+              e.preventDefault();
+              navigation.navigate('Search', { screen: 'SearchList' });
+            }
+          },
+        })}
       />
     </Tab.Navigator>
   );

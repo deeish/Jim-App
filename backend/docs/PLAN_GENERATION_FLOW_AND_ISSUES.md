@@ -1,5 +1,7 @@
 # Plan Generation: How It Works, What’s Wrong, and What Can Go Wrong
 
+**Last reviewed:** 2026-03-24 — Update when `generate-sessions`, pipeline, or preview/regenerate behavior changes. See root [`docs/INDEX.md`](../../docs/INDEX.md).
+
 ## How it works (end-to-end)
 
 ### 1. User taps “Generate Week 1 Preview” (Generate Plan screen)

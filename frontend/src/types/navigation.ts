@@ -16,15 +16,23 @@ export type RootStackParamList = {
   PlanList: { openSaved?: boolean } | undefined;
   Workout: undefined;
   Search: {
-    addToPlan?: { day: string; weekIndex: number };
+    addToPlan?: { day: string; weekIndex: number; weekMondayIso: string };
     addToWorkout?: { workoutId: string; workoutName: string; existingExerciseIds?: string[] };
   } | undefined;
   SearchList: {
-    addToPlan?: { day: string; weekIndex: number };
+    addToPlan?: { day: string; weekIndex: number; weekMondayIso: string };
     addToWorkout?: { workoutId: string; workoutName: string; existingExerciseIds?: string[] };
   } | undefined;
   WeeklyWorkout: undefined;
-  ExerciseDetail: { exerciseId: string };
+  ExerciseDetail: {
+    exerciseId: string;
+    /** When true, Back returns user to Plan tab (e.g. opened from Plan Preview exercise row). */
+    returnToPlanPreview?: boolean;
+    /** Needed so we can safely navigate back to PlanPreview without missing route.params. */
+    planPreviewParams?: any;
+    /** When true, Back returns to the exact PlanPreview card (week/day/workout). */
+    returnToPlanCard?: { weekNumber: number; day: string; workoutId: string };
+  };
   WorkoutDetail: { workoutId: string };
   GeneratePlan: { editFromSnapshot?: PlanInputs } | undefined;
   History: undefined;
@@ -87,5 +95,7 @@ export type RootStackParamList = {
       age?: number;
     };
     draftId: string;
+    /** When returning from ExerciseDetail, reopen the exact card the user clicked. */
+    returnToPlanCard?: { weekNumber: number; day: string; workoutId: string };
   };
 };

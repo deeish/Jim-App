@@ -12,6 +12,7 @@ import {
   UIManager,
   ActivityIndicator,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
@@ -26,6 +27,12 @@ import { getCurrentPlan, updatePlan, createPlan } from '../services/planService'
 import type { ApiPlanWorkout } from '../services/planService';
 import { getWeeklyWorkouts, updateWorkout, getWorkoutById } from '../services/workoutService';
 import type { PlanSlot } from '../services/planService';
+import {
+  formatLocalYmd,
+  getCalendarWeekRange,
+  normalizePlanAnchorYmd,
+  programWeekNumberForSlotWeek,
+} from '../lib/planCalendar';
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Search'>;
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
@@ -143,6 +150,32 @@ export default function SearchScreen({ navigation }: Props) {
           if (__DEV__) console.warn('[SearchScreen] focus: getSavedExerciseIds failed', e);
         });
     }, [])
+  );
+
+  // Android: at Search stack root, hardware back must not bubble to the tab navigator — that can
+  // switch to the previous tab (Plan/PlanPreview) even with backBehavior="none" depending on stack routing.
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (showSavedList) {
+          setShowSavedList(false);
+          return true;
+        }
+        const state = navigation.getState();
+        const routes = state?.routes;
+        const index = state?.index ?? 0;
+        if (
+          routes &&
+          routes.length === 1 &&
+          routes[0]?.name === 'SearchList' &&
+          index === 0
+        ) {
+          return true;
+        }
+        return false;
+      });
+      return () => sub.remove();
+    }, [navigation, showSavedList])
   );
 
   // When opening saved list, fetch full saved exercises
@@ -445,7 +478,10 @@ export default function SearchScreen({ navigation }: Props) {
 
   const submitAddToPlan = useCallback(async () => {
     if (!addToPlan || selectedIds.size === 0) return;
-    const { day, weekIndex } = addToPlan;
+    const { day, weekIndex, weekMondayIso: weekMondayParam } = addToPlan;
+    const weekMondayIso =
+      weekMondayParam ?? formatLocalYmd(getCalendarWeekRange(weekIndex).start);
+
     const selectedExercises = exercises.filter(e => selectedIds.has(e.id));
     if (selectedExercises.length === 0) {
       Alert.alert('No exercises', 'Selected exercises could not be found. Try searching again and reselect.');
@@ -463,7 +499,20 @@ export default function SearchScreen({ navigation }: Props) {
     setAddingToPlan(true);
     try {
       const plan = await getCurrentPlan();
-      const weekNumber = weekIndex + 1;
+      const anchorYmd = normalizePlanAnchorYmd(plan?.weekAnchorMonday);
+      const weekNumber =
+        anchorYmd != null
+          ? programWeekNumberForSlotWeek(anchorYmd, weekMondayIso)
+          : weekIndex + 1;
+
+      if (weekNumber < 1) {
+        Alert.alert(
+          'Before plan start',
+          'This calendar week is before your program start. Use the week arrows on Plan to pick a later week.',
+        );
+        return;
+      }
+
       const slotTitle = deriveWorkoutTitle(selectedExercises);
       const newSlot: PlanSlot = {
         weekNumber,
@@ -492,6 +541,7 @@ export default function SearchScreen({ navigation }: Props) {
         newSlot.orderInDay = existingForDay.length;
         const updatedPlan = await updatePlan(plan.id, {
           name: plan.name,
+          ...(anchorYmd != null ? { weekAnchorMonday: anchorYmd } : {}),
           slots: [...existingSlots, newSlot],
         });
         const newPlanWorkout = updatedPlan.planWorkouts.find(
@@ -499,11 +549,15 @@ export default function SearchScreen({ navigation }: Props) {
         );
         if (newPlanWorkout) newPlanWorkoutId = newPlanWorkout.id;
       } else {
-        const createdPlan = await createPlan({ name: 'My Plan', slots: [newSlot] });
+        const createdPlan = await createPlan({
+          name: 'My Plan',
+          weekAnchorMonday: weekMondayIso,
+          slots: [{ ...newSlot, weekNumber: 1 }],
+        });
         if (createdPlan.planWorkouts.length > 0) newPlanWorkoutId = createdPlan.planWorkouts[0].id;
       }
 
-      if (newPlanWorkoutId && weekNumber === 1) {
+      if (newPlanWorkoutId) {
         const weekly = await getWeeklyWorkouts();
         const linkedWorkout = weekly.find(w => w.planWorkoutId === newPlanWorkoutId);
         if (linkedWorkout) {
@@ -515,9 +569,11 @@ export default function SearchScreen({ navigation }: Props) {
       const tabNav = (navigation as any)?.getParent?.();
       if (tabNav) tabNav.navigate('Plan');
       const successMsg =
-        weekNumber === 1
-          ? `Added ${selectedExercises.length} exercise(s) to ${day}.`
-          : `Added "${slotTitle}" to ${day} (week ${weekNumber}). You can start it when that week begins.`;
+        anchorYmd != null
+          ? `Added ${selectedExercises.length} exercise(s) to ${day} for this calendar week.`
+          : weekNumber === 1
+            ? `Added ${selectedExercises.length} exercise(s) to ${day}.`
+            : `Added "${slotTitle}" to ${day} (program week ${weekNumber}).`;
       Alert.alert('Done', successMsg);
     } catch (err: any) {
       console.error('Add to plan failed:', err);

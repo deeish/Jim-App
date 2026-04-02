@@ -6,6 +6,14 @@ export const getWeeklyWorkouts = async (): Promise<Workout[]> => {
   return response.data;
 };
 
+/** Create (or return) a Workout row from a plan slot’s stored exercises. */
+export const materializePlanSlotWorkout = async (planWorkoutId: string): Promise<Workout> => {
+  const response = await api.post<Workout>(
+    `/workouts/plan-slot/${encodeURIComponent(planWorkoutId)}/materialize`,
+  );
+  return response.data;
+};
+
 export const getWorkoutById = async (id: string): Promise<Workout> => {
   const response = await api.get(`/workouts/${id}`);
   return response.data;
@@ -26,7 +34,16 @@ export interface WorkoutPreview {
   reasoning?: string;
   warmUp?: string;
   coolDown?: string;
-  exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; orderIndex?: number }>;
+  exercises: Array<{
+    name: string;
+    sets: number;
+    reps: number | string;
+    weight?: number;
+    notes?: string;
+    orderIndex?: number;
+    /** Library id when available — opens Exercise detail from preview. */
+    exerciseId?: string;
+  }>;
 }
 
 export const generateWorkoutPreview = async (

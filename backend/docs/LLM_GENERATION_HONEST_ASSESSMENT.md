@@ -1,5 +1,7 @@
 # Brutally Honest Assessment: LLM Workout Generation
 
+**Last reviewed:** 2026-03-24 — Update when prompts or generator UX goals change. See root [`docs/INDEX.md`](../../docs/INDEX.md).
+
 **Perspective:** A gym person who knows programs, and a beginner who doesn’t.
 
 ---

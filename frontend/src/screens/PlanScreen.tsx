@@ -17,10 +17,17 @@ import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot } from '../services/planService';
-import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
+import type { ApiPlan, ApiPlanExercise, ApiPlanWorkout } from '../services/planService';
 import type { Workout } from '../types/workout';
+import { materializePlanSlotWorkout } from '../services/workoutService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
+import {
+  formatLocalYmd,
+  getCalendarWeekRange,
+  normalizePlanAnchorYmd,
+  programWeekForCalendarOffset,
+} from '../lib/planCalendar';
 
 type PlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Plan'>;
 
@@ -40,26 +47,8 @@ interface PlanWorkout {
   source?: 'manual' | 'ai'; // Track where workout came from
   locked?: boolean; // Lock this workout/day from regeneration
   draftId?: string; // Link to draft if this is from a draft
-}
-
-// Get Monday of the week containing d
-function getWeekStart(d: Date): Date {
-  const copy = new Date(d);
-  const day = copy.getDay();
-  const diff = day === 0 ? -6 : 1 - day; // Monday = 1
-  copy.setDate(copy.getDate() + diff);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
-
-function getWeekDateRange(weekIndex: number): { start: Date; end: Date } {
-  const today = new Date();
-  const thisMonday = getWeekStart(today);
-  const start = new Date(thisMonday);
-  start.setDate(start.getDate() + weekIndex * 7);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  return { start, end };
+  /** Exercises stored on the plan slot (API); used when no linked Workout row yet. */
+  planExercises?: ApiPlanExercise[];
 }
 
 function formatWeekRange(start: Date, end: Date): string {
@@ -68,7 +57,7 @@ function formatWeekRange(start: Date, end: Date): string {
 }
 
 function getDateForDay(weekIndex: number, dayName: string): Date {
-  const { start } = getWeekDateRange(weekIndex);
+  const { start } = getCalendarWeekRange(weekIndex);
   const dayIndex = DAYS_OF_WEEK.indexOf(dayName);
   const d = new Date(start);
   d.setDate(d.getDate() + dayIndex);
@@ -96,6 +85,7 @@ function apiSlotToPlanWorkout(pw: ApiPlanWorkout): PlanWorkout {
     intensity: (pw.intensity as Intensity) ?? 'Easy',
     type: pw.type as WorkoutType,
     source: 'ai',
+    planExercises: pw.exercises?.length ? pw.exercises : undefined,
   };
 }
 
@@ -132,31 +122,6 @@ function computeLoadBalance(plan: Record<string, PlanWorkout[]>): { strength: nu
   return { strength, cardio, recovery };
 }
 
-type BackToBackSuggestion = { kind: 'move'; fromDay: string; toDay: string; workout: PlanWorkout } | { kind: 'swap'; dayA: string; dayB: string };
-
-function getBackToBackSuggestions(plan: Record<string, PlanWorkout[]>): BackToBackSuggestion[] {
-  const out: BackToBackSuggestion[] = [];
-  for (let i = 0; i < DAYS_OF_WEEK.length - 1; i++) {
-    const dayA = DAYS_OF_WEEK[i];
-    const dayB = DAYS_OF_WEEK[i + 1];
-    const workoutsA = plan[dayA] || [];
-    const workoutsB = plan[dayB] || [];
-    const hardA = workoutsA.filter(w => w.intensity === 'Hard');
-    const hardB = workoutsB.filter(w => w.intensity === 'Hard');
-    if (hardA.length && hardB.length) {
-      if (hardA.length === 1) out.push({ kind: 'move', fromDay: dayA, toDay: dayB, workout: hardA[0] });
-      if (hardB.length === 1) out.push({ kind: 'move', fromDay: dayB, toDay: dayA, workout: hardB[0] });
-      out.push({ kind: 'swap', dayA, dayB });
-      break; // only first back-to-back pair
-    }
-  }
-  return out;
-}
-
-function hasBackToBackHardDays(plan: Record<string, PlanWorkout[]>): boolean {
-  return getBackToBackSuggestions(plan).length > 0;
-}
-
 type Props = {
   navigation?: PlanScreenNavigationProp;
 };
@@ -175,7 +140,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [planLoading, setPlanLoading] = useState(true);
   const [planError, setPlanError] = useState<string | null>(null);
   const [contextWorkout, setContextWorkout] = useState<{ workout: PlanWorkout; day: string } | null>(null);
-  const [showBackToBackModal, setShowBackToBackModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
   const [savedModalVisible, setSavedModalVisible] = useState(false);
@@ -183,6 +147,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState<{ slotId: string; day: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<ApiPlan | null>(null);
+  const [startWorkoutLoading, setStartWorkoutLoading] = useState(false);
   const contentScrollRef = React.useRef<ScrollView>(null);
 
   const loadPlan = useCallback(async () => {
@@ -226,12 +191,28 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     }, [loadPlan, route.params?.openSaved, navigation])
   );
 
-  const plan = useMemo(() => {
-    const weekNum = selectedWeek + 1;
-    return planByWeek[weekNum] ?? EMPTY_PLAN;
-  }, [planByWeek, selectedWeek]);
+  const maxPlanWeek = useMemo(() => {
+    const list = currentPlan?.planWorkouts;
+    if (!list?.length) return 0;
+    return Math.max(...list.map((pw) => pw.weekNumber), 0);
+  }, [currentPlan?.planWorkouts]);
 
-  const weekRange = getWeekDateRange(selectedWeek);
+  const anchorYmd = useMemo(
+    () => normalizePlanAnchorYmd(currentPlan?.weekAnchorMonday),
+    [currentPlan?.weekAnchorMonday],
+  );
+
+  const resolvedProgramWeek = useMemo(
+    () => programWeekForCalendarOffset(selectedWeek, anchorYmd, maxPlanWeek),
+    [selectedWeek, anchorYmd, maxPlanWeek],
+  );
+
+  const plan = useMemo(() => {
+    if (resolvedProgramWeek === null) return EMPTY_PLAN;
+    return planByWeek[resolvedProgramWeek] ?? EMPTY_PLAN;
+  }, [planByWeek, resolvedProgramWeek]);
+
+  const weekRange = getCalendarWeekRange(selectedWeek);
   const loadBalance = computeLoadBalance(plan);
   const headerSubtitle = useMemo(() => {
     const parts: string[] = [];
@@ -240,8 +221,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     if (loadBalance.recovery) parts.push(`${loadBalance.recovery} recovery`);
     return parts.length ? parts.join(', ') : null;
   }, [loadBalance.strength, loadBalance.cardio, loadBalance.recovery]);
-  const backToBackSuggestions = getBackToBackSuggestions(plan);
-  const backToBackHard = backToBackSuggestions.length > 0;
   const isCurrentWeek = selectedWeek === 0;
 
   const styles = useMemo(
@@ -289,15 +268,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         },
         ctaCompactText: { fontSize: 13, fontWeight: '600', color: colors.background },
         ctaCompactTextSecondary: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-        backToBackWarning: {
-          marginTop: 8,
-          paddingHorizontal: 10,
-          paddingVertical: 6,
-          backgroundColor: 'rgba(217, 119, 69, 0.2)',
-          borderRadius: 8,
-          alignSelf: 'flex-start',
-        },
-        backToBackWarningText: { fontSize: 12, color: colors.warning, fontWeight: '500' },
         weekRow: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -312,6 +282,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         weekNavArrowText: { fontSize: 20, color: colors.primary, fontWeight: '600' },
         weekNavCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
         weekNavLabel: { fontSize: 13, color: colors.text, fontWeight: '600' },
+        outOfProgramWeekBanner: {
+          paddingVertical: 8,
+          paddingHorizontal: 12,
+          backgroundColor: colors.surface,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        },
+        outOfProgramWeekText: { fontSize: 12, color: colors.textSecondary, textAlign: 'center' },
         content: { flex: 1 },
         contentContainer: { padding: 12, paddingBottom: 32 },
         daySection: { marginBottom: 18 },
@@ -417,24 +395,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         moveDayText: { fontSize: 16, color: colors.text },
         moveCancel: { padding: 16, alignItems: 'center' },
         moveCancelText: { fontSize: 16, color: colors.textMuted },
-        backToBackBox: {
-          backgroundColor: colors.surface,
-          borderRadius: 12,
-          width: '100%',
-          maxWidth: 320,
-          overflow: 'hidden',
-        },
-        backToBackTitle: {
-          fontSize: 18,
-          fontWeight: '700',
-          color: colors.text,
-          paddingHorizontal: 16,
-          paddingTop: 16,
-          paddingBottom: 8,
-        },
-        backToBackOption: { padding: 14, paddingLeft: 16, borderTopWidth: 1, borderTopColor: colors.border },
-        backToBackOptionText: { fontSize: 15, color: colors.primary, fontWeight: '600' },
-        backToBackDismiss: { padding: 16, alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.border },
         detailSheetBox: {
           backgroundColor: colors.surface,
           borderRadius: 16,
@@ -509,17 +469,49 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
 
   const closeDetailSheet = useCallback(() => setDetailSheetWorkout(null), []);
 
-  const handleStartAnyway = useCallback(() => {
+  const handleStartWorkout = useCallback(async () => {
     if (!detailSheetWorkout) return;
-    const linkedWorkout = resolveWorkoutForPlanSlot(detailSheetWorkout.workout.id);
-    closeDetailSheet();
+    const slotId = detailSheetWorkout.workout.id;
+    const linkedWorkout = resolveWorkoutForPlanSlot(slotId);
     const tabNav = (navigation as any)?.getParent?.();
-    if (tabNav) {
-      tabNav.navigate('Workout', linkedWorkout
-        ? { workoutId: linkedWorkout.id, fromPlan: true }
-        : { fromPlan: true });
+    const apiSlot = currentPlan?.planWorkouts?.find((p) => p.id === slotId);
+    const planExerciseCount =
+      (apiSlot?.exercises?.length ?? 0) || (detailSheetWorkout.workout.planExercises?.length ?? 0);
+
+    if (linkedWorkout?.id) {
+      closeDetailSheet();
+      tabNav?.navigate('Workout', { workoutId: linkedWorkout.id, fromPlan: true });
+      return;
     }
-  }, [detailSheetWorkout, resolveWorkoutForPlanSlot, closeDetailSheet, navigation]);
+
+    if (!planExerciseCount) {
+      Alert.alert(
+        'No exercises yet',
+        'Regenerate your plan with AI Generate, or add exercises from the library for this day.',
+      );
+      return;
+    }
+
+    try {
+      setStartWorkoutLoading(true);
+      const w = await materializePlanSlotWorkout(slotId);
+      await loadPlan();
+      closeDetailSheet();
+      tabNav?.navigate('Workout', { workoutId: w.id, fromPlan: true });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      Alert.alert('Could not start workout', typeof msg === 'string' ? msg : err?.message ?? 'Try again.');
+    } finally {
+      setStartWorkoutLoading(false);
+    }
+  }, [
+    detailSheetWorkout,
+    resolveWorkoutForPlanSlot,
+    currentPlan?.planWorkouts,
+    loadPlan,
+    closeDetailSheet,
+    navigation,
+  ]);
 
   const openContextMenu = useCallback((workout: PlanWorkout, day: string, e?: any) => {
     setContextWorkout({ workout, day });
@@ -606,9 +598,16 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     (day: string) => {
       const tabNav = (navigation as any)?.getParent?.();
       if (tabNav) {
+        const weekMondayIso = formatLocalYmd(getCalendarWeekRange(selectedWeek).start);
         tabNav.navigate('Search', {
           screen: 'SearchList',
-          params: { addToPlan: { day, weekIndex: selectedWeek } },
+          params: {
+            addToPlan: {
+              day,
+              weekIndex: selectedWeek,
+              weekMondayIso,
+            },
+          },
         });
       }
     },
@@ -622,11 +621,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const jumpToCurrentWeek = useCallback(() => {
     setSelectedWeek(0);
     contentScrollRef.current?.scrollTo({ y: 0, animated: true });
-  }, []);
-
-  const applyBackToBackFix = useCallback(() => {
-    setShowBackToBackModal(false);
-    Alert.alert('Plan is read-only', 'To change your plan, use Generate Plan then Apply to Plan.');
   }, []);
 
   const formatWorkoutDetailLine = (workout: PlanWorkout): string => {
@@ -739,25 +733,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
             <Text style={styles.detailsToggleIcon}>{showDetails ? ' ▾' : ' ▸'}</Text>
           </View>
         </TouchableOpacity>
-        
-        {backToBackHard && (
-          <TouchableOpacity
-            style={styles.backToBackWarning}
-            onPress={() => {
-              // Option 1: Show manual fix modal (existing)
-              // setShowBackToBackModal(true);
-              
-              // Option 2: Use AI Fix (new)
-              navigation.navigate('GeneratePlan', {
-                // In a real implementation, pass context for AI Fix
-                // For now, just navigate to generate
-              } as any);
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.backToBackWarningText}>⚠ Back-to-back hard days — tap to fix</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Tight week navigation: ‹ Week of Jan 26 – Feb 1 › */}
@@ -772,6 +747,16 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           <Text style={styles.weekNavArrowText}>›</Text>
         </TouchableOpacity>
       </View>
+
+      {resolvedProgramWeek === null && maxPlanWeek > 0 ? (
+        <View style={styles.outOfProgramWeekBanner}>
+          <Text style={styles.outOfProgramWeekText}>
+            {anchorYmd
+              ? 'No workouts for this calendar week — it is before your program start or after the last program week.'
+              : 'No workouts mapped to this week for your plan.'}
+          </Text>
+        </View>
+      ) : null}
 
       {/* Days list */}
       <ScrollView
@@ -951,51 +936,30 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         </Pressable>
       </Modal>
 
-      {/* Back-to-back hard days: actionable suggestions */}
-      <Modal visible={showBackToBackModal} transparent animationType="fade">
-        <Pressable style={styles.moveOverlay} onPress={() => setShowBackToBackModal(false)}>
-          <Pressable style={styles.backToBackBox} onPress={() => {}}>
-            <Text style={styles.backToBackTitle}>Fix suggestions</Text>
-            {backToBackSuggestions.map((s, i) => (
-              <TouchableOpacity
-                key={i}
-                style={styles.backToBackOption}
-                onPress={() => applyBackToBackFix()}
-              >
-                <Text style={styles.backToBackOptionText}>
-                  {s.kind === 'move'
-                    ? `Move ${s.workout.title} from ${s.fromDay} to ${s.toDay}`
-                    : `Swap ${s.dayA} with ${s.dayB}`}
-                </Text>
-              </TouchableOpacity>
-            ))}
-            {backToBackSuggestions.length > 0 && backToBackSuggestions[0].kind === 'move' && (
-              <TouchableOpacity
-                style={styles.backToBackOption}
-                onPress={() => {
-                  // Make Wednesday 'easy' instead - would need to modify workout intensity
-                  setShowBackToBackModal(false);
-                }}
-              >
-                <Text style={styles.backToBackOptionText}>
-                  Make {backToBackSuggestions[0].kind === 'move' ? backToBackSuggestions[0].fromDay : 'Wednesday'} 'easy' instead
-                </Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={styles.backToBackDismiss} onPress={() => setShowBackToBackModal(false)}>
-              <Text style={styles.moveCancelText}>Dismiss</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
       {/* Workout detail sheet: reasoning, exercises, and actions */}
       <Modal visible={!!detailSheetWorkout} transparent animationType="fade">
         <Pressable style={styles.menuOverlay} onPress={closeDetailSheet}>
           {detailSheetWorkout && (() => {
             const linked = resolveWorkoutForPlanSlot(detailSheetWorkout.workout.id);
             const isRestDay = detailSheetWorkout.workout.title === 'Rest Day';
-            const isToday = isTodayDate(detailSheetWorkout.date);
+            const apiSlot = currentPlan?.planWorkouts?.find((p) => p.id === detailSheetWorkout.workout.id);
+            const planLines = apiSlot?.exercises?.length
+              ? apiSlot.exercises
+              : detailSheetWorkout.workout.planExercises ?? [];
+            const fromPlanRows = planLines
+              .slice()
+              .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
+              .map((ex, idx) => ({
+                id: ex.id,
+                name: ex.name ?? 'Exercise',
+                sets: ex.sets,
+                reps: ex.reps,
+                weight: ex.weight ?? undefined,
+                notes: ex.notes ?? undefined,
+                orderIndex: ex.orderIndex ?? idx,
+              }));
+            const displayExercises =
+              linked?.exercises?.length ? linked.exercises : fromPlanRows;
             return (
               <Pressable style={styles.detailSheetBox} onPress={(e) => e.stopPropagation()}>
                 <ScrollView style={styles.detailSheetScroll} showsVerticalScrollIndicator={false}>
@@ -1010,7 +974,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                     {detailSheetWorkout.day} • {detailSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </Text>
 
-                  {!isRestDay && (linked?.warmUp || linked?.reasoning || linked?.coolDown) ? (
+                  {!isRestDay && linked && (linked.warmUp || linked.reasoning || linked.coolDown) ? (
                     <View style={styles.detailSheetReasoning}>
                       {linked.warmUp ? (
                         <>
@@ -1033,14 +997,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                     </View>
                   ) : null}
 
-                  {!isRestDay && linked?.exercises?.length ? (
+                  {!isRestDay && displayExercises.length > 0 ? (
                     <View style={styles.detailSheetExercises}>
                       <Text style={styles.detailSheetExercisesLabel}>Exercises</Text>
-                      {(linked.exercises || [])
+                      {displayExercises
                         .slice()
                         .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
                         .map((ex, idx) => (
-                          <View key={ex.id ?? idx} style={styles.detailSheetExerciseRow}>
+                          <View key={ex.id ?? `ex-${idx}`} style={styles.detailSheetExerciseRow}>
                             <Text style={styles.detailSheetExerciseName}>{ex.name}</Text>
                             <Text style={styles.detailSheetExerciseMeta}>
                               {ex.sets} × {ex.reps}
@@ -1052,9 +1016,9 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                           </View>
                         ))}
                     </View>
-                  ) : !isRestDay && !linked?.exercises?.length ? (
+                  ) : !isRestDay && displayExercises.length === 0 ? (
                     <Text style={styles.detailSheetNoExercises}>
-                      No exercises yet for this slot. They’re generated when you create your plan.
+                      No exercises for this session yet. Use AI Generate to build a plan, or add exercises from the library.
                     </Text>
                   ) : null}
 
@@ -1077,10 +1041,21 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                       <Text style={styles.detailSheetSecondaryText}>View full workout</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity style={styles.detailSheetPrimary} onPress={handleStartAnyway}>
-                    <Text style={styles.detailSheetPrimaryText}>
-                      {isRestDay ? 'OK' : isToday ? 'Start workout' : 'Start anyway'}
-                    </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.detailSheetPrimary,
+                      (startWorkoutLoading || (!isRestDay && displayExercises.length === 0)) && { opacity: 0.6 },
+                    ]}
+                    onPress={isRestDay ? closeDetailSheet : () => void handleStartWorkout()}
+                    disabled={!isRestDay && (startWorkoutLoading || displayExercises.length === 0)}
+                  >
+                    {startWorkoutLoading && !isRestDay ? (
+                      <ActivityIndicator color={colors.background} />
+                    ) : (
+                      <Text style={styles.detailSheetPrimaryText}>
+                        {isRestDay ? 'OK' : 'Start workout'}
+                      </Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </Pressable>

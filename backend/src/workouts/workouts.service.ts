@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWorkoutDto } from './dto/create-workout.dto';
 import { GenerateWorkoutDto } from './dto/generate-workout.dto';
@@ -75,6 +75,64 @@ export class WorkoutsService {
       orderBy: {
         createdAt: 'desc',
       },
+    });
+  }
+
+  /**
+   * Ensure a saved Workout exists for this plan slot (from plan_exercises), or return an existing one.
+   * Used when the Plan screen shows a slot that was never auto-materialized into workouts.
+   */
+  async materializeFromPlanSlot(
+    planWorkoutId: string,
+    userId: string,
+  ): Promise<WorkoutWithExercises> {
+    const pw = await this.prisma.planWorkout.findUnique({
+      where: { id: planWorkoutId },
+      include: {
+        workoutPlan: true,
+        exercises: { orderBy: { orderIndex: 'asc' } },
+      },
+    });
+    if (!pw?.workoutPlan || pw.workoutPlan.userId !== userId) {
+      throw new NotFoundException('Plan slot not found');
+    }
+    const existing = await this.prisma.workout.findFirst({
+      where: { planWorkoutId, userId },
+      include: { exercises: true },
+    });
+    if (existing) {
+      return existing;
+    }
+    if (!pw.exercises.length) {
+      throw new BadRequestException(
+        'This session has no exercises yet. Apply a generated plan again or add exercises from the library.',
+      );
+    }
+    return this.prisma.workout.create({
+      data: {
+        name: pw.title,
+        day: pw.dayOfWeek,
+        estimatedDuration: pw.durationMinutes,
+        focus: pw.detailLine ?? undefined,
+        workoutPlanId: pw.workoutPlanId,
+        planWorkoutId: pw.id,
+        userId,
+        exercises: {
+          create: pw.exercises.map((e, i) => ({
+            name: e.name ?? 'Exercise',
+            sets: e.sets,
+            reps: e.reps,
+            weight: e.weight ?? undefined,
+            notes: e.notes ?? undefined,
+            exerciseId:
+              e.exerciseId && !e.exerciseId.startsWith('generated_')
+                ? e.exerciseId
+                : undefined,
+            orderIndex: e.orderIndex ?? i,
+          })),
+        },
+      },
+      include: { exercises: true },
     });
   }
 
