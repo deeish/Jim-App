@@ -103,6 +103,21 @@ export class PlansService {
             durationMinutes: s.durationMinutes,
             intensity: s.intensity ?? undefined,
             orderInDay: s.orderInDay ?? 0,
+            exercises: s.exercises?.length
+              ? {
+                  create: s.exercises.map((e, i) => ({
+                    exerciseId:
+                      (e.exerciseId && String(e.exerciseId).trim()) ||
+                      `applied_${s.weekNumber}_${s.dayOfWeek}_${i}`,
+                    name: e.name ?? null,
+                    sets: e.sets,
+                    reps: e.reps,
+                    weight: e.weight ?? null,
+                    notes: e.notes ?? null,
+                    orderIndex: e.orderIndex ?? i,
+                  })),
+                }
+              : undefined,
           })),
         },
       },
@@ -111,7 +126,9 @@ export class PlansService {
       },
     });
 
-    await this.createWorkoutsForPlan(plan.id, userId, this.getGeneratorContextFromDto(dto));
+    await this.createWorkoutsForPlan(plan.id, userId, this.getGeneratorContextFromDto(dto), {
+      fillAllEmptySlots: true,
+    });
     return this.getById(plan.id, userId);
   }
 
@@ -191,18 +208,74 @@ export class PlansService {
     return slotMs >= weekStartMs && slotMs <= weekEndMs;
   }
 
+  /** Create a Workout from plan_exercises when the client applied preview exercises (no duplicate LLM). */
+  private async ensureWorkoutFromPlanSlotExercises(
+    pw: {
+      id: string;
+      title: string;
+      dayOfWeek: string;
+      detailLine: string | null;
+      durationMinutes: number;
+      exercises: Array<{
+        exerciseId: string;
+        name: string | null;
+        sets: number;
+        reps: number;
+        weight: number | null;
+        notes: string | null;
+        orderIndex: number;
+      }>;
+    },
+    workoutPlanId: string,
+    userId?: string,
+  ): Promise<void> {
+    const existing = await this.prisma.workout.findFirst({ where: { planWorkoutId: pw.id } });
+    if (existing) return;
+    if (!pw.exercises.length) return;
+    await this.prisma.workout.create({
+      data: {
+        name: pw.title,
+        day: pw.dayOfWeek,
+        estimatedDuration: pw.durationMinutes,
+        focus: pw.detailLine ?? undefined,
+        workoutPlanId,
+        planWorkoutId: pw.id,
+        userId,
+        exercises: {
+          create: pw.exercises.map((e, i) => ({
+            name: e.name ?? 'Exercise',
+            sets: e.sets,
+            reps: e.reps,
+            weight: e.weight ?? undefined,
+            notes: e.notes ?? undefined,
+            exerciseId:
+              e.exerciseId && !/^(draft_|applied_)/.test(e.exerciseId) ? e.exerciseId : undefined,
+            orderIndex: e.orderIndex ?? i,
+          })),
+        },
+      },
+    });
+  }
+
   /**
-   * Create Workout rows for plan slots in the current UTC calendar week that are today or future,
-   * using weekAnchorMonday to map program weeks to real dates. Legacy (no anchor): week 1 only + local isDayTodayOrFuture.
+   * Create Workout rows: first from client-supplied plan exercises (preview apply), then LLM for empty slots.
+   * When `fillAllEmptySlots` is true (new/replaced plan from POST/PATCH), every empty slot gets a workout so
+   * past calendar days are not skipped (otherwise detailLine can say "6 exercises" while DB has none).
+   * Otherwise only slots in the current UTC week from today forward are filled (lighter touch for future callers).
    */
   private async createWorkoutsForPlan(
     workoutPlanId: string,
     userId?: string,
     generatorContext?: { goal?: string; experience?: string; equipment?: string[]; limitations?: string[]; programTemplateId?: string },
+    options?: { fillAllEmptySlots?: boolean },
   ) {
     const plan = await this.prisma.workoutPlan.findUnique({
       where: { id: workoutPlanId },
-      include: { planWorkouts: true },
+      include: {
+        planWorkouts: {
+          include: { exercises: { orderBy: { orderIndex: 'asc' } } },
+        },
+      },
     });
     if (!plan) return;
 
@@ -211,11 +284,23 @@ export class PlansService {
     const anchor = plan.weekAnchorMonday;
 
     for (const pw of plan.planWorkouts) {
-      if (anchor) {
-        if (!this.shouldGenerateWorkoutForSlotAnchored(anchor, pw, now)) continue;
-      } else {
-        if (pw.weekNumber !== 1) continue;
-        if (!this.isDayTodayOrFuture(pw.dayOfWeek)) continue;
+      if (pw.exercises.length > 0) {
+        await this.ensureWorkoutFromPlanSlotExercises(pw, workoutPlanId, uid);
+      }
+    }
+
+    const fillAll = options?.fillAllEmptySlots === true;
+
+    for (const pw of plan.planWorkouts) {
+      if (pw.exercises.length > 0) continue;
+
+      if (!fillAll) {
+        if (anchor) {
+          if (!this.shouldGenerateWorkoutForSlotAnchored(anchor, pw, now)) continue;
+        } else {
+          if (pw.weekNumber !== 1) continue;
+          if (!this.isDayTodayOrFuture(pw.dayOfWeek)) continue;
+        }
       }
 
       const difficulty = this.intensityToDifficulty(pw.intensity);
@@ -338,6 +423,21 @@ export class PlansService {
             durationMinutes: s.durationMinutes,
             intensity: s.intensity ?? undefined,
             orderInDay: s.orderInDay ?? 0,
+            exercises: s.exercises?.length
+              ? {
+                  create: s.exercises.map((e, i) => ({
+                    exerciseId:
+                      (e.exerciseId && String(e.exerciseId).trim()) ||
+                      `applied_${s.weekNumber}_${s.dayOfWeek}_${i}`,
+                    name: e.name ?? null,
+                    sets: e.sets,
+                    reps: e.reps,
+                    weight: e.weight ?? null,
+                    notes: e.notes ?? null,
+                    orderIndex: e.orderIndex ?? i,
+                  })),
+                }
+              : undefined,
           })),
         },
       },
@@ -346,7 +446,9 @@ export class PlansService {
       },
     });
 
-    await this.createWorkoutsForPlan(plan.id, userId, this.getGeneratorContextFromDto(dto));
+    await this.createWorkoutsForPlan(plan.id, userId, this.getGeneratorContextFromDto(dto), {
+      fillAllEmptySlots: true,
+    });
     return this.getById(plan.id, userId);
   }
 

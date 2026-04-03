@@ -17,17 +17,19 @@ import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { colors as themeColors } from '../theme/colors';
-import { createPlan, generateSingleSession, type PlanSlot } from '../services/planService';
+import { createPlan, generateSingleSession, type PlanSlot, type PlanSlotExercise } from '../services/planService';
 import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
 import {
   runPipeline,
   runPipelineSafe,
   planDraftToWeekPlans,
   formatDraftReps,
+  sessionDraftToPlanSlotExercises,
   type PipelineDebugInfo,
 } from '../lib/planPipeline';
 import type { PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
 import { formatLocalYmd, getWeekStartMonday } from '../lib/planCalendar';
+import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 
 type PlanPreviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlanPreview'>;
 type PlanPreviewScreenRouteProp = RouteProp<RootStackParamList, 'PlanPreview'>;
@@ -53,6 +55,8 @@ interface PlanWorkout {
   locked?: boolean;
   draftId?: string;
   week: number;
+  /** Snapshot for Apply — matches this card even if planDraft lookup desyncs after edits. */
+  applyExercises?: PlanSlotExercise[];
 }
 
 interface WeekPlan {
@@ -65,23 +69,6 @@ const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'S
 /** Cache Groq workout previews so reopening the same card does not call the API again. */
 function groqPreviewCacheKey(week: number, day: string, workoutId: string): string {
   return `${week}|${day}|${workoutId}`;
-}
-
-/** Open exercise library detail from Plan stack (ExerciseDetail lives under Search tab). */
-function navigateToTabExerciseDetail(
-  navigation: PlanPreviewScreenNavigationProp,
-  exerciseId: string,
-  planPreviewParams: any,
-  returnToPlanCard?: { weekNumber: number; day: string; workoutId: string },
-): void {
-  const nav = navigation as any;
-  const tabNav = nav?.getParent?.()?.getParent?.() ?? nav?.getParent?.();
-  if (tabNav?.navigate) {
-    tabNav.navigate('Search', {
-      screen: 'ExerciseDetail',
-      params: { exerciseId, returnToPlanPreview: true, planPreviewParams, returnToPlanCard },
-    });
-  }
 }
 
 const REASONING_PREVIEW_CHARS = 220;
@@ -121,6 +108,19 @@ function progressionHintFromPlanInputs(planInputs: PlanInputs | undefined): stri
 function parseRepScalar(reps: string): number {
   const m = String(reps).match(/\d+/);
   return m ? parseInt(m[0], 10) : 8;
+}
+
+/** Exercises for API apply — prefer card snapshot, else same mapping as planDraftToWeekPlans uses. */
+function slotExercisesFromDraft(
+  draft: PlanDraft,
+  weekNumber: number,
+  dayOfWeek: string,
+): PlanSlotExercise[] | undefined {
+  const wk = draft.weeks.find((w) => w.weekIndex === weekNumber);
+  const day = wk?.days.find((d) => d.weekday === dayOfWeek);
+  const session = day?.session;
+  if (!session) return undefined;
+  return sessionDraftToPlanSlotExercises(session, weekNumber, dayOfWeek);
 }
 
 function legacyGoalToPlanGoal(
@@ -535,13 +535,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   };
 
   const handlePreviewExerciseRowPress = useCallback(
-    (
-      exerciseName: string,
-      exerciseId?: string,
-      returnToPlanCard?: { weekNumber: number; day: string; workoutId: string },
-    ) => {
-      const id = exerciseId?.trim();
-      if (!id) {
+    (exerciseName: string, exerciseId?: string) => {
+      const id = exerciseId?.trim() ?? '';
+      if (!isLinkableLibraryExerciseId(id)) {
         Alert.alert(
           'Exercise details',
           `“${exerciseName}” isn’t linked to the library yet. Open the Exercises tab and search by name.`,
@@ -553,7 +549,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       setPreviewData(null);
       setPreviewLoading(false);
       setPreviewUsesDraft(true);
-      navigateToTabExerciseDetail(navigation, id, { inputs, draftId, planInputs }, returnToPlanCard);
+      navigateFromPlanToExerciseDetail(navigation, id, 'preview');
     },
     [navigation],
   );
@@ -874,6 +870,25 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         workouts,
       };
     }));
+
+    setPlanDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        weeks: prev.weeks.map((wk) => {
+          if (wk.weekIndex !== selectedWeek) return wk;
+          const fromIdx = wk.days.findIndex((d) => d.weekday === fromDay);
+          const toIdx = wk.days.findIndex((d) => d.weekday === toDay);
+          if (fromIdx < 0 || toIdx < 0) return wk;
+          const days = [...wk.days];
+          const a = days[fromIdx].session;
+          const b = days[toIdx].session;
+          days[fromIdx] = { ...days[fromIdx], session: b };
+          days[toIdx] = { ...days[toIdx], session: a };
+          return { ...wk, days };
+        }),
+      };
+    });
     
     setMoveMode(null);
   }, [moveMode, selectedWeek]);
@@ -1043,6 +1058,22 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         workouts: { ...week.workouts, [day]: [newWorkout] },
       };
     }));
+    setPlanDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        weeks: prev.weeks.map((w) =>
+          w.weekIndex === selectedWeek
+            ? {
+                ...w,
+                days: w.days.map((d) =>
+                  d.weekday === day ? { ...d, session: null } : d,
+                ),
+              }
+            : w,
+        ),
+      };
+    });
     setSwapModalVisible(false);
     setSelectedDayForSwap(null);
   }, [selectedWeek, selectedDayForSwap]);
@@ -1055,6 +1086,12 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         DAYS_OF_WEEK.forEach((dayOfWeek) => {
           const workouts = week.workouts[dayOfWeek] ?? [];
           workouts.forEach((w, orderInDay) => {
+            const exercises =
+              w.applyExercises?.length
+                ? w.applyExercises
+                : planDraft != null
+                  ? slotExercisesFromDraft(planDraft, week.weekNumber, dayOfWeek)
+                  : undefined;
             slots.push({
               weekNumber: week.weekNumber,
               dayOfWeek,
@@ -1064,6 +1101,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
               durationMinutes: w.durationMinutes,
               intensity: w.intensity,
               orderInDay,
+              ...(exercises?.length ? { exercises } : {}),
             });
           });
         });
@@ -1465,15 +1503,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                               <View key={idx} style={styles.previewExerciseRow}>
                                 <TouchableOpacity
                                   style={styles.previewExerciseTextBlock}
-                                  onPress={() =>
-                                    previewCard
-                                      ? handlePreviewExerciseRowPress(ex.name, ex.exerciseId, {
-                                          weekNumber: selectedWeek,
-                                          day: previewCard.day,
-                                          workoutId: previewCard.workout.id,
-                                        })
-                                      : handlePreviewExerciseRowPress(ex.name, ex.exerciseId)
-                                  }
+                                  onPress={() => handlePreviewExerciseRowPress(ex.name, ex.exerciseId)}
                                   activeOpacity={0.65}
                                   accessibilityRole="button"
                                   accessibilityLabel={`View ${ex.name} in exercise library`}

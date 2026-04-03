@@ -14,6 +14,36 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 const TYPES = ['strength', 'cardio', 'recovery'];
 const INTENSITIES = ['Easy', 'Medium', 'Hard'];
 
+export class PlanSlotExerciseDto {
+  @IsString()
+  exerciseId: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsNumber()
+  @Min(1)
+  sets: number;
+
+  @IsNumber()
+  @Min(1)
+  reps: number;
+
+  @IsOptional()
+  @IsNumber()
+  weight?: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  orderIndex?: number;
+}
+
 export class PlanSlotDto {
   @IsNumber()
   @Min(1)
@@ -47,6 +77,13 @@ export class PlanSlotDto {
   @IsNumber()
   @Min(0)
   orderInDay?: number;
+
+  /** Exercises from preview / library apply (skips server LLM for this slot when present). */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PlanSlotExerciseDto)
+  exercises?: PlanSlotExerciseDto[];
 }
 
 export class CreatePlanDto {

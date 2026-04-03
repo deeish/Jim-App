@@ -536,6 +536,17 @@ export default function SearchScreen({ navigation }: Props) {
           durationMinutes: pw.durationMinutes,
           intensity: pw.intensity ?? undefined,
           orderInDay: pw.orderInDay,
+          exercises: pw.exercises?.length
+            ? pw.exercises.map((ex) => ({
+                exerciseId: ex.exerciseId,
+                name: ex.name ?? undefined,
+                sets: ex.sets,
+                reps: ex.reps,
+                weight: ex.weight ?? undefined,
+                notes: ex.notes ?? undefined,
+                orderIndex: ex.orderIndex,
+              }))
+            : undefined,
         }));
         const existingForDay = existingSlots.filter(s => s.dayOfWeek === day && s.weekNumber === weekNumber);
         newSlot.orderInDay = existingForDay.length;

@@ -25,9 +25,10 @@ import {
   validateDraft,
   repairDraft,
   planDraftToWeekPlans,
+  sessionDraftToPlanSlotExercises,
   type PipelineDebugInfo,
 } from './planPipeline';
-import type { PlanInputs, Weekday } from '../types/plan';
+import type { PlanInputs, SessionDraft, Weekday } from '../types/plan';
 
 const MON: Weekday = 'Monday';
 const TUE: Weekday = 'Tuesday';
@@ -63,6 +64,37 @@ function baseInputs(overrides: Partial<PlanInputs> = {}): PlanInputs {
 }
 
 describe('planPipeline', () => {
+  describe('sessionDraftToPlanSlotExercises', () => {
+    it('coerces zero sets to 1 when exercise has a name (backend @Min(1))', () => {
+      const session: SessionDraft = {
+        type: 'strength',
+        title: 'Test',
+        focusTags: [],
+        durationMin: 45,
+        durationMax: 45,
+        isHardDay: false,
+        exercises: [{ exerciseId: null, name: 'Squat', sets: 0, reps: '5' }],
+      };
+      const out = sessionDraftToPlanSlotExercises(session, 1, 'Monday');
+      expect(out).toBeDefined();
+      expect(out!).toHaveLength(1);
+      expect(out![0].sets).toBe(1);
+      expect(out![0].reps).toBeGreaterThanOrEqual(1);
+    });
+
+    it('attaches applyExercises on planDraftToWeekPlans cards', () => {
+      const inputs = baseInputs({
+        selectedWeekdays: [MON, TUE],
+        daysPerWeek: 2,
+        splitPreference: 'upper_lower',
+      });
+      const draft = runPipeline(inputs, 'test-draft');
+      const weekPlans = planDraftToWeekPlans(draft);
+      const mon = weekPlans[0].workouts[MON][0];
+      expect(mon?.applyExercises?.length).toBeGreaterThan(0);
+    });
+  });
+
   describe('Split mapping', () => {
     it('U/L for 4 days → Upper, Lower, Upper, Lower', () => {
       const inputs = baseInputs({

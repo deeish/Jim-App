@@ -74,7 +74,11 @@ type Props = {
 };
 
 export default function ExerciseDetailScreen({ navigation, route }: Props) {
-  const { exerciseId, returnToPlanPreview, planPreviewParams, returnToPlanCard } = route.params || {};
+  const { exerciseId, returnToPlanPreview } = route.params || {};
+  const returnToPlanExerciseContext =
+    route.params?.returnToPlanExerciseContext ??
+    (returnToPlanPreview ? ('preview' as const) : undefined);
+  const leaveExerciseForPlanFlow = returnToPlanExerciseContext != null;
   const { colors } = useTheme();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
@@ -227,10 +231,10 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   useFocusEffect(
     useCallback(() => {
       return (): void => {
-        if (!returnToPlanPreview) return;
+        if (!leaveExerciseForPlanFlow) return;
         resetSearchStackToSearchList(navigation);
       };
-    }, [returnToPlanPreview, navigation]),
+    }, [leaveExerciseForPlanFlow, navigation]),
   );
 
   useEffect(() => {
@@ -238,44 +242,23 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   }, [exerciseId, loadExercise]);
 
   const handleBack = useCallback(() => {
-    if (returnToPlanPreview) {
-      const params = returnToPlanCard
-        ? { ...planPreviewParams, returnToPlanCard }
-        : planPreviewParams;
-
-      if (planPreviewParams) {
-        const tabNav = getBottomTabNavigator(navigation);
-        const nestedNavigate = {
-          name: 'Plan' as const,
-          params: {
-            screen: 'PlanPreview' as const,
-            params,
-          },
-        };
-        if (tabNav?.dispatch) {
-          tabNav.dispatch(CommonActions.navigate(nestedNavigate));
-        } else {
-          (navigation as any).dispatch(CommonActions.navigate(nestedNavigate));
-        }
-        // After Plan is focused, clear Search stack without using goBack (can pop the wrong navigator).
-        setTimeout(() => resetSearchStackToSearchList(navigation), 0);
-        return;
-      }
-      // If we weren't given the preview params, safest option is to just go back.
-      if (navigation.canGoBack()) navigation.goBack();
+    if (leaveExerciseForPlanFlow) {
+      resetSearchStackToSearchList(navigation);
+      const tabNav = getBottomTabNavigator(navigation);
+      tabNav?.navigate('Search', { screen: 'SearchList' });
       return;
     }
     navigation.goBack();
-  }, [returnToPlanPreview, navigation, planPreviewParams, returnToPlanCard]);
+  }, [leaveExerciseForPlanFlow, navigation]);
 
   useEffect(() => {
-    if (!returnToPlanPreview) return undefined;
+    if (!leaveExerciseForPlanFlow) return undefined;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       handleBack();
       return true;
     });
     return () => sub.remove();
-  }, [returnToPlanPreview, handleBack]);
+  }, [leaveExerciseForPlanFlow, handleBack]);
 
   const handleToggleLike = async () => {
     if (!exerciseId || savingLike) return;

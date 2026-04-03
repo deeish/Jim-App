@@ -1,6 +1,16 @@
 import { api } from '../api/client';
 import type { Workout } from '../types/workout';
 
+export interface PlanSlotExercise {
+  exerciseId: string;
+  name?: string;
+  sets: number;
+  reps: number;
+  weight?: number;
+  notes?: string;
+  orderIndex?: number;
+}
+
 export interface PlanSlot {
   weekNumber: number;
   dayOfWeek: string;
@@ -10,6 +20,8 @@ export interface PlanSlot {
   durationMinutes: number;
   intensity?: string;
   orderInDay?: number;
+  /** Sent when applying AI preview so plan slots store exercises without a second LLM pass. */
+  exercises?: PlanSlotExercise[];
 }
 
 export interface ApiPlanExercise {

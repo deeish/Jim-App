@@ -28,6 +28,7 @@ import {
   normalizePlanAnchorYmd,
   programWeekForCalendarOffset,
 } from '../lib/planCalendar';
+import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 
 type PlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Plan'>;
 
@@ -951,6 +952,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
               .map((ex, idx) => ({
                 id: ex.id,
+                exerciseId: (ex as ApiPlanExercise).exerciseId,
                 name: ex.name ?? 'Exercise',
                 sets: ex.sets,
                 reps: ex.reps,
@@ -1003,18 +1005,46 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                       {displayExercises
                         .slice()
                         .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
-                        .map((ex, idx) => (
-                          <View key={ex.id ?? `ex-${idx}`} style={styles.detailSheetExerciseRow}>
-                            <Text style={styles.detailSheetExerciseName}>{ex.name}</Text>
-                            <Text style={styles.detailSheetExerciseMeta}>
-                              {ex.sets} × {ex.reps}
-                              {ex.weight != null ? ` @ ${ex.weight} lb` : ''}
-                            </Text>
-                            {ex.notes ? (
-                              <Text style={styles.detailSheetExerciseNotes}>Focus: {ex.notes}</Text>
-                            ) : null}
-                          </View>
-                        ))}
+                        .map((ex, idx) => {
+                          const row = ex as typeof ex & { exerciseId?: string };
+                          const libId = row.exerciseId;
+                          const canOpenLibrary = isLinkableLibraryExerciseId(libId);
+                          return (
+                            <Pressable
+                              key={ex.id ?? `ex-${idx}`}
+                              style={({ pressed }) => [
+                                styles.detailSheetExerciseRow,
+                                canOpenLibrary && pressed ? { opacity: 0.75 } : null,
+                              ]}
+                              onPress={() => {
+                                if (!canOpenLibrary) {
+                                  Alert.alert(
+                                    'Exercise details',
+                                    `“${ex.name}” isn’t linked to the library yet. Open the Exercises tab and search by name.`,
+                                  );
+                                  return;
+                                }
+                                closeDetailSheet();
+                                navigateFromPlanToExerciseDetail(navigation, libId!, 'calendar');
+                              }}
+                              accessibilityRole="button"
+                              accessibilityLabel={
+                                canOpenLibrary
+                                  ? `View ${ex.name} in exercise library`
+                                  : undefined
+                              }
+                            >
+                              <Text style={styles.detailSheetExerciseName}>{ex.name}</Text>
+                              <Text style={styles.detailSheetExerciseMeta}>
+                                {ex.sets} × {ex.reps}
+                                {ex.weight != null ? ` @ ${ex.weight} lb` : ''}
+                              </Text>
+                              {ex.notes ? (
+                                <Text style={styles.detailSheetExerciseNotes}>Focus: {ex.notes}</Text>
+                              ) : null}
+                            </Pressable>
+                          );
+                        })}
                     </View>
                   ) : !isRestDay && displayExercises.length === 0 ? (
                     <Text style={styles.detailSheetNoExercises}>

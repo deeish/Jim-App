@@ -26,11 +26,15 @@ export type RootStackParamList = {
   WeeklyWorkout: undefined;
   ExerciseDetail: {
     exerciseId: string;
-    /** When true, Back returns user to Plan tab (e.g. opened from Plan Preview exercise row). */
+    /**
+     * Opened from Plan Preview or Plan calendar workout sheet; Back resets Exercises stack to SearchList
+     * and focuses the Exercises tab.
+     */
+    returnToPlanExerciseContext?: 'preview' | 'calendar';
+    /** @deprecated use returnToPlanExerciseContext === 'preview' */
     returnToPlanPreview?: boolean;
-    /** Needed so we can safely navigate back to PlanPreview without missing route.params. */
+    /** Unused when leaving exercise via Back (SearchList); kept for older deep links. */
     planPreviewParams?: any;
-    /** When true, Back returns to the exact PlanPreview card (week/day/workout). */
     returnToPlanCard?: { weekNumber: number; day: string; workoutId: string };
   };
   WorkoutDetail: { workoutId: string };

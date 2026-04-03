@@ -23,7 +23,11 @@ import type {
   WeekSessionSpecs,
 } from '../types/pipeline';
 import { normalizeContext, getRecommendation, type Goal, type PlanStyle } from './planRecommendation';
-import { generateSessions, type GenerateSessionResult } from '../services/planService';
+import {
+  generateSessions,
+  type GenerateSessionResult,
+  type PlanSlotExercise,
+} from '../services/planService';
 
 const WEEKDAYS: Weekday[] = [
   'Monday',
@@ -613,6 +617,48 @@ export async function runPipelineSafe(
 
 // --- Adapter: PlanDraft → legacy WeekPlan[] for Preview UI
 
+function parseRepScalarForApply(reps: string | number | undefined): number {
+  const m = String(reps ?? '').match(/\d+/);
+  const n = m ? parseInt(m[0], 10) : 8;
+  const x = Number.isFinite(n) ? n : 8;
+  return Math.max(1, x);
+}
+
+/**
+ * Maps a pipeline session to POST /plans plan_exercises. Coerces sets/reps for backend @Min(1).
+ * Include rows with a display name even when sets are missing (coerced to 1).
+ */
+export function sessionDraftToPlanSlotExercises(
+  session: SessionDraft,
+  weekNumber: number,
+  dayOfWeek: string,
+): PlanSlotExercise[] | undefined {
+  if (!session?.exercises?.length) return undefined;
+  const list = session.exercises.filter((e) => {
+    const sets = Number(e.sets);
+    const hasPositiveSets = Number.isFinite(sets) && sets > 0;
+    const hasName = !!(e.name && String(e.name).trim());
+    return hasPositiveSets || hasName;
+  });
+  if (!list.length) return undefined;
+  return list.map((e, i) => {
+    const raw = Number(e.sets);
+    const sets = Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 1;
+    const id =
+      e.exerciseId != null && String(e.exerciseId).trim() !== ''
+        ? String(e.exerciseId).trim()
+        : `draft_${weekNumber}_${dayOfWeek}_${i}`;
+    return {
+      exerciseId: id,
+      name: e.name,
+      sets,
+      reps: parseRepScalarForApply(typeof e.reps === 'number' ? String(e.reps) : String(e.reps ?? '')),
+      notes: e.notes ?? undefined,
+      orderIndex: i,
+    };
+  });
+}
+
 export interface PlanWorkoutAdapter {
   id: string;
   title: string;
@@ -626,6 +672,8 @@ export interface PlanWorkoutAdapter {
   locked?: boolean;
   draftId?: string;
   week: number;
+  /** Exercises to persist on apply — tied to this card so Apply matches the visible week list. */
+  applyExercises?: PlanSlotExercise[];
 }
 
 export interface WeekPlanAdapter {
@@ -673,6 +721,7 @@ export function planDraftToWeekPlans(draft: PlanDraft): WeekPlanAdapter[] {
         source: 'ai',
         draftId: draft.draftId,
         week: w.weekIndex,
+        applyExercises: sessionDraftToPlanSlotExercises(session, w.weekIndex, d.weekday),
       });
     });
     return { weekNumber: w.weekIndex, workouts };

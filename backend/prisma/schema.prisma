@@ -38,7 +38,7 @@ model WorkoutPlan {
   userId    String?
   name      String
   /// Monday (local calendar) when program week 1 starts; ties slots to real weeks.
-  weekAnchorMonday DateTime? @db.Date
+  weekAnchorMonday DateTime? @map("week_anchor_monday") @db.Date
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
