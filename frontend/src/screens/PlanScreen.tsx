@@ -25,6 +25,7 @@ import SavedWorkoutsScreen from './SavedWorkoutsScreen';
 import {
   formatLocalYmd,
   getCalendarWeekRange,
+  getPlanCalendarWeekNavigationBounds,
   normalizePlanAnchorYmd,
   programWeekForCalendarOffset,
 } from '../lib/planCalendar';
@@ -203,6 +204,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     [currentPlan?.weekAnchorMonday],
   );
 
+  const weekNavBounds = useMemo(() => getPlanCalendarWeekNavigationBounds(anchorYmd), [anchorYmd]);
+
+  useEffect(() => {
+    setSelectedWeek((w) => Math.max(weekNavBounds.min, Math.min(weekNavBounds.max, w)));
+  }, [weekNavBounds.min, weekNavBounds.max]);
+
   const resolvedProgramWeek = useMemo(
     () => programWeekForCalendarOffset(selectedWeek, anchorYmd, maxPlanWeek),
     [selectedWeek, anchorYmd, maxPlanWeek],
@@ -280,6 +287,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           paddingHorizontal: 12,
         },
         weekNavArrow: { padding: 4, minWidth: 32, alignItems: 'center' },
+        weekNavArrowDisabled: { opacity: 0.35 },
         weekNavArrowText: { fontSize: 20, color: colors.primary, fontWeight: '600' },
         weekNavCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
         weekNavLabel: { fontSize: 13, color: colors.text, fontWeight: '600' },
@@ -738,13 +746,23 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
 
       {/* Tight week navigation: ‹ Week of Jan 26 – Feb 1 › */}
       <View style={styles.weekRow}>
-        <TouchableOpacity style={styles.weekNavArrow} onPress={() => setSelectedWeek(Math.max(0, selectedWeek - 1))}>
+        <TouchableOpacity
+          style={[styles.weekNavArrow, selectedWeek <= weekNavBounds.min && styles.weekNavArrowDisabled]}
+          disabled={selectedWeek <= weekNavBounds.min}
+          accessibilityState={{ disabled: selectedWeek <= weekNavBounds.min }}
+          onPress={() => setSelectedWeek((w) => Math.max(weekNavBounds.min, w - 1))}
+        >
           <Text style={styles.weekNavArrowText}>‹</Text>
         </TouchableOpacity>
         <View style={styles.weekNavCenter}>
           <Text style={styles.weekNavLabel}>Week of {formatWeekRange(weekRange.start, weekRange.end)}</Text>
         </View>
-        <TouchableOpacity style={styles.weekNavArrow} onPress={() => setSelectedWeek(Math.min(7, selectedWeek + 1))}>
+        <TouchableOpacity
+          style={[styles.weekNavArrow, selectedWeek >= weekNavBounds.max && styles.weekNavArrowDisabled]}
+          disabled={selectedWeek >= weekNavBounds.max}
+          accessibilityState={{ disabled: selectedWeek >= weekNavBounds.max }}
+          onPress={() => setSelectedWeek((w) => Math.min(weekNavBounds.max, w + 1))}
+        >
           <Text style={styles.weekNavArrowText}>›</Text>
         </TouchableOpacity>
       </View>

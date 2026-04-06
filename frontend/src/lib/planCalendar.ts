@@ -56,6 +56,44 @@ export function getCalendarWeekRange(weekOffsetFromThisWeek: number): { start: D
   return { start, end };
 }
 
+/** Max weeks forward from the device’s current calendar week on Plan. */
+export const PLAN_CALENDAR_LOOKAHEAD_WEEKS = 7;
+
+/**
+ * Max weeks backward from the device’s current calendar week on Plan.
+ * Older weeks are still visible in History; this keeps the strip bounded.
+ */
+export const PLAN_CALENDAR_LOOKBACK_WEEKS = 12;
+
+/**
+ * Min/max `selectedWeek` offsets for Plan week arrows.
+ * Without an anchor (legacy plans), only the current and future weeks are addressable.
+ * With `weekAnchorMonday`, users can go back toward program week 1’s Monday, capped by {@link PLAN_CALENDAR_LOOKBACK_WEEKS}.
+ * If the anchor is still in the future, `min` stays `0` so “this week” and the out-of-range banner remain reachable.
+ */
+export function getPlanCalendarWeekNavigationBounds(anchorYmdRaw: string | null | undefined): {
+  min: number;
+  max: number;
+} {
+  const max = PLAN_CALENDAR_LOOKAHEAD_WEEKS;
+  const anchorYmd = normalizePlanAnchorYmd(anchorYmdRaw);
+  if (!anchorYmd) {
+    return { min: 0, max };
+  }
+  const todayMonday = calendarMondayForOffsetFromToday(0);
+  const anchorMonday = parseLocalYmd(anchorYmd);
+  todayMonday.setHours(0, 0, 0, 0);
+  anchorMonday.setHours(0, 0, 0, 0);
+  const diffMs = anchorMonday.getTime() - todayMonday.getTime();
+  const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+  // When the anchor is in the future, diffWeeks > 0: still allow offset 0 (this week) and earlier
+  // offsets are not meaningful for "program start", so min stays 0 like legacy.
+  // When anchor is this week or in the past, diffWeeks <= 0: min is the strip offset of program week 1’s Monday, capped at -12.
+  const min =
+    diffWeeks > 0 ? 0 : Math.max(-PLAN_CALENDAR_LOOKBACK_WEEKS, diffWeeks);
+  return { min, max };
+}
+
 /**
  * Which program week (1-based) should be shown for the given calendar strip offset.
  * `anchorYmd` is the Monday that program week 1 starts on.
