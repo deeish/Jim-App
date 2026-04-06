@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, type Dispatch, type SetStateAction } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, type Dispatch, type SetStateAction } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,10 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Workout, ExerciseSession, CompletedSet } from '../types/workout';
+import { Ionicons } from '@expo/vector-icons';
+import { Workout, ExerciseSession, CompletedSet, type WorkoutSessionRestoredSnapshot } from '../types/workout';
+import { saveWorkoutDraft } from '../lib/workoutDraftStorage';
+import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from './Button';
 import { useTheme } from '../theme/ThemeContext';
 import { colors as themeColors } from '../theme/colors';
@@ -41,6 +44,7 @@ interface WorkoutSessionState {
   workout: Workout;
   currentExerciseIndex: number;
   startTime: Date;
+  restoredSnapshot?: WorkoutSessionRestoredSnapshot | null;
 }
 
 interface WorkoutSessionProps {
@@ -49,6 +53,7 @@ interface WorkoutSessionProps {
   serverWorkout?: Workout | null;
   onComplete: (sessionData: any) => void;
   onUpdate: Dispatch<SetStateAction<WorkoutSessionState | null>>;
+  onExitWithoutFinishing?: () => void | Promise<void>;
   navigation?: NativeStackNavigationProp<RootStackParamList>;
 }
 
@@ -57,10 +62,16 @@ export default function WorkoutSession({
   serverWorkout,
   onComplete,
   onUpdate,
+  onExitWithoutFinishing,
   navigation,
 }: WorkoutSessionProps) {
   const insets = useSafeAreaInsets();
+  const snap = session.restoredSnapshot;
+
   const [exerciseSessions, setExerciseSessions] = useState<ExerciseSession[]>(() => {
+    if (snap?.exerciseSessions?.length) {
+      return snap.exerciseSessions;
+    }
     return session.workout.exercises.map((exercise, index) => ({
       exerciseIndex: index,
       exercise,
@@ -75,17 +86,20 @@ export default function WorkoutSession({
 
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showEndModal, setShowEndModal] = useState(false);
+  const [showSessionMenu, setShowSessionMenu] = useState(false);
   const [showNotesModal, setShowNotesModal] = useState<number | null>(null);
-  const [exerciseNotes, setExerciseNotes] = useState<Record<number, string>>({});
-  const [overallNotes, setOverallNotes] = useState('');
+  const [exerciseNotes, setExerciseNotes] = useState<Record<number, string>>(() => snap?.exerciseNotes ?? {});
+  const [overallNotes, setOverallNotes] = useState(() => snap?.overallNotes ?? '');
   const [showOverallNotes, setShowOverallNotes] = useState(false);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(session.currentExerciseIndex);
   const [showFinishScreen, setShowFinishScreen] = useState(false);
-  const [expandedExerciseIndex, setExpandedExerciseIndex] = useState<number | null>(currentExerciseIndex);
-  const [showAdvancedLogging, setShowAdvancedLogging] = useState(false);
+  const [expandedExerciseIndex, setExpandedExerciseIndex] = useState<number | null>(() =>
+    snap?.expandedExerciseIndex ?? session.currentExerciseIndex
+  );
+  const [showAdvancedLogging, setShowAdvancedLogging] = useState(() => snap?.showAdvancedLogging ?? false);
   const [showExerciseOptions, setShowExerciseOptions] = useState<number | null>(null);
   const [showEditPrescriptionModal, setShowEditPrescriptionModal] = useState<number | null>(null);
-  const [focusedSetIndex, setFocusedSetIndex] = useState<number | null>(null);
+  const [focusedSetIndex, setFocusedSetIndex] = useState<number | null>(() => snap?.focusedSetIndex ?? null);
   const [toast, setToast] = useState<{ msg: string } | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onUpdateRef = useRef(onUpdate);
@@ -100,6 +114,12 @@ export default function WorkoutSession({
       toastTimeoutRef.current = null;
     }, 2000);
   };
+
+  useEffect(() => {
+    if (!session.restoredSnapshot) return;
+    onUpdate((s) => (s ? { ...s, restoredSnapshot: undefined } : s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time strip after hydrate
+  }, []);
 
   /** When Search adds exercises to this workout on the server, append matching session rows (preserves logged sets). */
   useEffect(() => {
@@ -160,7 +180,7 @@ export default function WorkoutSession({
     } else {
       parts.push(`Elapsed ${formatTime(elapsedTime)}`);
     }
-    const n = session.workout.exercises?.length ?? 0;
+    const n = exerciseSessions.filter((es) => !es.skipped).length;
     const exercisePhrase = `${n} ${n === 1 ? 'exercise' : 'exercises'}`;
     const focusRaw = session.workout.focus?.trim();
     if (focusRaw) {
@@ -177,12 +197,7 @@ export default function WorkoutSession({
     }
     parts.push(exercisePhrase);
     return parts.join(' · ');
-  }, [
-    session.workout.estimatedDuration,
-    session.workout.focus,
-    session.workout.exercises?.length,
-    elapsedTime,
-  ]);
+  }, [session.workout.estimatedDuration, session.workout.focus, exerciseSessions, elapsedTime]);
 
   const getCompletedExercisesCount = () => {
     return exerciseSessions.filter(
@@ -463,6 +478,28 @@ export default function WorkoutSession({
     }
   };
 
+  const handleSaveProgressAndExit = async () => {
+    setShowSessionMenu(false);
+    if (!onExitWithoutFinishing) return;
+    try {
+      await saveWorkoutDraft({
+        workout: session.workout,
+        startTimeIso: session.startTime.toISOString(),
+        currentExerciseIndex,
+        exerciseSessions,
+        exerciseNotes,
+        overallNotes,
+        expandedExerciseIndex,
+        focusedSetIndex,
+        showAdvancedLogging,
+      });
+      showToast('Saved. Resume anytime from the Workout tab.');
+      await Promise.resolve(onExitWithoutFinishing());
+    } catch {
+      showToast('Could not save progress');
+    }
+  };
+
   const confirmEndWorkout = () => {
     setShowEndModal(false);
     setShowFinishScreen(true);
@@ -530,6 +567,27 @@ export default function WorkoutSession({
     }
   };
 
+  const openExerciseLibraryGuide = useCallback(
+    (exerciseIndex: number) => {
+      const es = exerciseSessions[exerciseIndex];
+      if (!es || es.skipped) return;
+      const id = es.exercise.exerciseId;
+      if (!navigation) {
+        Alert.alert('Navigation unavailable', 'Use the Exercises tab to search for this movement.');
+        return;
+      }
+      if (!isLinkableLibraryExerciseId(id)) {
+        Alert.alert(
+          'No library page',
+          'This exercise is not linked to the library, so there is no video or full description. You can swap it for a similar exercise from the library.',
+        );
+        return;
+      }
+      navigateFromWorkoutToExerciseDetail(navigation, id as string);
+    },
+    [exerciseSessions, navigation],
+  );
+
   const getPrimaryActionLabel = () => {
     if (isWorkoutComplete()) {
       return 'Finish Workout';
@@ -557,7 +615,6 @@ export default function WorkoutSession({
     return 'Continue';
   };
 
-  const currentExerciseSession = exerciseSessions[currentExerciseIndex];
   const completedExercises = getCompletedExercisesCount();
   const totalExercises = exerciseSessions.filter((es) => !es.skipped).length;
   const skippedCount = exerciseSessions.filter((es) => es.skipped).length;
@@ -600,7 +657,7 @@ export default function WorkoutSession({
             </View>
             <TouchableOpacity
               style={styles.headerMenuButton}
-              onPress={handleEndWorkout}
+              onPress={() => setShowSessionMenu(true)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Text style={styles.headerMenuButtonText}>⋯</Text>
@@ -633,16 +690,6 @@ export default function WorkoutSession({
             <View style={[styles.progressFill, { width: `${progress}%` }]} />
           </View>
         </View>
-
-        <TouchableOpacity
-          style={styles.addFromLibraryRow}
-          onPress={handleAddExerciseFromLibrary}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Add exercises from library"
-        >
-          <Text style={styles.addFromLibraryText}>+ Add from library</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Exercise List */}
@@ -692,6 +739,20 @@ export default function WorkoutSession({
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(16, 8 + insets.bottom) }]}>
+        <TouchableOpacity
+          style={styles.footerAddLibraryCard}
+          onPress={handleAddExerciseFromLibrary}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Add exercises from library"
+        >
+          <Ionicons name="add-circle-outline" size={22} color={themeColors.primary} />
+          <View style={styles.footerAddLibraryCardText}>
+            <Text style={styles.footerAddLibraryCardTitle}>Add from library</Text>
+            <Text style={styles.footerAddLibraryCardSub}>Search library · add to workout</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={themeColors.textMuted} />
+        </TouchableOpacity>
         <Button
           title={getPrimaryActionLabel() || 'Continue'}
           onPress={handlePrimaryAction}
@@ -704,6 +765,14 @@ export default function WorkoutSession({
         <ExerciseOptionsModal
           visible={showExerciseOptions !== null}
           onClose={() => setShowExerciseOptions(null)}
+          libraryGuideAvailable={
+            showExerciseOptions !== null &&
+            isLinkableLibraryExerciseId(exerciseSessions[showExerciseOptions]?.exercise?.exerciseId)
+          }
+          onLibraryGuide={() => {
+            const idx = showExerciseOptions;
+            if (idx !== null) openExerciseLibraryGuide(idx);
+          }}
           onSwap={() => {
             setShowExerciseOptions(null);
             handleReplaceExercise();
@@ -780,6 +849,41 @@ export default function WorkoutSession({
         onClose={() => setShowOverallNotes(false)}
       />
 
+      {/* Session menu: finish vs save & exit */}
+      <Modal
+        visible={showSessionMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSessionMenu(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowSessionMenu(false)}>
+          <Pressable style={styles.sessionMenuCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.sessionMenuHeader}>
+              <Text style={styles.modalTitle}>Workout</Text>
+              <TouchableOpacity onPress={() => setShowSessionMenu(false)} hitSlop={12}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={[styles.sessionMenuRow, styles.sessionMenuRowFirst]}
+              onPress={() => {
+                setShowSessionMenu(false);
+                handleEndWorkout();
+              }}
+            >
+              <Text style={styles.optionItemText}>Finish workout</Text>
+              <Text style={styles.optionItemSubtext}>Review and save to History</Text>
+            </TouchableOpacity>
+            {onExitWithoutFinishing ? (
+              <TouchableOpacity style={styles.sessionMenuRow} onPress={handleSaveProgressAndExit}>
+                <Text style={styles.optionItemText}>Save progress & exit</Text>
+                <Text style={styles.optionItemSubtext}>Progress saved on device · resume from Workout</Text>
+              </TouchableOpacity>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* End Workout Confirmation */}
       <Modal
         visible={showEndModal}
@@ -791,7 +895,7 @@ export default function WorkoutSession({
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>End Workout?</Text>
             <Text style={styles.modalText}>
-              Are you sure you want to end this workout? Your progress will be saved.
+              Continue to the finish screen to review and save this session to History.
             </Text>
             <Text style={styles.modalSubtext}>
               {completedExercises} of {totalExercises} exercises completed
@@ -950,33 +1054,66 @@ function ExerciseCard({
           ? ` @ ${lastWeight || exerciseData.weight}`
           : ''
     }`;
+    const canOpenLibraryGuide =
+      !!navigation && isLinkableLibraryExerciseId(exerciseData.exerciseId);
+    const openLibraryGuide = () => {
+      if (!navigation) {
+        Alert.alert('Navigation unavailable', 'Use the Exercises tab to search for this movement.');
+        return;
+      }
+      const id = exerciseData.exerciseId;
+      if (!isLinkableLibraryExerciseId(id)) {
+        Alert.alert(
+          'No library page',
+          'This exercise is not linked to the library, so there is no video or full description.',
+        );
+        return;
+      }
+      navigateFromWorkoutToExerciseDetail(navigation, id);
+    };
+
     return (
       <View style={[styles.exerciseCardCollapsed, isCurrent && styles.exerciseCardCurrent]}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.exerciseCardCollapsedPressable,
-            pressed && styles.exerciseCardCollapsedPressed,
-          ]}
-          onPress={() => onSelectExercise(index)}
-          accessibilityRole="button"
-          accessibilityLabel={`${isCurrent ? 'Current exercise: ' : ''}${exerciseData.name}. Tap to open.`}
-        >
-          <View style={styles.exerciseCardCollapsedContent}>
-            <View style={styles.exerciseCardCollapsedHeader}>
-              <Text style={styles.exerciseCardNameCollapsed} numberOfLines={2}>
-                {exerciseData.name}
+        <View style={styles.exerciseCardCollapsedMainCol}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.exerciseCardCollapsedPressable,
+              pressed && styles.exerciseCardCollapsedPressed,
+            ]}
+            onPress={() => onSelectExercise(index)}
+            accessibilityRole="button"
+            accessibilityLabel={`${isCurrent ? 'Current exercise: ' : ''}${exerciseData.name}. Tap to open.`}
+          >
+            <View style={styles.exerciseCardCollapsedContent}>
+              <View style={styles.exerciseCardCollapsedHeader}>
+                <Text style={styles.exerciseCardNameCollapsed} numberOfLines={2}>
+                  {exerciseData.name}
+                </Text>
+                {isCurrent && (
+                  <View style={styles.activeBadge}>
+                    <Text style={styles.activeBadgeText}>Active</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.exerciseCardInfoCollapsed}>
+                {planShort} · {collapsedDone}/{collapsedTotal} sets
               </Text>
-              {isCurrent && (
-                <View style={styles.activeBadge}>
-                  <Text style={styles.activeBadgeText}>Active</Text>
-                </View>
-              )}
             </View>
-            <Text style={styles.exerciseCardInfoCollapsed}>
-              {planShort} · {collapsedDone}/{collapsedTotal} sets
-            </Text>
-          </View>
-        </Pressable>
+          </Pressable>
+          {isCurrent && canOpenLibraryGuide ? (
+            <TouchableOpacity
+              style={styles.exerciseGuideCollapsed}
+              onPress={openLibraryGuide}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Open instructions and video for this exercise"
+            >
+              <Ionicons name="play-circle" size={18} color={themeColors.primary} />
+              <Text style={styles.exerciseGuideCollapsedText}>Instructions & video</Text>
+              <Ionicons name="chevron-forward" size={16} color={themeColors.textMuted} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <TouchableOpacity onPress={onOptionsPress} style={styles.optionsButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={styles.optionsButtonText}>⋯</Text>
         </TouchableOpacity>
@@ -1014,19 +1151,41 @@ function ExerciseCard({
         </View>
       </View>
 
-      {/* Row 2: Plan (tappable) */}
-      <View style={[styles.prescriptionRow, isCurrent && styles.prescriptionRowTappable]}>
-        {isCurrent ? (
+      {/* Plan + guide on one row: saves vertical space; chip stays high-contrast on the right */}
+      <View style={styles.planAndGuideRow}>
+        <View style={[styles.planCell, isCurrent && styles.prescriptionRowTappable]}>
+          {isCurrent ? (
+            <TouchableOpacity
+              style={styles.prescriptionRowTouchable}
+              onPress={onEditPrescription}
+              activeOpacity={0.6}
+            >
+              <Text style={styles.exerciseCardInfoCompact}>{planLabel}</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.exerciseCardInfoCompact}>{planLabel}</Text>
+          )}
+        </View>
+        {navigation && isLinkableLibraryExerciseId(exerciseData.exerciseId) ? (
           <TouchableOpacity
-            style={styles.prescriptionRowTouchable}
-            onPress={onEditPrescription}
-            activeOpacity={0.6}
+            style={[
+              styles.exerciseGuideChip,
+              styles.exerciseGuideChipInRow,
+              isCurrent && styles.exerciseGuideChipCurrent,
+            ]}
+            onPress={() => navigateFromWorkoutToExerciseDetail(navigation, exerciseData.exerciseId!)}
+            activeOpacity={0.88}
+            accessibilityRole="button"
+            accessibilityLabel="Open instructions, description and video for this exercise in the Exercises tab"
           >
-            <Text style={styles.exerciseCardInfo}>{planLabel}</Text>
+            <Ionicons name="play-circle" size={16} color={themeColors.primary} />
+            <Text style={styles.exerciseGuideChipLabelInRow} numberOfLines={1}>
+              <Text style={styles.exerciseGuideChipStrongInRow}>How to</Text>
+              <Text style={styles.exerciseGuideChipMutedInRow}> · Video</Text>
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={themeColors.textMuted} />
           </TouchableOpacity>
-        ) : (
-          <Text style={styles.exerciseCardInfo}>{planLabel}</Text>
-        )}
+        ) : null}
       </View>
       {lastCompleted != null && (
         <Text style={styles.lastSetLine}>
@@ -1341,6 +1500,8 @@ function SetRow({
 function ExerciseOptionsModal({
   visible,
   onClose,
+  libraryGuideAvailable,
+  onLibraryGuide,
   onSwap,
   onEditLoad,
   onSkip,
@@ -1351,6 +1512,8 @@ function ExerciseOptionsModal({
 }: {
   visible: boolean;
   onClose: () => void;
+  libraryGuideAvailable?: boolean;
+  onLibraryGuide?: () => void;
   onSwap: () => void;
   onEditLoad: () => void;
   onSkip: () => void;
@@ -1375,6 +1538,21 @@ function ExerciseOptionsModal({
             </TouchableOpacity>
           </View>
           <View style={styles.optionsList}>
+            {libraryGuideAvailable && onLibraryGuide ? (
+              <>
+                <TouchableOpacity
+                  style={styles.optionItem}
+                  onPress={() => {
+                    onLibraryGuide();
+                    onClose();
+                  }}
+                >
+                  <Text style={styles.optionItemText}>Instructions & video</Text>
+                  <Text style={styles.optionItemSubtext}>Description & demo in Exercises tab</Text>
+                </TouchableOpacity>
+                <View style={styles.optionDivider} />
+              </>
+            ) : null}
             <TouchableOpacity style={styles.optionItem} onPress={onNotes}>
               <Text style={styles.optionItemText}>Notes</Text>
             </TouchableOpacity>
@@ -1773,23 +1951,91 @@ const styles = StyleSheet.create({
   progressSection: {
     backgroundColor: themeColors.surface,
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 8,
+    paddingTop: 8,
+    paddingBottom: 6,
     borderBottomWidth: 1,
     borderBottomColor: themeColors.border,
   },
-  addFromLibraryRow: {
-    backgroundColor: themeColors.surface,
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
+  exerciseCardCollapsedMainCol: {
+    flex: 1,
+    minWidth: 0,
   },
-  addFromLibraryText: {
-    fontSize: 15,
-    fontWeight: '600',
+  exerciseGuideCollapsed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    alignSelf: 'stretch',
+    backgroundColor: themeColors.primary + '1c',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: themeColors.primary + '44',
+  },
+  exerciseGuideCollapsedText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
     color: themeColors.primary,
+  },
+  exerciseGuideChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    flexShrink: 1,
+    maxWidth: '100%',
+    gap: 6,
+    marginTop: 4,
+    marginBottom: 2,
+    paddingVertical: 5,
+    paddingHorizontal: 11,
+    borderRadius: 999,
+    backgroundColor: themeColors.primary + '18',
+    borderWidth: 1,
+    borderColor: themeColors.primary + '40',
+  },
+  exerciseGuideChipInRow: {
+    alignSelf: 'center',
+    flexShrink: 0,
+    marginTop: 0,
+    marginBottom: 0,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    gap: 5,
+    borderWidth: 1.5,
+    borderColor: themeColors.primary + '55',
+    backgroundColor: themeColors.primary + '22',
+  },
+  exerciseGuideChipCurrent: {
+    backgroundColor: themeColors.primary + '2e',
+    borderColor: themeColors.primary + '70',
+  },
+  exerciseGuideChipLabel: {
+    flexShrink: 1,
+  },
+  exerciseGuideChipStrong: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: themeColors.text,
+  },
+  exerciseGuideChipMuted: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: themeColors.textMuted,
+  },
+  exerciseGuideChipLabelInRow: {
+    flexShrink: 0,
+  },
+  exerciseGuideChipStrongInRow: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: themeColors.text,
+  },
+  exerciseGuideChipMutedInRow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: themeColors.textMuted,
   },
   progressHeader: {
     marginBottom: 6,
@@ -1821,7 +2067,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 8,
-    paddingBottom: 20,
+    paddingBottom: 6,
   },
   exerciseCardCollapsed: {
     backgroundColor: themeColors.surface,
@@ -1944,8 +2190,8 @@ const styles = StyleSheet.create({
   exerciseCard: {
     backgroundColor: themeColors.surface,
     marginHorizontal: 12,
-    marginBottom: 6,
-    padding: 12,
+    marginBottom: 5,
+    padding: 8,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: themeColors.border,
@@ -1958,10 +2204,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 2,
   },
   exerciseCardHeaderCurrent: {
-    marginBottom: 6,
+    marginBottom: 2,
   },
   exerciseCardHeaderLeft: {
     flex: 1,
@@ -1970,14 +2216,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   exerciseCardHeaderRight: {
     flexDirection: 'row',
     gap: 8,
   },
   exerciseCardName: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: themeColors.text,
     flexShrink: 1,
@@ -2017,6 +2263,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: themeColors.textSecondary,
     marginBottom: 4,
+  },
+  planAndGuideRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 2,
+    flexWrap: 'wrap',
+  },
+  planCell: {
+    flex: 1,
+    minWidth: 100,
+  },
+  exerciseCardInfoCompact: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: themeColors.textSecondary,
+    marginBottom: 0,
   },
   prescriptionRow: {
     flexDirection: 'row',
@@ -2074,8 +2338,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
-    paddingVertical: 2,
+    marginBottom: 5,
+    paddingVertical: 0,
   },
   setProgressLabel: {
     fontSize: 13,
@@ -2085,12 +2349,12 @@ const styles = StyleSheet.create({
   lastSetLine: {
     fontSize: 12,
     color: themeColors.textTertiary,
-    marginBottom: 6,
+    marginBottom: 3,
   },
   loggingBand: {
     backgroundColor: themeColors.background,
     borderRadius: 10,
-    padding: 10,
+    padding: 8,
     marginBottom: 0,
     borderWidth: 1,
     borderColor: themeColors.border,
@@ -2157,7 +2421,7 @@ const styles = StyleSheet.create({
   weightStepRow: {
     flexDirection: 'row',
     gap: 6,
-    marginTop: 6,
+    marginTop: 4,
     flexWrap: 'wrap',
   },
   weightStepChip: {
@@ -2393,10 +2657,39 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   footer: {
-    padding: 16,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 14,
+    gap: 8,
     backgroundColor: themeColors.surface,
     borderTopWidth: 1,
     borderTopColor: themeColors.border,
+  },
+  footerAddLibraryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: themeColors.primary + '40',
+    backgroundColor: themeColors.background,
+  },
+  footerAddLibraryCardText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  footerAddLibraryCardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: themeColors.text,
+  },
+  footerAddLibraryCardSub: {
+    fontSize: 11,
+    color: themeColors.textMuted,
+    marginTop: 1,
+    fontWeight: '500',
   },
   primaryButton: {
     minHeight: 56,
@@ -2517,6 +2810,36 @@ const styles = StyleSheet.create({
   optionItemText: {
     fontSize: 16,
     color: themeColors.text,
+  },
+  optionItemSubtext: {
+    fontSize: 13,
+    color: themeColors.textMuted,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  sessionMenuCard: {
+    backgroundColor: themeColors.surface,
+    borderRadius: 16,
+    padding: 20,
+    width: '88%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
+  sessionMenuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  sessionMenuRow: {
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: themeColors.border,
+  },
+  sessionMenuRowFirst: {
+    borderTopWidth: 0,
+    paddingTop: 0,
   },
   optionItemDestructive: {
     borderBottomWidth: 0,

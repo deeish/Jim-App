@@ -9,3 +9,5 @@ Some users may want planned workouts **visible** (Plan / Workout preview) withou
 ## Add a lift that isn't in the DB
 
 **Later:** log movements without a canonical `exerciseId` (e.g. free-text name, optional library match, or stub) and define how **History** shows them.
+
+## Make sure history also stores reps/sets, etc...

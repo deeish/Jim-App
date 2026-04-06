@@ -53,6 +53,16 @@ export interface ExerciseSession {
   endTime?: Date;
 }
 
+/** Hydrates live WorkoutSession when resuming from local draft. */
+export interface WorkoutSessionRestoredSnapshot {
+  exerciseSessions: ExerciseSession[];
+  exerciseNotes: Record<number, string>;
+  overallNotes: string;
+  expandedExerciseIndex: number | null;
+  focusedSetIndex: number | null;
+  showAdvancedLogging: boolean;
+}
+
 export interface WorkoutSessionState {
   workout: Workout;
   exercises: ExerciseSession[];

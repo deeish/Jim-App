@@ -33,3 +33,30 @@ export function navigateFromPlanToExerciseDetail(
     },
   });
 }
+
+/** Workout tab (pre-start) → Exercises stack → ExerciseDetail. */
+export function navigateFromWorkoutToExerciseDetail(
+  navigation: { getParent?: () => unknown; navigate?: (name: string, p: unknown) => void },
+  exerciseId: string,
+): void {
+  const params = {
+    screen: 'ExerciseDetail' as const,
+    params: { exerciseId },
+  };
+  const tryNav = (n: { navigate?: (name: string, p: unknown) => void } | undefined) => {
+    if (n && typeof n.navigate === 'function') {
+      n.navigate('Search', params);
+      return true;
+    }
+    return false;
+  };
+  const nav = navigation as {
+    getParent?: () =>
+      | { getParent?: () => { navigate?: (name: string, p: unknown) => void }; navigate?: (name: string, p: unknown) => void }
+      | undefined;
+    navigate?: (name: string, p: unknown) => void;
+  };
+  const tabNav = nav?.getParent?.()?.getParent?.() ?? nav?.getParent?.();
+  if (tryNav(tabNav as { navigate?: (name: string, p: unknown) => void })) return;
+  tryNav(nav);
+}
