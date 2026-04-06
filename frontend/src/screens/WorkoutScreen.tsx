@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -43,6 +43,8 @@ export default function WorkoutScreen() {
   const [savingLog, setSavingLog] = useState(false);
   const [savedWorkoutIds, setSavedWorkoutIds] = useState<string[]>([]);
   const [savingLike, setSavingLike] = useState(false);
+  /** Latest server workout while a session is active (for merging exercises added from Search). */
+  const [liveServerWorkout, setLiveServerWorkout] = useState<Workout | null>(null);
 
   const goBackToPlan = () => {
     const tabNav = (navigation as any)?.getParent?.();
@@ -120,6 +122,28 @@ export default function WorkoutScreen() {
       loadTodayWorkout();
     }
   }, [workoutIdParam]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const id = session?.workout?.id;
+      if (!id) {
+        setLiveServerWorkout(null);
+        return;
+      }
+      let cancelled = false;
+      (async () => {
+        try {
+          const w = await getWorkoutById(id);
+          if (!cancelled && w) setLiveServerWorkout(w);
+        } catch {
+          if (!cancelled) setLiveServerWorkout(null);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [session?.workout?.id])
+  );
 
   const loadWorkoutById = async (id: string) => {
     try {
@@ -211,23 +235,25 @@ export default function WorkoutScreen() {
       }
     }
     setSession(null);
+    setLiveServerWorkout(null);
     loadTodayWorkout(); // Refresh in case workout was updated
   };
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
-  // Show live workout session if in progress
+  // Live session must win over loading so returning from Search does not flash a spinner over the session.
   if (session) {
     return (
       <WorkoutSession
         session={session}
+        serverWorkout={liveServerWorkout}
         onComplete={handleEndWorkout}
         onUpdate={setSession}
         navigation={navigation as unknown as NativeStackNavigationProp<RootStackParamList>}
       />
     );
+  }
+
+  if (loading) {
+    return <LoadingSpinner />;
   }
 
   // Show workout with start button (today's or selected from Plan)

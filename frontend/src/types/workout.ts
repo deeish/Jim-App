@@ -46,6 +46,8 @@ export interface ExerciseSession {
   exerciseIndex: number;
   exercise: Exercise;
   completedSets: CompletedSet[];
+  /** Omit from progress and from saved history (e.g. "skip for today"). */
+  skipped?: boolean;
   notes?: string;
   startTime?: Date;
   endTime?: Date;

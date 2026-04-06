@@ -155,20 +155,22 @@ export const saveWorkoutLog = async (params: SaveWorkoutLogParams): Promise<Work
     totalSets,
     totalVolume,
     overallNotes: overallNotes ?? undefined,
-    entries: exercises.map((es) => ({
-      exerciseId: es.exercise.exerciseId ?? undefined,
-      name: es.exercise.name,
-      orderIndex: es.exerciseIndex,
-      notes: exerciseNotes[es.exerciseIndex] ?? undefined,
-      sets: es.completedSets.map((s) => ({
-        setNumber: s.setNumber,
-        reps: s.reps,
-        weight: s.weight,
-        rpe: s.rpe,
-        completed: s.completed,
-        notes: s.notes,
+    entries: exercises
+      .filter((es) => !es.skipped)
+      .map((es) => ({
+        exerciseId: es.exercise.exerciseId ?? undefined,
+        name: es.exercise.name,
+        orderIndex: es.exerciseIndex,
+        notes: exerciseNotes[es.exerciseIndex] ?? undefined,
+        sets: es.completedSets.map((s) => ({
+          setNumber: s.setNumber,
+          reps: s.reps,
+          weight: s.weight,
+          rpe: s.rpe,
+          completed: s.completed,
+          notes: s.notes,
+        })),
       })),
-    })),
   });
   return response.data;
 };
