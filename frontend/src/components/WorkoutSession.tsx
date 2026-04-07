@@ -1106,10 +1106,10 @@ function ExerciseCard({
               onPress={openLibraryGuide}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Open instructions and video for this exercise"
+              accessibilityLabel="Open how-to steps and demo for this exercise"
             >
               <Ionicons name="play-circle" size={18} color={themeColors.primary} />
-              <Text style={styles.exerciseGuideCollapsedText}>Instructions & video</Text>
+              <Text style={styles.exerciseGuideCollapsedText}>How to & demo</Text>
               <Ionicons name="chevron-forward" size={16} color={themeColors.textMuted} />
             </TouchableOpacity>
           ) : null}
@@ -1176,12 +1176,12 @@ function ExerciseCard({
             onPress={() => navigateFromWorkoutToExerciseDetail(navigation, exerciseData.exerciseId!)}
             activeOpacity={0.88}
             accessibilityRole="button"
-            accessibilityLabel="Open instructions, description and video for this exercise in the Exercises tab"
+            accessibilityLabel="Open how-to steps, description and demo for this exercise in the Exercises tab"
           >
             <Ionicons name="play-circle" size={16} color={themeColors.primary} />
             <Text style={styles.exerciseGuideChipLabelInRow} numberOfLines={1}>
               <Text style={styles.exerciseGuideChipStrongInRow}>How to</Text>
-              <Text style={styles.exerciseGuideChipMutedInRow}> · Video</Text>
+              <Text style={styles.exerciseGuideChipMutedInRow}> & demo</Text>
             </Text>
             <Ionicons name="chevron-forward" size={14} color={themeColors.textMuted} />
           </TouchableOpacity>
@@ -1547,8 +1547,8 @@ function ExerciseOptionsModal({
                     onClose();
                   }}
                 >
-                  <Text style={styles.optionItemText}>Instructions & video</Text>
-                  <Text style={styles.optionItemSubtext}>Description & demo in Exercises tab</Text>
+                  <Text style={styles.optionItemText}>How to & demo</Text>
+                  <Text style={styles.optionItemSubtext}>Steps and YouTube demo in Exercises tab</Text>
                 </TouchableOpacity>
                 <View style={styles.optionDivider} />
               </>
