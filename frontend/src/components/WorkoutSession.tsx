@@ -777,10 +777,6 @@ export default function WorkoutSession({
             setShowExerciseOptions(null);
             handleReplaceExercise();
           }}
-          onEditLoad={() => {
-            setShowExerciseOptions(null);
-            Alert.alert('Edit Load', 'Feature coming soon');
-          }}
           onSkip={() => {
             const idx = showExerciseOptions;
             setShowExerciseOptions(null);
@@ -1503,7 +1499,6 @@ function ExerciseOptionsModal({
   libraryGuideAvailable,
   onLibraryGuide,
   onSwap,
-  onEditLoad,
   onSkip,
   onNotes,
   onAddSet,
@@ -1515,7 +1510,6 @@ function ExerciseOptionsModal({
   libraryGuideAvailable?: boolean;
   onLibraryGuide?: () => void;
   onSwap: () => void;
-  onEditLoad: () => void;
   onSkip: () => void;
   onNotes: () => void;
   onAddSet: () => void;
@@ -1555,9 +1549,6 @@ function ExerciseOptionsModal({
             ) : null}
             <TouchableOpacity style={styles.optionItem} onPress={onNotes}>
               <Text style={styles.optionItemText}>Notes</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionItem} onPress={onEditLoad}>
-              <Text style={styles.optionItemText}>Edit Load</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.optionItem} onPress={onSwap}>
               <Text style={styles.optionItemText}>Swap Exercise</Text>
