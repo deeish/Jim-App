@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { AiThrottlerGuard } from '../common/ai-throttler.guard';
 import { WorkoutsService } from './workouts.service';
 import { CreateWorkoutDto } from './dto/create-workout.dto';
 import { GenerateWorkoutDto } from './dto/generate-workout.dto';
@@ -23,10 +24,7 @@ export class WorkoutsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(
-    @Body() createWorkoutDto: CreateWorkoutDto,
-    @UserId() userId: string,
-  ) {
+  create(@Body() createWorkoutDto: CreateWorkoutDto, @UserId() userId: string) {
     return this.workoutsService.create(createWorkoutDto, userId);
   }
 
@@ -50,7 +48,9 @@ export class WorkoutsController {
   }
 
   @Get('saved/ids')
-  async getSavedIds(@UserId() userId: string): Promise<{ workoutIds: string[] }> {
+  async getSavedIds(
+    @UserId() userId: string,
+  ): Promise<{ workoutIds: string[] }> {
     const workoutIds = await this.workoutsService.getSavedWorkoutIds(userId);
     return { workoutIds };
   }
@@ -99,6 +99,7 @@ export class WorkoutsController {
   }
 
   @Post('generate')
+  @UseGuards(AiThrottlerGuard)
   @HttpCode(HttpStatus.CREATED)
   generate(
     @Body() generateWorkoutDto: GenerateWorkoutDto,
@@ -108,6 +109,7 @@ export class WorkoutsController {
   }
 
   @Post('preview')
+  @UseGuards(AiThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   preview(@Body() generateWorkoutDto: GenerateWorkoutDto) {
     return this.workoutsService.previewGenerate(generateWorkoutDto);

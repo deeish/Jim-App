@@ -10,7 +10,15 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
 const TYPES = ['strength', 'cardio', 'recovery'];
 const INTENSITIES = ['Easy', 'Medium', 'Hard'];
 

@@ -576,7 +576,7 @@ export default function WorkoutScreen() {
   const headerTitle = workoutIdParam ? (todayWorkout?.name ?? 'Workout') : "Today's Workout";
   const emptyCopy = workoutTabEmptyCopy(planToday, Boolean(workoutIdParam));
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="e2e-workout-root">
       {fromPlan && (
         <View style={[styles.backBar, { paddingTop: Math.max(insets.top, 10) }]}>
           <TouchableOpacity style={styles.backButton} onPress={goBackToPlan} activeOpacity={0.7}>

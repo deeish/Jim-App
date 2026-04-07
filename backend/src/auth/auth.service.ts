@@ -2,8 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as jwt from 'jsonwebtoken';
-import type { JwksClient } from 'jwks-rsa';
-const jwksRsa = require('jwks-rsa') as typeof import('jwks-rsa');
+import jwksRsa, { type JwksClient } from 'jwks-rsa';
 
 export interface JwtPayload {
   sub: string;
@@ -39,7 +38,10 @@ export class AuthService {
       return this.jwksClient;
     } catch (err: any) {
       if (process.env.NODE_ENV !== 'production') {
-        console.error('[Auth] Failed to create JWKS client:', err?.message ?? err);
+        console.error(
+          '[Auth] Failed to create JWKS client:',
+          err?.message ?? err,
+        );
       }
       return null;
     }
@@ -94,7 +96,10 @@ export class AuthService {
       if (!client) {
         const supabaseUrl = this.config.get<string>('SUPABASE_URL');
         if (process.env.NODE_ENV !== 'production') {
-          console.warn('[Auth] JWKS client not available. SUPABASE_URL:', supabaseUrl);
+          console.warn(
+            '[Auth] JWKS client not available. SUPABASE_URL:',
+            supabaseUrl,
+          );
         }
         throw new UnauthorizedException('JWKS not available');
       }

@@ -1,6 +1,9 @@
 import React from 'react';
-import { Platform } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Platform, Pressable } from 'react-native';
+import {
+  createBottomTabNavigator,
+  type BottomTabBarButtonProps,
+} from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute, NavigatorScreenParams } from '@react-navigation/native';
 import HomeScreen from '../screens/HomeScreen';
 import PlanStackNavigator from '../navigation/PlanStackNavigator';
@@ -18,6 +21,12 @@ export type RootTabParamList = {
 };
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
+
+function tabBarButton(testID: string) {
+  return (props: BottomTabBarButtonProps) => (
+    <Pressable {...props} testID={testID} />
+  );
+}
 
 export default function NavBar() {
   const { colors } = useTheme();
@@ -59,6 +68,7 @@ export default function NavBar() {
         name="Home" 
         component={HomeScreen}
         options={{
+          tabBarButton: tabBarButton('e2e-tab-home'),
           tabBarIcon: ({ color, focused }) => (
             <HomeIcon color={color} size={focused ? 26 : 24} />
           ),
@@ -68,6 +78,7 @@ export default function NavBar() {
         name="Plan" 
         component={PlanStackNavigator}
         options={{
+          tabBarButton: tabBarButton('e2e-tab-plan'),
           tabBarIcon: ({ color, focused }) => (
             <CalendarIcon color={color} size={focused ? 26 : 24} />
           ),
@@ -77,6 +88,7 @@ export default function NavBar() {
         name="Workout" 
         component={WorkoutScreen}
         options={{
+          tabBarButton: tabBarButton('e2e-tab-workout'),
           tabBarIcon: ({ color, focused }) => (
             <DumbbellIcon color={color} size={focused ? 26 : 24} />
           ),
@@ -87,6 +99,7 @@ export default function NavBar() {
         component={SearchStackNavigator}
         options={{
           tabBarLabel: 'Exercises',
+          tabBarButton: tabBarButton('e2e-tab-exercises'),
           tabBarIcon: ({ color, focused }) => (
             <SearchIcon color={color} size={focused ? 26 : 24} />
           ),

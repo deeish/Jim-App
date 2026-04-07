@@ -7,7 +7,6 @@ export class WorkoutLogsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateWorkoutLogDto, userId: string) {
-
     const workout = await this.prisma.workout.findUnique({
       where: { id: dto.workoutId },
     });
@@ -16,7 +15,9 @@ export class WorkoutLogsService {
     }
 
     const startedAt = new Date(dto.startedAt);
-    const completedAt = dto.completedAt ? new Date(dto.completedAt) : new Date();
+    const completedAt = dto.completedAt
+      ? new Date(dto.completedAt)
+      : new Date();
 
     const log = await this.prisma.workoutLog.create({
       data: {

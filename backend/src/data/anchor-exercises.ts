@@ -80,9 +80,20 @@ export function getAnchorIdsForFocus(focus: string): string[] {
   const key = focus.toLowerCase().trim();
   if (/^push\b/.test(key)) return ANCHOR_EXERCISES_BY_FOCUS.push ?? [];
   if (/^pull\b/.test(key)) return ANCHOR_EXERCISES_BY_FOCUS.pull ?? [];
-  if (/^legs\b|^lower\b|lower body/.test(key)) return ANCHOR_EXERCISES_BY_FOCUS.lower ?? ANCHOR_EXERCISES_BY_FOCUS['lower body'] ?? [];
-  if (/^upper\b|upper body/.test(key)) return ANCHOR_EXERCISES_BY_FOCUS.upper ?? ANCHOR_EXERCISES_BY_FOCUS['upper body'] ?? [];
-  if (/full body/.test(key)) return ANCHOR_EXERCISES_BY_FOCUS['full body'] ?? [];
+  if (/^legs\b|^lower\b|lower body/.test(key))
+    return (
+      ANCHOR_EXERCISES_BY_FOCUS.lower ??
+      ANCHOR_EXERCISES_BY_FOCUS['lower body'] ??
+      []
+    );
+  if (/^upper\b|upper body/.test(key))
+    return (
+      ANCHOR_EXERCISES_BY_FOCUS.upper ??
+      ANCHOR_EXERCISES_BY_FOCUS['upper body'] ??
+      []
+    );
+  if (/full body/.test(key))
+    return ANCHOR_EXERCISES_BY_FOCUS['full body'] ?? [];
   if (/^chest\b|^back\b|^shoulders?\b|^arms\b/.test(key)) return [];
   return [];
 }

@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWorkoutDto } from './dto/create-workout.dto';
 import { GenerateWorkoutDto } from './dto/generate-workout.dto';
@@ -12,10 +16,22 @@ type WorkoutWithExercises = Prisma.WorkoutGetPayload<{
 /** Prisma client type includes SavedWorkout after `prisma generate`. Cast used until then. */
 type PrismaWithSaved = PrismaService & {
   savedWorkout: {
-    findUnique: (args: { where: { userId_workoutId: { userId: string; workoutId: string } } }) => Promise<unknown>;
-    findMany: (args: { where: { userId: string }; orderBy?: { createdAt: 'desc' }; select: { workoutId: true } }) => Promise<{ workoutId: string }[]>;
-    upsert: (args: { where: { userId_workoutId: { userId: string; workoutId: string } }; create: { userId: string; workoutId: string }; update: object }) => Promise<unknown>;
-    deleteMany: (args: { where: { userId: string; workoutId: string } }) => Promise<unknown>;
+    findUnique: (args: {
+      where: { userId_workoutId: { userId: string; workoutId: string } };
+    }) => Promise<unknown>;
+    findMany: (args: {
+      where: { userId: string };
+      orderBy?: { createdAt: 'desc' };
+      select: { workoutId: true };
+    }) => Promise<{ workoutId: string }[]>;
+    upsert: (args: {
+      where: { userId_workoutId: { userId: string; workoutId: string } };
+      create: { userId: string; workoutId: string };
+      update: object;
+    }) => Promise<unknown>;
+    deleteMany: (args: {
+      where: { userId: string; workoutId: string };
+    }) => Promise<unknown>;
   };
 };
 
@@ -179,8 +195,14 @@ export class WorkoutsService {
       });
       saved = !!row;
     }
+    // Strip nested plan from API response (ownership already checked via workoutPlan above).
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- only keeping ...rest
     const { workoutPlan, ...rest } = workout;
-    return { ...rest, workoutPlan: undefined, saved } as WorkoutWithExercises & {
+    return {
+      ...rest,
+      workoutPlan: undefined,
+      saved,
+    } as WorkoutWithExercises & {
       saved?: boolean;
     };
   }
@@ -212,10 +234,7 @@ export class WorkoutsService {
     const order = new Map<string, number>(ids.map((id, i) => [id, i]));
     return workouts
       .slice()
-      .sort(
-        (a, b) =>
-          (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
-      );
+      .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
   }
 
   /** Save a workout to the user's "Saved" list. User must have access (own or via plan). */

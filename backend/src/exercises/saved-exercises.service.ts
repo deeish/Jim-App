@@ -12,7 +12,13 @@ export class SavedExercisesService {
     });
     const ids = rows.map((r) => r.exerciseId);
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[SavedExercisesService] getSavedExerciseIds', userId, '->', ids.length, 'ids');
+      console.log(
+        '[SavedExercisesService] getSavedExerciseIds',
+        userId,
+        '->',
+        ids.length,
+        'ids',
+      );
     }
     return ids;
   }
@@ -32,6 +38,8 @@ export class SavedExercisesService {
     if (process.env.NODE_ENV !== 'production') {
       console.log('[SavedExercisesService] unsaveExercise', userId, exerciseId);
     }
-    await this.prisma.savedExercise.deleteMany({ where: { userId, exerciseId } });
+    await this.prisma.savedExercise.deleteMany({
+      where: { userId, exerciseId },
+    });
   }
 }

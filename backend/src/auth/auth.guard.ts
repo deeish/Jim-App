@@ -21,7 +21,9 @@ export class AuthGuard implements CanActivate {
       if (process.env.NODE_ENV !== 'production') {
         console.warn('[Auth] No Bearer token in request to', request.url);
       }
-      throw new UnauthorizedException('Missing or invalid Authorization header');
+      throw new UnauthorizedException(
+        'Missing or invalid Authorization header',
+      );
     }
 
     const payload = await this.authService.verifyToken(token);

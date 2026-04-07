@@ -5,7 +5,11 @@ import { ExercisesService } from '../exercises/exercises.service';
 import Groq from 'groq-sdk';
 import { GenerateWorkoutDto } from './dto/generate-workout.dto';
 import { CreateWorkoutDto } from './dto/create-workout.dto';
-import { getSlotsForFocus, normalizeFocusToKey, type FocusKey } from '../data/program-templates';
+import {
+  getSlotsForFocus,
+  normalizeFocusToKey,
+  type FocusKey,
+} from '../data/program-templates';
 import { getAnchorIdsForFocus } from '../data/anchor-exercises';
 import { getSetRepGuidelines } from '../data/set-rep-schemes';
 
@@ -81,23 +85,34 @@ export class WorkoutGeneratorService {
     const excludeNames = preferences?.excludeExerciseNames ?? [];
     let filtered = rawCandidates;
     if (excludeNames.length > 0) {
-      const lowerExclude = excludeNames.map((n) => n.toLowerCase().trim()).filter((n) => n.length >= 2);
+      const lowerExclude = excludeNames
+        .map((n) => n.toLowerCase().trim())
+        .filter((n) => n.length >= 2);
       if (lowerExclude.length > 0) {
         filtered = rawCandidates.filter(
-          (c) => !lowerExclude.some((ex) => (c.name ?? '').toLowerCase().includes(ex)),
+          (c) =>
+            !lowerExclude.some((ex) =>
+              (c.name ?? '').toLowerCase().includes(ex),
+            ),
         );
         if (filtered.length < 4) filtered = rawCandidates;
       }
     }
     const anchorIds = getAnchorIdsForFocus(focus);
-    const toCandidate = (e: { id: string; name: string; primaryMuscleGroup: string; equipment?: string[]; movementPatterns?: string[] }): CandidateExercise => ({
+    const toCandidate = (e: {
+      id: string;
+      name: string;
+      primaryMuscleGroup: string;
+      equipment?: string[];
+      movementPatterns?: string[];
+    }): CandidateExercise => ({
       id: e.id,
       name: e.name,
       primaryMuscleGroup: e.primaryMuscleGroup,
       equipment: e.equipment ?? [],
       movementPatterns: e.movementPatterns ?? [],
       variationGroup: this.getVariationGroupFromName(e.name),
-      equipmentType: (e.equipment && e.equipment[0]) ? e.equipment[0] : 'mixed',
+      equipmentType: e.equipment && e.equipment[0] ? e.equipment[0] : 'mixed',
     });
     const candidateList = this.buildCandidateListWithAnchorsFirst(
       filtered.map(toCandidate),
@@ -145,9 +160,29 @@ export class WorkoutGeneratorService {
   private getVariationGroupFromName(name: string): string {
     const n = (name ?? '').toLowerCase();
     const patterns = [
-      'squat', 'deadlift', 'lunge', 'hip thrust', 'thrust', 'row', 'pulldown', 'push-down',
-      'pull-up', 'pullup', 'bench', 'overhead', 'dip', 'fly', 'flye', 'crossover', 'extension',
-      'raise', 'curl', 'pullover', 'press', 'crunch', 'plank',
+      'squat',
+      'deadlift',
+      'lunge',
+      'hip thrust',
+      'thrust',
+      'row',
+      'pulldown',
+      'push-down',
+      'pull-up',
+      'pullup',
+      'bench',
+      'overhead',
+      'dip',
+      'fly',
+      'flye',
+      'crossover',
+      'extension',
+      'raise',
+      'curl',
+      'pullover',
+      'press',
+      'crunch',
+      'plank',
     ];
     for (const p of patterns) {
       if (n.includes(p)) return p;
@@ -174,13 +209,20 @@ export class WorkoutGeneratorService {
     const shuffledNonAnchors = this.shuffleArray([...nonAnchors]);
     if (anchorsInCandidates.length === 0) return shuffledNonAnchors;
 
-    const leadCount = Math.min(anchorsInCandidates.length, Math.random() > 0.5 ? 2 : 1);
+    const leadCount = Math.min(
+      anchorsInCandidates.length,
+      Math.random() > 0.5 ? 2 : 1,
+    );
     const leadIndices = new Set<number>();
     while (leadIndices.size < leadCount) {
       leadIndices.add(Math.floor(Math.random() * anchorsInCandidates.length));
     }
-    const leadAnchors = anchorsInCandidates.filter((_, i) => leadIndices.has(i));
-    const otherAnchors = anchorsInCandidates.filter((_, i) => !leadIndices.has(i));
+    const leadAnchors = anchorsInCandidates.filter((_, i) =>
+      leadIndices.has(i),
+    );
+    const otherAnchors = anchorsInCandidates.filter(
+      (_, i) => !leadIndices.has(i),
+    );
     return [...leadAnchors, ...otherAnchors, ...shuffledNonAnchors];
   }
 
@@ -231,7 +273,9 @@ export class WorkoutGeneratorService {
       else other.push(c);
     }
 
-    const shuffledGroups = groupOrder.map((g) => this.shuffleArray(byGroup.get(g) ?? []));
+    const shuffledGroups = groupOrder.map((g) =>
+      this.shuffleArray(byGroup.get(g) ?? []),
+    );
     const result: CandidateExercise[] = [];
     let idx = 0;
     while (true) {
@@ -250,7 +294,10 @@ export class WorkoutGeneratorService {
   }
 
   /** Last ~8 workouts' exercise IDs for variety (avoid repeating). */
-  private async getRecentExerciseIds(userId: string, limit = 25): Promise<string[]> {
+  private async getRecentExerciseIds(
+    userId: string,
+    limit = 25,
+  ): Promise<string[]> {
     const workouts = await this.prisma.workout.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
@@ -284,14 +331,21 @@ export class WorkoutGeneratorService {
     const result = new Map<string, LastPerformance>();
     for (const log of logs) {
       for (const entry of log.entries) {
-        if (entry.exerciseId && idSet.has(entry.exerciseId) && !result.has(entry.exerciseId)) {
+        if (
+          entry.exerciseId &&
+          idSet.has(entry.exerciseId) &&
+          !result.has(entry.exerciseId)
+        ) {
           const sets = entry.completedSets?.filter((s) => s.completed) ?? [];
-          const best = sets.reduce<{ weight: number; reps: number } | null>((acc, s) => {
-            const w = s.weight ?? 0;
-            if (!acc) return { weight: w, reps: s.reps };
-            if (w > acc.weight) return { weight: w, reps: s.reps };
-            return acc;
-          }, null);
+          const best = sets.reduce<{ weight: number; reps: number } | null>(
+            (acc, s) => {
+              const w = s.weight ?? 0;
+              if (!acc) return { weight: w, reps: s.reps };
+              if (w > acc.weight) return { weight: w, reps: s.reps };
+              return acc;
+            },
+            null,
+          );
           if (best) {
             result.set(entry.exerciseId, {
               weight: best.weight > 0 ? best.weight : undefined,
@@ -314,7 +368,15 @@ export class WorkoutGeneratorService {
    */
   async generateFullProgram(
     options: {
-      sessions: Array<{ weekIndex: number; weekday: string; title?: string; type: string; durationMin: number; durationMax: number; isHardDay: boolean }>;
+      sessions: Array<{
+        weekIndex: number;
+        weekday: string;
+        title?: string;
+        type: string;
+        durationMin: number;
+        durationMax: number;
+        isHardDay: boolean;
+      }>;
       goal?: string;
       equipment?: string[];
       limitations?: string[];
@@ -330,9 +392,23 @@ export class WorkoutGeneratorService {
     warmUp?: string;
     coolDown?: string;
     cardioFinisher?: { suggestion: string };
-    exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; exerciseId?: string }>;
+    exercises: Array<{
+      name: string;
+      sets: number;
+      reps: number;
+      weight?: number;
+      notes?: string;
+      exerciseId?: string;
+    }>;
   }> | null> {
-    const { sessions, goal = 'hypertrophy', equipment = [], limitations = [], detailLevel = 'detailed', makeItEasier = false } = options;
+    const {
+      sessions,
+      goal = 'hypertrophy',
+      equipment = [],
+      limitations = [],
+      detailLevel = 'detailed',
+      makeItEasier = false,
+    } = options;
     if (sessions.length < 2 || sessions.length > 7) return null;
 
     const difficulty = makeItEasier ? 'beginner' : 'intermediate';
@@ -344,32 +420,48 @@ export class WorkoutGeneratorService {
       excludeIds: [],
       limit: 65,
     });
-    const toCandidate = (e: { id: string; name: string; primaryMuscleGroup: string; equipment?: string[]; movementPatterns?: string[] }): CandidateExercise => ({
+    const toCandidate = (e: {
+      id: string;
+      name: string;
+      primaryMuscleGroup: string;
+      equipment?: string[];
+      movementPatterns?: string[];
+    }): CandidateExercise => ({
       id: e.id,
       name: e.name,
       primaryMuscleGroup: e.primaryMuscleGroup,
       equipment: e.equipment ?? [],
       movementPatterns: e.movementPatterns ?? [],
       variationGroup: this.getVariationGroupFromName(e.name),
-      equipmentType: (e.equipment && e.equipment[0]) ? e.equipment[0] : 'mixed',
+      equipmentType: e.equipment && e.equipment[0] ? e.equipment[0] : 'mixed',
     });
     const candidates = rawCandidates.map(toCandidate);
     if (candidates.length < 20) return null;
 
     const candidateJson = JSON.stringify(
-      candidates.map((c) => ({ id: c.id, name: c.name, m: c.primaryMuscleGroup })),
+      candidates.map((c) => ({
+        id: c.id,
+        name: c.name,
+        m: c.primaryMuscleGroup,
+      })),
       null,
       0,
     );
 
-    const dayLines = sessions.map((s, i) => {
-      const focus = (s.title ?? s.type).trim() || 'full body';
-      const duration = Math.round((s.durationMin + s.durationMax) / 2);
-      const fk = normalizeFocusToKey(focus);
-      const isCardioOrRec = fk === 'cardio' || fk === 'recovery';
-      const { promptRange } = exerciseTargetsForSession(duration, detailLevel, isCardioOrRec);
-      return `Day ${i + 1} (${focus}, ${s.weekday}, ~${duration} min): Choose ${promptRange} exercises from the list that fit this day's focus (enough volume for ~${duration} minutes). Use ONLY exercise "id" values from the list. Main compounds first, then accessories. Within this day use only one movement variant (e.g. one bench press, not flat + incline in same day).`;
-    }).join('\n');
+    const dayLines = sessions
+      .map((s, i) => {
+        const focus = (s.title ?? s.type).trim() || 'full body';
+        const duration = Math.round((s.durationMin + s.durationMax) / 2);
+        const fk = normalizeFocusToKey(focus);
+        const isCardioOrRec = fk === 'cardio' || fk === 'recovery';
+        const { promptRange } = exerciseTargetsForSession(
+          duration,
+          detailLevel,
+          isCardioOrRec,
+        );
+        return `Day ${i + 1} (${focus}, ${s.weekday}, ~${duration} min): Choose ${promptRange} exercises from the list that fit this day's focus (enough volume for ~${duration} minutes). Use ONLY exercise "id" values from the list. Main compounds first, then accessories. Within this day use only one movement variant (e.g. one bench press, not flat + incline in same day).`;
+      })
+      .join('\n');
 
     const focusCounts = new Map<string, number>();
     for (const s of sessions) {
@@ -381,10 +473,13 @@ export class WorkoutGeneratorService {
       ? '\nImportant: Multiple days have the same focus (e.g. several Push or Pull days). Vary exercise selection across those days—do not repeat the same exercise lineup on every Push day. Pick different compounds and accessories so each week feels fresh.'
       : '';
 
-    const equipmentStr = equipment.length ? equipment.join(', ') : 'general gym equipment';
-    const limitationsBlock = limitations.length > 0
-      ? `\nLimitations (respect these): ${limitations.slice(0, 8).join('; ').slice(0, 200)}.`
-      : '';
+    const equipmentStr = equipment.length
+      ? equipment.join(', ')
+      : 'general gym equipment';
+    const limitationsBlock =
+      limitations.length > 0
+        ? `\nLimitations (respect these): ${limitations.slice(0, 8).join('; ').slice(0, 200)}.`
+        : '';
 
     const systemPrompt = `You are a certified fitness trainer designing a full weekly program in one response. You must choose exercises ONLY from the provided list by their "id". Respond with exactly one JSON object, no markdown.
 
@@ -430,28 +525,76 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     const raw = response.choices?.[0]?.message?.content?.trim();
     if (!raw) return null;
 
-    let parsed: { programSummary?: string; days?: Array<{ name?: string; reasoning?: string; warmUp?: string; coolDown?: string; exercises?: Array<{ exerciseId?: string; sets?: number; reps?: number; notes?: string }> }> };
+    let parsed: {
+      programSummary?: string;
+      days?: Array<{
+        name?: string;
+        reasoning?: string;
+        warmUp?: string;
+        coolDown?: string;
+        exercises?: Array<{
+          exerciseId?: string;
+          sets?: number;
+          reps?: number;
+          notes?: string;
+        }>;
+      }>;
+    };
     try {
       parsed = JSON.parse(raw);
     } catch {
       return null;
     }
 
-    if (!parsed.days || !Array.isArray(parsed.days) || parsed.days.length < sessions.length) return null;
+    if (
+      !parsed.days ||
+      !Array.isArray(parsed.days) ||
+      parsed.days.length < sessions.length
+    )
+      return null;
 
     const idToCandidate = new Map(candidates.map((c) => [c.id, c]));
-    const results: Array<{ weekIndex: number; weekday: string; name: string; reasoning?: string; warmUp?: string; coolDown?: string; cardioFinisher?: { suggestion: string }; exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; exerciseId?: string }> }> = [];
+    const results: Array<{
+      weekIndex: number;
+      weekday: string;
+      name: string;
+      reasoning?: string;
+      warmUp?: string;
+      coolDown?: string;
+      cardioFinisher?: { suggestion: string };
+      exercises: Array<{
+        name: string;
+        sets: number;
+        reps: number;
+        weight?: number;
+        notes?: string;
+        exerciseId?: string;
+      }>;
+    }> = [];
 
     for (let i = 0; i < sessions.length; i++) {
       const spec = sessions[i];
       const day = parsed.days[i];
       const duration = Math.round((spec.durationMin + spec.durationMax) / 2);
-      const fk = normalizeFocusToKey((spec.title ?? spec.type).trim() || 'full body');
+      const fk = normalizeFocusToKey(
+        (spec.title ?? spec.type).trim() || 'full body',
+      );
       const isCardioOrRec = fk === 'cardio' || fk === 'recovery';
-      const minExercisesPerDay = exerciseTargetsForSession(duration, detailLevel, isCardioOrRec).minExercises;
+      const minExercisesPerDay = exerciseTargetsForSession(
+        duration,
+        detailLevel,
+        isCardioOrRec,
+      ).minExercises;
       const usedIdsThisDay = new Set<string>();
 
-      const exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; exerciseId?: string }> = [];
+      const exercises: Array<{
+        name: string;
+        sets: number;
+        reps: number;
+        weight?: number;
+        notes?: string;
+        exerciseId?: string;
+      }> = [];
 
       if (day?.exercises?.length) {
         for (const ex of day.exercises) {
@@ -462,8 +605,20 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
             if (fallback) candidate = fallback;
           }
           const name = candidate ? candidate.name : 'Exercise';
-          const sets = Math.max(setRep.setsMin, Math.min(setRep.setsMax, Math.round(Number(ex.sets) || setRep.setsMin)));
-          const reps = Math.max(setRep.repsMin, Math.min(setRep.repsMax, Math.round(Number(ex.reps) || setRep.repsMin)));
+          const sets = Math.max(
+            setRep.setsMin,
+            Math.min(
+              setRep.setsMax,
+              Math.round(Number(ex.sets) || setRep.setsMin),
+            ),
+          );
+          const reps = Math.max(
+            setRep.repsMin,
+            Math.min(
+              setRep.repsMax,
+              Math.round(Number(ex.reps) || setRep.repsMin),
+            ),
+          );
           exercises.push({
             name,
             sets,
@@ -490,10 +645,21 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       results.push({
         weekIndex: spec.weekIndex,
         weekday: spec.weekday,
-        name: (day?.name && String(day.name).trim()) || `${(spec.title ?? spec.type) ?? 'Workout'} - ${spec.weekday}`,
-        reasoning: day?.reasoning != null ? String(day.reasoning).trim().slice(0, 500) : undefined,
-        warmUp: day?.warmUp != null ? String(day.warmUp).trim().slice(0, 300) : undefined,
-        coolDown: day?.coolDown != null ? String(day.coolDown).trim().slice(0, 300) : undefined,
+        name:
+          (day?.name && String(day.name).trim()) ||
+          `${spec.title ?? spec.type ?? 'Workout'} - ${spec.weekday}`,
+        reasoning:
+          day?.reasoning != null
+            ? String(day.reasoning).trim().slice(0, 500)
+            : undefined,
+        warmUp:
+          day?.warmUp != null
+            ? String(day.warmUp).trim().slice(0, 300)
+            : undefined,
+        coolDown:
+          day?.coolDown != null
+            ? String(day.coolDown).trim().slice(0, 300)
+            : undefined,
         exercises,
       });
     }
@@ -506,7 +672,15 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
    * parse failure, or wrong session count; caller should fall back to per-session generation.
    */
   async tryGenerateFullProgram(dto: {
-    sessions: Array<{ weekIndex: number; weekday: string; title?: string; type: string; durationMin: number; durationMax: number; isHardDay: boolean }>;
+    sessions: Array<{
+      weekIndex: number;
+      weekday: string;
+      title?: string;
+      type: string;
+      durationMin: number;
+      durationMax: number;
+      isHardDay: boolean;
+    }>;
     goal?: string;
     location?: 'gym' | 'home';
     detailLevel?: 'simple' | 'detailed';
@@ -520,14 +694,23 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     warmUp?: string;
     coolDown?: string;
     cardioFinisher?: { suggestion: string };
-    exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; exerciseId?: string }>;
+    exercises: Array<{
+      name: string;
+      sets: number;
+      reps: number;
+      weight?: number;
+      notes?: string;
+      exerciseId?: string;
+    }>;
   }> | null> {
     const apiKey = this.config.get<string>('GROQ_API_KEY');
-    if (!apiKey?.trim() || dto.sessions.length < 2 || dto.sessions.length > 7) return null;
+    if (!apiKey?.trim() || dto.sessions.length < 2 || dto.sessions.length > 7)
+      return null;
 
-    const equipment = dto.location === 'home'
-      ? ['Dumbbell', 'Resistance Band', 'Bodyweight']
-      : undefined;
+    const equipment =
+      dto.location === 'home'
+        ? ['Dumbbell', 'Resistance Band', 'Bodyweight']
+        : undefined;
 
     return this.generateFullProgram(
       {
@@ -546,18 +729,23 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     dto: GenerateWorkoutDto,
     apiKey: string,
     candidates: CandidateExercise[],
-    setRep: { setsMin: number; setsMax: number; repsMin: number; repsMax: number; description: string },
+    setRep: {
+      setsMin: number;
+      setsMax: number;
+      repsMin: number;
+      repsMax: number;
+      description: string;
+    },
     lastPerformance: Map<string, LastPerformance>,
   ): Promise<CreateWorkoutDto | null> {
-    const { day, preferences, userId } = dto;
+    const { day, preferences } = dto;
     const focus = preferences?.focus ?? 'full body';
     const focusKey: FocusKey | string = normalizeFocusToKey(focus);
     const difficulty = preferences?.difficulty ?? 'intermediate';
     const duration = preferences?.duration ?? 45;
-    const equipmentStr =
-      preferences?.equipment?.length
-        ? preferences.equipment.join(', ')
-        : 'general gym equipment';
+    const equipmentStr = preferences?.equipment?.length
+      ? preferences.equipment.join(', ')
+      : 'general gym equipment';
     const goal = preferences?.goal ?? 'hypertrophy';
     const experience = preferences?.experience ?? difficulty;
     const limitations = preferences?.limitations ?? [];
@@ -568,22 +756,36 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
 
     const slots = getSlotsForFocus(focus);
     const isCardioOrRecovery = focusKey === 'cardio' || focusKey === 'recovery';
-    const targets = exerciseTargetsForSession(duration, detailLevel, isCardioOrRecovery);
+    const targets = exerciseTargetsForSession(
+      duration,
+      detailLevel,
+      isCardioOrRecovery,
+    );
     const exerciseRange = targets.promptRange;
-    const mixedCardio = focusKey === 'full body' && (focus.toLowerCase().includes('run') || focus.toLowerCase().includes('cardio'));
+    const mixedCardio =
+      focusKey === 'full body' &&
+      (focus.toLowerCase().includes('run') ||
+        focus.toLowerCase().includes('cardio'));
 
     const avoidIds = [...new Set(preferences?.excludeExerciseIds ?? [])];
-    const avoidBlock = avoidIds.length > 0
-      ? `\nAvoid list (do not use these exercise ids unless the list would otherwise be too small; prefer exercises not in this list): ${avoidIds.join(', ')}.`
-      : '';
+    const avoidBlock =
+      avoidIds.length > 0
+        ? `\nAvoid list (do not use these exercise ids unless the list would otherwise be too small; prefer exercises not in this list): ${avoidIds.join(', ')}.`
+        : '';
 
-    const candidatesForPrompt = this.balanceCandidateOrderForPrompt(candidates, focusKey);
+    const candidatesForPrompt = this.balanceCandidateOrderForPrompt(
+      candidates,
+      focusKey,
+    );
     const candidateJson = JSON.stringify(
       candidatesForPrompt.map((c) => ({
         id: c.id,
         name: c.name,
         muscleGroup: c.primaryMuscleGroup,
-        movementPattern: (c.movementPatterns && c.movementPatterns[0]) ? c.movementPatterns[0] : 'Push',
+        movementPattern:
+          c.movementPatterns && c.movementPatterns[0]
+            ? c.movementPatterns[0]
+            : 'Push',
         variationGroup: c.variationGroup,
         equipmentType: c.equipmentType,
       })),
@@ -601,7 +803,9 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     const userContextParts: string[] = [];
     userContextParts.push(`User goal: ${goal}. Experience: ${experience}.`);
     if (limitations.length > 0) {
-      userContextParts.push(`Limitations (respect these): ${limitations.join('; ')}. Avoid exercises that conflict.`);
+      userContextParts.push(
+        `Limitations (respect these): ${limitations.join('; ')}. Avoid exercises that conflict.`,
+      );
     }
 
     const programContext =
@@ -615,7 +819,9 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       const name = c?.name ?? exerciseId;
       const w = perf.weight != null ? `${perf.weight} lb` : '';
       const r = perf.reps;
-      lastPerfLines.push(`${name} (id: ${exerciseId}): last time ${w} ${w ? '×' : ''} ${r} reps`);
+      lastPerfLines.push(
+        `${name} (id: ${exerciseId}): last time ${w} ${w ? '×' : ''} ${r} reps`,
+      );
     });
     const lastPerfBlock =
       lastPerfLines.length > 0
@@ -730,8 +936,14 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
         }
       }
       const name = candidate ? candidate.name : 'Exercise';
-      const sets = Math.max(setsMin, Math.min(setsMax, Math.round(Number(ex.sets) || setsMin)));
-      const reps = Math.max(repsMin, Math.min(repsMax, Math.round(Number(ex.reps) || repsMin)));
+      const sets = Math.max(
+        setsMin,
+        Math.min(setsMax, Math.round(Number(ex.sets) || setsMin)),
+      );
+      const reps = Math.max(
+        repsMin,
+        Math.min(repsMax, Math.round(Number(ex.reps) || repsMin)),
+      );
       exercises.push({
         name,
         exerciseId: candidate ? candidate.id : undefined,
@@ -745,17 +957,37 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
     }
 
     this.deduplicateSimilarExercises(exercises, candidates, setsMin, repsMin);
-    this.enforceMuscleGroupBalance(exercises, candidates, focusKey, setsMin, repsMin);
+    this.enforceMuscleGroupBalance(
+      exercises,
+      candidates,
+      focusKey,
+      setsMin,
+      repsMin,
+    );
     this.sortExercisesBySlotOrder(exercises, candidates, focusKey);
-    this.validateAndBackfillExercises(exercises, candidates, setsMin, repsMin, targets.minExercises);
+    this.validateAndBackfillExercises(
+      exercises,
+      candidates,
+      setsMin,
+      repsMin,
+      targets.minExercises,
+    );
 
     const reasoning = parsed.reasoning
       ? String(parsed.reasoning).trim().slice(0, 500)
       : undefined;
-    const warmUp = parsed.warmUp ? String(parsed.warmUp).trim().slice(0, 300) : undefined;
-    const coolDown = parsed.coolDown ? String(parsed.coolDown).trim().slice(0, 300) : undefined;
+    const warmUp = parsed.warmUp
+      ? String(parsed.warmUp).trim().slice(0, 300)
+      : undefined;
+    const coolDown = parsed.coolDown
+      ? String(parsed.coolDown).trim().slice(0, 300)
+      : undefined;
     const cardioFinisher = parsed.cardioFinisher?.suggestion
-      ? { suggestion: String(parsed.cardioFinisher.suggestion).trim().slice(0, 200) }
+      ? {
+          suggestion: String(parsed.cardioFinisher.suggestion)
+            .trim()
+            .slice(0, 200),
+        }
       : undefined;
 
     return {
@@ -816,8 +1048,8 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
         'push-down',
         'pull-up',
         'pullup',
-        'bench',       // bench press, close-grip bench, incline bench (before generic "press")
-        'overhead',    // overhead press, shoulder press
+        'bench', // bench press, close-grip bench, incline bench (before generic "press")
+        'overhead', // overhead press, shoulder press
         'dip',
         'fly',
         'flye',
@@ -826,7 +1058,7 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
         'raise',
         'curl',
         'pullover',
-        'press',       // catch-all for other presses
+        'press', // catch-all for other presses
         'crunch',
         'plank',
       ];
@@ -845,7 +1077,9 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
       const base = getBase(ex.name);
       const nameNorm = (ex.name ?? '').trim().toLowerCase();
       const isDuplicateBase = usedBases.has(base);
-      const isExactDuplicate = usedNames.has(nameNorm) || (ex.exerciseId && usedIds.has(ex.exerciseId));
+      const isExactDuplicate =
+        usedNames.has(nameNorm) ||
+        (ex.exerciseId && usedIds.has(ex.exerciseId));
 
       if (isExactDuplicate || isDuplicateBase) {
         const replacement = candidates.find(
@@ -891,14 +1125,20 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
   ): void {
     const key = String(focusKey).toLowerCase();
     const idToCandidate = new Map(candidates.map((c) => [c.id, c]));
-    const usedIds = new Set(exercises.map((e) => e.exerciseId).filter(Boolean) as string[]);
+    const usedIds = new Set(
+      exercises.map((e) => e.exerciseId).filter(Boolean) as string[],
+    );
 
     const getGroup = (ex: (typeof exercises)[0]): string => {
       const c = ex.exerciseId ? idToCandidate.get(ex.exerciseId) : null;
       return c?.primaryMuscleGroup ?? '';
     };
 
-    type Rule = { maxPerGroup?: Record<string, number>; minPerGroup?: Record<string, number>; groups?: string[] };
+    type Rule = {
+      maxPerGroup?: Record<string, number>;
+      minPerGroup?: Record<string, number>;
+      groups?: string[];
+    };
     const rules: Record<string, Rule> = {
       push: {
         maxPerGroup: { Chest: 2 },
@@ -936,7 +1176,14 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
         groups: ['Legs', 'Core'],
       },
       'full body': {
-        maxPerGroup: { Chest: 2, Back: 2, Legs: 2, Shoulders: 1, Arms: 1, Core: 1 },
+        maxPerGroup: {
+          Chest: 2,
+          Back: 2,
+          Legs: 2,
+          Shoulders: 1,
+          Arms: 1,
+          Core: 1,
+        },
         minPerGroup: {},
         groups: ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core'],
       },
@@ -1028,7 +1275,11 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
         const need = min - count;
         const preferGroups = [group];
         const indicesToReplace: number[] = [];
-        for (let i = 0; i < exercises.length && indicesToReplace.length < need; i++) {
+        for (
+          let i = 0;
+          i < exercises.length && indicesToReplace.length < need;
+          i++
+        ) {
           if (getGroup(exercises[i]) !== group) indicesToReplace.push(i);
         }
         for (const i of indicesToReplace) {
@@ -1047,8 +1298,11 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
               orderIndex: ex.orderIndex ?? i,
             };
             usedIds.add(replacement.id);
-            const oldG = oldId ? idToCandidate.get(oldId)?.primaryMuscleGroup : '';
-            if (oldG) countByGroup[oldG] = Math.max(0, (countByGroup[oldG] ?? 1) - 1);
+            const oldG = oldId
+              ? idToCandidate.get(oldId)?.primaryMuscleGroup
+              : '';
+            if (oldG)
+              countByGroup[oldG] = Math.max(0, (countByGroup[oldG] ?? 1) - 1);
             countByGroup[group] = (countByGroup[group] ?? 0) + 1;
           }
         }
@@ -1062,19 +1316,38 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
    */
   private sortExercisesBySlotOrder(
     exercises: CreateWorkoutDto['exercises'],
-    candidates: CandidateExercise[],
+    _candidates: CandidateExercise[],
     focusKey: FocusKey | string,
   ): void {
     if (exercises.length <= 1) return;
-    const idToCandidate = new Map(candidates.map((c) => [c.id, c]));
     const key = String(focusKey).toLowerCase();
 
     const getBase = (name: string): string => {
       const n = (name ?? '').toLowerCase();
       const patterns = [
-        'squat', 'deadlift', 'lunge', 'hip thrust', 'thrust', 'row', 'pulldown', 'push-down',
-        'pull-up', 'pullup', 'bench', 'overhead', 'dip', 'fly', 'flye', 'crossover', 'extension',
-        'raise', 'curl', 'pullover', 'press', 'crunch', 'plank',
+        'squat',
+        'deadlift',
+        'lunge',
+        'hip thrust',
+        'thrust',
+        'row',
+        'pulldown',
+        'push-down',
+        'pull-up',
+        'pullup',
+        'bench',
+        'overhead',
+        'dip',
+        'fly',
+        'flye',
+        'crossover',
+        'extension',
+        'raise',
+        'curl',
+        'pullover',
+        'press',
+        'crunch',
+        'plank',
       ];
       for (const p of patterns) {
         if (n.includes(p)) return p;
@@ -1082,13 +1355,17 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
       return n.split(/\s+/).pop() ?? n.slice(0, 20);
     };
 
-    const slotOrder = (base: string, group: string): number => {
+    const slotOrder = (base: string): number => {
       switch (key) {
         case 'push':
           if (['bench', 'dip', 'press'].includes(base)) return 0;
           if (base === 'overhead') return 1;
           if (['fly', 'flye', 'crossover', 'raise'].includes(base)) return 2;
-          if (['extension', 'push-down', 'pushdown'].includes(base) || base.includes('push-down')) return 3;
+          if (
+            ['extension', 'push-down', 'pushdown'].includes(base) ||
+            base.includes('push-down')
+          )
+            return 3;
           return 4;
         case 'pull':
           if (['pulldown', 'pull-up', 'pullup'].includes(base)) return 0;
@@ -1105,8 +1382,20 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
           return 4;
         case 'upper':
         case 'upper body':
-          if (['bench', 'row', 'overhead', 'dip', 'pulldown', 'pull-up', 'pullup'].includes(base)) return 0;
-          if (['fly', 'curl', 'extension', 'raise', 'pullover'].includes(base)) return 1;
+          if (
+            [
+              'bench',
+              'row',
+              'overhead',
+              'dip',
+              'pulldown',
+              'pull-up',
+              'pullup',
+            ].includes(base)
+          )
+            return 0;
+          if (['fly', 'curl', 'extension', 'raise', 'pullover'].includes(base))
+            return 1;
           return 2;
         case 'chest':
           if (['bench', 'dip', 'press'].includes(base)) return 0;
@@ -1122,12 +1411,33 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
           if (base === 'raise') return 1;
           return 2;
         case 'arms':
-          if (['extension', 'dip', 'push-down'].includes(base) || base.includes('push-down')) return 0;
+          if (
+            ['extension', 'dip', 'push-down'].includes(base) ||
+            base.includes('push-down')
+          )
+            return 0;
           if (base === 'curl') return 1;
           return 2;
         case 'full body':
-          if (['deadlift', 'squat', 'bench', 'row', 'pulldown', 'pull-up', 'pullup', 'overhead'].includes(base)) return 0;
-          if (['curl', 'extension', 'fly', 'raise', 'lunge', 'thrust'].includes(base)) return 1;
+          if (
+            [
+              'deadlift',
+              'squat',
+              'bench',
+              'row',
+              'pulldown',
+              'pull-up',
+              'pullup',
+              'overhead',
+            ].includes(base)
+          )
+            return 0;
+          if (
+            ['curl', 'extension', 'fly', 'raise', 'lunge', 'thrust'].includes(
+              base,
+            )
+          )
+            return 1;
           return 2;
         default:
           return 0;
@@ -1136,8 +1446,7 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
 
     const withOrder = exercises.map((ex, i) => {
       const base = getBase(ex.name);
-      const group = ex.exerciseId ? idToCandidate.get(ex.exerciseId)?.primaryMuscleGroup ?? '' : '';
-      const order = slotOrder(base, group);
+      const order = slotOrder(base);
       return { ex, i, order };
     });
     withOrder.sort((a, b) => a.order - b.order || a.i - b.i);
@@ -1153,18 +1462,30 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
     candidates: CandidateExercise[],
     day?: string,
     preferences?: any,
-    setRep?: { setsMin: number; setsMax: number; repsMin: number; repsMax: number },
+    setRep?: {
+      setsMin: number;
+      setsMax: number;
+      repsMin: number;
+      repsMax: number;
+    },
   ): CreateWorkoutDto {
-    const focus = (preferences?.focus || 'full body').toLowerCase().split(/\+/)[0].trim();
+    const focus = (preferences?.focus || 'full body')
+      .toLowerCase()
+      .split(/\+/)[0]
+      .trim();
     const focusKey = normalizeFocusToKey(focus);
     const difficulty = preferences?.difficulty || 'intermediate';
-    const guidelines = setRep ?? getSetRepGuidelines(preferences?.goal, difficulty);
+    const guidelines =
+      setRep ?? getSetRepGuidelines(preferences?.goal, difficulty);
     const setsMin = guidelines.setsMin;
     const repsMin = guidelines.repsMin;
 
-    const detailLevel = (preferences?.detailLevel ?? 'detailed') as 'simple' | 'detailed';
+    const detailLevel = (preferences?.detailLevel ?? 'detailed') as
+      | 'simple'
+      | 'detailed';
     const isSimple = detailLevel === 'simple';
-    const sessionDuration = typeof preferences?.duration === 'number' ? preferences.duration : 45;
+    const sessionDuration =
+      typeof preferences?.duration === 'number' ? preferences.duration : 45;
     const targets = exerciseTargetsForSession(
       sessionDuration,
       detailLevel,
@@ -1172,7 +1493,10 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
     );
     let chosen: CandidateExercise[] = [];
     if (candidates.length >= 4) {
-      const balanced = this.balanceCandidateOrderForPrompt(candidates, focusKey);
+      const balanced = this.balanceCandidateOrderForPrompt(
+        candidates,
+        focusKey,
+      );
       let count = targets.minExercises;
       if (isSimple) count = Math.min(count, 5);
       if (difficulty === 'beginner') count = Math.max(4, count - 1);
@@ -1185,18 +1509,32 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
       name: c.name,
       exerciseId: c.id,
       sets: Math.min(10, guidelines.setsMin + (i === 0 ? 1 : 0)),
-      reps: Math.min(99, Math.round((guidelines.repsMin + guidelines.repsMax) / 2)),
+      reps: Math.min(
+        99,
+        Math.round((guidelines.repsMin + guidelines.repsMax) / 2),
+      ),
       weight: undefined as number | undefined,
       notes: undefined as string | undefined,
       orderIndex: i,
     }));
 
     if (exercises.length === 0) {
-      const fallback = this.getHardcodedFallback(focus, difficulty, day, guidelines);
+      const fallback = this.getHardcodedFallback(
+        focus,
+        difficulty,
+        day,
+        guidelines,
+      );
       return fallback;
     }
 
-    this.enforceMuscleGroupBalance(exercises, candidates, focusKey, setsMin, repsMin);
+    this.enforceMuscleGroupBalance(
+      exercises,
+      candidates,
+      focusKey,
+      setsMin,
+      repsMin,
+    );
     this.sortExercisesBySlotOrder(exercises, candidates, focusKey);
 
     const workoutName = `${focus.charAt(0).toUpperCase() + focus.slice(1)} Workout${day ? ` - ${day}` : ''}`;
@@ -1214,13 +1552,21 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
     focus: string,
     difficulty: string,
     day?: string,
-    setRep?: { setsMin: number; setsMax: number; repsMin: number; repsMax: number },
+    setRep?: {
+      setsMin: number;
+      setsMax: number;
+      repsMin: number;
+      repsMax: number;
+    },
   ): CreateWorkoutDto {
     const guidelines = setRep ?? getSetRepGuidelines(undefined, difficulty);
     const sets = Math.min(10, guidelines.setsMin + 1);
     const reps = Math.round((guidelines.repsMin + guidelines.repsMax) / 2);
 
-    const templates: Record<string, Array<{ name: string; sets: number; reps: number; weight?: number }>> = {
+    const templates: Record<
+      string,
+      Array<{ name: string; sets: number; reps: number; weight?: number }>
+    > = {
       'upper body': [
         { name: 'Bench Press', sets, reps, weight: 135 },
         { name: 'Pull-ups', sets, reps },

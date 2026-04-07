@@ -16,6 +16,7 @@ import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
+import { AiThrottlerGuard } from '../common/ai-throttler.guard';
 
 @Controller('plans')
 @UseGuards(AuthGuard)
@@ -44,12 +45,14 @@ export class PlansController {
   }
 
   @Post('generate-sessions')
+  @UseGuards(AiThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   generateSessions(@Body() dto: GenerateSessionsDto) {
     return this.plansService.generateSessions(dto);
   }
 
   @Post('generate-single-session')
+  @UseGuards(AiThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   generateSingleSession(@Body() dto: GenerateSingleSessionDto) {
     return this.plansService.generateSingleSession(dto);
@@ -72,7 +75,10 @@ export class PlansController {
     @UserId() userId: string,
   ) {
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[PlansController] removeSlot', { planId, slotId: dto?.slotId });
+      console.log('[PlansController] removeSlot', {
+        planId,
+        slotId: dto?.slotId,
+      });
     }
     return this.plansService.removeSlot(planId, dto.slotId, userId);
   }

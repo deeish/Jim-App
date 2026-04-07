@@ -10,6 +10,8 @@ interface ButtonProps {
   disabled?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  /** E2E / automation (maps to `data-testid` on web). */
+  testID?: string;
 }
 
 export default function Button({
@@ -20,6 +22,7 @@ export default function Button({
   disabled = false,
   style,
   textStyle,
+  testID,
 }: ButtonProps) {
   const { colors } = useTheme();
   const styles = useMemo(
@@ -50,6 +53,7 @@ export default function Button({
   );
   return (
     <TouchableOpacity
+      testID={testID}
       style={[
         styles.button,
         variant === 'primary' ? styles.primary : styles.secondary,

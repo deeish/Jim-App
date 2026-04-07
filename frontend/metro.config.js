@@ -1,6 +1,6 @@
-const { getDefaultConfig } = require('expo/metro-config');
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 
-const config = getDefaultConfig(__dirname);
+const config = getSentryExpoConfig(__dirname);
 
 // Avoid resolving Node-only paths (@supabase/realtime-js → ws → stream) into the native bundle.
 // See: https://docs.expo.dev/versions/latest/config/metro/#es-module-resolution

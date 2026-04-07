@@ -55,7 +55,8 @@ export function inferMainLiftName(
   exercises: GeneratedSessionExercise[],
 ): string | null {
   const work = exercises.filter(
-    (e) => (e.sets ?? 0) >= 3 && !/warm|stretch|cool|mobility|foam/i.test(e.name),
+    (e) =>
+      (e.sets ?? 0) >= 3 && !/warm|stretch|cool|mobility|foam/i.test(e.name),
   );
   return work[0]?.name ?? exercises[0]?.name ?? null;
 }
@@ -129,7 +130,10 @@ export async function enrichGeneratedSession(
   });
   exercises = withScores.map((x) => x.e);
 
-  if (sessionTitleNeedsPullBalance(spec.title, spec.type) && !listHasPull(exercises)) {
+  if (
+    sessionTitleNeedsPullBalance(spec.title, spec.type) &&
+    !listHasPull(exercises)
+  ) {
     const excludeIds = exercises
       .map((e) => e.exerciseId)
       .filter((id): id is string => !!id);

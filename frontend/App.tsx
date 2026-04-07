@@ -11,6 +11,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { wrapWithSentry } from './src/lib/sentry';
 import type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
 
 export type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
@@ -97,7 +98,7 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: 16 },
 });
 
-export default function App() {
+function App() {
   return (
     <ThemeProvider>
       <SafeAreaProvider>
@@ -108,3 +109,5 @@ export default function App() {
     </ThemeProvider>
   );
 }
+
+export default wrapWithSentry(App);

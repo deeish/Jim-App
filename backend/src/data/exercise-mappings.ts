@@ -45,13 +45,13 @@ export const SUB_MUSCLE_MAP: Record<string, string> = {
   arms_biceps: 'Biceps',
   arms_triceps: 'Triceps',
   arms_forearms: 'Forearms',
-  arms_grip: 'Forearms', 
+  arms_grip: 'Forearms',
 
   // Core
   core_upper_abs: 'Upper Abs',
   core_lower_abs: 'Lower Abs',
   core_obliques: 'Obliques',
-  core_deep: 'Upper Abs', 
+  core_deep: 'Upper Abs',
 };
 
 // Equipment ID → Display Name (must map to VALID_EQUIPMENT for filter UI)

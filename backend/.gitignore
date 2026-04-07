@@ -39,5 +39,4 @@ lerna-debug.log*
 .env.local
 .env.*.local
 
-# Prisma
-prisma/migrations/
+# Prisma — keep prisma/migrations/ in Git so `migrate deploy` works in production/CI.

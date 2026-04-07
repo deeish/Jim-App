@@ -89,10 +89,15 @@ export function normalizeFocusToKey(focus: string): FocusKey | string {
   const lower = focus.toLowerCase().trim();
   if (/^push\b/.test(lower)) return 'push';
   if (/^pull\b/.test(lower)) return 'pull';
-  if (/^legs\b/.test(lower) || lower === 'lower' || lower === 'lower body') return 'lower';
+  if (/^legs\b/.test(lower) || lower === 'lower' || lower === 'lower body')
+    return 'lower';
   if (/^upper\b/.test(lower) || lower === 'upper body') return 'upper';
-  if (/full body|\+ *run|\+ *cardio/.test(lower)) return lower.includes('run') || lower.includes('cardio') ? 'full body' : 'full body';
-  if (/cardio|recovery/.test(lower)) return lower.includes('recovery') ? 'recovery' : 'cardio';
+  if (/full body|\+ *run|\+ *cardio/.test(lower))
+    return lower.includes('run') || lower.includes('cardio')
+      ? 'full body'
+      : 'full body';
+  if (/cardio|recovery/.test(lower))
+    return lower.includes('recovery') ? 'recovery' : 'cardio';
   if (/^chest\b/.test(lower)) return 'chest';
   if (/^back\b/.test(lower)) return 'back';
   if (/^shoulders?\b/.test(lower)) return 'shoulders';
@@ -127,43 +132,133 @@ export interface SlotDefinition {
 /** Slot structure per focus. Order = exercise order in workout. */
 export const SLOTS_BY_FOCUS: Record<string, SlotDefinition[]> = {
   push: [
-    { role: 'main_compound_1', description: 'Horizontal push (e.g. bench press, push-up)', min: 1, max: 1 },
-    { role: 'main_compound_2', description: 'Vertical push (e.g. overhead press)', min: 1, max: 1 },
-    { role: 'accessory_1', description: 'Chest or shoulder isolation', min: 1, max: 1 },
+    {
+      role: 'main_compound_1',
+      description: 'Horizontal push (e.g. bench press, push-up)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'main_compound_2',
+      description: 'Vertical push (e.g. overhead press)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_1',
+      description: 'Chest or shoulder isolation',
+      min: 1,
+      max: 1,
+    },
     { role: 'accessory_2', description: 'Triceps isolation', min: 1, max: 1 },
-    { role: 'finisher', description: 'Optional triceps or light pump finisher', min: 0, max: 1 },
+    {
+      role: 'finisher',
+      description: 'Optional triceps or light pump finisher',
+      min: 0,
+      max: 1,
+    },
   ],
   pull: [
-    { role: 'main_compound_1', description: 'Vertical pull (e.g. pull-up, lat pulldown)', min: 1, max: 1 },
-    { role: 'main_compound_2', description: 'Horizontal pull (e.g. row)', min: 1, max: 1 },
-    { role: 'accessory_1', description: 'Back or bicep isolation', min: 1, max: 1 },
+    {
+      role: 'main_compound_1',
+      description: 'Vertical pull (e.g. pull-up, lat pulldown)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'main_compound_2',
+      description: 'Horizontal pull (e.g. row)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_1',
+      description: 'Back or bicep isolation',
+      min: 1,
+      max: 1,
+    },
     { role: 'accessory_2', description: 'Biceps isolation', min: 1, max: 1 },
     { role: 'finisher', description: 'Optional core or grip', min: 0, max: 1 },
   ],
   legs: [
-    { role: 'main_compound_1', description: 'Squat pattern (e.g. back squat, leg press)', min: 1, max: 1 },
-    { role: 'main_compound_2', description: 'Hinge pattern (e.g. deadlift, RDL)', min: 1, max: 1 },
-    { role: 'accessory_1', description: 'Quad or hamstring isolation', min: 1, max: 1 },
+    {
+      role: 'main_compound_1',
+      description: 'Squat pattern (e.g. back squat, leg press)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'main_compound_2',
+      description: 'Hinge pattern (e.g. deadlift, RDL)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_1',
+      description: 'Quad or hamstring isolation',
+      min: 1,
+      max: 1,
+    },
     { role: 'accessory_2', description: 'Calves or glutes', min: 1, max: 1 },
     { role: 'finisher', description: 'Optional core', min: 0, max: 1 },
   ],
   upper: [
-    { role: 'main_compound_1', description: 'Horizontal push (bench, push-up)', min: 1, max: 1 },
-    { role: 'main_compound_2', description: 'Horizontal or vertical pull (row, pulldown)', min: 1, max: 1 },
-    { role: 'accessory_1', description: 'Vertical push (overhead press) or arms', min: 1, max: 1 },
-    { role: 'accessory_2', description: 'Arms or shoulders isolation', min: 1, max: 1 },
+    {
+      role: 'main_compound_1',
+      description: 'Horizontal push (bench, push-up)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'main_compound_2',
+      description: 'Horizontal or vertical pull (row, pulldown)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_1',
+      description: 'Vertical push (overhead press) or arms',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_2',
+      description: 'Arms or shoulders isolation',
+      min: 1,
+      max: 1,
+    },
     { role: 'finisher', description: 'Optional core or arms', min: 0, max: 1 },
   ],
   lower: [
-    { role: 'main_compound_1', description: 'Squat or leg press', min: 1, max: 1 },
-    { role: 'main_compound_2', description: 'Hinge (deadlift, RDL)', min: 1, max: 1 },
+    {
+      role: 'main_compound_1',
+      description: 'Squat or leg press',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'main_compound_2',
+      description: 'Hinge (deadlift, RDL)',
+      min: 1,
+      max: 1,
+    },
     { role: 'accessory_1', description: 'Leg isolation', min: 1, max: 1 },
     { role: 'accessory_2', description: 'Calves or core', min: 1, max: 1 },
     { role: 'finisher', description: 'Optional', min: 0, max: 1 },
   ],
   'upper body': [
-    { role: 'main_compound_1', description: 'Push (bench or press)', min: 1, max: 1 },
-    { role: 'main_compound_2', description: 'Pull (row or pulldown)', min: 1, max: 1 },
+    {
+      role: 'main_compound_1',
+      description: 'Push (bench or press)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'main_compound_2',
+      description: 'Pull (row or pulldown)',
+      min: 1,
+      max: 1,
+    },
     { role: 'accessory_1', description: 'Shoulders or arms', min: 1, max: 1 },
     { role: 'accessory_2', description: 'Arms or core', min: 1, max: 1 },
     { role: 'finisher', description: 'Optional', min: 0, max: 1 },
@@ -176,32 +271,112 @@ export const SLOTS_BY_FOCUS: Record<string, SlotDefinition[]> = {
     { role: 'finisher', description: 'Optional', min: 0, max: 1 },
   ],
   'full body': [
-    { role: 'main_compound_1', description: 'Lower body compound (squat or deadlift)', min: 1, max: 1 },
-    { role: 'main_compound_2', description: 'Upper push (bench or press)', min: 1, max: 1 },
-    { role: 'accessory_1', description: 'Upper pull (row or pulldown)', min: 1, max: 1 },
-    { role: 'accessory_2', description: 'Accessory (arms, shoulders, or core)', min: 1, max: 1 },
-    { role: 'finisher', description: 'Optional core or cardio', min: 0, max: 1 },
+    {
+      role: 'main_compound_1',
+      description: 'Lower body compound (squat or deadlift)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'main_compound_2',
+      description: 'Upper push (bench or press)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_1',
+      description: 'Upper pull (row or pulldown)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_2',
+      description: 'Accessory (arms, shoulders, or core)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'finisher',
+      description: 'Optional core or cardio',
+      min: 0,
+      max: 1,
+    },
   ],
   chest: [
-    { role: 'main_compound_1', description: 'Horizontal push (bench press)', min: 1, max: 1 },
-    { role: 'main_compound_2', description: 'Incline or variation', min: 1, max: 1 },
-    { role: 'accessory_1', description: 'Chest isolation (fly, crossover)', min: 1, max: 1 },
-    { role: 'accessory_2', description: 'Optional dip or push-up', min: 0, max: 1 },
+    {
+      role: 'main_compound_1',
+      description: 'Horizontal push (bench press)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'main_compound_2',
+      description: 'Incline or variation',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_1',
+      description: 'Chest isolation (fly, crossover)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_2',
+      description: 'Optional dip or push-up',
+      min: 0,
+      max: 1,
+    },
   ],
   back: [
-    { role: 'main_compound_1', description: 'Vertical pull (pulldown, pull-up)', min: 1, max: 1 },
-    { role: 'main_compound_2', description: 'Horizontal pull (row)', min: 1, max: 1 },
-    { role: 'accessory_1', description: 'Back or bicep isolation', min: 1, max: 1 },
+    {
+      role: 'main_compound_1',
+      description: 'Vertical pull (pulldown, pull-up)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'main_compound_2',
+      description: 'Horizontal pull (row)',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_1',
+      description: 'Back or bicep isolation',
+      min: 1,
+      max: 1,
+    },
   ],
   shoulders: [
     { role: 'main_compound_1', description: 'Overhead press', min: 1, max: 1 },
-    { role: 'accessory_1', description: 'Lateral or front raise', min: 1, max: 1 },
-    { role: 'accessory_2', description: 'Rear delt or isolation', min: 1, max: 1 },
+    {
+      role: 'accessory_1',
+      description: 'Lateral or front raise',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_2',
+      description: 'Rear delt or isolation',
+      min: 1,
+      max: 1,
+    },
   ],
   arms: [
-    { role: 'main_compound_1', description: 'Triceps (pushdown, extension, dip)', min: 1, max: 1 },
+    {
+      role: 'main_compound_1',
+      description: 'Triceps (pushdown, extension, dip)',
+      min: 1,
+      max: 1,
+    },
     { role: 'main_compound_2', description: 'Biceps (curl)', min: 1, max: 1 },
-    { role: 'accessory_1', description: 'Additional arm isolation', min: 1, max: 1 },
+    {
+      role: 'accessory_1',
+      description: 'Additional arm isolation',
+      min: 1,
+      max: 1,
+    },
   ],
   cardio: [],
   recovery: [],

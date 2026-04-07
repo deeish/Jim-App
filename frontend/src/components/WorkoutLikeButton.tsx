@@ -17,6 +17,7 @@ export interface WorkoutLikeButtonProps {
   size?: number;
   style?: ViewStyle;
   accessibilityLabel?: string;
+  testID?: string;
 }
 
 /**
@@ -31,6 +32,7 @@ export default function WorkoutLikeButton({
   size = 26,
   style,
   accessibilityLabel,
+  testID = 'e2e-workout-save-heart',
 }: WorkoutLikeButtonProps) {
   const { colors } = useTheme();
 
@@ -44,6 +46,7 @@ export default function WorkoutLikeButton({
 
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={handlePress}
       disabled={!canTap}
       style={[styles.button, style]}

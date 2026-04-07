@@ -31,10 +31,15 @@ export class ExercisesService implements OnModuleInit {
   private exercises: TransformedExercise[] = [];
   /** exerciseId -> YouTube video ID (from data/exercise-videos.json) */
   private videoMap = new Map<string, string>();
+  /** Built once at startup; avoids remapping thousands of rows on every list request. */
+  private memoFindAll: TransformedExercise[] = [];
+  private memoStats: ReturnType<ExercisesService['computeStats']> | null = null;
 
   async onModuleInit() {
     await this.loadExercises();
     this.loadVideoMap();
+    this.memoFindAll = this.exercises.map((e) => this.withVideo(e));
+    this.memoStats = this.computeStats();
   }
 
   private loadVideoMap() {
@@ -85,7 +90,7 @@ export class ExercisesService implements OnModuleInit {
   }
 
   findAll(): TransformedExercise[] {
-    return this.exercises.map((e) => this.withVideo(e));
+    return this.memoFindAll;
   }
 
   search(searchDto: SearchExercisesDto): TransformedExercise[] {
@@ -201,7 +206,10 @@ export class ExercisesService implements OnModuleInit {
     limit?: number;
   }): TransformedExercise[] {
     const { focus, equipment = [], excludeIds = [], limit = 70 } = options;
-    const focusNorm = focus.toLowerCase().split(/\+|&|,/)[0].trim();
+    const focusNorm = focus
+      .toLowerCase()
+      .split(/\+|&|,/)[0]
+      .trim();
     const muscleGroups = this.focusToMuscleGroups(focusNorm);
     let results = this.search({
       muscleGroups: muscleGroups.length ? muscleGroups : undefined,
@@ -234,10 +242,17 @@ export class ExercisesService implements OnModuleInit {
     const keyMatches = (k: string) =>
       k.includes(' ')
         ? f.includes(k)
-        : new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(f);
+        : new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(
+            f,
+          );
 
     // Titles like "Chest and Back" (no upper/lower) → both muscle groups
-    if (/\bchest\b/.test(f) && /\bback\b/.test(f) && !/\bupper\b/.test(f) && !/\blower\b/.test(f)) {
+    if (
+      /\bchest\b/.test(f) &&
+      /\bback\b/.test(f) &&
+      !/\bupper\b/.test(f) &&
+      !/\blower\b/.test(f)
+    ) {
       return ['Chest', 'Back'];
     }
     /** Broader split keywords before isolated muscles so "Upper Day - Chest and Back" matches upper, not chest. */
@@ -257,10 +272,16 @@ export class ExercisesService implements OnModuleInit {
       'cardio',
     ];
     const key = orderedKeys.find((k) => keyMatches(k));
-    return key ? map[key] : ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core'];
+    return key
+      ? map[key]
+      : ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core'];
   }
 
   getStats() {
+    return this.memoStats ?? this.computeStats();
+  }
+
+  private computeStats() {
     const stats = {
       total: this.exercises.length,
       byMuscleGroup: {} as Record<string, number>,
@@ -269,16 +290,13 @@ export class ExercisesService implements OnModuleInit {
     };
 
     this.exercises.forEach((exercise) => {
-      // Count by muscle group
       stats.byMuscleGroup[exercise.primaryMuscleGroup] =
         (stats.byMuscleGroup[exercise.primaryMuscleGroup] || 0) + 1;
 
-      // Count by equipment
       exercise.equipment.forEach((eq) => {
         stats.byEquipment[eq] = (stats.byEquipment[eq] || 0) + 1;
       });
 
-      // Count by movement pattern
       exercise.movementPatterns.forEach((pattern) => {
         stats.byMovementPattern[pattern] =
           (stats.byMovementPattern[pattern] || 0) + 1;

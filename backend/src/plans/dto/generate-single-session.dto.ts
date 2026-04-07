@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsArray, IsNumber, IsBoolean, IsIn } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsNumber,
+  IsBoolean,
+  IsIn,
+} from 'class-validator';
 
 export class GenerateSingleSessionDto {
   @IsOptional()

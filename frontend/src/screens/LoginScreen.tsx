@@ -66,6 +66,7 @@ export default function LoginScreen() {
 
           <Text style={[styles.label, themed.label]}>Email</Text>
           <TextInput
+            testID="e2e-login-email"
             style={[styles.input, themed.input]}
             value={email}
             onChangeText={setEmail}
@@ -78,6 +79,7 @@ export default function LoginScreen() {
 
           <Text style={[styles.label, themed.label]}>Password</Text>
           <TextInput
+            testID="e2e-login-password"
             style={[styles.input, themed.input]}
             value={password}
             onChangeText={setPassword}
@@ -96,6 +98,7 @@ export default function LoginScreen() {
             onPress={handleSignIn}
             loading={loading}
             style={styles.button}
+            testID="e2e-login-submit"
           />
 
           <View style={styles.footer}>

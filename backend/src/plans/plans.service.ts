@@ -126,9 +126,14 @@ export class PlansService {
       },
     });
 
-    await this.createWorkoutsForPlan(plan.id, userId, this.getGeneratorContextFromDto(dto), {
-      fillAllEmptySlots: true,
-    });
+    await this.createWorkoutsForPlan(
+      plan.id,
+      userId,
+      this.getGeneratorContextFromDto(dto),
+      {
+        fillAllEmptySlots: true,
+      },
+    );
     return this.getById(plan.id, userId);
   }
 
@@ -144,7 +149,15 @@ export class PlansService {
 
   /** True if dayOfWeek (e.g. "Monday") is today or in the future for the current week. */
   private isDayTodayOrFuture(dayOfWeek: string): boolean {
-    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const DAYS = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
     const dayIndex = DAYS.indexOf(dayOfWeek);
     if (dayIndex < 0) return true;
     const today = new Date();
@@ -176,7 +189,9 @@ export class PlansService {
     weekNumber: number,
     dayOfWeek: string,
   ): number {
-    const dayIndex = PlansService.PLAN_DAYS.indexOf(dayOfWeek as (typeof PlansService.PLAN_DAYS)[number]);
+    const dayIndex = PlansService.PLAN_DAYS.indexOf(
+      dayOfWeek as (typeof PlansService.PLAN_DAYS)[number],
+    );
     const idx = dayIndex < 0 ? 0 : dayIndex;
     const base = this.utcStartOfDayFromDate(anchorMonday);
     const deltaDays = (weekNumber - 1) * 7 + idx;
@@ -184,7 +199,10 @@ export class PlansService {
   }
 
   /** Monday 00:00 UTC and Sunday 00:00 UTC of the ISO week containing `now`. */
-  private utcWeekRangeContaining(now: Date): { weekStartMs: number; weekEndMs: number } {
+  private utcWeekRangeContaining(now: Date): {
+    weekStartMs: number;
+    weekEndMs: number;
+  } {
     const y = now.getUTCFullYear();
     const m0 = now.getUTCMonth();
     const d = now.getUTCDate();
@@ -201,7 +219,11 @@ export class PlansService {
     pw: { weekNumber: number; dayOfWeek: string },
     now: Date,
   ): boolean {
-    const slotMs = this.slotUtcStartFromAnchor(anchorMonday, pw.weekNumber, pw.dayOfWeek);
+    const slotMs = this.slotUtcStartFromAnchor(
+      anchorMonday,
+      pw.weekNumber,
+      pw.dayOfWeek,
+    );
     const todayMs = this.utcStartOfDayFromDate(now);
     if (slotMs < todayMs) return false;
     const { weekStartMs, weekEndMs } = this.utcWeekRangeContaining(now);
@@ -229,7 +251,9 @@ export class PlansService {
     workoutPlanId: string,
     userId?: string,
   ): Promise<void> {
-    const existing = await this.prisma.workout.findFirst({ where: { planWorkoutId: pw.id } });
+    const existing = await this.prisma.workout.findFirst({
+      where: { planWorkoutId: pw.id },
+    });
     if (existing) return;
     if (!pw.exercises.length) return;
     await this.prisma.workout.create({
@@ -249,7 +273,9 @@ export class PlansService {
             weight: e.weight ?? undefined,
             notes: e.notes ?? undefined,
             exerciseId:
-              e.exerciseId && !/^(draft_|applied_)/.test(e.exerciseId) ? e.exerciseId : undefined,
+              e.exerciseId && !/^(draft_|applied_)/.test(e.exerciseId)
+                ? e.exerciseId
+                : undefined,
             orderIndex: e.orderIndex ?? i,
           })),
         },
@@ -266,7 +292,13 @@ export class PlansService {
   private async createWorkoutsForPlan(
     workoutPlanId: string,
     userId?: string,
-    generatorContext?: { goal?: string; experience?: string; equipment?: string[]; limitations?: string[]; programTemplateId?: string },
+    generatorContext?: {
+      goal?: string;
+      experience?: string;
+      equipment?: string[];
+      limitations?: string[];
+      programTemplateId?: string;
+    },
     options?: { fillAllEmptySlots?: boolean },
   ) {
     const plan = await this.prisma.workoutPlan.findUnique({
@@ -296,7 +328,8 @@ export class PlansService {
 
       if (!fillAll) {
         if (anchor) {
-          if (!this.shouldGenerateWorkoutForSlotAnchored(anchor, pw, now)) continue;
+          if (!this.shouldGenerateWorkoutForSlotAnchored(anchor, pw, now))
+            continue;
         } else {
           if (pw.weekNumber !== 1) continue;
           if (!this.isDayTodayOrFuture(pw.dayOfWeek)) continue;
@@ -346,7 +379,9 @@ export class PlansService {
         },
       });
 
-      await this.prisma.planExercise.deleteMany({ where: { planWorkoutId: pw.id } });
+      await this.prisma.planExercise.deleteMany({
+        where: { planWorkoutId: pw.id },
+      });
       await this.prisma.planExercise.createMany({
         data: generated.exercises.map((e, i) => ({
           planWorkoutId: pw.id,
@@ -364,7 +399,9 @@ export class PlansService {
     }
   }
 
-  private getGeneratorContextFromDto(dto: CreatePlanDto): Parameters<PlansService['createWorkoutsForPlan']>[2] {
+  private getGeneratorContextFromDto(
+    dto: CreatePlanDto,
+  ): Parameters<PlansService['createWorkoutsForPlan']>[2] {
     return {
       goal: dto.goal,
       experience: dto.experience,
@@ -374,7 +411,9 @@ export class PlansService {
     };
   }
 
-  private intensityToDifficulty(intensity: string | null): 'beginner' | 'intermediate' | 'advanced' {
+  private intensityToDifficulty(
+    intensity: string | null,
+  ): 'beginner' | 'intermediate' | 'advanced' {
     if (!intensity) return 'intermediate';
     if (intensity === 'Easy') return 'beginner';
     if (intensity === 'Hard') return 'advanced';
@@ -446,9 +485,14 @@ export class PlansService {
       },
     });
 
-    await this.createWorkoutsForPlan(plan.id, userId, this.getGeneratorContextFromDto(dto), {
-      fillAllEmptySlots: true,
-    });
+    await this.createWorkoutsForPlan(
+      plan.id,
+      userId,
+      this.getGeneratorContextFromDto(dto),
+      {
+        fillAllEmptySlots: true,
+      },
+    );
     return this.getById(plan.id, userId);
   }
 
@@ -457,7 +501,11 @@ export class PlansService {
    * Used by the frontend plan pipeline to fill in LLM-generated content per session.
    */
   /** Minimal equipment for home workouts (matches exercise library equipment names). */
-  private static readonly HOME_EQUIPMENT = ['Dumbbell', 'Resistance Band', 'Bodyweight'] as const;
+  private static readonly HOME_EQUIPMENT = [
+    'Dumbbell',
+    'Resistance Band',
+    'Bodyweight',
+  ] as const;
 
   async generateSessions(dto: GenerateSessionsDto): Promise<{
     sessions: Array<{
@@ -483,9 +531,7 @@ export class PlansService {
     const makeItEasier = dto.makeItEasier === true;
     const limitations = dto.avoidConstraints ?? [];
     const equipment =
-      location === 'home'
-        ? [...PlansService.HOME_EQUIPMENT]
-        : undefined;
+      location === 'home' ? [...PlansService.HOME_EQUIPMENT] : undefined;
 
     const fullProgram = await this.workoutGenerator.tryGenerateFullProgram({
       sessions: dto.sessions.map((s) => ({
@@ -507,7 +553,9 @@ export class PlansService {
     if (fullProgram && fullProgram.length === dto.sessions.length) {
       const results = fullProgram.map((session, i) => {
         const spec = dto.sessions[i];
-        const avoidPhrases = [...new Set([...limitations, ...(spec?.avoidConstraints ?? [])])].filter(Boolean);
+        const avoidPhrases = [
+          ...new Set([...limitations, ...(spec?.avoidConstraints ?? [])]),
+        ].filter(Boolean);
         const filteredExercises = this.filterExercisesByAvoidList(
           session.exercises,
           avoidPhrases,
@@ -535,19 +583,37 @@ export class PlansService {
       warmUp?: string;
       coolDown?: string;
       cardioFinisher?: { suggestion: string };
-      exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; exerciseId?: string }>;
+      exercises: Array<{
+        name: string;
+        sets: number;
+        reps: number;
+        weight?: number;
+        notes?: string;
+        exerciseId?: string;
+      }>;
     }> = [];
     const usedExerciseIdsByWeek = new Map<number, string[]>();
 
     for (const spec of dto.sessions) {
       const isHard = makeItEasier ? false : spec.isHardDay;
-      const difficulty = makeItEasier ? 'beginner' : (isHard ? 'advanced' : 'intermediate');
+      const difficulty = makeItEasier
+        ? 'beginner'
+        : isHard
+          ? 'advanced'
+          : 'intermediate';
       const duration = Math.round((spec.durationMin + spec.durationMax) / 2);
-      const specLimits = spec.avoidConstraints?.length ? spec.avoidConstraints : limitations;
-      const avoidPhrases = [...new Set([...limitations, ...(spec.avoidConstraints ?? [])])].filter(Boolean);
-      const alreadyUsedThisWeek = usedExerciseIdsByWeek.get(spec.weekIndex) ?? [];
+      const specLimits = spec.avoidConstraints?.length
+        ? spec.avoidConstraints
+        : limitations;
+      const avoidPhrases = [
+        ...new Set([...limitations, ...(spec.avoidConstraints ?? [])]),
+      ].filter(Boolean);
+      const alreadyUsedThisWeek =
+        usedExerciseIdsByWeek.get(spec.weekIndex) ?? [];
 
-      let generated: Awaited<ReturnType<WorkoutGeneratorService['generateWorkout']>>;
+      let generated: Awaited<
+        ReturnType<WorkoutGeneratorService['generateWorkout']>
+      >;
       try {
         generated = await this.workoutGenerator.generateWorkout({
           day: spec.weekday,
@@ -560,7 +626,9 @@ export class PlansService {
             limitations: specLimits,
             programDayFocus: spec.title ?? spec.type,
             detailLevel,
-            excludeExerciseIds: alreadyUsedThisWeek.length ? alreadyUsedThisWeek : undefined,
+            excludeExerciseIds: alreadyUsedThisWeek.length
+              ? alreadyUsedThisWeek
+              : undefined,
           },
         });
       } catch (firstErr) {
@@ -576,7 +644,9 @@ export class PlansService {
               limitations: specLimits,
               programDayFocus: spec.title ?? spec.type,
               detailLevel,
-              excludeExerciseIds: alreadyUsedThisWeek.length ? alreadyUsedThisWeek : undefined,
+              excludeExerciseIds: alreadyUsedThisWeek.length
+                ? alreadyUsedThisWeek
+                : undefined,
             },
           });
         } catch {
@@ -625,9 +695,7 @@ export class PlansService {
     dto: GenerateSessionsDto,
   ): Promise<GeneratedSession[]> {
     const equipment =
-      dto.location === 'home'
-        ? [...PlansService.HOME_EQUIPMENT]
-        : undefined;
+      dto.location === 'home' ? [...PlansService.HOME_EQUIPMENT] : undefined;
     return Promise.all(
       sessions.map((s, i) => {
         const spec = dto.sessions[i];
@@ -652,7 +720,8 @@ export class PlansService {
   async generateSingleSession(dto: GenerateSingleSessionDto) {
     const goal = dto.goal ?? 'strength';
     const location = dto.location ?? 'gym';
-    const equipment = location === 'home' ? [...PlansService.HOME_EQUIPMENT] : undefined;
+    const equipment =
+      location === 'home' ? [...PlansService.HOME_EQUIPMENT] : undefined;
     const limitations = dto.avoidConstraints ?? [];
     const difficulty = dto.isHardDay ? 'advanced' : 'intermediate';
     const duration = Math.round((dto.durationMin + dto.durationMax) / 2);
@@ -671,7 +740,9 @@ export class PlansService {
         limitations,
         programDayFocus: dto.title ?? dto.type,
         detailLevel: dto.detailLevel ?? 'detailed',
-        excludeExerciseNames: dto.excludeExerciseNames?.length ? dto.excludeExerciseNames : undefined,
+        excludeExerciseNames: dto.excludeExerciseNames?.length
+          ? dto.excludeExerciseNames
+          : undefined,
       },
     });
 
@@ -707,7 +778,14 @@ export class PlansService {
 
   /** Remove exercises whose name or notes match any avoid phrase (case-insensitive). Phrases shorter than 2 chars are ignored to avoid over-matching. */
   private filterExercisesByAvoidList(
-    exercises: Array<{ name: string; sets: number; reps: number; weight?: number; notes?: string; exerciseId?: string }>,
+    exercises: Array<{
+      name: string;
+      sets: number;
+      reps: number;
+      weight?: number;
+      notes?: string;
+      exerciseId?: string;
+    }>,
     avoidPhrases: string[],
   ): typeof exercises {
     const lowerPhrases = avoidPhrases
@@ -717,7 +795,9 @@ export class PlansService {
     return exercises.filter((e) => {
       const nameLower = (e.name ?? '').toLowerCase();
       const notesLower = (e.notes ?? '').toLowerCase();
-      return !lowerPhrases.some((p) => nameLower.includes(p) || notesLower.includes(p));
+      return !lowerPhrases.some(
+        (p) => nameLower.includes(p) || notesLower.includes(p),
+      );
     });
   }
 
@@ -727,7 +807,8 @@ export class PlansService {
       console.log('[PlansService] removeSlot', { planId, slotId });
     }
     if (!slotId) {
-      if (process.env.NODE_ENV !== 'production') console.warn('[PlansService] removeSlot: slotId is missing');
+      if (process.env.NODE_ENV !== 'production')
+        console.warn('[PlansService] removeSlot: slotId is missing');
       throw new NotFoundException('Slot ID is required');
     }
     const plan = await this.prisma.workoutPlan.findUnique({
@@ -741,9 +822,14 @@ export class PlansService {
     const slot = plan.planWorkouts.find((pw) => pw.id === slotId);
     if (!slot) {
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('[PlansService] removeSlot: slot not in plan', { slotId, planSlotIds: plan.planWorkouts.map((pw) => pw.id) });
+        console.warn('[PlansService] removeSlot: slot not in plan', {
+          slotId,
+          planSlotIds: plan.planWorkouts.map((pw) => pw.id),
+        });
       }
-      throw new NotFoundException(`Slot with ID ${slotId} not found in this plan`);
+      throw new NotFoundException(
+        `Slot with ID ${slotId} not found in this plan`,
+      );
     }
     await this.prisma.$transaction([
       this.prisma.workout.updateMany({

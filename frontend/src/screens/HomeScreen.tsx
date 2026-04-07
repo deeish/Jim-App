@@ -199,7 +199,11 @@ export default function HomeScreen() {
   const hasExercises = (scheduledWorkout?.exercises?.length ?? 0) > 0;
 
   return (
-    <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
+    <SafeAreaView
+      testID="e2e-home-root"
+      style={[styles.container, themedStyles.container]}
+      edges={['top']}
+    >
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={[styles.title, themedStyles.title]}>Jim</Text>

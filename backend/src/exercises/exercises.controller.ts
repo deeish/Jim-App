@@ -1,11 +1,29 @@
-import { Controller, Get, Post, Body, Param, Query, Delete, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  Delete,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { ExercisesService } from './exercises.service';
 import { SavedExercisesService } from './saved-exercises.service';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 
+/**
+ * Public catalog routes use default ThrottlerGuard (per IP). AI throttlers are skipped so
+ * legitimate app traffic on /exercises is not tied to Groq quotas.
+ */
 @Controller('exercises')
+@UseGuards(ThrottlerGuard)
+@SkipThrottle({ aiBurst: true, aiDay: true })
 export class ExercisesController {
   constructor(
     private readonly exercisesService: ExercisesService,
@@ -42,8 +60,11 @@ export class ExercisesController {
 
   @Get('saved/ids')
   @UseGuards(AuthGuard)
-  async getSavedIds(@UserId() userId: string): Promise<{ exerciseIds: string[] }> {
-    const exerciseIds = await this.savedExercisesService.getSavedExerciseIds(userId);
+  async getSavedIds(
+    @UserId() userId: string,
+  ): Promise<{ exerciseIds: string[] }> {
+    const exerciseIds =
+      await this.savedExercisesService.getSavedExerciseIds(userId);
     return { exerciseIds };
   }
 

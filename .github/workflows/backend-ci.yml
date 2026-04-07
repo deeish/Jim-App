@@ -22,10 +22,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          # No cache: package-lock.json is gitignored at repo root, so path wouldn't resolve
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Lint
         run: npm run lint
@@ -33,6 +34,5 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Uncomment when you have tests and want them in CI
-      # - name: Test
-      #   run: npm run test
+      - name: Test
+        run: npm test -- --ci --watchAll=false

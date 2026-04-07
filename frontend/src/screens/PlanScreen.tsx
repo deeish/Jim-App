@@ -692,12 +692,19 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   };
 
   if (planLoading) {
-    return <LoadingSpinner />;
+    return (
+      <View style={styles.container} testID="e2e-plan-root">
+        <LoadingSpinner />
+      </View>
+    );
   }
 
   if (planError) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+      <View
+        testID="e2e-plan-root"
+        style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}
+      >
         <Text style={[styles.headerTitle, { color: colors.text, marginBottom: 8 }]}>{planError}</Text>
         <TouchableOpacity onPress={loadPlan} style={{ padding: 12, backgroundColor: colors.primary, borderRadius: 8 }}>
           <Text style={{ color: colors.background, fontWeight: '600' }}>Retry</Text>
@@ -707,7 +714,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="e2e-plan-root">
       {/* Dynamic header: plan name + optional subtitle from load balance */}
       <View style={styles.header}>
         <View style={styles.headerTop}>

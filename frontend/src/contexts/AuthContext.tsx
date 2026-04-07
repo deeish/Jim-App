@@ -8,6 +8,7 @@ import {
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { setSentryUser } from '../lib/sentry';
 
 type AuthContextValue = {
   user: User | null;
@@ -41,6 +42,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    setSentryUser(user ? { id: user.id } : null);
+  }, [user]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {
