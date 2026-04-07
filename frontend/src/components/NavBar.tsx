@@ -1,17 +1,18 @@
 import React from 'react';
 import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
+import { getFocusedRouteNameFromRoute, NavigatorScreenParams } from '@react-navigation/native';
 import HomeScreen from '../screens/HomeScreen';
 import PlanStackNavigator from '../navigation/PlanStackNavigator';
 import WorkoutScreen from '../screens/WorkoutScreen';
 import SearchStackNavigator from '../navigation/SearchStackNavigator';
 import { HomeIcon, CalendarIcon, DumbbellIcon, SearchIcon } from './TabIcons';
 import { useTheme } from '../theme/ThemeContext';
+import type { RootStackParamList } from '../types/navigation';
 
 export type RootTabParamList = {
   Home: undefined;
-  Plan: undefined;
+  Plan: NavigatorScreenParams<RootStackParamList> | undefined;
   Workout: { workoutId?: string; fromPlan?: boolean } | undefined;
   Search: undefined;
 };

@@ -27,6 +27,9 @@ import {
   getCalendarWeekRange,
   getPlanCalendarWeekNavigationBounds,
   normalizePlanAnchorYmd,
+  normalizePlanDayOfWeek,
+  normalizeProgramWeekNumber,
+  isRestPlanSlotTitle,
   programWeekForCalendarOffset,
 } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
@@ -94,7 +97,7 @@ function apiSlotToPlanWorkout(pw: ApiPlanWorkout): PlanWorkout {
 function planWorkoutsToByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, Record<string, PlanWorkout[]>> {
   const byWeek: Record<number, Record<string, PlanWorkout[]>> = {};
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const weeks = [...new Set(planWorkouts.map((pw) => pw.weekNumber))];
+  const weeks = [...new Set(planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)))];
   weeks.forEach((week) => {
     byWeek[week] = {};
     days.forEach((d) => { byWeek[week][d] = []; });
@@ -103,11 +106,17 @@ function planWorkoutsToByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, Re
     .slice()
     .sort((a, b) => a.orderInDay - b.orderInDay)
     .forEach((pw) => {
-      if (!byWeek[pw.weekNumber]) {
-        byWeek[pw.weekNumber] = {};
-        days.forEach((d) => { byWeek[pw.weekNumber][d] = []; });
+      const wn = normalizeProgramWeekNumber(pw.weekNumber);
+      const day = normalizePlanDayOfWeek(pw.dayOfWeek);
+      if (!day) return;
+      if (!byWeek[wn]) {
+        byWeek[wn] = {};
+        days.forEach((d) => { byWeek[wn][d] = []; });
       }
-      byWeek[pw.weekNumber][pw.dayOfWeek].push(apiSlotToPlanWorkout(pw));
+      if (!byWeek[wn][day]) {
+        byWeek[wn][day] = [];
+      }
+      byWeek[wn][day].push(apiSlotToPlanWorkout(pw));
     });
   return byWeek;
 }
@@ -196,7 +205,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const maxPlanWeek = useMemo(() => {
     const list = currentPlan?.planWorkouts;
     if (!list?.length) return 0;
-    return Math.max(...list.map((pw) => pw.weekNumber), 0);
+    return Math.max(...list.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)), 1);
   }, [currentPlan?.planWorkouts]);
 
   const anchorYmd = useMemo(
@@ -466,7 +475,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const handleCardPress = useCallback(
     (workout: PlanWorkout, day: string) => {
       const dayDate = getDateForDay(selectedWeek, day);
-      if (workout.title === 'Rest Day') {
+      if (isRestPlanSlotTitle(workout.title)) {
         setDetailSheetWorkout({ workout, day, date: dayDate });
         return;
       }
@@ -667,12 +676,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     const sessionCount = workouts.length;
     
     // Check if it's a rest day
-    if (workouts.length === 1 && workouts[0]?.title === 'Rest Day') {
+    if (workouts.length === 1 && isRestPlanSlotTitle(workouts[0]?.title)) {
       return 'Rest (no time)';
     }
     
     // Filter out rest days for intensity calculation
-    const activeWorkouts = workouts.filter(w => w.title !== 'Rest Day');
+    const activeWorkouts = workouts.filter((w) => !isRestPlanSlotTitle(w.title));
     if (activeWorkouts.length === 0) {
       return 'Rest (no time)';
     }
@@ -832,7 +841,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               ) : (
                 <View style={[styles.workoutStack, workouts.length > 1 && styles.workoutStackTight]}>
                   {workouts.map((workout) => {
-                    const isRestDay = workout.title === 'Rest Day';
+                    const isRestDay = isRestPlanSlotTitle(workout.title);
                     const showMoreButton = true; // Show overflow on every workout card
                     
                     // Render rest day as a normal card (matching visual language)
@@ -904,7 +913,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
             <TouchableOpacity style={styles.menuItem} onPress={handleViewWorkoutFromMenu}>
               <Text style={styles.menuItemText}>View workout</Text>
             </TouchableOpacity>
-            {contextWorkout && contextWorkout.workout.title !== 'Rest Day' && (
+            {contextWorkout && !isRestPlanSlotTitle(contextWorkout.workout.title) && (
               <TouchableOpacity style={styles.menuItem} onPress={handleAddExercisesFromMenu}>
                 <Text style={styles.menuItemText}>Add exercises</Text>
               </TouchableOpacity>
@@ -960,7 +969,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         <Pressable style={styles.menuOverlay} onPress={closeDetailSheet}>
           {detailSheetWorkout && (() => {
             const linked = resolveWorkoutForPlanSlot(detailSheetWorkout.workout.id);
-            const isRestDay = detailSheetWorkout.workout.title === 'Rest Day';
+            const isRestDay = isRestPlanSlotTitle(detailSheetWorkout.workout.title);
             const apiSlot = currentPlan?.planWorkouts?.find((p) => p.id === detailSheetWorkout.workout.id);
             const planLines = apiSlot?.exercises?.length
               ? apiSlot.exercises

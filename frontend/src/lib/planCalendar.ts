@@ -3,6 +3,77 @@
  * Program week 1 is anchored to a specific Monday (`weekAnchorMonday` on the plan).
  */
 
+/** English weekday names matching API `dayOfWeek` / Plan columns (week starts Monday). */
+export const PLAN_WEEKDAY_NAMES_MONDAY_FIRST = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+] as const;
+
+/**
+ * Local calendar weekday as an English name (`Monday`–`Sunday`), ISO-style week (Monday first).
+ * Prefer this over `toLocaleDateString` so lookups match `dayOfWeek` regardless of device locale.
+ */
+export function planWeekdayNameLocal(d: Date = new Date()): string {
+  const dow = d.getDay(); // 0 Sunday .. 6 Saturday
+  const idx = dow === 0 ? 6 : dow - 1;
+  return PLAN_WEEKDAY_NAMES_MONDAY_FIRST[idx];
+}
+
+type PlanDayCanon = (typeof PLAN_WEEKDAY_NAMES_MONDAY_FIRST)[number];
+
+function buildPlanDayLookup(): Map<string, PlanDayCanon> {
+  const m = new Map<string, PlanDayCanon>();
+  for (const d of PLAN_WEEKDAY_NAMES_MONDAY_FIRST) {
+    m.set(d.toLowerCase(), d);
+  }
+  const abbrevs: [string, PlanDayCanon][] = [
+    ['mon', 'Monday'],
+    ['tue', 'Tuesday'],
+    ['tues', 'Tuesday'],
+    ['wed', 'Wednesday'],
+    ['weds', 'Wednesday'],
+    ['thu', 'Thursday'],
+    ['thur', 'Thursday'],
+    ['thurs', 'Thursday'],
+    ['fri', 'Friday'],
+    ['sat', 'Saturday'],
+    ['sun', 'Sunday'],
+  ];
+  for (const [k, v] of abbrevs) {
+    m.set(k, v);
+  }
+  return m;
+}
+
+const PLAN_DAY_LOWER = buildPlanDayLookup();
+
+/** Program week index for calendar mapping and grid keys; non-finite or < 1 → 1 (bad legacy rows). */
+export function normalizeProgramWeekNumber(n: number): number {
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.floor(n);
+}
+
+/**
+ * Canonical English weekday matching plan columns (`Monday`–`Sunday`). Trims and case-folds.
+ * Unknown values return trimmed `raw` so callers can still bucket odd API keys if needed.
+ */
+export function normalizePlanDayOfWeek(raw: string | null | undefined): string {
+  if (raw == null) return '';
+  const t = String(raw).trim();
+  if (!t) return '';
+  return PLAN_DAY_LOWER.get(t.toLowerCase()) ?? t;
+}
+
+/** Matches generator/API rest placeholders; case-insensitive so Home and Plan stay aligned. */
+export function isRestPlanSlotTitle(title: string | null | undefined): boolean {
+  return String(title ?? '').trim().toLowerCase() === 'rest day';
+}
+
 export function getWeekStartMonday(d: Date): Date {
   const copy = new Date(d);
   const day = copy.getDay();

@@ -96,7 +96,7 @@ describe('planPipeline', () => {
   });
 
   describe('Split mapping', () => {
-    it('U/L for 4 days → Upper, Lower, Upper, Lower', () => {
+    it('U/L for 4 days → Upper/Lower cycle with numbered variants on repeats', () => {
       const inputs = baseInputs({
         selectedWeekdays: [MON, TUE, THU, FRI],
         daysPerWeek: 4,
@@ -110,10 +110,10 @@ describe('planPipeline', () => {
         weekPlans[0].workouts[THU][0]?.title,
         weekPlans[0].workouts[FRI][0]?.title,
       ].filter(Boolean);
-      expect(titles).toEqual(['Upper', 'Lower', 'Upper', 'Lower']);
+      expect(titles).toEqual(['Upper', 'Lower', 'Upper 2', 'Lower 2']);
     });
 
-    it('PPL for 5 days rotates correctly (Push, Pull, Legs, Push, Pull)', () => {
+    it('PPL for 5 days rotates with numbered variants on second Push/Pull', () => {
       const inputs = baseInputs({
         selectedWeekdays: [MON, TUE, WED, FRI, SAT],
         daysPerWeek: 5,
@@ -128,10 +128,10 @@ describe('planPipeline', () => {
         weekPlans[0].workouts[FRI][0]?.title,
         weekPlans[0].workouts[SAT][0]?.title,
       ].filter(Boolean);
-      expect(titles).toEqual(['Push', 'Pull', 'Legs', 'Push', 'Pull']);
+      expect(titles).toEqual(['Push', 'Pull', 'Legs', 'Push 2', 'Pull 2']);
     });
 
-    it('Custom templates map in order with repeat_weekly cycleMode', () => {
+    it('Custom templates map in order with repeat_weekly cycleMode (repeats get numbered)', () => {
       const inputs = baseInputs({
         selectedWeekdays: [MON, WED, FRI],
         daysPerWeek: 3,
@@ -151,7 +151,7 @@ describe('planPipeline', () => {
       const weekPlans = planDraftToWeekPlans(draft);
       expect(weekPlans[0].workouts[MON][0]?.title).toBe('Push');
       expect(weekPlans[0].workouts[WED][0]?.title).toBe('Pull');
-      expect(weekPlans[0].workouts[FRI][0]?.title).toBe('Push');
+      expect(weekPlans[0].workouts[FRI][0]?.title).toBe('Push 2');
     });
 
     it('Custom templates with rotate_forward cycleMode advance by week', () => {

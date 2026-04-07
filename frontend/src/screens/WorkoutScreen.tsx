@@ -7,7 +7,6 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  getWeeklyWorkouts,
   getWorkoutById,
   saveWorkoutLog,
   getSavedWorkoutIds,
@@ -15,6 +14,8 @@ import {
   unsaveWorkout,
   updateWorkout,
 } from '../services/workoutService';
+import { getCurrentPlanWithWeekly } from '../services/planService';
+import { resolveHomeToday, type HomeTodayResult } from '../lib/homeToday';
 import { Workout, Exercise, type WorkoutSessionRestoredSnapshot } from '../types/workout';
 import { loadWorkoutDraft, clearWorkoutDraft } from '../lib/workoutDraftStorage';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
@@ -41,6 +42,70 @@ type WorkoutScreenNavigationProp = CompositeNavigationProp<
 
 type WorkoutScreenRouteProp = RouteProp<RootTabParamList, 'Workout'>;
 
+function workoutTabEmptyCopy(
+  planToday: HomeTodayResult | null,
+  openedFromPlanWithId: boolean,
+): { title: string; sub: string } {
+  if (openedFromPlanWithId || !planToday) {
+    return {
+      title: 'No workout planned for today',
+      sub: 'Go to the Plan tab to generate or schedule a workout.',
+    };
+  }
+  switch (planToday.status) {
+    case 'rest':
+      return {
+        title: 'Rest day',
+        sub: 'Your plan shows recovery today — there is no session to start.',
+      };
+    case 'planned_pending':
+      return {
+        title: 'Session not loaded yet',
+        sub: 'Open the Plan tab and start this day’s session so it appears here.',
+      };
+    case 'empty_day':
+      return {
+        title: 'Nothing scheduled today',
+        sub: 'Add a workout on Plan for this day, or generate a full plan.',
+      };
+    case 'out_of_program':
+      return {
+        title: 'Outside your program week',
+        sub: 'This week is before or after your plan range. Change week on Plan.',
+      };
+    case 'no_plan':
+      return {
+        title: 'No plan yet',
+        sub: 'Create a plan on the Plan tab, then open this tab to train.',
+      };
+    default:
+      return {
+        title: 'No workout planned for today',
+        sub: 'Go to the Plan tab to generate or schedule a workout.',
+      };
+  }
+}
+
+function noStartWorkoutAlertMessage(planToday: HomeTodayResult | null, fromPlanWithId: boolean): string {
+  if (fromPlanWithId || !planToday) {
+    return 'No workout planned for today. Go to the Plan tab to generate one.';
+  }
+  switch (planToday.status) {
+    case 'rest':
+      return 'Today is a rest day on your plan.';
+    case 'planned_pending':
+      return 'Start this session from the Plan tab first so your workout is created.';
+    case 'empty_day':
+      return 'Nothing is scheduled today. Add a day on Plan or generate a plan.';
+    case 'out_of_program':
+      return 'This week is outside your program. Adjust the week on Plan.';
+    case 'no_plan':
+      return 'You don’t have a plan yet. Create one on the Plan tab.';
+    default:
+      return 'No workout planned for today. Go to the Plan tab to generate one.';
+  }
+}
+
 export default function WorkoutScreen() {
   const navigation = useNavigation<WorkoutScreenNavigationProp>();
   const route = useRoute<WorkoutScreenRouteProp>();
@@ -49,6 +114,8 @@ export default function WorkoutScreen() {
   const workoutIdParam = route.params?.workoutId;
   const fromPlan = route.params?.fromPlan === true;
   const [todayWorkout, setTodayWorkout] = useState<Workout | null>(null);
+  /** Last Plan-tab resolution for “today” (only when not opening a specific workout by id). */
+  const [planToday, setPlanToday] = useState<HomeTodayResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<WorkoutSessionState | null>(null);
   const [savingLog, setSavingLog] = useState(false);
@@ -299,15 +366,30 @@ export default function WorkoutScreen() {
         try {
           if (workoutIdParam) {
             const w = await getWorkoutById(workoutIdParam);
-            if (!cancelled) setTodayWorkout(w);
+            if (!cancelled) {
+              setPlanToday(null);
+              setTodayWorkout(w);
+            }
           } else {
-            const weekly = await getWeeklyWorkouts();
-            const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-            const w = weekly.find((x) => x.day === today) ?? null;
-            if (!cancelled) setTodayWorkout(w);
+            try {
+              const { plan, weeklyWorkouts } = await getCurrentPlanWithWeekly();
+              const resolved = resolveHomeToday(plan, weeklyWorkouts ?? []);
+              if (!cancelled) {
+                setPlanToday(resolved);
+                setTodayWorkout(resolved.status === 'scheduled' ? resolved.workout : null);
+              }
+            } catch {
+              if (!cancelled) {
+                setPlanToday({ status: 'no_plan' });
+                setTodayWorkout(null);
+              }
+            }
           }
         } catch {
-          if (!cancelled && workoutIdParam) setTodayWorkout(null);
+          if (!cancelled && workoutIdParam) {
+            setPlanToday(null);
+            setTodayWorkout(null);
+          }
         }
       })();
       return () => {
@@ -332,6 +414,7 @@ export default function WorkoutScreen() {
   const loadWorkoutById = async (id: string) => {
     try {
       setLoading(true);
+      setPlanToday(null);
       const workout = await getWorkoutById(id);
       setTodayWorkout(workout);
     } catch (error) {
@@ -345,16 +428,18 @@ export default function WorkoutScreen() {
   const loadTodayWorkout = async () => {
     try {
       setLoading(true);
-      const [weeklyWorkouts, ids] = await Promise.all([
-        getWeeklyWorkouts(),
+      const [{ plan, weeklyWorkouts }, ids] = await Promise.all([
+        getCurrentPlanWithWeekly(),
         getSavedWorkoutIds().catch(() => []),
       ]);
       setSavedWorkoutIds(ids);
-      const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-      const workout = weeklyWorkouts.find(w => w.day === today);
-      setTodayWorkout(workout || null);
+      const resolved = resolveHomeToday(plan, weeklyWorkouts ?? []);
+      setPlanToday(resolved);
+      setTodayWorkout(resolved.status === 'scheduled' ? resolved.workout : null);
     } catch (error) {
       console.error('Error loading today\'s workout:', error);
+      setPlanToday({ status: 'no_plan' });
+      setTodayWorkout(null);
     } finally {
       setLoading(false);
     }
@@ -381,7 +466,10 @@ export default function WorkoutScreen() {
 
   const handleStartWorkout = () => {
     if (!todayWorkout) {
-      Alert.alert('No Workout', 'No workout planned for today. Go to Plan tab to generate one.');
+      Alert.alert(
+        'No Workout',
+        noStartWorkoutAlertMessage(planToday, Boolean(workoutIdParam)),
+      );
       return;
     }
     if (todayWorkout.exercises.length === 0) {
@@ -486,6 +574,7 @@ export default function WorkoutScreen() {
 
   // Show workout with start button (today's or selected from Plan)
   const headerTitle = workoutIdParam ? (todayWorkout?.name ?? 'Workout') : "Today's Workout";
+  const emptyCopy = workoutTabEmptyCopy(planToday, Boolean(workoutIdParam));
   return (
     <View style={styles.container}>
       {fromPlan && (
@@ -567,8 +656,8 @@ export default function WorkoutScreen() {
         </ScrollView>
       ) : (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No workout planned for today</Text>
-          <Text style={styles.emptySubtext}>Go to Plan tab to generate a workout</Text>
+          <Text style={styles.emptyText}>{emptyCopy.title}</Text>
+          <Text style={styles.emptySubtext}>{emptyCopy.sub}</Text>
         </View>
       )}
 

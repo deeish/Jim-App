@@ -2,7 +2,21 @@ import {
   PLAN_CALENDAR_LOOKAHEAD_WEEKS,
   PLAN_CALENDAR_LOOKBACK_WEEKS,
   getPlanCalendarWeekNavigationBounds,
+  normalizePlanDayOfWeek,
 } from './planCalendar';
+
+describe('normalizePlanDayOfWeek', () => {
+  it('normalizes full names case-insensitively', () => {
+    expect(normalizePlanDayOfWeek('monday')).toBe('Monday');
+    expect(normalizePlanDayOfWeek('  FRIDAY  ')).toBe('Friday');
+  });
+
+  it('normalizes common abbreviations', () => {
+    expect(normalizePlanDayOfWeek('mon')).toBe('Monday');
+    expect(normalizePlanDayOfWeek('thurs')).toBe('Thursday');
+    expect(normalizePlanDayOfWeek('Tue')).toBe('Tuesday');
+  });
+});
 
 describe('getPlanCalendarWeekNavigationBounds', () => {
   beforeEach(() => {
