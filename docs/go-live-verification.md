@@ -2,11 +2,20 @@
 
 Use this as a **deployment-specific** checklist: confirm behavior on **your** hosts and URLs, not just in code. Check boxes as you verify; jot notes next to each section if needed.
 
+### Checkbox legend
+
+| Mark | Meaning |
+|------|--------|
+| **`[x]`** | Verified with evidence noted in *italics*: **code** (repo/static review), **curl** (HTTP request to a live URL; date), or **owner** (you confirmed behavior — often reflected in the [progress log](#progress-log)). |
+| **`[ ]`** | Not done yet, or **must be confirmed by you** (dashboard, device, business judgment). The assistant does **not** tick these on your behalf. |
+
+If a line mixes types (e.g. code vs Render dashboard), we split or leave **`[ ]`** until **you** complete the host-side part.
+
 **Related:** Implementation status and deep links → [production-checklist.md](./production-checklist.md). Env reference → `backend/.env.example`, `frontend/.env.example`.
 
-**Last touched:** 2026-04-08 _(§7 sign-off workflow)_
+**Last touched:** 2026-04-08 _(checkbox legend + owner-only “Needs your check”)_
 
-**Status snapshot:** Core prod path verified (health, DB `/ready`, native auth + API, CORS, logging shape, throttle docs). **§7** below is the close-out: triage open checkboxes, record **accepted risk**, fill the sign-off table.
+**Status snapshot:** **`[x]`** items now tag **code** / **curl** / **owner** (see legend). Assistant verified repo + some prod **curl**s; **host/dashboard** checks remain **`[ ]`** or in **Needs your check** at the bottom.
 
 ---
 
@@ -49,16 +58,17 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 | 2026-04-08 | **Docs:** Added Render UI walkthroughs for **§3** (Pre-Deploy / migrate log search) and **§4** (live log search after 401 curl). |
 | 2026-04-08 | **§5:** Documented optional **429** checks — **catalog** (`GET /api/exercises/stats`, no LLM) vs **AI** routes (prefer **local** + low `AI_RATE_BURST_MAX` to avoid many Groq calls on prod). |
 | 2026-04-08 | **§7:** Added sign-off workflow — triage open checkboxes, **Accepted risk** template, environment snapshot line. |
+| 2026-04-08 | **Clarity:** Checkbox **legend** (code / curl / owner); tightened **\[x\]** vs **\[ \]**; duplicate native line removed; **“Needs your check”** owner list at bottom. |
 
 ---
 
 ## 0. Repository baseline (no live host required)
 
-- [x] **`.env` / `.env.local` / `.env.*.local`** are listed in `.gitignore` for **root**, **`backend/`**, and **`frontend/`**
-- [x] **No secrets in app source:** `backend/src` and `frontend/src` spot-check (variable *names* in docs/README only; Groq stays backend `config`, frontend mentions are UI/cache comments only)
-- [x] **Public client config:** `frontend/src/config/api.ts` reads **`EXPO_PUBLIC_API_BASE`** only; if unset, defaults to `http://localhost:3000` for local dev (`frontend/.env.example` describes prod)
-- [x] **Migrations CI hook exists:** [`.github/workflows/backend-migrate-deploy.yml`](../.github/workflows/backend-migrate-deploy.yml) — manual **`workflow_dispatch`**, `DATABASE_URL` from repo **Secrets** → `npx prisma migrate deploy` in `backend/`
-- [x] Optional: **`git log -p -- '*.env'`** on a trusted machine before first prod deploy _(2026-04-08: no tracked `.env` at repo/frontend/backend paths in recent history)_
+- [x] **`.env` / `.env.local` / `.env.*.local`** are listed in `.gitignore` for **root**, **`backend/`**, and **`frontend/`** _( **code**)_
+- [x] **No secrets in app source:** `backend/src` and `frontend/src` spot-check (variable *names* in docs/README only; Groq stays backend `config`, frontend mentions are UI/cache comments only) _( **code**)_
+- [x] **Public client config:** `frontend/src/config/api.ts` reads **`EXPO_PUBLIC_API_BASE`** only; if unset, defaults to `http://localhost:3000` for local dev (`frontend/.env.example` describes prod) _( **code**)_
+- [x] **Migrations CI hook exists:** [`.github/workflows/backend-migrate-deploy.yml`](../.github/workflows/backend-migrate-deploy.yml) — manual **`workflow_dispatch`**, `DATABASE_URL` from repo **Secrets** → `npx prisma migrate deploy` in `backend/` _( **code**)_
+- [x] Optional: **`git log -p -- '*.env'`** on a trusted machine before first prod deploy _( **code** / light history — 2026-04-08)_
 
 ---
 
@@ -71,17 +81,17 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 **Checklist**
 
-- [x] `.env` and real secrets are **gitignored** and never committed _(see §0)_
-- [x] Quick scan: no API keys, `DATABASE_URL`, or service role keys in **application source** (`backend/src`, `frontend/src`) _(see §0; still run optional git history check below)_
-- [x] Optional: spot-check history — `git log -p -- '*.env'` (or your host’s secret-scan tool) _(light check 2026-04-08)_
-- [x] Production secrets live only on the host / secret manager (not in the repo) _(Render env; not in git)_
+- [x] `.env` and real secrets are **gitignored** and never committed _( **code** — §0)_
+- [x] Quick scan: no API keys, `DATABASE_URL`, or service role keys in **application source** (`backend/src`, `frontend/src`) _( **code** — §0)_
+- [x] Optional: spot-check history — `git log -p -- '*.env'` (or your host’s secret-scan tool) _( **code** / light — 2026-04-08)_
+- [ ] Production secrets live only on the host / secret manager **in your account** (e.g. Render **Environment**) — not only “absent from git” _( **owner** — confirm dashboard; **code** — gitignore + no secrets in source is §0)_
 - [ ] Production `DATABASE_URL`, Supabase keys, and Groq (if used) **differ** from local dev _(optional; OK if same Supabase project while hobby-testing)_
 - [ ] Prefer a **separate** Supabase project (or distinct keys) for production vs dev
-- [x] Frontend: every `EXPO_PUBLIC_*` value is OK to be **public** (no service_role, no LLM keys) — design + [`frontend/.env.example`](../frontend/.env.example); **re-confirm on EAS / store pipeline** before public release
-- [x] Frontend build/run against prod **`EXPO_PUBLIC_API_BASE`** verified _(2026-04-08: `https://jim-app-l8o7.onrender.com`; gated API OK)_
-- [x] Same run uses prod Supabase **`EXPO_PUBLIC_SUPABASE_URL`** + **`EXPO_PUBLIC_SUPABASE_ANON_KEY`** matching the backend project _(required for working login; re-confirm for each release channel)_
-- [x] Groq / LLM keys exist **only** on the backend environment _(never in Expo `EXPO_PUBLIC_*`; set on Render only if used)_
-- [x] User-facing API is served over **HTTPS** (TLS at host or reverse proxy) _(Render `onrender.com`)_
+- [x] Frontend: every `EXPO_PUBLIC_*` value is OK to be **public** (no service_role, no LLM keys) — design + [`frontend/.env.example`](../frontend/.env.example) _( **code**; **owner** — re-confirm on EAS / store pipeline)_
+- [x] Frontend build/run against prod **`EXPO_PUBLIC_API_BASE`** verified _( **owner** — you confirmed gated API via app; prod URL `https://jim-app-l8o7.onrender.com`; 2026-04-08)_
+- [x] Same run uses prod Supabase client keys **consistent with** the backend’s Supabase project _( **owner** — implied by working login + API **owner** 2026-04-08; re-confirm per release / EAS channel)_
+- [x] Groq / LLM keys exist **only** on the backend in **design** (never in Expo `EXPO_PUBLIC_*`) _( **code** / `frontend/.env.example`; **owner** — actually set on Render if used)_
+- [x] Prod API URL uses **HTTPS** (`https://jim-app-l8o7.onrender.com`) _( **curl** / host default)_
 - [ ] Any marketing or Expo Web surface users hit is **HTTPS** _(when you add Vercel etc.)_
 
 ---
@@ -115,14 +125,13 @@ Expect **200** and response headers including **`access-control-allow-origin: ht
 
 - [ ] In Supabase Dashboard → Auth, **JWT / session** settings match what you want (access lifetime, refresh behavior)
 - [ ] Supabase **redirect URLs** include **`jimapp://**`** ([`frontend/app.json`](../frontend/app.json) scheme) and any Expo dev / web origins you use for magic link or password reset
-- [x] On a **production-pointing** mobile run: **sign-in** and a **gated API call** succeed _(2026-04-08, after JWKS fix + Render deploy)_
 - [ ] **Sign-out** smoke (if you expose it): session cleared as expected
 - [ ] Same build after idle / near token expiry: **refresh** still works (no mystery 401s)
-- [x] **`CORS_ORIGINS`** is set on the backend for `NODE_ENV=production` (app won’t start without it)
-- [x] Every **browser** origin that calls the API is in **`CORS_ORIGINS`** (Expo Web, hosted web) _(Expo Web dev origins set; expand when you ship web on Vercel)_
-- [x] Read [cors-production.md](./cors-production.md); behavior matches code (**allowlist**; native often has no `Origin`) _(reviewed 2026-04-08)_
-- [x] **Native** app smoke vs prod API _(2026-04-08)_
-- [x] **CORS:** Browser `Origin: http://localhost:19006` is mirrored on prod **`GET /api/health`** _(curl 2026-04-08; requires that origin in Render `CORS_ORIGINS`)_
+- [x] Code: in production, empty **`CORS_ORIGINS`** fails fast ([`cors-origins.ts`](../backend/src/cors-origins.ts)); prod API responds → host has it set _( **code** + **curl** inference)_
+- [ ] **Every** browser **Origin** your product uses is listed in **`CORS_ORIGINS`** on Render _( **owner** — only `http://localhost:19006` **curl**’d vs prod **2026-04-08**; add Vercel etc. when you ship)_
+- [x] Read [cors-production.md](./cors-production.md); matches implemented allowlist behavior _( **code** / doc review 2026-04-08)_
+- [x] **Native** app: sign-in + gated API vs prod _( **owner** 2026-04-08)_
+- [x] **CORS sample:** `Origin: http://localhost:19006` mirrored on prod **`GET /api/health`** _( **curl** 2026-04-08)_
 - [ ] **Expo Web** app run: sign-in + gated API against prod (full UX, not only CORS headers)
 
 ---
@@ -151,9 +160,9 @@ Expect **200** and JSON including `"status":"ready"` when the API’s `DATABASE_
 
 **Checklist**
 
-- [x] **Path exists:** Migrate on deploy is documented and wired in repo ([`render-deploy.md`](./render-deploy.md) pre-deploy step, [`render.yaml`](../render.yaml) `preDeployCommand`, optional [backend-migrate-deploy.yml](../.github/workflows/backend-migrate-deploy.yml))
+- [x] **Path exists:** Migrate-on-deploy is **documented** in repo ([`render-deploy.md`](./render-deploy.md), [`render.yaml`](../render.yaml) `preDeployCommand`, optional [workflow](../.github/workflows/backend-migrate-deploy.yml)) _( **code** — not the same as “ran successfully on Render”)_
 - [ ] **Verified on host:** Your Render service **Pre-deploy** (or CI) actually runs **`npx prisma migrate deploy`** and latest deploy logs show success _(use **Render dashboard (migrations)** above)_
-- [x] **Runtime:** Production **`GET /api/health/ready`** succeeds (`status: ready`) — API can open a DB connection _(2026-04-08)_
+- [x] **Runtime:** Production **`GET /api/health/ready`** succeeds (`status: ready`) — API can open a DB connection _( **curl** 2026-04-08)_
 - [ ] After deploy, schema matches expectations (no pending migrations warning in logs) — _strong signal: authenticated Prisma routes work; still confirm deploy logs or `prisma migrate status` against prod DB when convenient_
 - [ ] Production **`DATABASE_URL`** points only at the **production** database
 - [ ] If using Supabase **pooler** / PgBouncer: connection string and Prisma notes in `database-production.md` are followed
@@ -185,12 +194,12 @@ Expect **401**; log line should look like `{"level":"warn","kind":"http_exceptio
 
 **Checklist**
 
-- [x] Deployed API has **`NODE_ENV=production`** — see [backend-operations.md](./backend-operations.md)
-- [x] Log output is **JSON lines** to stdout (or your platform captures it correctly)
-- [x] Logs are shipped to somewhere **searchable** (host UI, Datadog, etc.) _(Render Logs UI)_
+- [ ] Hosted service has **`NODE_ENV=production`** (e.g. Render **Environment**) — see [backend-operations.md](./backend-operations.md) _( **owner** — assistant did not read your Render dashboard)_
+- [x] Code: when **`NODE_ENV=production`**, bootstrap uses **`JsonProductionLogger`** ([`main.ts`](../backend/src/main.ts)) _( **code**)_
+- [ ] You can **find and search** recent logs for this service (Render **Logs** or forwarded) _( **owner**)_
 - [ ] **Render:** Search logs for **`http_exception`** + **`/api/plans/me/with-weekly`** after the curl above; confirm line matches filter shape (no secrets) _(HTTP **401** verified 2026-04-08; use **Render dashboard (logs)** above)_
 - [ ] You can find recent **5xx** or `unhandled` lines after a test error _(optional: force an internal error only in a safe environment)_
-- [x] Spot-check (code + sample logs): **`SanitizedExceptionFilter`** logs JSON lines with **`kind`**, **`status`**, **`method`**, **`path`**, **`ts`** only — not bodies, **`Authorization`**, or cookies ([`sanitized-exception.filter.ts`](../backend/src/common/sanitized-exception.filter.ts))
+- [x] **`SanitizedExceptionFilter`** only logs JSON fields **`kind`**, **`status`**, **`method`**, **`path`**, **`ts`** — not bodies or **`Authorization`** ([`sanitized-exception.filter.ts`](../backend/src/common/sanitized-exception.filter.ts)) _( **code**; pair with **Render** log line **`[ ]`** below)_
 - [ ] **Deploy failures** notify someone (host email/Slack, GitHub Actions, etc.)
 
 ---
@@ -222,16 +231,16 @@ Throttle config: [`backend/src/app.module.ts`](../backend/src/app.module.ts); de
 
    Expect mostly **200**, then **429** once the burst bucket is exceeded (exact count depends on timing vs the 60 s window).
 
-2. **AI burst (needs JWT)** — `AiThrottlerGuard` uses **`aiBurst`** (**12** / minute by default). **Each successful call still runs the workout/plan generator** (may call **Groq**). Repeating **POST** to e.g. `/api/workouts/preview` a dozen times on **production** can waste quota and money. **Preferred:** on **localhost**, set **`AI_RATE_BURST_MAX=2`** (and **`AI_RATE_BURST_WINDOW_MS=60000`**) in `backend/.env`, restart the API, obtain a valid **`Authorization: Bearer &lt;access_token&gt;`**, then issue **4** quick **`POST`**s with body **`{}`** to **`http://localhost:3000/api/workouts/preview`** and header **`Authorization: Bearer <your Supabase access_token>`** — expect **429** once the burst limit is exceeded (first requests may still invoke Groq). **Render logs** for production AI throttling show: `AI rate limit exceeded:` ([`ai-throttler.guard.ts`](../backend/src/common/ai-throttler.guard.ts)).
+2. **AI burst (needs JWT)** — `AiThrottlerGuard` uses **`aiBurst`** (**12** / minute by default). **Each successful call still runs the workout/plan generator** (may call **Groq**). Repeating **POST** to e.g. `/api/workouts/preview` a dozen times on **production** can waste quota and money. **Preferred:** on **localhost**, set **`AI_RATE_BURST_MAX=2`** (and **`AI_RATE_BURST_WINDOW_MS=60000`**) in `backend/.env`, restart the API, obtain a valid **`Authorization: Bearer`** `<Supabase access_token>`, then issue **4** quick **`POST`**s with body **`{}`** to **`http://localhost:3000/api/workouts/preview`** — expect **429** once the burst limit is exceeded (first requests may still invoke Groq). **Render logs** for production AI throttling show: `AI rate limit exceeded:` ([`ai-throttler.guard.ts`](../backend/src/common/ai-throttler.guard.ts)).
 
 **Checklist**
 
 - [ ] **AI** routes (plan/workout generation) return **429** when you exceed limits in staging or prod _(optional: **local** test above; avoid mass AI calls on prod)_
 - [ ] 429 responses are acceptable for the product (copy / retry UX on client if needed)
 - [ ] Public **`/exercises`** traffic: **`catalogBurst`** / **`catalogDay`** feel right for prod (not too loose / tight) _(optional: **catalog** 429 probe above)_
-- [x] Production **`AI_RATE_*`** and **`CATALOG_RATE_*`** defaults documented above; set on Render only when overriding _(reviewed 2026-04-08)_
+- [x] Default **`AI_RATE_*`** / **`CATALOG_RATE_*`** values documented above from [`app.module.ts`](../backend/src/app.module.ts) _( **code** 2026-04-08; **owner** — set overrides on Render if needed)_
 - [ ] **Login / signup** abuse: Supabase Dashboard — rate limits, CAPTCHA, or hooks considered if you expect noise
-- [x] Known expensive endpoints are covered — table in [ai-rate-limits.md](./ai-rate-limits.md) matches controllers _(2026-04-08)_
+- [x] Known expensive routes in [ai-rate-limits.md](./ai-rate-limits.md) match controller guards _( **code** 2026-04-08)_
 
 ---
 
@@ -246,11 +255,11 @@ Global prefix **`/api`**.
 
 **Checklist**
 
-- [x] **`GET /api/health`** returns 200 from outside (curl, browser, uptime monitor)
-- [x] Response is JSON with `status: ok` (and you’re OK exposing service name / timestamp)
-- [x] **`GET /api/health/ready`** returns 200 when DB is up
+- [x] **`GET /api/health`** returns **200** from outside _( **curl** 2026-04-08)_
+- [x] Response includes JSON with **`status: ok`** _( **curl** 2026-04-08; **owner** — OK to expose fields shown)_
+- [x] **`GET /api/health/ready`** returns **200** when DB is up _( **curl** 2026-04-08)_
 - [ ] **`/api/health/ready`** fails or errors appropriately when DB is down (if you test that scenario)
-- [x] Host health check uses **liveness** path **`/api/health`** _(set in [`render.yaml`](../render.yaml) `healthCheckPath`; mirror in Render UI if needed)_
+- [x] Repo / Blueprint: liveness path **`/api/health`** ([`render.yaml`](../render.yaml) `healthCheckPath`) _( **code**; **owner** — match **Render** health check setting)_
 - [ ] If the platform supports it, **readiness** (`/api/health/ready`) gates traffic when DB must be up
 
 ---
@@ -292,5 +301,20 @@ Treat any remaining gap as **accepted risk** or a **follow-up ticket**. Ongoing 
 | Role   | Name | Date |
 |--------|------|------|
 | Verified |      |      |
+
+---
+
+## Needs your check _(you — assistant cannot complete these)_
+
+Do these when you want a **fully honest** sign-off; skip any row you consciously accept as risk (**§7**).
+
+1. **Render** — **Environment:** `NODE_ENV=production`; secrets only there. **Pre-deploy:** `npx prisma migrate deploy` and **successful** log on latest deploy. **Logs:** after §4 `curl`, find **`http_exception`** line (no token in log). **Health check** path = `/api/health` if not using Blueprint alone.
+2. **Supabase** — **Auth:** JWT/session settings OK. **Redirect URLs** include `jimapp://**` (+ dev patterns if needed).
+3. **Product smoke** — **Sign-out**; **idle** then API call (refresh). **Expo Web** full run vs prod if you ship web. **`CORS_ORIGINS`** lists **every** web origin you use (not only localhost:19006).
+4. **Optional hardening** — §5 **429** tests; §6 **/ready** with DB down; backups / restore; deploy **notifications**.
+
+When you finish an item, tick the matching **`[ ]`** in §§1–6 above (don’t rely on this list alone — it may lag the sections).
+
+---
 
 When this page is stable, keep a blank copy or duplicate file per environment (e.g. prod vs staging).
