@@ -4,7 +4,7 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 **Related:** Implementation status and deep links → [production-checklist.md](./production-checklist.md). Env reference → `backend/.env.example`, `frontend/.env.example`.
 
-**Last touched:** 2026-04-08
+**Last touched:** 2026-04-08 _(§3 runtime DB check logged below)_
 
 **Status snapshot:** API on Render is **live** (`GET /api/health` → 200). **JWKS / Supabase JWT verification** fixed in `backend` ([`fbe6a33`](https://github.com/deeish/Jim-App/commit/fbe6a33) — `jwks-rsa` CJS `require`). **Native app → prod API** sign-in + gated calls **verified** (2026-04-08). Optional items below (Expo Web, token-idle refresh, migrate log confirmation, rate-limit torture tests) remain for hardening or store release.
 
@@ -18,13 +18,13 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 ---
 
-## Current focus: §3 → §5 confirmation, then §7 sign-off
+## Current focus: §4 (logs) → §5 (rate limits), then §7 sign-off
 
-**Done (keep for future envs):** §0; §6 health URLs; **§1** public `EXPO_PUBLIC_*` wiring and prod API base for dev/prod runs; **§2** native sign-in + gated Nest calls after JWKS fix; **§4** baseline (JSON logs, `NODE_ENV`, Render logs).
+**Done (keep for future envs):** §0; §6 health URLs; **§1** public `EXPO_PUBLIC_*` wiring and prod API base for dev/prod runs; **§2** native sign-in + gated Nest calls after JWKS fix; **§4** baseline (JSON logs, `NODE_ENV`, Render logs); **§3** runtime DB reachability via **`/api/health/ready`** (see §3 checklist).
 
 **Do next (in order):**
 
-1. **§3 Database** — In Render Dashboard → your Web Service: confirm **Pre-deploy command** is `npx prisma migrate deploy` (or you run [backend-migrate-deploy.yml](../.github/workflows/backend-migrate-deploy.yml) after deploy). Check latest deploy logs for migration success and no Prisma “pending migration” warnings.
+1. **§3 (finish on dashboard)** — Render → Web Service → **Settings**: confirm **Pre-deploy command** = `npx prisma migrate deploy` (or equivalent). Open **Logs** from the **latest deploy** and search for `migrate deploy` / absence of pending-migration errors. _(Runtime proof: prod `/api/health/ready` already returns `ready`.)_
 2. **§4** — Trigger a harmless error path if needed; in **Render → Logs**, confirm you can find the line and that **`Authorization` / bodies are not** in JSON log lines (`SanitizedExceptionFilter` logs `method` + `path` only).
 3. **§5** — Skim [ai-rate-limits.md](./ai-rate-limits.md); optional: hit an AI route until **429** in staging/prod to confirm throttle behavior.
 4. **§2 (optional hardening)** — Supabase Auth: session/JWT lifetime settings; **redirect URLs** include `jimapp://**` ([`frontend/app.json`](../frontend/app.json) `"scheme": "jimapp"`). **Expo Web** smoke vs prod API (origin must be in `CORS_ORIGINS`). **Idle refresh** test (long background, then API call).
@@ -44,6 +44,7 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 | 2026-04-08 | **Auth bugfix:** JWKS client failed (`jwks-rsa` default import under CommonJS). Fixed with `import jwksRsa = require('jwks-rsa')` in [`auth.service.ts`](../backend/src/auth/auth.service.ts); pushed **`fbe6a33`**. Redeploy Render (auto or manual). |
 | 2026-04-08 | **§2 native smoke:** After restart/rebuild, prod API accepts Supabase access token; gated routes (**e.g.** `GET /api/plans/me/with-weekly`) succeed from the app. |
 | 2026-04-08 | **§6 re-check:** `GET https://jim-app-l8o7.onrender.com/api/health` → **200**. |
+| 2026-04-08 | **§3 runtime:** `GET https://jim-app-l8o7.onrender.com/api/health/ready` → **200**, body `status: ready` — deployed API reaches Postgres. **Still confirm** Pre-deploy migrate logs on Render when convenient. |
 
 ---
 
@@ -106,11 +107,20 @@ Auth is **Supabase** (issue + refresh JWT); the Nest API **verifies** the access
 
 ## 3. Database
 
+**Quick check (no dashboard):**
+
+```bash
+curl -sS "https://jim-app-l8o7.onrender.com/api/health/ready"
+```
+
+Expect **200** and JSON including `"status":"ready"` when the API’s `DATABASE_URL` is reachable.
+
 **Checklist**
 
 - [x] **Path exists:** Migrate on deploy is documented and wired in repo ([`render-deploy.md`](./render-deploy.md) pre-deploy step, [`render.yaml`](../render.yaml) `preDeployCommand`, optional [backend-migrate-deploy.yml](../.github/workflows/backend-migrate-deploy.yml))
 - [ ] **Verified on host:** Your Render service **Pre-deploy** (or CI) actually runs **`npx prisma migrate deploy`** and latest deploy logs show success
-- [ ] After deploy, schema matches expectations (no pending migrations warning in logs)
+- [x] **Runtime:** Production **`GET /api/health/ready`** succeeds (`status: ready`) — API can open a DB connection _(2026-04-08)_
+- [ ] After deploy, schema matches expectations (no pending migrations warning in logs) — _strong signal: authenticated Prisma routes work; still confirm deploy logs or `prisma migrate status` against prod DB when convenient_
 - [ ] Production **`DATABASE_URL`** points only at the **production** database
 - [ ] If using Supabase **pooler** / PgBouncer: connection string and Prisma notes in `database-production.md` are followed
 - [ ] **Backups** on for the prod project; retention is acceptable for your risk tolerance
@@ -124,12 +134,20 @@ Auth is **Supabase** (issue + refresh JWT); the Nest API **verifies** the access
 
 - Where we read logs: **Render** → Web Service → **Logs**
 
+**Quick check (safe 401, no secrets in log body):** Call a gated route without a token, then search logs for `http_exception` + that path.
+
+```bash
+curl -sS -o NUL -w "%{http_code}" "https://jim-app-l8o7.onrender.com/api/plans/me/with-weekly"
+```
+
+Expect **401**; log line should look like `{"level":"warn","kind":"http_exception","status":401,"method":"GET","path":"/api/plans/me/with-weekly",...}` — no `Authorization` value.
+
 **Checklist**
 
 - [x] Deployed API has **`NODE_ENV=production`** — see [backend-operations.md](./backend-operations.md)
 - [x] Log output is **JSON lines** to stdout (or your platform captures it correctly)
 - [x] Logs are shipped to somewhere **searchable** (host UI, Datadog, etc.) _(Render Logs UI)_
-- [ ] You can find recent **5xx** or `unhandled` lines after a test error
+- [ ] You can find recent **5xx** or `unhandled` lines after a test error _(optional: force an internal error only in a safe environment)_
 - [x] Spot-check (code + sample logs): **`SanitizedExceptionFilter`** logs JSON lines with **`kind`**, **`status`**, **`method`**, **`path`**, **`ts`** only — not bodies, **`Authorization`**, or cookies ([`sanitized-exception.filter.ts`](../backend/src/common/sanitized-exception.filter.ts))
 - [ ] **Deploy failures** notify someone (host email/Slack, GitHub Actions, etc.)
 
