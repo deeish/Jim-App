@@ -4,9 +4,9 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 **Related:** Implementation status and deep links → [production-checklist.md](./production-checklist.md). Env reference → `backend/.env.example`, `frontend/.env.example`.
 
-**Last touched:** 2026-04-08 _(§4 HTTP smoke + §5 defaults documented below)_
+**Last touched:** 2026-04-08 _(§2 CORS curl + §7 roll-up)_
 
-**Status snapshot:** API on Render is **live** (`GET /api/health` → 200). **JWKS / Supabase JWT verification** fixed ([`fbe6a33`](https://github.com/deeish/Jim-App/commit/fbe6a33)). **Native app → prod API** sign-in + gated calls **verified** (2026-04-08). **§4** prod **401** smoke without token **verified** (2026-04-08). **§5** throttle defaults + route list documented in-file. Still optional: Render log line confirmation, **429** burst test, Expo Web, migrate deploy log tick, **§7** sign-off.
+**Status snapshot:** API on Render is **live**. **Native + gated API** OK. **§4** 401 smoke OK. **§5** defaults documented. **§2:** prod API returns **`Access-Control-Allow-Origin: http://localhost:19006`** for Expo Web dev (curl 2026-04-08). Remaining: Supabase dashboard §2 items, Render migrate/log ticks, optional **429** / **§7** sign-off.
 
 ---
 
@@ -18,17 +18,16 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 ---
 
-## Current focus: §7 sign-off + optional follow-ups
+## Current focus: §2 dashboard + §7 sign-off
 
-**Done (keep for future envs):** §0; §6 health URLs; **§1** public `EXPO_PUBLIC_*` + prod API; **§2** native auth + gated API; **§3** `/api/health/ready` runtime DB proof; **§4** baseline logging + **401 smoke curl** (§4); **§5** throttle defaults documented + route list aligned with code/docs.
+**Done (keep for future envs):** §0; §6 health URLs; **§1** public `EXPO_PUBLIC_*` + prod API; **§2** native auth + gated API + **prod CORS mirror** for `http://localhost:19006` (see §2 curl); **§3** `/ready` runtime proof; **§4** logging baseline + **401** smoke; **§5** throttle doc review.
 
 **Do next (in order):**
 
-1. **§3 (dashboard)** — If not done: Render **Pre-deploy** + deploy logs for `prisma migrate deploy`.
-2. **§4 (dashboard)** — After running the §4 curl against prod, open **Render → Logs** and confirm one **`http_exception`** line for `/api/plans/me/with-weekly` with **no** `Authorization` / body payload.
-3. **§5 (optional)** — With a **valid bearer** on staging/local, burst `POST` an AI route (see [ai-rate-limits.md](./ai-rate-limits.md)) until **429**; check logs for `AI rate limit exceeded`. Tune **`AI_RATE_*`** / **`CATALOG_RATE_*`** on Render if needed.
-4. **§2 (optional)** — Supabase JWT/session + **redirect URLs** (`jimapp://**`); Expo Web + **CORS**; idle token refresh.
-5. **§7** — Sign-off table when you accept remaining open boxes or note them as **accepted risk**.
+1. **§2 (Supabase)** — Walk through **Quick actions** in **§2 Auth & CORS** below: JWT/session review, **redirect URLs** (at least `jimapp://**`), sign-out + idle refresh when you care about polish.
+2. **§3 / §4 (Render)** — Pre-deploy migrate logs; **`http_exception`** log line confirmation (§4).
+3. **§5 (optional)** — **429** burst test with JWT.
+4. **§7** — Use the **Open items roll-up** table below; fill the sign-off table when ready or note **accepted risk** for open items.
 
 ---
 
@@ -47,6 +46,7 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 | 2026-04-08 | **§3 runtime:** `GET https://jim-app-l8o7.onrender.com/api/health/ready` → **200**, body `status: ready` — deployed API reaches Postgres. **Still confirm** Pre-deploy migrate logs on Render when convenient. |
 | 2026-04-08 | **§4 smoke:** `GET /api/plans/me/with-weekly` without auth on prod → **401** (curl). **Still confirm** matching `http_exception` JSON line in Render logs. |
 | 2026-04-08 | **§5 review:** Throttle defaults and AI routes cross-checked vs [`app.module.ts`](../backend/src/app.module.ts), [`ai-rate-limits.md`](./ai-rate-limits.md), `plans`/`workouts` + public `exercises` (`catalogBurst` / `catalogDay`). |
+| 2026-04-08 | **§2 CORS (prod):** `GET /api/health` with `Origin: http://localhost:19006` → **200** and `access-control-allow-origin: http://localhost:19006` — Expo Web dev origin allowlisted on deployed API. |
 
 ---
 
@@ -90,7 +90,24 @@ Auth is **Supabase** (issue + refresh JWT); the Nest API **verifies** the access
 
 **Fill in**
 
-- `CORS_ORIGINS` in production (redact if you copy this elsewhere): _localhost Expo Web for now; add Vercel `https://…` when ready_
+- `CORS_ORIGINS` in production (redact if you copy this elsewhere): _must include each browser **Origin** that calls the API (e.g. Expo Web dev `http://localhost:19006`); prod curl 2026-04-08 confirmed that origin is mirrored on **`GET /api/health`**_
+
+**Quick actions (Supabase Dashboard)**
+
+1. **Authentication → URL configuration**  
+   - **Site URL:** your primary return target (often the custom scheme or web URL Supabase should default to).  
+   - **Redirect URLs:** add at least **`jimapp://**`** — matches [`frontend/app.json`](../frontend/app.json) `"scheme": "jimapp"`.  
+   - Add **Expo Go / dev** patterns if you use magic link or password reset from dev (see comments in [`frontend/.env.example`](../frontend/.env.example)).
+2. **Authentication → Settings (or Providers)** — Review **JWT expiry** and refresh behavior vs product expectations.
+3. After saving, retry **forgot password** / magic link from the app once to confirm the redirect lands in-app.
+
+**Expo Web vs prod API (CORS sanity, no app required)**
+
+```bash
+curl.exe -sS -D - -o NUL -H "Origin: http://localhost:19006" "https://jim-app-l8o7.onrender.com/api/health"
+```
+
+Expect **200** and response headers including **`access-control-allow-origin: http://localhost:19006`**. _(Verified 2026-04-08 against current Render `CORS_ORIGINS`.)_
 
 **Checklist**
 
@@ -103,7 +120,8 @@ Auth is **Supabase** (issue + refresh JWT); the Nest API **verifies** the access
 - [x] Every **browser** origin that calls the API is in **`CORS_ORIGINS`** (Expo Web, hosted web) _(Expo Web dev origins set; expand when you ship web on Vercel)_
 - [x] Read [cors-production.md](./cors-production.md); behavior matches code (**allowlist**; native often has no `Origin`) _(reviewed 2026-04-08)_
 - [x] **Native** app smoke vs prod API _(2026-04-08)_
-- [ ] **Expo Web** smoke test against prod API (`Origin` must be allowlisted)
+- [x] **CORS:** Browser `Origin: http://localhost:19006` is mirrored on prod **`GET /api/health`** _(curl 2026-04-08; requires that origin in Render `CORS_ORIGINS`)_
+- [ ] **Expo Web** app run: sign-in + gated API against prod (full UX, not only CORS headers)
 
 ---
 
@@ -203,6 +221,21 @@ Global prefix **`/api`**.
 ---
 
 ## 7. Sign-off
+
+**Open items roll-up** (unchecked boxes as of last doc pass — re-scan before sign-off):
+
+| Area | Still open (typical) |
+|------|----------------------|
+| §1 | Separate prod Supabase / key rotation; marketing **HTTPS** when you ship web landing |
+| §2 | Supabase JWT + **redirect URLs** confirmation; sign-out; idle refresh; **Expo Web** full app smoke |
+| §3 | Render **Pre-deploy** migrate log proof; schema/pooler/backups/restore drill |
+| §4 | **`http_exception`** line in Render logs; optional **5xx** spot-check; deploy **notifications** |
+| §5 | **429** burst test; client **429** UX; catalog limits “feel”; Supabase **auth abuse** settings |
+| §6 | **`/ready`** when DB down; LB **readiness** gating if supported |
+
+Treat any row you skip as **accepted risk** or file a follow-up ticket.
+
+---
 
 - [ ] Sections 1–6 reviewed for this environment _(list any open items above as “accepted risk” or schedule follow-up)_
 - [ ] Notes copied to runbook or [staging-environment.md](./staging-environment.md) if useful for the team
