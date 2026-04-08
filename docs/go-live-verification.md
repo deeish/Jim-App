@@ -4,9 +4,9 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 **Related:** Implementation status and deep links → [production-checklist.md](./production-checklist.md). Env reference → `backend/.env.example`, `frontend/.env.example`.
 
-**Last touched:** 2026-04-08 _(§3 runtime DB check logged below)_
+**Last touched:** 2026-04-08 _(§4 HTTP smoke + §5 defaults documented below)_
 
-**Status snapshot:** API on Render is **live** (`GET /api/health` → 200). **JWKS / Supabase JWT verification** fixed in `backend` ([`fbe6a33`](https://github.com/deeish/Jim-App/commit/fbe6a33) — `jwks-rsa` CJS `require`). **Native app → prod API** sign-in + gated calls **verified** (2026-04-08). Optional items below (Expo Web, token-idle refresh, migrate log confirmation, rate-limit torture tests) remain for hardening or store release.
+**Status snapshot:** API on Render is **live** (`GET /api/health` → 200). **JWKS / Supabase JWT verification** fixed ([`fbe6a33`](https://github.com/deeish/Jim-App/commit/fbe6a33)). **Native app → prod API** sign-in + gated calls **verified** (2026-04-08). **§4** prod **401** smoke without token **verified** (2026-04-08). **§5** throttle defaults + route list documented in-file. Still optional: Render log line confirmation, **429** burst test, Expo Web, migrate deploy log tick, **§7** sign-off.
 
 ---
 
@@ -18,17 +18,17 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 ---
 
-## Current focus: §4 (logs) → §5 (rate limits), then §7 sign-off
+## Current focus: §7 sign-off + optional follow-ups
 
-**Done (keep for future envs):** §0; §6 health URLs; **§1** public `EXPO_PUBLIC_*` wiring and prod API base for dev/prod runs; **§2** native sign-in + gated Nest calls after JWKS fix; **§4** baseline (JSON logs, `NODE_ENV`, Render logs); **§3** runtime DB reachability via **`/api/health/ready`** (see §3 checklist).
+**Done (keep for future envs):** §0; §6 health URLs; **§1** public `EXPO_PUBLIC_*` + prod API; **§2** native auth + gated API; **§3** `/api/health/ready` runtime DB proof; **§4** baseline logging + **401 smoke curl** (§4); **§5** throttle defaults documented + route list aligned with code/docs.
 
 **Do next (in order):**
 
-1. **§3 (finish on dashboard)** — Render → Web Service → **Settings**: confirm **Pre-deploy command** = `npx prisma migrate deploy` (or equivalent). Open **Logs** from the **latest deploy** and search for `migrate deploy` / absence of pending-migration errors. _(Runtime proof: prod `/api/health/ready` already returns `ready`.)_
-2. **§4** — Trigger a harmless error path if needed; in **Render → Logs**, confirm you can find the line and that **`Authorization` / bodies are not** in JSON log lines (`SanitizedExceptionFilter` logs `method` + `path` only).
-3. **§5** — Skim [ai-rate-limits.md](./ai-rate-limits.md); optional: hit an AI route until **429** in staging/prod to confirm throttle behavior.
-4. **§2 (optional hardening)** — Supabase Auth: session/JWT lifetime settings; **redirect URLs** include `jimapp://**` ([`frontend/app.json`](../frontend/app.json) `"scheme": "jimapp"`). **Expo Web** smoke vs prod API (origin must be in `CORS_ORIGINS`). **Idle refresh** test (long background, then API call).
-5. **§7** — When §§1–6 are acceptable for this environment, tick sign-off and fill the table.
+1. **§3 (dashboard)** — If not done: Render **Pre-deploy** + deploy logs for `prisma migrate deploy`.
+2. **§4 (dashboard)** — After running the §4 curl against prod, open **Render → Logs** and confirm one **`http_exception`** line for `/api/plans/me/with-weekly` with **no** `Authorization` / body payload.
+3. **§5 (optional)** — With a **valid bearer** on staging/local, burst `POST` an AI route (see [ai-rate-limits.md](./ai-rate-limits.md)) until **429**; check logs for `AI rate limit exceeded`. Tune **`AI_RATE_*`** / **`CATALOG_RATE_*`** on Render if needed.
+4. **§2 (optional)** — Supabase JWT/session + **redirect URLs** (`jimapp://**`); Expo Web + **CORS**; idle token refresh.
+5. **§7** — Sign-off table when you accept remaining open boxes or note them as **accepted risk**.
 
 ---
 
@@ -45,6 +45,8 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 | 2026-04-08 | **§2 native smoke:** After restart/rebuild, prod API accepts Supabase access token; gated routes (**e.g.** `GET /api/plans/me/with-weekly`) succeed from the app. |
 | 2026-04-08 | **§6 re-check:** `GET https://jim-app-l8o7.onrender.com/api/health` → **200**. |
 | 2026-04-08 | **§3 runtime:** `GET https://jim-app-l8o7.onrender.com/api/health/ready` → **200**, body `status: ready` — deployed API reaches Postgres. **Still confirm** Pre-deploy migrate logs on Render when convenient. |
+| 2026-04-08 | **§4 smoke:** `GET /api/plans/me/with-weekly` without auth on prod → **401** (curl). **Still confirm** matching `http_exception` JSON line in Render logs. |
+| 2026-04-08 | **§5 review:** Throttle defaults and AI routes cross-checked vs [`app.module.ts`](../backend/src/app.module.ts), [`ai-rate-limits.md`](./ai-rate-limits.md), `plans`/`workouts` + public `exercises` (`catalogBurst` / `catalogDay`). |
 
 ---
 
@@ -140,13 +142,14 @@ Expect **200** and JSON including `"status":"ready"` when the API’s `DATABASE_
 curl -sS -o NUL -w "%{http_code}" "https://jim-app-l8o7.onrender.com/api/plans/me/with-weekly"
 ```
 
-Expect **401**; log line should look like `{"level":"warn","kind":"http_exception","status":401,"method":"GET","path":"/api/plans/me/with-weekly",...}` — no `Authorization` value.
+Expect **401**; log line should look like `{"level":"warn","kind":"http_exception","status":401,"method":"GET","path":"/api/plans/me/with-weekly",...}` — no `Authorization` value. _(Verified **401** from prod curl 2026-04-08.)_
 
 **Checklist**
 
 - [x] Deployed API has **`NODE_ENV=production`** — see [backend-operations.md](./backend-operations.md)
 - [x] Log output is **JSON lines** to stdout (or your platform captures it correctly)
 - [x] Logs are shipped to somewhere **searchable** (host UI, Datadog, etc.) _(Render Logs UI)_
+- [ ] **Render:** Search logs for **`http_exception`** + **`/api/plans/me/with-weekly`** after the curl above; confirm line matches filter shape (no secrets) _(HTTP 401 verified 2026-04-08)_
 - [ ] You can find recent **5xx** or `unhandled` lines after a test error _(optional: force an internal error only in a safe environment)_
 - [x] Spot-check (code + sample logs): **`SanitizedExceptionFilter`** logs JSON lines with **`kind`**, **`status`**, **`method`**, **`path`**, **`ts`** only — not bodies, **`Authorization`**, or cookies ([`sanitized-exception.filter.ts`](../backend/src/common/sanitized-exception.filter.ts))
 - [ ] **Deploy failures** notify someone (host email/Slack, GitHub Actions, etc.)
@@ -155,20 +158,27 @@ Expect **401**; log line should look like `{"level":"warn","kind":"http_exceptio
 
 ## 5. Rate limits & abuse
 
-Throttle config: `backend/src/app.module.ts`; details in [ai-rate-limits.md](./ai-rate-limits.md) and `backend/.env.example` (`AI_RATE_*`, `CATALOG_RATE_*`).
+Throttle config: [`backend/src/app.module.ts`](../backend/src/app.module.ts); details in [ai-rate-limits.md](./ai-rate-limits.md) and `backend/.env.example` (`AI_RATE_*`, `CATALOG_RATE_*`).
 
-**Fill in**
+**Fill in — defaults when env vars unset** (from `useFactory` in [`app.module.ts`](../backend/src/app.module.ts); override on Render if needed):
 
-- Chosen / confirmed prod values (optional): _…_
+| Throttler | Limit | Window |
+|-----------|------:|--------|
+| **`aiBurst`** | 12 | 60_000 ms (1 min) |
+| **`aiDay`** | 120 | 86_400_000 ms (24 h) |
+| **`catalogBurst`** | 120 | 60_000 ms |
+| **`catalogDay`** | 3000 | 86_400_000 ms |
+
+**AI-backed HTTP routes** (after auth; `AiThrottlerGuard`): `POST /api/workouts/generate`, `POST /api/workouts/preview`, `POST /api/plans/generate-sessions`, `POST /api/plans/generate-single-session` — see [ai-rate-limits.md](./ai-rate-limits.md). **Public catalog:** `/api/exercises` uses default `ThrottlerGuard` with **`catalogBurst` / `catalogDay`** only (AI buckets skipped in [`exercises.controller.ts`](../backend/src/exercises/exercises.controller.ts)).
 
 **Checklist**
 
-- [ ] **AI** routes (plan/workout generation) return **429** when you exceed limits in staging or prod
+- [ ] **AI** routes (plan/workout generation) return **429** when you exceed limits in staging or prod _(optional burst test with valid JWT)_
 - [ ] 429 responses are acceptable for the product (copy / retry UX on client if needed)
 - [ ] Public **`/exercises`** traffic: **`catalogBurst`** / **`catalogDay`** feel right for prod (not too loose / tight)
-- [ ] Production **`AI_RATE_*`** and **`CATALOG_RATE_*`** reviewed; overrides documented if not default
+- [x] Production **`AI_RATE_*`** and **`CATALOG_RATE_*`** defaults documented above; set on Render only when overriding _(reviewed 2026-04-08)_
 - [ ] **Login / signup** abuse: Supabase Dashboard — rate limits, CAPTCHA, or hooks considered if you expect noise
-- [ ] Known expensive endpoints are covered (re-read `ai-rate-limits.md` route list vs your product)
+- [x] Known expensive endpoints are covered — table in [ai-rate-limits.md](./ai-rate-limits.md) matches controllers _(2026-04-08)_
 
 ---
 
