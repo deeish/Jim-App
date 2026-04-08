@@ -28,6 +28,10 @@ npm scripts (same commands):
 
 **Pooling:** For higher concurrency, prefer Supabase’s **PgBouncer pooler URL** (often port `6543` / “transaction mode”) for the Nest app, following [Supabase’s Prisma docs](https://supabase.com/docs/guides/database/connecting-to-postgres#connection-pooler). Use `?pgbouncer=true` and adjust parameters as Prisma recommends for your version.
 
+**URI shape:** The login part must be exactly `postgres.<project-ref>:<password>` — **one** colon before the password. Do not paste the project ref twice (e.g. `postgres.ref:ref:password`); Prisma may then fail or the pooler may trip a **circuit breaker** after bad upstream auth.
+
+**`FATAL: Circuit breaker open`:** Usually means the pooler stopped forwarding to Postgres after repeated failures. Typical causes: **wrong DB password** in `DATABASE_URL`, **project paused** (wake it in the Supabase dashboard), or a **cool-down** after many failed attempts (wait several minutes). Fix the URI/password, confirm the database is running, then retry. For Prisma + transaction pooler, append at least `?pgbouncer=true&sslmode=require` unless the dashboard gives a different recommended query string.
+
 ## Backups
 
 In Supabase: **Project Settings → Database** — confirm **backups** and **retention** for your plan. Point-in-time recovery availability depends on plan tier.
