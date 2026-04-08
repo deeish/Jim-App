@@ -9,6 +9,8 @@ import NavBar from './src/components/NavBar';
 import ProfileScreen from './src/screens/ProfileScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import SetNewPasswordScreen from './src/screens/SetNewPasswordScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { wrapWithSentry } from './src/lib/sentry';
@@ -19,6 +21,7 @@ export type { RootNavigatorParamList, RootStackParamList } from './src/types/nav
 type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
+  ForgotPassword: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootNavigatorParamList>();
@@ -35,13 +38,14 @@ function AuthStack() {
     >
       <AuthStackNav.Screen name="Login" component={LoginScreen} />
       <AuthStackNav.Screen name="Signup" component={SignupScreen} />
+      <AuthStackNav.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </AuthStackNav.Navigator>
   );
 }
 
 function AppContent() {
   const { colors, isDark } = useTheme();
-  const { session, loading } = useAuth();
+  const { session, loading, passwordRecoveryMode } = useAuth();
 
   if (loading) {
     return (
@@ -70,15 +74,19 @@ function AppContent() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <NavigationContainer theme={navTheme}>
         {session ? (
-          <RootStack.Navigator
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
-            }}
-          >
-            <RootStack.Screen name="Main" component={NavBar} />
-            <RootStack.Screen name="Profile" component={ProfileScreen} />
-          </RootStack.Navigator>
+          passwordRecoveryMode ? (
+            <SetNewPasswordScreen />
+          ) : (
+            <RootStack.Navigator
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.background },
+              }}
+            >
+              <RootStack.Screen name="Main" component={NavBar} />
+              <RootStack.Screen name="Profile" component={ProfileScreen} />
+            </RootStack.Navigator>
+          )
         ) : (
           <AuthStack />
         )}

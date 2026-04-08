@@ -9,7 +9,8 @@ import HomeScreen from '../screens/HomeScreen';
 import PlanStackNavigator from '../navigation/PlanStackNavigator';
 import WorkoutScreen from '../screens/WorkoutScreen';
 import SearchStackNavigator from '../navigation/SearchStackNavigator';
-import { HomeIcon, CalendarIcon, DumbbellIcon, SearchIcon } from './TabIcons';
+import { Ionicons } from '@expo/vector-icons';
+import { CalendarIcon } from './TabIcons';
 import { useTheme } from '../theme/ThemeContext';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -70,7 +71,11 @@ export default function NavBar() {
         options={{
           tabBarButton: tabBarButton('e2e-tab-home'),
           tabBarIcon: ({ color, focused }) => (
-            <HomeIcon color={color} size={focused ? 26 : 24} />
+            <Ionicons
+              name={focused ? 'home' : 'home-outline'}
+              size={focused ? 26 : 24}
+              color={color}
+            />
           ),
         }}
       />
@@ -90,7 +95,11 @@ export default function NavBar() {
         options={{
           tabBarButton: tabBarButton('e2e-tab-workout'),
           tabBarIcon: ({ color, focused }) => (
-            <DumbbellIcon color={color} size={focused ? 26 : 24} />
+            <Ionicons
+              name={focused ? 'barbell' : 'barbell-outline'}
+              size={focused ? 26 : 24}
+              color={color}
+            />
           ),
         }}
       />
@@ -101,7 +110,11 @@ export default function NavBar() {
           tabBarLabel: 'Exercises',
           tabBarButton: tabBarButton('e2e-tab-exercises'),
           tabBarIcon: ({ color, focused }) => (
-            <SearchIcon color={color} size={focused ? 26 : 24} />
+            <Ionicons
+              name={focused ? 'body' : 'body-outline'}
+              size={focused ? 26 : 24}
+              color={color}
+            />
           ),
         }}
         listeners={({ navigation }) => ({

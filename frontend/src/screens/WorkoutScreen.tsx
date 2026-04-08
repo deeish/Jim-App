@@ -167,7 +167,14 @@ export default function WorkoutScreen() {
         workoutName: { fontSize: 18, color: colors.primary, fontWeight: '600', marginBottom: 8 },
         content: { flex: 1 },
         exercisesContainer: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 6 },
-        emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+        emptyContainer: {
+          flex: 1,
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          paddingHorizontal: 24,
+          paddingTop: 28,
+          paddingBottom: 12,
+        },
         emptyText: { fontSize: 20, color: colors.textTertiary, marginBottom: 8, fontWeight: '600' },
         emptySubtext: { fontSize: 16, color: colors.textMuted, textAlign: 'center' },
         footer: {
@@ -585,7 +592,15 @@ export default function WorkoutScreen() {
           </TouchableOpacity>
         </View>
       )}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            // Tab screens don't get automatic top safe area; fromPlan uses backBar for that.
+            paddingTop: fromPlan ? 20 : 16 + Math.max(insets.top, 8),
+          },
+        ]}
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <Text style={styles.title}>{headerTitle}</Text>
           {todayWorkout?.id && (
@@ -666,7 +681,14 @@ export default function WorkoutScreen() {
           <Text style={styles.toastText}>{toast}</Text>
         </View>
       ) : null}
-      <View style={[styles.footer, { paddingBottom: Math.max(16, 10 + insets.bottom) }]}>
+      <View
+        style={[
+          styles.footer,
+          // Tab bar already sits above the home indicator; adding insets.bottom here
+          // doubled safe area on native and left a gap above the tab bar (web insets are 0).
+          { paddingBottom: 14 },
+        ]}
+      >
         {todayWorkout ? (
           <TouchableOpacity
             style={styles.footerAddCard}

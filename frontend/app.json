@@ -2,6 +2,7 @@
   "expo": {
     "name": "Jim App",
     "slug": "jim-app",
+    "scheme": "jimapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

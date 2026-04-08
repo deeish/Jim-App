@@ -93,6 +93,15 @@ LLM and other secrets belong in **`backend`** env (e.g. `GROQ_API_KEY`), not in 
 
 Optional: use **EAS Secrets** for values injected at build time that must not be committed — still assume determined users can extract in-app constants; never put true secrets in the client.
 
+## Password reset (deep link)
+
+The app uses **`expo-linking`** and **`app.json` → `scheme`: `jimapp`**. In **Supabase → Authentication → URL Configuration**, add **Redirect URLs** that include:
+
+- **`jimapp://**`** (or your chosen scheme) so recovery emails can return to the native app.
+- Expo dev URLs if you test recovery in development (e.g. `exp://…` / Metro — copy from `Linking.createURL` logs if redirects fail).
+
+Without these, “Send reset link” may succeed but the email link will not open the app correctly.
+
 ## Related backend config
 
 Production API URL: set **`EXPO_PUBLIC_API_BASE`** (see `frontend/.env.example`) to your HTTPS API root **without** `/api` (the app appends `/api`). Ensure that browser origin is listed in **`CORS_ORIGINS`** on the backend if you ship **Expo Web**.
