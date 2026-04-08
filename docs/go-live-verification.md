@@ -4,9 +4,9 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 **Related:** Implementation status and deep links → [production-checklist.md](./production-checklist.md). Env reference → `backend/.env.example`, `frontend/.env.example`.
 
-**Last touched:** 2026-04-08 _(§3/§4 Render dashboard cookbook)_
+**Last touched:** 2026-04-08 _(§5 optional 429 verification steps)_
 
-**Status snapshot:** API on Render is **live**. **Native + gated API** OK. **§4** 401 smoke OK. **§5** defaults documented. **§2** CORS for Expo Web dev verified (curl). **§3/§4:** step-by-step **Render** checks added below (migrate logs + log search); tick boxes after you run them. Optional: **429**, **§7** sign-off.
+**Status snapshot:** API on Render is **live**. **§5** how-to for **429** tests added (**catalog** = no LLM; **AI** = prefer local to avoid Groq cost). Prior **§3/§4** Render steps unchanged. Next: run §5 optional tests if desired → **§7** sign-off.
 
 ---
 
@@ -18,17 +18,16 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 ---
 
-## Current focus: §3 / §4 on Render → optional §5 → §7
+## Current focus: §5 optional → §7 sign-off
 
-**Done (keep for future envs):** §0; §6; **§1** client + prod API; **§2** native auth + CORS curl + quick-action text; **§3** `/ready` runtime; **§4** 401 curl + filter code review; **§5** doc review.
+**Done (keep for future envs):** §0; §6; **§1** client + prod API; **§2** native auth + CORS curl + quick-action text; **§3** `/ready` + Render migrate cookbook; **§4** 401 curl + Render log cookbook; **§5** defaults + **optional 429** procedures below.
 
 **Do next (in order):**
 
-1. **§3** — Follow **Render dashboard (migrations)** in §3 below: confirm Pre-Deploy command and migrate lines in deploy logs; tick **Verified on host** + schema note when satisfied.
-2. **§4** — Follow **Render dashboard (logs)** in §4 below: run the 401 curl, find **`http_exception`** in **Logs**; tick that checkbox.
-3. **§2 (Supabase)** — If not done: **Quick actions** in **§2** (redirect URLs, JWT/session).
-4. **§5 (optional)** — **429** burst with JWT.
-5. **§7** — Sign-off or **accepted risk** using the roll-up table.
+1. **§3 / §4** — If not ticked yet: complete **Render** migrate + log steps in §3–§4.
+2. **§2 (Supabase)** — If not done: **Quick actions** in **§2**.
+3. **§5 (optional)** — See **Optional: prove 429** in §5 (catalog burst on prod/staging; AI throttle preferably **local**).
+4. **§7** — Sign-off or **accepted risk** using the roll-up table.
 
 ---
 
@@ -49,6 +48,7 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 | 2026-04-08 | **§5 review:** Throttle defaults and AI routes cross-checked vs [`app.module.ts`](../backend/src/app.module.ts), [`ai-rate-limits.md`](./ai-rate-limits.md), `plans`/`workouts` + public `exercises` (`catalogBurst` / `catalogDay`). |
 | 2026-04-08 | **§2 CORS (prod):** `GET /api/health` with `Origin: http://localhost:19006` → **200** and `access-control-allow-origin: http://localhost:19006` — Expo Web dev origin allowlisted on deployed API. |
 | 2026-04-08 | **Docs:** Added Render UI walkthroughs for **§3** (Pre-Deploy / migrate log search) and **§4** (live log search after 401 curl). |
+| 2026-04-08 | **§5:** Documented optional **429** checks — **catalog** (`GET /api/exercises/stats`, no LLM) vs **AI** routes (prefer **local** + low `AI_RATE_BURST_MAX` to avoid many Groq calls on prod). |
 
 ---
 
@@ -210,11 +210,25 @@ Throttle config: [`backend/src/app.module.ts`](../backend/src/app.module.ts); de
 
 **AI-backed HTTP routes** (after auth; `AiThrottlerGuard`): `POST /api/workouts/generate`, `POST /api/workouts/preview`, `POST /api/plans/generate-sessions`, `POST /api/plans/generate-single-session` — see [ai-rate-limits.md](./ai-rate-limits.md). **Public catalog:** `/api/exercises` uses default `ThrottlerGuard` with **`catalogBurst` / `catalogDay`** only (AI buckets skipped in [`exercises.controller.ts`](../backend/src/exercises/exercises.controller.ts)).
 
+**Optional: prove 429 (throttler works)**
+
+1. **Catalog burst (no auth, no LLM)** — Uses **`catalogBurst`** default **120** requests / **60 s** to **`GET /api/exercises/stats`**. Send several dozen requests **inside one minute** until some return **429**.  
+   - **Caution:** Spares Groq but still loads the API; prefer **staging** / **local** if you can mirror prod config, and avoid pointless hammering of a **free** production instance.  
+   - **PowerShell (125 quick hits):**
+
+   ```powershell
+   1..125 | ForEach-Object { curl.exe -sS -o NUL -w "%{http_code} " "https://jim-app-l8o7.onrender.com/api/exercises/stats" }; ""
+   ```
+
+   Expect mostly **200**, then **429** once the burst bucket is exceeded (exact count depends on timing vs the 60 s window).
+
+2. **AI burst (needs JWT)** — `AiThrottlerGuard` uses **`aiBurst`** (**12** / minute by default). **Each successful call still runs the workout/plan generator** (may call **Groq**). Repeating **POST** to e.g. `/api/workouts/preview` a dozen times on **production** can waste quota and money. **Preferred:** on **localhost**, set **`AI_RATE_BURST_MAX=2`** (and **`AI_RATE_BURST_WINDOW_MS=60000`**) in `backend/.env`, restart the API, obtain a valid **`Authorization: Bearer &lt;access_token&gt;`**, then issue **4** quick **`POST`**s with body **`{}`** to **`http://localhost:3000/api/workouts/preview`** and header **`Authorization: Bearer <your Supabase access_token>`** — expect **429** once the burst limit is exceeded (first requests may still invoke Groq). **Render logs** for production AI throttling show: `AI rate limit exceeded:` ([`ai-throttler.guard.ts`](../backend/src/common/ai-throttler.guard.ts)).
+
 **Checklist**
 
-- [ ] **AI** routes (plan/workout generation) return **429** when you exceed limits in staging or prod _(optional burst test with valid JWT)_
+- [ ] **AI** routes (plan/workout generation) return **429** when you exceed limits in staging or prod _(optional: **local** test above; avoid mass AI calls on prod)_
 - [ ] 429 responses are acceptable for the product (copy / retry UX on client if needed)
-- [ ] Public **`/exercises`** traffic: **`catalogBurst`** / **`catalogDay`** feel right for prod (not too loose / tight)
+- [ ] Public **`/exercises`** traffic: **`catalogBurst`** / **`catalogDay`** feel right for prod (not too loose / tight) _(optional: **catalog** 429 probe above)_
 - [x] Production **`AI_RATE_*`** and **`CATALOG_RATE_*`** defaults documented above; set on Render only when overriding _(reviewed 2026-04-08)_
 - [ ] **Login / signup** abuse: Supabase Dashboard — rate limits, CAPTCHA, or hooks considered if you expect noise
 - [x] Known expensive endpoints are covered — table in [ai-rate-limits.md](./ai-rate-limits.md) matches controllers _(2026-04-08)_
