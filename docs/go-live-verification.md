@@ -4,9 +4,9 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 **Related:** Implementation status and deep links → [production-checklist.md](./production-checklist.md). Env reference → `backend/.env.example`, `frontend/.env.example`.
 
-**Last touched:** 2026-04-08 _(§5 optional 429 verification steps)_
+**Last touched:** 2026-04-08 _(§7 sign-off workflow)_
 
-**Status snapshot:** API on Render is **live**. **§5** how-to for **429** tests added (**catalog** = no LLM; **AI** = prefer local to avoid Groq cost). Prior **§3/§4** Render steps unchanged. Next: run §5 optional tests if desired → **§7** sign-off.
+**Status snapshot:** Core prod path verified (health, DB `/ready`, native auth + API, CORS, logging shape, throttle docs). **§7** below is the close-out: triage open checkboxes, record **accepted risk**, fill the sign-off table.
 
 ---
 
@@ -18,16 +18,15 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 ---
 
-## Current focus: §5 optional → §7 sign-off
+## Current focus: §7 sign-off (close this environment)
 
-**Done (keep for future envs):** §0; §6; **§1** client + prod API; **§2** native auth + CORS curl + quick-action text; **§3** `/ready` + Render migrate cookbook; **§4** 401 curl + Render log cookbook; **§5** defaults + **optional 429** procedures below.
+**Done (see §§0–6 + progress log):** Repo baseline, prod API URL, native + gated API, `/ready`, Render cookbooks for migrate + logs, §5 throttle docs + optional 429 recipes, CORS curl, Supabase quick-action text.
 
-**Do next (in order):**
+**Close out:**
 
-1. **§3 / §4** — If not ticked yet: complete **Render** migrate + log steps in §3–§4.
-2. **§2 (Supabase)** — If not done: **Quick actions** in **§2**.
-3. **§5 (optional)** — See **Optional: prove 429** in §5 (catalog burst on prod/staging; AI throttle preferably **local**).
-4. **§7** — Sign-off or **accepted risk** using the roll-up table.
+1. Search this file for **`[ ]`** — for each open item: complete it, schedule follow-up, or list under **Accepted risk** below.
+2. Tick **§7** checkboxes and fill **Name / Date**.
+3. Optional: copy **Accepted risk** + URLs into [staging-environment.md](./staging-environment.md) or your runbook.
 
 ---
 
@@ -49,6 +48,7 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 | 2026-04-08 | **§2 CORS (prod):** `GET /api/health` with `Origin: http://localhost:19006` → **200** and `access-control-allow-origin: http://localhost:19006` — Expo Web dev origin allowlisted on deployed API. |
 | 2026-04-08 | **Docs:** Added Render UI walkthroughs for **§3** (Pre-Deploy / migrate log search) and **§4** (live log search after 401 curl). |
 | 2026-04-08 | **§5:** Documented optional **429** checks — **catalog** (`GET /api/exercises/stats`, no LLM) vs **AI** routes (prefer **local** + low `AI_RATE_BURST_MAX` to avoid many Groq calls on prod). |
+| 2026-04-08 | **§7:** Added sign-off workflow — triage open checkboxes, **Accepted risk** template, environment snapshot line. |
 
 ---
 
@@ -257,7 +257,13 @@ Global prefix **`/api`**.
 
 ## 7. Sign-off
 
-**Open items roll-up** (unchecked boxes as of last doc pass — re-scan before sign-off):
+**Environment snapshot** _(fill so future-you knows which stack this page refers to):_
+
+- API: **`https://jim-app-l8o7.onrender.com`** _(update if hostname changes)_
+- Host: **Render** Web Service _(name in dashboard: …)_
+- DB / Auth: **Supabase** _(project ref optional / internal)_
+
+**Open items roll-up** (re-scan §§1–6 for `[ ]` before signing — many are optional for a hobby ship):
 
 | Area | Still open (typical) |
 |------|----------------------|
@@ -268,11 +274,19 @@ Global prefix **`/api`**.
 | §5 | **429** burst test; client **429** UX; catalog limits “feel”; Supabase **auth abuse** settings |
 | §6 | **`/ready`** when DB down; LB **readiness** gating if supported |
 
-Treat any row you skip as **accepted risk** or file a follow-up ticket.
+**Accepted risk** _(delete lines you resolved; add bullets for anything you intentionally skip):_
+
+```text
+- …
+```
+
+Examples (not prescriptive): *§5 429 load-test not run on prod; §6 DB-down drill not run; §2 Expo Web full app smoke deferred.*
+
+Treat any remaining gap as **accepted risk** or a **follow-up ticket**. Ongoing engineering checklist: [production-checklist.md](./production-checklist.md).
 
 ---
 
-- [ ] Sections 1–6 reviewed for this environment _(list any open items above as “accepted risk” or schedule follow-up)_
+- [ ] Sections 1–6 reviewed for this environment _(open items triaged: fixed, ticketed, or listed under **Accepted risk**)_
 - [ ] Notes copied to runbook or [staging-environment.md](./staging-environment.md) if useful for the team
 
 | Role   | Name | Date |
