@@ -23,6 +23,7 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 | 2026-04-07 | **§0 complete:** `.env` ignored in root + `backend/` + `frontend/`; grep over `backend/src` / `frontend/src` found no embedded secrets (only normal `config` / env usage); API base from `EXPO_PUBLIC_API_BASE` in `frontend/src/config/api.ts`; migration workflow present. **Next:** deploy API; fill URL fields in §§1–2 and §6; run §§1–6 against live stack. |
 | 2026-04-07 | **Hosting choice:** API on **Render** — follow [render-deploy.md](./render-deploy.md) (optional [render.yaml](../render.yaml) Blueprint). |
 | 2026-04-08 | **Render:** Web Service live; env vars set (`NODE_*`, `DATABASE_URL`, Supabase, `CORS_ORIGINS`). Build uses `NPM_CONFIG_PRODUCTION=false npm ci …`. Primary URL: **`https://jim-app-l8o7.onrender.com`** (change if your service name differs). **Next:** push repo (root `/` handler in `main.ts`, `package-lock.json` after `npm audit fix`, doc tweaks), set **`EXPO_PUBLIC_API_BASE`** to this origin on builds that should hit prod, manually tick §§1–6 after smoke tests (health, `/ready`, sign-in, gated API). |
+| 2026-04-08 | **Git:** pushed `118430d` to **`origin/main`** (Render deploy guide, `go-live-verification`, `main.ts` root + HEAD `/`, backend lockfile/`engines`). **Now:** wait for Render **auto-deploy** (if enabled) or **Manual Deploy** → confirm §6 health URLs → set **`EXPO_PUBLIC_API_BASE=https://jim-app-l8o7.onrender.com`** for prod-targeted app runs → finish §§1–2 smoke tests. |
 
 ---
 
@@ -48,15 +49,15 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 - [x] `.env` and real secrets are **gitignored** and never committed _(see §0)_
 - [x] Quick scan: no API keys, `DATABASE_URL`, or service role keys in **application source** (`backend/src`, `frontend/src`) _(see §0; still run optional git history check below)_
 - [ ] Optional: spot-check history — `git log -p -- '*.env'` (or your host’s secret-scan tool)
-- [ ] Production secrets live only on the host / secret manager (not in the repo)
-- [ ] Production `DATABASE_URL`, Supabase keys, and Groq (if used) **differ** from local dev
+- [x] Production secrets live only on the host / secret manager (not in the repo) _(Render env; not in git)_
+- [ ] Production `DATABASE_URL`, Supabase keys, and Groq (if used) **differ** from local dev _(optional; OK if same Supabase project while hobby-testing)_
 - [ ] Prefer a **separate** Supabase project (or distinct keys) for production vs dev
 - [ ] Frontend: every `EXPO_PUBLIC_*` value is OK to be **public** (no service_role, no LLM keys) — **confirm on EAS/host env, not only `.env.example`**
 - [ ] Frontend production build uses prod **`EXPO_PUBLIC_API_BASE`** (not localhost / staging by mistake)
 - [ ] Frontend production build uses prod **`EXPO_PUBLIC_SUPABASE_URL`** and **`EXPO_PUBLIC_SUPABASE_ANON_KEY`** (match prod project)
-- [ ] Groq / LLM keys exist **only** on the backend environment
-- [ ] User-facing API is served over **HTTPS** (TLS at host or reverse proxy)
-- [ ] Any marketing or Expo Web surface users hit is **HTTPS**
+- [x] Groq / LLM keys exist **only** on the backend environment _(never in Expo `EXPO_PUBLIC_*`; set on Render only if used)_
+- [x] User-facing API is served over **HTTPS** (TLS at host or reverse proxy) _(Render `onrender.com`)_
+- [ ] Any marketing or Expo Web surface users hit is **HTTPS** _(when you add Vercel etc.)_
 
 ---
 
@@ -66,7 +67,7 @@ Auth is **Supabase** (issue + refresh JWT); the Nest API **verifies** the access
 
 **Fill in**
 
-- `CORS_ORIGINS` in production (redact if you copy this elsewhere): _comma-separated list…_
+- `CORS_ORIGINS` in production (redact if you copy this elsewhere): _localhost Expo Web for now; add Vercel `https://…` when ready_
 
 **Checklist**
 
@@ -74,8 +75,8 @@ Auth is **Supabase** (issue + refresh JWT); the Nest API **verifies** the access
 - [ ] Supabase **redirect URLs** include your production app scheme / web origins (password reset, OAuth if used)
 - [ ] On a **production-pointing** mobile build: sign-in, sign-out, and a gated API call succeed
 - [ ] Same build after idle / near token expiry: **refresh** still works (no mystery 401s)
-- [ ] **`CORS_ORIGINS`** is set on the backend for `NODE_ENV=production` (app won’t start without it)
-- [ ] Every **browser** origin that calls the API is in **`CORS_ORIGINS`** (Expo Web, hosted web)
+- [x] **`CORS_ORIGINS`** is set on the backend for `NODE_ENV=production` (app won’t start without it)
+- [x] Every **browser** origin that calls the API is in **`CORS_ORIGINS`** (Expo Web, hosted web) _(Expo Web dev origins set; expand when you ship web on Vercel)_
 - [ ] Read [cors-production.md](./cors-production.md) once; behavior matches your deployment (native vs web)
 - [ ] **Native** app smoke test against prod API (no `Origin` header — should still work)
 - [ ] **Expo Web** smoke test against prod API (`Origin` must be allowlisted)
@@ -99,13 +100,13 @@ Auth is **Supabase** (issue + refresh JWT); the Nest API **verifies** the access
 
 **Fill in**
 
-- Where we read logs: _URL or tool_
+- Where we read logs: **Render** → Web Service → **Logs**
 
 **Checklist**
 
-- [ ] Deployed API has **`NODE_ENV=production`** — see [backend-operations.md](./backend-operations.md)
-- [ ] Log output is **JSON lines** to stdout (or your platform captures it correctly)
-- [ ] Logs are shipped to somewhere **searchable** (host UI, Datadog, etc.)
+- [x] Deployed API has **`NODE_ENV=production`** — see [backend-operations.md](./backend-operations.md)
+- [x] Log output is **JSON lines** to stdout (or your platform captures it correctly)
+- [x] Logs are shipped to somewhere **searchable** (host UI, Datadog, etc.) _(Render Logs UI)_
 - [ ] You can find recent **5xx** or `unhandled` lines after a test error
 - [ ] Spot-check: a **5xx** path does **not** log request bodies, `Authorization` headers, or passwords (`SanitizedExceptionFilter`)
 - [ ] **Deploy failures** notify someone (host email/Slack, GitHub Actions, etc.)
@@ -137,12 +138,12 @@ Global prefix **`/api`**.
 
 **Fill in**
 
-- Liveness URL: _https://…/api/health_
-- Ready URL: _https://…/api/health/ready_
+- Liveness URL: **`https://jim-app-l8o7.onrender.com/api/health`**
+- Ready URL: **`https://jim-app-l8o7.onrender.com/api/health/ready`**
 
 **Checklist**
 
-- [ ] **`GET /api/health`** returns 200 from outside (curl, browser, uptime monitor)
+- [ ] **`GET /api/health`** returns 200 from outside (curl, browser, uptime monitor) _(re-check after latest deploy finishes)_
 - [ ] Response is JSON with `status: ok` (and you’re OK exposing service name / timestamp)
 - [ ] **`GET /api/health/ready`** returns 200 when DB is up
 - [ ] **`/api/health/ready`** fails or errors appropriately when DB is down (if you test that scenario)
