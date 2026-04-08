@@ -2,7 +2,9 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as jwt from 'jsonwebtoken';
-import jwksRsa, { type JwksClient } from 'jwks-rsa';
+import jwksRsa = require('jwks-rsa');
+
+type JwksClientInstance = ReturnType<typeof jwksRsa>;
 
 export interface JwtPayload {
   sub: string;
@@ -11,7 +13,7 @@ export interface JwtPayload {
 
 @Injectable()
 export class AuthService {
-  private jwksClient: JwksClient | null = null;
+  private jwksClient: JwksClientInstance | null = null;
 
   constructor(
     private readonly config: ConfigService,
@@ -19,7 +21,7 @@ export class AuthService {
   ) {}
 
   /** Get JWKS client for Supabase public key discovery (RS256/ES256). */
-  private getJwksClient(): JwksClient | null {
+  private getJwksClient(): JwksClientInstance | null {
     if (this.jwksClient) return this.jwksClient;
     const supabaseUrl = this.config.get<string>('SUPABASE_URL');
     if (!supabaseUrl) {
