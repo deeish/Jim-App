@@ -16,6 +16,28 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 ---
 
+## Current focus: §1 (frontend) → §2 (Auth URLs + smoke tests)
+
+Do these in order; tick §§1–2 in this file as you finish each.
+
+1. **Local env (never commit `.env`)** — In `frontend/`, copy [`frontend/.env.example`](../frontend/.env.example) if needed and set:
+   - **`EXPO_PUBLIC_API_BASE=https://jim-app-l8o7.onrender.com`** (no `/api`, no trailing slash).
+   - **`EXPO_PUBLIC_SUPABASE_URL`** and **`EXPO_PUBLIC_SUPABASE_ANON_KEY`** — same Supabase project as the backend (publishable/anon key only).  
+   Then restart Metro (`npm start` / Expo) so vars reload.
+
+2. **§1 checkboxes** — After the app talks to Render for API calls, mark **§1** items for `EXPO_PUBLIC_*` / public-only keys as done.
+
+3. **Supabase → Authentication → URL Configuration** — Under **Redirect URLs**, ensure auth flows can return to the app, e.g.:
+   - **`jimapp://**`** (custom scheme matches [`frontend/app.json`](../frontend/app.json) `"scheme": "jimapp"`).
+   - Add **Expo dev** URLs if you use password reset / magic link from dev (see comments in `.env.example`).  
+   Mark **§2** “redirect URLs” when saved.
+
+4. **§2 smoke (native)** — On device/simulator with the env above: sign in → open a screen that calls the **Nest API** with the bearer token → mark **native** smoke and “gated API call” items when OK.
+
+5. **Optional §2** — Token refresh after idle; **Expo Web** against prod if you use web (CORS already allows localhost origins).
+
+---
+
 ## Progress log
 
 | Date       | What |
@@ -25,6 +47,7 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 | 2026-04-08 | **Render:** Web Service live; env vars set (`NODE_*`, `DATABASE_URL`, Supabase, `CORS_ORIGINS`). Build uses `NPM_CONFIG_PRODUCTION=false npm ci …`. Primary URL: **`https://jim-app-l8o7.onrender.com`** (change if your service name differs). **Next:** push repo (root `/` handler in `main.ts`, `package-lock.json` after `npm audit fix`, doc tweaks), set **`EXPO_PUBLIC_API_BASE`** to this origin on builds that should hit prod, manually tick §§1–6 after smoke tests (health, `/ready`, sign-in, gated API). |
 | 2026-04-08 | **Git:** pushed `118430d` to **`origin/main`** (Render deploy guide, `go-live-verification`, `main.ts` root + HEAD `/`, backend lockfile/`engines`). **Now:** wait for Render **auto-deploy** (if enabled) or **Manual Deploy** → confirm §6 health URLs → set **`EXPO_PUBLIC_API_BASE=https://jim-app-l8o7.onrender.com`** for prod-targeted app runs → finish §§1–2 smoke tests. |
 | 2026-04-08 | **§6 verified:** `GET /api/health` → `{"status":"ok","service":"jim-api",…}`; `GET /api/health/ready` → `{"status":"ready",…}` on **`https://jim-app-l8o7.onrender.com`**. |
+| 2026-04-08 | **Next:** §1–2 — set **`EXPO_PUBLIC_API_BASE`** on the client, confirm Supabase **redirect URLs** (`jimapp://**`), run native API smoke test (see **Current focus** above). |
 
 ---
 
@@ -34,7 +57,7 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 - [x] **No secrets in app source:** `backend/src` and `frontend/src` spot-check (variable *names* in docs/README only; Groq stays backend `config`, frontend mentions are UI/cache comments only)
 - [x] **Public client config:** `frontend/src/config/api.ts` reads **`EXPO_PUBLIC_API_BASE`** only; if unset, defaults to `http://localhost:3000` for local dev (`frontend/.env.example` describes prod)
 - [x] **Migrations CI hook exists:** [`.github/workflows/backend-migrate-deploy.yml`](../.github/workflows/backend-migrate-deploy.yml) — manual **`workflow_dispatch`**, `DATABASE_URL` from repo **Secrets** → `npx prisma migrate deploy` in `backend/`
-- [ ] Optional: **`git log -p -- '*.env'`** on a trusted machine before first prod deploy (ensures `.env` never landed in history)
+- [x] Optional: **`git log -p -- '*.env'`** on a trusted machine before first prod deploy _(2026-04-08: no tracked `.env` at repo/frontend/backend paths in recent history)_
 
 ---
 
@@ -49,7 +72,7 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 - [x] `.env` and real secrets are **gitignored** and never committed _(see §0)_
 - [x] Quick scan: no API keys, `DATABASE_URL`, or service role keys in **application source** (`backend/src`, `frontend/src`) _(see §0; still run optional git history check below)_
-- [ ] Optional: spot-check history — `git log -p -- '*.env'` (or your host’s secret-scan tool)
+- [x] Optional: spot-check history — `git log -p -- '*.env'` (or your host’s secret-scan tool) _(light check 2026-04-08)_
 - [x] Production secrets live only on the host / secret manager (not in the repo) _(Render env; not in git)_
 - [ ] Production `DATABASE_URL`, Supabase keys, and Groq (if used) **differ** from local dev _(optional; OK if same Supabase project while hobby-testing)_
 - [ ] Prefer a **separate** Supabase project (or distinct keys) for production vs dev
