@@ -1,0 +1,32 @@
+# Render Blueprint — Jim App API (NestJS + Prisma in /backend)
+# https://render.com/docs/infrastructure-as-code
+#
+# After linking the repo: set secret env vars in the dashboard (DATABASE_URL, SUPABASE_* , CORS_ORIGINS, GROQ_API_KEY, …).
+# Or remove this file and create the Web Service manually using docs/render-deploy.md
+
+services:
+  - type: web
+    name: jim-app-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci && npx prisma generate && npm run build
+    preDeployCommand: npx prisma migrate deploy
+    startCommand: npm run start:prod
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false

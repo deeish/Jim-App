@@ -1,5 +1,7 @@
 # Production checklist
 
+**Deploying to a new host or domain?** Use [**go-live-verification.md**](./go-live-verification.md) for fill-in checks (CORS, health URLs, secrets on the provider).
+
 Work through **one section at a time**; check items off when done.
 
 ---

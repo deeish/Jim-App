@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import type { Request, Response } from 'express';
 import helmet from 'helmet';
 import * as bodyParser from 'body-parser';
 import { AppModule } from './app.module';
@@ -71,6 +72,16 @@ async function bootstrap() {
 
   // API prefix
   app.setGlobalPrefix('api');
+
+  // Root URL has no Nest route; browsers and probes hit `/` — avoid a confusing 404.
+  const http = app.getHttpAdapter().getInstance();
+  const rootJson = {
+    service: 'jim-api',
+    health: '/api/health',
+    ready: '/api/health/ready',
+  };
+  http.get('/', (_req: Request, res: Response) => res.status(200).json(rootJson));
+  http.head('/', (_req: Request, res: Response) => res.status(200).end());
 
   const port = process.env.PORT || 3000;
   await app.listen(port);

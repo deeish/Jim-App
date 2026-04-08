@@ -93,8 +93,10 @@ The app resolves **`API_BASE_URL`** as `EXPO_PUBLIC_API_BASE` + `/api` (see `fro
 
 ## Production runbook
 
-1. **Build** the backend: `cd backend && npm ci && npm run build`.
-2. **Migrations**: apply with **`npm run migrate:deploy`** (uses `prisma migrate deploy`) against production `DATABASE_URL`. See **`docs/database-production.md`** and `.github/workflows/backend-migrate-deploy.yml` if you use GitHub Actions manually.
+**Hosting on Render:** step-by-step **`docs/render-deploy.md`** (optional **`render.yaml`** Blueprint at repo root).
+
+1. **Build** the backend: `cd backend && NPM_CONFIG_PRODUCTION=false npm ci && npx prisma generate && npm run build` (on hosts where `NODE_ENV=production` during install, `NPM_CONFIG_PRODUCTION=false` ensures devDependencies such as `@nestjs/cli` are installed).
+2. **Migrations**: apply with **`npm run migrate:deploy`** (uses `prisma migrate deploy`) against production `DATABASE_URL`. On Render, use a **pre-deploy command** or run once from your machine / **`.github/workflows/backend-migrate-deploy.yml`**. See **`docs/database-production.md`**.
 3. **Environment**: set **`NODE_ENV=production`**, **`DATABASE_URL`**, **`SUPABASE_URL`**, **`SUPABASE_JWT_SECRET`**, **`GROQ_API_KEY`**, and **required** **`CORS_ORIGINS`** (comma-separated browser origins). Copy any other keys from **`backend/.env.example`** as needed.
 4. **Run**: `npm run start:prod` (or your process manager running `node dist/src/main`).
 5. **Smoke checks**: `GET /api/health` (liveness), `GET /api/health/ready` (DB). See **`docs/backend-operations.md`**, **`docs/security-hardening.md`**, **`docs/cors-production.md`**, **`docs/ai-rate-limits.md`**.
@@ -132,7 +134,7 @@ Workout and plan generation call **Groq** from the backend only. Do **not** put 
 
 ## Docs index
 
-- **`docs/production-checklist.md`** — deploy readiness
+- **`docs/production-checklist.md`** — deploy readiness (implementation); **`docs/go-live-verification.md`** — per-environment checklist when you point real URLs at prod; **`docs/render-deploy.md`** — Render Web Service for the API
 - **`docs/database-production.md`**, **`docs/cors-production.md`**, **`docs/staging-environment.md`**, **`docs/mobile-release.md`**, **`docs/sentry-client.md`**, **`docs/e2e-staging.md`**
 
 ## Contributing
