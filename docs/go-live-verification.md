@@ -24,6 +24,7 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 | 2026-04-07 | **Hosting choice:** API on **Render** — follow [render-deploy.md](./render-deploy.md) (optional [render.yaml](../render.yaml) Blueprint). |
 | 2026-04-08 | **Render:** Web Service live; env vars set (`NODE_*`, `DATABASE_URL`, Supabase, `CORS_ORIGINS`). Build uses `NPM_CONFIG_PRODUCTION=false npm ci …`. Primary URL: **`https://jim-app-l8o7.onrender.com`** (change if your service name differs). **Next:** push repo (root `/` handler in `main.ts`, `package-lock.json` after `npm audit fix`, doc tweaks), set **`EXPO_PUBLIC_API_BASE`** to this origin on builds that should hit prod, manually tick §§1–6 after smoke tests (health, `/ready`, sign-in, gated API). |
 | 2026-04-08 | **Git:** pushed `118430d` to **`origin/main`** (Render deploy guide, `go-live-verification`, `main.ts` root + HEAD `/`, backend lockfile/`engines`). **Now:** wait for Render **auto-deploy** (if enabled) or **Manual Deploy** → confirm §6 health URLs → set **`EXPO_PUBLIC_API_BASE=https://jim-app-l8o7.onrender.com`** for prod-targeted app runs → finish §§1–2 smoke tests. |
+| 2026-04-08 | **§6 verified:** `GET /api/health` → `{"status":"ok","service":"jim-api",…}`; `GET /api/health/ready` → `{"status":"ready",…}` on **`https://jim-app-l8o7.onrender.com`**. |
 
 ---
 
@@ -143,9 +144,9 @@ Global prefix **`/api`**.
 
 **Checklist**
 
-- [ ] **`GET /api/health`** returns 200 from outside (curl, browser, uptime monitor) _(re-check after latest deploy finishes)_
-- [ ] Response is JSON with `status: ok` (and you’re OK exposing service name / timestamp)
-- [ ] **`GET /api/health/ready`** returns 200 when DB is up
+- [x] **`GET /api/health`** returns 200 from outside (curl, browser, uptime monitor)
+- [x] Response is JSON with `status: ok` (and you’re OK exposing service name / timestamp)
+- [x] **`GET /api/health/ready`** returns 200 when DB is up
 - [ ] **`/api/health/ready`** fails or errors appropriately when DB is down (if you test that scenario)
 - [ ] Host **load balancer** or uptime checker uses **liveness** (`/api/health`) as documented
 - [ ] If the platform supports it, **readiness** (`/api/health/ready`) gates traffic when DB must be up
