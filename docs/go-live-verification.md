@@ -4,9 +4,9 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 **Related:** Implementation status and deep links → [production-checklist.md](./production-checklist.md). Env reference → `backend/.env.example`, `frontend/.env.example`.
 
-**Last touched:** 2026-04-08 _(§2 CORS curl + §7 roll-up)_
+**Last touched:** 2026-04-08 _(§3/§4 Render dashboard cookbook)_
 
-**Status snapshot:** API on Render is **live**. **Native + gated API** OK. **§4** 401 smoke OK. **§5** defaults documented. **§2:** prod API returns **`Access-Control-Allow-Origin: http://localhost:19006`** for Expo Web dev (curl 2026-04-08). Remaining: Supabase dashboard §2 items, Render migrate/log ticks, optional **429** / **§7** sign-off.
+**Status snapshot:** API on Render is **live**. **Native + gated API** OK. **§4** 401 smoke OK. **§5** defaults documented. **§2** CORS for Expo Web dev verified (curl). **§3/§4:** step-by-step **Render** checks added below (migrate logs + log search); tick boxes after you run them. Optional: **429**, **§7** sign-off.
 
 ---
 
@@ -18,16 +18,17 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 
 ---
 
-## Current focus: §2 dashboard + §7 sign-off
+## Current focus: §3 / §4 on Render → optional §5 → §7
 
-**Done (keep for future envs):** §0; §6 health URLs; **§1** public `EXPO_PUBLIC_*` + prod API; **§2** native auth + gated API + **prod CORS mirror** for `http://localhost:19006` (see §2 curl); **§3** `/ready` runtime proof; **§4** logging baseline + **401** smoke; **§5** throttle doc review.
+**Done (keep for future envs):** §0; §6; **§1** client + prod API; **§2** native auth + CORS curl + quick-action text; **§3** `/ready` runtime; **§4** 401 curl + filter code review; **§5** doc review.
 
 **Do next (in order):**
 
-1. **§2 (Supabase)** — Walk through **Quick actions** in **§2 Auth & CORS** below: JWT/session review, **redirect URLs** (at least `jimapp://**`), sign-out + idle refresh when you care about polish.
-2. **§3 / §4 (Render)** — Pre-deploy migrate logs; **`http_exception`** log line confirmation (§4).
-3. **§5 (optional)** — **429** burst test with JWT.
-4. **§7** — Use the **Open items roll-up** table below; fill the sign-off table when ready or note **accepted risk** for open items.
+1. **§3** — Follow **Render dashboard (migrations)** in §3 below: confirm Pre-Deploy command and migrate lines in deploy logs; tick **Verified on host** + schema note when satisfied.
+2. **§4** — Follow **Render dashboard (logs)** in §4 below: run the 401 curl, find **`http_exception`** in **Logs**; tick that checkbox.
+3. **§2 (Supabase)** — If not done: **Quick actions** in **§2** (redirect URLs, JWT/session).
+4. **§5 (optional)** — **429** burst with JWT.
+5. **§7** — Sign-off or **accepted risk** using the roll-up table.
 
 ---
 
@@ -47,6 +48,7 @@ Use this as a **deployment-specific** checklist: confirm behavior on **your** ho
 | 2026-04-08 | **§4 smoke:** `GET /api/plans/me/with-weekly` without auth on prod → **401** (curl). **Still confirm** matching `http_exception` JSON line in Render logs. |
 | 2026-04-08 | **§5 review:** Throttle defaults and AI routes cross-checked vs [`app.module.ts`](../backend/src/app.module.ts), [`ai-rate-limits.md`](./ai-rate-limits.md), `plans`/`workouts` + public `exercises` (`catalogBurst` / `catalogDay`). |
 | 2026-04-08 | **§2 CORS (prod):** `GET /api/health` with `Origin: http://localhost:19006` → **200** and `access-control-allow-origin: http://localhost:19006` — Expo Web dev origin allowlisted on deployed API. |
+| 2026-04-08 | **Docs:** Added Render UI walkthroughs for **§3** (Pre-Deploy / migrate log search) and **§4** (live log search after 401 curl). |
 
 ---
 
@@ -135,10 +137,22 @@ curl -sS "https://jim-app-l8o7.onrender.com/api/health/ready"
 
 Expect **200** and JSON including `"status":"ready"` when the API’s `DATABASE_URL` is reachable.
 
+**Render dashboard (migrations)**
+
+1. Open [Render Dashboard](https://dashboard.render.com) → select this **Web Service** (API).
+2. **Settings** (left nav) → scroll to **Pre-Deploy Command**.  
+   - **Recommended:** `npx prisma migrate deploy` (see [render-deploy.md](./render-deploy.md) §1).  
+   - If this is **empty**, migrations must run via [backend-migrate-deploy.yml](../.github/workflows/backend-migrate-deploy.yml) or another documented process — note that in §7 if so.
+3. **Events** (or **Deploys**) → open the **latest successful** deploy.
+4. In the deploy log text, search (**Ctrl+F**) for: `prisma migrate`, `migrate deploy`, `Applied`, or `No pending migrations`.  
+   - Success usually shows Prisma applying or reporting migrations up to date.  
+   - Failures often mention `P3009`, pending migrations, or DB connection errors — fix before sign-off.
+5. Optional: compare migration folder names in [`backend/prisma/migrations`](../backend/prisma/migrations) to what you expect for this release.
+
 **Checklist**
 
 - [x] **Path exists:** Migrate on deploy is documented and wired in repo ([`render-deploy.md`](./render-deploy.md) pre-deploy step, [`render.yaml`](../render.yaml) `preDeployCommand`, optional [backend-migrate-deploy.yml](../.github/workflows/backend-migrate-deploy.yml))
-- [ ] **Verified on host:** Your Render service **Pre-deploy** (or CI) actually runs **`npx prisma migrate deploy`** and latest deploy logs show success
+- [ ] **Verified on host:** Your Render service **Pre-deploy** (or CI) actually runs **`npx prisma migrate deploy`** and latest deploy logs show success _(use **Render dashboard (migrations)** above)_
 - [x] **Runtime:** Production **`GET /api/health/ready`** succeeds (`status: ready`) — API can open a DB connection _(2026-04-08)_
 - [ ] After deploy, schema matches expectations (no pending migrations warning in logs) — _strong signal: authenticated Prisma routes work; still confirm deploy logs or `prisma migrate status` against prod DB when convenient_
 - [ ] Production **`DATABASE_URL`** points only at the **production** database
@@ -162,12 +176,19 @@ curl -sS -o NUL -w "%{http_code}" "https://jim-app-l8o7.onrender.com/api/plans/m
 
 Expect **401**; log line should look like `{"level":"warn","kind":"http_exception","status":401,"method":"GET","path":"/api/plans/me/with-weekly",...}` — no `Authorization` value. _(Verified **401** from prod curl 2026-04-08.)_
 
+**Render dashboard (logs)**
+
+1. Open the same Web Service → **Logs** (live runtime logs).
+2. In a terminal, run the **curl** above (401 request) so the service emits a line.
+3. In the Render log viewer, **search** for `http_exception` or `with-weekly`.
+4. Confirm one JSON line includes `"kind":"http_exception"`, `"status":401`, `"path":"/api/plans/me/with-weekly"` (or suffix), and does **not** include a bearer token or request body.
+
 **Checklist**
 
 - [x] Deployed API has **`NODE_ENV=production`** — see [backend-operations.md](./backend-operations.md)
 - [x] Log output is **JSON lines** to stdout (or your platform captures it correctly)
 - [x] Logs are shipped to somewhere **searchable** (host UI, Datadog, etc.) _(Render Logs UI)_
-- [ ] **Render:** Search logs for **`http_exception`** + **`/api/plans/me/with-weekly`** after the curl above; confirm line matches filter shape (no secrets) _(HTTP 401 verified 2026-04-08)_
+- [ ] **Render:** Search logs for **`http_exception`** + **`/api/plans/me/with-weekly`** after the curl above; confirm line matches filter shape (no secrets) _(HTTP **401** verified 2026-04-08; use **Render dashboard (logs)** above)_
 - [ ] You can find recent **5xx** or `unhandled` lines after a test error _(optional: force an internal error only in a safe environment)_
 - [x] Spot-check (code + sample logs): **`SanitizedExceptionFilter`** logs JSON lines with **`kind`**, **`status`**, **`method`**, **`path`**, **`ts`** only — not bodies, **`Authorization`**, or cookies ([`sanitized-exception.filter.ts`](../backend/src/common/sanitized-exception.filter.ts))
 - [ ] **Deploy failures** notify someone (host email/Slack, GitHub Actions, etc.)
