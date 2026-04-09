@@ -616,7 +616,7 @@ export default function WorkoutScreen() {
         </View>
         {todayWorkout && (
           <>
-            <Text style={styles.workoutName}>{todayWorkout.name}</Text>
+            {!workoutIdParam && <Text style={styles.workoutName}>{todayWorkout.name}</Text>}
             <Text style={styles.metaLine} numberOfLines={3}>
               {workoutMetaLine}
             </Text>
