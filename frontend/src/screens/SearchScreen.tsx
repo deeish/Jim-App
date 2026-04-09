@@ -23,9 +23,8 @@ import Button from '../components/Button';
 import { searchExercises, Exercise, getSavedExerciseIds, getSavedExercises, saveExercise, unsaveExercise } from '../services/exerciseService';
 import ExerciseGroupCard from '../components/ExerciseGroupCard';
 import { groupExercises, ExerciseGroup } from '../utils/exerciseGrouping';
-import { getCurrentPlan, updatePlan, createPlan } from '../services/planService';
-import type { ApiPlanWorkout } from '../services/planService';
-import { getWeeklyWorkouts, updateWorkout, getWorkoutById } from '../services/workoutService';
+import { getCurrentPlan, createPlan, addPlanSlotToCurrent } from '../services/planService';
+import { updateWorkout, getWorkoutById } from '../services/workoutService';
 import type { PlanSlot } from '../services/planService';
 import {
   formatLocalYmd,
@@ -498,8 +497,12 @@ export default function SearchScreen({ navigation }: Props) {
 
     setAddingToPlan(true);
     try {
-      const plan = await getCurrentPlan();
-      const anchorYmd = normalizePlanAnchorYmd(plan?.weekAnchorMonday);
+      let anchorYmd = normalizePlanAnchorYmd(addToPlan.weekAnchorMonday);
+      if (anchorYmd == null) {
+        const plan = await getCurrentPlan();
+        anchorYmd = normalizePlanAnchorYmd(plan?.weekAnchorMonday);
+      }
+
       const weekNumber =
         anchorYmd != null
           ? programWeekNumberForSlotWeek(anchorYmd, weekMondayIso)
@@ -514,65 +517,30 @@ export default function SearchScreen({ navigation }: Props) {
       }
 
       const slotTitle = deriveWorkoutTitle(selectedExercises);
-      const newSlot: PlanSlot = {
+      const slotPayload: PlanSlot = {
         weekNumber,
         dayOfWeek: day,
         title: slotTitle,
         detailLine: `${selectedExercises.length} exercises`,
         type: 'strength',
         durationMinutes: Math.max(30, selectedExercises.length * 5),
-        orderInDay: 0,
+        exercises: workoutExercises,
       };
 
-      let newPlanWorkoutId: string | null = null;
-
-      if (plan) {
-        const existingSlots: PlanSlot[] = plan.planWorkouts.map((pw: ApiPlanWorkout) => ({
-          weekNumber: pw.weekNumber,
-          dayOfWeek: pw.dayOfWeek,
-          title: pw.title,
-          detailLine: pw.detailLine ?? undefined,
-          type: pw.type,
-          durationMinutes: pw.durationMinutes,
-          intensity: pw.intensity ?? undefined,
-          orderInDay: pw.orderInDay,
-          exercises: pw.exercises?.length
-            ? pw.exercises.map((ex) => ({
-                exerciseId: ex.exerciseId,
-                name: ex.name ?? undefined,
-                sets: ex.sets,
-                reps: ex.reps,
-                weight: ex.weight ?? undefined,
-                notes: ex.notes ?? undefined,
-                orderIndex: ex.orderIndex,
-              }))
-            : undefined,
-        }));
-        const existingForDay = existingSlots.filter(s => s.dayOfWeek === day && s.weekNumber === weekNumber);
-        newSlot.orderInDay = existingForDay.length;
-        const updatedPlan = await updatePlan(plan.id, {
-          name: plan.name,
-          ...(anchorYmd != null ? { weekAnchorMonday: anchorYmd } : {}),
-          slots: [...existingSlots, newSlot],
-        });
-        const newPlanWorkout = updatedPlan.planWorkouts.find(
-          (pw: ApiPlanWorkout) => pw.dayOfWeek === day && pw.weekNumber === weekNumber && pw.orderInDay === newSlot.orderInDay
-        );
-        if (newPlanWorkout) newPlanWorkoutId = newPlanWorkout.id;
-      } else {
-        const createdPlan = await createPlan({
-          name: 'My Plan',
-          weekAnchorMonday: weekMondayIso,
-          slots: [{ ...newSlot, weekNumber: 1 }],
-        });
-        if (createdPlan.planWorkouts.length > 0) newPlanWorkoutId = createdPlan.planWorkouts[0].id;
-      }
-
-      if (newPlanWorkoutId) {
-        const weekly = await getWeeklyWorkouts();
-        const linkedWorkout = weekly.find(w => w.planWorkoutId === newPlanWorkoutId);
-        if (linkedWorkout) {
-          await updateWorkout(linkedWorkout.id, { exercises: workoutExercises });
+      try {
+        await addPlanSlotToCurrent(slotPayload);
+      } catch (firstErr: any) {
+        const noPlan =
+          firstErr?.response?.status === 404 &&
+          firstErr?.response?.data?.code === 'NO_CURRENT_PLAN';
+        if (noPlan) {
+          await createPlan({
+            name: 'My Plan',
+            weekAnchorMonday: weekMondayIso,
+            slots: [{ ...slotPayload, weekNumber: 1 }],
+          });
+        } else {
+          throw firstErr;
         }
       }
 

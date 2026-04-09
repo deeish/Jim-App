@@ -159,7 +159,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<ApiPlan | null>(null);
   const [startWorkoutLoading, setStartWorkoutLoading] = useState(false);
+  const [detailSheetGuideExpanded, setDetailSheetGuideExpanded] = useState(false);
   const contentScrollRef = React.useRef<ScrollView>(null);
+
+  useEffect(() => {
+    setDetailSheetGuideExpanded(false);
+  }, [detailSheetWorkout?.workout.id]);
 
   const loadPlan = useCallback(async () => {
     setPlanLoading(true);
@@ -413,55 +418,131 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         moveDayText: { fontSize: 16, color: colors.text },
         moveCancel: { padding: 16, alignItems: 'center' },
         moveCancelText: { fontSize: 16, color: colors.textMuted },
+        detailSheetOverlay: {
+          flex: 1,
+          backgroundColor: colors.overlay,
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20,
+        },
         detailSheetBox: {
           backgroundColor: colors.surface,
-          borderRadius: 16,
+          borderRadius: 20,
           width: '100%',
-          maxWidth: 380,
-          maxHeight: '85%',
+          maxWidth: 400,
+          maxHeight: '88%',
           overflow: 'hidden',
-        },
-        detailSheetScroll: { maxHeight: 400 },
-        detailSheetTitleRow: { paddingHorizontal: 20, paddingTop: 20 },
-        detailSheetTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
-        detailSheetMeta: { fontSize: 14, color: colors.textSecondary, paddingHorizontal: 20, paddingTop: 8 },
-        detailSheetDetail: { fontSize: 15, color: colors.textTertiary, paddingHorizontal: 20, paddingTop: 4 },
-        detailSheetReasoning: {
-          marginTop: 16,
-          paddingHorizontal: 20,
-          paddingVertical: 12,
-          backgroundColor: colors.background,
-          borderRadius: 12,
-          marginHorizontal: 20,
-        },
-        detailSheetReasoningLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
-        detailSheetReasoningText: { fontSize: 15, color: colors.text, lineHeight: 22 },
-        detailSheetExercises: { marginTop: 16, paddingHorizontal: 20, paddingBottom: 12 },
-        detailSheetExercisesLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-        detailSheetExerciseRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-        detailSheetExerciseName: { fontSize: 16, fontWeight: '600', color: colors.text },
-        detailSheetExerciseMeta: { fontSize: 14, color: colors.textSecondary, marginTop: 2 },
-        detailSheetExerciseNotes: { fontSize: 13, color: colors.textTertiary, fontStyle: 'italic', marginTop: 4 },
-        detailSheetNoExercises: { fontSize: 14, color: colors.textTertiary, fontStyle: 'italic', paddingHorizontal: 20, marginTop: 12 },
-        detailSheetActions: { flexDirection: 'row', gap: 12, padding: 20, paddingTop: 16, flexWrap: 'wrap' },
-        detailSheetPrimary: {
-          flex: 1,
-          backgroundColor: colors.primary,
-          paddingVertical: 14,
-          borderRadius: 10,
-          alignItems: 'center',
-        },
-        detailSheetPrimaryText: { fontSize: 16, fontWeight: '600', color: colors.background },
-        detailSheetSecondary: {
-          flex: 1,
-          backgroundColor: colors.surface,
           borderWidth: 1,
           borderColor: colors.border,
-          paddingVertical: 14,
-          borderRadius: 10,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: 12 },
+          shadowOpacity: 0.45,
+          shadowRadius: 28,
+          elevation: 16,
+        },
+        detailSheetScroll: { flexGrow: 0, maxHeight: 420 },
+        detailSheetScrollContent: { paddingBottom: 12 },
+        detailSheetTitleRow: {
+          paddingHorizontal: 22,
+          paddingTop: 22,
+          paddingBottom: 4,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        },
+        detailSheetTitle: { fontSize: 22, fontWeight: '700', color: colors.text, letterSpacing: -0.3 },
+        detailSheetMeta: {
+          fontSize: 14,
+          color: colors.textSecondary,
+          paddingHorizontal: 22,
+          paddingTop: 14,
+          textTransform: 'capitalize',
+        },
+        detailSheetDetail: { fontSize: 14, color: colors.textTertiary, paddingHorizontal: 22, paddingTop: 6 },
+        detailSheetGuide: {
+          marginTop: 14,
+          marginHorizontal: 22,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.background,
+          overflow: 'hidden',
+        },
+        detailSheetGuideHeader: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingVertical: 12,
+          paddingHorizontal: 14,
+          gap: 10,
+        },
+        detailSheetGuideTextCol: { flex: 1, minWidth: 0 },
+        detailSheetGuideTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
+        detailSheetGuideHint: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+        detailSheetGuideBody: { paddingHorizontal: 14, paddingBottom: 14, paddingTop: 0 },
+        detailSheetGuideBlock: { marginBottom: 12 },
+        detailSheetGuideBlockLast: { marginBottom: 0 },
+        detailSheetGuideSectionLabel: {
+          fontSize: 13,
+          fontWeight: '700',
+          color: colors.primary,
+          marginBottom: 6,
+          letterSpacing: 0.6,
+          textTransform: 'uppercase',
+        },
+        detailSheetGuideSectionText: { fontSize: 14, color: colors.textSecondary, lineHeight: 21 },
+        detailSheetExercises: { marginTop: 18, paddingHorizontal: 22, paddingBottom: 8 },
+        detailSheetExercisesLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 },
+        detailSheetExercisesAccent: { width: 3, height: 14, borderRadius: 2, backgroundColor: colors.primary },
+        detailSheetExercisesLabel: {
+          fontSize: 11,
+          fontWeight: '700',
+          color: colors.primary,
+          textTransform: 'uppercase',
+          letterSpacing: 1.35,
+        },
+        detailSheetExerciseRow: {
+          paddingVertical: 12,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: colors.border,
+        },
+        detailSheetExerciseRowLast: { borderBottomWidth: 0 },
+        detailSheetExerciseName: { fontSize: 16, fontWeight: '600', color: colors.text, lineHeight: 22 },
+        detailSheetExerciseMeta: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
+        detailSheetExerciseNotes: { fontSize: 13, color: colors.textTertiary, fontStyle: 'italic', marginTop: 6 },
+        detailSheetNoExercises: { fontSize: 14, color: colors.textTertiary, fontStyle: 'italic', paddingHorizontal: 22, marginTop: 14 },
+        detailSheetFooter: {
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          paddingHorizontal: 20,
+          paddingTop: 16,
+          paddingBottom: 20,
+          backgroundColor: colors.surface,
+          gap: 10,
+        },
+        detailSheetFooterRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
+        detailSheetGhostBtn: {
+          flex: 1,
+          minHeight: 48,
+          paddingHorizontal: 10,
+          paddingVertical: 12,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: 'transparent',
+          justifyContent: 'center',
           alignItems: 'center',
         },
-        detailSheetSecondaryText: { fontSize: 16, fontWeight: '600', color: colors.text },
+        detailSheetGhostBtnText: { fontSize: 15, fontWeight: '600', color: colors.text, textAlign: 'center' },
+        detailSheetPrimaryFull: {
+          width: '100%',
+          minHeight: 50,
+          paddingVertical: 14,
+          paddingHorizontal: 16,
+          borderRadius: 12,
+          backgroundColor: colors.primary,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        detailSheetPrimaryText: { fontSize: 16, fontWeight: '700', color: colors.background },
       }),
     [colors]
   );
@@ -624,12 +705,15 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               day,
               weekIndex: selectedWeek,
               weekMondayIso,
+              ...(currentPlan != null
+                ? { weekAnchorMonday: currentPlan.weekAnchorMonday ?? null }
+                : {}),
             },
           },
         });
       }
     },
-    [navigation, selectedWeek]
+    [navigation, selectedWeek, currentPlan != null, currentPlan?.weekAnchorMonday]
   );
 
   const handleAIGenerate = useCallback(() => {
@@ -973,7 +1057,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
 
       {/* Workout detail sheet: reasoning, exercises, and actions */}
       <Modal visible={!!detailSheetWorkout} transparent animationType="fade">
-        <Pressable style={styles.menuOverlay} onPress={closeDetailSheet}>
+        <Pressable style={styles.detailSheetOverlay} onPress={closeDetailSheet}>
           {detailSheetWorkout && (() => {
             const linked = resolveWorkoutForPlanSlot(detailSheetWorkout.workout.id);
             const isRestDay = isRestPlanSlotTitle(detailSheetWorkout.workout.title);
@@ -998,7 +1082,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               linked?.exercises?.length ? linked.exercises : fromPlanRows;
             return (
               <Pressable style={styles.detailSheetBox} onPress={(e) => e.stopPropagation()}>
-                <ScrollView style={styles.detailSheetScroll} showsVerticalScrollIndicator={false}>
+                <ScrollView
+                  style={styles.detailSheetScroll}
+                  contentContainerStyle={styles.detailSheetScrollContent}
+                  showsVerticalScrollIndicator={false}
+                  bounces={false}
+                >
                   <View style={styles.detailSheetTitleRow}>
                     <Text style={styles.detailSheetTitle}>{detailSheetWorkout.workout.title}</Text>
                   </View>
@@ -1006,48 +1095,80 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                     {detailSheetWorkout.workout.type} • {detailSheetWorkout.workout.durationMinutes} min
                     {detailSheetWorkout.workout.intensity ? ` • ${detailSheetWorkout.workout.intensity}` : ''}
                   </Text>
-                  <Text style={[styles.detailSheetDetail, { marginTop: 4 }]}>
+                  <Text style={styles.detailSheetDetail}>
                     {detailSheetWorkout.day} • {detailSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </Text>
 
                   {!isRestDay && linked && (linked.warmUp || linked.reasoning || linked.coolDown) ? (
-                    <View style={styles.detailSheetReasoning}>
-                      {linked.warmUp ? (
-                        <>
-                          <Text style={styles.detailSheetReasoningLabel}>Warm-up</Text>
-                          <Text style={styles.detailSheetReasoningText}>{linked.warmUp}</Text>
-                        </>
-                      ) : null}
-                      {linked.reasoning ? (
-                        <>
-                          <Text style={[styles.detailSheetReasoningLabel, linked.warmUp && { marginTop: 12 }]}>Why this workout</Text>
-                          <Text style={styles.detailSheetReasoningText}>{linked.reasoning}</Text>
-                        </>
-                      ) : null}
-                      {linked.coolDown ? (
-                        <>
-                          <Text style={[styles.detailSheetReasoningLabel, (linked.warmUp || linked.reasoning) && { marginTop: 12 }]}>Cool-down</Text>
-                          <Text style={styles.detailSheetReasoningText}>{linked.coolDown}</Text>
-                        </>
+                    <View style={styles.detailSheetGuide}>
+                      <TouchableOpacity
+                        style={styles.detailSheetGuideHeader}
+                        onPress={() => setDetailSheetGuideExpanded((v) => !v)}
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded: detailSheetGuideExpanded }}
+                        accessibilityLabel={
+                          detailSheetGuideExpanded
+                            ? 'Hide session guide'
+                            : 'Show warm-up, why this workout and cool-down'
+                        }
+                      >
+                        <Ionicons
+                          name={detailSheetGuideExpanded ? 'chevron-up' : 'chevron-down'}
+                          size={20}
+                          color={colors.primary}
+                        />
+                        <View style={styles.detailSheetGuideTextCol}>
+                          <Text style={styles.detailSheetGuideTitle}>Session guide</Text>
+                          <Text style={styles.detailSheetGuideHint} numberOfLines={2}>
+                            Warm-up, why this session & cool-down — optional read before you train.
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                      {detailSheetGuideExpanded ? (
+                        <View style={styles.detailSheetGuideBody}>
+                          {linked.warmUp ? (
+                            <View style={styles.detailSheetGuideBlock}>
+                              <Text style={styles.detailSheetGuideSectionLabel}>Warm-up</Text>
+                              <Text style={styles.detailSheetGuideSectionText}>{linked.warmUp}</Text>
+                            </View>
+                          ) : null}
+                          {linked.reasoning ? (
+                            <View style={styles.detailSheetGuideBlock}>
+                              <Text style={styles.detailSheetGuideSectionLabel}>Why this workout</Text>
+                              <Text style={styles.detailSheetGuideSectionText}>{linked.reasoning}</Text>
+                            </View>
+                          ) : null}
+                          {linked.coolDown ? (
+                            <View style={[styles.detailSheetGuideBlock, styles.detailSheetGuideBlockLast]}>
+                              <Text style={styles.detailSheetGuideSectionLabel}>Cool-down</Text>
+                              <Text style={styles.detailSheetGuideSectionText}>{linked.coolDown}</Text>
+                            </View>
+                          ) : null}
+                        </View>
                       ) : null}
                     </View>
                   ) : null}
 
                   {!isRestDay && displayExercises.length > 0 ? (
                     <View style={styles.detailSheetExercises}>
-                      <Text style={styles.detailSheetExercisesLabel}>Exercises</Text>
+                      <View style={styles.detailSheetExercisesLabelRow}>
+                        <View style={styles.detailSheetExercisesAccent} />
+                        <Text style={styles.detailSheetExercisesLabel}>Exercises</Text>
+                      </View>
                       {displayExercises
                         .slice()
                         .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
-                        .map((ex, idx) => {
+                        .map((ex, idx, arr) => {
                           const row = ex as typeof ex & { exerciseId?: string };
                           const libId = row.exerciseId;
                           const canOpenLibrary = isLinkableLibraryExerciseId(libId);
+                          const isLast = idx === arr.length - 1;
                           return (
                             <Pressable
                               key={ex.id ?? `ex-${idx}`}
                               style={({ pressed }) => [
                                 styles.detailSheetExerciseRow,
+                                isLast ? styles.detailSheetExerciseRowLast : null,
                                 canOpenLibrary && pressed ? { opacity: 0.75 } : null,
                               ]}
                               onPress={() => {
@@ -1087,40 +1208,50 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                   ) : null}
 
                   {isRestDay ? (
-                    <Text style={styles.detailSheetDetail}>Off / Optional walk</Text>
+                    <Text style={[styles.detailSheetDetail, { marginTop: 12 }]}>Off / Optional walk</Text>
                   ) : null}
                 </ScrollView>
-                <View style={styles.detailSheetActions}>
-                  <TouchableOpacity style={styles.detailSheetSecondary} onPress={closeDetailSheet}>
-                    <Text style={styles.detailSheetSecondaryText}>Back</Text>
-                  </TouchableOpacity>
-                  {!isRestDay && linked && (
-                    <TouchableOpacity
-                      style={styles.detailSheetSecondary}
-                      onPress={() => {
-                        closeDetailSheet();
-                        navigation.navigate('WorkoutDetail', { workoutId: linked.id });
-                      }}
-                    >
-                      <Text style={styles.detailSheetSecondaryText}>View full workout</Text>
+                <View style={styles.detailSheetFooter}>
+                  {isRestDay ? (
+                    <TouchableOpacity style={styles.detailSheetPrimaryFull} onPress={closeDetailSheet}>
+                      <Text style={styles.detailSheetPrimaryText}>OK</Text>
                     </TouchableOpacity>
+                  ) : (
+                    <>
+                      <View style={styles.detailSheetFooterRow}>
+                        <TouchableOpacity style={styles.detailSheetGhostBtn} onPress={closeDetailSheet}>
+                          <Text style={styles.detailSheetGhostBtnText}>Back</Text>
+                        </TouchableOpacity>
+                        {linked ? (
+                          <TouchableOpacity
+                            style={styles.detailSheetGhostBtn}
+                            onPress={() => {
+                              closeDetailSheet();
+                              navigation.navigate('WorkoutDetail', { workoutId: linked.id });
+                            }}
+                          >
+                            <Text style={styles.detailSheetGhostBtnText} numberOfLines={1}>
+                              Workout details
+                            </Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                      <TouchableOpacity
+                        style={[
+                          styles.detailSheetPrimaryFull,
+                          (startWorkoutLoading || displayExercises.length === 0) && { opacity: 0.55 },
+                        ]}
+                        onPress={() => void handleStartWorkout()}
+                        disabled={startWorkoutLoading || displayExercises.length === 0}
+                      >
+                        {startWorkoutLoading ? (
+                          <ActivityIndicator color={colors.background} />
+                        ) : (
+                          <Text style={styles.detailSheetPrimaryText}>Start workout</Text>
+                        )}
+                      </TouchableOpacity>
+                    </>
                   )}
-                  <TouchableOpacity
-                    style={[
-                      styles.detailSheetPrimary,
-                      (startWorkoutLoading || (!isRestDay && displayExercises.length === 0)) && { opacity: 0.6 },
-                    ]}
-                    onPress={isRestDay ? closeDetailSheet : () => void handleStartWorkout()}
-                    disabled={!isRestDay && (startWorkoutLoading || displayExercises.length === 0)}
-                  >
-                    {startWorkoutLoading && !isRestDay ? (
-                      <ActivityIndicator color={colors.background} />
-                    ) : (
-                      <Text style={styles.detailSheetPrimaryText}>
-                        {isRestDay ? 'OK' : 'Start workout'}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
                 </View>
               </Pressable>
             );

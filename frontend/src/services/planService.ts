@@ -182,6 +182,18 @@ export async function generateSingleSession(
   return response.data;
 }
 
+/** Append one slot to the signed-in user's current plan (same plan as GET /plans/me). */
+export async function addPlanSlotToCurrent(slot: PlanSlot): Promise<ApiPlan> {
+  const response = await api.post<ApiPlan>('/plans/me/slots/add', slot);
+  return response.data;
+}
+
+/** Append one slot to a specific plan by id (prefer {@link addPlanSlotToCurrent} from the app UI). */
+export async function addPlanSlot(planId: string, slot: PlanSlot): Promise<ApiPlan> {
+  const response = await api.post<ApiPlan>(`/plans/${planId}/slots/add`, slot);
+  return response.data;
+}
+
 /** Remove a single slot from the plan. Returns the updated plan. */
 export async function removePlanSlot(planId: string, slotId: string): Promise<ApiPlan> {
   const url = `/plans/${planId}/slots/remove`;

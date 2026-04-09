@@ -27,6 +27,12 @@ export const generateWorkout = async (day?: string, preferences?: any): Promise<
   return response.data;
 };
 
+/** AI-regenerate exercises in place for this workout (same id; uses title/focus, day, duration). */
+export const regenerateWorkoutInPlace = async (workoutId: string): Promise<Workout> => {
+  const response = await api.post<Workout>(`/workouts/${workoutId}/regenerate`, {});
+  return response.data;
+};
+
 /** Generated workout shape without id (for plan preview). */
 export interface WorkoutPreview {
   name: string;

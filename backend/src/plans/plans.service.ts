@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkoutGeneratorService } from '../workouts/workout-generator.service';
 import { ExercisesService } from '../exercises/exercises.service';
-import { CreatePlanDto } from './dto/create-plan.dto';
+import { CreatePlanDto, PlanSlotDto } from './dto/create-plan.dto';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
 import {
@@ -799,6 +804,124 @@ export class PlansService {
         (p) => nameLower.includes(p) || notesLower.includes(p),
       );
     });
+  }
+
+  /**
+   * Insert one plan_workout (+ optional exercises) and materialize linked Workout when exercises exist.
+   * Caller must have already authorized access to `planId`.
+   */
+  private async appendPlanSlotCore(
+    planId: string,
+    orderSlots: Array<{
+      weekNumber: number;
+      dayOfWeek: string;
+      orderInDay: number;
+    }>,
+    slot: PlanSlotDto,
+    userId: string,
+  ) {
+    let orderInDay = slot.orderInDay ?? 0;
+    if (slot.orderInDay === undefined || slot.orderInDay === null) {
+      const sameDay = orderSlots.filter(
+        (pw) =>
+          pw.weekNumber === slot.weekNumber && pw.dayOfWeek === slot.dayOfWeek,
+      );
+      orderInDay =
+        sameDay.length === 0
+          ? 0
+          : Math.max(...sameDay.map((s) => s.orderInDay)) + 1;
+    }
+
+    const created = await this.prisma.planWorkout.create({
+      data: {
+        workoutPlanId: planId,
+        weekNumber: slot.weekNumber,
+        dayOfWeek: slot.dayOfWeek,
+        title: slot.title,
+        detailLine: slot.detailLine ?? undefined,
+        type: slot.type,
+        durationMinutes: slot.durationMinutes,
+        intensity: slot.intensity ?? undefined,
+        orderInDay,
+        exercises: slot.exercises?.length
+          ? {
+              create: slot.exercises.map((e, i) => ({
+                exerciseId:
+                  (e.exerciseId && String(e.exerciseId).trim()) ||
+                  `applied_${slot.weekNumber}_${slot.dayOfWeek}_${i}`,
+                name: e.name ?? null,
+                sets: e.sets,
+                reps: e.reps,
+                weight: e.weight ?? null,
+                notes: e.notes ?? null,
+                orderIndex: e.orderIndex ?? i,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        exercises: { orderBy: { orderIndex: 'asc' as const } },
+      },
+    });
+
+    if (created.exercises.length > 0) {
+      await this.ensureWorkoutFromPlanSlotExercises(created, planId, userId);
+    }
+
+    return this.getById(planId, userId);
+  }
+
+  /**
+   * Append a slot to the user's current plan (same resolution as GET /plans/me).
+   * Prefer this over addSlot(planId) from the client so a wrong/stale id cannot 404.
+   */
+  async addSlotToCurrentPlan(userId: string, slot: PlanSlotDto) {
+    const plan = await this.prisma.workoutPlan.findFirst({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        planWorkouts: {
+          select: { weekNumber: true, dayOfWeek: true, orderInDay: true },
+        },
+      },
+    });
+    if (!plan) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.NOT_FOUND,
+          code: 'NO_CURRENT_PLAN',
+          message: 'No workout plan found for this account.',
+        },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    return this.appendPlanSlotCore(plan.id, plan.planWorkouts, slot, userId);
+  }
+
+  /**
+   * Append a single plan slot (e.g. from exercise library). Does not delete or recreate other slots.
+   * When exercises are included, creates the linked Workout row without running full-plan LLM passes.
+   */
+  async addSlot(planId: string, slot: PlanSlotDto, userId: string) {
+    const plan = await this.prisma.workoutPlan.findUnique({
+      where: { id: planId },
+      include: {
+        planWorkouts: {
+          select: { weekNumber: true, dayOfWeek: true, orderInDay: true },
+        },
+      },
+    });
+    if (!plan) throw new NotFoundException(`Plan with ID ${planId} not found`);
+    if (plan.userId && plan.userId !== userId) {
+      throw new NotFoundException(`Plan with ID ${planId} not found`);
+    }
+
+    return this.appendPlanSlotCore(
+      plan.id,
+      plan.planWorkouts,
+      slot,
+      userId,
+    );
   }
 
   /** Remove a single slot from the plan. Unlinks the linked Workout if any. */

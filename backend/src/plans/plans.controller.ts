@@ -12,6 +12,7 @@ import {
 import { PlansService } from './plans.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { RemoveSlotDto } from './dto/remove-slot.dto';
+import { PlanSlotDto } from './dto/create-plan.dto';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
 import { AuthGuard } from '../auth/auth.guard';
@@ -31,6 +32,16 @@ export class PlansController {
   @Get('me')
   getCurrent(@UserId() userId: string) {
     return this.plansService.getCurrent(userId);
+  }
+
+  /**
+   * Append one slot to the signed-in user's current plan (same plan as GET /plans/me).
+   * Declared before POST :id/slots/add so paths like /plans/me/slots/add are never captured as :id = "me".
+   */
+  @Post('me/slots/add')
+  @HttpCode(HttpStatus.OK)
+  addSlotToCurrent(@Body() dto: PlanSlotDto, @UserId() userId: string) {
+    return this.plansService.addSlotToCurrentPlan(userId, dto);
   }
 
   @Get(':id')
@@ -65,6 +76,17 @@ export class PlansController {
     @UserId() userId: string,
   ) {
     return this.plansService.update(id, dto, userId);
+  }
+
+  /** Append one slot (and optional exercises) without rebuilding the whole plan — faster than PATCH /plans/:id. */
+  @Post(':id/slots/add')
+  @HttpCode(HttpStatus.OK)
+  addSlot(
+    @Param('id') planId: string,
+    @Body() dto: PlanSlotDto,
+    @UserId() userId: string,
+  ) {
+    return this.plansService.addSlot(planId, dto, userId);
   }
 
   @Post(':id/slots/remove')

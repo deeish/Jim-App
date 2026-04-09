@@ -5,7 +5,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
-import { getWorkoutById, generateWorkout, saveWorkout, unsaveWorkout } from '../services/workoutService';
+import {
+  getWorkoutById,
+  generateWorkout,
+  regenerateWorkoutInPlace,
+  updateWorkout,
+  saveWorkout,
+  unsaveWorkout,
+} from '../services/workoutService';
 import WorkoutLikeButton from '../components/WorkoutLikeButton';
 import { Workout } from '../types/workout';
 import { useTheme } from '../theme/ThemeContext';
@@ -27,6 +34,8 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   const [generating, setGenerating] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savingLike, setSavingLike] = useState(false);
+  /** Collapsed by default — exercises stay “above the fold”; expand when you want the long AI copy. */
+  const [guideExpanded, setGuideExpanded] = useState(false);
 
   const styles = useMemo(
     () =>
@@ -35,76 +44,134 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
         emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
         emptyText: { fontSize: 18, color: colors.textTertiary, marginBottom: 20 },
-        header: { backgroundColor: colors.surface, padding: 20, marginBottom: 12 },
-        workoutName: { fontSize: 28, fontWeight: 'bold', color: colors.text, marginBottom: 8 },
-        workoutDay: { fontSize: 16, color: colors.primary, fontWeight: '600' },
-        exercisesContainer: { padding: 12 },
-        guideSection: { paddingHorizontal: 12, paddingBottom: 16 },
+        header: {
+          backgroundColor: colors.surface,
+          paddingHorizontal: 22,
+          paddingTop: 18,
+          paddingBottom: 20,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: colors.border,
+        },
+        workoutName: { fontSize: 26, fontWeight: '700', color: colors.text, marginBottom: 6, letterSpacing: -0.3 },
+        workoutDay: { fontSize: 15, color: colors.primary, fontWeight: '600', textTransform: 'capitalize' },
+        exercisesContainer: { paddingHorizontal: 16, paddingTop: 20 },
+        guideDisclosure: {
+          marginHorizontal: 16,
+          marginTop: 12,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.surface,
+          overflow: 'hidden',
+        },
+        guideDisclosureHeader: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingVertical: 12,
+          paddingHorizontal: 14,
+          gap: 10,
+        },
+        guideDisclosureTextCol: { flex: 1, minWidth: 0 },
+        guideDisclosureTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
+        guideDisclosureHint: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+        guideDisclosureBody: { paddingHorizontal: 14, paddingBottom: 14, paddingTop: 0 },
         guideBlock: { marginBottom: 14 },
-        guideLabel: { fontSize: 14, fontWeight: '600', color: colors.primary, marginBottom: 4 },
-        guideText: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
-        sectionTitle: { fontSize: 20, fontWeight: 'bold', color: colors.text, marginBottom: 12 },
+        guideBlockLast: { marginBottom: 0 },
+        guideLabel: {
+          fontSize: 13,
+          fontWeight: '700',
+          color: colors.primary,
+          marginBottom: 6,
+          letterSpacing: 0.6,
+          textTransform: 'uppercase',
+        },
+        guideText: { fontSize: 14, color: colors.textSecondary, lineHeight: 21 },
+        sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 10 },
+        sectionAccent: { width: 3, height: 16, borderRadius: 2, backgroundColor: colors.primary },
+        sectionTitle: { fontSize: 11, fontWeight: '700', color: colors.primary, letterSpacing: 1.2, textTransform: 'uppercase' },
+        sectionSubtitle: { fontSize: 14, color: colors.textSecondary, marginBottom: 16, lineHeight: 20 },
+        actionsBlock: { gap: 12, marginBottom: 20 },
         exerciseCard: {
           backgroundColor: colors.surface,
-          padding: 16,
-          borderRadius: 12,
-          marginBottom: 12,
-          shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.3,
-          shadowRadius: 3.84,
-          elevation: 5,
+          paddingVertical: 14,
+          paddingHorizontal: 16,
+          borderRadius: 14,
+          marginBottom: 10,
+          borderWidth: 1,
+          borderColor: colors.border,
         },
-        exerciseName: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 8 },
-        exerciseDetails: { flexDirection: 'row', gap: 16, marginBottom: 8 },
-        exerciseDetail: { fontSize: 14, color: colors.textSecondary },
-        exerciseNotes: { fontSize: 14, color: colors.textTertiary, fontStyle: 'italic', marginTop: 8 },
-        generateButton: {
+        exerciseCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+        exerciseIndex: {
+          width: 28,
+          height: 28,
+          borderRadius: 8,
+          backgroundColor: colors.background,
+          borderWidth: 1,
+          borderColor: colors.border,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        exerciseIndexText: { fontSize: 13, fontWeight: '700', color: colors.primary },
+        exerciseNameCol: { flex: 1, minWidth: 0 },
+        exerciseCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+        exerciseTitleWrap: { flex: 1, minWidth: 0 },
+        exerciseRemoveHit: { padding: 8, marginLeft: 4, marginTop: -4 },
+        exerciseName: { fontSize: 17, fontWeight: '600', color: colors.text, lineHeight: 22 },
+        exerciseMetaLine: { fontSize: 14, color: colors.textSecondary, marginTop: 8, lineHeight: 20 },
+        primaryCta: {
           backgroundColor: colors.primary,
-          padding: 18,
-          margin: 12,
+          paddingVertical: 16,
+          paddingHorizontal: 16,
           borderRadius: 12,
           alignItems: 'center',
-          shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.3,
-          shadowRadius: 3.84,
-          elevation: 5,
+          justifyContent: 'center',
+          minHeight: 52,
         },
-        generateButtonText: { color: colors.background, fontSize: 18, fontWeight: '600' },
-        startButton: {
-          backgroundColor: colors.secondary,
-          padding: 18,
-          margin: 12,
-          marginBottom: 8,
-          borderRadius: 12,
-          alignItems: 'center',
-        },
-        startButtonText: { color: colors.background, fontSize: 18, fontWeight: '600' },
-        addExercisesButton: {
-          backgroundColor: colors.surface,
+        primaryCtaText: { color: colors.background, fontSize: 17, fontWeight: '700' },
+        outlineCta: {
+          backgroundColor: 'transparent',
           borderWidth: 1,
           borderColor: colors.primary,
-          padding: 14,
-          marginHorizontal: 12,
-          marginBottom: 12,
+          paddingVertical: 14,
+          paddingHorizontal: 16,
           borderRadius: 12,
           alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 48,
         },
-        addExercisesButtonText: { color: colors.primary, fontSize: 16, fontWeight: '600' },
+        outlineCtaText: { color: colors.primary, fontSize: 16, fontWeight: '600' },
+        tertiaryBlock: { marginTop: 12, paddingBottom: 8 },
+        tertiaryCta: {
+          paddingVertical: 14,
+          paddingHorizontal: 16,
+          borderRadius: 12,
+          alignItems: 'center',
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.surface,
+        },
+        tertiaryCtaText: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
+        tertiaryHint: {
+          fontSize: 12,
+          color: colors.textMuted,
+          textAlign: 'center',
+          marginTop: 8,
+          lineHeight: 17,
+          paddingHorizontal: 4,
+        },
         backBar: {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          borderBottomWidth: 1,
+          paddingHorizontal: 8,
+          paddingBottom: 10,
+          borderBottomWidth: StyleSheet.hairlineWidth,
           borderBottomColor: colors.border,
           backgroundColor: colors.surface,
         },
-        backButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingRight: 16 },
-        backButtonText: { fontSize: 17, fontWeight: '600', color: colors.primary },
-        saveButton: { padding: 8 },
+        backButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 12 },
+        backButtonText: { fontSize: 16, fontWeight: '600', color: colors.primary },
+        saveButton: { padding: 10, marginRight: 4 },
       }),
     [colors]
   );
@@ -144,6 +211,10 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
       loadWorkout();
     }
   }, [workoutId]);
+
+  useEffect(() => {
+    setGuideExpanded(false);
+  }, [workout?.id]);
 
   const loadWorkout = async () => {
     if (!workoutId) return;
@@ -192,8 +263,67 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
     }
   };
 
+  const handleRegenerateWorkout = async () => {
+    if (!workout?.id) return;
+    try {
+      setGenerating(true);
+      const updated = await regenerateWorkoutInPlace(workout.id);
+      setWorkout(updated);
+    } catch (error: any) {
+      console.error('Error regenerating workout:', error);
+      const raw = error?.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw.join(' ') : raw;
+      const fallback =
+        error?.response?.status === 400
+          ? 'Add exercises before regenerating.'
+          : 'Could not regenerate. Try again.';
+      Alert.alert('Regenerate failed', typeof msg === 'string' && msg.trim() ? msg : fallback);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleRemoveExercise = (index: number) => {
+    if (!workout?.id) return;
+    if (workout.exercises.length <= 1) {
+      Alert.alert(
+        'Keep at least one exercise',
+        'Add another exercise from the library first, or use Regenerate to replace the whole list.',
+      );
+      return;
+    }
+    const ex = workout.exercises[index];
+    Alert.alert('Remove exercise', `Remove “${ex.name}” from this workout?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const next = workout.exercises
+              .filter((_, i) => i !== index)
+              .map((e, i) => ({
+                name: e.name,
+                sets: e.sets,
+                reps: e.reps,
+                weight: e.weight,
+                notes: e.notes,
+                exerciseId: e.exerciseId,
+                orderIndex: i,
+              }));
+            const updated = await updateWorkout(workout.id, { exercises: next });
+            setWorkout(updated);
+          } catch (e) {
+            console.error(e);
+            Alert.alert('Error', 'Could not update workout.');
+          }
+        },
+      },
+    ]);
+  };
+
   const BackBar = () => (
-    <View style={[styles.backBar, { paddingTop: 12 + insets.top }]}>
+    <View style={[styles.backBar, { paddingTop: Math.max(insets.top, 6) + 6 }]}>
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}
@@ -234,14 +364,14 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No workout selected</Text>
           <TouchableOpacity
-            style={styles.generateButton}
+            style={[styles.primaryCta, { alignSelf: 'stretch', marginHorizontal: 8 }]}
             onPress={handleGenerateWorkout}
             disabled={generating}
           >
             {generating ? (
               <ActivityIndicator color={colors.background} />
             ) : (
-              <Text style={styles.generateButtonText}>Generate New Workout</Text>
+              <Text style={styles.primaryCtaText}>Generate new workout</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -252,7 +382,11 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       <BackBar />
-      <ScrollView style={{ flex: 1 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 }}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <Text style={styles.workoutName}>{workout.name}</Text>
           {workout.day && (
@@ -261,69 +395,123 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         </View>
 
         {(workout.warmUp || workout.reasoning || workout.coolDown) ? (
-          <View style={styles.guideSection}>
-            {workout.warmUp ? (
-              <View style={styles.guideBlock}>
-                <Text style={styles.guideLabel}>Warm-up</Text>
-                <Text style={styles.guideText}>{workout.warmUp}</Text>
+          <View style={styles.guideDisclosure}>
+            <TouchableOpacity
+              style={styles.guideDisclosureHeader}
+              onPress={() => setGuideExpanded((v) => !v)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: guideExpanded }}
+              accessibilityLabel={
+                guideExpanded ? 'Hide session guide' : 'Show warm-up, workout notes and cool-down'
+              }
+            >
+              <Ionicons
+                name={guideExpanded ? 'chevron-up' : 'chevron-down'}
+                size={22}
+                color={colors.primary}
+              />
+              <View style={styles.guideDisclosureTextCol}>
+                <Text style={styles.guideDisclosureTitle}>Session guide</Text>
+                <Text style={styles.guideDisclosureHint} numberOfLines={2}>
+                  Warm-up, why this session & cool-down — optional read before you train.
+                </Text>
               </View>
-            ) : null}
-            {workout.reasoning ? (
-              <View style={styles.guideBlock}>
-                <Text style={styles.guideLabel}>Why this workout</Text>
-                <Text style={styles.guideText}>{workout.reasoning}</Text>
-              </View>
-            ) : null}
-            {workout.coolDown ? (
-              <View style={styles.guideBlock}>
-                <Text style={styles.guideLabel}>Cool-down</Text>
-                <Text style={styles.guideText}>{workout.coolDown}</Text>
+            </TouchableOpacity>
+            {guideExpanded ? (
+              <View style={styles.guideDisclosureBody}>
+                {workout.warmUp ? (
+                  <View style={styles.guideBlock}>
+                    <Text style={styles.guideLabel}>Warm-up</Text>
+                    <Text style={styles.guideText}>{workout.warmUp}</Text>
+                  </View>
+                ) : null}
+                {workout.reasoning ? (
+                  <View style={styles.guideBlock}>
+                    <Text style={styles.guideLabel}>Why this workout</Text>
+                    <Text style={styles.guideText}>{workout.reasoning}</Text>
+                  </View>
+                ) : null}
+                {workout.coolDown ? (
+                  <View style={[styles.guideBlock, styles.guideBlockLast]}>
+                    <Text style={styles.guideLabel}>Cool-down</Text>
+                    <Text style={styles.guideText}>{workout.coolDown}</Text>
+                  </View>
+                ) : null}
               </View>
             ) : null}
           </View>
         ) : null}
 
         <View style={styles.exercisesContainer}>
-          <Text style={styles.sectionTitle}>Exercises</Text>
-          <TouchableOpacity style={styles.addExercisesButton} onPress={handleAddExercises}>
-            <Text style={styles.addExercisesButtonText}>+ Add exercises from library</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.startButton} onPress={handleStartWorkout}>
-            <Text style={styles.startButtonText}>Start workout</Text>
-          </TouchableOpacity>
-          {workout.exercises.map((exercise, index) => (
-            <View key={index} style={styles.exerciseCard}>
-              <Text style={styles.exerciseName}>{exercise.name}</Text>
-              <View style={styles.exerciseDetails}>
-                <Text style={styles.exerciseDetail}>
-                  Sets: {exercise.sets}
-                </Text>
-                <Text style={styles.exerciseDetail}>
-                  Reps: {exercise.reps}
-                </Text>
-                {exercise.weight && (
-                  <Text style={styles.exerciseDetail}>
-                    Weight: {exercise.weight} lbs
-                  </Text>
-                )}
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.sectionTitle}>Exercises</Text>
+          </View>
+          <Text style={styles.sectionSubtitle}>Remove moves you don&apos;t want, or regenerate the list for fresh AI picks for this session.</Text>
+          <View style={styles.actionsBlock}>
+            <TouchableOpacity style={styles.outlineCta} onPress={handleAddExercises}>
+              <Text style={styles.outlineCtaText}>+ Add from library</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.primaryCta} onPress={handleStartWorkout}>
+              <Text style={styles.primaryCtaText}>Start workout</Text>
+            </TouchableOpacity>
+          </View>
+          {workout.exercises.map((exercise, index) => {
+            const metaParts = [
+              `${exercise.sets} sets`,
+              `${exercise.reps} reps`,
+              ...(exercise.weight ? [`${exercise.weight} lb`] : []),
+            ];
+            const rowKey = exercise.id ?? `ex-${index}`;
+            return (
+              <View key={rowKey} style={styles.exerciseCard}>
+                <View style={styles.exerciseCardHeader}>
+                  <View style={styles.exerciseIndex}>
+                    <Text style={styles.exerciseIndexText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.exerciseNameCol}>
+                    <View style={styles.exerciseCardTop}>
+                      <View style={styles.exerciseTitleWrap}>
+                        <Text style={styles.exerciseName} numberOfLines={4}>
+                          {exercise.name}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.exerciseRemoveHit}
+                        onPress={() => handleRemoveExercise(index)}
+                        accessibilityLabel={`Remove ${exercise.name}`}
+                        accessibilityRole="button"
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="trash-outline" size={22} color={colors.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.exerciseMetaLine}>{metaParts.join(' · ')}</Text>
+                  </View>
+                </View>
               </View>
-              {exercise.notes && (
-                <Text style={styles.exerciseNotes}>{exercise.notes}</Text>
+            );
+          })}
+          <View style={styles.tertiaryBlock}>
+            <TouchableOpacity
+              style={[
+                styles.tertiaryCta,
+                (generating || workout.exercises.length === 0) && { opacity: 0.45 },
+              ]}
+              onPress={handleRegenerateWorkout}
+              disabled={generating || workout.exercises.length === 0}
+            >
+              {generating ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={styles.tertiaryCtaText}>Regenerate with AI</Text>
               )}
-            </View>
-          ))}
+            </TouchableOpacity>
+            <Text style={styles.tertiaryHint}>
+              New exercises for this same session (uses this workout&apos;s name and day). Your plan calendar updates too when this day is from your plan.
+            </Text>
+          </View>
         </View>
-        <TouchableOpacity
-          style={styles.generateButton}
-          onPress={handleGenerateWorkout}
-          disabled={generating}
-        >
-          {generating ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.generateButtonText}>Generate New Workout</Text>
-          )}
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );

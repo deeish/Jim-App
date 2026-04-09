@@ -51,6 +51,29 @@ export class WorkoutsService {
     return typeof (this.prisma as any).savedWorkout !== 'undefined';
   }
 
+  /** Keep plan_workout.plan_exercises aligned with workout_exercises when the workout is linked to a plan slot. */
+  private async syncPlanSlotExercisesFromWorkoutExercises(
+    planWorkoutId: string,
+    exercises: WorkoutWithExercises['exercises'],
+  ): Promise<void> {
+    await this.prisma.planExercise.deleteMany({ where: { planWorkoutId } });
+    if (exercises.length === 0) return;
+    await this.prisma.planExercise.createMany({
+      data: exercises.map((e, i) => ({
+        planWorkoutId,
+        exerciseId:
+          (e.exerciseId && String(e.exerciseId).trim()) ||
+          `workout_${planWorkoutId.replace(/-/g, '').slice(0, 12)}_${i}`,
+        name: e.name,
+        sets: e.sets,
+        reps: e.reps,
+        weight: e.weight ?? null,
+        notes: e.notes ?? null,
+        orderIndex: e.orderIndex ?? i,
+      })),
+    });
+  }
+
   async create(
     createWorkoutDto: CreateWorkoutDto,
     userId: string,
@@ -176,6 +199,7 @@ export class WorkoutsService {
       include: {
         exercises: true,
         workoutPlan: true,
+        planWorkout: { include: { workoutPlan: true } },
       },
     });
 
@@ -184,7 +208,8 @@ export class WorkoutsService {
     }
     const owned =
       workout.userId === userId ||
-      (workout.workoutPlanId && workout.workoutPlan?.userId === userId);
+      (workout.workoutPlanId && workout.workoutPlan?.userId === userId) ||
+      (workout.planWorkout?.workoutPlan?.userId === userId);
     if (!owned) {
       throw new NotFoundException(`Workout with ID ${id} not found`);
     }
@@ -195,9 +220,9 @@ export class WorkoutsService {
       });
       saved = !!row;
     }
-    // Strip nested plan from API response (ownership already checked via workoutPlan above).
+    // Strip nested relations from API response (ownership already checked above).
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- only keeping ...rest
-    const { workoutPlan, ...rest } = workout;
+    const { workoutPlan, planWorkout, ...rest } = workout;
     return {
       ...rest,
       workoutPlan: undefined,
@@ -261,7 +286,7 @@ export class WorkoutsService {
     updateWorkoutDto: Partial<CreateWorkoutDto>,
     userId: string,
   ): Promise<WorkoutWithExercises> {
-    await this.findOne(id, userId);
+    const before = await this.findOne(id, userId);
 
     // If exercises are being updated, delete existing ones first
     if (updateWorkoutDto.exercises) {
@@ -271,7 +296,7 @@ export class WorkoutsService {
       });
     }
 
-    return this.prisma.workout.update({
+    const updated = await this.prisma.workout.update({
       where: { id },
       data: {
         ...(updateWorkoutDto.name && { name: updateWorkoutDto.name }),
@@ -296,6 +321,15 @@ export class WorkoutsService {
         exercises: true,
       },
     });
+
+    if (updateWorkoutDto.exercises !== undefined && before.planWorkoutId) {
+      await this.syncPlanSlotExercisesFromWorkoutExercises(
+        before.planWorkoutId,
+        updated.exercises,
+      );
+    }
+
+    return this.findOne(id, userId);
   }
 
   async remove(id: string, userId: string): Promise<void> {
@@ -313,6 +347,74 @@ export class WorkoutsService {
     const generatedWorkout =
       await this.workoutGeneratorService.generateWorkout(dtoWithUser);
     return this.create(generatedWorkout, userId);
+  }
+
+  /**
+   * Replace this workout's exercises (and warm-up / reasoning / cool-down) using the AI generator,
+   * using the same day, title/focus, duration, and excluding current library moves for variety.
+   * Updates the same DB row; plan slot exercises stay in sync when plan-linked.
+   */
+  async regenerateWorkout(
+    id: string,
+    userId: string,
+  ): Promise<WorkoutWithExercises & { saved?: boolean }> {
+    const existing = await this.findOne(id, userId);
+    if (!existing.exercises?.length) {
+      throw new BadRequestException(
+        'Add at least one exercise before regenerating, or use Add from library.',
+      );
+    }
+    const focusLabel = (existing.focus && existing.focus.trim()) || existing.name;
+    const excludeIds = existing.exercises
+      .map((e) => e.exerciseId)
+      .filter(
+        (x): x is string =>
+          !!x && x.length > 0 && !x.startsWith('generated_'),
+      );
+    const dto: GenerateWorkoutDto = {
+      day: existing.day ?? undefined,
+      userId,
+      preferences: {
+        focus: focusLabel,
+        programDayFocus: existing.name,
+        duration: existing.estimatedDuration ?? 45,
+        ...(excludeIds.length > 0 ? { excludeExerciseIds: excludeIds } : {}),
+      },
+    };
+    const generated = await this.workoutGeneratorService.generateWorkout(dto);
+    const nameToUse = existing.planWorkoutId ? existing.name : generated.name;
+
+    await this.prisma.workoutExercise.deleteMany({ where: { workoutId: id } });
+    const updated = await this.prisma.workout.update({
+      where: { id },
+      data: {
+        name: nameToUse,
+        reasoning: generated.reasoning ?? null,
+        warmUp: generated.warmUp ?? null,
+        coolDown: generated.coolDown ?? null,
+        exercises: {
+          create: generated.exercises.map((e, i) => ({
+            name: e.name,
+            sets: e.sets,
+            reps: e.reps,
+            weight: e.weight ?? undefined,
+            notes: e.notes ?? undefined,
+            exerciseId: e.exerciseId ?? undefined,
+            orderIndex: e.orderIndex ?? i,
+          })),
+        },
+      },
+      include: { exercises: true },
+    });
+
+    if (existing.planWorkoutId) {
+      await this.syncPlanSlotExercisesFromWorkoutExercises(
+        existing.planWorkoutId,
+        updated.exercises,
+      );
+    }
+
+    return this.findOne(id, userId);
   }
 
   /** Returns generated workout (name, reasoning, exercises) without saving. For plan preview. */

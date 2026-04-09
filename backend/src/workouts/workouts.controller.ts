@@ -47,6 +47,13 @@ export class WorkoutsController {
     return this.workoutsService.materializeFromPlanSlot(planWorkoutId, userId);
   }
 
+  @Post(':id/regenerate')
+  @UseGuards(AiThrottlerGuard)
+  @HttpCode(HttpStatus.OK)
+  regenerateInPlace(@Param('id') id: string, @UserId() userId: string) {
+    return this.workoutsService.regenerateWorkout(id, userId);
+  }
+
   @Get('saved/ids')
   async getSavedIds(
     @UserId() userId: string,

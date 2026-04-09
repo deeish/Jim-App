@@ -16,11 +16,22 @@ export type RootStackParamList = {
   PlanList: { openSaved?: boolean } | undefined;
   Workout: undefined;
   Search: {
-    addToPlan?: { day: string; weekIndex: number; weekMondayIso: string };
+    addToPlan?: {
+      day: string;
+      weekIndex: number;
+      weekMondayIso: string;
+      /** From Plan tab — program week math without an extra GET. */
+      weekAnchorMonday?: string | null;
+    };
     addToWorkout?: { workoutId: string; workoutName: string; existingExerciseIds?: string[] };
   } | undefined;
   SearchList: {
-    addToPlan?: { day: string; weekIndex: number; weekMondayIso: string };
+    addToPlan?: {
+      day: string;
+      weekIndex: number;
+      weekMondayIso: string;
+      weekAnchorMonday?: string | null;
+    };
     addToWorkout?: { workoutId: string; workoutName: string; existingExerciseIds?: string[] };
   } | undefined;
   WeeklyWorkout: undefined;
