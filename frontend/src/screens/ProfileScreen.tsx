@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, type ComponentProps } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,33 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  Alert,
+  Modal,
+  Linking,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import Constants from 'expo-constants';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ProfileIcon } from '../components/TabIcons';
+import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  useUserPreferences,
+  GOAL_OPTIONS,
+  EXPERIENCE_OPTIONS,
+} from '../contexts/UserPreferencesContext';
 import type { ColorPalette } from '../theme/colors';
+import { EQUIPMENT_OPTIONS, type EquipmentOption } from '../constants/equipment';
+import {
+  FEEDBACK_MAILTO,
+  PRIVACY_POLICY_URL,
+  TERMS_OF_SERVICE_URL,
+  buildDeleteAccountMailto,
+} from '../constants/legalUrls';
+import { PROFILE_AVATARS, type ProfileAvatarId } from '../constants/profileAvatars';
 
 function SectionHeader({ title, colors }: { title: string; colors: ColorPalette }) {
   return (
@@ -26,21 +46,31 @@ function Row({
   onPress,
   right,
   colors,
+  showChevron,
 }: {
   label: string;
   value?: string;
   onPress?: () => void;
   right?: React.ReactNode;
   colors: ColorPalette;
+  showChevron?: boolean;
 }) {
   const content = (
     <View style={styles.row}>
       <Text style={[styles.rowLabel, { color: colors.text }]}>{label}</Text>
       <View style={styles.rowRight}>
         {value != null && (
-          <Text style={[styles.rowValue, { color: colors.textSecondary }]}>{value}</Text>
+          <Text
+            style={[styles.rowValue, { color: colors.textSecondary }]}
+            numberOfLines={2}
+          >
+            {value}
+          </Text>
         )}
         {right}
+        {showChevron ? (
+          <Text style={[styles.chevron, { color: colors.textMuted }]}>›</Text>
+        ) : null}
       </View>
     </View>
   );
@@ -52,6 +82,42 @@ function Row({
     );
   }
   return content;
+}
+
+/** Shown as placeholder when display name is empty */
+function fallbackAccountName(
+  email: string | undefined,
+  meta: Record<string, unknown> | undefined,
+): string {
+  if (meta) {
+    const full = meta.full_name ?? meta.name;
+    if (typeof full === 'string' && full.trim()) return full.trim();
+  }
+  if (email && email.includes('@')) {
+    return email.split('@')[0] ?? email;
+  }
+  return email ?? 'Your name';
+}
+
+function PickerAvatarGlyph({
+  opt,
+  colors,
+}: {
+  opt: (typeof PROFILE_AVATARS)[number];
+  colors: ColorPalette;
+}) {
+  if (opt.mci == null) {
+    return (
+      <ProfileIcon color={colors.textSecondary} ringColor="transparent" size={24} />
+    );
+  }
+  return (
+    <MaterialCommunityIcons
+      name={opt.mci as ComponentProps<typeof MaterialCommunityIcons>['name']}
+      size={24}
+      color={colors.primary}
+    />
+  );
 }
 
 const staticStyles = StyleSheet.create({
@@ -74,10 +140,19 @@ const staticStyles = StyleSheet.create({
   rowRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    flexShrink: 1,
+    justifyContent: 'flex-end',
   },
   rowValue: {
     fontSize: 15,
+    textAlign: 'right',
+    maxWidth: 200,
+  },
+  chevron: {
+    fontSize: 22,
+    fontWeight: '300',
+    marginLeft: 4,
   },
   rowDivider: {
     height: 1,
@@ -98,36 +173,171 @@ const layoutStyles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
   },
-  backButton: {},
+  backButton: { minWidth: 72 },
   backLabel: { fontSize: 16, fontWeight: '600' },
-  headerTitle: { fontSize: 18, fontWeight: '700' },
-  headerRight: { minWidth: 60, alignItems: 'flex-end' },
-  headerSignOut: { fontSize: 15, fontWeight: '600' },
+  headerTitle: { fontSize: 18, fontWeight: '700', flex: 1, textAlign: 'center' },
+  headerRight: { minWidth: 72 },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingTop: 24 },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 20 },
   profileCard: {
-    borderRadius: 12,
-    padding: 24,
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 22,
     borderWidth: 1,
   },
-  avatarWrap: { marginBottom: 12 },
-  profileName: { fontSize: 20, fontWeight: '700' },
-  profileHint: { fontSize: 13, marginTop: 4 },
-  signOutButton: {
-    marginTop: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    borderRadius: 10,
+  avatarWrap: { marginBottom: 4 },
+  nameFieldWrap: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginTop: 4,
   },
-  signOutText: { fontSize: 15, fontWeight: '600' },
+  profileFieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    marginBottom: 4,
+    alignSelf: 'flex-start',
+    width: '100%',
+    maxWidth: 240,
+    paddingLeft: 1,
+  },
+  profileNameInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    width: '100%',
+    maxWidth: 240,
+    minHeight: 36,
+  },
+  profileEmailBlock: {
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 8,
+    gap: 2,
+  },
+  profileEmail: { fontSize: 14, textAlign: 'center' },
+  profileHint: { fontSize: 12, textAlign: 'center' },
+  profileCardDivider: {
+    alignSelf: 'stretch',
+    height: StyleSheet.hairlineWidth,
+    marginTop: 14,
+    marginBottom: 2,
+  },
+  avatarPickerStrip: {
+    alignSelf: 'stretch',
+    width: '100%',
+    marginTop: 10,
+  },
+  avatarPickerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    marginBottom: 6,
+  },
+  avatarPickerClip: {
+    alignSelf: 'stretch',
+    overflow: 'hidden',
+    borderRadius: 8,
+  },
+  avatarPickerScroll: {
+    flexGrow: 0,
+    width: '100%',
+  },
+  avatarPickerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 2,
+    paddingLeft: 0,
+    paddingRight: 8,
+  },
+  avatarOptionOuter: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  deleteAccountRow: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  deleteAccountRowText: { fontSize: 16, fontWeight: '600' },
   sectionCard: {
     borderRadius: 12,
     marginBottom: 28,
     borderWidth: 1,
     overflow: 'hidden',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 28,
+    maxHeight: '85%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  equipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  equipLabel: { fontSize: 16 },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 16,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  modalBtnText: { fontSize: 16, fontWeight: '600' },
+  weightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  weightRowLabelCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  weightSegment: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  weightSegmentBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    minWidth: 88,
+    alignItems: 'center',
+  },
+  weightSegmentBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 
@@ -136,11 +346,35 @@ const styles = { ...staticStyles, ...layoutStyles };
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const { colors, isDark, setTheme } = useTheme();
-  const { user, signOut } = useAuth();
-  const [weightUnitKg, setWeightUnitKg] = useState(true);
-  const [notificationsOn, setNotificationsOn] = useState(true);
-  const [goal, setGoal] = useState<string>('Strength');
-  const [experience, setExperience] = useState<string>('Intermediate');
+  const { user } = useAuth();
+  const {
+    hydrated: prefsHydrated,
+    weightUnit,
+    setWeightUnit,
+    goal,
+    setGoal,
+    experience,
+    setExperience,
+    equipment,
+    setEquipment,
+    profileDisplayName,
+    setProfileDisplayName,
+    profileAvatarId,
+    setProfileAvatarId,
+  } = useUserPreferences();
+  const [nameDraft, setNameDraft] = useState('');
+  const [equipmentModalOpen, setEquipmentModalOpen] = useState(false);
+  const [equipmentDraft, setEquipmentDraft] = useState<EquipmentOption[]>([]);
+  const [listPicker, setListPicker] = useState<'goal' | 'experience' | null>(null);
+
+  const appVersion =
+    Constants.expoConfig?.version ??
+    (Constants as { nativeAppVersion?: string }).nativeAppVersion ??
+    '—';
+
+  useEffect(() => {
+    if (prefsHydrated) setNameDraft(profileDisplayName);
+  }, [prefsHydrated, profileDisplayName]);
 
   const themedStyles = useMemo(
     () => ({
@@ -152,21 +386,89 @@ export default function ProfileScreen() {
         backgroundColor: colors.surface,
         borderColor: colors.border,
       },
-      profileName: { color: colors.text },
+      profileNameInputThemed: {
+        color: colors.text,
+        borderColor: colors.border,
+        /** Inset field: stay on the card surface family (avoid near-black `background`). */
+        backgroundColor: colors.primary + '14',
+      },
+      profileEmail: { color: colors.textSecondary },
       profileHint: { color: colors.textMuted },
       sectionCard: {
         backgroundColor: colors.surface,
         borderColor: colors.border,
       },
       rowDivider: { backgroundColor: colors.border },
+      modalSheet: { backgroundColor: colors.surface },
+      modalTitle: { color: colors.text },
+      equipLabel: { color: colors.text },
     }),
-    [colors]
+    [colors],
   );
 
-  const handleSignOut = useCallback(async () => {
-    await signOut();
-    // Session is now null; AppContent will render AuthStack (Login screen)
-  }, [signOut]);
+  const namePlaceholder = fallbackAccountName(
+    user?.email,
+    user?.user_metadata as Record<string, unknown> | undefined,
+  );
+
+  const openEquipmentModal = useCallback(() => {
+    setEquipmentDraft([...equipment]);
+    setEquipmentModalOpen(true);
+  }, [equipment]);
+
+  const toggleEquipmentDraft = useCallback((opt: EquipmentOption) => {
+    setEquipmentDraft((prev) =>
+      prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt],
+    );
+  }, []);
+
+  const saveEquipmentDraft = useCallback(() => {
+    setEquipment(equipmentDraft);
+    setEquipmentModalOpen(false);
+  }, [equipmentDraft, setEquipment]);
+
+  const openUrl = useCallback(async (url: string, label: string) => {
+    try {
+      const ok = await Linking.canOpenURL(url);
+      if (!ok) {
+        Alert.alert('Unavailable', `Could not open ${label}.`);
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Unavailable', `Could not open ${label}.`);
+    }
+  }, []);
+
+  const pickGoal = useCallback(() => setListPicker('goal'), []);
+  const pickExperience = useCallback(() => setListPicker('experience'), []);
+
+  const handleDeleteAccount = useCallback(() => {
+    const email = user?.email?.trim();
+    if (!email) {
+      Alert.alert('Unavailable', 'Sign in to request account deletion.');
+      return;
+    }
+    Alert.alert(
+      'Delete account?',
+      'This opens your email app with a pre-filled request. We delete your account and associated data after we process it.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open email',
+          onPress: () => {
+            const url = buildDeleteAccountMailto(email, user?.id);
+            void openUrl(url, 'Email');
+          },
+        },
+      ],
+    );
+  }, [user?.email, user?.id, openUrl]);
+
+  const equipmentSummary =
+    equipment.length === 0
+      ? 'None set — exercise search uses all equipment'
+      : equipment.join(', ');
 
   return (
     <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
@@ -179,16 +481,7 @@ export default function ProfileScreen() {
           <Text style={[styles.backLabel, themedStyles.backLabel]}>← Back</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, themedStyles.headerTitle]}>Profile</Text>
-        <View style={styles.headerRight}>
-          {user ? (
-            <TouchableOpacity
-              onPress={handleSignOut}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Text style={[styles.headerSignOut, { color: colors.error }]}>Sign out</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
+        <View style={styles.headerRight} />
       </View>
 
       <ScrollView
@@ -196,33 +489,87 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile */}
-        <SectionHeader title="Profile" colors={colors} />
+        <SectionHeader title="Account" colors={colors} />
         <View style={[styles.profileCard, themedStyles.profileCard]}>
           <View style={styles.avatarWrap}>
-            <ProfileIcon
-              color={colors.textSecondary}
-              ringColor={colors.primary}
-              size={64}
-            />
+            <ProfileAvatarDisc avatarId={profileAvatarId} size={64} colors={colors} />
           </View>
-          <Text style={[styles.profileName, themedStyles.profileName]}>
-            {user?.email ?? 'Your name'}
-          </Text>
-          <Text style={[styles.profileHint, themedStyles.profileHint]}>
-            {user?.email ? 'Signed in with Supabase' : 'Tap to add or edit (coming soon)'}
-          </Text>
-          {user ? (
-            <TouchableOpacity
-              onPress={handleSignOut}
-              style={[styles.signOutButton, { borderColor: colors.error }]}
-            >
-              <Text style={[styles.signOutText, { color: colors.error }]}>Sign out</Text>
-            </TouchableOpacity>
-          ) : null}
+          <View style={styles.nameFieldWrap}>
+            <View style={{ width: '100%', maxWidth: 240 }}>
+              <Text style={[styles.profileFieldLabel, { color: colors.textMuted }]}>
+                Display name
+              </Text>
+              <TextInput
+                style={[
+                  styles.profileNameInput,
+                  themedStyles.profileNameInputThemed,
+                ]}
+                value={nameDraft}
+                onChangeText={setNameDraft}
+                onBlur={() => setProfileDisplayName(nameDraft)}
+                placeholder={namePlaceholder}
+                placeholderTextColor={colors.textMuted}
+                maxLength={80}
+                autoCapitalize="words"
+                autoCorrect
+                accessibilityLabel="Display name"
+              />
+            </View>
+          </View>
+          <View style={styles.profileEmailBlock}>
+            {user?.email ? (
+              <Text style={[styles.profileEmail, themedStyles.profileEmail]}>{user.email}</Text>
+            ) : null}
+            <Text style={[styles.profileHint, themedStyles.profileHint]}>
+              {user?.email ? 'Signed in with email' : 'Not signed in'}
+            </Text>
+          </View>
+          <View
+            style={[styles.profileCardDivider, { backgroundColor: colors.border }]}
+            accessible={false}
+          />
+          <View style={styles.avatarPickerStrip}>
+            <Text style={[styles.avatarPickerLabel, { color: colors.textMuted }]}>
+              Avatar · swipe for more
+            </Text>
+            <View style={styles.avatarPickerClip}>
+              <ScrollView
+                horizontal
+                nestedScrollEnabled
+                showsHorizontalScrollIndicator={false}
+                style={styles.avatarPickerScroll}
+                contentContainerStyle={styles.avatarPickerContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                {PROFILE_AVATARS.map((opt) => {
+                  const selected = profileAvatarId === opt.id;
+                  return (
+                    <TouchableOpacity
+                      key={opt.id}
+                      onPress={() => setProfileAvatarId(opt.id)}
+                      style={[
+                        styles.avatarOptionOuter,
+                        {
+                          borderWidth: selected ? 3 : 2,
+                          borderColor: selected ? colors.primary : colors.border,
+                          backgroundColor: selected
+                            ? colors.primary + '22'
+                            : colors.primary + '0C',
+                        },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Profile picture ${opt.id}`}
+                      accessibilityState={{ selected }}
+                    >
+                      <PickerAvatarGlyph opt={opt} colors={colors} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </View>
         </View>
 
-        {/* Settings */}
         <SectionHeader title="Settings" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
           <Row
@@ -239,66 +586,249 @@ export default function ProfileScreen() {
             }
           />
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <Row
-            label="Weight units"
-            value={weightUnitKg ? 'kg' : 'lb'}
-            colors={colors}
-            right={
-              <Switch
-                value={weightUnitKg}
-                onValueChange={setWeightUnitKg}
-                trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={colors.text}
-              />
-            }
-          />
+          <View style={styles.weightRow}>
+            <View style={styles.weightRowLabelCol}>
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Weight units</Text>
+              <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 4 }}>
+                Tap to choose how weights are shown when you log workouts.
+              </Text>
+            </View>
+            <View
+              style={[styles.weightSegment, { borderColor: colors.border }]}
+              accessibilityRole="radiogroup"
+              accessibilityLabel="Weight units"
+            >
+              <TouchableOpacity
+                style={[
+                  styles.weightSegmentBtn,
+                  {
+                    backgroundColor:
+                      weightUnit === 'lb' ? colors.primary : colors.background,
+                  },
+                ]}
+                onPress={() => setWeightUnit('lb')}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: weightUnit === 'lb' }}
+                accessibilityLabel="Pounds"
+              >
+                <Text
+                  style={[
+                    styles.weightSegmentBtnText,
+                    {
+                      color: weightUnit === 'lb' ? colors.background : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  lb
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.weightSegmentBtn,
+                  {
+                    backgroundColor:
+                      weightUnit === 'kg' ? colors.primary : colors.background,
+                  },
+                ]}
+                onPress={() => setWeightUnit('kg')}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: weightUnit === 'kg' }}
+                accessibilityLabel="Kilograms"
+              >
+                <Text
+                  style={[
+                    styles.weightSegmentBtnText,
+                    {
+                      color: weightUnit === 'kg' ? colors.background : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  kg
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
           <Row
             label="Notifications"
-            value={notificationsOn ? 'On' : 'Off'}
+            value="Coming soon"
             colors={colors}
-            right={
-              <Switch
-                value={notificationsOn}
-                onValueChange={setNotificationsOn}
-                trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={colors.text}
-              />
-            }
           />
         </View>
 
-        {/* Preferences */}
         <SectionHeader title="Preferences" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
-          <Row label="Goal" value={goal} onPress={() => {}} colors={colors} />
+          <Row
+            label="Goal"
+            value={goal}
+            onPress={pickGoal}
+            colors={colors}
+            showChevron
+          />
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <Row label="Experience" value={experience} onPress={() => {}} colors={colors} />
+          <Row
+            label="Experience"
+            value={experience}
+            onPress={pickExperience}
+            colors={colors}
+            showChevron
+          />
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
           <Row
             label="Equipment"
-            value="Tap to set (coming soon)"
-            onPress={() => {}}
+            value={equipmentSummary}
+            onPress={openEquipmentModal}
             colors={colors}
+            showChevron
           />
         </View>
 
-        {/* About */}
         <SectionHeader title="About" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
-          <Row label="App version" value="1.0.0" colors={colors} />
+          <Row label="App version" value={String(appVersion)} colors={colors} />
+          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+          <Row
+            label="Privacy policy"
+            onPress={() => openUrl(PRIVACY_POLICY_URL, 'Privacy policy')}
+            colors={colors}
+            showChevron
+          />
+          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+          <Row
+            label="Terms of service"
+            onPress={() => openUrl(TERMS_OF_SERVICE_URL, 'Terms')}
+            colors={colors}
+            showChevron
+          />
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
           <Row
             label="Feedback & support"
-            value="Coming soon"
-            onPress={() => {}}
+            onPress={() => openUrl(FEEDBACK_MAILTO, 'Email')}
             colors={colors}
+            showChevron
           />
         </View>
 
+        {user ? (
+          <TouchableOpacity
+            style={[styles.sectionCard, themedStyles.sectionCard, styles.deleteAccountRow]}
+            onPress={handleDeleteAccount}
+            accessibilityRole="button"
+            accessibilityLabel="Delete account"
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.deleteAccountRowText, { color: colors.error }]}>
+              Delete account
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
         <View style={styles.bottomPad} />
       </ScrollView>
+
+      <Modal
+        visible={listPicker != null}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setListPicker(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setListPicker(null)}
+          />
+          <View
+            style={[
+              styles.modalSheet,
+              themedStyles.modalSheet,
+              { maxHeight: '50%', marginHorizontal: 24, alignSelf: 'center', width: '100%' },
+            ]}
+          >
+            <Text style={[styles.modalTitle, themedStyles.modalTitle]}>
+              {listPicker === 'goal' ? 'Training goal' : 'Experience level'}
+            </Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {(listPicker === 'goal' ? GOAL_OPTIONS : EXPERIENCE_OPTIONS).map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={styles.equipRow}
+                  onPress={() => {
+                    if (listPicker === 'goal') setGoal(opt as (typeof GOAL_OPTIONS)[number]);
+                    else setExperience(opt as (typeof EXPERIENCE_OPTIONS)[number]);
+                    setListPicker(null);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.equipLabel, themedStyles.equipLabel]}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity onPress={() => setListPicker(null)}>
+                <Text style={[styles.modalBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={equipmentModalOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setEquipmentModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setEquipmentModalOpen(false)}
+          />
+          <View style={[styles.modalSheet, themedStyles.modalSheet]}>
+            <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Your equipment</Text>
+            <Text
+              style={{
+                fontSize: 14,
+                color: colors.textMuted,
+                paddingHorizontal: 20,
+                marginBottom: 8,
+              }}
+            >
+              Used as the default filter in Find Workouts. Toggle what you have access to.
+            </Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {EQUIPMENT_OPTIONS.map((opt) => {
+                const on = equipmentDraft.includes(opt);
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    style={styles.equipRow}
+                    onPress={() => toggleEquipmentDraft(opt)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.equipLabel, themedStyles.equipLabel]}>{opt}</Text>
+                    <Switch
+                      value={on}
+                      onValueChange={() => toggleEquipmentDraft(opt)}
+                      trackColor={{ false: colors.border, true: colors.primary }}
+                      thumbColor={colors.text}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity onPress={() => setEquipmentModalOpen(false)}>
+                <Text style={[styles.modalBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={saveEquipmentDraft}>
+                <Text style={[styles.modalBtnText, { color: colors.primary }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
-

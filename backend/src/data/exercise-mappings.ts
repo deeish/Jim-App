@@ -11,6 +11,7 @@ export const PRIMARY_MUSCLE_GROUP_MAP: Record<string, string> = {
   shoulders: 'Shoulders',
   arms: 'Arms',
   core: 'Core',
+  cardio: 'Cardio',
 };
 
 // Sub-Muscle ID → Display Name

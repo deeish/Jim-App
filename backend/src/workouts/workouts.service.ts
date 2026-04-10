@@ -13,6 +13,27 @@ type WorkoutWithExercises = Prisma.WorkoutGetPayload<{
   include: { exercises: true };
 }>;
 
+/**
+ * When exercises change, rewrite focus/detailLine so the "N exercises" prefix matches the list.
+ * Drops any prior "M exercises" segments so UI never shows two counts.
+ */
+function focusDetailLineAfterExerciseChange(
+  previousFocus: string | null | undefined,
+  exerciseCount: number,
+): string {
+  const remainder = (previousFocus ?? '')
+    .split(/\s*[·•]\s*/)
+    .map((s) => s.trim())
+    .filter((s) => s && !/^\d+\s*exercises?$/i.test(s))
+    .join(' • ');
+  if (exerciseCount <= 0) {
+    return remainder || previousFocus?.trim() || '';
+  }
+  return remainder
+    ? `${exerciseCount} exercises • ${remainder}`
+    : `${exerciseCount} exercises`;
+}
+
 /** Prisma client type includes SavedWorkout after `prisma generate`. Cast used until then. */
 type PrismaWithSaved = PrismaService & {
   savedWorkout: {
@@ -296,6 +317,14 @@ export class WorkoutsService {
       });
     }
 
+    const newPlanDetail =
+      updateWorkoutDto.exercises !== undefined && before.planWorkoutId
+        ? focusDetailLineAfterExerciseChange(
+            before.focus,
+            updateWorkoutDto.exercises.length,
+          )
+        : undefined;
+
     const updated = await this.prisma.workout.update({
       where: { id },
       data: {
@@ -303,6 +332,7 @@ export class WorkoutsService {
         ...(updateWorkoutDto.day !== undefined && {
           day: updateWorkoutDto.day,
         }),
+        ...(newPlanDetail !== undefined && { focus: newPlanDetail }),
         ...(updateWorkoutDto.exercises && {
           exercises: {
             create: updateWorkoutDto.exercises.map((e, i) => ({
@@ -327,6 +357,12 @@ export class WorkoutsService {
         before.planWorkoutId,
         updated.exercises,
       );
+      if (newPlanDetail !== undefined) {
+        await this.prisma.planWorkout.update({
+          where: { id: before.planWorkoutId },
+          data: { detailLine: newPlanDetail },
+        });
+      }
     }
 
     return this.findOne(id, userId);
@@ -383,6 +419,10 @@ export class WorkoutsService {
     };
     const generated = await this.workoutGeneratorService.generateWorkout(dto);
     const nameToUse = existing.planWorkoutId ? existing.name : generated.name;
+    const newFocus = focusDetailLineAfterExerciseChange(
+      existing.focus,
+      generated.exercises.length,
+    );
 
     await this.prisma.workoutExercise.deleteMany({ where: { workoutId: id } });
     const updated = await this.prisma.workout.update({
@@ -392,6 +432,7 @@ export class WorkoutsService {
         reasoning: generated.reasoning ?? null,
         warmUp: generated.warmUp ?? null,
         coolDown: generated.coolDown ?? null,
+        focus: newFocus,
         exercises: {
           create: generated.exercises.map((e, i) => ({
             name: e.name,
@@ -412,6 +453,10 @@ export class WorkoutsService {
         existing.planWorkoutId,
         updated.exercises,
       );
+      await this.prisma.planWorkout.update({
+        where: { id: existing.planWorkoutId },
+        data: { detailLine: newFocus },
+      });
     }
 
     return this.findOne(id, userId);

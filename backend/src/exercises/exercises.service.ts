@@ -7,6 +7,8 @@ import {
   TransformedExercise,
 } from '../data/exercise-mappings';
 import { getCommonExerciseRank } from '../data/common-exercise-ids';
+import { cardioLibrarySortKey } from '../data/cardio-display-order';
+import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
 
 /** Lower = show first. Used to prefer Barbell/Dumbbell/Bodyweight/Cable/Machine. */
@@ -38,7 +40,9 @@ export class ExercisesService implements OnModuleInit {
   async onModuleInit() {
     await this.loadExercises();
     this.loadVideoMap();
-    this.memoFindAll = this.exercises.map((e) => this.withVideo(e));
+    this.memoFindAll = this.exercises
+      .filter((e) => !isExcludedFromExerciseCatalog(e.id))
+      .map((e) => this.withVideo(e));
     this.memoStats = this.computeStats();
   }
 
@@ -94,7 +98,9 @@ export class ExercisesService implements OnModuleInit {
   }
 
   search(searchDto: SearchExercisesDto): TransformedExercise[] {
-    let results = [...this.exercises];
+    let results = this.exercises.filter(
+      (e) => !isExcludedFromExerciseCatalog(e.id),
+    );
 
     // Text search
     if (searchDto.searchQuery?.trim()) {
@@ -147,8 +153,18 @@ export class ExercisesService implements OnModuleInit {
       );
     }
 
-    // Sort: common list first, then Compound, then equipment preference, then name
+    const allCardioResults =
+      results.length > 0 &&
+      results.every((e) => e.primaryMuscleGroup === 'Cardio');
+
+    // Sort: optional “familiar gym” order for pure Cardio filter; else common-first, etc.
     results.sort((a, b) => {
+      if (allCardioResults) {
+        const cA = cardioLibrarySortKey(a.id);
+        const cB = cardioLibrarySortKey(b.id);
+        if (cA !== cB) return cA - cB;
+      }
+
       const rankA = getCommonExerciseRank(a.id);
       const rankB = getCommonExerciseRank(b.id);
       if (rankA !== rankB) return rankA - rankB;
@@ -236,7 +252,7 @@ export class ExercisesService implements OnModuleInit {
       'upper body': ['Chest', 'Back', 'Shoulders', 'Arms'],
       'lower body': ['Legs', 'Core'],
       'full body': ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core'],
-      cardio: ['Legs', 'Core'],
+      cardio: ['Cardio'],
     };
     const f = focus.toLowerCase();
     const keyMatches = (k: string) =>

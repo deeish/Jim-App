@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, Pressable, TouchableOpacity, ActivityIndicator 
 import { Ionicons } from '@expo/vector-icons';
 import { Exercise } from '../types/workout';
 import { useTheme } from '../theme/ThemeContext';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { formatAtWeightFromLb } from '../lib/weightDisplay';
 
 interface ExerciseCardProps {
   exercise: Exercise;
@@ -29,6 +31,7 @@ export default function ExerciseCard({
   showOrderBadge = false,
 }: ExerciseCardProps) {
   const { colors } = useTheme();
+  const { weightUnit } = useUserPreferences();
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -107,7 +110,7 @@ export default function ExerciseCard({
     const setsReps = `${exercise.sets}×${exercise.reps}`;
     if (exercise.reps === 1 && exercise.weight === 0) return `${exercise.sets}×${exercise.reps}s`;
     if (exercise.weight === 0 || !exercise.weight) return `${setsReps} (BW)`;
-    return `${setsReps} @ ${exercise.weight}`;
+    return `${setsReps}${formatAtWeightFromLb(exercise.weight, weightUnit)}`;
   };
 
   const body = (

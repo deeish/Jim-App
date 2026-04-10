@@ -16,6 +16,7 @@ import {
 } from '../services/workoutService';
 import { getCurrentPlanWithWeekly } from '../services/planService';
 import { resolveHomeToday, type HomeTodayResult } from '../lib/homeToday';
+import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
 import { Workout, Exercise, type WorkoutSessionRestoredSnapshot } from '../types/workout';
 import { loadWorkoutDraft, clearWorkoutDraft } from '../lib/workoutDraftStorage';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
@@ -262,16 +263,20 @@ export default function WorkoutScreen() {
   const workoutMetaLine = useMemo(() => {
     if (!todayWorkout) return '';
     const parts: string[] = [];
-    const est = todayWorkout.estimatedDuration;
+    const planned = todayWorkout.estimatedDuration ?? null;
+    const displayMin = getWorkoutDisplayEstimateMinutes(todayWorkout.exercises, planned);
     const n = todayWorkout.exercises?.length ?? 0;
-    if (est != null) parts.push(`Est. ${est} min`);
+    if (displayMin != null) parts.push(`Est. ${displayMin} min`);
     const exercisePhrase = `${n} ${n === 1 ? 'exercise' : 'exercises'}`;
     const focusRaw = todayWorkout.focus?.trim();
     if (focusRaw) {
       const segments = focusRaw.split(/\s*·\s*/).map((s) => s.trim()).filter(Boolean);
       for (const seg of segments) {
-        if (est != null && /^\d+\s*min$/i.test(seg) && parseInt(seg, 10) === est) continue;
-        if (new RegExp(`^${n}\\s*exercises?$`, 'i').test(seg)) continue;
+        if (/^\d+\s*min$/i.test(seg)) {
+          const m = parseInt(seg, 10);
+          if (m === displayMin || m === planned) continue;
+        }
+        if (/^\d+\s*exercises?$/i.test(seg)) continue;
         parts.push(seg);
       }
     }

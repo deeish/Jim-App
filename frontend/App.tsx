@@ -13,6 +13,7 @@ import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import SetNewPasswordScreen from './src/screens/SetNewPasswordScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { UserPreferencesProvider } from './src/contexts/UserPreferencesContext';
 import { wrapWithSentry } from './src/lib/sentry';
 import type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
 
@@ -110,9 +111,11 @@ function App() {
   return (
     <ThemeProvider>
       <SafeAreaProvider>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
+        <UserPreferencesProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </UserPreferencesProvider>
       </SafeAreaProvider>
     </ThemeProvider>
   );

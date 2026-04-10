@@ -16,6 +16,8 @@ import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/nativ
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot } from '../services/planService';
 import type { ApiPlan, ApiPlanExercise, ApiPlanWorkout } from '../services/planService';
 import type { Workout } from '../types/workout';
@@ -33,6 +35,7 @@ import {
   programWeekForCalendarOffset,
 } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
+import { getPlanSlotDisplayMinutes } from '../lib/estimateWorkoutMinutes';
 
 type PlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Plan'>;
 
@@ -146,6 +149,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const navigation = navigationProp ?? navFromHook;
   const route = useRoute<RouteProp<RootStackParamList, 'PlanList'>>();
   const { colors } = useTheme();
+  const { weightUnit } = useUserPreferences();
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [planByWeek, setPlanByWeek] = useState<Record<number, Record<string, PlanWorkout[]>>>({});
   const [planLoading, setPlanLoading] = useState(true);
@@ -242,6 +246,13 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     if (loadBalance.cardio) parts.push(`${loadBalance.cardio} cardio`);
     if (loadBalance.recovery) parts.push(`${loadBalance.recovery} recovery`);
     return parts.length ? parts.join(', ') : null;
+  }, [loadBalance.strength, loadBalance.cardio, loadBalance.recovery]);
+  const detailsLoadSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (loadBalance.strength) parts.push(`${loadBalance.strength} Strength`);
+    if (loadBalance.cardio) parts.push(`${loadBalance.cardio} Cardio`);
+    if (loadBalance.recovery) parts.push(`${loadBalance.recovery} Recovery`);
+    return parts.length ? parts.join(' • ') : 'No sessions';
   }, [loadBalance.strength, loadBalance.cardio, loadBalance.recovery]);
   const isCurrentWeek = selectedWeek === 0;
 
@@ -726,27 +737,13 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   }, []);
 
   const formatWorkoutDetailLine = (workout: PlanWorkout): string => {
-    let detail = workout.detailLine;
-    
-    // Replace · with • for consistency
-    detail = detail.replace(/·/g, '•');
-    
-    // Card consistency: Show structured descriptor only (no duration - that's in day header)
-    // Card = specifics (zone/intervals/exercise count)
-    // Day header = totals (time, sessions, difficulty)
-    
-    if (workout.type === 'cardio') {
-      // Cardio: Zone 2 / Intervals • 6×1 min hard
-      // Don't add duration - it's already in day header totals
-      // Keep only structured info: zone type, interval structure, etc.
-    } else if (workout.type === 'strength') {
-      // Strength: 6 exercises • Push focus
-      // Keep exercise count and focus - no duration
-    } else if (workout.type === 'recovery') {
-      // Recovery: Stretch / Mobility
-      // Keep activity type - no duration (in day header)
+    let detail = (workout.detailLine ?? '—').replace(/·/g, '•');
+    const n = workout.planExercises?.length ?? 0;
+    if (workout.type === 'strength' && n > 0) {
+      const parts = detail.split(/\s*•\s*/).map((s) => s.trim()).filter(Boolean);
+      const rest = parts.filter((s) => !/^\d+\s*exercises?$/i.test(s)).join(' • ');
+      return rest ? `${n} exercises • ${rest}` : `${n} exercises`;
     }
-    
     return detail;
   };
 
@@ -756,7 +753,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
 
   const getDaySummary = (workouts: PlanWorkout[]): string => {
     if (workouts.length === 0) return 'Rest (no time)';
-    const totalMin = workouts.reduce((s, w) => s + w.durationMinutes, 0);
+    const totalMin = workouts.reduce((s, w) => {
+      if (isRestPlanSlotTitle(w.title)) return s + w.durationMinutes;
+      const linked = resolveWorkoutForPlanSlot(w.id);
+      const planEx = w.planExercises?.map((e) => ({ sets: e.sets, reps: e.reps }));
+      const planned =
+        linked?.estimatedDuration ?? w.durationMinutes;
+      return s + getPlanSlotDisplayMinutes(planned, planEx, linked?.exercises);
+    }, 0);
     const sessionCount = workouts.length;
     
     // Check if it's a rest day
@@ -837,7 +841,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         >
           <View style={styles.detailsToggleContent}>
             <Text style={styles.detailsToggleText}>
-              Details ({loadBalance.strength} Strength • {loadBalance.cardio} Cardio • {loadBalance.recovery} Recovery)
+              Details ({detailsLoadSummary})
             </Text>
             <Text style={styles.detailsToggleIcon}>{showDetails ? ' ▾' : ' ▸'}</Text>
           </View>
@@ -1092,7 +1096,13 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                     <Text style={styles.detailSheetTitle}>{detailSheetWorkout.workout.title}</Text>
                   </View>
                   <Text style={styles.detailSheetMeta}>
-                    {detailSheetWorkout.workout.type} • {detailSheetWorkout.workout.durationMinutes} min
+                    {detailSheetWorkout.workout.type} •{' '}
+                    {getPlanSlotDisplayMinutes(
+                      linked?.estimatedDuration ?? detailSheetWorkout.workout.durationMinutes,
+                      fromPlanRows.map((ex) => ({ sets: ex.sets, reps: ex.reps })),
+                      linked?.exercises,
+                    )}{' '}
+                    min
                     {detailSheetWorkout.workout.intensity ? ` • ${detailSheetWorkout.workout.intensity}` : ''}
                   </Text>
                   <Text style={styles.detailSheetDetail}>
@@ -1192,7 +1202,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                               <Text style={styles.detailSheetExerciseName}>{ex.name}</Text>
                               <Text style={styles.detailSheetExerciseMeta}>
                                 {ex.sets} × {ex.reps}
-                                {ex.weight != null ? ` @ ${ex.weight} lb` : ''}
+                                {ex.weight != null ? formatAtWeightFromLb(ex.weight, weightUnit) : ''}
                               </Text>
                               {ex.notes ? (
                                 <Text style={styles.detailSheetExerciseNotes}>Focus: {ex.notes}</Text>

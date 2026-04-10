@@ -18,6 +18,8 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import type { RootNavigatorParamList } from '../types/navigation';
 import { RootTabParamList } from '../components/NavBar';
 import { getCurrentPlanWithWeekly } from '../services/planService';
@@ -26,6 +28,7 @@ import { loadWorkoutDraft } from '../lib/workoutDraftStorage';
 import type { Workout } from '../types/workout';
 import type { PersistedWorkoutDraft } from '../lib/workoutDraftStorage';
 import { resolveHomeToday, type HomeTodayResult } from '../lib/homeToday';
+import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
 
 type HomeNavigation = BottomTabNavigationProp<RootTabParamList, 'Home'>;
 
@@ -46,16 +49,20 @@ function formatTodayDateLine(): string {
 
 function buildTodayMetaLine(workout: Workout): string {
   const parts: string[] = [];
-  const est = workout.estimatedDuration;
+  const planned = workout.estimatedDuration ?? null;
+  const displayMin = getWorkoutDisplayEstimateMinutes(workout.exercises, planned);
   const n = workout.exercises?.length ?? 0;
-  if (est != null) parts.push(`Est. ${est} min`);
+  if (displayMin != null) parts.push(`Est. ${displayMin} min`);
   const exercisePhrase = `${n} ${n === 1 ? 'exercise' : 'exercises'}`;
   const focusRaw = workout.focus?.trim();
   if (focusRaw) {
     const segments = focusRaw.split(/\s*·\s*/).map((s) => s.trim()).filter(Boolean);
     for (const seg of segments) {
-      if (est != null && /^\d+\s*min$/i.test(seg) && parseInt(seg, 10) === est) continue;
-      if (new RegExp(`^${n}\\s*exercises?$`, 'i').test(seg)) continue;
+      if (/^\d+\s*min$/i.test(seg)) {
+        const m = parseInt(seg, 10);
+        if (m === displayMin || m === planned) continue;
+      }
+      if (/^\d+\s*exercises?$/i.test(seg)) continue;
       parts.push(seg);
     }
   }
@@ -65,7 +72,9 @@ function buildTodayMetaLine(workout: Workout): string {
 
 function buildPendingSlotMeta(slot: ApiPlanWorkout): string {
   const parts: string[] = [];
-  if (slot.durationMinutes > 0) parts.push(`${slot.durationMinutes} min`);
+  const exerciseLike = slot.exercises?.map((e) => ({ sets: e.sets, reps: e.reps }));
+  const displayMin = getWorkoutDisplayEstimateMinutes(exerciseLike, slot.durationMinutes);
+  if (displayMin != null) parts.push(`${displayMin} min`);
   const detail = slot.detailLine?.trim();
   if (detail) parts.push(detail.replace(/·/g, '·'));
   return parts.length ? parts.join(' · ') : 'Set up exercises from your plan';
@@ -87,6 +96,7 @@ export default function HomeScreen() {
   const navigation = useNavigation<HomeNavigation>();
   const { colors } = useTheme();
   const { signOut } = useAuth();
+  const { profileAvatarId } = useUserPreferences();
   const [menuVisible, setMenuVisible] = useState(false);
   const [homeToday, setHomeToday] = useState<HomeTodayResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -215,7 +225,7 @@ export default function HomeScreen() {
           activeOpacity={0.7}
           accessibilityLabel="Profile menu"
         >
-          <Ionicons name="person-circle-outline" size={32} color={colors.primary} />
+          <ProfileAvatarDisc avatarId={profileAvatarId} size={34} colors={colors} />
         </TouchableOpacity>
       </View>
 

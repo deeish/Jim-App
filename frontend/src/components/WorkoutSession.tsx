@@ -16,9 +16,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Workout, ExerciseSession, CompletedSet, type WorkoutSessionRestoredSnapshot } from '../types/workout';
 import { saveWorkoutDraft } from '../lib/workoutDraftStorage';
+import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from './Button';
 import { useTheme } from '../theme/ThemeContext';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import {
+  formatAtWeightFromLb,
+  formatWeightCompactFromLb,
+  kgToLb,
+  lbToKg,
+} from '../lib/weightDisplay';
 import { colors as themeColors } from '../theme/colors';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
@@ -174,9 +182,16 @@ export default function WorkoutSession({
 
   const workoutMetaLine = useMemo(() => {
     const parts: string[] = [];
-    const est = session.workout.estimatedDuration;
-    if (est != null) {
-      parts.push(`Est. ${est} min`);
+    const planned = session.workout.estimatedDuration ?? null;
+    const activePrescription = exerciseSessions
+      .filter((es) => !es.skipped)
+      .map((es) => es.exercise);
+    const prescription =
+      activePrescription.length > 0 ? activePrescription : session.workout.exercises ?? [];
+    const displayMin = getWorkoutDisplayEstimateMinutes(prescription, planned);
+
+    if (displayMin != null) {
+      parts.push(`Est. ${displayMin} min`);
     } else {
       parts.push(`Elapsed ${formatTime(elapsedTime)}`);
     }
@@ -186,10 +201,11 @@ export default function WorkoutSession({
     if (focusRaw) {
       const segments = focusRaw.split(/\s*·\s*/).map((s) => s.trim()).filter(Boolean);
       for (const seg of segments) {
-        if (est != null && /^\d+\s*min$/i.test(seg) && parseInt(seg, 10) === est) {
-          continue;
+        if (/^\d+\s*min$/i.test(seg)) {
+          const m = parseInt(seg, 10);
+          if (m === displayMin || m === planned) continue;
         }
-        if (new RegExp(`^${n}\\s*exercises?$`, 'i').test(seg)) {
+        if (/^\d+\s*exercises?$/i.test(seg)) {
           continue;
         }
         parts.push(seg);
@@ -197,7 +213,13 @@ export default function WorkoutSession({
     }
     parts.push(exercisePhrase);
     return parts.join(' · ');
-  }, [session.workout.estimatedDuration, session.workout.focus, exerciseSessions, elapsedTime]);
+  }, [
+    session.workout.estimatedDuration,
+    session.workout.focus,
+    session.workout.exercises,
+    exerciseSessions,
+    elapsedTime,
+  ]);
 
   const getCompletedExercisesCount = () => {
     return exerciseSessions.filter(
@@ -976,6 +998,7 @@ function ExerciseCard({
   onSelectExercise: (index: number) => void;
   onUnskip: (exerciseIndex: number) => void;
 }) {
+  const { weightUnit } = useUserPreferences();
   const [weightStep, setWeightStep] = useState(5);
   const [editingReps, setEditingReps] = useState(false);
   const [editingWeight, setEditingWeight] = useState(false);
@@ -1043,11 +1066,12 @@ function ExerciseCard({
   if (!isExpanded) {
     const collapsedTotal = exerciseSession.completedSets.length;
     const collapsedDone = exerciseSession.completedSets.filter((s) => s.completed).length;
+    const wLb = lastWeight || exerciseData.weight;
     const planShort = `${exerciseSession.completedSets.length}×${exerciseData.reps}${
       exerciseData.weight === 0 || (!exerciseData.weight && !lastWeight)
         ? ' (BW)'
-        : lastWeight || exerciseData.weight
-          ? ` @ ${lastWeight || exerciseData.weight}`
+        : wLb
+          ? formatAtWeightFromLb(wLb, weightUnit)
           : ''
     }`;
     const canOpenLibraryGuide =
@@ -1121,7 +1145,13 @@ function ExerciseCard({
   const nextSet = nextSetIdx >= 0 ? exerciseSession.completedSets[nextSetIdx] : null;
   const completedCount = exerciseSession.completedSets.filter((s) => s.completed).length;
   const lastCompleted = completedCount > 0 ? exerciseSession.completedSets[completedCount - 1] : null;
-  const planLabel = `Plan: ${exerciseData.sets}×${exerciseData.reps}${exerciseData.weight != null && exerciseData.weight !== 0 ? ` @ ${exerciseData.weight}` : exerciseData.weight === 0 ? ' (BW)' : ''}`;
+  const planLabel = `Plan: ${exerciseData.sets}×${exerciseData.reps}${
+    exerciseData.weight != null && exerciseData.weight !== 0
+      ? formatAtWeightFromLb(exerciseData.weight, weightUnit)
+      : exerciseData.weight === 0
+        ? ' (BW)'
+        : ''
+  }`;
 
   return (
     <View style={[styles.exerciseCard, isCurrent && styles.exerciseCardCurrent]}>
@@ -1185,7 +1215,10 @@ function ExerciseCard({
       </View>
       {lastCompleted != null && (
         <Text style={styles.lastSetLine}>
-          Last set today: {lastCompleted.reps}×{lastCompleted.weight != null && lastCompleted.weight > 0 ? lastCompleted.weight : 'BW'}
+          Last set today: {lastCompleted.reps}×
+          {lastCompleted.weight != null && lastCompleted.weight > 0
+            ? formatWeightCompactFromLb(lastCompleted.weight, weightUnit)
+            : 'BW'}
         </Text>
       )}
 
@@ -1323,7 +1356,9 @@ function ExerciseCard({
                   </View>
                 </View>
                 <View style={styles.stepperBlock}>
-                  <Text style={styles.stepperLabel}>Weight</Text>
+                  <Text style={styles.stepperLabel}>
+                    Weight{weightUnit === 'kg' ? ' (kg)' : ' (lb)'}
+                  </Text>
                   <View style={styles.stepper}>
                     <TouchableOpacity
                       style={styles.stepperButton}
@@ -1341,8 +1376,21 @@ function ExerciseCard({
                         autoFocus
                         onBlur={() => {
                           const s = editWeightValue.trim();
-                          const n = s === '' || s.toLowerCase() === 'bw' ? 0 : parseFloat(s);
-                          if (!isNaN(n) && n >= 0) onSetUpdate(index, nextSetIdx, 'weight', n);
+                          if (s === '' || s.toLowerCase() === 'bw') {
+                            onSetUpdate(index, nextSetIdx, 'weight', 0);
+                            setEditingWeight(false);
+                            return;
+                          }
+                          const n = parseFloat(s);
+                          if (!isNaN(n) && n >= 0) {
+                            const lb = weightUnit === 'kg' ? kgToLb(n) : n;
+                            onSetUpdate(
+                              index,
+                              nextSetIdx,
+                              'weight',
+                              Math.round(lb * 10) / 10,
+                            );
+                          }
                           setEditingWeight(false);
                         }}
                       />
@@ -1350,12 +1398,25 @@ function ExerciseCard({
                       <TouchableOpacity
                         style={styles.stepperValueTouch}
                         onPress={() => {
-                          setEditWeightValue(nextSet.weight != null ? String(nextSet.weight) : '');
+                          const w = nextSet.weight;
+                          if (w != null && w > 0) {
+                            setEditWeightValue(
+                              weightUnit === 'kg'
+                                ? String(Math.round(lbToKg(w) * 10) / 10)
+                                : String(w),
+                            );
+                          } else {
+                            setEditWeightValue('');
+                          }
                           setEditingWeight(true);
                         }}
                       >
                         <Text style={styles.stepperValue}>
-                          {nextSet.weight != null && nextSet.weight > 0 ? nextSet.weight : 'BW'}
+                          {nextSet.weight != null && nextSet.weight > 0
+                            ? weightUnit === 'kg'
+                              ? String(Math.round(lbToKg(nextSet.weight) * 10) / 10)
+                              : String(nextSet.weight)
+                            : 'BW'}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -1415,9 +1476,10 @@ function SetRow({
   onUpdate: (exerciseIndex: number, setIndex: number, field: 'reps' | 'weight' | 'rpe', value: number) => void;
   showAdvancedLogging: boolean;
 }) {
+  const { weightUnit } = useUserPreferences();
   const [isEditing, setIsEditing] = useState(false);
   const [reps, setReps] = useState(set.reps.toString());
-  const [weight, setWeight] = useState(set.weight?.toString() || '');
+  const [weight, setWeight] = useState('');
   const [rpe, setRpe] = useState(set.rpe?.toString() || '');
 
   if (set.completed) {
@@ -1428,11 +1490,22 @@ function SetRow({
     return (
       <TouchableOpacity
         style={styles.setRowReadOnly}
-        onPress={() => setIsEditing(true)}
+        onPress={() => {
+          setReps(String(set.reps));
+          setWeight(
+            set.weight != null && set.weight > 0
+              ? weightUnit === 'kg'
+                ? String(Math.round(lbToKg(set.weight) * 10) / 10)
+                : String(set.weight)
+              : '',
+          );
+          setRpe(set.rpe?.toString() ?? '');
+          setIsEditing(true);
+        }}
       >
         <Text style={styles.setRowReadOnlyText}>
           {set.reps} reps
-          {set.weight ? ` @ ${set.weight}` : ''}
+          {set.weight ? formatAtWeightFromLb(set.weight, weightUnit) : ''}
           {showAdvancedLogging && set.rpe ? ` • RPE ${set.rpe}` : ''}
         </Text>
         <Text style={styles.setRowEditHint}>Tap to edit</Text>
@@ -1460,11 +1533,21 @@ function SetRow({
         value={weight}
         onChangeText={(text) => {
           setWeight(text);
-          const num = parseFloat(text) || 0;
-          onUpdate(exerciseIndex, setIndex, 'weight', num);
+          const num = parseFloat(text);
+          if (isNaN(num)) return;
+          const lb = weightUnit === 'kg' ? kgToLb(num) : num;
+          onUpdate(exerciseIndex, setIndex, 'weight', Math.round(lb * 10) / 10);
         }}
         keyboardType="decimal-pad"
-        placeholder={set.weight ? `${set.weight}` : 'Weight'}
+        placeholder={
+          set.weight
+            ? weightUnit === 'kg'
+              ? String(Math.round(lbToKg(set.weight) * 10) / 10)
+              : `${set.weight}`
+            : weightUnit === 'kg'
+              ? 'kg'
+              : 'lb'
+        }
       />
       {showAdvancedLogging && (
         <TextInput
@@ -1604,10 +1687,13 @@ function EditPrescriptionModal({
   onClose: () => void;
 }) {
   const { colors } = useTheme();
+  const { weightUnit } = useUserPreferences();
   const [weight, setWeight] = useState(initialWeight);
   const [reps, setReps] = useState(initialReps);
   const [rpe, setRpe] = useState<number | undefined>(initialRpe);
   const [applyToRemaining, setApplyToRemaining] = useState(false);
+
+  const weightStepLb = weightUnit === 'kg' ? kgToLb(1) : 5;
 
   useEffect(() => {
     if (visible) {
@@ -1655,18 +1741,28 @@ function EditPrescriptionModal({
             </View>
             <View style={styles.editPrescriptionModalBody}>
               <View style={styles.editPrescriptionField}>
-                <Text style={styles.editPrescriptionLabel}>Weight (lbs)</Text>
+                <Text style={styles.editPrescriptionLabel}>
+                  Weight ({weightUnit === 'kg' ? 'kg' : 'lb'})
+                </Text>
                 <View style={styles.editModalStepperRow}>
                   <TouchableOpacity
                     style={styles.stepperButton}
-                    onPress={() => setWeight((w) => Math.max(0, w - 5))}
+                    onPress={() =>
+                      setWeight((w) => Math.max(0, Math.round((w - weightStepLb) * 10) / 10))
+                    }
                   >
                     <Text style={styles.stepperButtonText}>−</Text>
                   </TouchableOpacity>
-                  <Text style={styles.editModalStepperValue}>{weight}</Text>
+                  <Text style={styles.editModalStepperValue}>
+                    {weightUnit === 'kg'
+                      ? Math.round(lbToKg(weight) * 10) / 10
+                      : weight}
+                  </Text>
                   <TouchableOpacity
                     style={styles.stepperButton}
-                    onPress={() => setWeight((w) => w + 5)}
+                    onPress={() =>
+                      setWeight((w) => Math.round((w + weightStepLb) * 10) / 10)
+                    }
                   >
                     <Text style={styles.stepperButtonText}>+</Text>
                   </TouchableOpacity>

@@ -32,6 +32,8 @@ import {
   normalizePlanAnchorYmd,
   programWeekNumberForSlotWeek,
 } from '../lib/planCalendar';
+import { EQUIPMENT_OPTIONS } from '../constants/equipment';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Search'>;
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
@@ -45,13 +47,15 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// Muscle group hierarchy - parent groups with their sub-muscles
+// Muscle group hierarchy - parent groups with their sub-muscles (chip order = object insertion order)
 const MUSCLE_HIERARCHY: Record<string, string[]> = {
   'Chest': ['Upper Chest', 'Mid Chest', 'Lower Chest'],
   'Back': ['Upper Back', 'Mid Back', 'Lower Back', 'Lats', 'Traps'],
   'Legs': ['Quads', 'Hamstrings', 'Glutes', 'Calves', 'Inner Thighs', 'Outer Thighs'],
   'Shoulders': ['Front Delts', 'Side Delts', 'Rear Delts', 'Rotator Cuff'],
   'Arms': ['Biceps', 'Triceps', 'Forearms'],
+  /** Conditioning / machines / running / cycling — primaryMuscleGroup "Cardio" in API. Parent-only chip. */
+  'Cardio': [],
   'Core': ['Upper Abs', 'Lower Abs', 'Obliques'],
 };
 
@@ -67,14 +71,6 @@ const getSubMuscles = (parent: string): string[] => {
 const getAllSubMuscles = (): string[] => {
   return Object.values(MUSCLE_HIERARCHY).flat();
 };
-
-const EQUIPMENT_OPTIONS = [
-  // Most common first
-  'Bodyweight', 'Dumbbell', 'Barbell', 'Cable', 'Machine',
-  // Specialized equipment
-  'Kettlebell', 'Resistance Band', 'TRX', 'Pull-up Bar',
-  'Medicine Ball', 'Battle Rope', 'Smith Machine'
-];
 
 // Advanced/optional filters - collapsed by default
 const MOVEMENT_PATTERNS = [
@@ -96,6 +92,7 @@ export default function SearchScreen({ navigation }: Props) {
   const addToWorkout = route.params?.addToWorkout;
   const addMode = addToPlan ? 'plan' : addToWorkout ? 'workout' : null;
   const { colors } = useTheme();
+  const { hydrated: prefsHydrated, equipment: profileEquipment } = useUserPreferences();
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
     muscleGroups: [],
@@ -117,6 +114,15 @@ export default function SearchScreen({ navigation }: Props) {
   const [showSavedList, setShowSavedList] = useState(false);
   const [savedExercisesList, setSavedExercisesList] = useState<Exercise[]>([]);
   const [loadingSavedList, setLoadingSavedList] = useState(false);
+
+  // Seed equipment filter from profile once preferences load (only if user hasn’t set filters yet)
+  useEffect(() => {
+    if (!prefsHydrated || profileEquipment.length === 0) return;
+    setFilters((prev) => {
+      if (prev.equipment.length > 0) return prev;
+      return { ...prev, equipment: [...profileEquipment] };
+    });
+  }, [prefsHydrated, profileEquipment]);
 
   // Load saved exercise ids on mount
   useEffect(() => {
@@ -302,7 +308,10 @@ export default function SearchScreen({ navigation }: Props) {
   const getMuscleGroupState = (group: string): 'none' | 'partial' | 'full' => {
     const subMuscles = getSubMuscles(group);
     const selectedSubMuscles = filters.subMuscles.filter(m => subMuscles.includes(m));
-    
+
+    if (subMuscles.length === 0) {
+      return filters.muscleGroups.includes(group) ? 'full' : 'none';
+    }
     if (selectedSubMuscles.length === 0) return 'none';
     if (selectedSubMuscles.length === subMuscles.length) return 'full';
     return 'partial';
@@ -1078,7 +1087,7 @@ export default function SearchScreen({ navigation }: Props) {
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by name, exercise, or muscle..."
+          placeholder="Search name, muscle, or cardio (e.g. treadmill, bike)…"
           placeholderTextColor={colors.textMuted}
           value={filters.searchQuery}
           onChangeText={(text) => setFilters(prev => ({ ...prev, searchQuery: text }))}
@@ -1114,7 +1123,7 @@ export default function SearchScreen({ navigation }: Props) {
         {/* Primary Filters - Most Important */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Target Muscles</Text>
+            <Text style={styles.sectionTitle}>Muscles & cardio</Text>
             {(filters.muscleGroups.length > 0 || filters.subMuscles.length > 0) && (
               <View style={styles.sectionBadge}>
                 <Text style={styles.sectionBadgeText}>
@@ -1126,7 +1135,7 @@ export default function SearchScreen({ navigation }: Props) {
             )}
           </View>
           <Text style={styles.sectionDescription}>
-            Select muscle groups you want to train
+            Pick a group, or tap Cardio for treadmills, bikes, rowing, circuits, and conditioning.
           </Text>
           <ScrollView
             horizontal
@@ -1159,8 +1168,8 @@ export default function SearchScreen({ navigation }: Props) {
           const subMuscles = getSubMuscles(group);
           const selectedSubMuscles = filters.subMuscles.filter(m => subMuscles.includes(m));
           
-          // Show refine section if parent is selected (full or partial)
-          if (state !== 'none') {
+          // Show refine section if parent is selected and has sub-muscles (e.g. Cardio is parent-only)
+          if (state !== 'none' && subMuscles.length > 0) {
             return (
               <RefineSection
                 key={`refine-${group}`}
@@ -1176,7 +1185,7 @@ export default function SearchScreen({ navigation }: Props) {
 
         <FilterSection
           title="Equipment Available"
-          options={EQUIPMENT_OPTIONS}
+          options={[...EQUIPMENT_OPTIONS]}
           selectedValues={filters.equipment}
           onSelect={(value) => toggleFilter('equipment', value)}
           description="What equipment do you have access to?"

@@ -16,6 +16,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { colors as themeColors } from '../theme/colors';
 import { createPlan, generateSingleSession, type PlanSlot, type PlanSlotExercise } from '../services/planService';
 import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
@@ -30,6 +32,10 @@ import {
 import type { PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
 import { formatLocalYmd, getWeekStartMonday } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
+import {
+  exercisesLikeFromPrescription,
+  getWorkoutDisplayEstimateMinutes,
+} from '../lib/estimateWorkoutMinutes';
 
 type PlanPreviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlanPreview'>;
 type PlanPreviewScreenRouteProp = RouteProp<RootStackParamList, 'PlanPreview'>;
@@ -322,6 +328,7 @@ function getInitialPlanData(
 
 export default function PlanPreviewScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
+  const { weightUnit } = useUserPreferences();
   const { inputs, draftId, planInputs, returnToPlanCard } = route.params;
   const isFocused = useIsFocused();
   const [applying, setApplying] = useState(false);
@@ -1384,7 +1391,16 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                 <>
                   <Text style={styles.modalTitle}>{previewCard.workout.title}</Text>
                   <Text style={styles.modalSubtitle}>
-                    {previewCard.day} • {previewCard.workout.durationMinutes} min • {formatWorkoutTypeLabel(previewCard.workout.type)}
+                    {previewCard.day} •{' '}
+                    {getWorkoutDisplayEstimateMinutes(
+                      exercisesLikeFromPrescription(
+                        previewData?.exercises?.length
+                          ? previewData.exercises
+                          : previewCard.workout.applyExercises,
+                      ),
+                      previewCard.workout.durationMinutes,
+                    ) ?? previewCard.workout.durationMinutes}{' '}
+                    min • {formatWorkoutTypeLabel(previewCard.workout.type)}
                   </Text>
                   {planInputs ? (
                     <Text style={styles.progressionHint}>
@@ -1511,7 +1527,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                                   <Text style={styles.previewExerciseName}>{ex.name}</Text>
                                   <Text style={styles.previewExerciseMeta}>
                                     {ex.sets} × {ex.reps}
-                                    {ex.weight != null ? ` @ ${ex.weight} lb` : ''}
+                                    {ex.weight != null ? formatAtWeightFromLb(ex.weight, weightUnit) : ''}
                                   </Text>
                                 </TouchableOpacity>
                                 {planDraft && planInputs && (

@@ -16,6 +16,9 @@ import {
 import WorkoutLikeButton from '../components/WorkoutLikeButton';
 import { Workout } from '../types/workout';
 import { useTheme } from '../theme/ThemeContext';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { formatWeightCompactFromLb } from '../lib/weightDisplay';
+import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
 
 type WorkoutDetailScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
 type WorkoutDetailScreenRouteProp = RouteProp<RootStackParamList, 'WorkoutDetail'>;
@@ -28,6 +31,7 @@ type Props = {
 export default function WorkoutDetailScreen({ navigation, route }: Props) {
   const { workoutId } = route.params || {};
   const { colors } = useTheme();
+  const { weightUnit } = useUserPreferences();
   const insets = useSafeAreaInsets();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,6 +58,12 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         },
         workoutName: { fontSize: 26, fontWeight: '700', color: colors.text, marginBottom: 6, letterSpacing: -0.3 },
         workoutDay: { fontSize: 15, color: colors.primary, fontWeight: '600', textTransform: 'capitalize' },
+        workoutEst: {
+          fontSize: 14,
+          color: colors.textSecondary,
+          fontWeight: '600',
+          marginTop: 6,
+        },
         exercisesContainer: { paddingHorizontal: 16, paddingTop: 20 },
         guideDisclosure: {
           marginHorizontal: 16,
@@ -392,6 +402,15 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
           {workout.day && (
             <Text style={styles.workoutDay}>{workout.day}</Text>
           )}
+          {(() => {
+            const m = getWorkoutDisplayEstimateMinutes(
+              workout.exercises,
+              workout.estimatedDuration ?? null,
+            );
+            return m != null ? (
+              <Text style={styles.workoutEst}>Est. {m} min</Text>
+            ) : null;
+          })()}
         </View>
 
         {(workout.warmUp || workout.reasoning || workout.coolDown) ? (
@@ -460,7 +479,9 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
             const metaParts = [
               `${exercise.sets} sets`,
               `${exercise.reps} reps`,
-              ...(exercise.weight ? [`${exercise.weight} lb`] : []),
+              ...(exercise.weight
+                ? [formatWeightCompactFromLb(exercise.weight, weightUnit)]
+                : []),
             ];
             const rowKey = exercise.id ?? `ex-${index}`;
             return (

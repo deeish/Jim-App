@@ -42415,5 +42415,1570 @@
       "Hold the shoulder steady without leaning.",
       "Relax and reset between holds."
     ]
+  },
+  {
+    "id": "treadmill_walk_easy",
+    "name": "Treadmill Walk (Easy / Zone 2)",
+    "aliases": [
+      "Walking Treadmill",
+      "Easy Treadmill Walk"
+    ],
+    "description": "Low-impact steady walking on a treadmill to build aerobic base and recovery between hard sessions.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Set a comfortable pace you can sustain while nasal breathing or holding short conversations.",
+      "Stand tall with relaxed shoulders and a natural arm swing.",
+      "Keep strides smooth; avoid holding the handrails unless you need balance.",
+      "Gradually increase duration or incline slightly week to week instead of speed only."
+    ]
+  },
+  {
+    "id": "treadmill_incline_walk",
+    "name": "Treadmill Incline Walk",
+    "aliases": [
+      "12-3-30 Style Walk",
+      "Incline Walking"
+    ],
+    "description": "Moderate incline walking to raise heart rate with lower joint impact than running.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Set a sustainable incline and speed where you can still breathe through your nose or speak in sentences.",
+      "Take short steps and drive through the glutes without leaning heavily on the handles.",
+      "Keep chest tall and eyes forward.",
+      "If your heart rate spikes too high, lower incline slightly before reducing speed."
+    ]
+  },
+  {
+    "id": "treadmill_jog_steady",
+    "name": "Treadmill Jog (Steady State)",
+    "aliases": [
+      "Easy Jog",
+      "Treadmill Easy Run"
+    ],
+    "description": "Comfortably-paced jogging to develop aerobic fitness and running economy.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Warm up with 5–10 minutes of easy walking before picking up to a jog.",
+      "Land with moderate cadence; avoid long, heavy heel strikes if they bother your joints.",
+      "Stay relaxed in shoulders, jaw, and hands.",
+      "Finish with a few minutes of walking to bring heart rate down."
+    ]
+  },
+  {
+    "id": "treadmill_run_intervals",
+    "name": "Treadmill Run Intervals",
+    "aliases": [
+      "Treadmill Intervals",
+      "Treadmill HIIT Run"
+    ],
+    "description": "Alternates harder running efforts with easy recovery for improved speed and VO2 capacity.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "After a thorough warm-up, run hard for the work interval at a controlled, repeatable effort.",
+      "Step to the sides or slow the belt for full recovery between reps.",
+      "Stop if form breaks down or you feel sharp pain; adjust speed or incline.",
+      "Cool down with easy walking until breathing returns to normal."
+    ]
+  },
+  {
+    "id": "stationary_bike_steady",
+    "name": "Stationary Bike (Steady / Zone 2)",
+    "aliases": [
+      "Upright Bike Steady",
+      "Spin Bike Endurance"
+    ],
+    "description": "Low-impact cycling at a sustainable effort for aerobic development and active recovery.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Seated",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Adjust seat height so knees have a slight bend at the bottom of the pedal stroke.",
+      "Push and pull smoothly through the full circle; avoid mashing only downward.",
+      "Keep upper body relaxed with light grip on handles.",
+      "Stay in a conversational effort for base work, or use prescribed power or heart-rate zones."
+    ]
+  },
+  {
+    "id": "stationary_bike_intervals",
+    "name": "Stationary Bike Intervals",
+    "aliases": [
+      "Bike Sprints",
+      "Spin Intervals"
+    ],
+    "description": "High-intensity cycling intervals with recovery periods for conditioning and leg power.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Seated",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Warm up 8–15 minutes with gradually increasing effort.",
+      "For each work interval, increase resistance and cadence to a strong but repeatable effort.",
+      "Spin legs lightly during recovery; don’t stop completely between reps.",
+      "Cool down until heart rate and breathing settle."
+    ]
+  },
+  {
+    "id": "recumbent_bike_steady",
+    "name": "Recumbent Bike (Steady)",
+    "aliases": [
+      "Recumbent Stationary Bike",
+      "Seated Bike Cardio"
+    ],
+    "description": "Seated cycling with back support—common in gyms for low-impact cardio, warm-ups, or long steady sessions with less trunk fatigue than an upright bike.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Seated",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Adjust seat so leg is almost straight at full extension without locking the knee.",
+      "Push through the full pedal stroke; add light upper-body support from handles without leaning hard.",
+      "Keep steady resistance for Zone 2 or use intervals if the bike supports quick changes.",
+      "Stop if numb feet or knee pain persists—recheck seat position."
+    ]
+  },
+  {
+    "id": "air_bike_assault",
+    "name": "Assault / Air Bike",
+    "aliases": [
+      "Airdyne",
+      "Fan Bike",
+      "Echo Bike"
+    ],
+    "description": "Full-body fan bike conditioning using arms and legs for high-output intervals or steady work.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Seated",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Brace your core and maintain smooth pulls and pushes on the handles.",
+      "Start with shorter intervals; air bikes ramp up resistance as you go faster.",
+      "Keep shoulders down and avoid death-gripping the handles.",
+      "Scale interval length and rest to match current fitness."
+    ]
+  },
+  {
+    "id": "elliptical_steady",
+    "name": "Elliptical (Steady State)",
+    "aliases": [
+      "Cross Trainer Steady"
+    ],
+    "description": "Low-impact, full-body cardio machine work for sustained aerobic training.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stand tall with a slight hip hinge; avoid leaning all your weight on the arms.",
+      "Drive through the full stride without bouncing excessively.",
+      "Use handles for moderate upper-body contribution, not to lock out your posture.",
+      "Hold a steady effort for time or follow heart-rate targets."
+    ]
+  },
+  {
+    "id": "elliptical_intervals",
+    "name": "Elliptical Intervals",
+    "aliases": [
+      "Cross Trainer HIIT",
+      "Elliptical Sprint Intervals"
+    ],
+    "description": "Alternates harder stride or resistance with easy recovery on the elliptical—common template when you want low-impact interval work.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Warm up 5–10 minutes at easy resistance before the first hard push.",
+      "For work intervals, add resistance and stride rate but stay tall—no collapsing onto the arms.",
+      "Recover at low resistance with full foot contact; let breathing settle.",
+      "Stop if hips or knees complain; lower range or speed before quitting outright."
+    ]
+  },
+  {
+    "id": "rowing_machine_steady",
+    "name": "Rowing Machine (Steady State)",
+    "aliases": [
+      "Indoor Row Steady",
+      "Erg Steady Row"
+    ],
+    "description": "Full-body, low-impact rowing at sustainable pace for aerobic capacity.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "back",
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Seated",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Sequence legs–body–arms on the drive; reverse on the recovery.",
+      "Keep back neutral; drive with legs first before opening the hips.",
+      "Control the return; let the handle pass your knees only after legs flatten.",
+      "Pick a stroke rate and split you can hold for the full session."
+    ]
+  },
+  {
+    "id": "rowing_machine_intervals",
+    "name": "Rowing Machine Intervals",
+    "aliases": [
+      "Indoor Row HIIT",
+      "Erg Intervals"
+    ],
+    "description": "Hard rowing efforts with easy paddling recovery for conditioning.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "back",
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Seated",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Warm up with easy rowing and a few progressive strokes.",
+      "During work intervals, maintain strong technique; stop if form collapses.",
+      "Use light pressure and slow strokes during recovery.",
+      "Log splits or watts if tracking progress over weeks."
+    ]
+  },
+  {
+    "id": "ski_erg_steady",
+    "name": "Ski Erg (Steady)",
+    "aliases": [
+      "Ski Machine Aerobic"
+    ],
+    "description": "Upper-body-dominant ergometer work that still challenges core and hips at sustainable effort.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "back"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Hinge slightly at hips with soft knees; pull handles down and through with lats.",
+      "Alternate arms smoothly or use double-pole strokes as programmed.",
+      "Keep ribs down and avoid overarching the low back.",
+      "Build volume gradually; shoulders should not burn out in the first few minutes."
+    ]
+  },
+  {
+    "id": "ski_erg_intervals",
+    "name": "Ski Erg Intervals",
+    "aliases": [
+      "Ski Machine HIIT"
+    ],
+    "description": "Short, high-output bursts on the ski erg with controlled recovery.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "back"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Brace trunk before each pull; exhale on the drive.",
+      "Maintain a steady rhythm; don’t shorten range just to go faster.",
+      "Between intervals, continue light strokes or step off briefly if needed.",
+      "Stop if you feel sharp shoulder or elbow irritation."
+    ]
+  },
+  {
+    "id": "stair_climber_machine",
+    "name": "Stair Climber / Step Mill",
+    "aliases": [
+      "Step Mill",
+      "Stair Machine"
+    ],
+    "description": "Continuous stepping for strong leg endurance and elevated heart rate with controlled impact.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Stand fully upright; lightly rest fingertips on rails for balance only.",
+      "Place your whole foot on each step when possible.",
+      "Start with slower speeds and shorter durations; add time before max speed.",
+      "Step off if you feel dizzy or get side stitches that don’t ease with slower pacing."
+    ]
+  },
+  {
+    "id": "jacobs_ladder_machine",
+    "name": "Jacob's Ladder (Ladder Treadmill)",
+    "aliases": [
+      "Ladder Climber",
+      "Ladder Mill"
+    ],
+    "description": "Self-paced climbing machine with a moving ladder—demanding full-body cardio found in many strength-and-conditioning gyms.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "legs",
+      "core"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Other",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Use the safety strap or belt per the manufacturer’s instructions before climbing.",
+      "Climb smoothly; let the machine set cadence early until you learn the rhythm.",
+      "Keep hips close to the ladder and avoid over-reaching with the arms.",
+      "Start with 2–5 minute bouts and build; stop if grip fails or you feel unsafe."
+    ]
+  },
+  {
+    "id": "versaclimber_machine",
+    "name": "VersaClimber",
+    "aliases": [
+      "Vertical Climber Machine"
+    ],
+    "description": "Full-body vertical climbing pattern for high heart-rate conditioning.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Maintain a smooth alternating or parallel stride per machine settings.",
+      "Keep hips close to the machine; avoid excessive rocking.",
+      "Scale stroke length and tempo to keep movement quality high.",
+      "Begin with short bouts and extend as conditioning improves."
+    ]
+  },
+  {
+    "id": "arc_trainer_steady",
+    "name": "Arc Trainer (Steady)",
+    "aliases": [
+      "Adaptive Motion Trainer Steady"
+    ],
+    "description": "Gliding stride machine for low-impact cardio with adjustable resistance and incline.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Let the foot plates move naturally without stomping.",
+      "Adjust resistance so effort feels sustainable for the planned duration.",
+      "Use arm handles for balance and light upper-body contribution.",
+      "Stay tall through the torso."
+    ]
+  },
+  {
+    "id": "curve_treadmill_self_powered",
+    "name": "Self-Powered / Curve Treadmill Run",
+    "aliases": [
+      "Manual Treadmill Run",
+      "Curve Belt Run"
+    ],
+    "description": "Running on a non-motorized curved belt where you set the pace—great for short accelerations and technique.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Start with light steps at the front curve until the belt moves smoothly.",
+      "Stay mid-foot to forefoot biased as appropriate for your mechanics.",
+      "Use short sprints or fartlek-style pickups with full walk-down recoveries.",
+      "Stop the belt safely before stepping off."
+    ]
+  },
+  {
+    "id": "jump_rope_single_under",
+    "name": "Jump Rope — Single Unders",
+    "aliases": [
+      "Skipping Rope",
+      "Basic Jump Rope"
+    ],
+    "description": "Rhythmic rope skipping for coordination and steady cardio; minimal space and equipment.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Use a rope length that clears your head with a small hop (or hold handles of your jump rope if available).",
+      "Spin from the wrists, not huge arm circles.",
+      "Land softly on the balls of the feet with slight knee flexion.",
+      "Keep jumps low; the rope needs only a small gap."
+    ]
+  },
+  {
+    "id": "jump_rope_double_under",
+    "name": "Jump Rope — Double Unders",
+    "aliases": [
+      "DU",
+      "Double-Unders"
+    ],
+    "description": "High-turnover rope work where the rope passes twice per jump—intense conditioning in short doses.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Master consistent single unders and high wrist speed first.",
+      "Jump a bit higher while spinning faster; stay tall.",
+      "Rest between failed reps to keep quality high.",
+      "Scale with intermittent doubles (e.g., 1 double every 5 singles) while learning."
+    ]
+  },
+  {
+    "id": "burpee",
+    "name": "Burpee",
+    "aliases": [
+      "Squat Thrust to Stand"
+    ],
+    "description": "Full-body bodyweight movement combining squat, plank, push-up optional, and jump for conditioning.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "chest",
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Drop hands to the floor, jump or step back to a plank with a braced torso.",
+      "Optional controlled push-up, then jump or step feet forward.",
+      "Finish with a small vertical jump or reach overhead if appropriate.",
+      "Step back and omit the jump for a lower-impact version."
+    ]
+  },
+  {
+    "id": "mountain_climber_cardio",
+    "name": "Mountain Climbers (Cardio Pace)",
+    "aliases": [
+      "Running Plank"
+    ],
+    "description": "Alternating knee drives from a plank for elevated heart rate and core endurance.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "core",
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Other",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Stack shoulders over wrists; keep hips level with the floor.",
+      "Drive knees toward chest without bouncing hips to the sky.",
+      "Breathe steadily; slow down before form breaks.",
+      "Perform on a bench or elevate hands to reduce intensity."
+    ]
+  },
+  {
+    "id": "high_knees",
+    "name": "High Knees (In Place)",
+    "aliases": [
+      "Running High Knees"
+    ],
+    "description": "In-place rhythmic knee drives to raise heart rate and hip flexor turnover.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Pump arms as if sprinting; lift knees toward hip height.",
+      "Land softly with quick, light contacts.",
+      "Stay tall; avoid folding forward at the waist.",
+      "Use timed rounds (e.g., 20–40 seconds) with walk recovery."
+    ]
+  },
+  {
+    "id": "jumping_jack",
+    "name": "Jumping Jack",
+    "aliases": [
+      "Side-Straddle Hop"
+    ],
+    "description": "Classic full-body warm-up and conditioning movement.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs",
+      "shoulders"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Start with feet together and arms at sides.",
+      "Jump feet out while raising arms overhead or to shoulder height.",
+      "Return to start in one smooth motion.",
+      "For low impact, tap one foot out at a time without leaving the ground."
+    ]
+  },
+  {
+    "id": "lateral_shuffle_conditioning",
+    "name": "Lateral Shuffle (Conditioning)",
+    "aliases": [
+      "Side Shuffle Drill"
+    ],
+    "description": "Agility-style side-to-side shuffling for lateral conditioning and heart rate.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Stay low in an athletic stance with chest up.",
+      "Push off the outside foot; don’t cross feet.",
+      "Cover a set distance or stay between two cones.",
+      "Keep head level—avoid excessive bobbing."
+    ]
+  },
+  {
+    "id": "plyo_box_jump",
+    "name": "Box Jump",
+    "aliases": [
+      "Jump to Box"
+    ],
+    "description": "Explosive jump onto a sturdy box or platform for power and conditioning.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "plyo_box"
+    ],
+    "equipmentAlternativeIds": [
+      "bodyweight"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Use a box height you can land on with soft knees and full foot contact.",
+      "Swing arms for momentum; jump vertically, not into the box.",
+      "Land quietly with hips and knees bent to absorb force.",
+      "Step down between reps for joint-friendlier volume; stop before sloppy landings."
+    ]
+  },
+  {
+    "id": "jump_squat_bodyweight",
+    "name": "Jump Squat (Bodyweight)",
+    "aliases": [
+      "Squat Jump"
+    ],
+    "description": "Repeated squat jumps for leg power and high heart rate in short sets.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Squat to a consistent depth with chest tall.",
+      "Explode up; land softly into the next rep or reset between jumps.",
+      "Keep knees tracking over toes.",
+      "Limit total jumps per session to preserve knee comfort."
+    ]
+  },
+  {
+    "id": "kettlebell_swing_conditioning",
+    "name": "Kettlebell Swing (Conditioning)",
+    "aliases": [
+      "KB Swing Intervals"
+    ],
+    "description": "Hip-hinge ballistic swings for posterior-chain power and sustained cardio when done for time.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs",
+      "back"
+    ],
+    "equipmentIds": [
+      "kettlebell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Hinge hips back; arms are straps, not lifters.",
+      "Snap hips to standing; bell floats to chest height (Russian) or overhead if trained for American style.",
+      "Breathe rhythmically; stay tall at the top of each rep.",
+      "Stop before low-back rounding or shrug-dominated swings."
+    ]
+  },
+  {
+    "id": "medicine_ball_slam",
+    "name": "Medicine Ball Slam",
+    "aliases": [
+      "Ball Slam"
+    ],
+    "description": "Explosive overhead slams for full-body power and interval conditioning.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "core",
+      "back"
+    ],
+    "equipmentIds": [
+      "medicine_ball"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Use a non-bouncing slam ball on a suitable floor.",
+      "Raise ball overhead using hips and core; slam down hard in front of feet.",
+      "Pick up fluidly into the next rep.",
+      "Stop if elbows or low back gets cranky; reduce volume or weight."
+    ]
+  },
+  {
+    "id": "battle_rope_alternating_waves",
+    "name": "Battle Rope — Alternating Waves",
+    "aliases": [
+      "Rope Waves"
+    ],
+    "description": "Rapid alternating arm waves for shoulder endurance and high heart rate.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "battle_rope"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Hold one end in each hand, athletic stance, slight hip hinge.",
+      "Create continuous waves moving down the rope.",
+      "Keep ribs down; breathe in short bursts.",
+      "Use 15–30 second work chunks to start; extend as tolerance builds."
+    ]
+  },
+  {
+    "id": "battle_rope_double_slams",
+    "name": "Battle Rope — Double Slams",
+    "aliases": [
+      "Rope Power Slams"
+    ],
+    "description": "Lifting both rope ends high and slamming together for power-based conditioning intervals.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "battle_rope"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Raise ropes overhead using legs and hips.",
+      "Slam aggressively to the floor; reset quickly into the next rep.",
+      "Avoid excessive arching through the low back.",
+      "Keep sets short and intense with full recovery if power drops."
+    ]
+  },
+  {
+    "id": "sled_push",
+    "name": "Sled Push",
+    "aliases": [
+      "Prowler Push"
+    ],
+    "description": "Heavy forward pushing for leg drive and brutal conditioning when done for distance or time.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "sled"
+    ],
+    "equipmentAlternativeIds": [
+      "machine"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Set handles at shoulder height; brace core and drive through mid-foot.",
+      "Take short, choppy steps; keep spine neutral.",
+      "Add load only if you can maintain strong positions.",
+      "Walk back or rest fully between pushes as programmed."
+    ]
+  },
+  {
+    "id": "sled_drag_backward",
+    "name": "Sled Drag (Backward)",
+    "aliases": [
+      "Reverse Sled Drag"
+    ],
+    "description": "Backward walking against a harness or handles for quad burn and cardio with low collision risk.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "sled"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Attach belt or handles; step backward with small, controlled steps.",
+      "Keep weight through full feet; avoid leaning too far back.",
+      "Choose a load you can move smoothly for the target distance.",
+      "Clear space behind you before starting."
+    ]
+  },
+  {
+    "id": "farmers_carry_brisk_walk",
+    "name": "Farmer's Carry — Brisk Walk (Conditioning)",
+    "aliases": [
+      "Heavy Carry Walk",
+      "Farmer Walk Metcon"
+    ],
+    "description": "Walking with heavy dumbbells or handles at a brisk pace for grip, trunk, and heart rate.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "legs"
+    ],
+    "equipmentIds": [
+      "dumbbell"
+    ],
+    "equipmentAlternativeIds": [
+      "kettlebell"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Pick weights you can hold with packed shoulders and tall posture.",
+      "Walk at a pace that raises breathing but doesn’t ruin form.",
+      "Set the weights down before grip failure causes leaning.",
+      "Use straps only if grip is intentionally not the limiter."
+    ]
+  },
+  {
+    "id": "shadow_boxing_rounds",
+    "name": "Shadow Boxing (Rounds)",
+    "aliases": [
+      "Shadowbox Conditioning"
+    ],
+    "description": "Timed rounds of punches, footwork, and head movement without contact for steady cardio.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stay light on the feet; keep hands up and chin tucked.",
+      "Rotate through hips on crosses and hooks.",
+      "Use 2–3 minute rounds with 30–60 seconds rest for conditioning.",
+      "Focus on technique at lower fatigue; add speed as skill allows."
+    ]
+  },
+  {
+    "id": "swimming_laps_easy",
+    "name": "Swimming — Easy Laps",
+    "aliases": [
+      "Pool Swim Aerobic"
+    ],
+    "description": "Continuous easy swimming for low-impact full-body cardio (pool required).",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "back",
+      "shoulders",
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Other",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Warm up outside the water or with very easy laps.",
+      "Pick a stroke you can sustain with smooth breathing.",
+      "Stay in a lane with appropriate speed etiquette.",
+      "Exit if you feel cramping, dizziness, or unsafe fatigue."
+    ]
+  },
+  {
+    "id": "outdoor_cycling_steady",
+    "name": "Outdoor Cycling (Steady)",
+    "aliases": [
+      "Road Bike Endurance",
+      "Bike Ride Zone 2"
+    ],
+    "description": "Outdoor cycling at sustainable effort for long-duration aerobic development.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Seated",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Follow traffic laws and wear appropriate safety gear.",
+      "Keep cadence and gearing comfortable for the distance.",
+      "Fuel and hydrate on longer rides.",
+      "Use heart rate or power zones if you track them."
+    ]
+  },
+  {
+    "id": "trail_hiking_brisk",
+    "name": "Trail Hiking (Brisk)",
+    "aliases": [
+      "Hill Hike",
+      "Fast Hiking"
+    ],
+    "description": "Outdoor hiking with elevation or brisk pace for low-impact endurance.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Wear supportive footwear; pack water for longer routes.",
+      "Use trekking poles on steep descents if you like, to spare knees.",
+      "Keep a pace that allows conversation on flats; power hikes on climbs as desired.",
+      "Plan route and weather appropriate to fitness."
+    ]
+  },
+  {
+    "id": "hiit_high_intensity_interval_session",
+    "name": "HIIT — General High-Intensity Intervals",
+    "aliases": [
+      "HIIT",
+      "High Intensity Interval Training",
+      "Interval Cardio",
+      "Micro-HIIT",
+      "Mini HIIT",
+      "10-Minute HIIT",
+      "Time-Crunch Intervals"
+    ],
+    "description": "Structured work–rest bouts at high effort (roughly RPE 8–10 on work) to train anaerobic power and aerobic recovery; duration, modality, and rest can be tailored. Short “micro” blocks (roughly 4–12 minutes of hard work, plus warm-up and cool-down) use the same rules with a smaller total dose.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [
+      "machine",
+      "kettlebell",
+      "battle_rope"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Warm up until you are sweaty and joints feel ready—never start cold on HIIT.",
+      "Pick work intervals you can repeat with similar output (avoid going to failure on rep 1).",
+      "Use full or active recovery so heart rate drops before the next hard bout.",
+      "Short on time: warm up properly, pick 1–2 simple movements, and keep work bouts honest even if total work is only a few minutes.",
+      "Cap weekly HIIT volume; most training should still be easy or moderate intensity.",
+      "Fill the rest of the week with easy movement (walking, Zone 2, daily steps)—short HIIT is not a substitute for baseline activity."
+    ]
+  },
+  {
+    "id": "hiit_tabata_protocol",
+    "name": "Tabata Intervals (Classic)",
+    "aliases": [
+      "Tabata",
+      "Tabata HIIT",
+      "20–10 Intervals"
+    ],
+    "description": "Named protocol: eight rounds of 20 seconds near-max effort and 10 seconds rest (four minutes per block), often repeated for two to four blocks with longer rests between blocks.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs",
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [
+      "machine",
+      "kettlebell",
+      "medicine_ball",
+      "battle_rope"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Choose one simple movement (sprint in place, bike sprint, thrusters, etc.) and stick with it for the full 8 rounds when possible.",
+      "20 seconds is short—push pace close to maximal sustainable, not a jog.",
+      "Use a timer; 10-second rest passes quickly—stay ready for the next start.",
+      "Beginners can reduce total rounds or use a lower-impact move; stop if form collapses."
+    ]
+  },
+  {
+    "id": "hiit_emom_cardio",
+    "name": "EMOM — Cardio or Mixed Conditioning",
+    "aliases": [
+      "EMOM MetCon",
+      "Every Minute on the Minute Cardio"
+    ],
+    "description": "At the start of each minute, complete a prescribed workload (reps, calories, or distance), then rest the remainder of the minute; repeats for 10–30 minutes builds pacing under fatigue.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs",
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [
+      "machine",
+      "kettlebell",
+      "dumbbell",
+      "medicine_ball"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Set a workload that leaves roughly 15–25 seconds rest early in the session.",
+      "If you miss the minute boundary, scale reps or difficulty before the next round.",
+      "Keep transitions fast—EMOM rewards efficiency, not wandering between stations.",
+      "Log rounds or splits to track progress week to week."
+    ]
+  },
+  {
+    "id": "hiit_amrap_conditioning",
+    "name": "AMRAP — Conditioning Circuit",
+    "aliases": [
+      "AMRAP HIIT",
+      "AMRAP MetCon",
+      "As Many Rounds As Possible",
+      "MetCon",
+      "Metabolic Conditioning",
+      "Metabolic Circuit",
+      "Conditioning WOD"
+    ],
+    "description": "Fixed time cap (often 8–20 minutes): complete as many rounds as possible of a small exercise circuit; a staple of HIIT-style classes and functional fitness for work capacity. Often what people call a “MetCon”—mixed strength and cardio under fatigue.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [
+      "machine",
+      "kettlebell",
+      "dumbbell",
+      "battle_rope"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Pick 3–5 movements you can cycle through safely when breathing hard.",
+      "Start slightly conservative; blow up early and the rest of the AMRAP suffers.",
+      "Count full rounds plus partial rounds the same way each session for comparable scores.",
+      "Order moves to alternate stress (e.g., upper/lower) when possible; scale loads so work stays continuous.",
+      "Substitute low-impact options (e.g., step-back burpees) if joints complain."
+    ]
+  },
+  {
+    "id": "hiit_norwegian_4x4_protocol",
+    "name": "Norwegian 4×4 Intervals",
+    "aliases": [
+      "4x4 Intervals",
+      "Norwegian 4x4",
+      "4 min on 3 min off"
+    ],
+    "description": "Evidence-popular format: four intervals of about four minutes at very high aerobic power (often ~85–95% max heart rate) with three minutes easy recovery between—commonly done running, rowing, cycling, or skiing.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [
+      "bodyweight"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Build an aerobic base before stacking weekly 4×4 sessions.",
+      "During work intervals, hold the fastest steady pace you can repeat for all four bouts—avoid sprinting the first rep only.",
+      "Recovery must be truly easy: slow breathing, not just slower working pace.",
+      "One session per week is often enough at first; quality beats volume."
+    ]
+  },
+  {
+    "id": "hiit_sprint_interval_training",
+    "name": "Sprint Interval Training (Very Short Sprints)",
+    "aliases": [
+      "SIT",
+      "Sprint Intervals",
+      "All-Out Sprints"
+    ],
+    "description": "Ultra-short near-maximal sprints (e.g., 10–30 seconds) with long full recovery (often 2–4 minutes)—distinct from longer HIIT; trends in research for time-efficient adaptations when recovery is generous.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [
+      "machine",
+      "sled"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Use a true warm-up with gradual build-ups before first maximal sprint.",
+      "If hamstrings feel tight or cold, do not hit maximal acceleration.",
+      "Rest until breathing and heart rate recover—sprint quality matters more than session sweat.",
+      "Limit total sprints per session; stop at technical breakdown."
+    ]
+  },
+  {
+    "id": "zone_2_training_session",
+    "name": "Zone 2 Cardio Session",
+    "aliases": [
+      "Zone 2",
+      "Z2 Cardio",
+      "Aerobic Base Session",
+      "LISS Cardio",
+      "LISS",
+      "Low-Intensity Steady State",
+      "Easy Steady Cardio",
+      "Conversational Pace Cardio"
+    ],
+    "description": "Sustainable easy aerobic work—Session RPE ~5–6 / talk-test or nasal-breath intensity—to build capillary density and fat oxidation; often ~80% of volume in polarized plans. For most people this overlaps with what coaches call LISS (low-intensity steady state).",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [
+      "bodyweight"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Track heart rate, power, pace, or feel—pick one method and stay consistent.",
+      "If you drift into heavy breathing, slow down; Zone 2 is not 'sort of hard.'",
+      "Typical duration 30–75+ minutes for dedicated sessions; add time before speed or incline.",
+      "Walk, bike, swim, or elliptical all count—consistency beats variety.",
+      "Frequency beats occasional monster sessions for aerobic development.",
+      "Progress by adding 5–10 minutes per week rather than pushing intensity.",
+      "Pair with 1–2 harder sessions per week if following a polarized plan."
+    ]
+  },
+  {
+    "id": "hybrid_hyrox_style_training",
+    "name": "Hybrid Race Prep — Run + Station Circuits",
+    "aliases": [
+      "HYROX Style Training",
+      "Hybrid Running MetCon",
+      "Run and Station Workout"
+    ],
+    "description": "Popularized by hybrid fitness races: repeated run segments (often ~1 km) alternated with functional stations (sled, burpees, rowing, etc.) for race-specific conditioning—without using any trademarked race name as the exercise title.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [
+      "machine",
+      "sled",
+      "kettlebell"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Start with shorter run segments and fewer total rounds; build distance before speed.",
+      "Practice shoes, fueling, and transitions—races are won or lost on pacing and logistics.",
+      "Alternate hard race simulations with easy Zone 2 runs through the week.",
+      "Scale station work to full range of motion under fatigue."
+    ]
+  },
+  {
+    "id": "circuit_training_cardio",
+    "name": "Circuit Training — Cardio Focus",
+    "aliases": [
+      "Cardio Circuit",
+      "Rotation Circuit",
+      "Station Cardio"
+    ],
+    "description": "Rotate through several stations with minimal rest between (e.g., 30–60 seconds each) for multiple rounds—still common in boutique studios and general-population HIIT.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs",
+      "arms"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [
+      "bodyweight",
+      "dumbbell",
+      "cable",
+      "battle_rope"
+    ],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Set up equipment before starting so you can flow station to station.",
+      "Use a clock or coach cues; equal work at each station keeps rounds comparable.",
+      "Modify impact (step vs jump) to survive multiple rounds.",
+      "One to three total rounds is plenty for beginners; add rounds gradually."
+    ]
   }
 ]

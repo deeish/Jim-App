@@ -13,10 +13,16 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
+import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
 import { getSavedWorkouts } from '../services/workoutService';
 import type { Workout } from '../types/workout';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
+
+function savedWorkoutDurationLabel(w: Workout): string | null {
+  const m = getWorkoutDisplayEstimateMinutes(w.exercises, w.estimatedDuration ?? null);
+  return m != null ? `${m} min` : null;
+}
 
 export type SavedWorkoutsScreenProps = {
   /** When provided, back button and outside-tap close the modal by calling this instead of navigation. */
@@ -145,11 +151,9 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
               onPress={() => handleSelectWorkout(w.id)}
             >
               <Text style={styles.cardTitle}>{w.name}</Text>
-              {(w.day || w.estimatedDuration) && (
+              {(w.day || savedWorkoutDurationLabel(w)) && (
                 <Text style={styles.cardMeta}>
-                  {[w.day, w.estimatedDuration ? `${w.estimatedDuration} min` : null]
-                    .filter(Boolean)
-                    .join(' • ')}
+                  {[w.day, savedWorkoutDurationLabel(w)].filter(Boolean).join(' • ')}
                 </Text>
               )}
               {w.exercises?.length > 0 && (
