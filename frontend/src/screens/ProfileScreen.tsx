@@ -279,7 +279,6 @@ const layoutStyles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   modalSheet: {
@@ -402,6 +401,7 @@ export default function ProfileScreen() {
       modalSheet: { backgroundColor: colors.surface },
       modalTitle: { color: colors.text },
       equipLabel: { color: colors.text },
+      modalOverlay: { backgroundColor: colors.scrim },
     }),
     [colors],
   );
@@ -732,7 +732,7 @@ export default function ProfileScreen() {
         transparent
         onRequestClose={() => setListPicker(null)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, themedStyles.modalOverlay]}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
@@ -779,7 +779,7 @@ export default function ProfileScreen() {
         transparent
         onRequestClose={() => setEquipmentModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, themedStyles.modalOverlay]}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}

@@ -15,7 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme, planSlotIconColors } from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot } from '../services/planService';
@@ -77,18 +77,12 @@ function isTodayDate(d: Date): boolean {
   return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
 }
 
-const ICON_COLORS: Record<string, string> = {
-  strength: '#C7A46A',
-  cardio: '#E67E22',
-  recovery: '#9B59B6',
-};
-
-function apiSlotToPlanWorkout(pw: ApiPlanWorkout): PlanWorkout {
+function apiSlotToPlanWorkout(pw: ApiPlanWorkout, iconColors: Record<string, string>): PlanWorkout {
   return {
     id: pw.id,
     title: pw.title,
     detailLine: pw.detailLine ?? '—',
-    iconColor: ICON_COLORS[pw.type] ?? '#95A5A6',
+    iconColor: iconColors[pw.type] ?? iconColors.neutral,
     durationMinutes: pw.durationMinutes,
     intensity: (pw.intensity as Intensity) ?? 'Easy',
     type: pw.type as WorkoutType,
@@ -97,7 +91,10 @@ function apiSlotToPlanWorkout(pw: ApiPlanWorkout): PlanWorkout {
   };
 }
 
-function planWorkoutsToByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, Record<string, PlanWorkout[]>> {
+function planWorkoutsToByWeek(
+  planWorkouts: ApiPlanWorkout[],
+  iconColors: Record<string, string>,
+): Record<number, Record<string, PlanWorkout[]>> {
   const byWeek: Record<number, Record<string, PlanWorkout[]>> = {};
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const weeks = [...new Set(planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)))];
@@ -119,7 +116,7 @@ function planWorkoutsToByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, Re
       if (!byWeek[wn][day]) {
         byWeek[wn][day] = [];
       }
-      byWeek[wn][day].push(apiSlotToPlanWorkout(pw));
+      byWeek[wn][day].push(apiSlotToPlanWorkout(pw, iconColors));
     });
   return byWeek;
 }
@@ -177,7 +174,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       const { plan: apiPlan, weeklyWorkouts: weekly } = await getCurrentPlanWithWeekly();
       setCurrentPlan(apiPlan ?? null);
       if (apiPlan?.planWorkouts?.length) {
-        setPlanByWeek(planWorkoutsToByWeek(apiPlan.planWorkouts));
+        setPlanByWeek(planWorkoutsToByWeek(apiPlan.planWorkouts, planSlotIconColors(colors)));
       } else {
         setPlanByWeek({});
       }
@@ -196,7 +193,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     } finally {
       setPlanLoading(false);
     }
-  }, []);
+  }, [colors]);
 
   useFocusEffect(
     useCallback(() => {
@@ -299,7 +296,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           borderWidth: 1,
           borderColor: colors.border,
         },
-        ctaCompactText: { fontSize: 13, fontWeight: '600', color: colors.background },
+        ctaCompactText: { fontSize: 13, fontWeight: '600', color: colors.onPrimary },
         ctaCompactTextSecondary: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
         weekRow: {
           flexDirection: 'row',
@@ -339,8 +336,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           borderRadius: 6,
           gap: 4,
         },
-        todayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.background },
-        todayText: { fontSize: 11, fontWeight: '600', color: colors.background },
+        todayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.onPrimary },
+        todayText: { fontSize: 11, fontWeight: '600', color: colors.onPrimary },
         daySummaryContainer: { alignItems: 'flex-end' },
         daySummaryRow: { flexDirection: 'row', alignItems: 'baseline' },
         daySummary: { fontSize: 12, color: colors.text, fontWeight: '600' },
@@ -386,7 +383,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           justifyContent: 'center',
           alignItems: 'center',
         },
-        workoutTypeBadge: { fontSize: 16, fontWeight: '700', color: colors.background },
+        workoutTypeBadge: { fontSize: 16, fontWeight: '700', color: colors.onPrimary },
         workoutContent: { flex: 1 },
         workoutTitle: { fontSize: 15, fontWeight: '600', color: colors.text, marginBottom: 2 },
         workoutDetailLine: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
@@ -394,7 +391,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         moreButtonText: { fontSize: 18, color: colors.textMuted, fontWeight: '700' },
         menuOverlay: {
           flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.5)',
+          backgroundColor: colors.scrim,
           justifyContent: 'center',
           alignItems: 'center',
           padding: 24,
@@ -412,7 +409,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         menuItemDanger: { color: colors.error },
         moveOverlay: {
           flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.5)',
+          backgroundColor: colors.scrim,
           justifyContent: 'center',
           alignItems: 'center',
           padding: 24,
@@ -553,7 +550,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           alignItems: 'center',
           justifyContent: 'center',
         },
-        detailSheetPrimaryText: { fontSize: 16, fontWeight: '700', color: colors.background },
+        detailSheetPrimaryText: { fontSize: 16, fontWeight: '700', color: colors.onPrimary },
       }),
     [colors]
   );
@@ -795,7 +792,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       >
         <Text style={[styles.headerTitle, { color: colors.text, marginBottom: 8 }]}>{planError}</Text>
         <TouchableOpacity onPress={loadPlan} style={{ padding: 12, backgroundColor: colors.primary, borderRadius: 8 }}>
-          <Text style={{ color: colors.background, fontWeight: '600' }}>Retry</Text>
+          <Text style={{ color: colors.onPrimary, fontWeight: '600' }}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
@@ -1255,7 +1252,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                         disabled={startWorkoutLoading || displayExercises.length === 0}
                       >
                         {startWorkoutLoading ? (
-                          <ActivityIndicator color={colors.background} />
+                          <ActivityIndicator color={colors.onPrimary} />
                         ) : (
                           <Text style={styles.detailSheetPrimaryText}>Start workout</Text>
                         )}

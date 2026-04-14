@@ -11,7 +11,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import SetNewPasswordScreen from './src/screens/SetNewPasswordScreen';
-import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+import { ThemeProvider, useTheme } from './src/theme';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { UserPreferencesProvider } from './src/contexts/UserPreferencesContext';
 import { wrapWithSentry } from './src/lib/sentry';

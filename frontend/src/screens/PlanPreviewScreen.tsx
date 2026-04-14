@@ -15,10 +15,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme, planSlotIconColors, type PlanSlotIconColors, type ColorPalette } from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
-import { colors as themeColors } from '../theme/colors';
 import { createPlan, generateSingleSession, type PlanSlot, type PlanSlotExercise } from '../services/planService';
 import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
 import {
@@ -187,7 +186,11 @@ function programTypeToTemplateId(programType: string): string | undefined {
 }
 
 // Generate plan for all weeks
-function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs'], draftId: string): WeekPlan[] {
+function generateFullPlan(
+  inputs: PlanPreviewScreenRouteProp['params']['inputs'],
+  draftId: string,
+  icons: PlanSlotIconColors,
+): WeekPlan[] {
   const weeks: WeekPlan[] = [];
   const numWeeks = inputs.weeks || 1;
   
@@ -211,7 +214,7 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
           id: `draft-w${weekNum}-${day}-1`,
           title: workoutType,
           detailLine: '6 exercises • Push focus',
-          iconColor: '#C7A46A',
+          iconColor: icons.strength,
           durationMinutes: Math.round((inputs.timePerSession.min + 10) * weekMultiplier),
           intensity: index === 0 ? 'Hard' : 'Medium',
           type: 'strength',
@@ -226,7 +229,7 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
             id: `draft-w${weekNum}-${day}-2`,
             title: 'Cardio',
             detailLine: 'Zone 2',
-            iconColor: '#2ECC71',
+            iconColor: icons.cardioAlt,
             durationMinutes: inputs.timePerSession.min - 15,
             intensity: 'Easy',
             type: 'cardio',
@@ -244,7 +247,7 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
           id: `draft-w${weekNum}-${day}-1`,
           title: `${strengthPart} + Run`,
           detailLine: index % 2 === 0 ? '4 exercises + 20 min run' : '5 exercises + 15 min run',
-          iconColor: '#C7A46A',
+          iconColor: icons.strength,
           durationMinutes: Math.round(inputs.timePerSession.min * weekMultiplier),
           intensity: index === 0 ? 'Hard' : 'Medium',
           type: 'strength',
@@ -259,7 +262,7 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
             id: `draft-w${weekNum}-${day}-2`,
             title: 'Recovery',
             detailLine: 'Stretch & mobility',
-            iconColor: '#9B59B6',
+            iconColor: icons.recovery,
             durationMinutes: 15,
             intensity: 'Easy',
             type: 'recovery',
@@ -279,7 +282,7 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
           id: `draft-w${weekNum}-${day}-1`,
           title: workoutType,
           detailLine: detailLines[index % 3],
-          iconColor: '#C7A46A',
+          iconColor: icons.strength,
           durationMinutes: Math.round(inputs.timePerSession.min * weekMultiplier),
           intensity: index === 0 ? 'Hard' : 'Medium',
           type: 'strength',
@@ -294,7 +297,7 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
             id: `draft-w${weekNum}-${day}-2`,
             title: 'Recovery',
             detailLine: 'Stretch & mobility',
-            iconColor: '#9B59B6',
+            iconColor: icons.recovery,
             durationMinutes: 15,
             intensity: 'Easy',
             type: 'recovery',
@@ -321,13 +324,16 @@ function generateFullPlan(inputs: PlanPreviewScreenRouteProp['params']['inputs']
 
 function getInitialPlanData(
   inputs: RootStackParamList['PlanPreview']['inputs'],
-  draftId: string
+  draftId: string,
+  icons: PlanSlotIconColors,
 ): WeekPlan[] {
-  return generateFullPlan(inputs, draftId);
+  return generateFullPlan(inputs, draftId, icons);
 }
 
 export default function PlanPreviewScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
+  const slotIcons = useMemo(() => planSlotIconColors(colors), [colors]);
+  const styles = useMemo(() => createPlanPreviewStyles(colors), [colors]);
   const { weightUnit } = useUserPreferences();
   const { inputs, draftId, planInputs, returnToPlanCard } = route.params;
   const isFocused = useIsFocused();
@@ -349,7 +355,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null);
   const [planData, setPlanData] = useState<WeekPlan[]>(() =>
-    planInputs ? [] : getInitialPlanData(inputs, draftId)
+    planInputs ? [] : getInitialPlanData(inputs, draftId, planSlotIconColors(colors))
   );
   const [cardToReopen, setCardToReopen] = useState(returnToPlanCard ?? null);
   useEffect(() => {
@@ -741,7 +747,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         );
       } else {
         await new Promise((r) => setTimeout(r, 1500));
-        const newPlan = generateFullPlan(inputs, draftId);
+        const newPlan = generateFullPlan(inputs, draftId, slotIcons);
         setPlanData((prev) =>
           prev.map((w) => (w.weekNumber === weekNum ? newPlan[weekNum - 1] : w))
         );
@@ -1042,10 +1048,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       if (week.weekNumber !== selectedWeek) return week;
       const existing = week.workouts[day]?.[0];
       const durationMinutes = existing?.durationMinutes ?? 45;
+      const ic = planSlotIconColors(colors);
       const templates: Record<WorkoutType, Pick<PlanWorkout, 'title' | 'detailLine' | 'iconColor' | 'intensity'>> = {
-        cardio: { title: 'Cardio', detailLine: 'Zone 2 or intervals', iconColor: '#E67E22', intensity: 'Medium' },
-        strength: { title: 'Strength', detailLine: 'Full body or split', iconColor: '#C7A46A', intensity: 'Medium' },
-        recovery: { title: 'Recovery', detailLine: 'Stretch / mobility', iconColor: '#9B59B6', intensity: 'Easy' },
+        cardio: { title: 'Cardio', detailLine: 'Zone 2 or intervals', iconColor: ic.cardio, intensity: 'Medium' },
+        strength: { title: 'Strength', detailLine: 'Full body or split', iconColor: ic.strength, intensity: 'Medium' },
+        recovery: { title: 'Recovery', detailLine: 'Stretch / mobility', iconColor: ic.recovery, intensity: 'Easy' },
       };
       const t = templates[newType];
       const newWorkout: PlanWorkout = {
@@ -1083,7 +1090,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     });
     setSwapModalVisible(false);
     setSelectedDayForSwap(null);
-  }, [selectedWeek, selectedDayForSwap]);
+  }, [selectedWeek, selectedDayForSwap, colors]);
 
   const handleApply = async () => {
     setApplying(true);
@@ -1148,11 +1155,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const getChangeBadgeStyle = (changeType?: string) => {
     switch (changeType) {
       case 'new':
-        return { backgroundColor: 'rgba(107, 143, 113, 0.2)', color: colors.success };
+        return { backgroundColor: colors.successSoft, color: colors.success };
       case 'replaced':
-        return { backgroundColor: 'rgba(217, 119, 69, 0.2)', color: colors.warning };
+        return { backgroundColor: colors.warningSoft, color: colors.warning };
       case 'moved':
-        return { backgroundColor: 'rgba(199, 164, 106, 0.2)', color: colors.primary };
+        return { backgroundColor: colors.primarySoft, color: colors.primary };
       default:
         return { backgroundColor: 'transparent', color: colors.text };
     }
@@ -1311,7 +1318,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                     accessibilityLabel="Remove workout"
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Ionicons name="trash-outline" size={20} color={themeColors.textSecondary} />
+                    <Ionicons name="trash-outline" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.dayActionIcon}
@@ -1319,7 +1326,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                     accessibilityLabel="Swap workout"
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Ionicons name="swap-horizontal" size={22} color={themeColors.textSecondary} />
+                    <Ionicons name="swap-horizontal" size={22} color={colors.textSecondary} />
                   </TouchableOpacity>
                   {moveMode && (
                     <TouchableOpacity
@@ -1541,7 +1548,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                                     {replacingExerciseName === ex.name ? (
                                       <ActivityIndicator size="small" color={colors.primary} />
                                     ) : (
-                                      <Ionicons name="refresh-outline" size={22} color={themeColors.textSecondary} />
+                                      <Ionicons name="refresh-outline" size={22} color={colors.textSecondary} />
                                     )}
                                   </TouchableOpacity>
                                 )}
@@ -1610,42 +1617,42 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       </Modal>
 
       {typeof __DEV__ !== 'undefined' && __DEV__ && debugInfo && (
-        <View style={[styles.debugPanel, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
+        <View style={[styles.debugPanel, { borderColor: colors.border, backgroundColor: colors.surface }]}>
           <TouchableOpacity
             style={styles.debugPanelHeader}
             onPress={() => setDebugPanelOpen((o) => !o)}
           >
-            <Text style={[styles.debugPanelTitle, { color: themeColors.text }]}>
+            <Text style={[styles.debugPanelTitle, { color: colors.text }]}>
               🐛 Debug: Pipeline
             </Text>
-            <Text style={[styles.debugPanelToggle, { color: themeColors.primary }]}>
+            <Text style={[styles.debugPanelToggle, { color: colors.primary }]}>
               {debugPanelOpen ? '▼' : '▶'}
             </Text>
           </TouchableOpacity>
           {debugPanelOpen && (
             <ScrollView style={styles.debugPanelContent} nestedScrollEnabled>
-              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>PlanInputs</Text>
-              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>PlanInputs</Text>
+              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
                 {JSON.stringify(debugInfo.planInputs, null, 2)}
               </Text>
-              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>WeekSkeleton</Text>
-              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>WeekSkeleton</Text>
+              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
                 {JSON.stringify(debugInfo.weekSkeleton, null, 2)}
               </Text>
-              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>TemplateAssignments</Text>
-              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>TemplateAssignments</Text>
+              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
                 {JSON.stringify(debugInfo.templateAssignments, null, 2)}
               </Text>
-              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>SessionSpecs (to Grok)</Text>
-              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>SessionSpecs (to Grok)</Text>
+              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
                 {JSON.stringify(debugInfo.sessionSpecs, null, 2)}
               </Text>
-              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>Raw Grok response</Text>
-              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>Raw Grok response</Text>
+              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
                 {JSON.stringify(debugInfo.rawGrokResponse, null, 2)}
               </Text>
-              <Text style={[styles.debugSectionTitle, { color: themeColors.text }]}>Normalization / validation</Text>
-              <Text style={[styles.debugJson, { color: themeColors.textSecondary }]} selectable>
+              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>Normalization / validation</Text>
+              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
                 {JSON.stringify(debugInfo.normalizationWarnings, null, 2)}
               </Text>
             </ScrollView>
@@ -1673,7 +1680,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           disabled={applying || planData.length === 0}
         >
           {applying ? (
-            <ActivityIndicator size="small" color={colors.background} />
+            <ActivityIndicator size="small" color={colors.onPrimary} />
           ) : (
             <Text style={styles.primaryButtonText}>Apply to Plan</Text>
           )}
@@ -1683,10 +1690,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createPlanPreviewStyles(colors: ColorPalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: themeColors.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -1695,21 +1703,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
-    backgroundColor: themeColors.surface,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   backButton: {
     padding: 4,
   },
   backButtonText: {
     fontSize: 16,
-    color: themeColors.primary,
+    color: colors.primary,
     fontWeight: '600',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: themeColors.text,
+    color: colors.text,
   },
   headerSpacer: {
     width: 60,
@@ -1745,7 +1753,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   retryButtonText: {
-    color: themeColors.background,
+    color: colors.onPrimary,
     fontWeight: '600',
   },
   debugPanel: {
@@ -1786,8 +1794,8 @@ const styles = StyleSheet.create({
   weekTabs: {
     maxHeight: 50,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
-    backgroundColor: themeColors.surface,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   weekTabsContent: {
     paddingHorizontal: 8,
@@ -1799,21 +1807,21 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   weekTabActive: {
-    backgroundColor: themeColors.primary,
+    backgroundColor: colors.primary,
   },
   weekTabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: colors.textSecondary,
   },
   weekTabTextActive: {
-    color: themeColors.background,
+    color: colors.onPrimary,
   },
   summaryCard: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: colors.surface,
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
+    borderBottomColor: colors.border,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -1824,26 +1832,26 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: colors.textMuted,
     marginBottom: 4,
   },
   summaryValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: themeColors.text,
+    color: colors.text,
   },
   adjustWeekSection: {
     paddingTop: 8,
     paddingBottom: 10,
     paddingHorizontal: 12,
-    backgroundColor: themeColors.surface,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
+    borderBottomColor: colors.border,
   },
   adjustWeekLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: themeColors.textMuted,
+    color: colors.textMuted,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -1858,18 +1866,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginRight: 8,
     borderRadius: 6,
-    backgroundColor: themeColors.background,
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: colors.border,
   },
   regenerateButtonActive: {
-    backgroundColor: themeColors.primary,
-    borderColor: themeColors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   regenerateButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: colors.textSecondary,
   },
   content: {
     flex: 1,
@@ -1890,7 +1898,7 @@ const styles = StyleSheet.create({
   dayTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: themeColors.text,
+    color: colors.text,
   },
   dayActions: {
     flexDirection: 'row',
@@ -1900,21 +1908,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 4,
-    backgroundColor: themeColors.background,
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: colors.border,
   },
   dayActionButtonActive: {
-    backgroundColor: themeColors.primary,
-    borderColor: themeColors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   dayActionText: {
     fontSize: 12,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: colors.textSecondary,
   },
   dayActionTextActive: {
-    color: themeColors.background,
+    color: colors.onPrimary,
   },
   dayActionIcon: {
     paddingHorizontal: 4,
@@ -1929,17 +1937,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     marginBottom: 2,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: themeColors.border,
+    borderBottomColor: colors.border,
   },
   restDayName: {
     fontSize: 14,
     fontWeight: '600',
-    color: themeColors.textMuted,
+    color: colors.textMuted,
   },
   restDayBadge: {
     fontSize: 13,
     fontWeight: '600',
-    color: themeColors.textMuted,
+    color: colors.textMuted,
     opacity: 0.9,
   },
   workoutStack: {
@@ -1948,12 +1956,12 @@ const styles = StyleSheet.create({
   workoutCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: themeColors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 12,
     position: 'relative',
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: colors.border,
   },
   changeBadge: {
     position: 'absolute',
@@ -1978,7 +1986,7 @@ const styles = StyleSheet.create({
   workoutTypeBadge: {
     fontSize: 16,
     fontWeight: '700',
-    color: themeColors.background,
+    color: colors.onPrimary,
   },
   workoutContent: {
     flex: 1,
@@ -1986,24 +1994,24 @@ const styles = StyleSheet.create({
   workoutTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: themeColors.text,
+    color: colors.text,
     marginBottom: 2,
   },
   workoutDetailLine: {
     fontSize: 13,
-    color: themeColors.textSecondary,
+    color: colors.textSecondary,
   },
   moveIndicator: {
     marginLeft: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: themeColors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 4,
   },
   moveIndicatorText: {
     fontSize: 10,
     fontWeight: '600',
-    color: themeColors.background,
+    color: colors.onPrimary,
   },
   footer: {
     flexDirection: 'row',
@@ -2011,12 +2019,12 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 32,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
-    backgroundColor: themeColors.surface,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: themeColors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
@@ -2025,30 +2033,30 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: themeColors.background,
+    color: colors.onPrimary,
   },
   secondaryButton: {
     flex: 1,
-    backgroundColor: themeColors.surface,
+    backgroundColor: colors.surface,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: colors.border,
   },
   secondaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: colors.textSecondary,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: colors.scrim,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 20,
@@ -2057,17 +2065,17 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: themeColors.text,
+    color: colors.text,
     marginBottom: 8,
   },
   modalSubtitle: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   progressionHint: {
     fontSize: 13,
-    color: themeColors.textMuted,
+    color: colors.textMuted,
     lineHeight: 19,
     marginBottom: 12,
     fontStyle: 'italic',
@@ -2079,38 +2087,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
-    backgroundColor: themeColors.background,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
   },
   alternatePreviewText: {
     fontSize: 13,
     fontWeight: '600',
-    color: themeColors.primary,
+    color: colors.primary,
   },
   previewReasoning: {
     marginBottom: 16,
     padding: 12,
-    backgroundColor: themeColors.background,
+    backgroundColor: colors.background,
     borderRadius: 8,
   },
   previewReasoningLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   previewReasoningText: {
     fontSize: 15,
-    color: themeColors.text,
+    color: colors.text,
     lineHeight: 22,
   },
   reasoningToggleText: {
     marginTop: 6,
     fontSize: 13,
     fontWeight: '600',
-    color: themeColors.primary,
+    color: colors.primary,
   },
   previewExercises: {
     marginBottom: 16,
@@ -2118,7 +2126,7 @@ const styles = StyleSheet.create({
   previewExercisesLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -2129,7 +2137,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: 4,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
+    borderBottomColor: colors.border,
   },
   previewExerciseTextBlock: {
     flex: 1,
@@ -2141,24 +2149,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 10,
-    backgroundColor: themeColors.background,
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: colors.border,
     flexShrink: 0,
   },
   previewExerciseName: {
     fontSize: 16,
     fontWeight: '600',
-    color: themeColors.text,
+    color: colors.text,
   },
   previewExerciseMeta: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   previewNoExercises: {
     fontSize: 14,
-    color: themeColors.textMuted,
+    color: colors.textMuted,
     fontStyle: 'italic',
   },
   modalOptions: {
@@ -2166,15 +2174,15 @@ const styles = StyleSheet.create({
   },
   modalOption: {
     padding: 16,
-    backgroundColor: themeColors.background,
+    backgroundColor: colors.background,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: colors.border,
   },
   modalOptionText: {
     fontSize: 16,
     fontWeight: '600',
-    color: themeColors.text,
+    color: colors.text,
   },
   modalCancel: {
     marginTop: 16,
@@ -2184,6 +2192,7 @@ const styles = StyleSheet.create({
   modalCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: colors.textSecondary,
   },
-});
+  });
+}

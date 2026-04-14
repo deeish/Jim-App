@@ -19,7 +19,7 @@ import { saveWorkoutDraft } from '../lib/workoutDraftStorage';
 import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from './Button';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import {
   formatAtWeightFromLb,
@@ -27,7 +27,7 @@ import {
   kgToLb,
   lbToKg,
 } from '../lib/weightDisplay';
-import { colors as themeColors } from '../theme/colors';
+import type { ColorPalette } from '../theme/colors';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -74,6 +74,8 @@ export default function WorkoutSession({
   navigation,
 }: WorkoutSessionProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
   const snap = session.restoredSnapshot;
 
   const [exerciseSessions, setExerciseSessions] = useState<ExerciseSession[]>(() => {
@@ -768,12 +770,12 @@ export default function WorkoutSession({
           accessibilityRole="button"
           accessibilityLabel="Add exercises from library"
         >
-          <Ionicons name="add-circle-outline" size={22} color={themeColors.primary} />
+          <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
           <View style={styles.footerAddLibraryCardText}>
             <Text style={styles.footerAddLibraryCardTitle}>Add from library</Text>
             <Text style={styles.footerAddLibraryCardSub}>Search library · add to workout</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={themeColors.textMuted} />
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </TouchableOpacity>
         <Button
           title={getPrimaryActionLabel() || 'Continue'}
@@ -998,6 +1000,8 @@ function ExerciseCard({
   onSelectExercise: (index: number) => void;
   onUnskip: (exerciseIndex: number) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
   const { weightUnit } = useUserPreferences();
   const [weightStep, setWeightStep] = useState(5);
   const [editingReps, setEditingReps] = useState(false);
@@ -1128,9 +1132,9 @@ function ExerciseCard({
               accessibilityRole="button"
               accessibilityLabel="Open how-to steps and demo for this exercise"
             >
-              <Ionicons name="play-circle" size={18} color={themeColors.primary} />
+              <Ionicons name="play-circle" size={18} color={colors.primary} />
               <Text style={styles.exerciseGuideCollapsedText}>How to & demo</Text>
-              <Ionicons name="chevron-forward" size={16} color={themeColors.textMuted} />
+              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -1204,12 +1208,12 @@ function ExerciseCard({
             accessibilityRole="button"
             accessibilityLabel="Open how-to steps, description and demo for this exercise in the Exercises tab"
           >
-            <Ionicons name="play-circle" size={16} color={themeColors.primary} />
+            <Ionicons name="play-circle" size={16} color={colors.primary} />
             <Text style={styles.exerciseGuideChipLabelInRow} numberOfLines={1}>
               <Text style={styles.exerciseGuideChipStrongInRow}>How to</Text>
               <Text style={styles.exerciseGuideChipMutedInRow}> & demo</Text>
             </Text>
-            <Ionicons name="chevron-forward" size={14} color={themeColors.textMuted} />
+            <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -1476,6 +1480,8 @@ function SetRow({
   onUpdate: (exerciseIndex: number, setIndex: number, field: 'reps' | 'weight' | 'rpe', value: number) => void;
   showAdvancedLogging: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
   const { weightUnit } = useUserPreferences();
   const [isEditing, setIsEditing] = useState(false);
   const [reps, setReps] = useState(set.reps.toString());
@@ -1599,6 +1605,8 @@ function ExerciseOptionsModal({
   onToggleAdvancedLogging: () => void;
   showAdvancedLogging: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
   return (
     <Modal
       visible={visible}
@@ -1687,6 +1695,7 @@ function EditPrescriptionModal({
   onClose: () => void;
 }) {
   const { colors } = useTheme();
+  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
   const { weightUnit } = useUserPreferences();
   const [weight, setWeight] = useState(initialWeight);
   const [reps, setReps] = useState(initialReps);
@@ -1852,6 +1861,8 @@ function NotesModal({
   onSave: (notes: string) => void;
   onClose: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
   const [currentNotes, setCurrentNotes] = useState(notes);
 
   useEffect(() => {
@@ -1880,7 +1891,7 @@ function NotesModal({
             placeholder="Add notes (e.g., 'felt heavy', 'elbow pain')..."
             multiline
             numberOfLines={6}
-            placeholderTextColor={themeColors.textMuted}
+            placeholderTextColor={colors.textMuted}
           />
           <View style={styles.notesModalButtons}>
             <Button
@@ -1919,6 +1930,8 @@ function WorkoutFinishScreen({
   onComplete: () => void;
   onBack: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
   const [isSaved, setIsSaved] = useState(false);
   
   const totalSets = exerciseSessions
@@ -1989,16 +2002,17 @@ function WorkoutFinishScreen({
   );
 }
 
-const styles = StyleSheet.create({
+function createWorkoutSessionStyles(palette: ColorPalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
   },
   header: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: palette.surface,
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
+    borderBottomColor: palette.border,
   },
   headerTop: {
     flexDirection: 'row',
@@ -2013,18 +2027,18 @@ const styles = StyleSheet.create({
   workoutName: {
     fontSize: 22,
     fontWeight: '700',
-    color: themeColors.text,
+    color: palette.text,
     marginBottom: 2,
   },
   workoutDate: {
     fontSize: 15,
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
     marginBottom: 6,
   },
   workoutMetaLine: {
     fontSize: 13,
     lineHeight: 18,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
     fontWeight: '500',
   },
   headerMenuButton: {
@@ -2033,15 +2047,15 @@ const styles = StyleSheet.create({
   },
   headerMenuButtonText: {
     fontSize: 24,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
   },
   progressSection: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: palette.surface,
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 6,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
+    borderBottomColor: palette.border,
   },
   exerciseCardCollapsedMainCol: {
     flex: 1,
@@ -2055,16 +2069,16 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 10,
     alignSelf: 'stretch',
-    backgroundColor: themeColors.primary + '1c',
+    backgroundColor: palette.primary + '1c',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.primary + '44',
+    borderColor: palette.primary + '44',
   },
   exerciseGuideCollapsedText: {
     flex: 1,
     fontSize: 13,
     fontWeight: '700',
-    color: themeColors.primary,
+    color: palette.primary,
   },
   exerciseGuideChip: {
     flexDirection: 'row',
@@ -2078,9 +2092,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 11,
     borderRadius: 999,
-    backgroundColor: themeColors.primary + '18',
+    backgroundColor: palette.primary + '18',
     borderWidth: 1,
-    borderColor: themeColors.primary + '40',
+    borderColor: palette.primary + '40',
   },
   exerciseGuideChipInRow: {
     alignSelf: 'center',
@@ -2091,12 +2105,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     gap: 5,
     borderWidth: 1.5,
-    borderColor: themeColors.primary + '55',
-    backgroundColor: themeColors.primary + '22',
+    borderColor: palette.primary + '55',
+    backgroundColor: palette.primary + '22',
   },
   exerciseGuideChipCurrent: {
-    backgroundColor: themeColors.primary + '2e',
-    borderColor: themeColors.primary + '70',
+    backgroundColor: palette.primary + '2e',
+    borderColor: palette.primary + '70',
   },
   exerciseGuideChipLabel: {
     flexShrink: 1,
@@ -2104,12 +2118,12 @@ const styles = StyleSheet.create({
   exerciseGuideChipStrong: {
     fontSize: 13,
     fontWeight: '800',
-    color: themeColors.text,
+    color: palette.text,
   },
   exerciseGuideChipMuted: {
     fontSize: 12,
     fontWeight: '600',
-    color: themeColors.textMuted,
+    color: palette.textMuted,
   },
   exerciseGuideChipLabelInRow: {
     flexShrink: 0,
@@ -2117,12 +2131,12 @@ const styles = StyleSheet.create({
   exerciseGuideChipStrongInRow: {
     fontSize: 12,
     fontWeight: '800',
-    color: themeColors.text,
+    color: palette.text,
   },
   exerciseGuideChipMutedInRow: {
     fontSize: 11,
     fontWeight: '700',
-    color: themeColors.textMuted,
+    color: palette.textMuted,
   },
   progressHeader: {
     marginBottom: 6,
@@ -2130,23 +2144,23 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 13,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
   },
   progressBar: {
     height: 4,
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: themeColors.primary,
+    backgroundColor: palette.primary,
     opacity: 0.85,
     borderRadius: 2,
   },
   nextExerciseText: {
     fontSize: 14,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
     marginTop: 4,
   },
   content: {
@@ -2157,14 +2171,14 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   exerciseCardCollapsed: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: palette.surface,
     marginHorizontal: 12,
     marginBottom: 6,
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -2172,19 +2186,19 @@ const styles = StyleSheet.create({
   exerciseCardSkipped: {
     minHeight: 72,
     justifyContent: 'center',
-    backgroundColor: themeColors.primary + '14',
-    borderColor: themeColors.primary + '44',
+    backgroundColor: palette.primary + '14',
+    borderColor: palette.primary + '44',
     borderWidth: 1,
     borderStyle: 'solid',
   },
   exerciseCardNameSkipped: {
     opacity: 0.9,
     textDecorationLine: 'line-through',
-    textDecorationColor: themeColors.textSecondary,
+    textDecorationColor: palette.textSecondary,
   },
   exerciseCardSkippedHint: {
     fontSize: 13,
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
     marginTop: 4,
     fontWeight: '500',
   },
@@ -2195,13 +2209,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: themeColors.primary + '55',
-    backgroundColor: themeColors.surface,
+    borderColor: palette.primary + '55',
+    backgroundColor: palette.surface,
   },
   unskipButtonText: {
     fontSize: 14,
     fontWeight: '700',
-    color: themeColors.primary,
+    color: palette.primary,
   },
   exerciseCardCollapsedContent: {
     flex: 1,
@@ -2222,41 +2236,41 @@ const styles = StyleSheet.create({
   exerciseCardNameCollapsed: {
     fontSize: 18,
     fontWeight: '600',
-    color: themeColors.text,
+    color: palette.text,
   },
   activeBadge: {
-    backgroundColor: themeColors.primary + '33',
+    backgroundColor: palette.primary + '33',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.primary + '55',
+    borderColor: palette.primary + '55',
   },
   activeBadgeText: {
     fontSize: 9,
     fontWeight: '700',
-    color: themeColors.primary,
+    color: palette.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   skippedBadge: {
-    backgroundColor: themeColors.primary + '33',
+    backgroundColor: palette.primary + '33',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.primary + '66',
+    borderColor: palette.primary + '66',
   },
   skippedBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: themeColors.primary,
+    color: palette.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   exerciseCardInfoCollapsed: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
     marginBottom: 8,
   },
   exerciseCardCollapsedPills: {
@@ -2267,25 +2281,25 @@ const styles = StyleSheet.create({
     minWidth: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderWidth: 2,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
   },
   exerciseCard: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: palette.surface,
     marginHorizontal: 12,
     marginBottom: 5,
     padding: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
   },
   exerciseCardCurrent: {
-    borderColor: themeColors.primary + '44',
-    backgroundColor: themeColors.background,
+    borderColor: palette.primary + '44',
+    backgroundColor: palette.background,
   },
   exerciseCardHeader: {
     flexDirection: 'row',
@@ -2312,7 +2326,7 @@ const styles = StyleSheet.create({
   exerciseCardName: {
     fontSize: 17,
     fontWeight: '700',
-    color: themeColors.text,
+    color: palette.text,
     flexShrink: 1,
   },
   muscleTags: {
@@ -2321,14 +2335,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   muscleTag: {
-    backgroundColor: themeColors.primary + '15',
+    backgroundColor: palette.primary + '15',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
   muscleTagText: {
     fontSize: 12,
-    color: themeColors.primary,
+    color: palette.primary,
     fontWeight: '500',
   },
   optionsButton: {
@@ -2336,19 +2350,19 @@ const styles = StyleSheet.create({
   },
   optionsButtonText: {
     fontSize: 20,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
   },
   collapseButton: {
     padding: 4,
   },
   collapseButtonText: {
     fontSize: 24,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
   },
   exerciseCardInfo: {
     fontSize: 14,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
     marginBottom: 4,
   },
   planAndGuideRow: {
@@ -2366,7 +2380,7 @@ const styles = StyleSheet.create({
   exerciseCardInfoCompact: {
     fontSize: 14,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
     marginBottom: 0,
   },
   prescriptionRow: {
@@ -2387,12 +2401,12 @@ const styles = StyleSheet.create({
   },
   prescriptionEditHint: {
     fontSize: 12,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
     marginLeft: 8,
   },
   editPrescriptionText: {
     fontSize: 16,
-    color: themeColors.primary,
+    color: palette.primary,
     marginLeft: 4,
   },
   completedSetsContainer: {
@@ -2401,7 +2415,7 @@ const styles = StyleSheet.create({
   },
   completedSetsLabel: {
     fontSize: 14,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
     marginBottom: 8,
   },
   completedSetsList: {
@@ -2410,16 +2424,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   completedSetBadge: {
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
   },
   completedSetText: {
     fontSize: 12,
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
   },
   setTrackerContainer: {
     flexDirection: 'row',
@@ -2431,20 +2445,20 @@ const styles = StyleSheet.create({
   setProgressLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
   },
   lastSetLine: {
     fontSize: 12,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
     marginBottom: 3,
   },
   loggingBand: {
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderRadius: 10,
     padding: 8,
     marginBottom: 0,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
   },
   loggingControlsRow: {
     flexDirection: 'row',
@@ -2456,7 +2470,7 @@ const styles = StyleSheet.create({
   },
   stepperLabel: {
     fontSize: 11,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
     marginBottom: 2,
   },
   stepper: {
@@ -2468,22 +2482,22 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   stepperButtonText: {
     fontSize: 18,
     fontWeight: '600',
-    color: themeColors.text,
+    color: palette.text,
   },
   stepperValue: {
     minWidth: 44,
     fontSize: 18,
     fontWeight: '600',
-    color: themeColors.text,
+    color: palette.text,
     textAlign: 'center',
   },
   stepperValueTouch: {
@@ -2496,12 +2510,12 @@ const styles = StyleSheet.create({
     width: 52,
     fontSize: 18,
     fontWeight: '600',
-    color: themeColors.text,
+    color: palette.text,
     textAlign: 'center',
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
     paddingVertical: 4,
     paddingHorizontal: 4,
   },
@@ -2516,35 +2530,35 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: themeColors.border,
-    backgroundColor: themeColors.background,
+    borderColor: palette.border,
+    backgroundColor: palette.background,
   },
   weightStepChipActive: {
-    borderColor: themeColors.primary,
-    backgroundColor: themeColors.primary + '20',
+    borderColor: palette.primary,
+    backgroundColor: palette.primary + '20',
   },
   weightStepChipText: {
     fontSize: 12,
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
     fontWeight: '600',
   },
   weightStepChipTextActive: {
-    color: themeColors.primary,
+    color: palette.primary,
   },
   setTrackerPillFocused: {
-    borderColor: themeColors.primary,
+    borderColor: palette.primary,
     borderWidth: 2,
   },
   setTrackerPillFuture: {
-    borderColor: themeColors.border,
+    borderColor: palette.border,
     backgroundColor: 'transparent',
     opacity: 0.7,
   },
   setTrackerPillTextFocused: {
-    color: themeColors.primary,
+    color: palette.primary,
   },
   setTrackerPillTextFuture: {
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
   },
   setTrackerRightRow: {
     flexDirection: 'row',
@@ -2555,9 +2569,9 @@ const styles = StyleSheet.create({
     minWidth: 40,
     minHeight: 40,
     borderRadius: 8,
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
@@ -2568,15 +2582,15 @@ const styles = StyleSheet.create({
   setPillControlText: {
     fontSize: 18,
     fontWeight: '600',
-    color: themeColors.text,
+    color: palette.text,
   },
   setPillControlTextDisabled: {
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
   },
   setTrackerLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
   },
   setTrackerDots: {
     flexDirection: 'row',
@@ -2588,21 +2602,21 @@ const styles = StyleSheet.create({
     minWidth: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderWidth: 2,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 8,
   },
   setTrackerPillCompleted: {
-    backgroundColor: themeColors.primary,
-    borderColor: themeColors.primary,
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
   },
   setTrackerPillText: {
     fontSize: 13,
     fontWeight: '600',
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
   },
   setTrackerPillTextCompleted: {
     color: '#FFFFFF',
@@ -2611,18 +2625,18 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderWidth: 2,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   setTrackerDotText: {
     fontSize: 16,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
   },
   setTrackerDotCompleted: {
-    color: themeColors.primary,
+    color: palette.primary,
     fontWeight: 'bold',
   },
   currentSetContainer: {
@@ -2631,7 +2645,7 @@ const styles = StyleSheet.create({
   currentSetLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: themeColors.text,
+    color: palette.text,
     marginBottom: 12,
   },
   setsContainer: {
@@ -2639,21 +2653,21 @@ const styles = StyleSheet.create({
   },
   setRowReadOnly: {
     padding: 12,
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
     marginBottom: 8,
   },
   setRowReadOnlyText: {
     fontSize: 16,
-    color: themeColors.text,
+    color: palette.text,
     fontWeight: '500',
     marginBottom: 4,
   },
   setRowEditHint: {
     fontSize: 12,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
     fontStyle: 'italic',
   },
   setRow: {
@@ -2665,7 +2679,7 @@ const styles = StyleSheet.create({
   setRowDoneButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: themeColors.primary,
+    backgroundColor: palette.primary,
     borderRadius: 6,
   },
   setRowDoneButtonText: {
@@ -2678,13 +2692,13 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   setCheckboxCompleted: {
-    backgroundColor: themeColors.primary,
-    borderColor: themeColors.primary,
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
   },
   setCheckboxCheck: {
     color: '#FFFFFF',
@@ -2695,16 +2709,16 @@ const styles = StyleSheet.create({
     width: 30,
     fontSize: 16,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
   },
   setInput: {
     flex: 1,
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     padding: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
-    color: themeColors.text,
+    borderColor: palette.border,
+    color: palette.text,
     fontSize: 16,
   },
   setInputRpe: {
@@ -2714,23 +2728,23 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: palette.border,
     marginTop: 8,
   },
   addSetButtonText: {
-    color: themeColors.primary,
+    color: palette.primary,
     fontSize: 16,
     fontWeight: '600',
   },
   exerciseNotesPreview: {
     marginTop: 8,
     padding: 8,
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderRadius: 8,
   },
   exerciseNotesPreviewText: {
     fontSize: 14,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
     fontStyle: 'italic',
   },
   advancedToggle: {
@@ -2739,7 +2753,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   advancedToggleText: {
-    color: themeColors.primary,
+    color: palette.primary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -2748,9 +2762,9 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 14,
     gap: 8,
-    backgroundColor: themeColors.surface,
+    backgroundColor: palette.surface,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: palette.border,
   },
   footerAddLibraryCard: {
     flexDirection: 'row',
@@ -2760,8 +2774,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: themeColors.primary + '40',
-    backgroundColor: themeColors.background,
+    borderColor: palette.primary + '40',
+    backgroundColor: palette.background,
   },
   footerAddLibraryCardText: {
     flex: 1,
@@ -2770,11 +2784,11 @@ const styles = StyleSheet.create({
   footerAddLibraryCardTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: themeColors.text,
+    color: palette.text,
   },
   footerAddLibraryCardSub: {
     fontSize: 11,
-    color: themeColors.textMuted,
+    color: palette.textMuted,
     marginTop: 1,
     fontWeight: '500',
   },
@@ -2790,8 +2804,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   toastText: {
-    backgroundColor: themeColors.text,
-    color: themeColors.surface,
+    backgroundColor: palette.text,
+    color: palette.surface,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
@@ -2801,12 +2815,12 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: themeColors.overlay,
+    backgroundColor: palette.overlay,
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: palette.surface,
     borderRadius: 12,
     padding: 24,
     width: '80%',
@@ -2815,17 +2829,17 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: themeColors.text,
+    color: palette.text,
     marginBottom: 12,
   },
   modalText: {
     fontSize: 16,
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
     marginBottom: 8,
   },
   modalSubtext: {
     fontSize: 14,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
     marginBottom: 24,
   },
   modalButtons: {
@@ -2839,27 +2853,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalButtonCancel: {
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
   },
   modalButtonConfirm: {
-    backgroundColor: themeColors.error,
+    backgroundColor: palette.error,
   },
   modalButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: themeColors.text,
+    color: palette.text,
   },
   modalButtonConfirmText: {
     color: '#FFFFFF',
   },
   modalCloseText: {
     fontSize: 24,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
   },
   optionsModal: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: palette.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     width: '100%',
@@ -2873,45 +2887,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
+    borderBottomColor: palette.border,
   },
   optionsModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: themeColors.text,
+    color: palette.text,
   },
   optionsList: {
     padding: 8,
   },
   optionDivider: {
     height: 1,
-    backgroundColor: themeColors.border,
+    backgroundColor: palette.border,
     marginVertical: 8,
     marginHorizontal: 8,
   },
   optionItem: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
+    borderBottomColor: palette.border,
   },
   optionItemText: {
     fontSize: 16,
-    color: themeColors.text,
+    color: palette.text,
   },
   optionItemSubtext: {
     fontSize: 13,
-    color: themeColors.textMuted,
+    color: palette.textMuted,
     marginTop: 4,
     lineHeight: 18,
   },
   sessionMenuCard: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: palette.surface,
     borderRadius: 16,
     padding: 20,
     width: '88%',
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
   },
   sessionMenuHeader: {
     flexDirection: 'row',
@@ -2922,7 +2936,7 @@ const styles = StyleSheet.create({
   sessionMenuRow: {
     paddingVertical: 14,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: palette.border,
   },
   sessionMenuRowFirst: {
     borderTopWidth: 0,
@@ -2932,18 +2946,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   optionItemDestructiveText: {
-    color: themeColors.error,
+    color: palette.error,
   },
   editPrescriptionOverlay: {
     flex: 1,
-    backgroundColor: themeColors.overlay,
+    backgroundColor: palette.overlay,
     justifyContent: 'flex-end',
   },
   editPrescriptionModalContainer: {
     width: '100%',
   },
   editPrescriptionModal: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: palette.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     width: '100%',
@@ -2952,7 +2966,7 @@ const styles = StyleSheet.create({
   editPrescriptionModalHandle: {
     width: 40,
     height: 4,
-    backgroundColor: themeColors.border,
+    backgroundColor: palette.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 12,
@@ -2972,12 +2986,12 @@ const styles = StyleSheet.create({
   editPrescriptionModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: themeColors.text,
+    color: palette.text,
     marginBottom: 2,
   },
   editPrescriptionModalSubtitle: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
   },
   editPrescriptionModalClose: {
     padding: 4,
@@ -2993,16 +3007,16 @@ const styles = StyleSheet.create({
   editPrescriptionLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: palette.textSecondary,
     marginBottom: 8,
   },
   editPrescriptionInput: {
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderRadius: 8,
     padding: 14,
     borderWidth: 1,
-    borderColor: themeColors.border,
-    color: themeColors.text,
+    borderColor: palette.border,
+    color: palette.text,
     fontSize: 16,
   },
   editModalStepperRow: {
@@ -3014,7 +3028,7 @@ const styles = StyleSheet.create({
     minWidth: 48,
     fontSize: 18,
     fontWeight: '600',
-    color: themeColors.text,
+    color: palette.text,
     textAlign: 'center',
   },
   editPrescriptionToggleRow: {
@@ -3023,12 +3037,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: palette.border,
     marginTop: 8,
   },
   editPrescriptionToggleLabel: {
     fontSize: 16,
-    color: themeColors.text,
+    color: palette.text,
   },
   editPrescriptionModalFooter: {
     flexDirection: 'row',
@@ -3039,7 +3053,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   notesModal: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: palette.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '60%',
@@ -3053,24 +3067,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
+    borderBottomColor: palette.border,
   },
   notesModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: themeColors.text,
+    color: palette.text,
   },
   notesInput: {
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     borderRadius: 8,
     padding: 16,
     margin: 20,
-    color: themeColors.text,
+    color: palette.text,
     fontSize: 16,
     minHeight: 120,
     textAlignVertical: 'top',
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: palette.border,
   },
   notesModalButtons: {
     flexDirection: 'row',
@@ -3082,7 +3096,7 @@ const styles = StyleSheet.create({
   },
   finishContainer: {
     flex: 1,
-    backgroundColor: themeColors.background,
+    backgroundColor: palette.background,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -3090,7 +3104,7 @@ const styles = StyleSheet.create({
   finishTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: themeColors.text,
+    color: palette.text,
     marginBottom: 40,
   },
   finishStats: {
@@ -3106,17 +3120,17 @@ const styles = StyleSheet.create({
   finishStatValue: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: themeColors.primary,
+    color: palette.primary,
     marginBottom: 8,
   },
   finishStatLabel: {
     fontSize: 14,
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
     marginTop: 4,
   },
   finishStatSubtext: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: palette.textMuted,
     marginTop: 2,
   },
   finishActions: {
@@ -3132,7 +3146,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   finishBackButtonText: {
-    color: themeColors.textTertiary,
+    color: palette.textTertiary,
     fontSize: 16,
   },
-});
+  });
+}

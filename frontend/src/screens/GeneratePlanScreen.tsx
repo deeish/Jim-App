@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,8 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
-import { useTheme } from '../theme/ThemeContext';
-import { colors as themeColors } from '../theme/colors';
+import { useTheme } from '../theme';
+import type { ColorPalette } from '../theme/colors';
 import {
   normalizeContext,
   getRecommendation,
@@ -315,6 +315,7 @@ function getProgressionTargetOptions(goal: Goal | null): ProgressionTarget[] {
 
 export default function GeneratePlanScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
+  const styles = useMemo(() => createGeneratePlanStyles(colors), [colors]);
   const [inputs, setInputs] = useState<GeneratePlanInputs>({
     goal: null,
     programType: null,
@@ -1061,7 +1062,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                 <Ionicons
                   name={showRecommendationDetails ? 'chevron-up' : 'chevron-down'}
                   size={20}
-                  color={themeColors.primary}
+                  color={colors.primary}
                   style={styles.recommendationChevron}
                 />
               </TouchableOpacity>
@@ -1147,7 +1148,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               <TextInput
                 style={styles.customSplitNameInput}
                 placeholder="Split name (optional)"
-                placeholderTextColor={themeColors.textMuted}
+                placeholderTextColor={colors.textMuted}
                 value={customSplitDraft.name ?? ''}
                 onChangeText={(text) => setCustomSplitDraft((prev) => ({ ...prev, name: text.trim() || undefined }))}
               />
@@ -1469,7 +1470,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
               style={{ marginTop: 8 }}
               onPress={() => setInputs(prev => ({ ...prev, age: null }))}
             >
-              <Text style={[styles.sectionSubtitle, { color: themeColors.primary }]}>Clear</Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.primary }]}>Clear</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -2025,7 +2026,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
               disabled={!canGenerate || generating}
             >
               {generating ? (
-                <ActivityIndicator size="small" color={colors.background} />
+                <ActivityIndicator size="small" color={colors.onPrimary} />
               ) : (
                 <Text style={styles.generateButtonText}>
                   Generate Week 1 Preview
@@ -2039,15 +2040,16 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
   );
 }
 
-const styles = StyleSheet.create({
+function createGeneratePlanStyles(c: ColorPalette) {
+  return StyleSheet.create({
   outerContainer: {
     flex: 1,
     width: '100%',
-    backgroundColor: themeColors.background,
+    backgroundColor: c.background,
   },
   container: {
     flex: 1,
-    backgroundColor: themeColors.background,
+    backgroundColor: c.background,
   },
   header: {
     flexDirection: 'row',
@@ -2056,15 +2058,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
-    backgroundColor: themeColors.surface,
+    borderBottomColor: c.border,
+    backgroundColor: c.surface,
   },
   backButton: {
     padding: 4,
   },
   backButtonText: {
     fontSize: 16,
-    color: themeColors.primary,
+    color: c.primary,
     fontWeight: '600',
   },
   headerTitleContainer: {
@@ -2074,11 +2076,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: themeColors.text,
+    color: c.text,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     fontWeight: '500',
     marginTop: 2,
   },
@@ -2104,17 +2106,17 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: themeColors.text,
+    color: c.text,
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     marginBottom: 12,
   },
   sectionHelper: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     marginBottom: 10,
     fontStyle: 'italic',
   },
@@ -2132,27 +2134,27 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 6,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   optionButtonCompactSelected: {
-    backgroundColor: themeColors.primary,
-    borderColor: themeColors.primary,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
   optionButtonTextCompact: {
     fontSize: 13,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
   },
   optionButtonTextCompactSelected: {
-    color: themeColors.background,
+    color: c.onPrimary,
   },
   optionButtonCompactDisabled: {
     opacity: 0.5,
   },
   optionButtonTextCompactDisabled: {
-    color: themeColors.textMuted,
+    color: c.textMuted,
   },
   optionButtonContentCompact: {
     flexDirection: 'row',
@@ -2175,7 +2177,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   recommendedBadgeCompact: {
-    backgroundColor: themeColors.primary + '22',
+    backgroundColor: c.primarySoft,
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 3,
@@ -2183,7 +2185,7 @@ const styles = StyleSheet.create({
   recommendedBadgeTextCompact: {
     fontSize: 9,
     fontWeight: '700',
-    color: themeColors.primary,
+    color: c.primary,
   },
   chipInfoIconCompact: {
     padding: 4,
@@ -2200,57 +2202,57 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 8,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   goalChipSelected: {
-    backgroundColor: themeColors.primary,
-    borderColor: themeColors.primary,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
   goalChipTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: themeColors.text,
+    color: c.text,
     marginBottom: 4,
   },
   goalChipTitleSelected: {
-    color: themeColors.background,
+    color: c.onPrimary,
   },
   goalChipDescriptor: {
     fontSize: 11,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     lineHeight: 14,
   },
   goalChipDescriptorSelected: {
-    color: themeColors.background,
+    color: c.onPrimary,
     opacity: 0.9,
   },
   optionButton: {
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   optionButtonSelected: {
-    backgroundColor: themeColors.primary,
-    borderColor: themeColors.primary,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
   optionButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
   },
   optionButtonTextSelected: {
-    color: themeColors.background,
+    color: c.onPrimary,
   },
   optionButtonDisabled: {
     opacity: 0.5,
   },
   optionButtonTextDisabled: {
-    color: themeColors.textMuted,
+    color: c.textMuted,
   },
   optionButtonContent: {
     flexDirection: 'row',
@@ -2273,7 +2275,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   recommendedBadge: {
-    backgroundColor: themeColors.primary + '22',
+    backgroundColor: c.primarySoft,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -2281,7 +2283,7 @@ const styles = StyleSheet.create({
   recommendedBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: themeColors.primary,
+    color: c.primary,
   },
   chipInfoIcon: {
     padding: 6,
@@ -2294,19 +2296,19 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   recommendationCompactText: {
     fontSize: 13,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     flex: 1,
   },
   recommendationEditLink: {
     fontSize: 13,
-    color: themeColors.primary,
+    color: c.primary,
     fontWeight: '600',
   },
   recommendationChevron: {
@@ -2315,31 +2317,31 @@ const styles = StyleSheet.create({
   recommendationExpanded: {
     marginTop: 8,
     padding: 12,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   recommendationExpandedTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: themeColors.text,
+    color: c.text,
     marginBottom: 4,
   },
   recommendationExpandedAlternative: {
     fontSize: 13,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     marginBottom: 8,
   },
   recommendationExpandedWhy: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     fontStyle: 'italic',
     marginBottom: 10,
   },
   recommendationPatternLighter: {
     fontSize: 11,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     marginTop: 2,
     marginBottom: 10,
   },
@@ -2350,39 +2352,39 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 6,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.primary,
+    borderColor: c.primary,
   },
   useRecommendedButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: themeColors.primary,
+    color: c.primary,
   },
   recommendedSplitWarning: {
     fontSize: 11,
-    color: themeColors.warning,
+    color: c.warning,
     fontStyle: 'italic',
     marginTop: 4,
     marginBottom: 4,
   },
   recommendedSplitRecoverySuggestion: {
     fontSize: 11,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     fontStyle: 'italic',
     marginTop: 4,
     marginBottom: 4,
   },
   recommendedSplitGuardrail: {
     fontSize: 12,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     fontStyle: 'italic',
     marginTop: 4,
     marginBottom: 2,
   },
   recommendedSplitPreviewLabel: {
     fontSize: 11,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     marginTop: 6,
     marginBottom: 2,
   },
@@ -2390,11 +2392,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: c.border,
   },
   suggestedSchedulesLabel: {
     fontSize: 11,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     fontWeight: '600',
     marginBottom: 6,
   },
@@ -2407,14 +2409,14 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 6,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   suggestedScheduleChipText: {
     fontSize: 12,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
   },
   sectionDeemphasized: {
     opacity: 0.85,
@@ -2422,7 +2424,7 @@ const styles = StyleSheet.create({
   sectionTitleDeemphasized: {
     fontSize: 15,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     marginBottom: 4,
   },
   daysGrid: {
@@ -2433,7 +2435,7 @@ const styles = StyleSheet.create({
   },
   daysPerWeekText: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     fontWeight: '500',
     marginTop: 4,
   },
@@ -2441,23 +2443,23 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
     minWidth: 50,
     alignItems: 'center',
   },
   dayToggleSelected: {
-    backgroundColor: themeColors.primary,
-    borderColor: themeColors.primary,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
   dayToggleText: {
     fontSize: 14,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
   },
   dayToggleTextSelected: {
-    color: themeColors.background,
+    color: c.onPrimary,
   },
   numberInputRow: {
     flexDirection: 'row',
@@ -2468,21 +2470,21 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   numberButtonText: {
     fontSize: 18,
-    color: themeColors.text,
+    color: c.text,
     fontWeight: '600',
   },
   numberDisplay: {
     fontSize: 18,
     fontWeight: '700',
-    color: themeColors.text,
+    color: c.text,
     minWidth: 40,
     textAlign: 'center',
   },
@@ -2495,27 +2497,27 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   durationChipSelected: {
-    backgroundColor: themeColors.primary,
-    borderColor: themeColors.primary,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
   durationChipText: {
     fontSize: 14,
     fontWeight: '600',
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
   },
   durationChipTextSelected: {
-    color: themeColors.background,
+    color: c.onPrimary,
   },
   durationRangeControl: {
     marginTop: 14,
     paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: c.border,
     gap: 12,
   },
   durationRangeRow: {
@@ -2525,13 +2527,13 @@ const styles = StyleSheet.create({
   },
   durationRangeLabel: {
     fontSize: 13,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     fontWeight: '600',
     minWidth: 32,
   },
   durationRangeUnit: {
     fontSize: 13,
-    color: themeColors.textMuted,
+    color: c.textMuted,
   },
   timeRangeRow: {
     flexDirection: 'row',
@@ -2544,40 +2546,40 @@ const styles = StyleSheet.create({
   },
   timeLabel: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     marginBottom: 4,
   },
   timeInputField: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 10,
     fontSize: 16,
-    color: themeColors.text,
+    color: c.text,
     minHeight: 40,
   },
   customSplitInput: {
     marginTop: 10,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
     fontSize: 15,
-    color: themeColors.text,
+    color: c.text,
     minHeight: 72,
     textAlignVertical: 'top',
   },
   customSplitBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: c.scrim,
     justifyContent: 'flex-end',
   },
   customSplitPanel: {
-    backgroundColor: themeColors.background,
+    backgroundColor: c.background,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     maxHeight: '85%',
@@ -2588,29 +2590,29 @@ const styles = StyleSheet.create({
   customSplitTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: themeColors.text,
+    color: c.text,
     marginBottom: 4,
   },
   customSplitSubtitle: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     marginBottom: 12,
   },
   customSplitNameInput: {
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
     fontSize: 15,
-    color: themeColors.text,
+    color: c.text,
     marginBottom: 12,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
   },
   customSplitStepLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: themeColors.text,
+    color: c.text,
     marginTop: 12,
     marginBottom: 6,
   },
@@ -2623,14 +2625,14 @@ const styles = StyleSheet.create({
   customSplitTemplateBtn: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   customSplitTemplateBtnText: {
     fontSize: 13,
-    color: themeColors.text,
+    color: c.text,
     fontWeight: '600',
   },
   customSplitScroll: {
@@ -2639,10 +2641,10 @@ const styles = StyleSheet.create({
   customSplitDayCard: {
     marginBottom: 12,
     padding: 12,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
     overflow: 'hidden',
   },
   customSplitDayCardBody: {
@@ -2657,7 +2659,7 @@ const styles = StyleSheet.create({
   },
   customSplitCounter: {
     fontSize: 11,
-    color: themeColors.textMuted,
+    color: c.textMuted,
   },
   customSplitDayCardHeader: {
     flexDirection: 'row',
@@ -2668,7 +2670,7 @@ const styles = StyleSheet.create({
   customSplitDayName: {
     fontSize: 14,
     fontWeight: '700',
-    color: themeColors.text,
+    color: c.text,
   },
   customSplitDayActions: {
     flexDirection: 'row',
@@ -2680,12 +2682,12 @@ const styles = StyleSheet.create({
   },
   customSplitDayActionText: {
     fontSize: 12,
-    color: themeColors.primary,
+    color: c.primary,
     fontWeight: '600',
   },
   customSplitDayActionTextDanger: {
     fontSize: 12,
-    color: themeColors.error ?? '#c00',
+    color: c.error ?? '#c00',
     fontWeight: '600',
   },
   customSplitAddDayBtn: {
@@ -2693,19 +2695,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: themeColors.border,
+    borderColor: c.border,
     borderRadius: 8,
     marginBottom: 8,
     alignItems: 'center',
   },
   customSplitAddDayBtnText: {
     fontSize: 14,
-    color: themeColors.primary,
+    color: c.primary,
     fontWeight: '600',
   },
   customSplitDayLabel: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     marginTop: 6,
     marginBottom: 4,
   },
@@ -2717,31 +2719,31 @@ const styles = StyleSheet.create({
   customSplitChip: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: themeColors.background,
+    backgroundColor: c.background,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   customSplitChipSelected: {
-    borderColor: themeColors.primary,
-    backgroundColor: themeColors.primary + '20',
+    borderColor: c.primary,
+    backgroundColor: c.primarySoft,
   },
   customSplitChipDisabled: {
     opacity: 0.5,
   },
   customSplitCycleExample: {
     fontSize: 11,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     marginTop: 6,
     marginBottom: 4,
     fontStyle: 'italic',
   },
   customSplitChipText: {
     fontSize: 12,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
   },
   customSplitChipTextSelected: {
-    color: themeColors.primary,
+    color: c.primary,
     fontWeight: '600',
   },
   customSplitAddons: {
@@ -2750,16 +2752,16 @@ const styles = StyleSheet.create({
   },
   customSplitPreviewLabel: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     marginBottom: 4,
   },
   customSplitPreviewLine: {
     fontSize: 13,
-    color: themeColors.text,
+    color: c.text,
   },
   customSplitWarning: {
     fontSize: 12,
-    color: themeColors.warning ?? themeColors.error,
+    color: c.warning ?? c.error,
     marginTop: 6,
   },
   customSplitFooter: {
@@ -2769,29 +2771,29 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: c.border,
   },
   customSplitCancelBtn: {
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   customSplitCancelBtnText: {
     fontSize: 15,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
   },
   customSplitSaveBtn: {
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
-    backgroundColor: themeColors.primary,
+    backgroundColor: c.primary,
   },
   customSplitSaveBtnText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#fff',
+    color: c.onPrimary,
   },
   customSplitSavedBlock: {
     marginTop: 10,
@@ -2805,34 +2807,34 @@ const styles = StyleSheet.create({
   },
   customSplitLastUsed: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
   },
   customSplitSavedRow: {
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
+    borderBottomColor: c.border,
   },
   customSplitSavedRowName: {
     fontSize: 15,
     fontWeight: '600',
-    color: themeColors.text,
+    color: c.text,
     marginBottom: 2,
   },
   timeSeparator: {
     fontSize: 16,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
   },
   timeUnit: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
   },
   chipsRowMargin: {
     marginTop: 8,
   },
   chipGroupLabel: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     fontWeight: '600',
     marginRight: 8,
     width: '100%',
@@ -2842,11 +2844,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: c.border,
   },
   daysPerWeekLabel: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -2854,21 +2856,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 6,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   chipSelected: {
-    backgroundColor: themeColors.primary,
-    borderColor: themeColors.primary,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
   chipText: {
     fontSize: 13,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
   },
   chipTextSelected: {
-    color: themeColors.background,
+    color: c.onPrimary,
   },
   chipDisabled: {
     opacity: 0.4,
@@ -2878,13 +2880,13 @@ const styles = StyleSheet.create({
   },
   warningText: {
     fontSize: 12,
-    color: themeColors.warning,
+    color: c.warning,
     fontStyle: 'italic',
     marginBottom: 8,
   },
   definitionText: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     fontStyle: 'italic',
     marginBottom: 12,
   },
@@ -2893,26 +2895,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
     marginBottom: 16,
   },
   advancedToggleText: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
   },
   advancedToggleIcon: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
   },
   advancedDurationSection: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: c.border,
   },
   sessionCapRow: {
     flexDirection: 'row',
@@ -2922,7 +2924,7 @@ const styles = StyleSheet.create({
   },
   sessionCapLabel: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
     minWidth: 80,
   },
@@ -2934,21 +2936,21 @@ const styles = StyleSheet.create({
   },
   sessionCapInput: {
     flex: 1,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
     borderRadius: 6,
     padding: 8,
     fontSize: 14,
-    color: themeColors.text,
+    color: c.text,
   },
   sessionCapSeparator: {
     fontSize: 14,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
   },
   sessionCapUnit: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -2963,17 +2965,17 @@ const styles = StyleSheet.create({
     width: 50,
     height: 28,
     borderRadius: 14,
-    backgroundColor: themeColors.border,
+    backgroundColor: c.border,
     padding: 2,
   },
   toggleSwitchOn: {
-    backgroundColor: themeColors.primary,
+    backgroundColor: c.primary,
   },
   toggleThumb: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: themeColors.background,
+    backgroundColor: c.background,
   },
   toggleThumbOn: {
     transform: [{ translateX: 22 }],
@@ -2985,7 +2987,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: c.border,
   },
   constraintRow: {
     flexDirection: 'row',
@@ -2996,18 +2998,18 @@ const styles = StyleSheet.create({
   },
   constraintLabel: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     marginBottom: 8,
   },
   perDayCapsSection: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: c.border,
   },
   helperText: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     fontStyle: 'italic',
     marginBottom: 12,
   },
@@ -3021,13 +3023,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 6,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   shortcutButtonText: {
     fontSize: 12,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
   },
   perDayCapsGrid: {
@@ -3040,14 +3042,14 @@ const styles = StyleSheet.create({
     width: '48%',
     minWidth: 140,
     padding: 12,
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   perDayCapLabel: {
     fontSize: 13,
-    color: themeColors.text,
+    color: c.text,
     marginBottom: 8,
     fontWeight: '600',
     textAlign: 'center',
@@ -3063,24 +3065,24 @@ const styles = StyleSheet.create({
     width: 40,
     height: 22,
     borderRadius: 11,
-    backgroundColor: themeColors.border,
+    backgroundColor: c.border,
     padding: 2,
   },
   customToggleSwitchOn: {
-    backgroundColor: themeColors.primary,
+    backgroundColor: c.primary,
   },
   customToggleThumb: {
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: themeColors.background,
+    backgroundColor: c.background,
   },
   customToggleThumbOn: {
     transform: [{ translateX: 18 }],
   },
   customToggleLabel: {
     fontSize: 12,
-    color: themeColors.textSecondary,
+    color: c.textSecondary,
     fontWeight: '500',
   },
   dayCapStepper: {
@@ -3093,33 +3095,33 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 6,
-    backgroundColor: themeColors.background,
+    backgroundColor: c.background,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   dayCapButtonText: {
     fontSize: 16,
-    color: themeColors.text,
+    color: c.text,
     fontWeight: '600',
   },
   dayCapInput: {
     width: 60,
     height: 32,
-    backgroundColor: themeColors.background,
+    backgroundColor: c.background,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
     borderRadius: 6,
     paddingHorizontal: 8,
     fontSize: 14,
-    color: themeColors.text,
+    color: c.text,
     textAlign: 'center',
     fontWeight: '600',
   },
   defaultIndicator: {
     fontSize: 11,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     fontStyle: 'italic',
     textAlign: 'center',
     marginTop: 4,
@@ -3135,60 +3137,60 @@ const styles = StyleSheet.create({
   },
   timeAvailabilityLabel: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     marginBottom: 8,
   },
   timeAvailabilityUnit: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     marginTop: 4,
   },
   splitPreview: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderRadius: 8,
     padding: 12,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: themeColors.border,
+    borderColor: c.border,
   },
   splitPreviewContent: {
     flex: 1,
   },
   splitPreviewLabel: {
     fontSize: 12,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     marginBottom: 4,
     fontWeight: '600',
   },
   splitPreviewText: {
     fontSize: 13,
-    color: themeColors.text,
+    color: c.text,
     fontWeight: '500',
   },
   splitPreviewHint: {
     fontSize: 11,
-    color: themeColors.textMuted,
+    color: c.textMuted,
     marginTop: 4,
     fontStyle: 'italic',
   },
   splitPreviewArrow: {
     fontSize: 18,
-    color: themeColors.primary,
+    color: c.primary,
     fontWeight: '600',
     marginLeft: 8,
   },
   footerContainer: {
-    backgroundColor: themeColors.surface,
+    backgroundColor: c.surface,
     borderTopWidth: 1,
-    borderTopColor: themeColors.border,
+    borderTopColor: c.border,
   },
   footer: {
     padding: 16,
   },
   generateButton: {
-    backgroundColor: themeColors.primary,
+    backgroundColor: c.primary,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
@@ -3200,6 +3202,7 @@ const styles = StyleSheet.create({
   generateButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: themeColors.background,
+    color: c.onPrimary,
   },
-});
+  });
+}

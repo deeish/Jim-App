@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 
 interface ButtonProps {
   title: string;
@@ -46,7 +46,7 @@ export default function Button({
         },
         disabled: { opacity: 0.6 },
         buttonText: { fontSize: 18, fontWeight: '600' },
-        primaryText: { color: '#FFFFFF' },
+        primaryText: { color: colors.onPrimary },
         secondaryText: { color: colors.secondary },
       }),
     [colors]
@@ -64,7 +64,7 @@ export default function Button({
       disabled={disabled || loading}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? '#FFFFFF' : colors.primary} />
+        <ActivityIndicator color={variant === 'primary' ? colors.onPrimary : colors.primary} />
       ) : (
         <Text style={[styles.buttonText, variant === 'primary' ? styles.primaryText : styles.secondaryText, textStyle]}>
           {title}
