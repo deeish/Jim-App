@@ -340,7 +340,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     weekendMaxMinutes: 90,
     perDayTimeCaps: {},
     usePerDayTimeCaps: false,
-    progressionStyle: null,
+    progressionStyle: 'build',
     deloadEnabled: false,
     deloadFrequency: 4,
     difficultyRamp: 50,
@@ -372,6 +372,9 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   const [allowMultipleMainFocus, setAllowMultipleMainFocus] = useState(false);
   const [savedCustomSplits, setSavedCustomSplits] = useState<SavedCustomSplit[]>([]);
   const [showSavedSplitsPicker, setShowSavedSplitsPicker] = useState(false);
+  const [openDurationOverrides, setOpenDurationOverrides] = useState(false);
+  const [openAvoidInjuries, setOpenAvoidInjuries] = useState(false);
+  const [openPerDayTime, setOpenPerDayTime] = useState(false);
 
   const editFromSnapshot = route.params?.editFromSnapshot;
   useEffect(() => {
@@ -468,6 +471,26 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
       : inputs.trainingSplitPreference;
 
   const planSummary = `${daysPerWeek} day${daysPerWeek !== 1 ? 's' : ''}/week • ${inputs.weeks} week${inputs.weeks !== 1 ? 's' : ''} • ${inputs.timePerSession.min}–${inputs.timePerSession.max} min`;
+
+  const summaryStripLine = useMemo(() => {
+    const goalPart = inputs.goal ? GOAL_LABELS[inputs.goal] : 'Pick a goal';
+    return `${goalPart} · ${daysPerWeek}d/wk · ${inputs.weeks}wk · ${inputs.timePerSession.min}–${inputs.timePerSession.max} min`;
+  }, [inputs.goal, daysPerWeek, inputs.weeks, inputs.timePerSession.min, inputs.timePerSession.max]);
+
+  const durationOverridesSummary = useMemo(() => {
+    const { strength, cardio, recovery } = inputs.sessionCaps;
+    return `Str ${strength.min}–${strength.max} · Cardio ${cardio.min}–${cardio.max} · Recovery ${recovery.min}–${recovery.max} min`;
+  }, [inputs.sessionCaps]);
+
+  const avoidListSummary = useMemo(() => {
+    const n = inputs.avoidList.length;
+    return n === 0 ? 'None selected' : `${n} selected`;
+  }, [inputs.avoidList]);
+
+  const perDayTimeSummary = useMemo(() => {
+    if (!inputs.usePerDayTimeCaps) return 'Same cap as workout duration';
+    return 'Custom limit per training day';
+  }, [inputs.usePerDayTimeCaps]);
 
   const handleGoalSelect = (goal: Goal) => {
     setInputs(prev => ({
@@ -643,12 +666,22 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           <View style={styles.headerSpacer} />
         </View>
 
+        <View style={styles.summaryStrip}>
+          <Text style={styles.summaryStripLabel}>At a glance</Text>
+          <Text style={styles.summaryStripLine} numberOfLines={2}>{summaryStripLine}</Text>
+        </View>
+
         <ScrollView 
           style={styles.content} 
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={true}
           showsHorizontalScrollIndicator={false}
         >
+        {/* Plan basics — always visible */}
+        <View style={styles.essentialsPanel}>
+          <Text style={styles.essentialsKicker}>Plan basics</Text>
+          <Text style={styles.essentialsSubkicker}>Goal, weekly schedule, and how many weeks to generate</Text>
+
         {/* Goal Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>What's your goal?</Text>
@@ -696,17 +729,59 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           </Text>
         </View>
 
+        {/* Plan length (weeks) */}
+        <View style={styles.planLengthSection}>
+          <View style={styles.planLengthTitleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.planLengthTitle}>Plan length</Text>
+              <Text style={styles.planLengthHint}>How many weeks to generate (1 = preview length)</Text>
+            </View>
+            <View style={styles.planLengthStepper}>
+              <TouchableOpacity
+                style={styles.planLengthButton}
+                onPressIn={holdWeeksDown.onPressIn}
+                onPressOut={holdWeeksDown.onPressOut}
+              >
+                <Text style={styles.planLengthButtonText}>−</Text>
+              </TouchableOpacity>
+              <Text style={styles.planLengthValue}>{inputs.weeks}</Text>
+              <Text style={styles.planLengthUnit}>{inputs.weeks === 1 ? 'week' : 'weeks'}</Text>
+              <TouchableOpacity
+                style={styles.planLengthButton}
+                onPressIn={holdWeeksUp.onPressIn}
+                onPressOut={holdWeeksUp.onPressOut}
+              >
+                <Text style={styles.planLengthButtonText}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+        </View>
+
+        <View style={styles.zoneDivider} />
+
         <TouchableOpacity
-          style={styles.advancedToggle}
+          style={[styles.advancedToggle, showAdvanced && styles.advancedToggleExpanded]}
           onPress={() => setShowAdvanced(!showAdvanced)}
           activeOpacity={0.7}
         >
-          <Text style={styles.advancedToggleText}>Advanced (optional)</Text>
-          <Text style={styles.advancedToggleIcon}>{showAdvanced ? '▼' : '▶'}</Text>
+          <View style={styles.advancedToggleTextBlock}>
+            <Text style={styles.advancedToggleTitle}>More plan options</Text>
+            <Text style={styles.advancedToggleHint}>Location, session time, style & split, optional limits</Text>
+          </View>
+          <Ionicons
+            name={showAdvanced ? 'chevron-down' : 'chevron-forward'}
+            size={22}
+            color={colors.textMuted}
+          />
         </TouchableOpacity>
 
         {showAdvanced && (
-          <>
+          <View style={styles.advancedSurface}>
+          <View style={styles.advancedIntro}>
+            <Text style={styles.advancedIntroTitle}>Optional details</Text>
+            <Text style={styles.advancedIntroBody}>Everything below refines location, workouts, and limits. Plan basics stay above.</Text>
+          </View>
         {/* Primary location — first: constrains available exercises */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Primary location</Text>
@@ -1419,29 +1494,6 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
           </Pressable>
         </Modal>
 
-        {/* Weeks to generate — de-emphasized (output-size control) */}
-        <View style={[styles.section, styles.sectionDeemphasized]}>
-          <Text style={styles.sectionTitleDeemphasized}>Weeks to generate</Text>
-          <Text style={styles.sectionSubtitle}>Output length (e.g. 1 for preview)</Text>
-          <View style={styles.numberInputRow}>
-            <TouchableOpacity
-              style={styles.numberButton}
-              onPressIn={holdWeeksDown.onPressIn}
-              onPressOut={holdWeeksDown.onPressOut}
-            >
-              <Text style={styles.numberButtonText}>−</Text>
-            </TouchableOpacity>
-            <Text style={styles.numberDisplay}>{inputs.weeks}</Text>
-            <TouchableOpacity
-              style={styles.numberButton}
-              onPressIn={holdWeeksUp.onPressIn}
-              onPressOut={holdWeeksUp.onPressOut}
-            >
-              <Text style={styles.numberButtonText}>+</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* Age (optional) */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Age</Text>
@@ -1504,7 +1556,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
             {(['simple', 'detailed'] as WorkoutDetailLevel[]).map(level => (
               <TouchableOpacity
                 key={level}
-                style={[styles.optionButton, inputs.workoutDetailLevel === level && styles.optionButtonSelected]}
+                style={[styles.optionButton, inputs.workoutDetailLevel === level && styles.optionButtonSelected, inputs.workoutDetailLevel === level && styles.optionButtonSelectedRing]}
                 onPress={() => setInputs(prev => ({ ...prev, workoutDetailLevel: level }))}
               >
                 <Text style={[styles.optionButtonText, inputs.workoutDetailLevel === level && styles.optionButtonTextSelected]}>
@@ -1523,7 +1575,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                 {(['build', 'build + deload', 'maintain'] as ProgressionStyle[]).map(style => (
                   <TouchableOpacity
                     key={style}
-                    style={[styles.optionButton, inputs.progressionStyle === style && styles.optionButtonSelected]}
+                    style={[styles.optionButton, inputs.progressionStyle === style && styles.optionButtonSelected, inputs.progressionStyle === style && styles.optionButtonSelectedRing]}
                     onPress={() => {
                       setInputs(prev => ({
                         ...prev,
@@ -1540,11 +1592,22 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
               </View>
             </View>
 
-            {/* Advanced duration overrides */}
+            {/* Duration by workout type — collapsed by default */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Advanced duration overrides (optional)</Text>
-              <Text style={styles.sectionSubtitle}>Override duration per workout type</Text>
-              
+              <TouchableOpacity
+                style={styles.accordionHeader}
+                onPress={() => setOpenDurationOverrides((v) => !v)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.accordionHeaderText}>
+                  <Text style={styles.accordionTitle}>Duration by workout type</Text>
+                  <Text style={styles.accordionSummary} numberOfLines={2}>{durationOverridesSummary}</Text>
+                </View>
+                <Ionicons name={openDurationOverrides ? 'chevron-up' : 'chevron-down'} size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+              {openDurationOverrides && (
+                <View style={styles.accordionBody}>
+                  <Text style={styles.sectionSubtitle}>Override strength, cardio, and recovery session lengths (minutes).</Text>
               <View style={styles.sessionCapRow}>
                 <Text style={styles.sessionCapLabel}>Strength:</Text>
                 <View style={styles.sessionCapInputs}>
@@ -1676,6 +1739,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                   <Text style={styles.sessionCapUnit}>min</Text>
                 </View>
               </View>
+                </View>
+              )}
             </View>
 
             {/* Avoid back-to-back intense days — toggle only (default ON) */}
@@ -1694,8 +1759,20 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Injuries / Avoid list</Text>
-              <Text style={styles.sectionSubtitle}>Select what to avoid</Text>
+              <TouchableOpacity
+                style={styles.accordionHeader}
+                onPress={() => setOpenAvoidInjuries((v) => !v)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.accordionHeaderText}>
+                  <Text style={styles.accordionTitle}>Injuries & exercises to avoid</Text>
+                  <Text style={styles.accordionSummary}>{avoidListSummary}</Text>
+                </View>
+                <Ionicons name={openAvoidInjuries ? 'chevron-up' : 'chevron-down'} size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+              {openAvoidInjuries && (
+                <View style={styles.accordionBody}>
+                  <Text style={styles.sectionSubtitle}>Select body areas and movements to steer clear of.</Text>
               <View style={styles.chipsRow}>
                 <Text style={styles.chipGroupLabel}>Body areas:</Text>
                 {(['knees', 'shoulders', 'lower back'] as AvoidItem[]).map(item => {
@@ -1744,18 +1821,36 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                   );
                 })}
               </View>
+                </View>
+              )}
             </View>
 
             <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.accordionHeader}
+                onPress={() => setOpenPerDayTime((v) => !v)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.accordionHeaderText}>
+                  <Text style={styles.accordionTitle}>Per-day time limits</Text>
+                  <Text style={styles.accordionSummary}>{perDayTimeSummary}</Text>
+                </View>
+                <Ionicons name={openPerDayTime ? 'chevron-up' : 'chevron-down'} size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+              {openPerDayTime && (
+                <View style={styles.accordionBody}>
               <View style={styles.toggleRow}>
                 <View style={styles.toggleLabelContainer}>
-                  <Text style={styles.sectionTitle}>Time availability</Text>
-                  <Text style={styles.sectionSubtitle}>Set different time limits per day</Text>
+                  <Text style={styles.sectionSubtitle}>Set different time limits per training day</Text>
                 </View>
                 <TouchableOpacity
                   style={[styles.toggleSwitch, inputs.usePerDayTimeCaps && styles.toggleSwitchOn]}
                   onPress={() => {
-                    setInputs(prev => ({ ...prev, usePerDayTimeCaps: !prev.usePerDayTimeCaps }));
+                    setInputs(prev => {
+                      const next = !prev.usePerDayTimeCaps;
+                      return { ...prev, usePerDayTimeCaps: next };
+                    });
+                    setOpenPerDayTime(true);
                   }}
                 >
                   <View style={[styles.toggleThumb, inputs.usePerDayTimeCaps && styles.toggleThumbOn]} />
@@ -1919,6 +2014,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                   </View>
                 </View>
               )}
+                </View>
+              )}
             </View>
 
             {(inputs.goal === 'strength' || inputs.goal === 'hybrid') && (
@@ -2014,7 +2111,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                 </View>
               </View>
             )}
-          </>
+          </View>
         )}
         </ScrollView>
 
@@ -2093,6 +2190,169 @@ function createGeneratePlanStyles(c: ColorPalette) {
   contentContainer: {
     padding: 16,
     paddingBottom: 180,
+  },
+  summaryStrip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: c.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: c.border,
+  },
+  summaryStripLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: c.textMuted,
+    marginBottom: 4,
+  },
+  summaryStripLine: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: c.textSecondary,
+    lineHeight: 18,
+  },
+  essentialsPanel: {
+    backgroundColor: c.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: c.border,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  essentialsKicker: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: c.primary,
+    marginBottom: 4,
+  },
+  essentialsSubkicker: {
+    fontSize: 13,
+    color: c.textMuted,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  planLengthSection: {
+    marginTop: 4,
+    marginBottom: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+  },
+  planLengthTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  planLengthTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: c.text,
+    marginBottom: 4,
+  },
+  planLengthHint: {
+    fontSize: 13,
+    color: c.textSecondary,
+    lineHeight: 18,
+  },
+  planLengthStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  planLengthButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: c.background,
+    borderWidth: 1,
+    borderColor: c.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  planLengthButtonText: {
+    fontSize: 22,
+    color: c.text,
+    fontWeight: '600',
+  },
+  planLengthValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: c.text,
+    minWidth: 28,
+    textAlign: 'center',
+  },
+  planLengthUnit: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: c.textMuted,
+    marginRight: 4,
+  },
+  zoneDivider: {
+    height: 10,
+    marginBottom: 10,
+  },
+  advancedSurface: {
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingTop: 14,
+    paddingBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderLeftWidth: 4,
+    borderLeftColor: c.primary,
+    backgroundColor: c.background,
+  },
+  advancedIntro: {
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: c.border,
+  },
+  advancedIntroTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: c.textSecondary,
+    marginBottom: 4,
+  },
+  advancedIntroBody: {
+    fontSize: 13,
+    color: c.textMuted,
+    lineHeight: 18,
+  },
+  accordionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    gap: 10,
+  },
+  accordionHeaderText: {
+    flex: 1,
+  },
+  accordionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: c.text,
+    marginBottom: 4,
+  },
+  accordionSummary: {
+    fontSize: 12,
+    color: c.textMuted,
+    lineHeight: 16,
+  },
+  accordionBody: {
+    paddingTop: 4,
+    paddingBottom: 8,
+    paddingHorizontal: 4,
   },
   section: {
     marginBottom: 24,
@@ -2239,6 +2499,14 @@ function createGeneratePlanStyles(c: ColorPalette) {
   optionButtonSelected: {
     backgroundColor: c.primary,
     borderColor: c.primary,
+  },
+  optionButtonSelectedRing: {
+    borderWidth: 2,
+    shadowColor: c.primary,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 2,
   },
   optionButtonText: {
     fontSize: 14,
@@ -2894,12 +3162,32 @@ function createGeneratePlanStyles(c: ColorPalette) {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     backgroundColor: c.surface,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: c.border,
-    marginBottom: 16,
+    marginBottom: 8,
+    gap: 8,
+  },
+  advancedToggleExpanded: {
+    borderColor: c.primary,
+    backgroundColor: c.primarySoft,
+  },
+  advancedToggleTextBlock: {
+    flex: 1,
+  },
+  advancedToggleTitle: {
+    fontSize: 16,
+    color: c.text,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  advancedToggleHint: {
+    fontSize: 12,
+    color: c.textMuted,
+    lineHeight: 16,
   },
   advancedToggleText: {
     fontSize: 14,
