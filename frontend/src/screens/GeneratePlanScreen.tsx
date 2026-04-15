@@ -10,7 +10,9 @@ import {
   Alert,
   Modal,
   Pressable,
+  Platform,
 } from 'react-native';
+import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,6 +28,23 @@ import {
   DAY_TYPE_LABELS,
 } from '../lib/planRecommendation';
 import { buildPlanInputs, planInputsToFormPatch } from '../lib/planInputs';
+import { MonthCalendarPicker } from '../components/MonthCalendarPicker';
+
+const NativeDateTimePicker =
+  Platform.OS === 'web'
+    ? null
+    : (require('@react-native-community/datetimepicker').default as React.ComponentType<any>);
+const NativeDateTimePickerAndroid =
+  Platform.OS === 'web'
+    ? null
+    : (require('@react-native-community/datetimepicker').DateTimePickerAndroid as {
+        open: (params: {
+          value: Date;
+          mode: 'date';
+          minimumDate?: Date;
+          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => void;
+        }) => void;
+      });
 
 type GeneratePlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'GeneratePlan'>;
 type GeneratePlanScreenRouteProp = RouteProp<RootStackParamList, 'GeneratePlan'>;
@@ -75,6 +94,7 @@ interface GeneratePlanInputs {
   programType: ProgramType | null;
   programVariationIndex: number;
   trainingDays: DayOfWeek[];
+  startDateISO: string;
   autoScheduleMode: boolean;
   restDayPreference: RestDayPreference | null;
   allowDoubleSessions: boolean;
@@ -121,6 +141,50 @@ interface GeneratePlanInputs {
 }
 
 const DAYS_OF_WEEK: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function getTodayIsoDate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Parse `YYYY-MM-DD` as a **local** calendar date.
+ * `new Date("YYYY-MM-DD")` alone is UTC midnight and shifts the day in many timezones.
+ */
+function parseIsoDate(value: string): Date {
+  const fallback = new Date();
+  const trimmed = value.trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (m) {
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10) - 1;
+    const d = parseInt(m[3], 10);
+    const local = new Date(y, mo, d);
+    if (!Number.isNaN(local.getTime())) return local;
+  }
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+}
+
+function toIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatStartDateLabel(iso: string): string {
+  const date = parseIsoDate(iso);
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+}
 
 // Custom split builder — Day templates (Day 1, Day 2, …) + rotation rule; app maps to selected weekdays
 type PrimaryMuscle = 'Chest' | 'Back' | 'Legs' | 'Shoulders' | 'Arms' | 'Full Body';
@@ -321,6 +385,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     programType: null,
     programVariationIndex: 0,
     trainingDays: getDefaultTrainingDays(4),
+    startDateISO: getTodayIsoDate(),
     autoScheduleMode: false,
     restDayPreference: null,
     allowDoubleSessions: false,
@@ -375,6 +440,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   const [openDurationOverrides, setOpenDurationOverrides] = useState(false);
   const [openAvoidInjuries, setOpenAvoidInjuries] = useState(false);
   const [openPerDayTime, setOpenPerDayTime] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
 
   const editFromSnapshot = route.params?.editFromSnapshot;
   useEffect(() => {
@@ -529,6 +595,57 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     });
   };
 
+  const handleStartDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (event.type === 'dismissed') {
+      setShowStartDatePicker(false);
+      return;
+    }
+    if (selectedDate) {
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      setInputs((prev) => ({ ...prev, startDateISO: `${year}-${month}-${day}` }));
+    }
+    if (Platform.OS !== 'ios') setShowStartDatePicker(false);
+  };
+
+  const applyStartDateISO = useCallback((value: string) => {
+    const trimmed = value.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      Alert.alert('Invalid date', 'Use YYYY-MM-DD format, for example 2026-04-20.');
+      return false;
+    }
+    const parsed = parseIsoDate(trimmed);
+    if (Number.isNaN(parsed.getTime())) {
+      Alert.alert('Invalid date', 'Please enter a valid calendar date.');
+      return false;
+    }
+    const today = parseIsoDate(getTodayIsoDate());
+    parsed.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    if (parsed < today) {
+      Alert.alert('Past date', 'Choose today or a future date.');
+      return false;
+    }
+    setInputs((prev) => ({ ...prev, startDateISO: toIsoDate(parsed) }));
+    setShowStartDatePicker(false);
+    return true;
+  }, []);
+
+  const openStartDatePicker = useCallback(() => {
+    const current = parseIsoDate(inputs.startDateISO);
+    if (Platform.OS === 'android') {
+      NativeDateTimePickerAndroid?.open({
+        value: current,
+        mode: 'date',
+        minimumDate: new Date(),
+        onChange: handleStartDateChange,
+      });
+      return;
+    }
+    setShowStartDatePicker(true);
+  }, [inputs.startDateISO]);
+
   const handlePrimaryLocationSelect = (location: PrimaryLocation) => {
     setInputs(prev => ({
       ...prev,
@@ -576,6 +693,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           goal: inputs.goal!,
           programType: inputs.programType ?? '',
           trainingDays: inputs.trainingDays,
+          startDateISO: inputs.startDateISO,
           timePerSession: inputs.timePerSession,
           primaryLocation: inputs.primaryLocation,
           weeks: inputs.weeks,
@@ -599,6 +717,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           programType: inputs.programType || '',
           programVariationIndex: inputs.programVariationIndex,
           trainingDays: inputs.trainingDays,
+          startDateISO: inputs.startDateISO,
           autoScheduleMode: false,
           restDayPreference: inputs.restDayPreference,
           allowDoubleSessions: false,
@@ -760,6 +879,38 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               fastest preview; you can extend the plan after you apply it.
             </Text>
           ) : null}
+          <View style={styles.startDateSection}>
+            <Text style={styles.planLengthTitle}>Start date</Text>
+            <Text style={styles.planLengthHint}>Choose when Week 1 should begin</Text>
+            <TouchableOpacity
+              style={styles.startDateButton}
+              onPress={openStartDatePicker}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.startDateButtonText}>{formatStartDateLabel(inputs.startDateISO)}</Text>
+              <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+            {showStartDatePicker && Platform.OS === 'ios' ? (
+              <View style={styles.startDatePickerWrap}>
+                {NativeDateTimePicker ? (
+                  <NativeDateTimePicker
+                    value={parseIsoDate(inputs.startDateISO)}
+                    mode="date"
+                    display="spinner"
+                    onChange={handleStartDateChange}
+                    minimumDate={new Date()}
+                  />
+                ) : null}
+                <TouchableOpacity
+                  style={styles.startDateDoneButton}
+                  onPress={() => setShowStartDatePicker(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.startDateDoneButtonText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </View>
         </View>
         </View>
 
@@ -2138,6 +2289,36 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
           </View>
         </SafeAreaView>
       </SafeAreaView>
+
+      {/* Must stay outside `showAdvanced` — otherwise web modal never mounts when options are collapsed */}
+      <Modal
+        visible={showStartDatePicker && Platform.OS === 'web'}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowStartDatePicker(false)}
+      >
+        <Pressable style={styles.startDateModalBackdrop} onPress={() => setShowStartDatePicker(false)}>
+          <Pressable style={styles.startDateModalPanel} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.startDateModalTitle}>Choose start date</Text>
+            <Text style={styles.sectionSubtitle}>Tap a day. Grey days are before today.</Text>
+            <MonthCalendarPicker
+              selectedIso={inputs.startDateISO}
+              minIso={getTodayIsoDate()}
+              colors={colors}
+              onSelectDay={(iso) => applyStartDateISO(iso)}
+            />
+            <View style={styles.startDateModalActions}>
+              <TouchableOpacity
+                style={styles.customSplitCancelBtn}
+                onPress={() => setShowStartDatePicker(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.customSplitCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -2298,6 +2479,79 @@ function createGeneratePlanStyles(c: ColorPalette) {
     fontWeight: '600',
     color: c.textMuted,
     marginRight: 4,
+  },
+  startDateSection: {
+    marginTop: 14,
+  },
+  startDateButton: {
+    marginTop: 10,
+    minHeight: 46,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.background,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  startDateButtonText: {
+    fontSize: 14,
+    color: c.text,
+    fontWeight: '600',
+  },
+  startDatePickerWrap: {
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.background,
+    paddingVertical: 8,
+  },
+  startDateDoneButton: {
+    alignSelf: 'flex-end',
+    marginTop: 6,
+    marginRight: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  startDateDoneButtonText: {
+    color: c.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  startDateModalBackdrop: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: c.scrim,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  startDateModalPanel: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surface,
+    padding: 16,
+  },
+  startDateModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: c.text,
+    marginBottom: 8,
+  },
+  startDateModalActions: {
+    marginTop: 16,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
   },
   zoneDivider: {
     height: 10,

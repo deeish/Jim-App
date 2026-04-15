@@ -59,6 +59,7 @@ export type RootStackParamList = {
       programType: string;
       programVariationIndex: number;
       trainingDays: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[];
+      startDateISO?: string;
       autoScheduleMode: boolean;
       restDayPreference: string | null;
       allowDoubleSessions: boolean;

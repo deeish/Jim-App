@@ -75,6 +75,8 @@ export type CurrentActivityLevelId = '0' | '1-2' | '3-4' | '5+';
 export interface PlanInputs {
   goal: GoalId;
   selectedWeekdays: Weekday[];
+  startWeekday?: Weekday;
+  startDateISO?: string;
   daysPerWeek: number;
   durationMode: DurationMode;
   durationMin: number;

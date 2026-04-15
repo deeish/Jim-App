@@ -20,11 +20,21 @@ import type {
 } from '../types/plan';
 
 const BODY_AREAS = ['knees', 'shoulders', 'lower back'];
+const WEEKDAY_ORDER: Weekday[] = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
 
 export interface FormStateForPlanInputs {
   goal: 'fat loss' | 'strength' | 'endurance' | 'hybrid' | null;
   programType: string | null;
   trainingDays: Weekday[];
+  startDateISO: string;
   timePerSession: { min: number; max: number };
   primaryLocation: 'gym' | 'home' | null;
   weeks: number;
@@ -109,6 +119,50 @@ function toInjuriesAvoid(avoidList: string[]): InjuriesAvoidInput {
   return { bodyAreas, movementsOrEquipment };
 }
 
+function orderWeekdaysFromStart(days: Weekday[], startDay: Weekday): Weekday[] {
+  const selected = new Set(days);
+  const ordered = WEEKDAY_ORDER.filter((day) => selected.has(day));
+  if (!ordered.length) return ordered;
+  const startIndex = WEEKDAY_ORDER.indexOf(startDay);
+  if (startIndex < 0) return ordered;
+  return [...ordered].sort((a, b) => {
+    const aOffset = (WEEKDAY_ORDER.indexOf(a) - startIndex + WEEKDAY_ORDER.length) % WEEKDAY_ORDER.length;
+    const bOffset = (WEEKDAY_ORDER.indexOf(b) - startIndex + WEEKDAY_ORDER.length) % WEEKDAY_ORDER.length;
+    return aOffset - bOffset;
+  });
+}
+
+/** `YYYY-MM-DD` → local midnight (avoid `new Date(iso)` UTC parse). */
+function parseStartDateIsoLocal(iso: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (!m) return new Date(iso);
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10) - 1;
+  const d = parseInt(m[3], 10);
+  return new Date(y, mo, d);
+}
+
+function localTodayIso(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+}
+
+function startWeekdayFromIsoDate(startDateISO: string): Weekday {
+  const fallback: Weekday = 'Monday';
+  const parsed = parseStartDateIsoLocal(startDateISO);
+  if (Number.isNaN(parsed.getTime())) return fallback;
+  const dayMap: Weekday[] = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ];
+  return dayMap[parsed.getDay()] ?? fallback;
+}
+
 /**
  * Build a single PlanInputs snapshot from current form state and effective choices.
  * Use this result as the only input for the generation pipeline and Preview.
@@ -145,10 +199,14 @@ export function buildPlanInputs(options: BuildPlanInputsOptions): PlanInputs {
 
   const currentActivityLevel: CurrentActivityLevelId | null =
     (form.currentActivityLevel as CurrentActivityLevelId) ?? null;
+  const startWeekday = startWeekdayFromIsoDate(form.startDateISO);
+  const orderedTrainingDays = orderWeekdaysFromStart(form.trainingDays, startWeekday);
 
   return {
     goal: toGoalId(form.goal),
-    selectedWeekdays: form.trainingDays,
+    selectedWeekdays: orderedTrainingDays,
+    startWeekday,
+    startDateISO: form.startDateISO,
     daysPerWeek,
     durationMode,
     durationMin: form.timePerSession.min,
@@ -177,6 +235,7 @@ export function planInputsToFormPatch(inputs: PlanInputs): Partial<{
   goal: 'fat loss' | 'strength' | 'endurance' | 'hybrid' | null;
   programType: string | null;
   trainingDays: Weekday[];
+  startDateISO: string;
   timePerSession: { min: number; max: number };
   primaryLocation: 'gym' | 'home' | null;
   weeks: number;
@@ -235,6 +294,7 @@ export function planInputsToFormPatch(inputs: PlanInputs): Partial<{
     goal,
     programType: inputs.planStyleId || null,
     trainingDays: inputs.selectedWeekdays,
+    startDateISO: inputs.startDateISO ?? localTodayIso(),
     timePerSession: { min: inputs.durationMin, max: inputs.durationMax },
     primaryLocation,
     weeks: inputs.weeksCount,
