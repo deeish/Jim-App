@@ -3,6 +3,11 @@
  * This maps the format from exercises_5000plus.json to what SearchScreen.tsx expects
  */
 
+import {
+  inferPrescriptionTypeFromRawExercise,
+  type ExercisePrescriptionType,
+} from './exercise-prescription';
+
 // Primary Muscle Group ID → Display Name
 export const PRIMARY_MUSCLE_GROUP_MAP: Record<string, string> = {
   chest: 'Chest',
@@ -423,6 +428,8 @@ export interface RawExercise {
   equipmentIds?: string[];
   equipmentAlternativeIds?: string[];
   movementPatternIds?: string[];
+  /** When set, overrides inference (e.g. holds vs reps). */
+  prescriptionType?: ExercisePrescriptionType;
   [key: string]: any; // Allow other fields
 }
 
@@ -438,6 +445,8 @@ export interface TransformedExercise {
   movementPatterns: string[];
   /** From raw data: "Compound" | "Isolation" etc. Used for common-first sort. */
   type?: string;
+  /** How sets×prescription should be shown (reps vs time vs distance). */
+  prescriptionType: ExercisePrescriptionType;
   /** YouTube video ID (from exercise-videos.json) for demo video on detail screen. */
   youtubeId?: string;
   [key: string]: any; // Preserve other fields
@@ -480,6 +489,13 @@ export function transformExercise(raw: RawExercise): TransformedExercise {
     // Remove duplicates
     .filter((value, index, self) => self.indexOf(value) === index);
 
+  const prescriptionType = inferPrescriptionTypeFromRawExercise({
+    name: raw.name,
+    aliases: raw.aliases,
+    prescriptionType: raw.prescriptionType,
+    movementPatternIds: raw.movementPatternIds,
+  });
+
   return {
     ...raw,
     primaryMuscleGroup,
@@ -488,6 +504,7 @@ export function transformExercise(raw: RawExercise): TransformedExercise {
     equipment,
     movementPatterns,
     type: raw.type,
+    prescriptionType,
     // Remove old ID fields
     primaryMuscleGroupId: undefined,
     subMuscleIds: undefined,

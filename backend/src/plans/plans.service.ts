@@ -2,10 +2,16 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { WorkoutGeneratorService } from '../workouts/workout-generator.service';
+import {
+  WorkoutGeneratorService,
+  exerciseTargetsForSession,
+  plainWorkoutTitle,
+} from '../workouts/workout-generator.service';
 import { ExercisesService } from '../exercises/exercises.service';
 import { CreatePlanDto, PlanSlotDto } from './dto/create-plan.dto';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
@@ -17,10 +23,13 @@ import {
 
 @Injectable()
 export class PlansService {
+  private readonly logger = new Logger(PlansService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly workoutGenerator: WorkoutGeneratorService,
     private readonly exercises: ExercisesService,
+    private readonly config: ConfigService,
   ) {}
 
   /** Plan slots with ordered plan_exercises (for Plan screen detail + materialize). */
@@ -512,100 +521,161 @@ export class PlansService {
     'Bodyweight',
   ] as const;
 
-  async generateSessions(dto: GenerateSessionsDto): Promise<{
-    sessions: Array<{
-      weekIndex: number;
-      weekday: string;
-      name: string;
-      reasoning?: string;
-      warmUp?: string;
-      coolDown?: string;
-      exercises: Array<{
-        name: string;
-        sets: number;
-        reps: number;
-        weight?: number;
-        notes?: string;
-        exerciseId?: string;
-      }>;
-    }>;
-  }> {
-    const goal = dto.goal ?? 'strength';
-    const location = dto.location ?? 'gym';
-    const detailLevel = dto.detailLevel ?? 'detailed';
-    const makeItEasier = dto.makeItEasier === true;
-    const limitations = dto.avoidConstraints ?? [];
-    const equipment =
-      location === 'home' ? [...PlansService.HOME_EQUIPMENT] : undefined;
+  /** Matches `WorkoutGeneratorService.generateFullProgram` batch size (2–7 sessions per Groq call). */
+  private static readonly GENERATE_SESSIONS_BATCH_SIZE = 7;
 
-    const fullProgram = await this.workoutGenerator.tryGenerateFullProgram({
-      sessions: dto.sessions.map((s) => ({
-        weekIndex: s.weekIndex,
-        weekday: s.weekday,
-        title: s.title,
-        type: s.type,
-        durationMin: s.durationMin,
-        durationMax: s.durationMax,
-        isHardDay: s.isHardDay,
-      })),
-      goal,
-      location,
-      detailLevel,
-      makeItEasier,
-      avoidConstraints: limitations,
-    });
+  /** Raw picks kept for recency; over-counted on purpose (repeats allowed). */
+  private static readonly PRIOR_EXERCISE_HISTORY_MAX = 500;
 
-    if (fullProgram && fullProgram.length === dto.sessions.length) {
-      const results = fullProgram.map((session, i) => {
-        const spec = dto.sessions[i];
-        const avoidPhrases = [
-          ...new Set([...limitations, ...(spec?.avoidConstraints ?? [])]),
-        ].filter(Boolean);
-        const filteredExercises = this.filterExercisesByAvoidList(
-          session.exercises,
-          avoidPhrases,
-        );
-        return {
-          weekIndex: session.weekIndex,
-          weekday: session.weekday,
-          name: session.name,
-          reasoning: session.reasoning,
-          warmUp: session.warmUp,
-          coolDown: session.coolDown,
-          cardioFinisher: session.cardioFinisher,
-          exercises: filteredExercises,
-        };
-      });
-      const enriched = await this.applySessionEnrichment(results, dto);
-      return { sessions: enriched };
+  /** Unique ids passed to prompts / exclude lists; oldest→newest so `.slice(-N)` = freshest. */
+  private static readonly PRIOR_CONTEXT_MAX_UNIQUE = 120;
+
+  /**
+   * Unique exercise ids from the tail of a chronological list (newest at end of tail).
+   * Returns oldest→newest among included uniques so callers can `ids.slice(-48)` for “most recent”.
+   */
+  private static priorExerciseIdsOldestFirstAmongRecent(
+    chronological: string[],
+    maxTail: number,
+    maxUnique: number,
+  ): string[] {
+    const tail = chronological
+      .slice(-maxTail)
+      .map((id) => String(id ?? '').trim())
+      .filter(Boolean);
+    const seen = new Set<string>();
+    const mostRecentFirst: string[] = [];
+    for (let i = tail.length - 1; i >= 0; i--) {
+      const id = tail[i]!;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      mostRecentFirst.push(id);
+      if (mostRecentFirst.length >= maxUnique) break;
     }
+    return mostRecentFirst.reverse();
+  }
 
-    const results: Array<{
-      weekIndex: number;
-      weekday: string;
-      name: string;
-      reasoning?: string;
-      warmUp?: string;
-      coolDown?: string;
-      cardioFinisher?: { suggestion: string };
-      exercises: Array<{
-        name: string;
-        sets: number;
-        reps: number;
-        weight?: number;
-        notes?: string;
-        exerciseId?: string;
-      }>;
+  /**
+   * Preserve global session order while batching: weeks in first-appearance order,
+   * each week split into slices of at most 7 training days.
+   */
+  private partitionSessionsForBatching(
+    sessions: GenerateSessionsDto['sessions'],
+  ): Array<{
+    indices: number[];
+    specs: GenerateSessionsDto['sessions'];
+  }> {
+    const weekOrder: number[] = [];
+    const weekToIndices = new Map<number, number[]>();
+    for (let i = 0; i < sessions.length; i++) {
+      const w = sessions[i].weekIndex;
+      if (!weekToIndices.has(w)) {
+        weekToIndices.set(w, []);
+        weekOrder.push(w);
+      }
+      weekToIndices.get(w)!.push(i);
+    }
+    const chunks: Array<{
+      indices: number[];
+      specs: GenerateSessionsDto['sessions'];
     }> = [];
-    const usedExerciseIdsByWeek = new Map<number, string[]>();
+    for (const weekIndex of weekOrder) {
+      const indices = weekToIndices.get(weekIndex)!;
+      for (
+        let start = 0;
+        start < indices.length;
+        start += PlansService.GENERATE_SESSIONS_BATCH_SIZE
+      ) {
+        const slice = indices.slice(
+          start,
+          start + PlansService.GENERATE_SESSIONS_BATCH_SIZE,
+        );
+        chunks.push({
+          indices: slice,
+          specs: slice.map((idx) => sessions[idx]),
+        });
+      }
+    }
+    return chunks;
+  }
 
-    for (const spec of dto.sessions) {
-      const isHard = makeItEasier ? false : spec.isHardDay;
-      const difficulty = makeItEasier
-        ? 'beginner'
-        : isHard
-          ? 'advanced'
-          : 'intermediate';
+  /** One JSON line per chunk for log aggregation (path, counts, no PII). */
+  private logGenerateSessionsChunkEvent(payload: {
+    path:
+      | 'hybrid_ok'
+      | 'hybrid_quality_fallback'
+      | 'hybrid_rule_failed'
+      | 'hybrid_bad_shape'
+      | 'batch_ok'
+      | 'per_session';
+    sessionCount: number;
+    weekMin: number;
+    effectiveDetailLevel: 'simple' | 'detailed';
+    makeItEasier: boolean;
+    polishApplied?: boolean;
+  }): void {
+    this.logger.log(JSON.stringify({ event: 'generate_sessions_chunk', ...payload }));
+  }
+
+  /** After hybrid rule+polish: ensure each day meets the same min exercise counts as Groq prompts expect. */
+  private hybridChunkPassesQualityGate(
+    specs: GenerateSessionsDto['sessions'],
+    sessions: GeneratedSession[],
+  ): boolean {
+    if (sessions.length !== specs.length) return false;
+    for (let i = 0; i < specs.length; i++) {
+      const spec = specs[i]!;
+      const session = sessions[i]!;
+      const duration = Math.round((spec.durationMin + spec.durationMax) / 2);
+      const isCardioOrRecovery =
+        spec.type === 'cardio' || spec.type === 'recovery';
+      const { minExercises } = exerciseTargetsForSession(
+        duration,
+        'simple',
+        isCardioOrRecovery,
+      );
+      const count = (session.exercises ?? []).filter((e) =>
+        String(e.name ?? '').trim(),
+      ).length;
+      if (count < minExercises) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Phase D (simple only): rule-based exercise selection per day, then one compact Groq JSON pass
+   * for session titles and warm-up / cool-down / reasoning. On polish failure, returns rule-only copy.
+   * Returns null if rule generation fails for any day so the caller can fall back to full Groq paths.
+   */
+  private async tryHybridSimpleChunk(
+    specs: GenerateSessionsDto['sessions'],
+    goal: string,
+    location: 'gym' | 'home',
+    limitations: string[],
+    equipment: string[] | undefined,
+    priorContextExerciseIds: string[],
+  ): Promise<
+    { sessions: GeneratedSession[]; polishApplied: boolean } | null
+  > {
+    const cappedPrior = [
+      ...new Set(
+        priorContextExerciseIds
+          .map((id) => String(id ?? '').trim())
+          .filter(Boolean),
+      ),
+    ].slice(-PlansService.PRIOR_CONTEXT_MAX_UNIQUE);
+
+    const results: GeneratedSession[] = [];
+    const usedExerciseIdsByWeek = new Map<number, string[]>();
+    const polishDays: Array<{
+      weekday: string;
+      focusLabel: string;
+      exerciseNames: string[];
+    }> = [];
+
+    for (const spec of specs) {
+      const isHard = spec.isHardDay;
+      const difficulty = isHard ? 'advanced' : 'intermediate';
       const duration = Math.round((spec.durationMin + spec.durationMax) / 2);
       const specLimits = spec.avoidConstraints?.length
         ? spec.avoidConstraints
@@ -615,6 +685,9 @@ export class PlansService {
       ].filter(Boolean);
       const alreadyUsedThisWeek =
         usedExerciseIdsByWeek.get(spec.weekIndex) ?? [];
+      const excludeMerged = [
+        ...new Set([...cappedPrior, ...alreadyUsedThisWeek]),
+      ];
 
       let generated: Awaited<
         ReturnType<WorkoutGeneratorService['generateWorkout']>
@@ -630,9 +703,277 @@ export class PlansService {
             equipment,
             limitations: specLimits,
             programDayFocus: spec.title ?? spec.type,
-            detailLevel,
-            excludeExerciseIds: alreadyUsedThisWeek.length
-              ? alreadyUsedThisWeek
+            detailLevel: 'simple',
+            excludeExerciseIds: excludeMerged.length
+              ? excludeMerged
+              : undefined,
+            skipGroq: true,
+          },
+        });
+      } catch (firstErr) {
+        try {
+          generated = await this.workoutGenerator.generateWorkout({
+            day: spec.weekday,
+            preferences: {
+              focus: spec.title ?? spec.type,
+              duration,
+              difficulty,
+              goal,
+              equipment,
+              limitations: specLimits,
+              programDayFocus: spec.title ?? spec.type,
+              detailLevel: 'simple',
+              excludeExerciseIds: excludeMerged.length
+                ? excludeMerged
+                : undefined,
+              skipGroq: true,
+            },
+          });
+        } catch {
+          return null;
+        }
+      }
+
+      const newIds = (generated.exercises ?? [])
+        .map((e) => e.exerciseId)
+        .filter((id): id is string => !!id);
+      if (newIds.length) {
+        const existing = usedExerciseIdsByWeek.get(spec.weekIndex) ?? [];
+        usedExerciseIdsByWeek.set(spec.weekIndex, [...existing, ...newIds]);
+      }
+
+      const filteredExercises = this.filterExercisesByAvoidList(
+        generated.exercises.map((e) => ({
+          name: e.name,
+          sets: e.sets,
+          reps: e.reps,
+          weight: e.weight,
+          notes: e.notes,
+          exerciseId: e.exerciseId,
+        })),
+        avoidPhrases,
+      );
+
+      results.push({
+        weekIndex: spec.weekIndex,
+        weekday: spec.weekday,
+        name: generated.name,
+        reasoning: generated.reasoning,
+        warmUp: generated.warmUp,
+        coolDown: generated.coolDown,
+        cardioFinisher: generated.cardioFinisher,
+        exercises: filteredExercises,
+      });
+      polishDays.push({
+        weekday: spec.weekday,
+        focusLabel: (spec.title ?? spec.type ?? 'Session').trim(),
+        exerciseNames: filteredExercises.map((e) => e.name).filter(Boolean),
+      });
+    }
+
+    const apiKey = this.config.get<string>('GROQ_API_KEY')?.trim();
+    if (!apiKey) return { sessions: results, polishApplied: false };
+
+    const equipmentNote =
+      location === 'home'
+        ? equipment?.length
+          ? equipment.join(', ')
+          : 'home / bodyweight'
+        : 'general gym equipment';
+
+    const polish = await this.workoutGenerator.polishSimpleBatchSessionCopy(
+      { goal, equipmentNote, days: polishDays },
+      apiKey,
+    );
+    if (!polish || polish.length !== results.length) {
+      return { sessions: results, polishApplied: false };
+    }
+
+    for (let i = 0; i < results.length; i++) {
+      const p = polish[i]!;
+      const s = results[i]!;
+      s.name = p.name;
+      if (p.reasoning !== undefined) s.reasoning = p.reasoning;
+      if (p.warmUp !== undefined) s.warmUp = p.warmUp;
+      if (p.coolDown !== undefined) s.coolDown = p.coolDown;
+    }
+    return { sessions: results, polishApplied: true };
+  }
+
+  private async generateSessionsForSpecChunk(
+    specs: GenerateSessionsDto['sessions'],
+    dto: GenerateSessionsDto,
+    goal: string,
+    location: 'gym' | 'home',
+    detailLevel: 'simple' | 'detailed',
+    makeItEasier: boolean,
+    limitations: string[],
+    equipment: string[] | undefined,
+    /** Oldest→newest unique ids from recent picks (see `priorExerciseIdsOldestFirstAmongRecent`). */
+    priorContextExerciseIds: string[],
+  ): Promise<GeneratedSession[]> {
+    const weekMin = Math.min(...specs.map((s) => s.weekIndex));
+    /** Later preview weeks use the compact Groq style when the user chose detailed (tokens + truncation). */
+    const effectiveDetailLevel =
+      detailLevel === 'detailed' && weekMin >= 2 ? 'simple' : detailLevel;
+
+    const cappedPrior = [
+      ...new Set(
+        priorContextExerciseIds
+          .map((id) => String(id ?? '').trim())
+          .filter(Boolean),
+      ),
+    ].slice(-PlansService.PRIOR_CONTEXT_MAX_UNIQUE);
+
+    if (!makeItEasier && effectiveDetailLevel === 'simple') {
+      const hybridResult = await this.tryHybridSimpleChunk(
+        specs,
+        goal,
+        location,
+        limitations,
+        equipment,
+        cappedPrior,
+      );
+      if (hybridResult === null) {
+        this.logGenerateSessionsChunkEvent({
+          path: 'hybrid_rule_failed',
+          sessionCount: specs.length,
+          weekMin,
+          effectiveDetailLevel,
+          makeItEasier,
+        });
+      } else if (hybridResult.sessions.length !== specs.length) {
+        this.logGenerateSessionsChunkEvent({
+          path: 'hybrid_bad_shape',
+          sessionCount: specs.length,
+          weekMin,
+          effectiveDetailLevel,
+          makeItEasier,
+        });
+      } else if (
+        this.hybridChunkPassesQualityGate(specs, hybridResult.sessions)
+      ) {
+        this.logGenerateSessionsChunkEvent({
+          path: 'hybrid_ok',
+          sessionCount: specs.length,
+          weekMin,
+          effectiveDetailLevel,
+          makeItEasier,
+          polishApplied: hybridResult.polishApplied,
+        });
+        return hybridResult.sessions;
+      } else {
+        this.logGenerateSessionsChunkEvent({
+          path: 'hybrid_quality_fallback',
+          sessionCount: specs.length,
+          weekMin,
+          effectiveDetailLevel,
+          makeItEasier,
+          polishApplied: hybridResult.polishApplied,
+        });
+      }
+    }
+
+    const mapBatchToSessions = (
+      fullProgram: NonNullable<
+        Awaited<ReturnType<WorkoutGeneratorService['tryGenerateFullProgram']>>
+      >,
+    ): GeneratedSession[] =>
+      fullProgram.map((session, i) => {
+        const spec = specs[i];
+        const avoidPhrases = [
+          ...new Set([...limitations, ...(spec?.avoidConstraints ?? [])]),
+        ].filter(Boolean);
+        const filteredExercises = this.filterExercisesByAvoidList(
+          session.exercises,
+          avoidPhrases,
+        );
+        return {
+          weekIndex: session.weekIndex,
+          weekday: session.weekday,
+          name: plainWorkoutTitle(
+            session.name,
+            (spec?.title ?? spec?.type ?? 'Session').trim(),
+            spec?.weekday ?? '',
+          ),
+          reasoning: session.reasoning,
+          warmUp: session.warmUp,
+          coolDown: session.coolDown,
+          cardioFinisher: session.cardioFinisher,
+          exercises: filteredExercises,
+        };
+      });
+
+    if (specs.length >= 2) {
+      const fullProgram = await this.workoutGenerator.tryGenerateFullProgram({
+        sessions: specs.map((s) => ({
+          weekIndex: s.weekIndex,
+          weekday: s.weekday,
+          title: s.title,
+          type: s.type,
+          durationMin: s.durationMin,
+          durationMax: s.durationMax,
+          isHardDay: s.isHardDay,
+        })),
+        goal,
+        location,
+        detailLevel: effectiveDetailLevel,
+        makeItEasier,
+        avoidConstraints: limitations,
+        priorWeekExerciseIds: cappedPrior.length ? cappedPrior : undefined,
+      });
+      if (fullProgram && fullProgram.length === specs.length) {
+        this.logGenerateSessionsChunkEvent({
+          path: 'batch_ok',
+          sessionCount: specs.length,
+          weekMin,
+          effectiveDetailLevel,
+          makeItEasier,
+        });
+        return mapBatchToSessions(fullProgram);
+      }
+    }
+
+    const results: GeneratedSession[] = [];
+    const usedExerciseIdsByWeek = new Map<number, string[]>();
+
+    for (const spec of specs) {
+      const isHard = makeItEasier ? false : spec.isHardDay;
+      const difficulty = makeItEasier
+        ? 'beginner'
+        : isHard
+          ? 'advanced'
+          : 'intermediate';
+      const duration = Math.round((spec.durationMin + spec.durationMax) / 2);
+      const specLimits = spec.avoidConstraints?.length
+        ? spec.avoidConstraints
+        : limitations;
+      const avoidPhrases = [
+        ...new Set([...limitations, ...(spec.avoidConstraints ?? [])]),
+      ].filter(Boolean);
+      const alreadyUsedThisWeek =
+        usedExerciseIdsByWeek.get(spec.weekIndex) ?? [];
+      const excludeMerged = [
+        ...new Set([...cappedPrior, ...alreadyUsedThisWeek]),
+      ];
+
+      let generated: Awaited<
+        ReturnType<WorkoutGeneratorService['generateWorkout']>
+      >;
+      try {
+        generated = await this.workoutGenerator.generateWorkout({
+          day: spec.weekday,
+          preferences: {
+            focus: spec.title ?? spec.type,
+            duration,
+            difficulty,
+            goal,
+            equipment,
+            limitations: specLimits,
+            programDayFocus: spec.title ?? spec.type,
+            detailLevel: effectiveDetailLevel,
+            excludeExerciseIds: excludeMerged.length
+              ? excludeMerged
               : undefined,
           },
         });
@@ -648,9 +989,9 @@ export class PlansService {
               equipment,
               limitations: specLimits,
               programDayFocus: spec.title ?? spec.type,
-              detailLevel,
-              excludeExerciseIds: alreadyUsedThisWeek.length
-                ? alreadyUsedThisWeek
+              detailLevel: effectiveDetailLevel,
+              excludeExerciseIds: excludeMerged.length
+                ? excludeMerged
                 : undefined,
             },
           });
@@ -690,7 +1031,86 @@ export class PlansService {
         exercises: filteredExercises,
       });
     }
-    const enriched = await this.applySessionEnrichment(results, dto);
+
+    this.logGenerateSessionsChunkEvent({
+      path: 'per_session',
+      sessionCount: specs.length,
+      weekMin,
+      effectiveDetailLevel,
+      makeItEasier,
+    });
+    return results;
+  }
+
+  async generateSessions(dto: GenerateSessionsDto): Promise<{
+    sessions: Array<{
+      weekIndex: number;
+      weekday: string;
+      name: string;
+      reasoning?: string;
+      warmUp?: string;
+      coolDown?: string;
+      exercises: Array<{
+        name: string;
+        sets: number;
+        reps: number;
+        weight?: number;
+        notes?: string;
+        exerciseId?: string;
+      }>;
+    }>;
+  }> {
+    const goal = dto.goal ?? 'strength';
+    const location = dto.location ?? 'gym';
+    const detailLevel = dto.detailLevel ?? 'detailed';
+    const makeItEasier = dto.makeItEasier === true;
+    const limitations = dto.avoidConstraints ?? [];
+    const equipment =
+      location === 'home' ? [...PlansService.HOME_EQUIPMENT] : undefined;
+
+    const chunks = this.partitionSessionsForBatching(dto.sessions);
+    const orderedResults: GeneratedSession[] = new Array(dto.sessions.length);
+    /** Chronological exercise picks (repeats allowed) for true “recent usage” semantics. */
+    let priorExerciseHistory: string[] = [];
+
+    for (const chunk of chunks) {
+      const priorContextIds = PlansService.priorExerciseIdsOldestFirstAmongRecent(
+        priorExerciseHistory,
+        PlansService.PRIOR_EXERCISE_HISTORY_MAX,
+        PlansService.PRIOR_CONTEXT_MAX_UNIQUE,
+      );
+      const chunkResults = await this.generateSessionsForSpecChunk(
+        chunk.specs,
+        dto,
+        goal,
+        location,
+        detailLevel,
+        makeItEasier,
+        limitations,
+        equipment,
+        priorContextIds,
+      );
+      if (chunkResults.length !== chunk.indices.length) {
+        throw new HttpException(
+          'Session generation produced an unexpected number of results.',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+      for (let j = 0; j < chunk.indices.length; j++) {
+        orderedResults[chunk.indices[j]] = chunkResults[j];
+      }
+      for (const session of chunkResults) {
+        for (const ex of session.exercises ?? []) {
+          const id = ex.exerciseId?.trim();
+          if (id) priorExerciseHistory.push(id);
+        }
+      }
+      priorExerciseHistory = priorExerciseHistory.slice(
+        -PlansService.PRIOR_EXERCISE_HISTORY_MAX,
+      );
+    }
+
+    const enriched = await this.applySessionEnrichment(orderedResults, dto);
     return { sessions: enriched };
   }
 

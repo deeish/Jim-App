@@ -18,15 +18,22 @@ import type { RootStackParamList } from '../types/navigation';
 import { useTheme, planSlotIconColors, type PlanSlotIconColors, type ColorPalette } from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
-import { createPlan, generateSingleSession, type PlanSlot, type PlanSlotExercise } from '../services/planService';
+import {
+  createPlan,
+  generateSingleSession,
+  GENERATE_SESSIONS_TIMEOUT_MESSAGE,
+  type PlanSlot,
+  type PlanSlotExercise,
+} from '../services/planService';
 import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
 import {
   runPipeline,
   runPipelineSafe,
+  regeneratePipelineWeek,
+  regeneratePipelineCardioSessions,
   planDraftToWeekPlans,
-  formatDraftReps,
+  formatExerciseRepsDisplay,
   sessionDraftToPlanSlotExercises,
-  type PipelineDebugInfo,
 } from '../lib/planPipeline';
 import type { PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
 import { formatLocalYmd, getWeekStartMonday } from '../lib/planCalendar';
@@ -38,6 +45,12 @@ import {
 
 type PlanPreviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlanPreview'>;
 type PlanPreviewScreenRouteProp = RouteProp<RootStackParamList, 'PlanPreview'>;
+
+function regenFailureAlertTitle(errorMessage: string | undefined): string {
+  return errorMessage === GENERATE_SESSIONS_TIMEOUT_MESSAGE
+    ? 'Request timed out'
+    : 'Regeneration failed';
+}
 
 type Props = {
   navigation: PlanPreviewScreenNavigationProp;
@@ -152,9 +165,7 @@ function workoutPreviewFromSessionDraft(
     exercises: working.map((e, idx) => ({
       name: e.name,
       sets: e.sets,
-      reps: /\d+\s*[–-]\s*\d+/.test(String(e.reps))
-        ? e.reps
-        : formatDraftReps(parseRepScalar(e.reps), goal),
+      reps: formatExerciseRepsDisplay(e.name, e.reps, goal, e.prescriptionType),
       orderIndex: idx,
       exerciseId: e.exerciseId ?? undefined,
     })),
@@ -361,9 +372,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   useEffect(() => {
     setCardToReopen(returnToPlanCard ?? null);
   }, [returnToPlanCard?.workoutId, returnToPlanCard?.weekNumber, returnToPlanCard?.day]);
-  const [debugInfo, setDebugInfo] = useState<PipelineDebugInfo | null>(null);
-  const [debugPanelOpen, setDebugPanelOpen] = useState(false);
-
   const groqPreviewCacheRef = useRef<Map<string, WorkoutPreview>>(new Map());
 
   useEffect(() => {
@@ -378,14 +386,12 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     const frameId = requestAnimationFrame(async () => {
       try {
         const result = await runPipelineSafe(planInputs, draftId, {
-          captureDebug: __DEV__,
           repairIfInvalid: true,
         });
         if (cancelled) return;
         if (result.ok) {
           setPlanDraft(result.draft);
           setPlanData(planDraftToWeekPlans(result.draft) as WeekPlan[]);
-          if (result.debug) setDebugInfo(result.debug);
         } else {
           setGenerateError(result.error || "Couldn't generate. Try again.");
         }
@@ -486,14 +492,19 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           exercises: (result.exercises ?? []).map((e, idx) => ({
             name: e.name,
             sets: e.sets,
-            reps:
-              typeof e.reps === 'number' ? formatDraftReps(e.reps, planGoal) : String(e.reps ?? ''),
+            reps: formatExerciseRepsDisplay(
+              e.name,
+              typeof e.reps === 'number' ? e.reps : String(e.reps ?? ''),
+              planGoal,
+              e.prescriptionType,
+            ),
             weight: e.weight,
             notes: e.notes,
             orderIndex: idx,
             exerciseId: typeof (e as { exerciseId?: string }).exerciseId === 'string'
               ? (e as { exerciseId: string }).exerciseId
               : undefined,
+            prescriptionType: e.prescriptionType,
           })),
         };
 
@@ -622,16 +633,19 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           exercises: (result.exercises ?? []).map((e, idx) => ({
             name: e.name,
             sets: e.sets,
-            reps:
-              typeof e.reps === 'number'
-                ? formatDraftReps(e.reps, planGoal)
-                : String(e.reps ?? ''),
+            reps: formatExerciseRepsDisplay(
+              e.name,
+              typeof e.reps === 'number' ? e.reps : String(e.reps ?? ''),
+              planGoal,
+              e.prescriptionType,
+            ),
             weight: e.weight,
             notes: e.notes,
             orderIndex: idx,
             exerciseId: typeof (e as { exerciseId?: string }).exerciseId === 'string'
               ? (e as { exerciseId: string }).exerciseId
               : undefined,
+            prescriptionType: e.prescriptionType,
           })),
         };
         groqPreviewCacheRef.current.set(cacheKey, mapped);
@@ -676,16 +690,19 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         exercises: (result.exercises ?? []).map((e, idx) => ({
           name: e.name,
           sets: e.sets,
-          reps:
-            typeof e.reps === 'number'
-              ? formatDraftReps(e.reps, planInputs.goal)
-              : String(e.reps ?? ''),
+          reps: formatExerciseRepsDisplay(
+            e.name,
+            typeof e.reps === 'number' ? e.reps : String(e.reps ?? ''),
+            planInputs.goal,
+            e.prescriptionType,
+          ),
           weight: e.weight,
           notes: e.notes,
           orderIndex: idx,
           exerciseId: typeof (e as { exerciseId?: string }).exerciseId === 'string'
             ? (e as { exerciseId: string }).exerciseId
             : undefined,
+          prescriptionType: e.prescriptionType,
         })),
       };
       groqPreviewCacheRef.current.set(
@@ -716,13 +733,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     setLoadingPreview(true);
     try {
       const result = await runPipelineSafe(planInputs, draftId, {
-        captureDebug: __DEV__,
         repairIfInvalid: true,
       });
       if (result.ok) {
         setPlanDraft(result.draft);
         setPlanData(planDraftToWeekPlans(result.draft) as WeekPlan[]);
-        if (result.debug) setDebugInfo(result.debug);
       } else {
         setGenerateError(result.error || "Couldn't generate. Try again.");
       }
@@ -734,10 +749,27 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const handleRegenerateWeek = async (weekNum: number) => {
     setRegenerating(`week-${weekNum}`);
     try {
-      if (planInputs) {
+      if (planInputs && planDraft) {
+        const result = await regeneratePipelineWeek(
+          planInputs,
+          draftId,
+          planDraft,
+          weekNum,
+          { repairIfInvalid: true }
+        );
+        if (!result.ok) {
+          Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't generate. Try again.");
+          return;
+        }
+        setPlanDraft(result.draft);
+        const weekPlans = planDraftToWeekPlans(result.draft) as WeekPlan[];
+        setPlanData((prev) =>
+          prev.map((w) => (w.weekNumber === weekNum ? weekPlans[weekNum - 1] : w))
+        );
+      } else if (planInputs) {
         const result = await runPipelineSafe(planInputs, draftId, { repairIfInvalid: true });
         if (!result.ok) {
-          Alert.alert('Regeneration failed', result.error || "Couldn't generate. Try again.");
+          Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't generate. Try again.");
           return;
         }
         setPlanDraft(result.draft);
@@ -762,10 +794,20 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const handleRegenerateCardioOnly = async () => {
     setRegenerating('cardio');
     try {
-      if (planInputs) {
+      if (planInputs && planDraft) {
+        const result = await regeneratePipelineCardioSessions(planInputs, draftId, planDraft, {
+          repairIfInvalid: true,
+        });
+        if (!result.ok) {
+          Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't generate. Try again.");
+          return;
+        }
+        setPlanDraft(result.draft);
+        setPlanData(planDraftToWeekPlans(result.draft) as WeekPlan[]);
+      } else if (planInputs) {
         const result = await runPipelineSafe(planInputs, draftId, { repairIfInvalid: true });
         if (!result.ok) {
-          Alert.alert('Regeneration failed', result.error || "Couldn't generate. Try again.");
+          Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't generate. Try again.");
           return;
         }
         setPlanDraft(result.draft);
@@ -801,7 +843,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       if (planInputs) {
         const result = await runPipelineSafe(planInputs, draftId, { repairIfInvalid: true, makeItEasier: true });
         if (!result.ok) {
-          Alert.alert('Regeneration failed', result.error || "Couldn't generate. Try again.");
+          Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't generate. Try again.");
           return;
         }
         setPlanDraft(result.draft);
@@ -984,10 +1026,13 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             exerciseId: e.exerciseId ?? null,
             name: e.name ?? 'Exercise',
             sets: typeof e.sets === 'number' ? e.sets : 3,
-            reps:
-              typeof e.reps === 'number'
-                ? formatDraftReps(e.reps, planInputs.goal)
-                : '8–12',
+            reps: formatExerciseRepsDisplay(
+              e.name ?? 'Exercise',
+              typeof e.reps === 'number' ? e.reps : String(e.reps ?? ''),
+              planInputs.goal,
+              e.prescriptionType,
+            ),
+            prescriptionType: e.prescriptionType,
             notes: e.notes,
           })),
         };
@@ -1019,16 +1064,19 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           exercises: (result.exercises ?? []).map((e, idx) => ({
             name: e.name,
             sets: e.sets,
-            reps:
-              typeof e.reps === 'number'
-                ? formatDraftReps(e.reps, planInputs.goal)
-                : String(e.reps ?? '8–12'),
+            reps: formatExerciseRepsDisplay(
+              e.name,
+              typeof e.reps === 'number' ? e.reps : String(e.reps ?? ''),
+              planInputs.goal,
+              e.prescriptionType,
+            ),
             weight: e.weight,
             notes: e.notes,
             orderIndex: idx,
             exerciseId: typeof (e as { exerciseId?: string }).exerciseId === 'string'
               ? (e as { exerciseId: string }).exerciseId
               : undefined,
+            prescriptionType: e.prescriptionType,
           })),
         });
         setPreviewUsesDraft(false);
@@ -1178,14 +1226,25 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       {loadingPreview && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>Generating your plan… This may take a minute.</Text>
+          <Text style={[styles.loadingText, { color: colors.text }]}>
+            {planInputs && planInputs.weeksCount > 1
+              ? 'Generating your plan… Multi-week previews take longer (often about 1–2 minutes).'
+              : 'Generating your plan… This may take a minute.'}
+          </Text>
         </View>
       )}
 
       {generateError && !loadingPreview && (
         <View style={[styles.errorCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.errorTitle, { color: colors.text }]}>Couldn't generate. Try again.</Text>
-          <Text style={[styles.errorDetail, { color: colors.textSecondary }]} numberOfLines={2}>
+          <Text style={[styles.errorTitle, { color: colors.text }]}>
+            {generateError === GENERATE_SESSIONS_TIMEOUT_MESSAGE
+              ? 'Request timed out'
+              : "Couldn't generate. Try again."}
+          </Text>
+          <Text
+            style={[styles.errorDetail, { color: colors.textSecondary }]}
+            numberOfLines={generateError === GENERATE_SESSIONS_TIMEOUT_MESSAGE ? 6 : 3}
+          >
             {generateError}
           </Text>
           <TouchableOpacity style={[styles.retryButton, { backgroundColor: colors.primary }]} onPress={handleRetryGenerate}>
@@ -1238,7 +1297,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         </View>
       </View>
 
-      {/* Adjust this week — secondary to Apply; same actions as before */}
+      {/* Adjust this week — practical rerolls based on current pipeline actions */}
       <View style={styles.adjustWeekSection}>
         <Text style={styles.adjustWeekLabel}>Adjust this week</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.adjustWeekScrollContent}>
@@ -1250,34 +1309,21 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             {regenerating === `week-${selectedWeek}` ? (
               <ActivityIndicator size="small" color={colors.primary} />
             ) : (
-              <Text style={styles.regenerateButtonText}>Regenerate Week</Text>
+              <Text style={styles.regenerateButtonText}>Rebuild Week</Text>
             )}
           </TouchableOpacity>
           {weekSummary.cardio > 0 ? (
-            <>
-              <TouchableOpacity
-                style={[styles.regenerateButton, regenerating === 'cardio' && styles.regenerateButtonActive]}
-                onPress={handleRegenerateCardioOnly}
-                disabled={!!regenerating}
-              >
-                {regenerating === 'cardio' ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Text style={styles.regenerateButtonText}>Regenerate Cardio</Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.regenerateButton, regenerating === 'swap' && styles.regenerateButtonActive]}
-                onPress={() => handleSwapModality('run', 'bike')}
-                disabled={!!regenerating}
-              >
-                {regenerating === 'swap' ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Text style={styles.regenerateButtonText}>Swap Run → Bike</Text>
-                )}
-              </TouchableOpacity>
-            </>
+            <TouchableOpacity
+              style={[styles.regenerateButton, regenerating === 'cardio' && styles.regenerateButtonActive]}
+              onPress={handleRegenerateCardioOnly}
+              disabled={!!regenerating}
+            >
+              {regenerating === 'cardio' ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Text style={styles.regenerateButtonText}>Refresh Cardio</Text>
+              )}
+            </TouchableOpacity>
           ) : null}
           <TouchableOpacity
             style={[styles.regenerateButton, regenerating === 'easier' && styles.regenerateButtonActive]}
@@ -1287,7 +1333,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             {regenerating === 'easier' ? (
               <ActivityIndicator size="small" color={colors.primary} />
             ) : (
-              <Text style={styles.regenerateButtonText}>Make It Easier</Text>
+              <Text style={styles.regenerateButtonText}>Reduce Intensity</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -1615,50 +1661,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           </View>
         </View>
       </Modal>
-
-      {typeof __DEV__ !== 'undefined' && __DEV__ && debugInfo && (
-        <View style={[styles.debugPanel, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-          <TouchableOpacity
-            style={styles.debugPanelHeader}
-            onPress={() => setDebugPanelOpen((o) => !o)}
-          >
-            <Text style={[styles.debugPanelTitle, { color: colors.text }]}>
-              🐛 Debug: Pipeline
-            </Text>
-            <Text style={[styles.debugPanelToggle, { color: colors.primary }]}>
-              {debugPanelOpen ? '▼' : '▶'}
-            </Text>
-          </TouchableOpacity>
-          {debugPanelOpen && (
-            <ScrollView style={styles.debugPanelContent} nestedScrollEnabled>
-              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>PlanInputs</Text>
-              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
-                {JSON.stringify(debugInfo.planInputs, null, 2)}
-              </Text>
-              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>WeekSkeleton</Text>
-              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
-                {JSON.stringify(debugInfo.weekSkeleton, null, 2)}
-              </Text>
-              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>TemplateAssignments</Text>
-              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
-                {JSON.stringify(debugInfo.templateAssignments, null, 2)}
-              </Text>
-              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>SessionSpecs (to Grok)</Text>
-              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
-                {JSON.stringify(debugInfo.sessionSpecs, null, 2)}
-              </Text>
-              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>Raw Grok response</Text>
-              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
-                {JSON.stringify(debugInfo.rawGrokResponse, null, 2)}
-              </Text>
-              <Text style={[styles.debugSectionTitle, { color: colors.text }]}>Normalization / validation</Text>
-              <Text style={[styles.debugJson, { color: colors.textSecondary }]} selectable>
-                {JSON.stringify(debugInfo.normalizationWarnings, null, 2)}
-              </Text>
-            </ScrollView>
-          )}
-        </View>
-      )}
 
       <View style={styles.footer}>
         <TouchableOpacity

@@ -1,6 +1,6 @@
 # Plan Generation: How It Works, What’s Wrong, and What Can Go Wrong
 
-**Last reviewed:** 2026-03-24 — Update when `generate-sessions`, pipeline, or preview/regenerate behavior changes. See root [`docs/INDEX.md`](../../docs/INDEX.md).
+**Last reviewed:** 2026-04-14 — Update when `generate-sessions`, hybrid/batch paths, or preview/regenerate behavior changes. See root [`docs/INDEX.md`](../../docs/INDEX.md).
 
 ## How it works (end-to-end)
 
@@ -20,10 +20,14 @@
 - **Stage 5 (async, backend)**  
   - Frontend builds a single request: context (goal, location, detailLevel, avoidConstraints) + one **session** object per non‑rest day (type, title, durationMin/Max, isHardDay, weekIndex, weekday).  
   - **POST /plans/generate-sessions** (auth required).  
-  - Backend loops over each session and, for each, calls **WorkoutGeneratorService.generateWorkout()** (no userId):  
-    - Groq is used if `GROQ_API_KEY` is set and there are enough exercise candidates; otherwise rule‑based.  
-    - Returns name, reasoning, warmUp, coolDown, exercises (name, sets, reps, notes, exerciseId).  
-  - Backend responds with `{ sessions: [ ... ] }` in the **same order** as the request.
+  - Backend **partitions** `sessions` by `weekIndex` (in request order), in slices of **at most 7** training days per **chunk**. Chunks run **sequentially** (chunk 2 sees exercise ids picked in chunk 1 via a chronological tail → recency‑ordered uniques for prompts and **`excludeExerciseIds`**).  
+  - For each chunk, **`PlansService.generateSessionsForSpecChunk`** picks a path:  
+    1. **Hybrid (simple only)** — When **`makeItEasier` is false** and **`effectiveDetailLevel === 'simple'`** (user chose **simple**, or chose **detailed** but this chunk’s **`weekIndex` minimum is ≥ 2**, so later weeks use the compact style). Per day: **`generateWorkout`** with **`skipGroq: true`** (rule‑based exercises; same exclude / avoid pattern as per‑session fallback). Then **one** optional Groq JSON call **`polishSimpleBatchSessionCopy`** for titles + warm‑up / cool‑down / reasoning only (exercise lists unchanged). If polish fails or there is no API key, rule‑only copy is kept. A **quality gate** then checks each day’s exercise count against **`exerciseTargetsForSession(..., 'simple', …)`** (aligned with batch prompts). If any day is short, the chunk **falls through** to the paths below (no silent thin sessions). If rule generation fails for a day, hybrid is skipped for that chunk.  
+    2. **Batch Groq** — If the chunk has **≥ 2** sessions: **`WorkoutGeneratorService.tryGenerateFullProgram`** (one Groq call for the whole chunk, or **two** calls if a **4–7** day batch hits length/parse issues and an internal **split** succeeds). Batch candidates are a **deduped union** of focus‑specific pulls (capped).  
+    3. **Per‑session Groq** — If batch fails or the chunk is a **single** session: **`generateWorkout()`** once per day (Groq when key + enough candidates, else rules).  
+  - **`WorkoutGeneratorService`** logs Groq **`finish_reason`** and token **usage** with labels like **`generateFullProgram`**, **`generateWithGroq`**, **`polishSimpleBatchSessionCopy`** (no prompt text). **`PlansService`** emits one structured **`generate_sessions_chunk`** line per chunk (see Observability).  
+  - Returns name, reasoning, warmUp, coolDown, exercises (name, sets, reps, notes, exerciseId).  
+  - Backend responds with `{ sessions: [ ... ] }` in the **same order** as the request. For **multi-week** previews with **`detailLevel: detailed`**, sessions in **`weekIndex >= 2`** use the **`simple`** prompt style (and hybrid when applicable); week 1 stays **detailed** unless the user chose **simple** overall.
 
 - **Stage 6 (frontend)**  
   - Response is **normalized**: match each result to a week/day by `weekIndex` + `weekday`, and build **SessionDraft** (title, warmup, whyThisWorkout, cooldown, exercises).  
@@ -43,26 +47,32 @@
 
 ---
 
+## Observability (metrics-friendly logs)
+
+- **Chunk path (one line per ≤7-day slice)**  
+  - **`PlansService`** logs a JSON string (Nest `Logger.log`) with **`event":"generate_sessions_chunk"`** and **`path`** among: **`hybrid_ok`**, **`hybrid_quality_fallback`** (hybrid built sessions but failed the min‑exercise gate → batch or per‑session ran), **`hybrid_rule_failed`**, **`hybrid_bad_shape`**, **`batch_ok`**, **`per_session`**. Also **`sessionCount`**, **`weekMin`**, **`effectiveDetailLevel`**, **`makeItEasier`**, and when relevant **`polishApplied`** (hybrid polish succeeded).  
+  - In **production**, `JsonProductionLogger` wraps this in a single stdout JSON object; the inner payload is in **`msg`** as a string — parse **`msg`** as JSON for dashboards, or grep **`generate_sessions_chunk`** and **`path`**.
+
+- **Groq usage (per completion)**  
+  - **`[Groq:<label>] finish_reason=… prompt_tokens=…`** from **`WorkoutGeneratorService`** for batch / single‑session / polish calls.
+
+---
+
 ## What’s wrong or inconsistent in the implementation
 
-1. **Equipment / location not used for exercise choice**  
-   - We send `location` (gym/home) and `detailLevel` in the request, but the **backend does not pass** `equipment` (or location) into `generateWorkout` preferences.  
-   - The generator uses `preferences.equipment` only when building the candidate list. So for “home” we still get the same candidate pool as “gym” and may suggest barbell/machine exercises.  
-   - **Fix (if you want):** In `PlansService.generateSessions`, when building preferences, set `equipment` (or a minimal list) from `dto.location` (e.g. home → limited equipment) so the generator can filter candidates.
+1. **Home equipment vs library**  
+   - **`generateSessions`** passes a **home equipment list** into **`generateWorkout`** when `location === 'home'`. Candidate filtering still depends on how exercises are tagged in the library; edge cases (odd equipment strings) may still surface mismatches.
 
-2. **detailLevel is unused**  
-   - Frontend sends `detailLevel` (simple/detailed). Backend does not pass it to the generator. So “detailed” doesn’t change prompts or structure yet.  
-   - **Fix (if you want):** Thread `detailLevel` into the generator (e.g. prompt or exercise count) and use it there.
+2. **detailLevel**  
+   - Frontend sends **`detailLevel`**; it drives prompts, caps, hybrid eligibility, and **`effectiveDetailLevel`** for week 2+ when the user chose **detailed**. If the UI still feels identical between modes, tighten copy or UI hints.
 
-3. **No request timeout**  
-   - The frontend `api` client (axios) has no specific timeout for **POST /plans/generate-sessions**.  
-   - If the backend is slow (many sessions, slow Groq), the request can hang until the browser or server times out (often 60s+).  
-   - **Fix:** Set a reasonable timeout for this call (e.g. 90s) and show a clear “Request timed out” error.
+3. **`generate-sessions` client timeout**  
+   - **Done:** **`planService.generateSessions`** sets **axios `timeout: 90_000`**. **`planPipeline`** maps **`ECONNABORTED` / ETIMEDOUT / “timeout”** messages to a single user string; **Plan Preview** uses **Request timed out** as the card title (and regeneration alerts use the same title when that string matches).  
+   - **Still optional:** raise the cap (e.g. 120s) for very large previews, or add per‑chunk progress in the UI.
 
-4. **Regenerate refetches everything**  
-   - “Regenerate week” and “Regenerate cardio” and “Make it easier” all call **runPipelineSafe** again, so they **regenerate every session** in the plan, not just the week or cardio sessions.  
-   - So “Regenerate cardio” still hits the backend for all sessions (including strength) and replaces the whole plan.  
-   - **Fix (if you want):** Either accept “full regen” as the behavior, or add a backend option (e.g. “only regenerate these session indices”) and only send those specs.
+4. **Regenerate behavior (Plan Preview)**  
+   - With an existing **`planDraft`**, **regenerate week** / **regenerate cardio** call **`generate-sessions`** only for that week’s slots or only **cardio** slots, then merge (**`regeneratePipelineWeek`** / **`regeneratePipelineCardioSessions`** in `planPipeline.ts`).  
+   - **Make it easier** still runs the **full** pipeline (**`runPipelineSafe`** with **`makeItEasier`**) so intensity stays coherent; hybrid is **not** used when **`makeItEasier`** is true.
 
 ---
 
@@ -71,10 +81,9 @@
 ### Latency and timeouts
 
 - **Many sessions = long wait**  
-  - Backend does **one** `generateWorkout()` per session, **sequentially**.  
-  - Example: 4 sessions × ~5–15s per Groq call ⇒ 20–60s.  
+  - Backend runs **one path per chunk** (often **hybrid_ok** with one small polish call, or **one Groq batch** per slice of up to 7 days), then the next chunk; within a chunk, **per_session** fallback is **one** `generateWorkout()` per day **sequentially**. Multi‑week eight training days ⇒ typically **two chunks**, not eight independent full batches (fewer tokens when hybrid or batch succeeds).  
   - User sees “Generating Week Preview…” for the whole time. If the backend or Groq is slow, they may think the app is stuck.  
-- **Mitigation:** Keep the loading state and message; consider a timeout (see above) and, later, per‑session or per‑week progress (e.g. “Generating 2/4…”).
+- **Mitigation:** Loading copy + **90s** client timeout (see §3); optional later: per‑chunk progress (e.g. “Generating 2/4…”).
 
 ### Backend / Groq failures
 
@@ -102,8 +111,7 @@
 ### Multi‑week plans
 
 - **Weeks > 1**  
-  - We send **all** sessions for **all** weeks in one request. So 2 weeks × 4 sessions = 8 backend calls in a row.  
-  - Latency and timeout risk scale with total session count.
+  - One request still carries **all** preview weeks; the backend processes **chunks** of at most **7** training days per week slice. Two weeks × four days is typically **two chunks** (often **hybrid_ok** or **batch_ok** each), not eight separate batch calls. Latency scales with chunk count and **per_session** fallbacks.
 
 ### Response length check
 
@@ -115,13 +123,15 @@
 
 ## Quick reference
 
-| Area              | Current behavior                                      | Risk / limitation                              |
-|-------------------|--------------------------------------------------------|-----------------------------------------------|
-| Location (gym/home) | Sent but not used for exercise selection              | Home users may get gym-only exercises         |
-| detailLevel       | Sent but not used                                     | “Detailed” has no effect                      |
-| Timeout           | No specific timeout for generate-sessions             | Long hangs on slow backend/Groq               |
-| Regenerate        | Full pipeline re-run (all sessions)                  | “Regenerate cardio” still regens everything    |
-| One session fails | Whole generateSessions fails                          | No partial plan; user must retry               |
-| Auth              | Required; 401 can trigger sign-out                    | User must be logged in; expired token = sign out |
+| Area | Current behavior | Risk / limitation |
+|------|------------------|-------------------|
+| Location (gym/home) | Home passes **`HOME_EQUIPMENT`** into **`generateWorkout`** | Library tagging / naming can still mismatch real home setups |
+| detailLevel | Drives prompts, caps, hybrid, and **week 2+** compact style when user chose **detailed** | UX may still feel subtle between simple/detailed |
+| Hybrid + quality gate | Thin rule-only days fall back to **batch** / **per_session** | Extra latency when **`hybrid_quality_fallback`** happens |
+| Chunk logging | **`generate_sessions_chunk`** JSON per chunk with **`path`** | Parse **`msg`** in prod JSON logs |
+| Timeout | **`generate-sessions`** uses a **90s** axios timeout in **`frontend/src/services/planService.ts`**; **`planPipeline`** turns abort/timeout into a fixed user string; preview shows **Request timed out** as the title | Multi-week or slow Groq may still need retry or a one-week preview |
+| Regenerate | Targeted week/cardio merge when **`planDraft`** exists | **Make it easier** = full pipeline |
+| One session fails | Whole **`generateSessions`** throws | No partial plan; user must retry |
+| Auth | Required; 401 can trigger sign-out | Expired token = sign in again |
 
-Fixing the “what’s wrong” items (equipment/location, detailLevel, timeout) and being aware of the “issues you might see” (latency, failures, auth) will make the current implementation more robust and predictable.
+Fixing remaining gaps (stricter home filtering, optional longer timeout) and watching **`path`** + Groq token logs will make behavior easier to tune and debug.

@@ -26,8 +26,10 @@ import {
   repairDraft,
   planDraftToWeekPlans,
   sessionDraftToPlanSlotExercises,
+  formatExerciseRepsDisplay,
   type PipelineDebugInfo,
 } from './planPipeline';
+import { isTimeHoldExerciseName } from './exercisePrescription';
 import type { PlanInputs, SessionDraft, Weekday } from '../types/plan';
 
 const MON: Weekday = 'Monday';
@@ -291,6 +293,67 @@ describe('planPipeline', () => {
       const inputs = baseInputs();
       const result = await runPipelineSafe(inputs, 'test-draft', { repairIfInvalid: true });
       expect(result.ok).toBe(true);
+    });
+  });
+
+  describe('time-hold prescription display', () => {
+    it('detects dead hang and similar holds', () => {
+      expect(isTimeHoldExerciseName('Dead Hang')).toBe(true);
+      expect(isTimeHoldExerciseName('Passive Hang')).toBe(true);
+      expect(isTimeHoldExerciseName('Wall Sit')).toBe(true);
+      expect(isTimeHoldExerciseName('Flat Dumbbell Bench Press')).toBe(false);
+    });
+
+    it('shows seconds range for holds instead of rep range', () => {
+      expect(formatExerciseRepsDisplay('Dead Hang', 10, 'strength')).toBe('20–45 sec');
+      expect(formatExerciseRepsDisplay('Bench Press', 10, 'strength')).toMatch(/\d+–\d+/);
+    });
+
+    it('uses prescriptionType from API when name alone would not match hold heuristics', () => {
+      expect(formatExerciseRepsDisplay('Custom Bracing Drill', 10, 'strength', 'time')).toBe(
+        '20–45 sec',
+      );
+    });
+
+    it('apply path stores scalar reps and note for holds', () => {
+      const session: SessionDraft = {
+        type: 'strength',
+        title: 'Upper',
+        focusTags: [],
+        durationMin: 45,
+        durationMax: 60,
+        isHardDay: false,
+        exercises: [
+          { exerciseId: 'x', name: 'Dead Hang', sets: 4, reps: '20–45 sec', notes: undefined },
+        ],
+      };
+      const slots = sessionDraftToPlanSlotExercises(session, 1, 'Monday');
+      expect(slots?.[0]?.reps).toBe(45);
+      expect(slots?.[0]?.notes).toContain('Time-based');
+    });
+
+    it('apply path treats prescriptionType time like a hold even without hold-like name', () => {
+      const session: SessionDraft = {
+        type: 'strength',
+        title: 'Core',
+        focusTags: [],
+        durationMin: 30,
+        durationMax: 45,
+        isHardDay: false,
+        exercises: [
+          {
+            exerciseId: 'iso_x',
+            name: 'Custom Bracing Drill',
+            sets: 3,
+            reps: '10',
+            prescriptionType: 'time',
+          },
+        ],
+      };
+      const slots = sessionDraftToPlanSlotExercises(session, 1, 'Monday');
+      expect(slots?.[0]?.reps).toBe(45);
+      expect(slots?.[0]?.notes).toContain('Time-based');
+      expect(slots?.[0]?.prescriptionType).toBe('time');
     });
   });
 });

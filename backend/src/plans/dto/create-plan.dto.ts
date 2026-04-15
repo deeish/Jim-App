@@ -50,6 +50,11 @@ export class PlanSlotExerciseDto {
   @IsNumber()
   @Min(0)
   orderIndex?: number;
+
+  /** Optional hint for UI (not stored on plan_exercises until schema supports it). */
+  @IsOptional()
+  @IsIn(['reps', 'time', 'distance'])
+  prescriptionType?: 'reps' | 'time' | 'distance';
 }
 
 export class PlanSlotDto {

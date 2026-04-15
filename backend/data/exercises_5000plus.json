@@ -5464,6 +5464,7 @@
   {
     "id": "dead_hang",
     "name": "Dead Hang",
+    "prescriptionType": "time",
     "aliases": [],
     "description": "A simple full-body hang that builds grip endurance and hand tolerance on a bar.",
     "primaryMuscleGroupId": "arms",
@@ -5498,6 +5499,7 @@
   {
     "id": "towel_dead_hang",
     "name": "Towel Dead Hang",
+    "prescriptionType": "time",
     "aliases": [],
     "description": "A hanging drill using towels to make the support grip more demanding.",
     "primaryMuscleGroupId": "arms",
@@ -19639,6 +19641,7 @@
   {
     "id": "front_plank",
     "name": "Front Plank",
+    "prescriptionType": "time",
     "aliases": [],
     "description": "A foundational anti-extension exercise that trains full-trunk bracing in a straight-body position.",
     "primaryMuscleGroupId": "core",
@@ -20718,6 +20721,7 @@
   {
     "id": "side_plank",
     "name": "Side Plank",
+    "prescriptionType": "time",
     "aliases": [],
     "description": "A foundational anti-lateral-flexion drill that builds deep side-core stability.",
     "primaryMuscleGroupId": "core",
@@ -38998,6 +39002,7 @@
   {
     "id": "wall_sit",
     "name": "Wall Sit",
+    "prescriptionType": "time",
     "aliases": [],
     "description": "A simple isometric squat hold that keeps continuous tension on the quads.",
     "primaryMuscleGroupId": "legs",

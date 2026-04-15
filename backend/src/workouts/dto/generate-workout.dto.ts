@@ -33,5 +33,7 @@ export class GenerateWorkoutDto {
     excludeExerciseIds?: string[];
     /** Exercise names to exclude (e.g. "Deadlift") when replacing one exercise */
     excludeExerciseNames?: string[];
+    /** When true, skip Groq and use rule-based generation only (hybrid / tests). */
+    skipGroq?: boolean;
   };
 }

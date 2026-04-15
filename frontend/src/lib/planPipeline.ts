@@ -25,9 +25,21 @@ import type {
 import { normalizeContext, getRecommendation, type Goal, type PlanStyle } from './planRecommendation';
 import {
   generateSessions,
+  GENERATE_SESSIONS_TIMEOUT_MESSAGE,
+  isGenerateSessionsTimeoutError,
   type GenerateSessionResult,
   type PlanSlotExercise,
 } from '../services/planService';
+import {
+  exerciseUsesTimeDisplay,
+  type ExercisePrescriptionType,
+} from './exercisePrescription';
+import {
+  exercisesLikeFromPrescription,
+  getWorkoutDisplayEstimateMinutes,
+} from './estimateWorkoutMinutes';
+
+export { isTimeHoldExerciseName } from './exercisePrescription';
 
 const WEEKDAYS: Weekday[] = [
   'Monday',
@@ -38,6 +50,32 @@ const WEEKDAYS: Weekday[] = [
   'Saturday',
   'Sunday',
 ];
+
+/**
+ * Second column for "sets × …" in preview and drafts.
+ * Time-holds show a second range; numeric reps use {@link formatDraftReps}.
+ */
+export function formatExerciseRepsDisplay(
+  exerciseName: string,
+  reps: string | number | undefined,
+  goal: PlanInputs['goal'],
+  prescriptionType?: ExercisePrescriptionType,
+): string {
+  if (exerciseUsesTimeDisplay(prescriptionType, exerciseName)) {
+    return '20–45 sec';
+  }
+  if (typeof reps === 'string') {
+    const t = reps.trim();
+    if (/\bsec(onds?)?\b/i.test(t)) return t;
+    if (/\d+\s*[–-]\s*\d+/.test(t)) return t;
+    const m = t.match(/\d+/);
+    if (m) return formatDraftReps(parseInt(m[0], 10), goal);
+    return t || '8–12';
+  }
+  const num = typeof reps === 'number' ? reps : NaN;
+  if (Number.isFinite(num)) return formatDraftReps(Math.round(num), goal);
+  return '8–12';
+}
 
 /** Rep range string for draft + preview (API often returns one number). */
 export function formatDraftReps(reps: number, goal: PlanInputs['goal']): string {
@@ -340,6 +378,29 @@ function buildGenerateSessionsRequest(
 }
 
 // --- Normalize API response into WeekDraft[] (Stage 6)
+function shouldUseFallbackSessionTitle(title: string | undefined): boolean {
+  const t = (title ?? '').trim();
+  if (!t) return true;
+  if (t.length < 6) return true;
+  return /\b(blast|finisher|shred|destroyer|annihilator|burner)\b/i.test(t);
+}
+
+function cleanSessionTitle(
+  generatedTitle: string | undefined,
+  specTitle: string | undefined,
+  specType: SessionDraft['type'],
+): string {
+  if (!shouldUseFallbackSessionTitle(generatedTitle)) {
+    return (generatedTitle ?? '').trim();
+  }
+  if (specTitle && specTitle.trim().length > 0) return specTitle.trim();
+  return specType === 'strength'
+    ? 'Strength Session'
+    : specType === 'cardio'
+      ? 'Cardio Session'
+      : 'Recovery Session';
+}
+
 function normalizeSessionsResponse(
   weekSpecs: WeekSessionSpecs[],
   apiSessions: GenerateSessionResult[],
@@ -363,15 +424,18 @@ function normalizeSessionsResponse(
         exerciseId: e.exerciseId ?? null,
         name: e.name ?? 'Exercise',
         sets: typeof e.sets === 'number' ? e.sets : 3,
-        reps:
-          typeof e.reps === 'number'
-            ? formatDraftReps(e.reps, planInputs.goal)
-            : String(e.reps ?? '8–12'),
+        reps: formatExerciseRepsDisplay(
+          e.name ?? 'Exercise',
+          typeof e.reps === 'number' ? e.reps : String(e.reps ?? ''),
+          planInputs.goal,
+          e.prescriptionType,
+        ),
+        prescriptionType: e.prescriptionType,
         notes: e.notes,
       }));
       const session: SessionDraft = {
         type: spec.type,
-        title: result.name,
+        title: cleanSessionTitle(result.name, spec.title, spec.type),
         focusTags: spec.title ? [spec.title] : [],
         durationMin: spec.durationMin,
         durationMax: spec.durationMax,
@@ -411,6 +475,13 @@ async function stages5And6FromApi(
   }
   const { weeks } = normalizeSessionsResponse(weekSpecs, sessions, planInputs);
   return { weeks, rawGrokResponse: sessions };
+}
+
+function pipelineStage5CatchMessage(error: unknown): string {
+  if (isGenerateSessionsTimeoutError(error)) {
+    return GENERATE_SESSIONS_TIMEOUT_MESSAGE;
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 // --- Mock stages 5–6 (fallback when API not used, e.g. tests)
@@ -602,16 +673,162 @@ export async function runPipelineSafe(
       : undefined;
     return { ok: true, draft, debug };
   } catch (e) {
-    const err = e as { code?: string; message?: string };
-    const isTimeout =
-      err?.code === 'ECONNABORTED' ||
-      (err?.message && /timeout/i.test(String(err.message)));
-    const message = isTimeout
-      ? 'Request timed out.'
-      : e instanceof Error
-        ? e.message
-        : String(e);
-    return { ok: false, error: message };
+    return { ok: false, error: pipelineStage5CatchMessage(e) };
+  }
+}
+
+/**
+ * Re-run stages 1–6 for a single week only, then merge into an existing draft.
+ * Avoids regenerating every week (uses one targeted `generate-sessions` batch for that week).
+ */
+export async function regeneratePipelineWeek(
+  planInputs: PlanInputs,
+  draftId: string,
+  existingDraft: PlanDraft,
+  weekIndex: number,
+  options?: { makeItEasier?: boolean; repairIfInvalid?: boolean; captureDebug?: boolean }
+): Promise<PipelineRunResult> {
+  const repairIfInvalid = options?.repairIfInvalid ?? true;
+  const makeItEasier = options?.makeItEasier ?? false;
+  const captureDebug = options?.captureDebug ?? false;
+  try {
+    const stage1 = stage1EffectiveSplit(planInputs);
+    const stage2 = stage2WeekSkeleton(planInputs, stage1);
+    const stage3 = stage3TemplateAssignments(planInputs, stage2);
+    const stage4 = stage4SessionSpecs(planInputs, stage2, stage3);
+    const weekSpecsForWeek = stage4.filter((ws) => ws.weekIndex === weekIndex);
+    if (!weekSpecsForWeek.length) {
+      return { ok: false, error: `No week ${weekIndex} in plan.` };
+    }
+    const { weeks: regeneratedPartial, rawGrokResponse } = await stages5And6FromApi(
+      planInputs,
+      weekSpecsForWeek,
+      { makeItEasier }
+    );
+    const newWeekDraft = regeneratedPartial.find((w) => w.weekIndex === weekIndex);
+    if (!newWeekDraft) {
+      return { ok: false, error: 'Unexpected regeneration response for this week.' };
+    }
+    const mergedWeeks = existingDraft.weeks.map((w) =>
+      w.weekIndex === weekIndex ? newWeekDraft : w
+    );
+    let draft: PlanDraft = {
+      ...existingDraft,
+      draftId,
+      weeks: mergedWeeks,
+      metrics: stage7Metrics(mergedWeeks),
+      debugMeta: {
+        ...existingDraft.debugMeta,
+        reasons: [
+          ...(existingDraft.debugMeta?.reasons ?? []),
+          `Regenerated week ${weekIndex} (targeted generate-sessions)`,
+        ],
+      },
+    };
+    const validation = validateDraft(draft);
+    const normalizationWarnings: string[] = [...validation.errors];
+    if (!validation.valid && repairIfInvalid) {
+      draft = repairDraft(draft);
+      normalizationWarnings.push('Draft was repaired after partial week regeneration.');
+    } else if (!validation.valid) {
+      return { ok: false, error: validation.errors.join('; ') };
+    }
+    const debug: PipelineDebugInfo | undefined = captureDebug
+      ? {
+          planInputs,
+          effectiveSplit: stage1,
+          weekSkeleton: stage2,
+          templateAssignments: stage3,
+          sessionSpecs: stage4,
+          rawGrokResponse: rawGrokResponse ?? undefined,
+          normalizationWarnings,
+        }
+      : undefined;
+    return { ok: true, draft, debug };
+  } catch (e) {
+    return { ok: false, error: pipelineStage5CatchMessage(e) };
+  }
+}
+
+/**
+ * Re-run stages 5–6 for every **cardio** session only, merge into the existing draft.
+ * Strength / recovery days are left unchanged.
+ */
+export async function regeneratePipelineCardioSessions(
+  planInputs: PlanInputs,
+  draftId: string,
+  existingDraft: PlanDraft,
+  options?: { repairIfInvalid?: boolean; captureDebug?: boolean }
+): Promise<PipelineRunResult> {
+  const repairIfInvalid = options?.repairIfInvalid ?? true;
+  const captureDebug = options?.captureDebug ?? false;
+  try {
+    const stage1 = stage1EffectiveSplit(planInputs);
+    const stage2 = stage2WeekSkeleton(planInputs, stage1);
+    const stage3 = stage3TemplateAssignments(planInputs, stage2);
+    const stage4 = stage4SessionSpecs(planInputs, stage2, stage3);
+    const partialWeekSpecs: WeekSessionSpecs[] = stage4
+      .map((ws) => ({
+        weekIndex: ws.weekIndex,
+        specs: ws.specs.map((s) => (s?.type === 'cardio' ? s : null)),
+      }))
+      .filter((ws) => ws.specs.some((s) => s != null));
+    if (partialWeekSpecs.length === 0) {
+      return { ok: true, draft: existingDraft };
+    }
+    const { weeks: regeneratedSubset, rawGrokResponse } = await stages5And6FromApi(
+      planInputs,
+      partialWeekSpecs,
+      {}
+    );
+    const mergedWeeks = existingDraft.weeks.map((oldW) => {
+      const sk = stage4.find((s) => s.weekIndex === oldW.weekIndex);
+      const regenW = regeneratedSubset.find((r) => r.weekIndex === oldW.weekIndex);
+      if (!sk || !regenW) return oldW;
+      return {
+        weekIndex: oldW.weekIndex,
+        days: oldW.days.map((day, i) => {
+          const spec = sk.specs[i];
+          if (!spec || spec.type !== 'cardio') return day;
+          return regenW.days[i] ?? day;
+        }),
+      };
+    });
+    let draft: PlanDraft = {
+      ...existingDraft,
+      draftId,
+      weeks: mergedWeeks,
+      metrics: stage7Metrics(mergedWeeks),
+      debugMeta: {
+        ...existingDraft.debugMeta,
+        reasons: [
+          ...(existingDraft.debugMeta?.reasons ?? []),
+          'Regenerated cardio sessions (targeted generate-sessions)',
+        ],
+      },
+    };
+    const validation = validateDraft(draft);
+    const normalizationWarnings: string[] = [...validation.errors];
+    if (!validation.valid && repairIfInvalid) {
+      draft = repairDraft(draft);
+      normalizationWarnings.push('Draft was repaired after cardio-only regeneration.');
+    } else if (!validation.valid) {
+      return { ok: false, error: validation.errors.join('; ') };
+    }
+    const debug: PipelineDebugInfo | undefined = captureDebug
+      ? {
+          planInputs,
+          effectiveSplit: stage1,
+          weekSkeleton: stage2,
+          templateAssignments: stage3,
+          sessionSpecs: stage4,
+          rawGrokResponse: rawGrokResponse ?? undefined,
+          normalizationWarnings,
+        }
+      : undefined;
+    return { ok: true, draft, debug };
+  } catch (e) {
+    return { ok: false, error: pipelineStage5CatchMessage(e) };
   }
 }
 
@@ -648,13 +865,24 @@ export function sessionDraftToPlanSlotExercises(
       e.exerciseId != null && String(e.exerciseId).trim() !== ''
         ? String(e.exerciseId).trim()
         : `draft_${weekNumber}_${dayOfWeek}_${i}`;
+    const hold = exerciseUsesTimeDisplay(e.prescriptionType, e.name);
+    const repsScalar = hold
+      ? 45
+      : parseRepScalarForApply(
+          typeof e.reps === 'number' ? String(e.reps) : String(e.reps ?? ''),
+        );
+    const noteParts = [
+      e.notes,
+      hold ? 'Time-based: hold ~30–60 sec per set (add time before load).' : '',
+    ].filter((x) => typeof x === 'string' && String(x).trim().length > 0);
     return {
       exerciseId: id,
       name: e.name,
       sets,
-      reps: parseRepScalarForApply(typeof e.reps === 'number' ? String(e.reps) : String(e.reps ?? '')),
-      notes: e.notes ?? undefined,
+      reps: repsScalar,
+      notes: noteParts.length ? noteParts.join(' ') : undefined,
       orderIndex: i,
+      ...(e.prescriptionType ? { prescriptionType: e.prescriptionType } : {}),
     };
   });
 }
@@ -709,7 +937,12 @@ export function planDraftToWeekPlans(draft: PlanDraft): WeekPlanAdapter[] {
     w.days.forEach((d) => {
       if (!d.session) return;
       const session = d.session;
-      const duration = Math.round((session.durationMin + session.durationMax) / 2);
+      const plannedDuration = Math.round((session.durationMin + session.durationMax) / 2);
+      const duration =
+        getWorkoutDisplayEstimateMinutes(
+          exercisesLikeFromPrescription(session.exercises),
+          plannedDuration,
+        ) ?? plannedDuration;
       workouts[d.weekday].push({
         id: `draft-${draft.draftId}-w${w.weekIndex}-${d.weekday}-1`,
         title: session.title,

@@ -1,5 +1,7 @@
+import axios from 'axios';
 import { api } from '../api/client';
 import type { Workout } from '../types/workout';
+import type { ExercisePrescriptionType } from '../lib/exercisePrescription';
 
 export interface PlanSlotExercise {
   exerciseId: string;
@@ -9,6 +11,7 @@ export interface PlanSlotExercise {
   weight?: number;
   notes?: string;
   orderIndex?: number;
+  prescriptionType?: ExercisePrescriptionType;
 }
 
 export interface PlanSlot {
@@ -145,10 +148,27 @@ export interface GenerateSessionResult {
     weight?: number;
     notes?: string;
     exerciseId?: string;
+    prescriptionType?: ExercisePrescriptionType;
   }>;
 }
 
-const GENERATE_SESSIONS_TIMEOUT_MS = 90_000;
+/** Client wait for POST /plans/generate-sessions (multi-week + Groq can exceed default axios limits). */
+export const GENERATE_SESSIONS_TIMEOUT_MS = 90_000;
+
+/** Stable copy for UI equality checks when the request hits {@link GENERATE_SESSIONS_TIMEOUT_MS}. */
+export const GENERATE_SESSIONS_TIMEOUT_MESSAGE = `Generation took too long (waited ${Math.round(GENERATE_SESSIONS_TIMEOUT_MS / 1000)}s). Check your connection and try again. A one-week preview is usually faster.`;
+
+/** True when axios aborted the request due to `timeout` (or similar). */
+export function isGenerateSessionsTimeoutError(error: unknown): boolean {
+  if (axios.isAxiosError(error)) {
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') return true;
+    if (typeof error.message === 'string' && /timeout/i.test(error.message)) return true;
+  }
+  const err = error as { code?: string; message?: string };
+  if (err?.code === 'ECONNABORTED' || err?.code === 'ETIMEDOUT') return true;
+  if (typeof err?.message === 'string' && /timeout/i.test(err.message)) return true;
+  return false;
+}
 
 export async function generateSessions(body: GenerateSessionsRequest): Promise<{ sessions: GenerateSessionResult[] }> {
   const response = await api.post<{ sessions: GenerateSessionResult[] }>('/plans/generate-sessions', body, {

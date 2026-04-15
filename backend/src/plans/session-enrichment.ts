@@ -1,4 +1,8 @@
 import { ExercisesService } from '../exercises/exercises.service';
+import {
+  inferPrescriptionTypeFromExerciseName,
+  type ExercisePrescriptionType,
+} from '../data/exercise-prescription';
 
 /** One exercise row as returned by plan / workout generation (before save). */
 export type GeneratedSessionExercise = {
@@ -8,6 +12,8 @@ export type GeneratedSessionExercise = {
   weight?: number;
   notes?: string;
   exerciseId?: string;
+  /** From exercise library when `exerciseId` resolves; else inferred from name. */
+  prescriptionType?: ExercisePrescriptionType;
 };
 
 export type GeneratedSession = {
@@ -77,8 +83,11 @@ export function tieWarmupToMainLift(
 
 function compoundSortScore(
   ex: GeneratedSessionExercise,
-  meta: { movementPatterns?: string[] } | undefined,
+  meta:
+    | { movementPatterns?: string[]; primaryMuscleGroup?: string }
+    | undefined,
 ): number {
+  if (meta?.primaryMuscleGroup === 'Cardio') return -10_000;
   const patterns = meta?.movementPatterns ?? [];
   const bigFour = ['Squat', 'Hinge', 'Push', 'Pull'];
   const compoundish = bigFour.some((p) => patterns.includes(p));
@@ -117,8 +126,11 @@ export async function enrichGeneratedSession(
       const meta = e.exerciseId
         ? exercisesService.findOne(e.exerciseId)
         : undefined;
+      const prescriptionType =
+        meta?.prescriptionType ??
+        inferPrescriptionTypeFromExerciseName(e.name);
       return {
-        e,
+        e: { ...e, prescriptionType },
         origIndex,
         score: compoundSortScore(e, meta),
       };
@@ -156,6 +168,9 @@ export async function enrichGeneratedSession(
         sets: 3,
         reps: 10,
         notes: 'Added for pull balance vs session focus',
+        prescriptionType:
+          pick.prescriptionType ??
+          inferPrescriptionTypeFromExerciseName(pick.name),
       });
     }
   }

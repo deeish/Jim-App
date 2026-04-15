@@ -204,7 +204,7 @@ const GOAL_LABELS: Record<Goal, string> = {
   'fat loss': 'Fat loss',
   strength: 'Strength',
   endurance: 'Endurance',
-  hybrid: 'Balanced (Strength + Muscle)',
+  hybrid: 'Balanced (Strength + Cardio)',
 };
 
 const GOAL_DESCRIPTORS: Record<Goal, string> = {
@@ -381,7 +381,6 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     if (!editFromSnapshot) return;
     const patch = planInputsToFormPatch(editFromSnapshot) as Partial<GeneratePlanInputs>;
     setInputs((prev) => ({ ...prev, ...patch }));
-    setShowAdvanced(true);
   }, [editFromSnapshot]);
 
   useEffect(() => {
@@ -755,6 +754,12 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               </TouchableOpacity>
             </View>
           </View>
+          {inputs.weeks > 1 ? (
+            <Text style={[styles.planLengthHint, { marginTop: 10 }]}>
+              Multi-week previews run more AI work and take longer. Choose 1 week for the
+              fastest preview; you can extend the plan after you apply it.
+            </Text>
+          ) : null}
         </View>
         </View>
 

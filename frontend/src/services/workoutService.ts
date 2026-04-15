@@ -49,6 +49,8 @@ export interface WorkoutPreview {
     orderIndex?: number;
     /** Library id when available — opens Exercise detail from preview. */
     exerciseId?: string;
+    /** When API sends library metadata (e.g. holds). */
+    prescriptionType?: 'reps' | 'time' | 'distance';
   }>;
 }
 

@@ -3,6 +3,8 @@
  * Single source of truth: UI produces PlanInputs on "Generate"; pipeline and Preview use only this.
  */
 
+import type { ExercisePrescriptionType } from '../lib/exercisePrescription';
+
 // --- Weekday type (canonical order / user-selected order)
 export type Weekday =
   | 'Monday'
@@ -101,6 +103,8 @@ export interface ExerciseDraft {
   name: string;
   sets: number;
   reps: string;
+  /** From generate-sessions when backend attached library metadata. */
+  prescriptionType?: ExercisePrescriptionType;
   rpe?: number;
   rir?: number;
   notes?: string;
