@@ -51,6 +51,12 @@ export interface WorkoutPreview {
     exerciseId?: string;
     /** When API sends library metadata (e.g. holds). */
     prescriptionType?: 'reps' | 'time' | 'distance';
+    primaryMuscleGroup?: string;
+    secondaryMuscleGroups?: string[];
+    /** Short label for preview body-part chip (Chest, Tris, Cardio, …). */
+    bodyTag?: string;
+    /** Cardio finisher row — not in session draft; hide replace control. */
+    isSyntheticFinisher?: boolean;
   }>;
 }
 

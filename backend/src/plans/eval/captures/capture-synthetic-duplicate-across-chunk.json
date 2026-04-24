@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "kind": "generate_sessions",
+  "inputs": {
+    "goal": "hypertrophy",
+    "detailLevel": "simple",
+    "sessions": [
+      {
+        "type": "strength",
+        "title": "Upper",
+        "durationMin": 35,
+        "durationMax": 45,
+        "isHardDay": true,
+        "weekIndex": 0,
+        "weekday": "Monday"
+      },
+      {
+        "type": "strength",
+        "title": "Upper 2",
+        "durationMin": 35,
+        "durationMax": 45,
+        "isHardDay": false,
+        "weekIndex": 0,
+        "weekday": "Thursday"
+      }
+    ]
+  },
+  "outputs": {
+    "sessions": [
+      {
+        "weekIndex": 0,
+        "weekday": "Monday",
+        "name": "Upper",
+        "reasoning": "Same bench id reused later in the week (fixture for validator).",
+        "warmUp": "General warm-up and ramp sets toward bench.",
+        "coolDown": "Light stretching.",
+        "exercises": [
+          {
+            "name": "Flat Barbell Bench Press",
+            "sets": 4,
+            "reps": 8,
+            "exerciseId": "flat_barbell_bench_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Chest"
+          },
+          {
+            "name": "Barbell Bent-Over Row",
+            "sets": 4,
+            "reps": 8,
+            "exerciseId": "barbell_bent_over_row",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Back"
+          }
+        ]
+      },
+      {
+        "weekIndex": 0,
+        "weekday": "Thursday",
+        "name": "Upper 2",
+        "reasoning": "Duplicate library id across chunk.",
+        "warmUp": "Warm-up.",
+        "coolDown": "Cool-down.",
+        "exercises": [
+          {
+            "name": "Flat Barbell Bench Press",
+            "sets": 4,
+            "reps": 8,
+            "exerciseId": "flat_barbell_bench_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Chest"
+          },
+          {
+            "name": "Wide-Grip Lat Pulldown",
+            "sets": 3,
+            "reps": 12,
+            "exerciseId": "lat_pulldown_wide",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Back"
+          }
+        ]
+      }
+    ]
+  },
+  "pipeline": {
+    "chunks": [
+      {
+        "path": "batch",
+        "perSessionAfterBatchFallback": false,
+        "validatorFirstPass": {
+          "ok": false,
+          "issues": ["duplicate_exercise_id_across_chunk"],
+          "duplicateExerciseIds": ["flat_barbell_bench_press"],
+          "patternClashExerciseIds": []
+        },
+        "groqCallsRaw": [{ "finish_reason": "stop" }]
+      }
+    ]
+  }
+}

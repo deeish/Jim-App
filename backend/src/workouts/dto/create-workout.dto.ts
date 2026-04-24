@@ -5,6 +5,8 @@ import {
   ValidateNested,
   IsNumber,
   Min,
+  IsIn,
+  ArrayMaxSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -37,6 +39,21 @@ export class CreateExerciseDto {
   @IsOptional()
   @IsNumber()
   orderIndex?: number;
+
+  /** From exercise library when `exerciseId` resolves (preview / API responses). */
+  @IsOptional()
+  @IsString()
+  primaryMuscleGroup?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @IsString({ each: true })
+  secondaryMuscleGroups?: string[];
+
+  @IsOptional()
+  @IsIn(['reps', 'time', 'distance'])
+  prescriptionType?: 'reps' | 'time' | 'distance';
 }
 
 export class CreateWorkoutDto {

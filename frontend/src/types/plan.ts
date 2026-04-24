@@ -68,6 +68,8 @@ export interface InjuriesAvoidInput {
 
 export type CurrentActivityLevelId = '0' | '1-2' | '3-4' | '5+';
 
+export type ExperienceLevelId = 'beginner' | 'intermediate' | 'advanced';
+
 /**
  * Canonical plan inputs — produced once when user taps "Generate Week 1 Preview".
  * All downstream logic (skeleton, mapping, AI, preview) uses only this snapshot.
@@ -94,6 +96,14 @@ export interface PlanInputs {
   injuriesAvoid: InjuriesAvoidInput;
   currentActivityLevel: CurrentActivityLevelId | null;
   preferredExercises: string[];
+  /** Maps to POST /plans/generate-sessions; drives set/rep + Groq difficulty (default intermediate). */
+  experienceLevel: ExperienceLevelId;
+  /**
+   * Generate Plan equipment checklist (UI ids, e.g. barbell, dumbbells). Server maps to library labels for gym candidate filter only.
+   */
+  equipmentTags: string[];
+  /** User-ordered cardio modality chips (e.g. run, bike) for finishers / Cardio rows. */
+  cardioModalities?: string[];
 }
 
 // --- PlanDraft / WeekDraft (canonical output — Preview renders only from this)
@@ -105,8 +115,14 @@ export interface ExerciseDraft {
   name: string;
   sets: number;
   reps: string;
+  /** Raw reps or seconds from generate-sessions (for apply + time-based rows). */
+  repsRaw?: number;
   /** From generate-sessions when backend attached library metadata. */
   prescriptionType?: ExercisePrescriptionType;
+  /** Exercise library primary muscle (e.g. Chest, Cardio) for preview chips. */
+  primaryMuscleGroup?: string;
+  /** Secondary muscles from library (preview chips beside title). */
+  secondaryMuscleGroups?: string[];
   rpe?: number;
   rir?: number;
   notes?: string;
@@ -152,6 +168,8 @@ export interface PlanDraftDebugMeta {
   templateAssignments?: Record<string, unknown>;
   reasons?: string[];
   constraintsApplied?: string[];
+  /** Human-readable notes from the server when generation used repairs or fallbacks. */
+  generationNotes?: string[];
 }
 
 export interface PlanDraft {

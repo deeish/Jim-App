@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "kind": "cross_week_eval_fixture",
+  "weeks": [
+    {
+      "weekIndex": 1,
+      "programSummary": "Build week — progressive overload.",
+      "sessions": [
+        {
+          "type": "strength",
+          "title": "Upper",
+          "durationMin": 45,
+          "durationMax": 45,
+          "isHardDay": true,
+          "weekIndex": 1,
+          "weekday": "Monday"
+        },
+        {
+          "type": "strength",
+          "title": "Lower",
+          "durationMin": 45,
+          "durationMax": 45,
+          "isHardDay": false,
+          "weekIndex": 1,
+          "weekday": "Tuesday"
+        }
+      ],
+      "sessionsOut": [
+        {
+          "weekIndex": 1,
+          "weekday": "Monday",
+          "name": "Upper",
+          "exercises": [
+            {
+              "name": "Bench",
+              "sets": 3,
+              "reps": 8,
+              "exerciseId": "flat_barbell_bench_press"
+            },
+            {
+              "name": "Row",
+              "sets": 3,
+              "reps": 8,
+              "exerciseId": "barbell_bent_over_row"
+            }
+          ]
+        },
+        {
+          "weekIndex": 1,
+          "weekday": "Tuesday",
+          "name": "Lower",
+          "exercises": [
+            {
+              "name": "Squat",
+              "sets": 3,
+              "reps": 5,
+              "exerciseId": "back_squat"
+            },
+            {
+              "name": "Deadlift",
+              "sets": 3,
+              "reps": 5,
+              "exerciseId": "conventional_deadlift"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "weekIndex": 2,
+      "programSummary": "Build week — progressive overload.",
+      "sessions": [
+        {
+          "type": "strength",
+          "title": "Upper",
+          "durationMin": 45,
+          "durationMax": 45,
+          "isHardDay": true,
+          "weekIndex": 2,
+          "weekday": "Monday"
+        },
+        {
+          "type": "strength",
+          "title": "Lower",
+          "durationMin": 45,
+          "durationMax": 45,
+          "isHardDay": false,
+          "weekIndex": 2,
+          "weekday": "Tuesday"
+        }
+      ],
+      "sessionsOut": [
+        {
+          "weekIndex": 2,
+          "weekday": "Monday",
+          "name": "Upper",
+          "exercises": [
+            {
+              "name": "Bench",
+              "sets": 6,
+              "reps": 8,
+              "exerciseId": "flat_barbell_bench_press"
+            },
+            {
+              "name": "Row",
+              "sets": 6,
+              "reps": 8,
+              "exerciseId": "barbell_bent_over_row"
+            }
+          ]
+        },
+        {
+          "weekIndex": 2,
+          "weekday": "Tuesday",
+          "name": "Lower",
+          "exercises": [
+            {
+              "name": "Squat",
+              "sets": 6,
+              "reps": 5,
+              "exerciseId": "back_squat"
+            },
+            {
+              "name": "Deadlift",
+              "sets": 6,
+              "reps": 5,
+              "exerciseId": "conventional_deadlift"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

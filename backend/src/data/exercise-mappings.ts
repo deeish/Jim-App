@@ -7,6 +7,7 @@ import {
   inferPrescriptionTypeFromRawExercise,
   type ExercisePrescriptionType,
 } from './exercise-prescription';
+import { MOVEMENT_PATTERN_FILLINS } from './movement-pattern-fillins';
 
 // Primary Muscle Group ID → Display Name
 export const PRIMARY_MUSCLE_GROUP_MAP: Record<string, string> = {
@@ -481,7 +482,7 @@ export function transformExercise(raw: RawExercise): TransformedExercise {
 
   // Transform movement patterns (only include valid ones from SearchScreen)
   const movementPatterns = (raw.movementPatternIds || [])
-    .map((id) => MOVEMENT_PATTERN_MAP[id])
+    .map((id) => MOVEMENT_PATTERN_MAP[id] ?? MOVEMENT_PATTERN_FILLINS[id])
     .filter(
       (name): name is string =>
         name !== undefined && VALID_MOVEMENT_PATTERNS.includes(name),

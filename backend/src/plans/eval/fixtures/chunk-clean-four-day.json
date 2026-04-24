@@ -1,0 +1,116 @@
+{
+  "id": "chunk_clean_stays_ok",
+  "description": "Already-valid chunk: repair is a no-op for validator issues (loaded from JSON fixture).",
+  "effectiveDetailLevel": "simple",
+  "specs": [
+    {
+      "type": "strength",
+      "durationMin": 25,
+      "durationMax": 35,
+      "isHardDay": true,
+      "weekIndex": 1,
+      "weekday": "Monday",
+      "title": "Upper"
+    },
+    {
+      "type": "strength",
+      "durationMin": 25,
+      "durationMax": 35,
+      "isHardDay": true,
+      "weekIndex": 1,
+      "weekday": "Tuesday",
+      "title": "Lower"
+    },
+    {
+      "type": "strength",
+      "durationMin": 25,
+      "durationMax": 35,
+      "isHardDay": false,
+      "weekIndex": 1,
+      "weekday": "Thursday",
+      "title": "Upper 2"
+    },
+    {
+      "type": "strength",
+      "durationMin": 25,
+      "durationMax": 35,
+      "isHardDay": false,
+      "weekIndex": 1,
+      "weekday": "Friday",
+      "title": "Lower 2"
+    }
+  ],
+  "sessionsBeforeRepair": [
+    {
+      "weekIndex": 1,
+      "weekday": "Monday",
+      "name": "Upper",
+      "exercises": [
+        { "name": "Press", "sets": 3, "reps": 8, "exerciseId": "u1" },
+        { "name": "c01", "sets": 3, "reps": 8, "exerciseId": "c0_1" },
+        { "name": "c02", "sets": 3, "reps": 8, "exerciseId": "c0_2" },
+        { "name": "c03", "sets": 3, "reps": 8, "exerciseId": "c0_3" }
+      ]
+    },
+    {
+      "weekIndex": 1,
+      "weekday": "Tuesday",
+      "name": "Lower",
+      "exercises": [
+        { "name": "Squat", "sets": 3, "reps": 8, "exerciseId": "l1" },
+        { "name": "c11", "sets": 3, "reps": 8, "exerciseId": "c1_1" },
+        { "name": "c12", "sets": 3, "reps": 8, "exerciseId": "c1_2" },
+        { "name": "c13", "sets": 3, "reps": 8, "exerciseId": "c1_3" }
+      ]
+    },
+    {
+      "weekIndex": 1,
+      "weekday": "Thursday",
+      "name": "Upper 2",
+      "exercises": [
+        { "name": "Row", "sets": 3, "reps": 8, "exerciseId": "u2" },
+        { "name": "c21", "sets": 3, "reps": 8, "exerciseId": "c2_1" },
+        { "name": "c22", "sets": 3, "reps": 8, "exerciseId": "c2_2" },
+        { "name": "c23", "sets": 3, "reps": 8, "exerciseId": "c2_3" }
+      ]
+    },
+    {
+      "weekIndex": 1,
+      "weekday": "Friday",
+      "name": "Lower 2",
+      "exercises": [
+        { "name": "Hinge", "sets": 3, "reps": 8, "exerciseId": "l2" },
+        { "name": "c31", "sets": 3, "reps": 8, "exerciseId": "c3_1" },
+        { "name": "c32", "sets": 3, "reps": 8, "exerciseId": "c3_2" },
+        { "name": "c33", "sets": 3, "reps": 8, "exerciseId": "c3_3" }
+      ]
+    }
+  ],
+  "evalScoring": {
+    "skipBalance": true,
+    "skipCoaching": true,
+    "skipWorkoutOrder": true
+  },
+  "catalog": [
+    { "id": "u1", "name": "Press", "movementPatterns": ["Push"], "primaryMuscleGroup": "Chest" },
+    { "id": "l1", "name": "Squat", "movementPatterns": ["Squat"], "primaryMuscleGroup": "Legs" },
+    { "id": "u2", "name": "Row", "movementPatterns": ["Pull"], "primaryMuscleGroup": "Back" },
+    { "id": "l2", "name": "RDL", "movementPatterns": ["Hinge"], "primaryMuscleGroup": "Legs" },
+    { "id": "c0_1", "name": "c01", "movementPatterns": ["Push"], "primaryMuscleGroup": "Shoulders" },
+    { "id": "c0_2", "name": "c02", "movementPatterns": ["Push"], "primaryMuscleGroup": "Arms" },
+    { "id": "c0_3", "name": "c03", "movementPatterns": ["Push"], "primaryMuscleGroup": "Core" },
+    { "id": "c1_1", "name": "c11", "movementPatterns": ["Push"], "primaryMuscleGroup": "Glutes" },
+    { "id": "c1_2", "name": "c12", "movementPatterns": ["Push"], "primaryMuscleGroup": "Hamstrings" },
+    { "id": "c1_3", "name": "c13", "movementPatterns": ["Push"], "primaryMuscleGroup": "Core" },
+    { "id": "c2_1", "name": "c21", "movementPatterns": ["Push"], "primaryMuscleGroup": "Shoulders" },
+    { "id": "c2_2", "name": "c22", "movementPatterns": ["Push"], "primaryMuscleGroup": "Arms" },
+    { "id": "c2_3", "name": "c23", "movementPatterns": ["Push"], "primaryMuscleGroup": "Core" },
+    { "id": "c3_1", "name": "c31", "movementPatterns": ["Push"], "primaryMuscleGroup": "Hamstrings" },
+    { "id": "c3_2", "name": "c32", "movementPatterns": ["Push"], "primaryMuscleGroup": "Glutes" },
+    { "id": "c3_3", "name": "c33", "movementPatterns": ["Push"], "primaryMuscleGroup": "Core" }
+  ],
+  "expect": {
+    "runRepair": true,
+    "after": { "validatorOk": true }
+  }
+}

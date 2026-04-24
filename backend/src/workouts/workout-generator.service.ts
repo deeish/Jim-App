@@ -12,6 +12,12 @@ import {
 } from '../data/program-templates';
 import { getAnchorIdsForFocus } from '../data/anchor-exercises';
 import { getSetRepGuidelines } from '../data/set-rep-schemes';
+import { secondaryMusclesForPreview } from '../data/muscle-preview-tags';
+import { inferPrescriptionTypeFromExerciseName } from '../data/exercise-prescription';
+import {
+  coachCopyToneBlock,
+  sessionCoachingRailLine,
+} from '../plans/session-coaching-rails';
 
 /** Minimal shape for generator candidates (from exercise library). Metadata used for rules and prompts. */
 export interface CandidateExercise {
@@ -56,6 +62,25 @@ export function exerciseTargetsForSession(
   if (d <= 38) return { minExercises: 5, promptRange: '5-6' };
   if (d <= 55) return { minExercises: 6, promptRange: '6-8' };
   return { minExercises: 7, promptRange: '7-10' };
+}
+
+/**
+ * When true, batch Groq prompts require a library Cardio exercise last on strength days.
+ * Same rule as `WorkoutGeneratorService` private `programGoalWantsCardioFinisher`.
+ */
+export function goalWantsStrengthCardioFinisher(
+  goal: string | undefined,
+): boolean {
+  const g = (goal ?? '').toLowerCase();
+  return (
+    g.includes('hybrid') ||
+    g.includes('fat loss') ||
+    g.includes('fat_loss') ||
+    g.includes('endurance') ||
+    g.includes('balanced') ||
+    g.includes('conditioning') ||
+    g === 'cardio'
+  );
 }
 
 const HYPE_TITLE_TOKEN = /\b(blast|beast|savage|shred|inferno|torch|obliterate|nitro)\b/i;
@@ -107,6 +132,21 @@ const BATCH_CANDIDATE_CAP = 58;
 
 const PER_SESSION_CANDIDATE_LIMIT = 72;
 
+/** Output cap per exercise when `experienceLevel === 'beginner'` (Groq completion size). */
+export const BEGINNER_EXERCISE_NOTE_MAX_CHARS = 120;
+
+/** Per-exercise `notes` only for beginner experience; strip and cap otherwise. */
+export function normalizeExerciseNoteForOutput(
+  raw: unknown,
+  wantsNotes: boolean,
+): string | undefined {
+  if (!wantsNotes) return undefined;
+  if (raw == null) return undefined;
+  const s = String(raw).replace(/\s+/g, ' ').trim();
+  if (!s) return undefined;
+  return s.slice(0, BEGINNER_EXERCISE_NOTE_MAX_CHARS);
+}
+
 function compactExerciseNameForBatchPrompt(name: string): string {
   return (name ?? '')
     .replace(/\s+/g, ' ')
@@ -135,6 +175,52 @@ type GroqUsageLogShape = {
   choices?: Array<{ finish_reason?: string | null }>;
 };
 
+/** One Groq chat.completions call — for log aggregation / dashboards (no PII). */
+export type GroqCompletionUsage = {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  finish_reason?: string | null;
+};
+
+export type FullProgramDaySession = {
+  weekIndex: number;
+  weekday: string;
+  name: string;
+  reasoning?: string;
+  warmUp?: string;
+  coolDown?: string;
+  cardioFinisher?: { suggestion: string };
+  exercises: Array<{
+    name: string;
+    sets: number;
+    reps: number;
+    weight?: number;
+    notes?: string;
+    exerciseId?: string;
+  }>;
+};
+
+/** `null` = no Groq attempt (bad input / no candidates). */
+export type GenerateFullProgramOutcome =
+  | { ok: true; sessions: FullProgramDaySession[]; usage: GroqCompletionUsage }
+  | { ok: false; usage?: GroqCompletionUsage };
+
+function groqUsageFromResponse(response: GroqUsageLogShape): GroqCompletionUsage {
+  const u = response.usage;
+  return {
+    prompt_tokens: u?.prompt_tokens,
+    completion_tokens: u?.completion_tokens,
+    total_tokens: u?.total_tokens,
+    finish_reason: response.choices?.[0]?.finish_reason ?? null,
+  };
+}
+
+/** Result of one per-session Groq call (`generateWithGroq`). */
+export type GenerateWithGroqOutcome =
+  | { ok: true; workout: CreateWorkoutDto; usage: GroqCompletionUsage }
+  | { ok: false; usage: GroqCompletionUsage };
+
 @Injectable()
 export class WorkoutGeneratorService {
   private readonly logger = new Logger(WorkoutGeneratorService.name);
@@ -145,8 +231,13 @@ export class WorkoutGeneratorService {
     private readonly prisma: PrismaService,
   ) {}
 
+  /**
+   * @param groqUsageSink When set, each completed Groq `generateWithGroq` attempt appends
+   *        one usage object (success or parse/length failure after the API returned).
+   */
   async generateWorkout(
     generateWorkoutDto: GenerateWorkoutDto,
+    groqUsageSink?: GroqCompletionUsage[],
   ): Promise<CreateWorkoutDto> {
     const { day, preferences, userId } = generateWorkoutDto;
     const focus = preferences?.focus ?? 'full body';
@@ -229,14 +320,15 @@ export class WorkoutGeneratorService {
     const skipGroq = preferences?.skipGroq === true;
     if (apiKey?.trim() && candidateList.length >= 4 && !skipGroq) {
       try {
-        const workout = await this.generateWithGroq(
+        const outcome = await this.generateWithGroq(
           generateWorkoutDto,
           apiKey,
           candidateList,
           setRep,
           lastPerformance,
         );
-        if (workout) return workout;
+        if (groqUsageSink) groqUsageSink.push(outcome.usage);
+        if (outcome.ok) return this.attachLibraryMuscleTags(outcome.workout);
       } catch (err) {
         if (process.env.NODE_ENV !== 'production') {
           console.warn(
@@ -247,7 +339,34 @@ export class WorkoutGeneratorService {
       }
     }
 
-    return this.generateWorkoutByRules(candidateList, day, preferences, setRep);
+    return this.attachLibraryMuscleTags(
+      this.generateWorkoutByRules(candidateList, day, preferences, setRep),
+    );
+  }
+
+  /** Attach primary/secondary muscle + prescription from library for preview clients. */
+  private attachLibraryMuscleTags(workout: CreateWorkoutDto): CreateWorkoutDto {
+    return {
+      ...workout,
+      exercises: workout.exercises.map((ex) => {
+        const id = ex.exerciseId?.trim();
+        if (!id) return ex;
+        const meta = this.exercisesService.findOne(id);
+        if (!meta) return ex;
+        const secondaries = secondaryMusclesForPreview(
+          meta.secondaryMuscleGroups,
+          meta.primaryMuscleGroup,
+        );
+        return {
+          ...ex,
+          primaryMuscleGroup: meta.primaryMuscleGroup,
+          ...(secondaries.length ? { secondaryMuscleGroups: secondaries } : {}),
+          prescriptionType:
+            meta.prescriptionType ??
+            inferPrescriptionTypeFromExerciseName(ex.name),
+        };
+      }),
+    };
   }
 
   /** Derive variation group from exercise name for one-per-pattern rules. */
@@ -407,16 +526,59 @@ export class WorkoutGeneratorService {
 
   /** Hybrid / fat-loss / endurance goals: merge real Cardio library rows into the batch pool so Groq can assign machine/modality finishers. */
   private programGoalWantsCardioFinisher(goal: string | undefined): boolean {
-    const g = (goal ?? '').toLowerCase();
-    return (
-      g.includes('hybrid') ||
-      g.includes('fat loss') ||
-      g.includes('fat_loss') ||
-      g.includes('endurance') ||
-      g.includes('balanced') ||
-      g.includes('conditioning') ||
-      g === 'cardio'
+    return goalWantsStrengthCardioFinisher(goal);
+  }
+
+  /** ~25–40 chars; only when user picked modalities (saves tokens when empty). */
+  private compactCardioModalityHint(modalities: string[] | undefined): string {
+    if (!modalities?.length) return '';
+    return ` Prefer last Cardio id: ${modalities.join('>')}.`;
+  }
+
+  private cardioExerciseMatchesModality(
+    exerciseName: string,
+    modality: string,
+  ): boolean {
+    const n = (exerciseName ?? '').toLowerCase();
+    switch (modality) {
+      case 'run':
+        return (
+          /\b(treadmill|sprint)\b/i.test(n) ||
+          (/\brun\b/i.test(n) && !/row/i.test(n))
+        );
+      case 'bike':
+        return /bike|cycle|spin|airdyne/i.test(n);
+      case 'row':
+        return /row|erg|skierg|ski erg/i.test(n);
+      case 'swim':
+        return /swim/i.test(n);
+      case 'elliptical':
+        return /elliptical|arc trainer|cross trainer/i.test(n);
+      default:
+        return false;
+    }
+  }
+
+  private pickCardioFinisherCandidate(
+    candidates: CandidateExercise[],
+    excludeExerciseIds: Set<string>,
+    modalities: string[] | undefined,
+  ): CandidateExercise | undefined {
+    const pool = candidates.filter(
+      (c) =>
+        c.primaryMuscleGroup === 'Cardio' &&
+        c.id &&
+        !excludeExerciseIds.has(c.id),
     );
+    if (pool.length === 0) return undefined;
+    if (!modalities?.length) return pool[0];
+    for (const m of modalities) {
+      const hit = pool.find((c) =>
+        this.cardioExerciseMatchesModality(c.name, m),
+      );
+      if (hit) return hit;
+    }
+    return pool[0];
   }
 
   private appendCardioCandidatesToPool(
@@ -641,27 +803,16 @@ export class WorkoutGeneratorService {
       limitations?: string[];
       detailLevel?: 'simple' | 'detailed';
       makeItEasier?: boolean;
+      experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
       /** Exercise ids already used in earlier weeks (or sub-chunks); soft-avoid for variety. */
       priorWeekExerciseIds?: string[];
+      /** Ordered run, bike, … — short batch prompt suffix + candidate bias */
+      cardioModalities?: string[];
+      /** Periodization / preview-scope hint (≤200 chars) */
+      mesoHint?: string;
     },
     apiKey: string,
-  ): Promise<Array<{
-    weekIndex: number;
-    weekday: string;
-    name: string;
-    reasoning?: string;
-    warmUp?: string;
-    coolDown?: string;
-    cardioFinisher?: { suggestion: string };
-    exercises: Array<{
-      name: string;
-      sets: number;
-      reps: number;
-      weight?: number;
-      notes?: string;
-      exerciseId?: string;
-    }>;
-  }> | null> {
+  ): Promise<GenerateFullProgramOutcome | null> {
     const {
       sessions,
       goal = 'hypertrophy',
@@ -669,7 +820,10 @@ export class WorkoutGeneratorService {
       limitations = [],
       detailLevel = 'detailed',
       makeItEasier = false,
+      experienceLevel: experienceLevelOpt,
       priorWeekExerciseIds = [],
+      cardioModalities,
+      mesoHint,
     } = options;
     if (sessions.length < 2 || sessions.length > 7) return null;
 
@@ -677,7 +831,12 @@ export class WorkoutGeneratorService {
       ...new Set((priorWeekExerciseIds ?? []).filter(Boolean)),
     ].slice(-MAX_PRIOR_WEEK_IDS_IN_BATCH_PROMPT);
 
-    const difficulty = makeItEasier ? 'beginner' : 'intermediate';
+    const difficulty: 'beginner' | 'intermediate' | 'advanced' = makeItEasier
+      ? 'beginner'
+      : experienceLevelOpt === 'beginner' || experienceLevelOpt === 'advanced'
+        ? experienceLevelOpt
+        : 'intermediate';
+    const wantsExerciseNotes = experienceLevelOpt === 'beginner';
     const setRep = getSetRepGuidelines(goal, difficulty);
 
     let candidates = this.mergeCandidatesForBatchProgram(
@@ -731,7 +890,16 @@ export class WorkoutGeneratorService {
           isCardioOrRec,
         );
         const maxN = maxExercisesFromPromptRange(targets.promptRange);
-        return `Day ${i + 1} (${focus}, ${s.weekday}, ~${duration} min): Choose ${targets.promptRange} exercises from the list that fit this day's focus (enough volume for ~${duration} minutes). Hard cap: at most ${maxN} objects in the "exercises" array for this day. Use ONLY exercise "id" values from the list. Main compounds first, then accessories. Within this day use only one movement variant (e.g. one bench press, not flat + incline in same day).`;
+        const rail = sessionCoachingRailLine({
+          focusLabel: focus,
+          sessionType: s.type,
+          goal,
+          experienceLevel: difficulty,
+          wantsStrengthCardioFinisher:
+            this.programGoalWantsCardioFinisher(goal) &&
+            String(s.type).toLowerCase() === 'strength',
+        });
+        return `Day ${i + 1} (${focus}, ${s.weekday}, ~${duration} min): Choose ${targets.promptRange} exercises from the list that fit this day's focus (enough volume for ~${duration} minutes). Hard cap: at most ${maxN} objects in the "exercises" array for this day. Use ONLY exercise "id" values from the list. Main compounds first, then accessories. Within this day use only one movement variant (e.g. one bench press, not flat + incline in same day). Session rail: ${rail}`;
       })
       .join('\n');
 
@@ -761,6 +929,10 @@ export class WorkoutGeneratorService {
     const nameRules =
       'Workout "name" must be plain and short: prefer the day focus label plus an optional "A"/"B" or "1"/"2" when the same focus repeats (e.g. "Upper · A", "Lower · B"). No hype words: Blast, Power, Beast, Savage, Shred, Endurance, Destroy, Nitro, Inferno, or similar marketing.';
 
+    const exercisesSchemaLine = wantsExerciseNotes
+      ? `  - "exercises": array of objects, each with "exerciseId" (must be an id from the list), "sets" (number), "reps" (number), and optionally "notes" (string, ≤${BEGINNER_EXERCISE_NOTE_MAX_CHARS} chars: one line, form or intent only). Order: main compounds first, then accessories.`
+      : `  - "exercises": array of objects, each with "exerciseId" (must be an id from the list), "sets" (number), "reps" (number) only — do NOT include "notes". Order: main compounds first, then accessories.`;
+
     const structureBlock =
       detailLevel === 'simple'
         ? `Structure:
@@ -770,7 +942,7 @@ export class WorkoutGeneratorService {
   - "reasoning": string (one short sentence)
   - "warmUp": string (one short sentence)
   - "coolDown": string (one short sentence)
-  - "exercises": array of objects, each with "exerciseId" (must be an id from the list), "sets" (number), "reps" (number), and optionally "notes" (string). Order: main compounds first, then accessories.`
+${exercisesSchemaLine}`
         : `Structure:
 - "programSummary": string (2-4 sentences describing the program and how the days work together).
 - "days": array of objects, one per day, in the same order as the day list below. Each day object must have:
@@ -778,20 +950,32 @@ export class WorkoutGeneratorService {
   - "reasoning": string (1-3 sentences on why this day is structured this way)
   - "warmUp": string (1-2 sentences)
   - "coolDown": string (1-2 sentences)
-  - "exercises": array of objects, each with "exerciseId" (must be an id from the list), "sets" (number), "reps" (number), and optionally "notes" (string). Order: main compounds first, then accessories.`;
+${exercisesSchemaLine}`;
 
     const systemPrompt = `You are a certified fitness trainer designing a full weekly program in one response. You must choose exercises ONLY from the provided list by their "id". Respond with exactly one JSON object, no markdown.
 
 Exercise list format: each line is id<TAB>exercise name<TAB>primary muscle (header columns only—parse each line; use the first field as the id for "exerciseId").
 
 ${structureBlock}
-For the first two exercises of each day, prefer the strongest, well-known primary compounds for that day's pattern (e.g. main bench or push-up variant for horizontal push; pull-up or row for pull; squat or leg press for legs)—not redundant variations of the same pattern on the same day.
+For the first two exercises of each day, prefer the strongest, well-known primary compounds for that day's pattern (e.g. main bench or push-up variant for horizontal push; pull-up or row for pull; squat or leg press for legs only on Lower/Legs days)—not redundant variations of the same pattern on the same day.
 Rep selection: pick rep numbers in the middle of the allowed range; main compounds can be slightly lower reps than accessories (2–4 reps lower is fine).
-When the program has multiple days with the same focus (e.g. Push on day 1 and Push on day 4), vary which exercises you pick for each so the user gets variety across weeks—avoid repeating the same workout.`;
+When the program has multiple days with the same focus (e.g. Push on day 1 and Push on day 4), vary which exercises you pick for each so the user gets variety across weeks—avoid repeating the same workout.
+
+${coachCopyToneBlock()}`;
 
     const conditioningBlock = this.programGoalWantsCardioFinisher(goal)
       ? `\nConditioning (user goal includes strength + conditioning): For each day whose type is **strength**, end that day's "exercises" array with exactly ONE exercise taken from the list rows whose third column (muscle) is **Cardio** (bike, rower, ski erg, treadmill, elliptical, versa climber, assault runner, etc.)—a short machine/modality finisher. Put it **last**. Keep total exercises for that day within each day's range/cap (drop a small accessory if needed to fit; keep main compounds). Do **not** add this extra cardio line on days that are already cardio or recovery.`
       : '';
+    const conditioningModalityHint =
+      this.compactCardioModalityHint(cardioModalities);
+
+    const restHint =
+      setRep.restSeconds != null && setRep.restSeconds > 0
+        ? ` Rest between working sets: about ${setRep.restSeconds}s unless notes say otherwise.`
+        : '';
+
+    const mesoTrim = (mesoHint ?? '').trim().slice(0, 200);
+    const mesoBlock = mesoTrim.length ? `\nProgram intent: ${mesoTrim}` : '';
 
     const userPrompt = `Design a ${sessions.length}-day program. Use ONLY exercise ids from the first column of each line below.
 ${candidateTable}
@@ -799,11 +983,11 @@ ${priorWeekInstruction}
 
 ${dayLines}
 ${varietyInstruction}
-${conditioningBlock}
+${conditioningBlock}${conditioningModalityHint}${mesoBlock}
 
-Set/rep: ${setRep.description} (${setRep.setsMin}-${setRep.setsMax} sets, ${setRep.repsMin}-${setRep.repsMax} reps). Goal: ${goal}. Difficulty: ${difficulty}. Equipment: ${equipmentStr}.${limitationsBlock}
+Set/rep: ${setRep.description} (${setRep.setsMin}-${setRep.setsMax} sets, ${setRep.repsMin}-${setRep.repsMax} reps).${restHint} Goal: ${goal}. Difficulty: ${difficulty}. Equipment: ${equipmentStr}.${limitationsBlock}
 
-Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.length} objects). Each day: "name", "reasoning", "warmUp", "coolDown", "exercises" (array of {"exerciseId": "<id from list>", "sets", "reps", "notes"?}).`;
+Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.length} objects). Each day: "name", "reasoning", "warmUp", "coolDown", "exercises" (array of objects with exerciseId, sets, reps${wantsExerciseNotes ? ', optional notes (≤' + String(BEGINNER_EXERCISE_NOTE_MAX_CHARS) + ' chars each)' : '; omit notes on every exercise'}).`;
 
     const groq = new Groq({ apiKey });
     let response: GroqUsageLogShape & {
@@ -826,11 +1010,12 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     }
 
     this.logGroqCompletionMeta('generateFullProgram', response);
+    const usage = groqUsageFromResponse(response);
     const finishReason = response.choices?.[0]?.finish_reason;
-    if (finishReason === 'length') return null;
+    if (finishReason === 'length') return { ok: false, usage };
 
     const raw = response.choices?.[0]?.message?.content?.trim();
-    if (!raw) return null;
+    if (!raw) return { ok: false, usage };
 
     let parsed: {
       programSummary?: string;
@@ -850,7 +1035,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     try {
       parsed = JSON.parse(raw);
     } catch {
-      return null;
+      return { ok: false, usage };
     }
 
     if (
@@ -858,26 +1043,10 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       !Array.isArray(parsed.days) ||
       parsed.days.length < sessions.length
     )
-      return null;
+      return { ok: false, usage };
 
     const idToCandidate = new Map(candidates.map((c) => [c.id, c]));
-    const results: Array<{
-      weekIndex: number;
-      weekday: string;
-      name: string;
-      reasoning?: string;
-      warmUp?: string;
-      coolDown?: string;
-      cardioFinisher?: { suggestion: string };
-      exercises: Array<{
-        name: string;
-        sets: number;
-        reps: number;
-        weight?: number;
-        notes?: string;
-        exerciseId?: string;
-      }>;
-    }> = [];
+    const results: FullProgramDaySession[] = [];
 
     for (let i = 0; i < sessions.length; i++) {
       const spec = sessions[i];
@@ -930,7 +1099,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
             name,
             sets,
             reps,
-            notes: ex.notes != null ? String(ex.notes) : undefined,
+            notes: normalizeExerciseNoteForOutput(ex.notes, wantsExerciseNotes),
             exerciseId: candidate ? candidate.id : undefined,
           });
           if (candidate) usedIdsThisDay.add(candidate.id);
@@ -976,7 +1145,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       });
     }
 
-    return results;
+    return { ok: true, sessions: results, usage };
   }
 
   /**
@@ -998,33 +1167,32 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     detailLevel?: 'simple' | 'detailed';
     makeItEasier?: boolean;
     avoidConstraints?: string[];
+    /** Home: HOME list. Gym + checklist: mapped library labels. Gym + empty: omit (wide open). */
+    equipmentFilter?: string[];
+    experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
     /** Ids used in earlier preview chunks (other weeks); optional variety hint for batch prompt. */
     priorWeekExerciseIds?: string[];
-  }): Promise<Array<{
-    weekIndex: number;
-    weekday: string;
-    name: string;
-    reasoning?: string;
-    warmUp?: string;
-    coolDown?: string;
-    cardioFinisher?: { suggestion: string };
-    exercises: Array<{
-      name: string;
-      sets: number;
-      reps: number;
-      weight?: number;
-      notes?: string;
-      exerciseId?: string;
-    }>;
-  }> | null> {
+    cardioModalities?: string[];
+    mesoHint?: string;
+  }): Promise<{
+    program: FullProgramDaySession[] | null;
+    groqUsages: GroqCompletionUsage[];
+  }> {
+    const empty = (): { program: null; groqUsages: GroqCompletionUsage[] } => ({
+      program: null,
+      groqUsages: [],
+    });
+
     const apiKey = this.config.get<string>('GROQ_API_KEY');
     if (!apiKey?.trim() || dto.sessions.length < 2 || dto.sessions.length > 7)
-      return null;
+      return empty();
 
-    const equipment =
-      dto.location === 'home'
-        ? ['Dumbbell', 'Resistance Band', 'Bodyweight']
-        : undefined;
+    const equipment: string[] =
+      dto.equipmentFilter !== undefined && dto.equipmentFilter.length > 0
+        ? dto.equipmentFilter
+        : dto.location === 'home'
+          ? ['Dumbbell', 'Resistance Band', 'Bodyweight']
+          : [];
 
     const baseOpts = {
       goal: dto.goal ?? 'hypertrophy',
@@ -1032,25 +1200,46 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       limitations: dto.avoidConstraints ?? [],
       detailLevel: dto.detailLevel ?? ('detailed' as const),
       makeItEasier: dto.makeItEasier === true,
+      experienceLevel: dto.experienceLevel,
       priorWeekExerciseIds: dto.priorWeekExerciseIds,
+      cardioModalities: dto.cardioModalities,
+      mesoHint: dto.mesoHint,
     };
 
-    const full = await this.generateFullProgram(
+    const pushUsage = (
+      list: GroqCompletionUsage[],
+      outcome: GenerateFullProgramOutcome | null,
+    ) => {
+      if (!outcome) return;
+      if (outcome.ok) list.push(outcome.usage);
+      else if (outcome.usage) list.push(outcome.usage);
+    };
+
+    const groqUsages: GroqCompletionUsage[] = [];
+
+    const first = await this.generateFullProgram(
       { ...baseOpts, sessions: dto.sessions },
       apiKey,
     );
-    if (full && full.length === dto.sessions.length) return full;
+    pushUsage(groqUsages, first);
+    if (first?.ok && first.sessions.length === dto.sessions.length) {
+      return { program: first.sessions, groqUsages };
+    }
 
     const n = dto.sessions.length;
     /** 4–7 sessions: split into two valid batch halves (e.g. 4→2+2, 5→3+2) if the single call fails. */
     if (n >= 4) {
       const mid = Math.ceil(n / 2);
       if (mid >= 2 && n - mid >= 2) {
-        const head = await this.generateFullProgram(
+        const headOutcome = await this.generateFullProgram(
           { ...baseOpts, sessions: dto.sessions.slice(0, mid) },
           apiKey,
         );
-        if (!head || head.length !== mid) return null;
+        pushUsage(groqUsages, headOutcome);
+        if (!headOutcome?.ok || headOutcome.sessions.length !== mid) {
+          return { program: null, groqUsages };
+        }
+        const head = headOutcome.sessions;
         const headIds = head.flatMap((s) =>
           (s.exercises ?? [])
             .map((e) => e.exerciseId)
@@ -1063,7 +1252,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
             ),
           ),
         ].filter(Boolean);
-        const tail = await this.generateFullProgram(
+        const tailOutcome = await this.generateFullProgram(
           {
             ...baseOpts,
             sessions: dto.sessions.slice(mid),
@@ -1071,15 +1260,19 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
           },
           apiKey,
         );
-        if (!tail || tail.length !== n - mid) return null;
+        pushUsage(groqUsages, tailOutcome);
+        if (!tailOutcome?.ok || tailOutcome.sessions.length !== n - mid) {
+          return { program: null, groqUsages };
+        }
+        const tail = tailOutcome.sessions;
         this.logger.log(
           `[Groq:tryGenerateFullProgram] split_batch sessions=${mid}+${n - mid}`,
         );
-        return [...head, ...tail];
+        return { program: [...head, ...tail], groqUsages };
       }
     }
 
-    return null;
+    return { program: null, groqUsages };
   }
 
   /** Token / finish_reason only (no prompt or user content). */
@@ -1092,6 +1285,16 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     const tt = u?.total_tokens;
     this.logger.log(
       `[Groq:${label}] finish_reason=${fr ?? 'n/a'} prompt_tokens=${pt ?? 'n/a'} completion_tokens=${ct ?? 'n/a'} total_tokens=${tt ?? 'n/a'}`,
+    );
+    this.logger.log(
+      JSON.stringify({
+        event: 'groq_completion',
+        label,
+        finish_reason: fr ?? null,
+        prompt_tokens: pt ?? null,
+        completion_tokens: ct ?? null,
+        total_tokens: tt ?? null,
+      }),
     );
   }
 
@@ -1234,7 +1437,7 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
       description: string;
     },
     lastPerformance: Map<string, LastPerformance>,
-  ): Promise<CreateWorkoutDto | null> {
+  ): Promise<GenerateWithGroqOutcome> {
     const { day, preferences } = dto;
     const focus = preferences?.focus ?? 'full body';
     const focusKey: FocusKey | string = normalizeFocusToKey(focus);
@@ -1245,6 +1448,7 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
       : 'general gym equipment';
     const goal = preferences?.goal ?? 'hypertrophy';
     const experience = preferences?.experience ?? difficulty;
+    const wantsExerciseNotes = experience === 'beginner';
     const limitations = preferences?.limitations ?? [];
     const programTemplate = preferences?.programTemplateId ?? '';
     const programDayFocus = preferences?.programDayFocus ?? focus;
@@ -1325,7 +1529,9 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
     });
     const lastPerfBlock =
       lastPerfLines.length > 0
-        ? `\nLast performance (suggest slight progression where appropriate, e.g. +5 lb or +1 rep in notes):\n${lastPerfLines.slice(0, 15).join('\n')}`
+        ? wantsExerciseNotes
+          ? `\nLast performance (suggest slight progression where appropriate, e.g. +5 lb or +1 rep in notes):\n${lastPerfLines.slice(0, 15).join('\n')}`
+          : `\nLast performance (bias sets/reps slightly when appropriate; do not add per-exercise notes):\n${lastPerfLines.slice(0, 15).join('\n')}`
         : '';
 
     const warmUpCoolDown =
@@ -1341,7 +1547,7 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
 
     const volumeHint = isCardioOrRecovery
       ? ''
-      : `\nVolume: For ~${duration} minutes, include at least ${targets.minExercises} distinct exercises with enough total work that the session feels like a real workout, not a minimal list. Hard cap: at most ${maxExercisesFromPromptRange(targets.promptRange)} objects in the "exercises" array.`;
+      : `\nVolume: For ~${duration} minutes, include at least ${targets.minExercises} distinct exercises with enough total work that the session feels like a real workout, not a minimal list. Prefer the lower end of the suggested range when it still covers the main patterns; never exceed the hard cap. Hard cap: at most ${maxExercisesFromPromptRange(targets.promptRange)} objects in the "exercises" array.`;
 
     const reasoningHint = isSimple
       ? 'Keep "reasoning" to 1-2 short sentences.'
@@ -1350,14 +1556,20 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
       ? 'Keep warmUp and coolDown to one short sentence each.'
       : '1-2 sentences each for warmUp and coolDown.';
 
+    const exercisesSystemBullet = wantsExerciseNotes
+      ? `- "exercises": array of objects. Each must have "exerciseId" (string, must be one of the ids from the list—no made-up ids), "sets" (number), "reps" (number), and optionally "weight" (number), "notes" (string, ≤${BEGINNER_EXERCISE_NOTE_MAX_CHARS} chars, one line: form or intent). Use the exact "id" from the list. Order: main compounds first, then accessories.`
+      : `- "exercises": array of objects. Each must have "exerciseId" (string, must be one of the ids from the list—no made-up ids), "sets" (number), "reps" (number), and optionally "weight" (number). Do NOT include "notes". Use the exact "id" from the list. Order: main compounds first, then accessories.`;
+
     const systemPrompt = `You are a certified fitness trainer. You must choose exercises ONLY from the provided list by their "id". Respond with exactly one JSON object, no markdown.
 - "name": string (plain 2–8 words: prefer "${programDayFocus}" or the day role; no hype words like Blast, Power, Beast, Savage, Shred, Inferno, Nitro)
 - "day": string or omit
 - "reasoning": string. ${reasoningHint} Do NOT put warm-up or cool-down here; use warmUp and coolDown fields instead.
 - "warmUp": string (${warmCoolHint} e.g. "5 min light cardio, band pull-aparts, dynamic stretch.")
 - "coolDown": string (${warmCoolHint} e.g. "Stretch chest and shoulders, 2 min walk.")
-- "exercises": array of objects. Each must have "exerciseId" (string, must be one of the ids from the list—no made-up ids), "sets" (number), "reps" (number), and optionally "weight" (number), "notes" (string). Use the exact "id" from the list. Order: main compounds first, then accessories.
-${mixedCardio ? '- "cardioFinisher": optional object with "suggestion" (string, e.g. "Run 10 min"). Only if this is a workout that includes a cardio finisher. Do not put cardio in exercises.' : ''}`;
+${exercisesSystemBullet}
+${mixedCardio ? '- "cardioFinisher": optional object with "suggestion" (string, e.g. "Run 10 min"). Only if this is a workout that includes a cardio finisher. Do not put cardio in exercises.' : ''}
+
+${coachCopyToneBlock()}`;
 
     const userPrompt = `Choose ${exerciseRange} exercises from this list only. Use each exercise's "id" as "exerciseId" in your response.
 List: ${candidateJson}
@@ -1371,8 +1583,26 @@ ${warmUpCoolDown}
 ${lastPerfBlock}
 ${avoidBlock}
 ${mixedCardioHint}
-${conditioningFromLibraryHint}
+${conditioningFromLibraryHint}${this.compactCardioModalityHint(dto.preferences?.cardioModalities)}
 ${volumeHint}
+
+Session rail (follow this when ordering patterns): ${sessionCoachingRailLine({
+      focusLabel: focus,
+      sessionType:
+        focusKey === 'cardio'
+          ? 'cardio'
+          : focusKey === 'recovery'
+            ? 'recovery'
+            : 'strength',
+      goal,
+      experienceLevel:
+        experience === 'beginner' ||
+        experience === 'intermediate' ||
+        experience === 'advanced'
+          ? experience
+          : difficulty,
+      wantsStrengthCardioFinisher: strengthPlusConditioning,
+    })}
 
 Vary exercise selection when possible so the user gets fresh workouts.
 
@@ -1381,7 +1611,7 @@ Important: Do NOT pick multiple variations of the same movement in one workout. 
 - For Pull days: one row, one vertical pull (pulldown/pull-up), then isolation (curls, etc.). Not multiple row variations.
 - For legs: one squat, one hinge (deadlift/hip thrust), one lunge or single-leg, then isolation. Not multiple squat variants.
 
-Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focus/why per exercise). Include warmUp and coolDown as separate fields. Sets and reps should follow the set/rep scheme above. Write "reasoning" that references the program (do not duplicate warm-up/cool-down in reasoning).`;
+Return valid JSON with exerciseId, sets, reps${wantsExerciseNotes ? ', optional notes (one short coaching line per exercise)' : ' (no notes field)'}. Include warmUp and coolDown as separate fields. Sets and reps should follow the set/rep scheme above. Write "reasoning" that references the program (do not duplicate warm-up/cool-down in reasoning).`;
 
     const sessionMaxTokens = isSimple ? 2400 : 3072;
 
@@ -1398,10 +1628,12 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
     });
 
     this.logGroqCompletionMeta('generateWithGroq', response);
-    if (response.choices?.[0]?.finish_reason === 'length') return null;
+    const usage = groqUsageFromResponse(response);
+    if (response.choices?.[0]?.finish_reason === 'length')
+      return { ok: false, usage };
 
     const raw = response.choices?.[0]?.message?.content?.trim();
-    if (!raw) return null;
+    if (!raw) return { ok: false, usage };
 
     let parsed: {
       name?: string;
@@ -1421,10 +1653,10 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
     try {
       parsed = JSON.parse(raw);
     } catch {
-      return null;
+      return { ok: false, usage };
     }
 
-    if (!parsed?.exercises?.length || !parsed.name) return null;
+    if (!parsed?.exercises?.length || !parsed.name) return { ok: false, usage };
 
     const idToCandidate = new Map(candidates.map((c) => [c.id, c]));
     const usedIds = new Set<string>();
@@ -1460,7 +1692,7 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
         sets,
         reps,
         weight: ex.weight != null ? Number(ex.weight) : undefined,
-        notes: ex.notes != null ? String(ex.notes) : undefined,
+        notes: normalizeExerciseNoteForOutput(ex.notes, wantsExerciseNotes),
         orderIndex: i,
       });
       if (candidate) usedIds.add(candidate.id);
@@ -1508,17 +1740,21 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
           : undefined;
 
     return {
-      name: plainWorkoutTitle(
-        String(parsed.name),
-        programDayFocus,
-        day ?? '',
-      ),
-      day: parsed.day ? String(parsed.day) : dto.day,
-      reasoning: reasoning || undefined,
-      warmUp: warmUp || undefined,
-      coolDown: coolDown || undefined,
-      exercises,
-      cardioFinisher,
+      ok: true,
+      usage,
+      workout: {
+        name: plainWorkoutTitle(
+          String(parsed.name),
+          programDayFocus,
+          day ?? '',
+        ),
+        day: parsed.day ? String(parsed.day) : dto.day,
+        reasoning: reasoning || undefined,
+        warmUp: warmUp || undefined,
+        coolDown: coolDown || undefined,
+        exercises,
+        cardioFinisher,
+      },
     };
   }
 
@@ -2068,10 +2304,13 @@ Return valid JSON with exerciseId, sets, reps, and optional notes (one-line focu
         return c?.primaryMuscleGroup === 'Cardio';
       });
       if (!hasCardio) {
-        const pick = candidates.find(
-          (c) =>
-            c.primaryMuscleGroup === 'Cardio' &&
-            !exercises.some((e) => e.exerciseId === c.id),
+        const usedIds = new Set(
+          exercises.map((e) => e.exerciseId).filter((id): id is string => !!id),
+        );
+        const pick = this.pickCardioFinisherCandidate(
+          candidates,
+          usedIds,
+          preferences?.cardioModalities as string[] | undefined,
         );
         if (pick) {
           exercises.push({

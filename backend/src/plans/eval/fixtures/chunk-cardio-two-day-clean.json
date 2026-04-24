@@ -1,0 +1,102 @@
+{
+  "id": "chunk_cardio_two_day_clean",
+  "description": "Two cardio-only days in one chunk; distinct Cardio library ids (diversity scoring skips strength union for this slice).",
+  "effectiveDetailLevel": "simple",
+  "evalScoring": {
+    "skipBalance": true,
+    "skipCoaching": true,
+    "skipWorkoutOrder": true,
+    "skipDiversity": true,
+    "skipFatigueStacking": true
+  },
+  "specs": [
+    {
+      "type": "cardio",
+      "title": "Intervals",
+      "durationMin": 28,
+      "durationMax": 35,
+      "isHardDay": true,
+      "weekIndex": 1,
+      "weekday": "Wednesday"
+    },
+    {
+      "type": "cardio",
+      "title": "Steady",
+      "durationMin": 28,
+      "durationMax": 35,
+      "isHardDay": false,
+      "weekIndex": 1,
+      "weekday": "Saturday"
+    }
+  ],
+  "sessionsBeforeRepair": [
+    {
+      "weekIndex": 1,
+      "weekday": "Wednesday",
+      "name": "Intervals",
+      "exercises": [
+        { "name": "Bike", "sets": 6, "reps": 45, "exerciseId": "ca_w_bike", "prescriptionType": "time" },
+        { "name": "Row", "sets": 4, "reps": 40, "exerciseId": "ca_w_row", "prescriptionType": "time" },
+        { "name": "Walk", "sets": 1, "reps": 10, "exerciseId": "ca_w_walk", "prescriptionType": "time" }
+      ]
+    },
+    {
+      "weekIndex": 1,
+      "weekday": "Saturday",
+      "name": "Steady",
+      "exercises": [
+        { "name": "Elliptical", "sets": 1, "reps": 25, "exerciseId": "ca_s_ellip", "prescriptionType": "time" },
+        { "name": "Swim", "sets": 8, "reps": 50, "exerciseId": "ca_s_swim", "prescriptionType": "time" },
+        { "name": "Stretch", "sets": 4, "reps": 45, "exerciseId": "ca_s_str", "prescriptionType": "time" }
+      ]
+    }
+  ],
+  "catalog": [
+    {
+      "id": "ca_w_bike",
+      "name": "Assault Bike",
+      "movementPatterns": [],
+      "primaryMuscleGroup": "Cardio",
+      "prescriptionType": "time"
+    },
+    {
+      "id": "ca_w_row",
+      "name": "Row Erg",
+      "movementPatterns": [],
+      "primaryMuscleGroup": "Cardio",
+      "prescriptionType": "time"
+    },
+    {
+      "id": "ca_w_walk",
+      "name": "Treadmill Walk",
+      "movementPatterns": [],
+      "primaryMuscleGroup": "Cardio",
+      "prescriptionType": "time"
+    },
+    {
+      "id": "ca_s_ellip",
+      "name": "Elliptical",
+      "movementPatterns": [],
+      "primaryMuscleGroup": "Cardio",
+      "prescriptionType": "time"
+    },
+    {
+      "id": "ca_s_swim",
+      "name": "Easy Swim",
+      "movementPatterns": [],
+      "primaryMuscleGroup": "Cardio",
+      "prescriptionType": "time"
+    },
+    {
+      "id": "ca_s_str",
+      "name": "Static Stretch Circuit",
+      "movementPatterns": [],
+      "primaryMuscleGroup": "Cardio",
+      "prescriptionType": "time"
+    }
+  ],
+  "expect": {
+    "runRepair": true,
+    "after": { "validatorOk": true }
+  }
+}

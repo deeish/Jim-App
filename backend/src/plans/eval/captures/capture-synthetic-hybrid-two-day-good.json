@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "kind": "generate_sessions",
+  "inputs": {
+    "goal": "hybrid",
+    "location": "gym",
+    "detailLevel": "simple",
+    "makeItEasier": false,
+    "sessions": [
+      {
+        "type": "strength",
+        "title": "Upper",
+        "durationMin": 40,
+        "durationMax": 50,
+        "isHardDay": true,
+        "weekIndex": 0,
+        "weekday": "Monday"
+      },
+      {
+        "type": "strength",
+        "title": "Lower",
+        "durationMin": 40,
+        "durationMax": 50,
+        "isHardDay": false,
+        "weekIndex": 0,
+        "weekday": "Tuesday"
+      }
+    ]
+  },
+  "outputs": {
+    "sessions": [
+      {
+        "weekIndex": 0,
+        "weekday": "Monday",
+        "name": "Upper",
+        "reasoning": "Bench and row first for quality, then accessories; easy steady-state cardio last for hybrid goal. Keep RPE sustainable on compounds.",
+        "warmUp": "5–8 minutes easy bike or walk, then dynamic shoulder and chest mobility. Take 2–3 ramp sets toward working weight on the bench press.",
+        "coolDown": "2–5 minutes easy walking and light stretching for chest, shoulders, and upper back.",
+        "exercises": [
+          {
+            "name": "Flat Barbell Bench Press",
+            "sets": 4,
+            "reps": 8,
+            "exerciseId": "flat_barbell_bench_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Chest"
+          },
+          {
+            "name": "Barbell Bent-Over Row",
+            "sets": 4,
+            "reps": 8,
+            "exerciseId": "barbell_bent_over_row",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Back"
+          },
+          {
+            "name": "Barbell Overhead Press",
+            "sets": 3,
+            "reps": 10,
+            "exerciseId": "barbell_overhead_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Shoulders"
+          },
+          {
+            "name": "Wide-Grip Lat Pulldown",
+            "sets": 3,
+            "reps": 12,
+            "exerciseId": "lat_pulldown_wide",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Back"
+          },
+          {
+            "name": "Treadmill Jog Steady",
+            "sets": 1,
+            "reps": 12,
+            "exerciseId": "treadmill_jog_steady",
+            "prescriptionType": "time",
+            "primaryMuscleGroup": "Cardio",
+            "notes": "Easy steady-state finisher ~8–12 min submax effort for conditioning."
+          }
+        ]
+      },
+      {
+        "weekIndex": 0,
+        "weekday": "Tuesday",
+        "name": "Lower",
+        "reasoning": "Squat and hinge first, then accessories. Progress load only when form stays crisp.",
+        "warmUp": "5 minutes light movement, ankle and hip mobility, then empty-bar patterning for squat depth.",
+        "coolDown": "Walk 2 minutes, then stretch quads, hamstrings, and calves.",
+        "exercises": [
+          {
+            "name": "Back Squat",
+            "sets": 4,
+            "reps": 6,
+            "exerciseId": "back_squat",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs"
+          },
+          {
+            "name": "Conventional Deadlift",
+            "sets": 3,
+            "reps": 6,
+            "exerciseId": "conventional_deadlift",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs"
+          },
+          {
+            "name": "45-Degree Leg Press",
+            "sets": 3,
+            "reps": 12,
+            "exerciseId": "forty_five_degree_leg_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs"
+          },
+          {
+            "name": "Standing Calf Raise Machine",
+            "sets": 3,
+            "reps": 15,
+            "exerciseId": "standing_calf_raise_machine",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs"
+          },
+          {
+            "name": "Treadmill Walk Easy",
+            "sets": 1,
+            "reps": 10,
+            "exerciseId": "treadmill_walk_easy",
+            "prescriptionType": "time",
+            "primaryMuscleGroup": "Cardio",
+            "notes": "Easy steady-state finisher after lower work."
+          }
+        ]
+      }
+    ]
+  },
+  "pipeline": {
+    "chunks": [
+      {
+        "path": "batch",
+        "perSessionAfterBatchFallback": false,
+        "validatorFirstPass": { "ok": true, "issues": [], "duplicateExerciseIds": [], "patternClashExerciseIds": [] },
+        "groqCallsRaw": [{ "finish_reason": "stop" }]
+      }
+    ]
+  }
+}

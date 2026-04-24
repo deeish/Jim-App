@@ -2,7 +2,7 @@
 
 **Status:** Planning document — implement in phases as prioritized below.  
 **Implemented (2026-04-14):** Phase A–C as above; batch split **4–7**; **Phase E:** multi-week copy + **targeted** preview regen (**week** / **cardio-only**) via `planPipeline`; **week 2+** uses **`simple`** LLM style when user picked **detailed** (backend). **Not yet:** hybrid (D), metric-driven limit tuning.  
-**Related:** [backend/docs/PLAN_GENERATION_FLOW_AND_ISSUES.md](../backend/docs/PLAN_GENERATION_FLOW_AND_ISSUES.md) (end-to-end flow and known issues).
+**Related:** [backend/docs/PLAN_GENERATION_FLOW_AND_ISSUES.md](../backend/docs/PLAN_GENERATION_FLOW_AND_ISSUES.md) (end-to-end flow and known issues). [GENERATE_PLAN_UI_TO_AI_COVERAGE.md](./GENERATE_PLAN_UI_TO_AI_COVERAGE.md) (which UI choices reach the LLM vs structure-only).
 
 **LLM provider:** Workout/session text is generated with **Groq** (`GROQ_API_KEY`, `groq-sdk`). That is distinct from xAI **Grok**. Some frontend debug fields still say “Grok” historically; the live integration is Groq.
 

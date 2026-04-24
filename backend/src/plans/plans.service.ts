@@ -10,16 +10,33 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   WorkoutGeneratorService,
   exerciseTargetsForSession,
+  goalWantsStrengthCardioFinisher,
   plainWorkoutTitle,
+  type FullProgramDaySession,
+  type GroqCompletionUsage,
 } from '../workouts/workout-generator.service';
 import { ExercisesService } from '../exercises/exercises.service';
 import { CreatePlanDto, PlanSlotDto } from './dto/create-plan.dto';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
+import { RepairProgramSessionsDto } from './dto/repair-program-sessions.dto';
 import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
 import {
   enrichGeneratedSession,
+  enrichGeneratedSessionsInChunkOrder,
   type GeneratedSession,
 } from './session-enrichment';
+import { mapPlanGenerationUiEquipmentToLibrary } from './generation-equipment-tags.util';
+import {
+  buildRetryPriorExerciseIds,
+  type ChunkValidationResult,
+  validateGeneratedProgramChunk,
+} from './generated-chunk-validators';
+import {
+  generationCaptureEnabled,
+  type ChunkGenerationTrace,
+  writeGenerationCapture,
+} from './generation-capture';
+import { repairChunkGeneratedSessions } from './generation-chunk-repair';
 
 @Injectable()
 export class PlansService {
@@ -31,6 +48,25 @@ export class PlansService {
     private readonly exercises: ExercisesService,
     private readonly config: ConfigService,
   ) {}
+
+  private static readonly CARDIO_MODALITY_WHITELIST = new Set([
+    'run',
+    'bike',
+    'swim',
+    'row',
+    'elliptical',
+  ]);
+
+  private static normalizedCardioModalities(
+    raw: string[] | undefined,
+  ): string[] | undefined {
+    if (!raw?.length) return undefined;
+    const out = raw
+      .map((x) => String(x ?? '').toLowerCase().trim())
+      .filter((x) => PlansService.CARDIO_MODALITY_WHITELIST.has(x));
+    const dedup = [...new Set(out)].slice(0, 5);
+    return dedup.length ? dedup : undefined;
+  }
 
   /** Plan slots with ordered plan_exercises (for Plan screen detail + materialize). */
   private planWorkoutsInclude() {
@@ -530,6 +566,28 @@ export class PlansService {
   /** Unique ids passed to prompts / exclude lists; oldest→newest so `.slice(-N)` = freshest. */
   private static readonly PRIOR_CONTEXT_MAX_UNIQUE = 120;
 
+  private static foldGroqUsages(usages: GroqCompletionUsage[]): {
+    groqCalls: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  } {
+    let prompt_tokens = 0;
+    let completion_tokens = 0;
+    let total_tokens = 0;
+    for (const u of usages) {
+      if (u.prompt_tokens != null) prompt_tokens += u.prompt_tokens;
+      if (u.completion_tokens != null) completion_tokens += u.completion_tokens;
+      if (u.total_tokens != null) total_tokens += u.total_tokens;
+    }
+    return {
+      groqCalls: usages.length,
+      prompt_tokens,
+      completion_tokens,
+      total_tokens,
+    };
+  }
+
   /**
    * Unique exercise ids from the tail of a chronological list (newest at end of tail).
    * Returns oldest→newest among included uniques so callers can `ids.slice(-48)` for “most recent”.
@@ -606,15 +664,56 @@ export class PlansService {
       | 'hybrid_quality_fallback'
       | 'hybrid_rule_failed'
       | 'hybrid_bad_shape'
+      | 'hybrid_validator_fail'
       | 'batch_ok'
+      | 'batch_validator_fail'
+      | 'batch_validator_per_session_fallback'
       | 'per_session';
     sessionCount: number;
     weekMin: number;
     effectiveDetailLevel: 'simple' | 'detailed';
     makeItEasier: boolean;
     polishApplied?: boolean;
+    validatorRetry?: boolean;
+    validatorIssues?: string[];
+    validatorFirstPass?: boolean;
+    groq?: {
+      groqCalls: number;
+      prompt_tokens: number;
+      completion_tokens: number;
+      total_tokens: number;
+    };
   }): void {
     this.logger.log(JSON.stringify({ event: 'generate_sessions_chunk', ...payload }));
+  }
+
+  private logGenerateSessionsRequestSummary(payload: {
+    sessionCount: number;
+    chunkCount: number;
+    groqCalls: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  }): void {
+    this.logger.log(
+      JSON.stringify({ event: 'generate_sessions_summary', ...payload }),
+    );
+  }
+
+  private serializeChunkValidation(
+    v: ChunkValidationResult,
+  ): {
+    ok: boolean;
+    issues: string[];
+    duplicateExerciseIds: string[];
+    patternClashExerciseIds: string[];
+  } {
+    return {
+      ok: v.ok,
+      issues: v.issues,
+      duplicateExerciseIds: v.duplicateExerciseIds,
+      patternClashExerciseIds: v.patternClashExerciseIds,
+    };
   }
 
   /** After hybrid rule+polish: ensure each day meets the same min exercise counts as Groq prompts expect. */
@@ -654,6 +753,8 @@ export class PlansService {
     limitations: string[],
     equipment: string[] | undefined,
     priorContextExerciseIds: string[],
+    cardioModalities: string[] | undefined,
+    experienceLevel: 'beginner' | 'intermediate' | 'advanced',
   ): Promise<
     { sessions: GeneratedSession[]; polishApplied: boolean } | null
   > {
@@ -675,7 +776,7 @@ export class PlansService {
 
     for (const spec of specs) {
       const isHard = spec.isHardDay;
-      const difficulty = isHard ? 'advanced' : 'intermediate';
+      const difficulty = isHard ? 'advanced' : experienceLevel;
       const duration = Math.round((spec.durationMin + spec.durationMax) / 2);
       const specLimits = spec.avoidConstraints?.length
         ? spec.avoidConstraints
@@ -699,6 +800,7 @@ export class PlansService {
             focus: spec.title ?? spec.type,
             duration,
             difficulty,
+            experience: experienceLevel,
             goal,
             equipment,
             limitations: specLimits,
@@ -708,6 +810,7 @@ export class PlansService {
               ? excludeMerged
               : undefined,
             skipGroq: true,
+            cardioModalities,
           },
         });
       } catch (firstErr) {
@@ -718,6 +821,7 @@ export class PlansService {
               focus: spec.title ?? spec.type,
               duration,
               difficulty,
+              experience: experienceLevel,
               goal,
               equipment,
               limitations: specLimits,
@@ -727,6 +831,7 @@ export class PlansService {
                 ? excludeMerged
                 : undefined,
               skipGroq: true,
+              cardioModalities,
             },
           });
         } catch {
@@ -779,7 +884,9 @@ export class PlansService {
         ? equipment?.length
           ? equipment.join(', ')
           : 'home / bodyweight'
-        : 'general gym equipment';
+        : equipment?.length
+          ? equipment.join(', ')
+          : 'general gym equipment';
 
     const polish = await this.workoutGenerator.polishSimpleBatchSessionCopy(
       { goal, equipmentNote, days: polishDays },
@@ -811,7 +918,14 @@ export class PlansService {
     equipment: string[] | undefined,
     /** Oldest→newest unique ids from recent picks (see `priorExerciseIdsOldestFirstAmongRecent`). */
     priorContextExerciseIds: string[],
-  ): Promise<GeneratedSession[]> {
+  ): Promise<{
+    sessions: GeneratedSession[];
+    chunkGroqUsages: GroqCompletionUsage[];
+    trace: ChunkGenerationTrace;
+    warnings: string[];
+  }> {
+    const chunkGroqUsages: GroqCompletionUsage[] = [];
+    const chunkWarnings: string[] = [];
     const weekMin = Math.min(...specs.map((s) => s.weekIndex));
     /** Later preview weeks use the compact Groq style when the user chose detailed (tokens + truncation). */
     const effectiveDetailLevel =
@@ -825,6 +939,57 @@ export class PlansService {
       ),
     ].slice(-PlansService.PRIOR_CONTEXT_MAX_UNIQUE);
 
+    const cardioModalities = PlansService.normalizedCardioModalities(
+      dto.cardioModalities,
+    );
+
+    const experienceProfile =
+      dto.experienceLevel === 'beginner' ||
+      dto.experienceLevel === 'intermediate' ||
+      dto.experienceLevel === 'advanced'
+        ? dto.experienceLevel
+        : 'intermediate';
+
+    const traceGroq = (): ReturnType<typeof PlansService.foldGroqUsages> =>
+      PlansService.foldGroqUsages(chunkGroqUsages);
+    let pendingBatchFallbackTrace: ChunkGenerationTrace | undefined;
+    const traceBase = (): Pick<
+      ChunkGenerationTrace,
+      | 'weekMin'
+      | 'sessionWeekIndices'
+      | 'effectiveDetailLevel'
+      | 'cappedPriorExerciseIds'
+      | 'groq'
+    > => ({
+      weekMin,
+      sessionWeekIndices: specs.map((s) => s.weekIndex),
+      effectiveDetailLevel,
+      cappedPriorExerciseIds: cappedPrior,
+      groq: traceGroq(),
+    });
+
+    const sessionSpecsSummary = specs.map((s) => ({
+      weekIndex: s.weekIndex,
+      weekday: s.weekday,
+      title: s.title,
+      type: s.type,
+      durationMin: s.durationMin,
+      durationMax: s.durationMax,
+      isHardDay: s.isHardDay,
+    }));
+    const traceChunkExtras = (): Pick<
+      ChunkGenerationTrace,
+      'sessionSpecsSummary' | 'groqCallsRaw'
+    > => ({
+      sessionSpecsSummary,
+      groqCallsRaw: chunkGroqUsages.map((u) => ({
+        prompt_tokens: u.prompt_tokens,
+        completion_tokens: u.completion_tokens,
+        total_tokens: u.total_tokens,
+        finish_reason: u.finish_reason ?? null,
+      })),
+    });
+
     if (!makeItEasier && effectiveDetailLevel === 'simple') {
       const hybridResult = await this.tryHybridSimpleChunk(
         specs,
@@ -833,6 +998,8 @@ export class PlansService {
         limitations,
         equipment,
         cappedPrior,
+        cardioModalities,
+        experienceProfile,
       );
       if (hybridResult === null) {
         this.logGenerateSessionsChunkEvent({
@@ -850,34 +1017,75 @@ export class PlansService {
           effectiveDetailLevel,
           makeItEasier,
         });
-      } else if (
-        this.hybridChunkPassesQualityGate(specs, hybridResult.sessions)
-      ) {
-        this.logGenerateSessionsChunkEvent({
-          path: 'hybrid_ok',
-          sessionCount: specs.length,
-          weekMin,
-          effectiveDetailLevel,
-          makeItEasier,
-          polishApplied: hybridResult.polishApplied,
-        });
-        return hybridResult.sessions;
       } else {
-        this.logGenerateSessionsChunkEvent({
-          path: 'hybrid_quality_fallback',
-          sessionCount: specs.length,
-          weekMin,
+        const hybridRepaired = repairChunkGeneratedSessions({
+          sessions: hybridResult.sessions,
+          specs,
+          library: this.exercises,
+          equipment,
           effectiveDetailLevel,
-          makeItEasier,
-          polishApplied: hybridResult.polishApplied,
+          avoidConstraintsGlobal: limitations,
         });
+        chunkWarnings.push(...hybridRepaired.notes);
+        const hybridVQ = validateGeneratedProgramChunk(
+          specs,
+          hybridRepaired.sessions,
+          'simple',
+          this.movementPatternMapForSessions(hybridRepaired.sessions),
+        );
+        const hybridQuality = this.hybridChunkPassesQualityGate(
+          specs,
+          hybridRepaired.sessions,
+        );
+        if (hybridQuality && hybridVQ.ok) {
+          this.logGenerateSessionsChunkEvent({
+            path: 'hybrid_ok',
+            sessionCount: specs.length,
+            weekMin,
+            effectiveDetailLevel,
+            makeItEasier,
+            polishApplied: hybridResult.polishApplied,
+            groq: traceGroq(),
+          });
+          return {
+            sessions: hybridRepaired.sessions,
+            chunkGroqUsages,
+            trace: {
+              ...traceBase(),
+              ...traceChunkExtras(),
+              path: 'hybrid_ok',
+              hybridPolishApplied: hybridResult.polishApplied,
+              validatorFirstPass: this.serializeChunkValidation(hybridVQ),
+              validatorSecondPass: null,
+            },
+            warnings: chunkWarnings.slice(),
+          };
+        }
+        if (hybridQuality) {
+          this.logGenerateSessionsChunkEvent({
+            path: 'hybrid_validator_fail',
+            sessionCount: specs.length,
+            weekMin,
+            effectiveDetailLevel,
+            makeItEasier,
+            polishApplied: hybridResult.polishApplied,
+            validatorIssues: hybridVQ.issues,
+          });
+        } else {
+          this.logGenerateSessionsChunkEvent({
+            path: 'hybrid_quality_fallback',
+            sessionCount: specs.length,
+            weekMin,
+            effectiveDetailLevel,
+            makeItEasier,
+            polishApplied: hybridResult.polishApplied,
+          });
+        }
       }
     }
 
     const mapBatchToSessions = (
-      fullProgram: NonNullable<
-        Awaited<ReturnType<WorkoutGeneratorService['tryGenerateFullProgram']>>
-      >,
+      fullProgram: FullProgramDaySession[],
     ): GeneratedSession[] =>
       fullProgram.map((session, i) => {
         const spec = specs[i];
@@ -905,32 +1113,185 @@ export class PlansService {
       });
 
     if (specs.length >= 2) {
-      const fullProgram = await this.workoutGenerator.tryGenerateFullProgram({
-        sessions: specs.map((s) => ({
-          weekIndex: s.weekIndex,
-          weekday: s.weekday,
-          title: s.title,
-          type: s.type,
-          durationMin: s.durationMin,
-          durationMax: s.durationMax,
-          isHardDay: s.isHardDay,
-        })),
-        goal,
-        location,
-        detailLevel: effectiveDetailLevel,
-        makeItEasier,
-        avoidConstraints: limitations,
-        priorWeekExerciseIds: cappedPrior.length ? cappedPrior : undefined,
-      });
-      if (fullProgram && fullProgram.length === specs.length) {
+      const runTryGenerateBatch = (
+        priorWeekExerciseIds: string[] | undefined,
+      ) =>
+        this.workoutGenerator.tryGenerateFullProgram({
+          sessions: specs.map((s) => ({
+            weekIndex: s.weekIndex,
+            weekday: s.weekday,
+            title: s.title,
+            type: s.type,
+            durationMin: s.durationMin,
+            durationMax: s.durationMax,
+            isHardDay: s.isHardDay,
+          })),
+          goal,
+          location,
+          detailLevel: effectiveDetailLevel,
+          makeItEasier,
+          avoidConstraints: limitations,
+          equipmentFilter: equipment,
+          experienceLevel: experienceProfile,
+          priorWeekExerciseIds,
+          cardioModalities,
+          mesoHint: dto.mesoHint,
+        });
+
+      let batchOut = await runTryGenerateBatch(
+        cappedPrior.length ? cappedPrior : undefined,
+      );
+      chunkGroqUsages.push(...batchOut.groqUsages);
+      let fullProgram = batchOut.program;
+      let mapped =
+        fullProgram && fullProgram.length === specs.length
+          ? mapBatchToSessions(fullProgram)
+          : null;
+
+      if (mapped) {
+        const batchRepaired = repairChunkGeneratedSessions({
+          sessions: mapped,
+          specs,
+          library: this.exercises,
+          equipment,
+          effectiveDetailLevel,
+          avoidConstraintsGlobal: limitations,
+        });
+        chunkWarnings.push(...batchRepaired.notes);
+        mapped = batchRepaired.sessions;
+      }
+
+      const validationFirst = mapped
+        ? validateGeneratedProgramChunk(
+            specs,
+            mapped,
+            effectiveDetailLevel,
+            this.movementPatternMapForSessions(mapped),
+          )
+        : null;
+
+      if (mapped && validationFirst?.ok) {
         this.logGenerateSessionsChunkEvent({
           path: 'batch_ok',
           sessionCount: specs.length,
           weekMin,
           effectiveDetailLevel,
           makeItEasier,
+          validatorFirstPass: true,
+          groq: traceGroq(),
         });
-        return mapBatchToSessions(fullProgram);
+        return {
+          sessions: mapped,
+          chunkGroqUsages,
+          trace: {
+            ...traceBase(),
+            ...traceChunkExtras(),
+            path: 'batch_ok',
+            validatorFirstPass: this.serializeChunkValidation(validationFirst),
+            validatorSecondPass: null,
+          },
+          warnings: chunkWarnings.slice(),
+        };
+      }
+
+      if (mapped && validationFirst && !validationFirst.ok) {
+        const failedIssues = validationFirst.issues;
+        this.logGenerateSessionsChunkEvent({
+          path: 'batch_validator_fail',
+          sessionCount: specs.length,
+          weekMin,
+          effectiveDetailLevel,
+          makeItEasier,
+          validatorIssues: failedIssues,
+          groq: traceGroq(),
+        });
+        const retryPrior = buildRetryPriorExerciseIds({
+          cappedPrior,
+          validation: validationFirst,
+          sessions: mapped,
+        });
+        const retryOut = await runTryGenerateBatch(
+          retryPrior.length ? retryPrior : undefined,
+        );
+        chunkGroqUsages.push(...retryOut.groqUsages);
+        fullProgram = retryOut.program;
+        mapped =
+          fullProgram && fullProgram.length === specs.length
+            ? mapBatchToSessions(fullProgram)
+            : null;
+        if (mapped) {
+          const retryRepaired = repairChunkGeneratedSessions({
+            sessions: mapped,
+            specs,
+            library: this.exercises,
+            equipment,
+            effectiveDetailLevel,
+            avoidConstraintsGlobal: limitations,
+          });
+          chunkWarnings.push(...retryRepaired.notes);
+          mapped = retryRepaired.sessions;
+        }
+        const validationRetry = mapped
+          ? validateGeneratedProgramChunk(
+              specs,
+              mapped,
+              effectiveDetailLevel,
+              this.movementPatternMapForSessions(mapped),
+            )
+          : null;
+        if (mapped && validationRetry?.ok) {
+          this.logGenerateSessionsChunkEvent({
+            path: 'batch_ok',
+            sessionCount: specs.length,
+            weekMin,
+            effectiveDetailLevel,
+            makeItEasier,
+            validatorRetry: true,
+            validatorIssues: failedIssues,
+            validatorFirstPass: false,
+            groq: traceGroq(),
+          });
+          return {
+            sessions: mapped,
+            chunkGroqUsages,
+            trace: {
+              ...traceBase(),
+              ...traceChunkExtras(),
+              path: 'batch_ok',
+              validatorFirstPass: this.serializeChunkValidation(validationFirst),
+              validatorSecondPass: this.serializeChunkValidation(validationRetry),
+              validatorIssuesFromRetry: failedIssues,
+              batchRetryPriorExerciseIdsTail: retryPrior,
+            },
+            warnings: chunkWarnings.slice(),
+          };
+        }
+        this.logGenerateSessionsChunkEvent({
+          path: 'batch_validator_per_session_fallback',
+          sessionCount: specs.length,
+          weekMin,
+          effectiveDetailLevel,
+          makeItEasier,
+          validatorIssues:
+            validationRetry && validationRetry.issues.length
+              ? validationRetry.issues
+              : failedIssues,
+          groq: traceGroq(),
+        });
+        pendingBatchFallbackTrace = {
+          ...traceBase(),
+          ...traceChunkExtras(),
+          path: 'batch_validator_per_session_fallback',
+          validatorFirstPass: this.serializeChunkValidation(validationFirst),
+          validatorSecondPass: validationRetry
+            ? this.serializeChunkValidation(validationRetry)
+            : null,
+          validatorIssuesFromRetry:
+            validationRetry && validationRetry.issues.length
+              ? validationRetry.issues
+              : failedIssues,
+          batchRetryPriorExerciseIdsTail: retryPrior,
+        };
       }
     }
 
@@ -943,7 +1304,7 @@ export class PlansService {
         ? 'beginner'
         : isHard
           ? 'advanced'
-          : 'intermediate';
+          : experienceProfile;
       const duration = Math.round((spec.durationMin + spec.durationMax) / 2);
       const specLimits = spec.avoidConstraints?.length
         ? spec.avoidConstraints
@@ -961,30 +1322,14 @@ export class PlansService {
         ReturnType<WorkoutGeneratorService['generateWorkout']>
       >;
       try {
-        generated = await this.workoutGenerator.generateWorkout({
-          day: spec.weekday,
-          preferences: {
-            focus: spec.title ?? spec.type,
-            duration,
-            difficulty,
-            goal,
-            equipment,
-            limitations: specLimits,
-            programDayFocus: spec.title ?? spec.type,
-            detailLevel: effectiveDetailLevel,
-            excludeExerciseIds: excludeMerged.length
-              ? excludeMerged
-              : undefined,
-          },
-        });
-      } catch (firstErr) {
-        try {
-          generated = await this.workoutGenerator.generateWorkout({
+        generated = await this.workoutGenerator.generateWorkout(
+          {
             day: spec.weekday,
             preferences: {
               focus: spec.title ?? spec.type,
               duration,
               difficulty,
+              experience: experienceProfile,
               goal,
               equipment,
               limitations: specLimits,
@@ -993,8 +1338,34 @@ export class PlansService {
               excludeExerciseIds: excludeMerged.length
                 ? excludeMerged
                 : undefined,
+              cardioModalities,
             },
-          });
+          },
+          chunkGroqUsages,
+        );
+      } catch (firstErr) {
+        try {
+          generated = await this.workoutGenerator.generateWorkout(
+            {
+              day: spec.weekday,
+              preferences: {
+                focus: spec.title ?? spec.type,
+                duration,
+                difficulty,
+                experience: experienceProfile,
+                goal,
+                equipment,
+                limitations: specLimits,
+                programDayFocus: spec.title ?? spec.type,
+                detailLevel: effectiveDetailLevel,
+                excludeExerciseIds: excludeMerged.length
+                  ? excludeMerged
+                  : undefined,
+                cardioModalities,
+              },
+            },
+            chunkGroqUsages,
+          );
         } catch {
           throw firstErr;
         }
@@ -1038,8 +1409,32 @@ export class PlansService {
       weekMin,
       effectiveDetailLevel,
       makeItEasier,
+      groq: traceGroq(),
     });
-    return results;
+    if (pendingBatchFallbackTrace) {
+      chunkWarnings.push(
+        'This week was built one session at a time after batch validation did not pass.',
+      );
+    }
+    const traceMerged: ChunkGenerationTrace = {
+      ...(pendingBatchFallbackTrace ?? {
+        ...traceBase(),
+        path: 'per_session',
+        validatorFirstPass: null,
+        validatorSecondPass: null,
+      }),
+      ...traceChunkExtras(),
+      path: 'per_session',
+      preBatchAttempted: specs.length >= 2,
+      perSessionAfterBatchFallback: !!pendingBatchFallbackTrace,
+      groq: traceGroq(),
+    };
+    return {
+      sessions: results,
+      chunkGroqUsages,
+      trace: traceMerged,
+      warnings: chunkWarnings.slice(),
+    };
   }
 
   async generateSessions(dto: GenerateSessionsDto): Promise<{
@@ -1059,37 +1454,80 @@ export class PlansService {
         exerciseId?: string;
       }>;
     }>;
+    generationNotes?: string[];
   }> {
     const goal = dto.goal ?? 'strength';
     const location = dto.location ?? 'gym';
     const detailLevel = dto.detailLevel ?? 'detailed';
     const makeItEasier = dto.makeItEasier === true;
     const limitations = dto.avoidConstraints ?? [];
-    const equipment =
-      location === 'home' ? [...PlansService.HOME_EQUIPMENT] : undefined;
+    const mappedGymEquipment =
+      location === 'gym'
+        ? mapPlanGenerationUiEquipmentToLibrary(dto.equipmentTags)
+        : [];
+    /** Home: fixed list. Gym + tags: mapped library labels. Gym + no tags: undefined (no candidate filter). */
+    const generatorEquipment: string[] | undefined =
+      location === 'home'
+        ? [...PlansService.HOME_EQUIPMENT]
+        : mappedGymEquipment.length
+          ? mappedGymEquipment
+          : undefined;
 
     const chunks = this.partitionSessionsForBatching(dto.sessions);
+    this.logger.log(
+      JSON.stringify({
+        event: 'generate_sessions_request',
+        sessionCount: dto.sessions.length,
+        chunkCount: chunks.length,
+        detailLevel,
+        captureEnabled: generationCaptureEnabled(),
+      }),
+    );
     const orderedResults: GeneratedSession[] = new Array(dto.sessions.length);
+    const pipelineChunks: ChunkGenerationTrace[] = [];
     /** Chronological exercise picks (repeats allowed) for true “recent usage” semantics. */
     let priorExerciseHistory: string[] = [];
+    let sumPromptTokens = 0;
+    let sumCompletionTokens = 0;
+    let sumTotalTokens = 0;
+    let sumGroqCalls = 0;
+    const allGenerationNotes: string[] = [];
 
-    for (const chunk of chunks) {
+    const normalizedCardioModalities = PlansService.normalizedCardioModalities(
+      dto.cardioModalities,
+    );
+
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      const chunk = chunks[chunkIndex]!;
       const priorContextIds = PlansService.priorExerciseIdsOldestFirstAmongRecent(
         priorExerciseHistory,
         PlansService.PRIOR_EXERCISE_HISTORY_MAX,
         PlansService.PRIOR_CONTEXT_MAX_UNIQUE,
       );
-      const chunkResults = await this.generateSessionsForSpecChunk(
-        chunk.specs,
-        dto,
-        goal,
-        location,
-        detailLevel,
-        makeItEasier,
-        limitations,
-        equipment,
-        priorContextIds,
-      );
+      const { sessions: chunkResults, chunkGroqUsages, trace, warnings } =
+        await this.generateSessionsForSpecChunk(
+          chunk.specs,
+          dto,
+          goal,
+          location,
+          detailLevel,
+          makeItEasier,
+          limitations,
+          generatorEquipment,
+          priorContextIds,
+        );
+      allGenerationNotes.push(...warnings);
+      pipelineChunks.push({
+        ...trace,
+        chunkIndex,
+        globalSessionIndices: chunk.indices,
+        priorContextExerciseIdsInput: [...priorContextIds],
+      });
+      const folded = PlansService.foldGroqUsages(chunkGroqUsages);
+      sumGroqCalls += folded.groqCalls;
+      sumPromptTokens += folded.prompt_tokens;
+      sumCompletionTokens += folded.completion_tokens;
+      sumTotalTokens += folded.total_tokens;
       if (chunkResults.length !== chunk.indices.length) {
         throw new HttpException(
           'Session generation produced an unexpected number of results.',
@@ -1110,8 +1548,193 @@ export class PlansService {
       );
     }
 
+    if (chunks.length > 1) {
+      const mergeWeekMin = Math.min(...dto.sessions.map((s) => s.weekIndex));
+      const mergeEffectiveDetailLevel: 'simple' | 'detailed' =
+        detailLevel === 'detailed' && mergeWeekMin >= 2 ? 'simple' : detailLevel;
+      const mergedRepaired = repairChunkGeneratedSessions({
+        sessions: orderedResults,
+        specs: dto.sessions,
+        library: this.exercises,
+        equipment: generatorEquipment,
+        effectiveDetailLevel: mergeEffectiveDetailLevel,
+        avoidConstraintsGlobal: limitations,
+      });
+      for (let i = 0; i < mergedRepaired.sessions.length; i++) {
+        orderedResults[i] = mergedRepaired.sessions[i]!;
+      }
+      if (mergedRepaired.notes.length) {
+        allGenerationNotes.push(...mergedRepaired.notes);
+      }
+    }
+
+    this.logGenerateSessionsRequestSummary({
+      sessionCount: dto.sessions.length,
+      chunkCount: chunks.length,
+      groqCalls: sumGroqCalls,
+      prompt_tokens: sumPromptTokens,
+      completion_tokens: sumCompletionTokens,
+      total_tokens: sumTotalTokens,
+    });
+
     const enriched = await this.applySessionEnrichment(orderedResults, dto);
-    return { sessions: enriched };
+
+    const generationNotesOut =
+      allGenerationNotes.length > 0 ? [...new Set(allGenerationNotes)] : undefined;
+
+    void writeGenerationCapture({
+      kind: 'generate_sessions',
+      inputs: dto,
+      outputs: {
+        sessions: enriched,
+        sessionsPreEnrichment: orderedResults,
+        ...(generationNotesOut ? { generationNotes: generationNotesOut } : {}),
+      },
+      pipeline: {
+        resolvedContext: {
+          goal,
+          location,
+          detailLevelRequested: dto.detailLevel ?? 'detailed',
+          makeItEasier,
+          experienceLevel:
+            dto.experienceLevel === 'beginner' ||
+            dto.experienceLevel === 'intermediate' ||
+            dto.experienceLevel === 'advanced'
+              ? dto.experienceLevel
+              : 'intermediate',
+          equipmentTags: dto.equipmentTags,
+          mappedGymEquipment,
+          generatorEquipment,
+          enrichmentEquipment: generatorEquipment,
+          cardioModalitiesRaw: dto.cardioModalities,
+          cardioModalitiesNormalized: normalizedCardioModalities,
+          limitations,
+          avoidConstraintsGlobal: dto.avoidConstraints,
+          mesoHint: dto.mesoHint,
+          maxSessionsPerBatchChunk: PlansService.GENERATE_SESSIONS_BATCH_SIZE,
+          totalChunkCount: chunks.length,
+          totalSessionsInRequest: dto.sessions.length,
+          priorExerciseHistoryMax: PlansService.PRIOR_EXERCISE_HISTORY_MAX,
+          priorContextMaxUnique: PlansService.PRIOR_CONTEXT_MAX_UNIQUE,
+          goalWantsStrengthCardioFinisher: goalWantsStrengthCardioFinisher(goal),
+        },
+        chunks: pipelineChunks,
+      },
+      meta: {
+        groq: {
+          sessionCount: dto.sessions.length,
+          chunkCount: chunks.length,
+          groqCalls: sumGroqCalls,
+          prompt_tokens: sumPromptTokens,
+          completion_tokens: sumCompletionTokens,
+          total_tokens: sumTotalTokens,
+        },
+      },
+    })
+      .then((capturePath) => {
+        if (capturePath) {
+          this.logger.log(`Generation capture written: ${capturePath}`);
+        }
+      })
+      .catch((err: unknown) => {
+        this.logger.warn(
+          `Generation capture failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+
+    return {
+      sessions: enriched,
+      ...(generationNotesOut ? { generationNotes: generationNotesOut } : {}),
+    };
+  }
+
+  /**
+   * Re-run chunk repair + session enrichment on a full merged program (e.g. after
+   * regenerating one week client-side) without calling Groq.
+   */
+  async repairProgramSessions(dto: RepairProgramSessionsDto): Promise<{
+    sessions: GeneratedSession[];
+    generationNotes?: string[];
+  }> {
+    const goal = dto.goal ?? 'strength';
+    const location = dto.location ?? 'gym';
+    const detailLevel = dto.detailLevel ?? 'detailed';
+    const limitations = dto.avoidConstraints ?? [];
+    const mappedGymEquipment =
+      location === 'gym'
+        ? mapPlanGenerationUiEquipmentToLibrary(dto.equipmentTags)
+        : [];
+    const generatorEquipment: string[] | undefined =
+      location === 'home'
+        ? [...PlansService.HOME_EQUIPMENT]
+        : mappedGymEquipment.length
+          ? mappedGymEquipment
+          : undefined;
+
+    if (dto.generatedSessions.length !== dto.sessions.length) {
+      throw new HttpException(
+        'generatedSessions must be the same length and order as sessions.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const mergeWeekMin = Math.min(...dto.sessions.map((s) => s.weekIndex));
+    const mergeEffectiveDetailLevel: 'simple' | 'detailed' =
+      detailLevel === 'detailed' && mergeWeekMin >= 2 ? 'simple' : detailLevel;
+
+    const rawSessions = dto.generatedSessions as GeneratedSession[];
+    const repaired = repairChunkGeneratedSessions({
+      sessions: rawSessions,
+      specs: dto.sessions,
+      library: this.exercises,
+      equipment: generatorEquipment,
+      effectiveDetailLevel: mergeEffectiveDetailLevel,
+      avoidConstraintsGlobal: limitations,
+    });
+
+    const enrichDto: GenerateSessionsDto = {
+      goal,
+      location,
+      detailLevel,
+      avoidConstraints: dto.avoidConstraints,
+      makeItEasier: dto.makeItEasier,
+      cardioModalities: PlansService.normalizedCardioModalities(
+        dto.cardioModalities,
+      ),
+      equipmentTags: dto.equipmentTags,
+      sessions: dto.sessions,
+    };
+
+    const enriched = await this.applySessionEnrichment(
+      repaired.sessions,
+      enrichDto,
+    );
+
+    const repairNotes = [...new Set(repaired.notes)];
+    return {
+      sessions: enriched,
+      ...(repairNotes.length ? { generationNotes: repairNotes } : {}),
+    };
+  }
+
+  /**
+   * Sync map of library `movementPatterns` by exercise id for chunk validators
+   * (`validateGeneratedProgramChunk` upper-focus vs Squat/Hinge check).
+   */
+  private movementPatternMapForSessions(
+    sessions: GeneratedSession[],
+  ): Map<string, string[]> {
+    const map = new Map<string, string[]>();
+    for (const s of sessions) {
+      for (const e of s.exercises ?? []) {
+        const id = e.exerciseId?.trim();
+        if (!id || map.has(id)) continue;
+        const ex = this.exercises.findOne(id);
+        const mp = ex?.movementPatterns;
+        if (mp?.length) map.set(id, [...mp]);
+      }
+    }
+    return map;
   }
 
   /** Validate / repair session lists: compound ordering, pull balance, warm-up tied to main lift. */
@@ -1119,27 +1742,40 @@ export class PlansService {
     sessions: GeneratedSession[],
     dto: GenerateSessionsDto,
   ): Promise<GeneratedSession[]> {
+    const mappedGym = mapPlanGenerationUiEquipmentToLibrary(dto.equipmentTags);
     const equipment =
-      dto.location === 'home' ? [...PlansService.HOME_EQUIPMENT] : undefined;
-    return Promise.all(
-      sessions.map((s, i) => {
+      dto.location === 'home'
+        ? [...PlansService.HOME_EQUIPMENT]
+        : mappedGym.length
+          ? mappedGym
+          : undefined;
+    return enrichGeneratedSessionsInChunkOrder(sessions, {
+      getSpec: (i) => dto.sessions[i],
+      getAvoidPhrases: (i) => {
         const spec = dto.sessions[i];
-        if (!spec) return Promise.resolve(s);
-        const avoidPhrases = [
+        if (!spec) return [];
+        return [
           ...new Set([
             ...(dto.avoidConstraints ?? []),
             ...(spec.avoidConstraints ?? []),
           ]),
         ].filter((p) => typeof p === 'string' && p.trim().length >= 2);
-        return enrichGeneratedSession(
-          s,
-          spec,
-          this.exercises,
-          equipment,
-          avoidPhrases,
-        );
-      }),
-    );
+      },
+      getGenerationPrefs: (i) => {
+        const spec = dto.sessions[i];
+        if (!spec) return undefined;
+        return {
+          goal: dto.goal,
+          cardioModalities: dto.cardioModalities,
+          durationMinutes: Math.round(
+            (spec.durationMin + spec.durationMax) / 2,
+          ),
+          detailLevel: dto.detailLevel ?? 'detailed',
+        };
+      },
+      exercisesService: this.exercises,
+      equipment,
+    });
   }
 
   async generateSingleSession(dto: GenerateSingleSessionDto) {
@@ -1154,22 +1790,35 @@ export class PlansService {
       (p) => typeof p === 'string' && p.trim().length >= 2,
     );
 
-    const generated = await this.workoutGenerator.generateWorkout({
-      day: dto.weekday,
-      preferences: {
+    this.logger.log(
+      JSON.stringify({
+        event: 'generate_single_session_request',
+        weekday: dto.weekday,
         focus: dto.title ?? dto.type,
-        duration,
-        difficulty,
-        goal,
-        equipment,
-        limitations,
-        programDayFocus: dto.title ?? dto.type,
-        detailLevel: dto.detailLevel ?? 'detailed',
-        excludeExerciseNames: dto.excludeExerciseNames?.length
-          ? dto.excludeExerciseNames
-          : undefined,
+        captureEnabled: generationCaptureEnabled(),
+      }),
+    );
+
+    const singleGroqUsages: GroqCompletionUsage[] = [];
+    const generated = await this.workoutGenerator.generateWorkout(
+      {
+        day: dto.weekday,
+        preferences: {
+          focus: dto.title ?? dto.type,
+          duration,
+          difficulty,
+          goal,
+          equipment,
+          limitations,
+          programDayFocus: dto.title ?? dto.type,
+          detailLevel: dto.detailLevel ?? 'detailed',
+          excludeExerciseNames: dto.excludeExerciseNames?.length
+            ? dto.excludeExerciseNames
+            : undefined,
+        },
       },
-    });
+      singleGroqUsages,
+    );
 
     const filteredExercises = this.filterExercisesByAvoidList(
       generated.exercises.map((e) => ({
@@ -1192,13 +1841,74 @@ export class PlansService {
       coolDown: generated.coolDown,
       exercises: filteredExercises,
     };
-    return enrichGeneratedSession(
+    const enriched = await enrichGeneratedSession(
       session,
       dto,
       this.exercises,
       equipment,
       avoidPhrases,
+      {
+        goal: dto.goal,
+        durationMinutes: Math.round((dto.durationMin + dto.durationMax) / 2),
+        detailLevel: dto.detailLevel ?? 'detailed',
+      },
     );
+
+    const singleGroqFolded = PlansService.foldGroqUsages(singleGroqUsages);
+    void writeGenerationCapture({
+      kind: 'generate_single_session',
+      inputs: dto,
+      outputs: { session: enriched },
+      pipeline: {
+        resolvedContext: {
+          goal,
+          location,
+          detailLevel: dto.detailLevel ?? 'detailed',
+          difficulty,
+          durationMinutes: duration,
+          focus: dto.title ?? dto.type,
+          programDayFocus: dto.title ?? dto.type,
+          equipment,
+          limitations,
+          excludeExerciseNames: dto.excludeExerciseNames,
+          goalWantsStrengthCardioFinisher: goalWantsStrengthCardioFinisher(goal),
+          sessionType: dto.type,
+          weekIndex: dto.weekIndex,
+          weekday: dto.weekday,
+          isHardDay: dto.isHardDay,
+          enrichmentEquipment: equipment,
+        },
+        path: 'single_session_groq',
+        groqCallsRaw: singleGroqUsages.map((u) => ({
+          prompt_tokens: u.prompt_tokens,
+          completion_tokens: u.completion_tokens,
+          total_tokens: u.total_tokens,
+          finish_reason: u.finish_reason ?? null,
+        })),
+      },
+      meta: {
+        groq: {
+          sessionCount: 1,
+          chunkCount: 1,
+          groqCalls: singleGroqFolded.groqCalls,
+          prompt_tokens: singleGroqFolded.prompt_tokens,
+          completion_tokens: singleGroqFolded.completion_tokens,
+          total_tokens: singleGroqFolded.total_tokens,
+        },
+      },
+    })
+      .then((capturePath) => {
+        if (capturePath) {
+          this.logger.log(`Generation capture written: ${capturePath}`);
+        }
+      })
+      .catch((err: unknown) => {
+        this.logger.warn(
+          `Generation capture failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+
+    return enriched;
   }
 
   /** Remove exercises whose name or notes match any avoid phrase (case-insensitive). Phrases shorter than 2 chars are ignored to avoid over-matching. */

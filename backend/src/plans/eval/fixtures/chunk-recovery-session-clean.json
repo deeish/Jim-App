@@ -1,0 +1,45 @@
+{
+  "id": "chunk_recovery_session_clean",
+  "description": "Single recovery day with minimum moves; no duplicates; repair no-op.",
+  "effectiveDetailLevel": "simple",
+  "evalScoring": {
+    "skipBalance": true,
+    "skipCoaching": true,
+    "skipWorkoutOrder": true,
+    "skipVolume": true,
+    "skipDiversity": true,
+    "skipFatigueStacking": true
+  },
+  "specs": [
+    {
+      "type": "recovery",
+      "title": "Mobility",
+      "durationMin": 30,
+      "durationMax": 40,
+      "isHardDay": false,
+      "weekIndex": 1,
+      "weekday": "Sunday"
+    }
+  ],
+  "sessionsBeforeRepair": [
+    {
+      "weekIndex": 1,
+      "weekday": "Sunday",
+      "name": "Mobility",
+      "exercises": [
+        { "name": "Cat Cow", "sets": 2, "reps": 12, "exerciseId": "r_cat" },
+        { "name": "Hip CARs", "sets": 2, "reps": 8, "exerciseId": "r_hip" },
+        { "name": "Thoracic Rotation", "sets": 2, "reps": 10, "exerciseId": "r_tspine" }
+      ]
+    }
+  ],
+  "catalog": [
+    { "id": "r_cat", "name": "Cat Cow", "movementPatterns": ["Pull"], "primaryMuscleGroup": "Core" },
+    { "id": "r_hip", "name": "Hip CARs", "movementPatterns": ["Squat"], "primaryMuscleGroup": "Legs" },
+    { "id": "r_tspine", "name": "Thoracic Rotation", "movementPatterns": ["Pull"], "primaryMuscleGroup": "Back" }
+  ],
+  "expect": {
+    "runRepair": true,
+    "after": { "validatorOk": true }
+  }
+}

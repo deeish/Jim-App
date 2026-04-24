@@ -215,6 +215,27 @@ export class ExercisesService implements OnModuleInit {
    * Returns a list of exercises suitable for workout generation: filtered by focus and equipment,
    * optionally excluding recently used IDs for variety. Sorted by common-first, then compound.
    */
+  /**
+   * Full catalog search order (catalog exclusions only), minus `excludeIds`, capped.
+   * Used by plan chunk repair when focus+equipment candidate pools are empty.
+   */
+  candidatesForChunkRepairScavenge(
+    excludeIds: string[],
+    limit = 220,
+  ): TransformedExercise[] {
+    const ex = new Set(
+      excludeIds.map((id) => String(id ?? '').trim()).filter(Boolean),
+    );
+    const all = this.search({});
+    const out: TransformedExercise[] = [];
+    for (const e of all) {
+      if (ex.has(e.id)) continue;
+      out.push(e);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
   getCandidatesForGenerator(options: {
     focus: string;
     equipment?: string[];
@@ -235,7 +256,43 @@ export class ExercisesService implements OnModuleInit {
       const excludeSet = new Set(excludeIds);
       results = results.filter((e) => !excludeSet.has(e.id));
     }
-    return results.slice(0, limit);
+    return this.dedupeCandidateNames(results).slice(0, limit);
+  }
+
+  /**
+   * Generator pool should not include duplicate exercise names with conflicting IDs/muscle labels.
+   * Keep one canonical row per exact name (case-insensitive), preferring richer/common records.
+   */
+  private dedupeCandidateNames(results: TransformedExercise[]): TransformedExercise[] {
+    const byName = new Map<string, TransformedExercise>();
+    const rank = (e: TransformedExercise): number => {
+      let score = 0;
+      // Common ids are preferred (lower rank means more common).
+      const commonRank = getCommonExerciseRank(e.id);
+      if (Number.isFinite(commonRank)) {
+        score += Math.max(0, 10_000 - commonRank);
+      }
+      // Prefer richer metadata and compounds when names collide.
+      score += (e.subMuscles?.length ?? 0) * 50;
+      score += (e.movementPatterns?.length ?? 0) * 35;
+      score += (e.secondaryMuscleGroups?.length ?? 0) * 20;
+      score += (e.type ?? '').toLowerCase() === 'compound' ? 120 : 0;
+      return score;
+    };
+
+    for (const ex of results) {
+      const key = (ex.name ?? '').trim().toLowerCase();
+      if (!key) continue;
+      const curr = byName.get(key);
+      if (!curr) {
+        byName.set(key, ex);
+        continue;
+      }
+      if (rank(ex) > rank(curr)) {
+        byName.set(key, ex);
+      }
+    }
+    return Array.from(byName.values());
   }
 
   private focusToMuscleGroups(focus: string): string[] {

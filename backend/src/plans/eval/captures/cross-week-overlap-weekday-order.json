@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "kind": "cross_week_eval_fixture",
+  "weeks": [
+    {
+      "weekIndex": 1,
+      "programSummary": "Week A",
+      "sessions": [
+        {
+          "type": "strength",
+          "title": "Upper",
+          "durationMin": 45,
+          "durationMax": 45,
+          "isHardDay": true,
+          "weekIndex": 1,
+          "weekday": "Monday"
+        },
+        {
+          "type": "strength",
+          "title": "Legs",
+          "durationMin": 45,
+          "durationMax": 45,
+          "isHardDay": true,
+          "weekIndex": 1,
+          "weekday": "Wednesday"
+        }
+      ],
+      "sessionsOut": [
+        {
+          "weekIndex": 1,
+          "weekday": "Monday",
+          "name": "Upper",
+          "exercises": [
+            { "name": "A", "sets": 3, "reps": 5, "exerciseId": "id_a" },
+            { "name": "B", "sets": 3, "reps": 5, "exerciseId": "id_b" },
+            { "name": "C", "sets": 3, "reps": 5, "exerciseId": "id_c" },
+            { "name": "D", "sets": 3, "reps": 5, "exerciseId": "id_d" }
+          ]
+        },
+        {
+          "weekIndex": 1,
+          "weekday": "Wednesday",
+          "name": "Legs",
+          "exercises": [
+            { "name": "X", "sets": 3, "reps": 5, "exerciseId": "id_x" }
+          ]
+        }
+      ]
+    },
+    {
+      "weekIndex": 2,
+      "programSummary": "Week B",
+      "sessions": [
+        {
+          "type": "strength",
+          "title": "Legs",
+          "durationMin": 45,
+          "durationMax": 45,
+          "isHardDay": true,
+          "weekIndex": 2,
+          "weekday": "Wednesday"
+        },
+        {
+          "type": "strength",
+          "title": "Upper",
+          "durationMin": 45,
+          "durationMax": 45,
+          "isHardDay": true,
+          "weekIndex": 2,
+          "weekday": "Monday"
+        }
+      ],
+      "sessionsOut": [
+        {
+          "weekIndex": 2,
+          "weekday": "Wednesday",
+          "name": "Legs",
+          "exercises": [
+            { "name": "Y", "sets": 3, "reps": 5, "exerciseId": "id_y" }
+          ]
+        },
+        {
+          "weekIndex": 2,
+          "weekday": "Monday",
+          "name": "Upper",
+          "exercises": [
+            { "name": "A", "sets": 3, "reps": 5, "exerciseId": "id_a" },
+            { "name": "B", "sets": 3, "reps": 5, "exerciseId": "id_b" },
+            { "name": "C", "sets": 3, "reps": 5, "exerciseId": "id_c" },
+            { "name": "D", "sets": 3, "reps": 5, "exerciseId": "id_d" }
+          ]
+        }
+      ]
+    }
+  ]
+}

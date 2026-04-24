@@ -1,0 +1,114 @@
+{
+  "id": "chunk_dup_across_program_weeks",
+  "description": "Same library id on Monday Upper in week 1 and week 2 (merged-program style); repair dedupes across the chunk.",
+  "effectiveDetailLevel": "simple",
+  "evalScoring": {
+    "skipBalance": true,
+    "skipCoaching": true,
+    "skipWorkoutOrder": true,
+    "skipDiversity": true,
+    "skipFatigueStacking": true
+  },
+  "specs": [
+    {
+      "type": "strength",
+      "title": "Upper",
+      "durationMin": 35,
+      "durationMax": 45,
+      "isHardDay": true,
+      "weekIndex": 1,
+      "weekday": "Monday"
+    },
+    {
+      "type": "strength",
+      "title": "Upper",
+      "durationMin": 35,
+      "durationMax": 45,
+      "isHardDay": true,
+      "weekIndex": 2,
+      "weekday": "Monday"
+    }
+  ],
+  "sessionsBeforeRepair": [
+    {
+      "weekIndex": 1,
+      "weekday": "Monday",
+      "name": "Upper",
+      "exercises": [
+        { "name": "Bench", "sets": 3, "reps": 8, "exerciseId": "shared_bench" },
+        { "name": "Row", "sets": 3, "reps": 8, "exerciseId": "w1_row" },
+        { "name": "Press", "sets": 3, "reps": 8, "exerciseId": "w1_press" },
+        { "name": "Curl", "sets": 3, "reps": 10, "exerciseId": "w1_curl" }
+      ]
+    },
+    {
+      "weekIndex": 2,
+      "weekday": "Monday",
+      "name": "Upper",
+      "exercises": [
+        { "name": "Bench", "sets": 3, "reps": 8, "exerciseId": "shared_bench" },
+        { "name": "Row", "sets": 3, "reps": 8, "exerciseId": "w2_row" },
+        { "name": "Press", "sets": 3, "reps": 8, "exerciseId": "w2_press" },
+        { "name": "Curl", "sets": 3, "reps": 10, "exerciseId": "w2_curl" }
+      ]
+    }
+  ],
+  "catalog": [
+    {
+      "id": "shared_bench",
+      "name": "Barbell Bench Press",
+      "movementPatterns": ["Push"],
+      "primaryMuscleGroup": "Chest"
+    },
+    {
+      "id": "alt_bench",
+      "name": "Incline Dumbbell Press",
+      "movementPatterns": ["Push"],
+      "primaryMuscleGroup": "Chest"
+    },
+    {
+      "id": "w1_row",
+      "name": "Lat Pulldown",
+      "movementPatterns": ["Pull"],
+      "primaryMuscleGroup": "Back"
+    },
+    {
+      "id": "w1_press",
+      "name": "DB Shoulder Press",
+      "movementPatterns": ["Push"],
+      "primaryMuscleGroup": "Shoulders"
+    },
+    {
+      "id": "w1_curl",
+      "name": "EZ-Bar Curl",
+      "movementPatterns": ["Pull"],
+      "primaryMuscleGroup": "Arms"
+    },
+    {
+      "id": "w2_row",
+      "name": "Cable Row",
+      "movementPatterns": ["Pull"],
+      "primaryMuscleGroup": "Back"
+    },
+    {
+      "id": "w2_press",
+      "name": "Landmine Press",
+      "movementPatterns": ["Push"],
+      "primaryMuscleGroup": "Shoulders"
+    },
+    {
+      "id": "w2_curl",
+      "name": "Preacher Curl",
+      "movementPatterns": ["Pull"],
+      "primaryMuscleGroup": "Arms"
+    }
+  ],
+  "expect": {
+    "runRepair": true,
+    "after": {
+      "validatorOk": true,
+      "issuesMustNotInclude": ["duplicate_exercise_id_across_chunk"]
+    },
+    "expectRepairNotes": true
+  }
+}

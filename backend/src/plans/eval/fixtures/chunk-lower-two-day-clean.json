@@ -1,0 +1,73 @@
+{
+  "id": "chunk_lower_two_day_clean",
+  "description": "Two lower days in one chunk, distinct ids, Squat+Hinge on each; validator-clean without special repair.",
+  "effectiveDetailLevel": "simple",
+  "evalScoring": {
+    "skipBalance": true,
+    "skipCoaching": true,
+    "skipWorkoutOrder": true,
+    "skipFatigueStacking": true
+  },
+  "specs": [
+    {
+      "type": "strength",
+      "title": "Lower",
+      "durationMin": 40,
+      "durationMax": 50,
+      "isHardDay": true,
+      "weekIndex": 1,
+      "weekday": "Tuesday"
+    },
+    {
+      "type": "strength",
+      "title": "Lower 2",
+      "durationMin": 40,
+      "durationMax": 50,
+      "isHardDay": false,
+      "weekIndex": 1,
+      "weekday": "Friday"
+    }
+  ],
+  "sessionsBeforeRepair": [
+    {
+      "weekIndex": 1,
+      "weekday": "Tuesday",
+      "name": "Lower",
+      "exercises": [
+        { "name": "Squat", "sets": 4, "reps": 6, "exerciseId": "lo1_sq" },
+        { "name": "RDL", "sets": 3, "reps": 8, "exerciseId": "lo1_hg" },
+        { "name": "Lunge", "sets": 3, "reps": 10, "exerciseId": "lo1_lg" },
+        { "name": "Leg ext", "sets": 3, "reps": 12, "exerciseId": "lo1_qd" },
+        { "name": "Floor press", "sets": 3, "reps": 10, "exerciseId": "lo1_push" }
+      ]
+    },
+    {
+      "weekIndex": 1,
+      "weekday": "Friday",
+      "name": "Lower 2",
+      "exercises": [
+        { "name": "Front squat", "sets": 4, "reps": 5, "exerciseId": "lo2_sq" },
+        { "name": "Deadlift", "sets": 3, "reps": 6, "exerciseId": "lo2_dl" },
+        { "name": "Split squat", "sets": 3, "reps": 10, "exerciseId": "lo2_ss" },
+        { "name": "Nordic", "sets": 3, "reps": 8, "exerciseId": "lo2_hm" },
+        { "name": "Landmine press", "sets": 3, "reps": 10, "exerciseId": "lo2_push" }
+      ]
+    }
+  ],
+  "catalog": [
+    { "id": "lo1_sq", "name": "Back Squat", "movementPatterns": ["Squat"], "primaryMuscleGroup": "Legs" },
+    { "id": "lo1_hg", "name": "Romanian Deadlift", "movementPatterns": ["Hinge"], "primaryMuscleGroup": "Hamstrings" },
+    { "id": "lo1_lg", "name": "Walking Lunge", "movementPatterns": ["Lunge"], "primaryMuscleGroup": "Legs" },
+    { "id": "lo1_qd", "name": "Leg Extension", "movementPatterns": ["Squat"], "primaryMuscleGroup": "Legs" },
+    { "id": "lo1_push", "name": "DB Floor Press", "movementPatterns": ["Push"], "primaryMuscleGroup": "Chest" },
+    { "id": "lo2_sq", "name": "Front Squat", "movementPatterns": ["Squat"], "primaryMuscleGroup": "Legs" },
+    { "id": "lo2_dl", "name": "Conventional Deadlift", "movementPatterns": ["Hinge"], "primaryMuscleGroup": "Legs" },
+    { "id": "lo2_ss", "name": "Bulgarian Split Squat", "movementPatterns": ["Lunge"], "primaryMuscleGroup": "Legs" },
+    { "id": "lo2_hm", "name": "Hamstring Curl", "movementPatterns": ["Hinge"], "primaryMuscleGroup": "Hamstrings" },
+    { "id": "lo2_push", "name": "Landmine Press", "movementPatterns": ["Push"], "primaryMuscleGroup": "Shoulders" }
+  ],
+  "expect": {
+    "runRepair": true,
+    "after": { "validatorOk": true }
+  }
+}

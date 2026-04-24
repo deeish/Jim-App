@@ -1,0 +1,906 @@
+{
+  "schemaVersion": 1,
+  "kind": "generate_sessions",
+  "capturedAt": "2026-04-20T22:02:59.925Z",
+  "inputs": {
+    "goal": "hybrid",
+    "location": "gym",
+    "detailLevel": "simple",
+    "makeItEasier": false,
+    "sessions": [
+      {
+        "type": "strength",
+        "title": "Upper",
+        "durationMin": 30,
+        "durationMax": 60,
+        "isHardDay": true,
+        "weekIndex": 1,
+        "weekday": "Monday"
+      },
+      {
+        "type": "strength",
+        "title": "Lower",
+        "durationMin": 30,
+        "durationMax": 60,
+        "isHardDay": true,
+        "weekIndex": 1,
+        "weekday": "Tuesday"
+      },
+      {
+        "type": "strength",
+        "title": "Upper 2",
+        "durationMin": 30,
+        "durationMax": 60,
+        "isHardDay": false,
+        "weekIndex": 1,
+        "weekday": "Thursday"
+      },
+      {
+        "type": "strength",
+        "title": "Lower 2",
+        "durationMin": 30,
+        "durationMax": 60,
+        "isHardDay": false,
+        "weekIndex": 1,
+        "weekday": "Friday"
+      }
+    ],
+    "cardioModalities": [
+      "run"
+    ],
+    "experienceLevel": "intermediate",
+    "equipmentTags": [
+      "barbell",
+      "dumbbells",
+      "machines",
+      "cable",
+      "kettlebells",
+      "pull-up bar",
+      "bands",
+      "cardio machines"
+    ],
+    "mesoHint": "Progressive overload when recovery allows; small weekly bumps to load or reps are enough—no need to reinvent the wheel each session. This preview is one week—programSummary should stay grounded in thi"
+  },
+  "outputs": {
+    "sessions": [
+      {
+        "weekIndex": 1,
+        "weekday": "Monday",
+        "name": "Upper",
+        "reasoning": "Upper day: starts with horizontal push, then horizontal pull, followed by vertical push and accessory work; fits the weekly split by targeting upper body muscles with a balance of push and pull patterns.",
+        "warmUp": "After a general warm-up, take 2–3 light ramp sets toward working weight on Flat Barbell Bench Press. 5-10 minutes of light cardio, dynamic stretching for the chest, back, and shoulders.",
+        "coolDown": "Static stretches for the chest, back, and shoulders, 2-3 minutes of walking.",
+        "exercises": [
+          {
+            "name": "Flat Barbell Bench Press",
+            "sets": 4,
+            "reps": 8,
+            "exerciseId": "flat_barbell_bench_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Chest",
+            "secondaryMuscleGroups": [
+              "Shoulders",
+              "Arms"
+            ]
+          },
+          {
+            "name": "Barbell Bent-Over Row",
+            "sets": 4,
+            "reps": 8,
+            "exerciseId": "barbell_bent_over_row",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Back",
+            "secondaryMuscleGroups": [
+              "Arms",
+              "Core",
+              "Legs"
+            ]
+          },
+          {
+            "name": "Barbell Overhead Press",
+            "sets": 4,
+            "reps": 10,
+            "exerciseId": "barbell_overhead_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Shoulders",
+            "secondaryMuscleGroups": [
+              "Arms",
+              "Core"
+            ]
+          },
+          {
+            "name": "Wide-Grip Lat Pulldown",
+            "sets": 4,
+            "reps": 12,
+            "exerciseId": "lat_pulldown_wide",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Back",
+            "secondaryMuscleGroups": [
+              "Arms",
+              "Shoulders"
+            ]
+          },
+          {
+            "name": "Close-Grip Barbell Floor Press",
+            "sets": 4,
+            "reps": 10,
+            "exerciseId": "close_grip_barbell_floor_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Arms",
+            "secondaryMuscleGroups": [
+              "Shoulders",
+              "Chest"
+            ]
+          },
+          {
+            "name": "Rope Cable Pushdown",
+            "sets": 4,
+            "reps": 12,
+            "exerciseId": "rope_cable_pushdown",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Arms",
+            "secondaryMuscleGroups": [
+              "Shoulders"
+            ]
+          },
+          {
+            "name": "Treadmill Jog (Steady State)",
+            "sets": 1,
+            "reps": 12,
+            "exerciseId": "treadmill_jog_steady",
+            "prescriptionType": "time",
+            "primaryMuscleGroup": "Cardio",
+            "notes": "Easy steady-state finisher for hybrid goal (~8–12 min submax effort)."
+          }
+        ]
+      },
+      {
+        "weekIndex": 1,
+        "weekday": "Tuesday",
+        "name": "Lower",
+        "reasoning": "Lower day: focus on squat and deadlift patterns, followed by accessory volume; fits your weekly hybrid split with a mix of strength and conditioning. Note: Added a hip hinge lift from the library for lower-day pattern balance.",
+        "warmUp": "After a general warm-up, take 2–3 light ramp sets toward working weight on Overhead March. 5 min light cardio, dynamic leg swings, and hip circles.",
+        "coolDown": "Stretch hamstrings, quads, and calves, 2 min walk.",
+        "exercises": [
+          {
+            "name": "Seated Leg Extension",
+            "sets": 4,
+            "reps": 12,
+            "weight": 50,
+            "exerciseId": "seated_leg_extension",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs"
+          },
+          {
+            "name": "Standing Calf Raise Machine",
+            "sets": 4,
+            "reps": 12,
+            "weight": 40,
+            "exerciseId": "standing_calf_raise_machine",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs",
+            "secondaryMuscleGroups": [
+              "Core"
+            ]
+          },
+          {
+            "name": "Conventional Deadlift",
+            "exerciseId": "conventional_deadlift",
+            "sets": 3,
+            "reps": 6,
+            "notes": "Added for hip hinge coverage on lower day",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs",
+            "secondaryMuscleGroups": [
+              "Core",
+              "Back"
+            ]
+          },
+          {
+            "name": "Overhead March",
+            "sets": 4,
+            "reps": 8,
+            "weight": 100,
+            "exerciseId": "overhead_march",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Core",
+            "secondaryMuscleGroups": [
+              "Legs",
+              "Back",
+              "Shoulders"
+            ]
+          },
+          {
+            "name": "Rotational Sit-Up",
+            "sets": 4,
+            "reps": 10,
+            "weight": 90,
+            "exerciseId": "rotational_sit_up",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Core",
+            "secondaryMuscleGroups": [
+              "Legs",
+              "Back"
+            ]
+          },
+          {
+            "name": "Landmine Rotation",
+            "sets": 4,
+            "reps": 10,
+            "weight": 70,
+            "exerciseId": "landmine_rotation",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Core",
+            "secondaryMuscleGroups": [
+              "Back"
+            ]
+          },
+          {
+            "name": "45-Degree Leg Press",
+            "sets": 4,
+            "reps": 12,
+            "weight": 0,
+            "exerciseId": "forty_five_degree_leg_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs"
+          },
+          {
+            "name": "Stationary Bike (Steady / Zone 2)",
+            "sets": 1,
+            "reps": 15,
+            "exerciseId": "stationary_bike_steady",
+            "prescriptionType": "time",
+            "primaryMuscleGroup": "Cardio",
+            "notes": "Low-impact conditioning finisher for hybrid lower day."
+          }
+        ]
+      },
+      {
+        "weekIndex": 1,
+        "weekday": "Thursday",
+        "name": "Upper 2",
+        "reasoning": "Upper day: focusing on horizontal push with landmine_press, followed by horizontal pull with landmine_row_bilateral, and vertical push with seated_barbell_overhead_press; fits your weekly split with a mix of strength and hypertrophy.",
+        "warmUp": "After a general warm-up, take 2–3 light ramp sets toward working weight on Bilateral Landmine Row. 5 min light cardio, dynamic stretching for shoulders and chest, and band pull-aparts.",
+        "coolDown": "Stretch chest and shoulders, and 2 min walk.",
+        "exercises": [
+          {
+            "name": "Bilateral Landmine Row",
+            "sets": 3,
+            "reps": 10,
+            "weight": 60,
+            "exerciseId": "landmine_row_bilateral",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Back",
+            "secondaryMuscleGroups": [
+              "Arms",
+              "Core"
+            ]
+          },
+          {
+            "name": "Seated Barbell Overhead Press",
+            "sets": 3,
+            "reps": 8,
+            "weight": 50,
+            "exerciseId": "seated_barbell_overhead_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Shoulders",
+            "secondaryMuscleGroups": [
+              "Arms",
+              "Core"
+            ]
+          },
+          {
+            "name": "Flat Dumbbell Bench Press",
+            "sets": 3,
+            "reps": 12,
+            "weight": 0,
+            "exerciseId": "flat_dumbbell_bench_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Chest",
+            "secondaryMuscleGroups": [
+              "Shoulders",
+              "Arms"
+            ]
+          },
+          {
+            "name": "Landmine Press",
+            "sets": 3,
+            "reps": 8,
+            "weight": 70,
+            "exerciseId": "landmine_press",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Chest",
+            "secondaryMuscleGroups": [
+              "Shoulders",
+              "Arms",
+              "Core"
+            ]
+          },
+          {
+            "name": "Standing Barbell Curl",
+            "sets": 3,
+            "reps": 10,
+            "weight": 30,
+            "exerciseId": "standing_barbell_curl",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Arms",
+            "secondaryMuscleGroups": [
+              "Shoulders"
+            ]
+          },
+          {
+            "name": "Straight-Bar Cable Pushdown",
+            "sets": 3,
+            "reps": 12,
+            "weight": 40,
+            "exerciseId": "straight_bar_cable_pushdown",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Arms",
+            "secondaryMuscleGroups": [
+              "Shoulders"
+            ]
+          },
+          {
+            "name": "Rowing Machine (Steady State)",
+            "sets": 1,
+            "reps": 12,
+            "exerciseId": "rowing_machine_steady",
+            "prescriptionType": "time",
+            "primaryMuscleGroup": "Cardio",
+            "notes": "Short steady erg finisher; aligns hybrid upper day with conditioning."
+          }
+        ]
+      },
+      {
+        "weekIndex": 1,
+        "weekday": "Friday",
+        "name": "Lower 2",
+        "reasoning": "Lower 2 day: focus on compound exercises like back squat and barbell sumo deadlift, followed by accessory work; fits your weekly split by targeting lower body strength and hypertrophy.",
+        "warmUp": "After a general warm-up, take 2–3 light ramp sets toward working weight on Landmine 180. 5 min light cardio, dynamic leg swings, and calf raises to prepare for lower body work.",
+        "coolDown": "Stretch hamstrings, quads, and glutes, and walk for 2 minutes to cool down.",
+        "exercises": [
+          {
+            "name": "Back Squat",
+            "sets": 3,
+            "reps": 8,
+            "weight": 100,
+            "exerciseId": "back_squat",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs",
+            "secondaryMuscleGroups": [
+              "Core",
+              "Back"
+            ]
+          },
+          {
+            "name": "Barbell Sumo Deadlift",
+            "sets": 3,
+            "reps": 8,
+            "weight": 100,
+            "exerciseId": "barbell_sumo_deadlift",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs",
+            "secondaryMuscleGroups": [
+              "Core",
+              "Back"
+            ]
+          },
+          {
+            "name": "Barbell Glute Bridge",
+            "sets": 3,
+            "reps": 12,
+            "exerciseId": "barbell_glute_bridge",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs",
+            "secondaryMuscleGroups": [
+              "Core"
+            ]
+          },
+          {
+            "name": "Landmine 180",
+            "sets": 3,
+            "reps": 12,
+            "exerciseId": "landmine_180",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Core",
+            "secondaryMuscleGroups": [
+              "Back",
+              "Legs"
+            ]
+          },
+          {
+            "name": "Lying Leg Curl",
+            "sets": 3,
+            "reps": 12,
+            "exerciseId": "lying_leg_curl",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs",
+            "secondaryMuscleGroups": [
+              "Core"
+            ]
+          },
+          {
+            "name": "Barbell Lateral Lunge",
+            "sets": 3,
+            "reps": 10,
+            "exerciseId": "barbell_lateral_lunge",
+            "prescriptionType": "reps",
+            "primaryMuscleGroup": "Legs",
+            "secondaryMuscleGroups": [
+              "Core"
+            ]
+          },
+          {
+            "name": "Treadmill Walk (Easy / Zone 2)",
+            "sets": 1,
+            "reps": 12,
+            "exerciseId": "treadmill_walk_easy",
+            "prescriptionType": "time",
+            "primaryMuscleGroup": "Cardio",
+            "notes": "Easy walk finisher after lower work for hybrid week."
+          }
+        ]
+      }
+    ],
+    "sessionsPreEnrichment": [
+      {
+        "weekIndex": 1,
+        "weekday": "Monday",
+        "name": "Upper",
+        "reasoning": "Upper day: starts with horizontal push, then horizontal pull, followed by vertical push and accessory work; fits the weekly split by targeting upper body muscles with a balance of push and pull patterns.",
+        "warmUp": "5-10 minutes of light cardio, dynamic stretching for the chest, back, and shoulders.",
+        "coolDown": "Static stretches for the chest, back, and shoulders, 2-3 minutes of walking.",
+        "exercises": [
+          {
+            "name": "Flat Barbell Bench Press",
+            "sets": 4,
+            "reps": 8,
+            "exerciseId": "flat_barbell_bench_press"
+          },
+          {
+            "name": "Barbell Bent-Over Row",
+            "sets": 4,
+            "reps": 8,
+            "exerciseId": "barbell_bent_over_row"
+          },
+          {
+            "name": "Barbell Overhead Press",
+            "sets": 4,
+            "reps": 10,
+            "exerciseId": "barbell_overhead_press"
+          },
+          {
+            "name": "Wide-Grip Lat Pulldown",
+            "sets": 4,
+            "reps": 12,
+            "exerciseId": "lat_pulldown_wide"
+          },
+          {
+            "name": "Rope Cable Pushdown",
+            "sets": 4,
+            "reps": 12,
+            "exerciseId": "rope_cable_pushdown"
+          },
+          {
+            "name": "Close-Grip Barbell Floor Press",
+            "sets": 4,
+            "reps": 10,
+            "exerciseId": "close_grip_barbell_floor_press"
+          },
+          {
+            "name": "Treadmill Jog (Steady State)",
+            "sets": 1,
+            "reps": 12,
+            "exerciseId": "treadmill_jog_steady",
+            "prescriptionType": "time",
+            "primaryMuscleGroup": "Cardio",
+            "notes": "Easy steady-state finisher for hybrid goal (~8–12 min submax effort)."
+          }
+        ]
+      },
+      {
+        "weekIndex": 1,
+        "weekday": "Tuesday",
+        "name": "Lower",
+        "reasoning": "Lower day: focus on squat and deadlift patterns, followed by accessory volume; fits your weekly hybrid split with a mix of strength and conditioning.",
+        "warmUp": "5 min light cardio, dynamic leg swings, and hip circles.",
+        "coolDown": "Stretch hamstrings, quads, and calves, 2 min walk.",
+        "exercises": [
+          {
+            "name": "Seated Leg Extension",
+            "sets": 4,
+            "reps": 12,
+            "weight": 50,
+            "exerciseId": "seated_leg_extension"
+          },
+          {
+            "name": "Standing Calf Raise Machine",
+            "sets": 4,
+            "reps": 12,
+            "weight": 40,
+            "exerciseId": "standing_calf_raise_machine"
+          },
+          {
+            "name": "Overhead March",
+            "sets": 4,
+            "reps": 8,
+            "weight": 100,
+            "exerciseId": "overhead_march"
+          },
+          {
+            "name": "Rotational Sit-Up",
+            "sets": 4,
+            "reps": 10,
+            "weight": 90,
+            "exerciseId": "rotational_sit_up"
+          },
+          {
+            "name": "Landmine Rotation",
+            "sets": 4,
+            "reps": 10,
+            "weight": 70,
+            "exerciseId": "landmine_rotation"
+          },
+          {
+            "name": "45-Degree Leg Press",
+            "sets": 4,
+            "reps": 12,
+            "weight": 0,
+            "exerciseId": "forty_five_degree_leg_press"
+          },
+          {
+            "name": "Stationary Bike (Steady / Zone 2)",
+            "sets": 1,
+            "reps": 15,
+            "exerciseId": "stationary_bike_steady",
+            "prescriptionType": "time",
+            "primaryMuscleGroup": "Cardio",
+            "notes": "Low-impact conditioning finisher for hybrid lower day."
+          }
+        ]
+      },
+      {
+        "weekIndex": 1,
+        "weekday": "Thursday",
+        "name": "Upper 2",
+        "reasoning": "Upper day: focusing on horizontal push with landmine_press, followed by horizontal pull with landmine_row_bilateral, and vertical push with seated_barbell_overhead_press; fits your weekly split with a mix of strength and hypertrophy.",
+        "warmUp": "5 min light cardio, dynamic stretching for shoulders and chest, and band pull-aparts.",
+        "coolDown": "Stretch chest and shoulders, and 2 min walk.",
+        "exercises": [
+          {
+            "name": "Bilateral Landmine Row",
+            "sets": 3,
+            "reps": 10,
+            "weight": 60,
+            "exerciseId": "landmine_row_bilateral"
+          },
+          {
+            "name": "Seated Barbell Overhead Press",
+            "sets": 3,
+            "reps": 8,
+            "weight": 50,
+            "exerciseId": "seated_barbell_overhead_press"
+          },
+          {
+            "name": "Flat Dumbbell Bench Press",
+            "sets": 3,
+            "reps": 12,
+            "weight": 0,
+            "exerciseId": "flat_dumbbell_bench_press"
+          },
+          {
+            "name": "Standing Barbell Curl",
+            "sets": 3,
+            "reps": 10,
+            "weight": 30,
+            "exerciseId": "standing_barbell_curl"
+          },
+          {
+            "name": "Landmine Press",
+            "sets": 3,
+            "reps": 8,
+            "weight": 70,
+            "exerciseId": "landmine_press"
+          },
+          {
+            "name": "Straight-Bar Cable Pushdown",
+            "sets": 3,
+            "reps": 12,
+            "weight": 40,
+            "exerciseId": "straight_bar_cable_pushdown"
+          },
+          {
+            "name": "Rowing Machine (Steady State)",
+            "sets": 1,
+            "reps": 12,
+            "exerciseId": "rowing_machine_steady",
+            "prescriptionType": "time",
+            "primaryMuscleGroup": "Cardio",
+            "notes": "Short steady erg finisher; aligns hybrid upper day with conditioning."
+          }
+        ]
+      },
+      {
+        "weekIndex": 1,
+        "weekday": "Friday",
+        "name": "Lower 2",
+        "reasoning": "Lower 2 day: focus on compound exercises like back squat and barbell sumo deadlift, followed by accessory work; fits your weekly split by targeting lower body strength and hypertrophy.",
+        "warmUp": "5 min light cardio, dynamic leg swings, and calf raises to prepare for lower body work.",
+        "coolDown": "Stretch hamstrings, quads, and glutes, and walk for 2 minutes to cool down.",
+        "exercises": [
+          {
+            "name": "Back Squat",
+            "sets": 3,
+            "reps": 8,
+            "weight": 100,
+            "exerciseId": "back_squat"
+          },
+          {
+            "name": "Barbell Sumo Deadlift",
+            "sets": 3,
+            "reps": 8,
+            "weight": 100,
+            "exerciseId": "barbell_sumo_deadlift"
+          },
+          {
+            "name": "Barbell Lateral Lunge",
+            "sets": 3,
+            "reps": 10,
+            "exerciseId": "barbell_lateral_lunge"
+          },
+          {
+            "name": "Barbell Glute Bridge",
+            "sets": 3,
+            "reps": 12,
+            "exerciseId": "barbell_glute_bridge"
+          },
+          {
+            "name": "Landmine 180",
+            "sets": 3,
+            "reps": 12,
+            "exerciseId": "landmine_180"
+          },
+          {
+            "name": "Lying Leg Curl",
+            "sets": 3,
+            "reps": 12,
+            "exerciseId": "lying_leg_curl"
+          },
+          {
+            "name": "Treadmill Walk (Easy / Zone 2)",
+            "sets": 1,
+            "reps": 12,
+            "exerciseId": "treadmill_walk_easy",
+            "prescriptionType": "time",
+            "primaryMuscleGroup": "Cardio",
+            "notes": "Easy walk finisher after lower work for hybrid week."
+          }
+        ]
+      }
+    ]
+  },
+  "pipeline": {
+    "resolvedContext": {
+      "goal": "hybrid",
+      "location": "gym",
+      "detailLevelRequested": "simple",
+      "makeItEasier": false,
+      "experienceLevel": "intermediate",
+      "equipmentTags": [
+        "barbell",
+        "dumbbells",
+        "machines",
+        "cable",
+        "kettlebells",
+        "pull-up bar",
+        "bands",
+        "cardio machines"
+      ],
+      "mappedGymEquipment": [
+        "Barbell",
+        "Dumbbell",
+        "Machine",
+        "Cable",
+        "Kettlebell",
+        "Pull-up Bar",
+        "Resistance Band"
+      ],
+      "generatorEquipment": [
+        "Barbell",
+        "Dumbbell",
+        "Machine",
+        "Cable",
+        "Kettlebell",
+        "Pull-up Bar",
+        "Resistance Band"
+      ],
+      "enrichmentEquipment": [
+        "Barbell",
+        "Dumbbell",
+        "Machine",
+        "Cable",
+        "Kettlebell",
+        "Pull-up Bar",
+        "Resistance Band"
+      ],
+      "cardioModalitiesRaw": [
+        "run"
+      ],
+      "cardioModalitiesNormalized": [
+        "run"
+      ],
+      "limitations": [],
+      "mesoHint": "Progressive overload when recovery allows; small weekly bumps to load or reps are enough—no need to reinvent the wheel each session. This preview is one week—programSummary should stay grounded in thi",
+      "maxSessionsPerBatchChunk": 7,
+      "totalChunkCount": 1,
+      "totalSessionsInRequest": 4,
+      "priorExerciseHistoryMax": 500,
+      "priorContextMaxUnique": 120,
+      "goalWantsStrengthCardioFinisher": true
+    },
+    "chunks": [
+      {
+        "weekMin": 1,
+        "sessionWeekIndices": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "effectiveDetailLevel": "simple",
+        "cappedPriorExerciseIds": [],
+        "groq": {
+          "groqCalls": 6,
+          "prompt_tokens": 21379,
+          "completion_tokens": 3449,
+          "total_tokens": 24828
+        },
+        "sessionSpecsSummary": [
+          {
+            "weekIndex": 1,
+            "weekday": "Monday",
+            "title": "Upper",
+            "type": "strength",
+            "durationMin": 30,
+            "durationMax": 60,
+            "isHardDay": true
+          },
+          {
+            "weekIndex": 1,
+            "weekday": "Tuesday",
+            "title": "Lower",
+            "type": "strength",
+            "durationMin": 30,
+            "durationMax": 60,
+            "isHardDay": true
+          },
+          {
+            "weekIndex": 1,
+            "weekday": "Thursday",
+            "title": "Upper 2",
+            "type": "strength",
+            "durationMin": 30,
+            "durationMax": 60,
+            "isHardDay": false
+          },
+          {
+            "weekIndex": 1,
+            "weekday": "Friday",
+            "title": "Lower 2",
+            "type": "strength",
+            "durationMin": 30,
+            "durationMax": 60,
+            "isHardDay": false
+          }
+        ],
+        "groqCallsRaw": [
+          {
+            "prompt_tokens": 2325,
+            "completion_tokens": 999,
+            "total_tokens": 3324,
+            "finish_reason": "stop"
+          },
+          {
+            "prompt_tokens": 2477,
+            "completion_tokens": 1160,
+            "total_tokens": 3637,
+            "finish_reason": "stop"
+          },
+          {
+            "prompt_tokens": 4010,
+            "completion_tokens": 305,
+            "total_tokens": 4315,
+            "finish_reason": "stop"
+          },
+          {
+            "prompt_tokens": 4182,
+            "completion_tokens": 323,
+            "total_tokens": 4505,
+            "finish_reason": "stop"
+          },
+          {
+            "prompt_tokens": 4102,
+            "completion_tokens": 345,
+            "total_tokens": 4447,
+            "finish_reason": "stop"
+          },
+          {
+            "prompt_tokens": 4283,
+            "completion_tokens": 317,
+            "total_tokens": 4600,
+            "finish_reason": "stop"
+          }
+        ],
+        "path": "per_session",
+        "validatorFirstPass": {
+          "ok": false,
+          "issues": [
+            "duplicate_exercise_id_across_chunk"
+          ],
+          "duplicateExerciseIds": [
+            "seated_barbell_overhead_press"
+          ],
+          "patternClashExerciseIds": []
+        },
+        "validatorSecondPass": {
+          "ok": false,
+          "issues": [
+            "primary_lower_pattern_on_upper_focus"
+          ],
+          "duplicateExerciseIds": [],
+          "patternClashExerciseIds": [
+            "trap_bar_deadlift"
+          ]
+        },
+        "validatorIssuesFromRetry": [
+          "primary_lower_pattern_on_upper_focus"
+        ],
+        "batchRetryPriorExerciseIdsTail": [
+          "flat_barbell_bench_press",
+          "barbell_bent_over_row",
+          "flat_dumbbell_fly",
+          "ski_erg_steady",
+          "back_squat",
+          "conventional_deadlift",
+          "barbell_curtsy_lunge",
+          "standing_calf_raise_machine",
+          "treadmill_run_intervals",
+          "incline_barbell_bench_press",
+          "pull_up_pronated",
+          "chest_dip",
+          "stationary_bike_steady",
+          "front_squat",
+          "sumo_deadlift",
+          "barbell_bulgarian_split_squat",
+          "seated_leg_extension",
+          "treadmill_jog_steady",
+          "seated_barbell_overhead_press"
+        ],
+        "preBatchAttempted": true,
+        "perSessionAfterBatchFallback": true,
+        "chunkIndex": 0,
+        "globalSessionIndices": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "priorContextExerciseIdsInput": []
+      }
+    ]
+  },
+  "meta": {
+    "groq": {
+      "sessionCount": 4,
+      "chunkCount": 1,
+      "groqCalls": 6,
+      "prompt_tokens": 21379,
+      "completion_tokens": 3449,
+      "total_tokens": 24828
+    },
+    "run": {
+      "nodeEnv": "development",
+      "serviceVersion": "1.0.0"
+    }
+  }
+}

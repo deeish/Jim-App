@@ -119,6 +119,13 @@ export interface GenerateSessionsRequest {
   detailLevel?: 'simple' | 'detailed';
   avoidConstraints?: string[];
   makeItEasier?: boolean;
+  /** Ordered modality hints: run, bike, swim, row, elliptical */
+  cardioModalities?: string[];
+  experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
+  /** Gym checklist ids (e.g. barbell, dumbbells); server maps to library equipment */
+  equipmentTags?: string[];
+  /** Short periodization hint for batch Groq (max 200 chars) */
+  mesoHint?: string;
   sessions: Array<{
     type: 'strength' | 'cardio' | 'recovery';
     title?: string;
@@ -149,11 +156,23 @@ export interface GenerateSessionResult {
     notes?: string;
     exerciseId?: string;
     prescriptionType?: ExercisePrescriptionType;
+    /** From exercise library when exerciseId resolves. */
+    primaryMuscleGroup?: string;
+    secondaryMuscleGroups?: string[];
+    /** Older API responses — coalesced into {@link secondaryMuscleGroups} client-side. */
+    secondaryMuscleGroup?: string;
   }>;
 }
 
+/** Production: keep UX predictable. Dev (`__DEV__`): longer previews + QA (capture does not block the server). */
+const GENERATE_SESSIONS_TIMEOUT_MS_PROD = 90_000;
+const GENERATE_SESSIONS_TIMEOUT_MS_DEV = 180_000;
+
 /** Client wait for POST /plans/generate-sessions (multi-week + Groq can exceed default axios limits). */
-export const GENERATE_SESSIONS_TIMEOUT_MS = 90_000;
+export const GENERATE_SESSIONS_TIMEOUT_MS =
+  typeof __DEV__ !== 'undefined' && __DEV__
+    ? GENERATE_SESSIONS_TIMEOUT_MS_DEV
+    : GENERATE_SESSIONS_TIMEOUT_MS_PROD;
 
 /** Stable copy for UI equality checks when the request hits {@link GENERATE_SESSIONS_TIMEOUT_MS}. */
 export const GENERATE_SESSIONS_TIMEOUT_MESSAGE = `Generation took too long (waited ${Math.round(GENERATE_SESSIONS_TIMEOUT_MS / 1000)}s). Check your connection and try again. A one-week preview is usually faster.`;
@@ -170,8 +189,30 @@ export function isGenerateSessionsTimeoutError(error: unknown): boolean {
   return false;
 }
 
-export async function generateSessions(body: GenerateSessionsRequest): Promise<{ sessions: GenerateSessionResult[] }> {
-  const response = await api.post<{ sessions: GenerateSessionResult[] }>('/plans/generate-sessions', body, {
+/** Same fields as {@link GenerateSessionsRequest} plus merged session rows to repair (no LLM). */
+export type RepairProgramSessionsRequest = GenerateSessionsRequest & {
+  generatedSessions: GenerateSessionResult[];
+};
+
+export async function repairProgramSessions(
+  body: RepairProgramSessionsRequest
+): Promise<{ sessions: GenerateSessionResult[]; generationNotes?: string[] }> {
+  const response = await api.post<{
+    sessions: GenerateSessionResult[];
+    generationNotes?: string[];
+  }>('/plans/repair-program-sessions', body, {
+    timeout: Math.min(GENERATE_SESSIONS_TIMEOUT_MS, 60_000),
+  });
+  return response.data;
+}
+
+export async function generateSessions(
+  body: GenerateSessionsRequest
+): Promise<{ sessions: GenerateSessionResult[]; generationNotes?: string[] }> {
+  const response = await api.post<{
+    sessions: GenerateSessionResult[];
+    generationNotes?: string[];
+  }>('/plans/generate-sessions', body, {
     timeout: GENERATE_SESSIONS_TIMEOUT_MS,
   });
   return response.data;
@@ -196,8 +237,10 @@ export interface GenerateSingleSessionRequest {
 export async function generateSingleSession(
   body: GenerateSingleSessionRequest
 ): Promise<GenerateSessionResult> {
+  const singleTimeout =
+    typeof __DEV__ !== 'undefined' && __DEV__ ? 120_000 : 60_000;
   const response = await api.post<GenerateSessionResult>('/plans/generate-single-session', body, {
-    timeout: 60000,
+    timeout: singleTimeout,
   });
   return response.data;
 }

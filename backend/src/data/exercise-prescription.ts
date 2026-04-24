@@ -16,9 +16,13 @@ const TIME_MOVEMENT_PATTERN_IDS = new Set([
   'plank_hold',
 ]);
 
+const CARRY_OR_LOADED_WALK =
+  /\b(carry|carries|farmer|pinch|suitcase|yoke|prowler|sled|loaded\s+carry)\b/i;
+
 function nameImpliesTime(name: string): boolean {
   const n = (name ?? '').trim();
   if (!n) return false;
+  if (CARRY_OR_LOADED_WALK.test(n)) return true;
   if (/\bside\s+plank\b/i.test(n) && /\brow\b/i.test(n)) return false;
   if (TIME_NAME.test(n)) {
     if (/\bplank\b/i.test(n) && /\b(row|rotation|reach|drag|dumbbell)\b/i.test(n)) {

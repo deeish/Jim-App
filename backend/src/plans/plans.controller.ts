@@ -15,6 +15,7 @@ import { RemoveSlotDto } from './dto/remove-slot.dto';
 import { PlanSlotDto } from './dto/create-plan.dto';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
+import { RepairProgramSessionsDto } from './dto/repair-program-sessions.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 import { AiThrottlerGuard } from '../common/ai-throttler.guard';
@@ -42,6 +43,16 @@ export class PlansController {
   @HttpCode(HttpStatus.OK)
   addSlotToCurrent(@Body() dto: PlanSlotDto, @UserId() userId: string) {
     return this.plansService.addSlotToCurrentPlan(userId, dto);
+  }
+
+  /**
+   * Deterministic dedupe / pattern repair on client-held session rows (no LLM).
+   * Declared before GET :id so `repair-program-sessions` is never captured as a plan id.
+   */
+  @Post('repair-program-sessions')
+  @HttpCode(HttpStatus.OK)
+  repairProgramSessions(@Body() dto: RepairProgramSessionsDto) {
+    return this.plansService.repairProgramSessions(dto);
   }
 
   @Get(':id')

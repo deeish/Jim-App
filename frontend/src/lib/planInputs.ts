@@ -16,6 +16,7 @@ import type {
   HardDayLimitsInput,
   InjuriesAvoidInput,
   CurrentActivityLevelId,
+  ExperienceLevelId,
   Weekday,
 } from '../types/plan';
 
@@ -59,6 +60,11 @@ export interface FormStateForPlanInputs {
   } | null;
   currentActivityLevel?: string | null;
   preferredExercises?: string[];
+  /** Lower-case modality ids: run, bike, swim, row, elliptical */
+  cardioModalityPreference?: string[];
+  /** Generate Plan checklist values (e.g. barbell, dumbbells); omitted when not collected */
+  availableEquipment?: string[];
+  experienceLevel?: 'beginner' | 'intermediate' | 'advanced' | null;
 }
 
 export interface BuildPlanInputsOptions {
@@ -117,6 +123,49 @@ function toInjuriesAvoid(avoidList: string[]): InjuriesAvoidInput {
   const bodyAreas = avoidList.filter((a) => BODY_AREAS.includes(a));
   const movementsOrEquipment = avoidList.filter((a) => !BODY_AREAS.includes(a));
   return { bodyAreas, movementsOrEquipment };
+}
+
+const ALLOWED_CARDIO_MODALITIES = new Set([
+  'run',
+  'bike',
+  'swim',
+  'row',
+  'elliptical',
+]);
+
+function normalizeCardioModalities(
+  prefs: string[] | undefined | null,
+): string[] | undefined {
+  if (!prefs?.length) return undefined;
+  const out = prefs
+    .map((x) => String(x).toLowerCase().trim())
+    .filter((x) => ALLOWED_CARDIO_MODALITIES.has(x));
+  return out.length ? [...new Set(out)].slice(0, 5) : undefined;
+}
+
+const EXPERIENCE_LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
+
+function normalizeExperienceLevel(
+  raw: string | null | undefined,
+): ExperienceLevelId {
+  const t = String(raw ?? 'intermediate').toLowerCase().trim();
+  return EXPERIENCE_LEVELS.has(t) ? (t as ExperienceLevelId) : 'intermediate';
+}
+
+/** Stable UI equipment ids for `PlanInputs.equipmentTags` (max 12). */
+function normalizeEquipmentTagsForPlan(raw: string[] | undefined): string[] {
+  if (!raw?.length) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const x of raw) {
+    const t = String(x).toLowerCase().trim();
+    if (!t || t === 'none') continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+    if (out.length >= 12) break;
+  }
+  return out;
 }
 
 function orderWeekdaysFromStart(days: Weekday[], startDay: Weekday): Weekday[] {
@@ -227,6 +276,9 @@ export function buildPlanInputs(options: BuildPlanInputsOptions): PlanInputs {
     injuriesAvoid,
     currentActivityLevel,
     preferredExercises: form.preferredExercises ?? [],
+    experienceLevel: normalizeExperienceLevel(form.experienceLevel ?? undefined),
+    equipmentTags: normalizeEquipmentTagsForPlan(form.availableEquipment),
+    cardioModalities: normalizeCardioModalities(form.cardioModalityPreference),
   };
 }
 
@@ -250,6 +302,9 @@ export function planInputsToFormPatch(inputs: PlanInputs): Partial<{
   customSplit: { name?: string; templates: { primaries: string[]; secondaries: string[] }[]; rotationRule: string; abs: string; cardio: string } | null;
   currentActivityLevel: string | null;
   preferredExercises: string[];
+  cardioModalityPreference?: string[];
+  availableEquipment?: string[];
+  experienceLevel?: 'beginner' | 'intermediate' | 'advanced' | null;
 }> {
   const goal =
     inputs.goal === 'fat_loss'
@@ -315,5 +370,8 @@ export function planInputsToFormPatch(inputs: PlanInputs): Partial<{
     customSplit,
     currentActivityLevel: inputs.currentActivityLevel ?? null,
     preferredExercises: inputs.preferredExercises ?? [],
+    cardioModalityPreference: inputs.cardioModalities ?? [],
+    availableEquipment: inputs.equipmentTags?.length ? [...inputs.equipmentTags] : undefined,
+    experienceLevel: inputs.experienceLevel,
   };
 }

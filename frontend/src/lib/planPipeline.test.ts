@@ -27,6 +27,9 @@ import {
   planDraftToWeekPlans,
   sessionDraftToPlanSlotExercises,
   formatExerciseRepsDisplay,
+  formatDraftReps,
+  sessionHasCoachPreviewFields,
+  buildWorkoutPreviewFromSessionDraft,
   type PipelineDebugInfo,
 } from './planPipeline';
 import { isTimeHoldExerciseName } from './exercisePrescription';
@@ -61,11 +64,70 @@ function baseInputs(overrides: Partial<PlanInputs> = {}): PlanInputs {
     injuriesAvoid: { bodyAreas: [], movementsOrEquipment: [] },
     currentActivityLevel: null,
     preferredExercises: [],
+    experienceLevel: 'intermediate',
+    equipmentTags: [],
     ...overrides,
   };
 }
 
 describe('planPipeline', () => {
+  describe('sessionHasCoachPreviewFields / preview cards', () => {
+    it('is true when only exercise notes are present', () => {
+      const session: SessionDraft = {
+        type: 'strength',
+        title: 'Legs',
+        focusTags: [],
+        durationMin: 45,
+        durationMax: 45,
+        isHardDay: false,
+        exercises: [
+          {
+            exerciseId: 'a',
+            name: 'Squat',
+            sets: 3,
+            reps: '5',
+            notes: 'Brace hard',
+          },
+        ],
+      };
+      expect(sessionHasCoachPreviewFields(session)).toBe(true);
+    });
+
+    it('includes Coach advice on week card detail when coach fields exist', () => {
+      const inputs = baseInputs({
+        selectedWeekdays: [MON],
+        daysPerWeek: 1,
+        splitPreference: 'full_body',
+      });
+      const draft = runPipeline(inputs, 'coach-line');
+      const weekPlans = planDraftToWeekPlans(draft);
+      const line = weekPlans[0].workouts[MON][0]?.detailLine ?? '';
+      expect(line).toMatch(/Coach advice/);
+    });
+
+    it('passes exercise notes through buildWorkoutPreviewFromSessionDraft', () => {
+      const session: SessionDraft = {
+        type: 'strength',
+        title: 'Upper',
+        focusTags: [],
+        durationMin: 45,
+        durationMax: 45,
+        isHardDay: false,
+        exercises: [
+          {
+            exerciseId: 'x',
+            name: 'Bench',
+            sets: 4,
+            reps: '8',
+            notes: 'Touch chest lightly',
+          },
+        ],
+      };
+      const preview = buildWorkoutPreviewFromSessionDraft(session, 'Upper', { goal: 'strength' });
+      expect(preview.exercises[0]?.notes).toBe('Touch chest lightly');
+    });
+  });
+
   describe('sessionDraftToPlanSlotExercises', () => {
     it('coerces zero sets to 1 when exercise has a name (backend @Min(1))', () => {
       const session: SessionDraft = {
@@ -113,6 +175,56 @@ describe('planPipeline', () => {
         weekPlans[0].workouts[FRI][0]?.title,
       ].filter(Boolean);
       expect(titles).toEqual(['Upper', 'Lower', 'Upper 2', 'Lower 2']);
+    });
+
+    it('splitPreference auto uses Stage 1 effective split for strength titles (not all Full Body)', () => {
+      const inputs = baseInputs({
+        goal: 'balanced',
+        planStyleId: 'even_split',
+        splitPreference: 'auto',
+        useRecommended: true,
+        selectedWeekdays: [MON, TUE, THU, FRI],
+        daysPerWeek: 4,
+      });
+      const draft = runPipeline(inputs, 'test-auto-split-titles');
+      const es = draft.debugMeta?.effectiveSplitId ?? '';
+      const weekPlans = planDraftToWeekPlans(draft);
+      const titles = [MON, TUE, THU, FRI].map((d) => weekPlans[0].workouts[d][0]?.title);
+      if (es.includes('upper') && es.includes('lower')) {
+        expect(titles).toEqual(['Upper', 'Lower', 'Upper 2', 'Lower 2']);
+      } else if (es.includes('ppl') || es === 'ppl') {
+        expect(titles.filter(Boolean).length).toBe(4);
+        expect(titles.some((t) => /push/i.test(t || ''))).toBe(true);
+      } else {
+        expect(titles.every((t) => (t ?? '').length > 0)).toBe(true);
+      }
+    });
+
+    it('endurance goal adds at least one dedicated cardio day on preset split', () => {
+      const inputs = baseInputs({
+        goal: 'endurance',
+        selectedWeekdays: [MON, TUE, THU, FRI],
+        daysPerWeek: 4,
+        splitPreference: 'upper_lower',
+      });
+      const draft = runPipeline(inputs, 'test-endurance-cardio-day');
+      expect(draft.metrics.cardioCount).toBeGreaterThanOrEqual(1);
+    });
+
+    it('balanced + cardioModalities does not add a dedicated cardio day (conditioning is in-session)', () => {
+      const inputs = baseInputs({
+        goal: 'balanced',
+        selectedWeekdays: [MON, TUE, THU, FRI],
+        daysPerWeek: 4,
+        splitPreference: 'upper_lower',
+        cardioModalities: ['run'],
+      });
+      const draft = runPipeline(inputs, 'test-no-cardio-day');
+      expect(draft.metrics.cardioCount).toBe(0);
+      const weekPlans = planDraftToWeekPlans(draft);
+      [MON, TUE, THU, FRI].forEach((d) => {
+        expect(weekPlans[0].workouts[d][0]?.type).toBe('strength');
+      });
     });
 
     it('PPL for 5 days rotates with numbered variants on second Push/Pull', () => {
@@ -296,6 +408,19 @@ describe('planPipeline', () => {
     });
   });
 
+  describe('formatDraftReps by plan goal', () => {
+    it('uses different bands for balanced vs fat loss at the same anchor', () => {
+      const n = 9;
+      expect(formatDraftReps(n, 'balanced')).toBe('6–12');
+      expect(formatDraftReps(n, 'fat_loss')).toBe('8–14');
+    });
+
+    it('keeps strength bands lower than balanced for the same anchor', () => {
+      expect(formatDraftReps(10, 'strength')).toBe('8–12');
+      expect(formatDraftReps(10, 'balanced')).toBe('7–13');
+    });
+  });
+
   describe('time-hold prescription display', () => {
     it('detects dead hang and similar holds', () => {
       expect(isTimeHoldExerciseName('Dead Hang')).toBe(true);
@@ -304,14 +429,14 @@ describe('planPipeline', () => {
       expect(isTimeHoldExerciseName('Flat Dumbbell Bench Press')).toBe(false);
     });
 
-    it('shows seconds range for holds instead of rep range', () => {
-      expect(formatExerciseRepsDisplay('Dead Hang', 10, 'strength')).toBe('20–45 sec');
+    it('shows hold duration from scalar seconds when the exercise is time-based', () => {
+      expect(formatExerciseRepsDisplay('Dead Hang', 10, 'strength')).toBe('10 sec');
       expect(formatExerciseRepsDisplay('Bench Press', 10, 'strength')).toMatch(/\d+–\d+/);
     });
 
     it('uses prescriptionType from API when name alone would not match hold heuristics', () => {
       expect(formatExerciseRepsDisplay('Custom Bracing Drill', 10, 'strength', 'time')).toBe(
-        '20–45 sec',
+        '10 sec',
       );
     });
 

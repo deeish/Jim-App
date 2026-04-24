@@ -7,6 +7,9 @@ export type ExercisePrescriptionType = 'reps' | 'time' | 'distance';
 const TIME_HOLD_NAME =
   /\b(dead|passive|active)\s+hang\b|\bbar\s+hang\b|\bchin[\-\s]?up\s+hold\b|\b(hollow|arch)\s+hold\b|\bwall\s+sit\b|\bl[\-\s]?sit\b|\bisometric\b|\biso\s+hold\b|\bfront\s+lever\b|\bside\s+plank\b|\bplank\b|\bfront\s+plank\b|\bforearm\s+plank\b/i;
 
+const CARRY_OR_LOADED_WALK =
+  /\b(carry|carries|farmer|pinch|suitcase|yoke|prowler|sled|loaded\s+carry)\b/i;
+
 export function isTimeHoldExerciseName(name: string): boolean {
   const n = (name ?? '').trim();
   if (!n) return false;
@@ -25,5 +28,7 @@ export function exerciseUsesTimeDisplay(
   exerciseName: string,
 ): boolean {
   if (prescriptionType === 'time') return true;
+  const n = (exerciseName ?? '').trim();
+  if (CARRY_OR_LOADED_WALK.test(n)) return true;
   return isTimeHoldExerciseName(exerciseName);
 }

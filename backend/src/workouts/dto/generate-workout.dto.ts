@@ -35,5 +35,7 @@ export class GenerateWorkoutDto {
     excludeExerciseNames?: string[];
     /** When true, skip Groq and use rule-based generation only (hybrid / tests). */
     skipGroq?: boolean;
+    /** run, bike, swim, row, elliptical — order matters for Cardio finisher bias */
+    cardioModalities?: string[];
   };
 }

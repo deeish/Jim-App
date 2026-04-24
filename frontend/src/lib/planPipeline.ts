@@ -25,6 +25,7 @@ import type {
 import { normalizeContext, getRecommendation, type Goal, type PlanStyle } from './planRecommendation';
 import {
   generateSessions,
+  repairProgramSessions,
   GENERATE_SESSIONS_TIMEOUT_MESSAGE,
   isGenerateSessionsTimeoutError,
   type GenerateSessionResult,
@@ -34,10 +35,13 @@ import {
   exerciseUsesTimeDisplay,
   type ExercisePrescriptionType,
 } from './exercisePrescription';
+import { mesoHintForGenerateSessions } from './planGenerationSummary';
 import {
   exercisesLikeFromPrescription,
   getWorkoutDisplayEstimateMinutes,
 } from './estimateWorkoutMinutes';
+import type { WorkoutPreview } from '../services/workoutService';
+import { shortBodyTagLabel, parseCardioFinisherRow } from './previewExerciseMeta';
 
 export { isTimeHoldExerciseName } from './exercisePrescription';
 
@@ -62,6 +66,17 @@ export function formatExerciseRepsDisplay(
   prescriptionType?: ExercisePrescriptionType,
 ): string {
   if (exerciseUsesTimeDisplay(prescriptionType, exerciseName)) {
+    const n =
+      typeof reps === 'number'
+        ? reps
+        : typeof reps === 'string'
+          ? parseInt(reps.replace(/[^\d]/g, ''), 10)
+          : NaN;
+    if (Number.isFinite(n) && n > 0) {
+      if (n >= 120 && n % 60 === 0) return `${n / 60} min`;
+      if (n >= 60 && n < 120) return `${Math.round(n / 60)} min`;
+      return `${n} sec`;
+    }
     return '20–45 sec';
   }
   if (typeof reps === 'string') {
@@ -75,6 +90,188 @@ export function formatExerciseRepsDisplay(
   const num = typeof reps === 'number' ? reps : NaN;
   if (Number.isFinite(num)) return formatDraftReps(Math.round(num), goal);
   return '8–12';
+}
+
+function coalesceSecondaryMuscleGroups(e: {
+  secondaryMuscleGroups?: string[];
+  secondaryMuscleGroup?: string;
+}): string[] | undefined {
+  const fromArr = (e.secondaryMuscleGroups ?? [])
+    .map((s) => (s ?? '').trim())
+    .filter(Boolean);
+  if (fromArr.length) return fromArr;
+  const one = (e.secondaryMuscleGroup ?? '').trim();
+  return one ? [one] : undefined;
+}
+
+/** Map one generate-sessions exercise into a draft row (single place for reps + muscle metadata). */
+function parseRepsNumberForApi(e: ExerciseDraft): number {
+  if (typeof e.repsRaw === 'number' && Number.isFinite(e.repsRaw)) {
+    return Math.round(e.repsRaw);
+  }
+  const m = String(e.reps ?? '').match(/\d+/);
+  if (m) return parseInt(m[0]!, 10);
+  return 8;
+}
+
+/** Inverse of {@link exerciseDraftFromGenerateResult} for POST /plans/repair-program-sessions. */
+export function sessionDraftToGenerateSessionResult(
+  session: SessionDraft | null | undefined,
+  weekIndex: number,
+  weekday: Weekday,
+): GenerateSessionResult {
+  if (!session) {
+    return {
+      weekIndex,
+      weekday,
+      name: '',
+      exercises: [],
+    };
+  }
+  const exercises = (session.exercises ?? []).map((e) => ({
+    name: e.name ?? 'Exercise',
+    sets: typeof e.sets === 'number' && e.sets > 0 ? e.sets : 3,
+    reps: parseRepsNumberForApi(e),
+    notes: e.notes,
+    exerciseId: e.exerciseId ?? undefined,
+    prescriptionType: e.prescriptionType,
+    primaryMuscleGroup: e.primaryMuscleGroup,
+    secondaryMuscleGroups: e.secondaryMuscleGroups,
+  }));
+  return {
+    weekIndex,
+    weekday,
+    name: session.title ?? 'Session',
+    reasoning: session.whyThisWorkout,
+    warmUp: session.warmup,
+    coolDown: session.cooldown,
+    cardioFinisher: session.cardioFinisher,
+    exercises,
+  };
+}
+
+/** Flatten merged weeks to API session rows in the same order as {@link buildGenerateSessionsRequest}. */
+export function buildGeneratedSessionsFromMergedDraft(
+  weekSpecs: WeekSessionSpecs[],
+  weeks: WeekDraft[],
+): GenerateSessionResult[] {
+  const weekByIndex = new Map(weeks.map((w) => [w.weekIndex, w]));
+  const out: GenerateSessionResult[] = [];
+  for (const ws of weekSpecs) {
+    const wdraft = weekByIndex.get(ws.weekIndex);
+    for (let i = 0; i < ws.specs.length; i++) {
+      const spec = ws.specs[i];
+      if (!spec) continue;
+      const weekday = WEEKDAYS[i]!;
+      const day = wdraft?.days.find((d) => d.weekday === weekday);
+      out.push(sessionDraftToGenerateSessionResult(day?.session, ws.weekIndex, weekday));
+    }
+  }
+  return out;
+}
+
+export function exerciseDraftFromGenerateResult(
+  e: GenerateSessionResult['exercises'][number],
+  planInputs: PlanInputs,
+): ExerciseDraft {
+  const rawReps = typeof e.reps === 'number' ? e.reps : NaN;
+  return {
+    exerciseId: e.exerciseId ?? null,
+    name: e.name ?? 'Exercise',
+    sets: typeof e.sets === 'number' ? e.sets : 3,
+    reps: formatExerciseRepsDisplay(
+      e.name ?? 'Exercise',
+      Number.isFinite(rawReps) ? rawReps : String(e.reps ?? ''),
+      planInputs.goal,
+      e.prescriptionType,
+    ),
+    repsRaw: Number.isFinite(rawReps) ? rawReps : undefined,
+    prescriptionType: e.prescriptionType,
+    primaryMuscleGroup: e.primaryMuscleGroup,
+    secondaryMuscleGroups: coalesceSecondaryMuscleGroups(e),
+    notes: e.notes,
+  };
+}
+
+/** Preview modal payload from a pipeline session (chips, cardio finisher row). */
+export function buildWorkoutPreviewFromSessionDraft(
+  session: SessionDraft,
+  cardTitle: string,
+  options?: { goal?: PlanInputs['goal'] },
+): WorkoutPreview {
+  const goal = options?.goal;
+  const working = session.exercises.filter((e) => (e.sets ?? 0) > 0);
+  const exercises: WorkoutPreview['exercises'] = working.map((e, idx) => ({
+    name: e.name,
+    sets: e.sets,
+    reps: previewRepsLineForGoal(e, goal),
+    orderIndex: idx,
+    exerciseId: e.exerciseId ?? undefined,
+    prescriptionType: e.prescriptionType,
+    primaryMuscleGroup: e.primaryMuscleGroup,
+    secondaryMuscleGroups: e.secondaryMuscleGroups?.length ? [...e.secondaryMuscleGroups] : undefined,
+    bodyTag: shortBodyTagLabel(e.primaryMuscleGroup, e.name),
+    ...(e.notes?.trim() ? { notes: e.notes.trim() } : {}),
+  }));
+
+  if (session.cardioFinisher?.suggestion?.trim()) {
+    const fin = parseCardioFinisherRow(session.cardioFinisher.suggestion);
+    exercises.push({
+      name: fin.name,
+      sets: 1,
+      reps: fin.reps,
+      orderIndex: exercises.length,
+      prescriptionType: 'time',
+      primaryMuscleGroup: 'Cardio',
+      bodyTag: 'Cardio',
+      isSyntheticFinisher: true,
+    });
+  }
+
+  return {
+    name: cardTitle,
+    reasoning: session.whyThisWorkout,
+    warmUp: session.warmup,
+    coolDown: session.cooldown,
+    exercises,
+  };
+}
+
+/** Groq / alternate preview: format reps and attach body-part chip label. */
+export function mapGroqPreviewExercise(
+  e: {
+    name: string;
+    sets: number;
+    reps: number | string;
+    weight?: number;
+    notes?: string;
+    prescriptionType?: ExercisePrescriptionType;
+    exerciseId?: string;
+    primaryMuscleGroup?: string;
+    secondaryMuscleGroups?: string[];
+    secondaryMuscleGroup?: string;
+  },
+  idx: number,
+  goal: PlanInputs['goal'],
+): WorkoutPreview['exercises'][number] {
+  return {
+    name: e.name,
+    sets: e.sets,
+    reps: formatExerciseRepsDisplay(
+      e.name,
+      typeof e.reps === 'number' ? e.reps : String(e.reps ?? ''),
+      goal,
+      e.prescriptionType,
+    ),
+    weight: e.weight,
+    notes: e.notes,
+    orderIndex: idx,
+    exerciseId: typeof e.exerciseId === 'string' ? e.exerciseId : undefined,
+    prescriptionType: e.prescriptionType,
+    primaryMuscleGroup: e.primaryMuscleGroup,
+    secondaryMuscleGroups: coalesceSecondaryMuscleGroups(e),
+    bodyTag: shortBodyTagLabel(e.primaryMuscleGroup, e.name),
+  };
 }
 
 /** Rep range string for draft + preview (API often returns one number). */
@@ -93,10 +290,38 @@ export function formatDraftReps(reps: number, goal: PlanInputs['goal']): string 
     if (hi < lo) hi = lo;
     return `${lo}–${hi}`;
   }
+  if (goal === 'balanced') {
+    // Strength + cardio hybrid: moderate reps, slightly tighter ceiling than fat loss.
+    const lo = Math.max(6, n - 3);
+    let hi = Math.min(14, n + 3);
+    if (hi < lo) hi = lo;
+    return `${lo}–${hi}`;
+  }
+  if (goal === 'fat_loss') {
+    // Metabolic / retention bias: nudge rep totals upward vs balanced.
+    const lo = Math.max(8, n - 3);
+    let hi = Math.min(20, n + 5);
+    if (hi < lo) hi = lo;
+    return `${lo}–${hi}`;
+  }
   const lo = Math.max(6, n - 2);
   let hi = Math.min(15, n + 4);
   if (hi < lo) hi = lo;
   return `${lo}–${hi}`;
+}
+
+/** Single-line preview reps from draft: prefer scalar + user's plan goal over a frozen string. */
+function previewRepsLineForGoal(e: ExerciseDraft, goal: PlanInputs['goal'] | undefined): string {
+  if (!goal) return e.reps;
+  const raw = e.repsRaw;
+  if (raw != null && Number.isFinite(raw) && raw > 0) {
+    return formatExerciseRepsDisplay(e.name, Math.round(raw), goal, e.prescriptionType);
+  }
+  const str = String(e.reps ?? '').trim();
+  if (/^\d+$/.test(str)) {
+    return formatExerciseRepsDisplay(e.name, parseInt(str, 10), goal, e.prescriptionType);
+  }
+  return e.reps;
 }
 
 function goalToRecommendation(goal: PlanInputs['goal']): Goal | null {
@@ -179,22 +404,45 @@ function stage1EffectiveSplit(inputs: PlanInputs): EffectiveSplitResult {
   return { effectiveSplitId: effectiveId, effectiveSplitMeta: { source: 'user' } };
 }
 
+/** Stage 1 may emit hyphenated ids (e.g. upper-lower); normalize for comparisons. */
+function normalizeEffectiveSplitId(id: string | undefined): string {
+  return (id ?? 'full_body').toLowerCase().replace(/-/g, '_');
+}
+
+/** Strength day labels aligned with Stage 1 / Stage 2 (`body_part` is Stage 1 id for body-part days). */
+function strengthTitlesFromNormalizedSplitId(normalizedId: string): string[] {
+  if (normalizedId === 'full_body') return ['Full Body'];
+  if (normalizedId === 'upper_lower') return ['Upper', 'Lower'];
+  if (normalizedId === 'ppl') return ['Push', 'Pull', 'Legs'];
+  if (normalizedId === 'body_part_days' || normalizedId === 'body_part') {
+    return ['Push', 'Pull', 'Legs', 'Upper', 'Lower'];
+  }
+  return ['Full Body'];
+}
+
 // --- Stage 2: Week skeleton (which days are strength/cardio/recovery/rest)
 function stage2WeekSkeleton(inputs: PlanInputs, effective: EffectiveSplitResult): WeekSkeleton[] {
   const selectedSet = new Set(inputs.selectedWeekdays);
   const forceOneRest = inputs.selectedWeekdays.length >= 7;
   const cardioPreference = inputs.customSplit?.cardioPreference ?? 'none';
+  const esid = normalizeEffectiveSplitId(effective.effectiveSplitId);
   const strengthTemplatesCount =
-    effective.effectiveSplitId === 'custom'
+    esid === 'custom'
       ? Math.max(1, inputs.customSplit?.dayTemplates?.length ?? 1)
-      : effective.effectiveSplitId === 'full_body'
+      : esid === 'full_body'
         ? 1
-        : effective.effectiveSplitId === 'upper_lower'
+        : esid === 'upper_lower'
           ? 2
-          : effective.effectiveSplitId === 'ppl'
+          : esid === 'ppl'
             ? 3
             : 4;
-  const hasCardioSlot = cardioPreference !== 'none';
+  /**
+   * Dedicated cardio *days* when custom split asks for them, or for **endurance** goal on preset splits
+   * so the week is not only strength labels (finishers inside strength stay separate).
+   */
+  const hasCardioSlot =
+    cardioPreference !== 'none' ||
+    (inputs.goal === 'endurance' && inputs.splitPreference !== 'custom');
   const sessionSlotsPerCycle = strengthTemplatesCount + (hasCardioSlot ? 1 : 0);
 
   const restDayIndex = forceOneRest && inputs.selectedWeekdays.length === 7 ? 6 : -1;
@@ -224,28 +472,20 @@ function stage2WeekSkeleton(inputs: PlanInputs, effective: EffectiveSplitResult)
 // --- Stage 3: Template assignments (titles per strength day)
 function stage3TemplateAssignments(
   inputs: PlanInputs,
-  skeletons: WeekSkeleton[]
+  skeletons: WeekSkeleton[],
+  stage1: EffectiveSplitResult,
 ): TemplateAssignments {
   const byDay: TemplateAssignments['byDay'] = {};
-  const effectiveId = inputs.splitPreference === 'custom' ? 'custom' : inputs.splitPreference;
   const customTemplates = inputs.customSplit?.dayTemplates ?? [];
   const cycleMode = inputs.customSplit?.cycleMode ?? 'repeat_weekly';
 
-  const strengthTitles: string[] =
-    effectiveId === 'full_body'
-      ? ['Full Body']
-      : effectiveId === 'upper_lower'
-        ? ['Upper', 'Lower']
-        : effectiveId === 'ppl'
-          ? ['Push', 'Pull', 'Legs']
-          : effectiveId === 'body_part_days'
-            ? ['Push', 'Pull', 'Legs', 'Upper', 'Lower']
-            : customTemplates.length > 0
-              ? customTemplates.map(
-                  (t, i) =>
-                    t.primaryGroups?.[0] ?? `Day ${i + 1}`
-                )
-              : ['Full Body'];
+  const useCustomTitles =
+    inputs.splitPreference === 'custom' && customTemplates.length > 0;
+  const strengthTitles: string[] = useCustomTitles
+    ? customTemplates.map((t, i) => t.primaryGroups?.[0] ?? `Day ${i + 1}`)
+    : strengthTitlesFromNormalizedSplitId(
+        normalizeEffectiveSplitId(stage1.effectiveSplitId),
+      );
 
   skeletons.forEach((sk) => {
     sk.days.forEach((d, dayIdx) => {
@@ -255,7 +495,7 @@ function stage3TemplateAssignments(
       const strengthDayIndex = sk.days
         .filter((x) => x.sessionType === 'strength')
         .indexOf(d);
-      if (effectiveId === 'custom' && customTemplates.length) {
+      if (useCustomTitles) {
         if (cycleMode === 'rotate_forward') {
           templateIndex = (sk.weekIndex - 1 + strengthDayIndex) % customTemplates.length;
         } else {
@@ -374,6 +614,14 @@ function buildGenerateSessionsRequest(
     avoidConstraints: avoidConstraints.length ? avoidConstraints : undefined,
     makeItEasier: (options as { makeItEasier?: boolean } | undefined)?.makeItEasier,
     sessions,
+    cardioModalities:
+      planInputs.cardioModalities?.length ? planInputs.cardioModalities : undefined,
+    experienceLevel: planInputs.experienceLevel,
+    equipmentTags:
+      planInputs.location === 'gym' && planInputs.equipmentTags.length
+        ? planInputs.equipmentTags
+        : undefined,
+    mesoHint: mesoHintForGenerateSessions(planInputs),
   };
 }
 
@@ -420,19 +668,9 @@ function normalizeSessionsResponse(
       if (!result || !result.name) {
         return { weekday, dateOrLabel: `Week ${ws.weekIndex}`, session: null };
       }
-      const exercises: ExerciseDraft[] = (result.exercises ?? []).map((e) => ({
-        exerciseId: e.exerciseId ?? null,
-        name: e.name ?? 'Exercise',
-        sets: typeof e.sets === 'number' ? e.sets : 3,
-        reps: formatExerciseRepsDisplay(
-          e.name ?? 'Exercise',
-          typeof e.reps === 'number' ? e.reps : String(e.reps ?? ''),
-          planInputs.goal,
-          e.prescriptionType,
-        ),
-        prescriptionType: e.prescriptionType,
-        notes: e.notes,
-      }));
+      const exercises: ExerciseDraft[] = (result.exercises ?? []).map((e) =>
+        exerciseDraftFromGenerateResult(e, planInputs),
+      );
       const session: SessionDraft = {
         type: spec.type,
         title: cleanSessionTitle(result.name, spec.title, spec.type),
@@ -458,7 +696,7 @@ async function stages5And6FromApi(
   planInputs: PlanInputs,
   weekSpecs: WeekSessionSpecs[],
   options?: { makeItEasier?: boolean }
-): Promise<{ weeks: WeekDraft[]; rawGrokResponse: unknown }> {
+): Promise<{ weeks: WeekDraft[]; rawGrokResponse: unknown; generationNotes?: string[] }> {
   const request = buildGenerateSessionsRequest(planInputs, weekSpecs, options);
   if (request.sessions.length === 0) {
     const weeks: WeekDraft[] = weekSpecs.map((ws) => ({
@@ -467,14 +705,14 @@ async function stages5And6FromApi(
     }));
     return { weeks, rawGrokResponse: null };
   }
-  const { sessions } = await generateSessions(request);
+  const { sessions, generationNotes } = await generateSessions(request);
   if (sessions.length !== request.sessions.length) {
     throw new Error(
       `Generate sessions: expected ${request.sessions.length} sessions, got ${sessions.length}`
     );
   }
   const { weeks } = normalizeSessionsResponse(weekSpecs, sessions, planInputs);
-  return { weeks, rawGrokResponse: sessions };
+  return { weeks, rawGrokResponse: sessions, generationNotes };
 }
 
 function pipelineStage5CatchMessage(error: unknown): string {
@@ -608,7 +846,7 @@ export type PipelineRunResult =
 export function runPipeline(planInputs: PlanInputs, draftId: string): PlanDraft {
   const stage1 = stage1EffectiveSplit(planInputs);
   const stage2 = stage2WeekSkeleton(planInputs, stage1);
-  const stage3 = stage3TemplateAssignments(planInputs, stage2);
+  const stage3 = stage3TemplateAssignments(planInputs, stage2, stage1);
   const stage4 = stage4SessionSpecs(planInputs, stage2, stage3);
   const { weeks } = mockStages5And6(planInputs, stage4);
   const metrics = stage7Metrics(weeks);
@@ -637,9 +875,13 @@ export async function runPipelineSafe(
   try {
     const stage1 = stage1EffectiveSplit(planInputs);
     const stage2 = stage2WeekSkeleton(planInputs, stage1);
-    const stage3 = stage3TemplateAssignments(planInputs, stage2);
+    const stage3 = stage3TemplateAssignments(planInputs, stage2, stage1);
     const stage4 = stage4SessionSpecs(planInputs, stage2, stage3);
-    const { weeks, rawGrokResponse } = await stages5And6FromApi(planInputs, stage4, { makeItEasier });
+    const { weeks, rawGrokResponse, generationNotes } = await stages5And6FromApi(
+      planInputs,
+      stage4,
+      { makeItEasier }
+    );
     const metrics = stage7Metrics(weeks);
     let draft: PlanDraft = {
       draftId,
@@ -650,6 +892,7 @@ export async function runPipelineSafe(
         effectiveSplitId: stage1.effectiveSplitId,
         templateAssignments: stage3.byDay,
         reasons: ['Pipeline run with LLM generation'],
+        ...(generationNotes?.length ? { generationNotes } : {}),
       },
     };
     const validation = validateDraft(draft);
@@ -694,24 +937,53 @@ export async function regeneratePipelineWeek(
   try {
     const stage1 = stage1EffectiveSplit(planInputs);
     const stage2 = stage2WeekSkeleton(planInputs, stage1);
-    const stage3 = stage3TemplateAssignments(planInputs, stage2);
+    const stage3 = stage3TemplateAssignments(planInputs, stage2, stage1);
     const stage4 = stage4SessionSpecs(planInputs, stage2, stage3);
     const weekSpecsForWeek = stage4.filter((ws) => ws.weekIndex === weekIndex);
     if (!weekSpecsForWeek.length) {
       return { ok: false, error: `No week ${weekIndex} in plan.` };
     }
-    const { weeks: regeneratedPartial, rawGrokResponse } = await stages5And6FromApi(
-      planInputs,
-      weekSpecsForWeek,
-      { makeItEasier }
-    );
+    const { weeks: regeneratedPartial, rawGrokResponse, generationNotes } =
+      await stages5And6FromApi(planInputs, weekSpecsForWeek, { makeItEasier });
     const newWeekDraft = regeneratedPartial.find((w) => w.weekIndex === weekIndex);
     if (!newWeekDraft) {
       return { ok: false, error: 'Unexpected regeneration response for this week.' };
     }
-    const mergedWeeks = existingDraft.weeks.map((w) =>
+    let mergedWeeks = existingDraft.weeks.map((w) =>
       w.weekIndex === weekIndex ? newWeekDraft : w
     );
+
+    const baseRequest = buildGenerateSessionsRequest(planInputs, stage4, { makeItEasier });
+    const generatedSessions = buildGeneratedSessionsFromMergedDraft(stage4, mergedWeeks);
+    let postRepairNotes: string[] | undefined;
+    if (
+      generatedSessions.length === baseRequest.sessions.length &&
+      baseRequest.sessions.length > 0
+    ) {
+      try {
+        const repaired = await repairProgramSessions({
+          ...baseRequest,
+          generatedSessions,
+        });
+        if (repaired.sessions.length === baseRequest.sessions.length) {
+          const { weeks: repairedWeeks } = normalizeSessionsResponse(
+            stage4,
+            repaired.sessions,
+            planInputs,
+          );
+          mergedWeeks = repairedWeeks;
+          postRepairNotes = repaired.generationNotes;
+        }
+      } catch {
+        // Keep merged week output if repair is unavailable (older backend / network).
+      }
+    }
+
+    const mergedGenNotes = [
+      ...(existingDraft.debugMeta?.generationNotes ?? []),
+      ...(generationNotes ?? []),
+      ...(postRepairNotes ?? []),
+    ];
     let draft: PlanDraft = {
       ...existingDraft,
       draftId,
@@ -723,6 +995,7 @@ export async function regeneratePipelineWeek(
           ...(existingDraft.debugMeta?.reasons ?? []),
           `Regenerated week ${weekIndex} (targeted generate-sessions)`,
         ],
+        ...(mergedGenNotes.length ? { generationNotes: mergedGenNotes } : {}),
       },
     };
     const validation = validateDraft(draft);
@@ -765,7 +1038,7 @@ export async function regeneratePipelineCardioSessions(
   try {
     const stage1 = stage1EffectiveSplit(planInputs);
     const stage2 = stage2WeekSkeleton(planInputs, stage1);
-    const stage3 = stage3TemplateAssignments(planInputs, stage2);
+    const stage3 = stage3TemplateAssignments(planInputs, stage2, stage1);
     const stage4 = stage4SessionSpecs(planInputs, stage2, stage3);
     const partialWeekSpecs: WeekSessionSpecs[] = stage4
       .map((ws) => ({
@@ -776,11 +1049,8 @@ export async function regeneratePipelineCardioSessions(
     if (partialWeekSpecs.length === 0) {
       return { ok: true, draft: existingDraft };
     }
-    const { weeks: regeneratedSubset, rawGrokResponse } = await stages5And6FromApi(
-      planInputs,
-      partialWeekSpecs,
-      {}
-    );
+    const { weeks: regeneratedSubset, rawGrokResponse, generationNotes } =
+      await stages5And6FromApi(planInputs, partialWeekSpecs, {});
     const mergedWeeks = existingDraft.weeks.map((oldW) => {
       const sk = stage4.find((s) => s.weekIndex === oldW.weekIndex);
       const regenW = regeneratedSubset.find((r) => r.weekIndex === oldW.weekIndex);
@@ -805,6 +1075,14 @@ export async function regeneratePipelineCardioSessions(
           ...(existingDraft.debugMeta?.reasons ?? []),
           'Regenerated cardio sessions (targeted generate-sessions)',
         ],
+        ...(generationNotes?.length
+          ? {
+              generationNotes: [
+                ...(existingDraft.debugMeta?.generationNotes ?? []),
+                ...generationNotes,
+              ],
+            }
+          : {}),
       },
     };
     const validation = validateDraft(draft);
@@ -867,7 +1145,9 @@ export function sessionDraftToPlanSlotExercises(
         : `draft_${weekNumber}_${dayOfWeek}_${i}`;
     const hold = exerciseUsesTimeDisplay(e.prescriptionType, e.name);
     const repsScalar = hold
-      ? 45
+      ? e.repsRaw != null && Number.isFinite(e.repsRaw) && e.repsRaw > 0
+        ? Math.round(e.repsRaw)
+        : 45
       : parseRepScalarForApply(
           typeof e.reps === 'number' ? String(e.reps) : String(e.reps ?? ''),
         );
@@ -915,12 +1195,21 @@ const TYPE_COLORS: Record<string, string> = {
   recovery: '#9B59B6',
 };
 
-/** One line for Preview cards — keeps the week list scannable; full copy stays in SessionDraft.whyThisWorkout for tooling/debug. */
+/** True when session has AI/coach copy worth surfacing in the week list (Phase E). */
+export function sessionHasCoachPreviewFields(session: SessionDraft): boolean {
+  if (session.whyThisWorkout?.trim() || session.warmup?.trim() || session.cooldown?.trim()) {
+    return true;
+  }
+  return !!session.exercises?.some((e) => e.notes?.trim());
+}
+
+/** One line for Preview cards — keeps the week list scannable; full copy stays in SessionDraft. */
 function previewDetailLineFromSession(session: SessionDraft, durationRounded: number): string {
   const n = session.exercises?.length ?? 0;
   const typeLabel =
     session.type === 'strength' ? 'Strength' : session.type === 'cardio' ? 'Cardio' : 'Recovery';
-  return `${durationRounded} min · ${typeLabel} · ${n} exercise${n === 1 ? '' : 's'}`;
+  const base = `${durationRounded} min · ${typeLabel} · ${n} exercise${n === 1 ? '' : 's'}`;
+  return sessionHasCoachPreviewFields(session) ? `${base} · Coach advice` : base;
 }
 
 /**

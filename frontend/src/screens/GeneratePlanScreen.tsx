@@ -29,6 +29,11 @@ import {
 } from '../lib/planRecommendation';
 import { buildPlanInputs, planInputsToFormPatch } from '../lib/planInputs';
 import { MonthCalendarPicker } from '../components/MonthCalendarPicker';
+import {
+  WELLNESS_SCOPE_TITLE,
+  WELLNESS_SCOPE_BODY,
+  NOT_MEDICAL_FOOTNOTE_SHORT,
+} from '../constants/wellnessCopy';
 
 const NativeDateTimePicker =
   Platform.OS === 'web'
@@ -73,6 +78,8 @@ type TrainingSplitPreference = 'full body' | 'upper-lower' | 'ppl' | 'body part'
 type HybridGoalRatio = 'more strength' | 'balanced' | 'more cardio';
 type EquipmentAccess = 'dumbbells' | 'bands' | 'pull-up bar' | 'barbell' | 'machines' | 'none';
 type CardioModality = 'run' | 'bike' | 'swim' | 'row' | 'elliptical';
+
+const DEFAULT_CARDIO_MODALITY_PREFERENCE: CardioModality[] = ['run'];
 type ProgressionStyle = 'build' | 'build + deload' | 'maintain';
 type ProgressionTarget = 'add weight' | 'add reps' | 'mix' | 'add time' | 'add intensity';
 type StrengthFocusPriority = 'upper' | 'lower' | 'balanced';
@@ -400,7 +407,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     experienceLevel: null,
     strengthSplitPreference: null,
     hybridGoalRatio: null,
-    cardioModalityPreference: [],
+    cardioModalityPreference: [...DEFAULT_CARDIO_MODALITY_PREFERENCE],
     weekdayMaxMinutes: 60,
     weekendMaxMinutes: 90,
     perDayTimeCaps: {},
@@ -565,7 +572,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
       programVariationIndex: 0,
       strengthSplitPreference: null,
       hybridGoalRatio: null,
-      cardioModalityPreference: [],
+      cardioModalityPreference:
+        goal === 'hybrid' || goal === 'endurance' ? [...DEFAULT_CARDIO_MODALITY_PREFERENCE] : [],
     }));
   };
 
@@ -706,6 +714,9 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           useAdvancedDurationCaps: inputs.useAdvancedDurationCaps,
           trainingSplitPreference: inputs.trainingSplitPreference,
           customSplit: inputs.trainingSplitPreference === 'custom' && inputs.customSplit ? inputs.customSplit : null,
+          cardioModalityPreference: inputs.cardioModalityPreference,
+          availableEquipment: inputs.availableEquipment,
+          experienceLevel: inputs.experienceLevel ?? 'intermediate',
         },
         effectiveSplitPreference: effectiveSplitPreference ?? null,
         useRecommended: !!(recommendation && effectiveSplitPreference === recommendation.recommendedSplit),
@@ -2269,6 +2280,13 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
             )}
           </View>
         )}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{WELLNESS_SCOPE_TITLE}</Text>
+          <Text style={styles.wellnessScopeBody}>{WELLNESS_SCOPE_BODY}</Text>
+          <Text style={styles.sectionHelper}>{NOT_MEDICAL_FOOTNOTE_SHORT}</Text>
+        </View>
+
         </ScrollView>
 
         <SafeAreaView style={styles.footerContainer} edges={['bottom']}>
@@ -2638,6 +2656,12 @@ function createGeneratePlanStyles(c: ColorPalette) {
     color: c.textMuted,
     marginBottom: 10,
     fontStyle: 'italic',
+  },
+  wellnessScopeBody: {
+    fontSize: 14,
+    color: c.textSecondary,
+    lineHeight: 21,
+    marginBottom: 8,
   },
   optionsRow: {
     flexDirection: 'row',

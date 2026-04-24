@@ -3,6 +3,11 @@ import {
   inferPrescriptionTypeFromExerciseName,
   type ExercisePrescriptionType,
 } from '../data/exercise-prescription';
+import { secondaryMusclesForPreview } from '../data/muscle-preview-tags';
+import {
+  exerciseTargetsForSession,
+  goalWantsStrengthCardioFinisher,
+} from '../workouts/workout-generator.service';
 
 /** One exercise row as returned by plan / workout generation (before save). */
 export type GeneratedSessionExercise = {
@@ -14,6 +19,10 @@ export type GeneratedSessionExercise = {
   exerciseId?: string;
   /** From exercise library when `exerciseId` resolves; else inferred from name. */
   prescriptionType?: ExercisePrescriptionType;
+  /** Library primary muscle (e.g. Chest, Cardio) for preview chips. */
+  primaryMuscleGroup?: string;
+  /** Distinct secondary muscles from library (e.g. Triceps, Shoulders on bench press). */
+  secondaryMuscleGroups?: string[];
 };
 
 export type GeneratedSession = {
@@ -29,6 +38,16 @@ export type GeneratedSession = {
 
 const PULL_NAME =
   /\b(row|rows|pulldown|pull-down|pullup|pull-up|pull up|lat\b|lats\b|chin-up|chinup|face pull|shrug|deadlift|rdl|romanian|hyperextension|good morning)\b/i;
+
+const BIG_FOUR = ['Squat', 'Hinge', 'Push', 'Pull'] as const;
+
+/** Chest/shoulder isolation and small-arm work — deprioritize for ordering + warm-up anchor. */
+const ISOLATION_NAME =
+  /\b(fly|flies|flyes|cable\s+fly|pec\s+deck|curl|curls|\bcable\s+curl|lateral\s+raise|front\s+raise|skull|push[-\s]?down|kickback|crossover|pullover|shrug|wrist|rear\s+delt|triceps\s+extension|overhead\s+extension)\b/i;
+
+/** Squat / hinge class movements that belong on lower days, not Upper/Push/Pull focus. */
+const LOWER_PATTERN_NAME =
+  /\b(deadlift|sumo|conventional\b|\brdl\b|romanian|good\s*morning|squat|leg\s+press|hack\s+squat|goblet\s+squat|front\s+squat|lunge|split\s+squat|hip\s+thrust|glute\s+bridge)\b/i;
 
 /** Strength sessions that should include at least one pull pattern (upper / pull / back emphasis). */
 export function sessionTitleNeedsPullBalance(
@@ -57,14 +76,124 @@ export function listHasPull(exercises: GeneratedSessionExercise[]): boolean {
   return exercises.some((e) => PULL_NAME.test(e.name));
 }
 
+/** Upper-emphasis session titles (exclude explicit lower/legs-only days). */
+export function sessionTitleIsUpperEmphasis(title: string | undefined): boolean {
+  if (!title) return false;
+  const t = title.toLowerCase();
+  if (/\b(cardio|recovery|run|conditioning)\b/.test(t)) return false;
+  if (
+    (/\blegs?\b|\blower\b|leg\s+day|\bquad\b|\bhamstring\b|\bglute\b/.test(t) ||
+      /\bfull\s+body\b/.test(t)) &&
+    !/\bupper\b/.test(t)
+  ) {
+    return false;
+  }
+  return /\bupper\b|\bpush\b|\bpull\b|\bchest\b|\bback\b|\bshoulders?\b|\barms\b/.test(t);
+}
+
+/** Lower / legs strength days where knee-dominant + hip hinge coverage is expected when metadata allows checks. */
+export function sessionTitleNeedsSquatHingeBalance(
+  title: string | undefined,
+  type: string,
+): boolean {
+  if (type !== 'strength') return false;
+  const t = (title ?? '').toLowerCase();
+  if (/\b(cardio|recovery|run|conditioning)\b/.test(t)) return false;
+  if (/\bupper\b|\bpush\b|\bpull\b|\bchest\b|\bback\b|\bshoulders\b|\barms\b/.test(t)) {
+    if (!/\blegs?\b|\blower\b|\bquad\b|\bhamstring\b|\bglute\b/.test(t))
+      return false;
+  }
+  return (
+    /\blegs?\b/.test(t) ||
+    /\blower\b/.test(t) ||
+    /\bleg day\b/.test(t) ||
+    /\bquad\b|\bhamstring\b|\bglute\b/.test(t)
+  );
+}
+
+function movementTier(
+  meta:
+    | { movementPatterns?: string[]; primaryMuscleGroup?: string }
+    | undefined,
+): number {
+  if (meta?.primaryMuscleGroup === 'Cardio') return 1;
+  const patterns = meta?.movementPatterns ?? [];
+  if (!patterns.length) return 1;
+  return BIG_FOUR.some((p) => patterns.includes(p)) ? 0 : 2;
+}
+
+function unionPatternsFromSession(
+  exercises: GeneratedSessionExercise[],
+  findOne: (id: string) => { movementPatterns?: string[] } | undefined,
+): { union: Set<string>; withMetaCount: number } {
+  const union = new Set<string>();
+  let withMetaCount = 0;
+  for (const e of exercises) {
+    const id = e.exerciseId?.trim();
+    if (!id) continue;
+    const meta = findOne(id);
+    const p = meta?.movementPatterns ?? [];
+    if (p.length) {
+      withMetaCount++;
+      for (const x of p) union.add(x);
+    }
+  }
+  return { union, withMetaCount };
+}
+
+function appendDeterministicCoachNotes(
+  reasoning: string | undefined,
+  notes: string[],
+): string | undefined {
+  if (!notes.length) return reasoning;
+  const block = notes.join(' ').trim();
+  const r = (reasoning ?? '').trim();
+  if (!r) return block;
+  const rl = r.toLowerCase();
+  if (rl.includes(block.slice(0, 40).toLowerCase())) return r;
+  return `${r} Note: ${block}`;
+}
+
+/**
+ * Best lift to anchor warm-up copy: prefers compounds, avoids fly/curl-class isolation first,
+ * and on upper-emphasis titles avoids deadlift/squat-class patterns when metadata or names allow.
+ */
 export function inferMainLiftName(
   exercises: GeneratedSessionExercise[],
+  options?: {
+    sessionTitle?: string;
+    findMeta?: (id: string) => { movementPatterns?: string[] } | undefined;
+  },
 ): string | null {
-  const work = exercises.filter(
+  const title = options?.sessionTitle;
+  const findMeta = options?.findMeta;
+  const candidates = exercises.filter(
     (e) =>
       (e.sets ?? 0) >= 3 && !/warm|stretch|cool|mobility|foam/i.test(e.name),
   );
-  return work[0]?.name ?? exercises[0]?.name ?? null;
+  if (!candidates.length) {
+    const fallback = exercises.find((e) => (e.sets ?? 0) > 0);
+    return fallback?.name ?? null;
+  }
+  const scoreLift = (e: GeneratedSessionExercise): number => {
+    let s = 0;
+    const name = (e.name ?? '').toLowerCase();
+    if (ISOLATION_NAME.test(name)) s -= 65;
+    if (sessionTitleIsUpperEmphasis(title) && LOWER_PATTERN_NAME.test(name)) {
+      s -= 85;
+    }
+    if (findMeta && e.exerciseId) {
+      const p = findMeta(e.exerciseId)?.movementPatterns ?? [];
+      if (p.includes('Push') || p.includes('Pull')) s += 15;
+      if (p.includes('Hinge') || p.includes('Squat')) {
+        s += sessionTitleIsUpperEmphasis(title) ? -55 : 10;
+      }
+    }
+    s += Math.min(24, (e.sets ?? 0) * 2);
+    return s;
+  };
+  const sorted = [...candidates].sort((a, b) => scoreLift(b) - scoreLift(a));
+  return sorted[0]?.name ?? candidates[0]?.name ?? null;
 }
 
 export function tieWarmupToMainLift(
@@ -86,23 +215,318 @@ function compoundSortScore(
   meta:
     | { movementPatterns?: string[]; primaryMuscleGroup?: string }
     | undefined,
+  sessionTitle?: string,
 ): number {
   if (meta?.primaryMuscleGroup === 'Cardio') return -10_000;
   const patterns = meta?.movementPatterns ?? [];
-  const bigFour = ['Squat', 'Hinge', 'Push', 'Pull'];
-  const compoundish = bigFour.some((p) => patterns.includes(p));
+  const compoundish = BIG_FOUR.some((p) => patterns.includes(p));
   let score = compoundish ? 100 : 0;
   score += Math.min(50, (ex.sets ?? 0) * 8);
+  const n = (ex.name ?? '').toLowerCase();
+  if (ISOLATION_NAME.test(n)) score -= 42;
+  if (sessionTitleIsUpperEmphasis(sessionTitle) && LOWER_PATTERN_NAME.test(n)) {
+    score -= 75;
+  }
+  if (
+    sessionTitleIsUpperEmphasis(sessionTitle) &&
+    (patterns.includes('Hinge') || patterns.includes('Squat'))
+  ) {
+    score -= 35;
+  }
   return score;
 }
 
-function nameMatchesAvoidList(name: string, phrases: string[]): boolean {
+/**
+ * Deterministic permutation of exercise indices: compound-first ordering, then
+ * library cardio rows last (same rules as {@link enrichGeneratedSession} reorder).
+ * Used by eval scoring so “ideal order” stays aligned with production enrichment.
+ */
+export function idealStrengthExercisePermutation(
+  exercises: GeneratedSessionExercise[],
+  findMeta: (id: string) =>
+    | { movementPatterns?: string[]; primaryMuscleGroup?: string }
+    | undefined,
+  sessionTitle?: string,
+): number[] {
+  const n = exercises.length;
+  if (n === 0) return [];
+  const withScores = exercises.map((e, origIndex) => {
+    const meta = e.exerciseId ? findMeta(e.exerciseId) : undefined;
+    return {
+      origIndex,
+      tier: movementTier(meta),
+      score: compoundSortScore(e, meta, sessionTitle),
+    };
+  });
+  withScores.sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier - b.tier;
+    if (b.score !== a.score) return b.score - a.score;
+    return a.origIndex - b.origIndex;
+  });
+  const non: number[] = [];
+  const cardio: number[] = [];
+  for (const row of withScores) {
+    const e = exercises[row.origIndex]!;
+    const id = e.exerciseId?.trim();
+    const meta = id ? findMeta(id) : undefined;
+    if (meta?.primaryMuscleGroup === 'Cardio') cardio.push(row.origIndex);
+    else non.push(row.origIndex);
+  }
+  return [...non, ...cardio];
+}
+
+export function nameMatchesAvoidList(name: string, phrases: string[]): boolean {
   const nl = (name ?? '').toLowerCase();
   return phrases.some((p) => {
     const x = p.toLowerCase().trim();
     return x.length >= 2 && nl.includes(x);
   });
 }
+
+/** Aligns with `WorkoutGeneratorService.cardioExerciseMatchesModality` for enrichment picks. */
+function cardioNameMatchesModality(name: string, modality: string): boolean {
+  const n = (name ?? '').toLowerCase();
+  const m = modality.toLowerCase().trim();
+  if (!m) return false;
+  if (m === 'run' || m === 'running')
+    return /\b(run|jog|treadmill)\b/i.test(n);
+  if (m === 'bike' || m === 'cycle')
+    return /\b(bike|bicycle|cycle|assault bike|air bike)\b/i.test(n);
+  if (m === 'row' || m === 'rowing')
+    return /\b(row|rowing)\b/i.test(n);
+  if (m === 'swim' || m === 'swimming') return /\b(swim)\b/i.test(n);
+  if (m === 'elliptical')
+    return /\b(elliptical|arc trainer|cross trainer)\b/i.test(n);
+  return n.includes(m);
+}
+
+function moveCardioExercisesLast(
+  exercises: GeneratedSessionExercise[],
+  findOne: (id: string) => { primaryMuscleGroup?: string } | undefined,
+): void {
+  const non: GeneratedSessionExercise[] = [];
+  const cardio: GeneratedSessionExercise[] = [];
+  for (const e of exercises) {
+    const id = e.exerciseId?.trim();
+    const meta = id ? findOne(id) : undefined;
+    if (meta?.primaryMuscleGroup === 'Cardio') cardio.push(e);
+    else non.push(e);
+  }
+  exercises.splice(0, exercises.length, ...non, ...cardio);
+}
+
+function pickLibraryCardioFinisherExercise(
+  exercisesService: ExercisesService,
+  equipment: string[] | undefined,
+  excludeIds: string[],
+  modalities: string[] | undefined,
+  avoidPhrases: string[],
+): NonNullable<ReturnType<ExercisesService['findOne']>> | undefined {
+  const pool = exercisesService.getCandidatesForGenerator({
+    focus: 'cardio',
+    equipment: equipment?.length ? equipment : undefined,
+    excludeIds,
+    limit: 60,
+  });
+  const cardioRows = pool.filter(
+    (c) =>
+      c.primaryMuscleGroup === 'Cardio' &&
+      !nameMatchesAvoidList(c.name, avoidPhrases),
+  );
+  if (!cardioRows.length) return undefined;
+  if (modalities?.length) {
+    for (const m of modalities) {
+      const hit = cardioRows.find((c) => cardioNameMatchesModality(c.name, m));
+      if (hit) return hit;
+    }
+  }
+  return cardioRows[0];
+}
+
+/**
+ * Metabolic / finisher-style work — skip adding a second conditioning tail.
+ * Do not treat loaded carries as metcon: names like "Farmer Handle Carry" or
+ * "Waiter Carry" matched bare `farmer`/`carry` and wrongly blocked hybrid finishers.
+ */
+const METABOLIC_CONDITIONING =
+  /\b(battle\s*rope|burpee|mountain\s*climber|jump\s*rope|jumping\s*jack|prowler|sled\s*push|sled\s+pull|farmer(?:'|’)?s?\s+walk|tabata|amrap|metcon|conditioning\s+circuit|box\s+jump|shuttle\s+run|ski\s+erg|airdyne|assault\s+bike)\b/i;
+
+function maxStrengthExercisesForDuration(
+  durationMinutes: number,
+  detailLevel: 'simple' | 'detailed',
+): number {
+  const { promptRange } = exerciseTargetsForSession(
+    durationMinutes,
+    detailLevel,
+    false,
+  );
+  const m = promptRange.match(/(\d+)\s*[-–]\s*(\d+)/);
+  return m ? parseInt(m[2]!, 10) : 8;
+}
+
+function sessionLooksLikeFinisherConditioning(
+  exercises: GeneratedSessionExercise[],
+): boolean {
+  const blob = exercises
+    .map((e) => `${e.name ?? ''} ${e.notes ?? ''}`)
+    .join(' ')
+    .toLowerCase();
+  return METABOLIC_CONDITIONING.test(blob);
+}
+
+/** Enrichment-added rows we should not drop when trimming to a time cap. */
+const BALANCE_INSERT_NOTES =
+  /Added for (pull balance|squat\/knee|hip hinge|pattern balance)/i;
+
+function exerciseRowIsBalanceInsert(e: GeneratedSessionExercise): boolean {
+  return BALANCE_INSERT_NOTES.test(e.notes ?? '');
+}
+
+function pickStrengthTrimIndex(
+  exercises: GeneratedSessionExercise[],
+  findMeta: (id: string) =>
+    | { movementPatterns?: string[]; primaryMuscleGroup?: string }
+    | undefined,
+): number {
+  const n = exercises.length;
+  const protectedIndices = new Set<number>();
+  let protectedCompounds = 0;
+  for (let i = 0; i < n; i++) {
+    const e = exercises[i]!;
+    const id = e.exerciseId?.trim();
+    const meta = id ? findMeta(id) : undefined;
+    const patterns = meta?.movementPatterns ?? [];
+    const isCompound =
+      patterns.includes('Push') ||
+      patterns.includes('Pull') ||
+      patterns.includes('Squat') ||
+      patterns.includes('Hinge');
+    if (isCompound && protectedCompounds < 2) {
+      protectedIndices.add(i);
+      protectedCompounds++;
+    }
+  }
+  const tierOf = (i: number): number => {
+    const e = exercises[i]!;
+    const id = e.exerciseId?.trim();
+    return movementTier(id ? findMeta(id) : undefined);
+  };
+  const skippable = (i: number): boolean => {
+    if (exerciseRowIsBalanceInsert(exercises[i]!)) return true;
+    if (protectedIndices.has(i)) return true;
+    const id = exercises[i]!.exerciseId?.trim();
+    if (id && findMeta(id)?.primaryMuscleGroup === 'Cardio') return true;
+    return false;
+  };
+  for (const wantTier of [2, 1, 0] as const) {
+    for (let i = n - 1; i >= 0; i--) {
+      if (skippable(i)) continue;
+      if (tierOf(i) === wantTier) return i;
+    }
+  }
+  for (let i = n - 1; i >= 0; i--) {
+    if (!skippable(i)) return i;
+  }
+  return -1;
+}
+
+/**
+ * Keeps strength sessions within the same high end as Groq's exercise-count cap so
+ * enrichment (pull / squat-hinge / hybrid finisher) does not push time targets over.
+ */
+function trimStrengthExercisesToSoftCap(args: {
+  exercises: GeneratedSessionExercise[];
+  findMeta: (id: string) =>
+    | { movementPatterns?: string[]; primaryMuscleGroup?: string }
+    | undefined;
+  maxEx: number;
+  coachNotes: string[];
+}): void {
+  let removed = 0;
+  while (args.exercises.length > args.maxEx) {
+    const idx = pickStrengthTrimIndex(args.exercises, args.findMeta);
+    if (idx < 0) break;
+    args.exercises.splice(idx, 1);
+    removed++;
+  }
+  if (removed > 0) {
+    args.coachNotes.push(
+      removed === 1
+        ? 'We shortened this session to match your target length by dropping one lower-priority move so your main lifts stay sharp.'
+        : `We shortened this session to match your target length by dropping ${removed} lower-priority moves so your main lifts stay sharp.`,
+    );
+  }
+}
+
+/**
+ * When false, skip appending a library cardio row (session already long, short slot,
+ * or clearly has conditioning-style work).
+ *
+ * Reserves one slot for the appended finisher: at the prompt-range high end we still
+ * append (e.g. 6 strength moves at a 5–6 cap → 7 with finisher). Only skip when the
+ * list is already longer than cap+1 (e.g. 8+ before append).
+ */
+export function shouldAppendHybridCardioFinisher(args: {
+  exercises: GeneratedSessionExercise[];
+  durationMinutes: number;
+  detailLevel: 'simple' | 'detailed';
+  hasCardioExercise: boolean;
+  hasFinisherText: boolean;
+}): boolean {
+  if (args.hasCardioExercise || args.hasFinisherText) return false;
+  if (sessionLooksLikeFinisherConditioning(args.exercises)) return false;
+  if (args.durationMinutes < 38) return false;
+  const maxEx = maxStrengthExercisesForDuration(
+    args.durationMinutes,
+    args.detailLevel,
+  );
+  if (args.exercises.length > maxEx + 1) return false;
+  return true;
+}
+
+async function sortExercisesByCompoundOrder(
+  exercises: GeneratedSessionExercise[],
+  spec: { title?: string; type: string },
+  exercisesService: ExercisesService,
+): Promise<GeneratedSessionExercise[]> {
+  const findMeta = (id: string) => exercisesService.findOne(id);
+  const perm = idealStrengthExercisePermutation(exercises, findMeta, spec.title);
+  return Promise.all(
+    perm.map(async (origIndex) => {
+      const e = exercises[origIndex]!;
+      const meta = e.exerciseId ? findMeta(e.exerciseId) : undefined;
+      const prescriptionType =
+        meta?.prescriptionType ??
+        inferPrescriptionTypeFromExerciseName(e.name);
+      const secondaries = meta
+        ? secondaryMusclesForPreview(
+            meta.secondaryMuscleGroups,
+            meta.primaryMuscleGroup,
+          )
+        : [];
+      return {
+        ...e,
+        prescriptionType,
+        primaryMuscleGroup: meta?.primaryMuscleGroup,
+        ...(secondaries.length ? { secondaryMuscleGroups: secondaries } : {}),
+      };
+    }),
+  );
+}
+
+export type EnrichSessionGenerationPrefs = {
+  goal?: string;
+  cardioModalities?: string[];
+  /** Session length (minutes), typically mean of durationMin/Max — drives cardio + caps. */
+  durationMinutes?: number;
+  detailLevel?: 'simple' | 'detailed';
+  /**
+   * Library `exerciseId`s already present on other sessions in this generated chunk.
+   * Hybrid cardio finisher picks merge these into `excludeIds` so we do not append the
+   * same catalog id twice across the chunk (`duplicate_exercise_id_across_chunk`).
+   */
+  chunkExcludeExerciseIds?: string[];
+};
 
 /**
  * Order compounds before accessories, ensure pull balance when the title calls for it,
@@ -114,33 +538,19 @@ export async function enrichGeneratedSession(
   exercisesService: ExercisesService,
   equipment?: string[],
   avoidPhrases: string[] = [],
+  generationPrefs?: EnrichSessionGenerationPrefs,
 ): Promise<GeneratedSession> {
   if (spec.type !== 'strength') {
     return session;
   }
 
-  let exercises = [...session.exercises];
-
-  const withScores = await Promise.all(
-    exercises.map(async (e, origIndex) => {
-      const meta = e.exerciseId
-        ? exercisesService.findOne(e.exerciseId)
-        : undefined;
-      const prescriptionType =
-        meta?.prescriptionType ??
-        inferPrescriptionTypeFromExerciseName(e.name);
-      return {
-        e: { ...e, prescriptionType },
-        origIndex,
-        score: compoundSortScore(e, meta),
-      };
-    }),
+  let exercises = await sortExercisesByCompoundOrder(
+    [...session.exercises],
+    spec,
+    exercisesService,
   );
-  withScores.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    return a.origIndex - b.origIndex;
-  });
-  exercises = withScores.map((x) => x.e);
+  const coachNotes: string[] = [];
+  const findMeta = (id: string) => exercisesService.findOne(id);
 
   if (
     sessionTitleNeedsPullBalance(spec.title, spec.type) &&
@@ -162,6 +572,10 @@ export async function enrichGeneratedSession(
     );
     if (pick) {
       const insertAt = Math.min(2, exercises.length);
+      const pullSecondaries = secondaryMusclesForPreview(
+        pick.secondaryMuscleGroups,
+        pick.primaryMuscleGroup,
+      );
       exercises.splice(insertAt, 0, {
         name: pick.name,
         exerciseId: pick.id,
@@ -171,12 +585,273 @@ export async function enrichGeneratedSession(
         prescriptionType:
           pick.prescriptionType ??
           inferPrescriptionTypeFromExerciseName(pick.name),
+        primaryMuscleGroup: pick.primaryMuscleGroup,
+        ...(pullSecondaries.length ? { secondaryMuscleGroups: pullSecondaries } : {}),
       });
+      coachNotes.push(
+        'Added a pull movement from the library so this upper/pull day includes a clear pull pattern.',
+      );
     }
   }
 
-  const mainName = inferMainLiftName(exercises);
-  const warmUp = tieWarmupToMainLift(session.warmUp, mainName);
+  if (sessionTitleNeedsSquatHingeBalance(spec.title, spec.type)) {
+    let cover = unionPatternsFromSession(exercises, findMeta);
+    if (cover.withMetaCount >= 2) {
+      const excludeForLower = () =>
+        exercises
+          .map((e) => e.exerciseId)
+          .filter((id): id is string => !!id);
+      const lowerPool = () =>
+        exercisesService.getCandidatesForGenerator({
+          focus: 'lower',
+          equipment: equipment?.length ? equipment : undefined,
+          excludeIds: excludeForLower(),
+          limit: 60,
+        });
+      if (!cover.union.has('Squat')) {
+        const pick = lowerPool().find(
+          (c) =>
+            c.movementPatterns?.includes('Squat') &&
+            !exercises.some((e) => e.exerciseId === c.id || e.name === c.name) &&
+            !nameMatchesAvoidList(c.name, avoidPhrases),
+        );
+        if (pick) {
+          const insertAt = Math.min(1, exercises.length);
+          const sec = secondaryMusclesForPreview(
+            pick.secondaryMuscleGroups,
+            pick.primaryMuscleGroup,
+          );
+          exercises.splice(insertAt, 0, {
+            name: pick.name,
+            exerciseId: pick.id,
+            sets: 3,
+            reps: 8,
+            notes: 'Added for squat/knee pattern coverage on lower day',
+            prescriptionType:
+              pick.prescriptionType ??
+              inferPrescriptionTypeFromExerciseName(pick.name),
+            primaryMuscleGroup: pick.primaryMuscleGroup,
+            ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
+          });
+          coachNotes.push(
+            'Added a knee-dominant (squat) lift from the library for lower-day pattern balance.',
+          );
+          cover = unionPatternsFromSession(exercises, findMeta);
+        }
+      }
+      if (!cover.union.has('Hinge')) {
+        const pick = lowerPool().find(
+          (c) =>
+            c.movementPatterns?.includes('Hinge') &&
+            !exercises.some((e) => e.exerciseId === c.id || e.name === c.name) &&
+            !nameMatchesAvoidList(c.name, avoidPhrases),
+        );
+        if (pick) {
+          const insertAt = Math.min(2, exercises.length);
+          const sec = secondaryMusclesForPreview(
+            pick.secondaryMuscleGroups,
+            pick.primaryMuscleGroup,
+          );
+          exercises.splice(insertAt, 0, {
+            name: pick.name,
+            exerciseId: pick.id,
+            sets: 3,
+            reps: 6,
+            notes: 'Added for hip hinge coverage on lower day',
+            prescriptionType:
+              pick.prescriptionType ??
+              inferPrescriptionTypeFromExerciseName(pick.name),
+            primaryMuscleGroup: pick.primaryMuscleGroup,
+            ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
+          });
+          coachNotes.push(
+            'Added a hip hinge lift from the library for lower-day pattern balance.',
+          );
+        }
+      }
+    }
+  }
 
-  return { ...session, warmUp, exercises };
+  exercises = await sortExercisesByCompoundOrder(
+    exercises,
+    spec,
+    exercisesService,
+  );
+
+  if (generationPrefs) {
+    const detailForCap = generationPrefs.detailLevel ?? 'detailed';
+    const rawDur = generationPrefs.durationMinutes;
+    const durationForSoftCap =
+      typeof rawDur === 'number' && Number.isFinite(rawDur) && rawDur > 0
+        ? Math.round(rawDur)
+        : 50;
+    const maxStrengthSlots = maxStrengthExercisesForDuration(
+      durationForSoftCap,
+      detailForCap,
+    );
+    trimStrengthExercisesToSoftCap({
+      exercises,
+      findMeta,
+      maxEx: maxStrengthSlots,
+      coachNotes,
+    });
+  }
+
+  if (
+    generationPrefs &&
+    goalWantsStrengthCardioFinisher(generationPrefs.goal) &&
+    spec.type === 'strength'
+  ) {
+    const hasCardioExercise = exercises.some((e) => {
+      const id = e.exerciseId?.trim();
+      if (!id) return false;
+      return findMeta(id)?.primaryMuscleGroup === 'Cardio';
+    });
+    const hasFinisherText = !!session.cardioFinisher?.suggestion?.trim();
+    const detailLevel = generationPrefs.detailLevel ?? 'detailed';
+    const rawDuration = generationPrefs.durationMinutes;
+    const durationForCap =
+      typeof rawDuration === 'number' &&
+      Number.isFinite(rawDuration) &&
+      rawDuration > 0
+        ? Math.round(rawDuration)
+        : 50;
+
+    if (
+      shouldAppendHybridCardioFinisher({
+        exercises,
+        durationMinutes: durationForCap,
+        detailLevel,
+        hasCardioExercise,
+        hasFinisherText,
+      })
+    ) {
+      const sessionExcludeIds = exercises
+        .map((e) => e.exerciseId)
+        .filter((id): id is string => !!id?.trim());
+      const chunkEx = (generationPrefs.chunkExcludeExerciseIds ?? [])
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0);
+      const excludeIds = [...new Set([...sessionExcludeIds, ...chunkEx])];
+      const pick = pickLibraryCardioFinisherExercise(
+        exercisesService,
+        equipment,
+        excludeIds,
+        generationPrefs.cardioModalities,
+        avoidPhrases,
+      );
+      if (pick) {
+        const sec = secondaryMusclesForPreview(
+          pick.secondaryMuscleGroups,
+          pick.primaryMuscleGroup,
+        );
+        exercises.push({
+          name: pick.name,
+          exerciseId: pick.id,
+          sets: 1,
+          reps: 10,
+          notes:
+            'Short steady-state finisher (~8–12 min easy effort). Skip on a busy day if you prefer.',
+          prescriptionType:
+            pick.prescriptionType ??
+            inferPrescriptionTypeFromExerciseName(pick.name),
+          primaryMuscleGroup: pick.primaryMuscleGroup,
+          ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
+        });
+        coachNotes.push(
+          'We added a short easy machine finisher at the end for your hybrid-style goal—you can skip it when you are short on time.',
+        );
+      }
+    }
+  }
+
+  exercises = await sortExercisesByCompoundOrder(
+    exercises,
+    spec,
+    exercisesService,
+  );
+  moveCardioExercisesLast(exercises, findMeta);
+
+  const mainName = inferMainLiftName(exercises, {
+    sessionTitle: spec.title,
+    findMeta,
+  });
+  const warmUp = tieWarmupToMainLift(session.warmUp, mainName);
+  const reasoning = appendDeterministicCoachNotes(session.reasoning, coachNotes);
+  const coolDown =
+    session.coolDown?.trim() ||
+    '2–5 minutes of easy walking or light cycling, then brief static stretching for the muscles you trained.';
+
+  return { ...session, warmUp, exercises, reasoning, coolDown };
+}
+
+function collectDistinctExerciseIds(session: GeneratedSession): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const e of session.exercises ?? []) {
+    const id = e.exerciseId?.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+export type EnrichChunkSessionSpec = { type: string; title?: string };
+
+/**
+ * Enrich strength sessions in chunk order so hybrid cardio finishers avoid library ids
+ * already used on sibling sessions (pre/post enrichment ids from other slots).
+ */
+export async function enrichGeneratedSessionsInChunkOrder(
+  sessions: GeneratedSession[],
+  opts: {
+    getSpec: (index: number) => EnrichChunkSessionSpec | undefined;
+    getAvoidPhrases: (index: number) => string[];
+    getGenerationPrefs: (
+      index: number,
+    ) => EnrichSessionGenerationPrefs | undefined;
+    exercisesService: ExercisesService;
+    equipment?: string[];
+  },
+): Promise<GeneratedSession[]> {
+  const out: GeneratedSession[] = [];
+  for (let i = 0; i < sessions.length; i++) {
+    const spec = opts.getSpec(i);
+    if (!spec) {
+      out.push(sessions[i]!);
+      continue;
+    }
+    const chunkExcludeExerciseIds: string[] = [];
+    const seenChunk = new Set<string>();
+    for (let j = 0; j < sessions.length; j++) {
+      if (j === i) continue;
+      const sess = j < i ? out[j]! : sessions[j]!;
+      for (const id of collectDistinctExerciseIds(sess)) {
+        if (seenChunk.has(id)) continue;
+        seenChunk.add(id);
+        chunkExcludeExerciseIds.push(id);
+      }
+    }
+    const base = opts.getGenerationPrefs(i);
+    const generationPrefs: EnrichSessionGenerationPrefs | undefined =
+      base === undefined && chunkExcludeExerciseIds.length === 0
+        ? undefined
+        : {
+            ...base,
+            ...(chunkExcludeExerciseIds.length
+              ? { chunkExcludeExerciseIds }
+              : {}),
+          };
+    const enriched = await enrichGeneratedSession(
+      sessions[i]!,
+      spec,
+      opts.exercisesService,
+      opts.equipment?.length ? opts.equipment : undefined,
+      opts.getAvoidPhrases(i),
+      generationPrefs,
+    );
+    out.push(enriched);
+  }
+  return out;
 }

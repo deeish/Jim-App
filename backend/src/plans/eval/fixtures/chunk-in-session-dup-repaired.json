@@ -1,0 +1,80 @@
+{
+  "id": "chunk_in_session_dup_repaired",
+  "description": "Same library id appears twice inside one Upper session; repair replaces the later row.",
+  "effectiveDetailLevel": "simple",
+  "evalScoring": {
+    "skipBalance": true,
+    "skipCoaching": true,
+    "skipWorkoutOrder": true,
+    "skipDiversity": true,
+    "skipFatigueStacking": true
+  },
+  "specs": [
+    {
+      "type": "strength",
+      "title": "Upper",
+      "durationMin": 45,
+      "durationMax": 60,
+      "isHardDay": true,
+      "weekIndex": 1,
+      "weekday": "Monday"
+    }
+  ],
+  "sessionsBeforeRepair": [
+    {
+      "weekIndex": 1,
+      "weekday": "Monday",
+      "name": "Upper",
+      "exercises": [
+        { "name": "Bench", "sets": 3, "reps": 8, "exerciseId": "dup_in_sess" },
+        { "name": "Row", "sets": 3, "reps": 8, "exerciseId": "in_r1" },
+        { "name": "Fly", "sets": 3, "reps": 10, "exerciseId": "in_f1" },
+        { "name": "Bench again", "sets": 3, "reps": 8, "exerciseId": "dup_in_sess" },
+        { "name": "Curl", "sets": 3, "reps": 10, "exerciseId": "in_c1" }
+      ]
+    }
+  ],
+  "catalog": [
+    {
+      "id": "dup_in_sess",
+      "name": "Barbell Bench Press",
+      "movementPatterns": ["Push"],
+      "primaryMuscleGroup": "Chest"
+    },
+    {
+      "id": "in_alt",
+      "name": "Incline Dumbbell Press",
+      "movementPatterns": ["Push"],
+      "primaryMuscleGroup": "Chest"
+    },
+    {
+      "id": "in_r1",
+      "name": "Cable Row",
+      "movementPatterns": ["Pull"],
+      "primaryMuscleGroup": "Back"
+    },
+    {
+      "id": "in_f1",
+      "name": "Cable Fly",
+      "movementPatterns": ["Push"],
+      "primaryMuscleGroup": "Chest"
+    },
+    {
+      "id": "in_c1",
+      "name": "Hammer Curl",
+      "movementPatterns": ["Pull"],
+      "primaryMuscleGroup": "Arms"
+    }
+  ],
+  "expect": {
+    "runRepair": true,
+    "after": {
+      "validatorOk": true,
+      "issuesMustNotInclude": [
+        "duplicate_exercise_id_in_session",
+        "duplicate_exercise_id_across_chunk"
+      ]
+    },
+    "expectRepairNotes": true
+  }
+}

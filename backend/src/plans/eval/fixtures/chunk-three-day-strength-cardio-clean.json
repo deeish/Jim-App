@@ -1,0 +1,109 @@
+{
+  "id": "chunk_three_day_strength_cardio_clean",
+  "description": "Upper + Lower + Cardio in one chunk, already validator-clean; repair is a no-op (realistic micro-week).",
+  "effectiveDetailLevel": "simple",
+  "evalScoring": {
+    "skipBalance": true,
+    "skipCoaching": true,
+    "skipWorkoutOrder": true,
+    "skipFatigueStacking": true
+  },
+  "specs": [
+    {
+      "type": "strength",
+      "title": "Upper",
+      "durationMin": 35,
+      "durationMax": 45,
+      "isHardDay": true,
+      "weekIndex": 1,
+      "weekday": "Monday"
+    },
+    {
+      "type": "strength",
+      "title": "Lower",
+      "durationMin": 35,
+      "durationMax": 45,
+      "isHardDay": true,
+      "weekIndex": 1,
+      "weekday": "Tuesday"
+    },
+    {
+      "type": "cardio",
+      "title": "Conditioning",
+      "durationMin": 30,
+      "durationMax": 40,
+      "isHardDay": false,
+      "weekIndex": 1,
+      "weekday": "Wednesday"
+    }
+  ],
+  "sessionsBeforeRepair": [
+    {
+      "weekIndex": 1,
+      "weekday": "Monday",
+      "name": "Upper",
+      "exercises": [
+        { "name": "Press", "sets": 3, "reps": 8, "exerciseId": "u_press" },
+        { "name": "Row", "sets": 3, "reps": 8, "exerciseId": "u_row" },
+        { "name": "Raise", "sets": 3, "reps": 12, "exerciseId": "u_raise" },
+        { "name": "Curl", "sets": 3, "reps": 10, "exerciseId": "u_curl" }
+      ]
+    },
+    {
+      "weekIndex": 1,
+      "weekday": "Tuesday",
+      "name": "Lower",
+      "exercises": [
+        { "name": "Squat", "sets": 4, "reps": 6, "exerciseId": "l_squat" },
+        { "name": "Hinge", "sets": 3, "reps": 8, "exerciseId": "l_hinge" },
+        { "name": "Lunge", "sets": 3, "reps": 10, "exerciseId": "l_lunge" },
+        { "name": "Calf", "sets": 3, "reps": 15, "exerciseId": "l_calf" }
+      ]
+    },
+    {
+      "weekIndex": 1,
+      "weekday": "Wednesday",
+      "name": "Conditioning",
+      "exercises": [
+        { "name": "Bike", "sets": 1, "reps": 20, "exerciseId": "c_bike", "prescriptionType": "time" },
+        { "name": "Rope", "sets": 4, "reps": 30, "exerciseId": "c_rope", "prescriptionType": "time" },
+        { "name": "Walk", "sets": 1, "reps": 10, "exerciseId": "c_walk", "prescriptionType": "time" }
+      ]
+    }
+  ],
+  "catalog": [
+    { "id": "u_press", "name": "DB Press", "movementPatterns": ["Push"], "primaryMuscleGroup": "Chest" },
+    { "id": "u_row", "name": "Cable Row", "movementPatterns": ["Pull"], "primaryMuscleGroup": "Back" },
+    { "id": "u_raise", "name": "Lateral Raise", "movementPatterns": ["Push"], "primaryMuscleGroup": "Shoulders" },
+    { "id": "u_curl", "name": "Hammer Curl", "movementPatterns": ["Pull"], "primaryMuscleGroup": "Arms" },
+    { "id": "l_squat", "name": "Back Squat", "movementPatterns": ["Squat"], "primaryMuscleGroup": "Legs" },
+    { "id": "l_hinge", "name": "Deadlift", "movementPatterns": ["Hinge"], "primaryMuscleGroup": "Legs" },
+    { "id": "l_lunge", "name": "Walking Lunge", "movementPatterns": ["Lunge"], "primaryMuscleGroup": "Legs" },
+    { "id": "l_calf", "name": "Standing Calf Raise", "movementPatterns": ["Squat"], "primaryMuscleGroup": "Legs" },
+    {
+      "id": "c_bike",
+      "name": "Assault Bike",
+      "movementPatterns": [],
+      "primaryMuscleGroup": "Cardio",
+      "prescriptionType": "time"
+    },
+    {
+      "id": "c_rope",
+      "name": "Battle Rope",
+      "movementPatterns": [],
+      "primaryMuscleGroup": "Cardio",
+      "prescriptionType": "time"
+    },
+    {
+      "id": "c_walk",
+      "name": "Treadmill Incline Walk",
+      "movementPatterns": [],
+      "primaryMuscleGroup": "Cardio",
+      "prescriptionType": "time"
+    }
+  ],
+  "expect": {
+    "runRepair": true,
+    "after": { "validatorOk": true }
+  }
+}
