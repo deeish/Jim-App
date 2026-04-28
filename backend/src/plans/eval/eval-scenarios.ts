@@ -113,23 +113,28 @@ export const GENERATION_EVAL_SCENARIOS: GenerationEvalScenario[] = [
       { id: 'alt_b', name: 'Cable Row', movementPatterns: ['Pull'], primaryMuscleGroup: 'Back' },
       { id: 'alt_c', name: 'Leg Press', movementPatterns: ['Squat'], primaryMuscleGroup: 'Legs' },
       { id: 'alt_d', name: 'RDL', movementPatterns: ['Hinge'], primaryMuscleGroup: 'Legs' },
-      // Fillers default Push; seed Pull / Squat / Hinge on one row per day so chunk
-      // movement-diversity union stays at 4+ keys even when duplicate-repair picks fewer alts.
+      // Fillers default Push; spread tracked patterns so each session keeps
+      // realistic movement diversity (matters for `over_concentrated_pattern`).
       ...(['m', 't', 'th', 'f'] as const).flatMap((p) =>
         [1, 2, 3].map((i) => {
           let movementPatterns: string[] = ['Push'];
           let primaryMuscleGroup = 'Shoulders';
-          if (p === 't' && i === 1) movementPatterns = ['Hinge'];
-          if (p === 'th' && i === 1) movementPatterns = ['Pull'];
-          if (p === 'f' && i === 1) movementPatterns = ['Squat'];
           if (p === 'm') {
-            primaryMuscleGroup = i === 1 ? 'Chest' : i === 2 ? 'Shoulders' : 'Arms';
+            // Upper day: Push + Pull + Carry (no Push monoculture).
+            primaryMuscleGroup = i === 1 ? 'Chest' : i === 2 ? 'Back' : 'Core';
+            movementPatterns = i === 2 ? ['Pull'] : i === 3 ? ['Carry'] : ['Push'];
           } else if (p === 't') {
-            primaryMuscleGroup = i === 1 ? 'Legs' : i === 2 ? 'Glutes' : 'Core';
+            // Lower day: Hinge + Squat + Lunge.
+            primaryMuscleGroup = i === 1 ? 'Legs' : i === 2 ? 'Glutes' : 'Legs';
+            movementPatterns = i === 1 ? ['Hinge'] : i === 2 ? ['Squat'] : ['Lunge'];
           } else if (p === 'th') {
-            primaryMuscleGroup = i === 1 ? 'Back' : i === 2 ? 'Shoulders' : 'Arms';
+            // Upper 2: Pull + Push + Carry (different angle from Monday).
+            primaryMuscleGroup = i === 1 ? 'Back' : i === 2 ? 'Shoulders' : 'Core';
+            movementPatterns = i === 1 ? ['Pull'] : i === 2 ? ['Push'] : ['Carry'];
           } else {
-            primaryMuscleGroup = i === 1 ? 'Legs' : i === 2 ? 'Hamstrings' : 'Core';
+            // Lower 2: Squat + Hinge + Lunge.
+            primaryMuscleGroup = i === 1 ? 'Legs' : i === 2 ? 'Hamstrings' : 'Legs';
+            movementPatterns = i === 1 ? ['Squat'] : i === 2 ? ['Hinge'] : ['Lunge'];
           }
           return {
             id: `${p}_${i}`,
@@ -236,7 +241,7 @@ export const GENERATION_EVAL_SCENARIOS: GenerationEvalScenario[] = [
         exercises: [
           { name: 'Bench', sets: 3, reps: 8, exerciseId: 'bench' },
           { name: 'Incline', sets: 3, reps: 8, exerciseId: 'inc' },
-          { name: 'Fly', sets: 3, reps: 10, exerciseId: 'fly' },
+          { name: 'Row', sets: 3, reps: 10, exerciseId: 'row' },
           { name: 'Pressdown', sets: 3, reps: 10, exerciseId: 'pd' },
         ],
       },
@@ -255,10 +260,10 @@ export const GENERATION_EVAL_SCENARIOS: GenerationEvalScenario[] = [
         primaryMuscleGroup: 'Chest',
       },
       {
-        id: 'fly',
-        name: 'Cable Fly',
-        movementPatterns: ['Push'],
-        primaryMuscleGroup: 'Chest',
+        id: 'row',
+        name: 'Seated Cable Row',
+        movementPatterns: ['Pull'],
+        primaryMuscleGroup: 'Back',
       },
       {
         id: 'pd',

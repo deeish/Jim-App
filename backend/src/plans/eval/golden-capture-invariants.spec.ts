@@ -16,13 +16,26 @@ describe('golden capture invariants', () => {
     expect({ ok, issues }).toEqual({ ok: true, issues: [] });
   });
 
-  it('passes golden checks on the real-shape hybrid week sample (library Cardio on each strength day)', () => {
+  /**
+   * The real-shape hybrid week sample is the *pre-fix* capture that motivated Phase 3
+   * (3 core moves on the Lower day: Overhead March + Rotational Sit-Up + Landmine Rotation)
+   * and Phase 5 (slot 1 of multiple sessions is a non-staple). The hybrid-style cardio
+   * invariant still passes; the new `over_concentrated_pattern` and `slot_one_not_anchor`
+   * checks fire, exactly as designed.
+   *
+   * When/if the capture is re-recorded with the budget + anchor checks enforced
+   * end-to-end, flip this assertion back to a strict `ok: true`.
+   */
+  it('still passes the hybrid-cardio invariant on the real-shape week sample (flagged for over-concentration + non-anchor slot 1)', () => {
     const raw = JSON.parse(
       fs.readFileSync(path.join(capturesDir, 'generation-capture-hybrid-week-sample.json'), 'utf8'),
     ) as unknown;
     const { ok, issues } = collectGoldenCaptureInvariantIssues(raw, {
       exerciseLibraryPath: libraryPath,
     });
-    expect({ ok, issues }).toEqual({ ok: true, issues: [] });
+    expect(ok).toBe(false);
+    expect(issues).toEqual([
+      'chunk validation failed: over_concentrated_pattern, slot_one_not_anchor',
+    ]);
   });
 });

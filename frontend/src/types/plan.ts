@@ -125,6 +125,11 @@ export interface ExerciseDraft {
   secondaryMuscleGroups?: string[];
   rpe?: number;
   rir?: number;
+  /**
+   * Suggested rest between sets (seconds). Stamped on the backend from the
+   * user's goal+difficulty scheme; Cardio rows leave this undefined.
+   */
+  restSeconds?: number;
   notes?: string;
   focus?: string;
 }

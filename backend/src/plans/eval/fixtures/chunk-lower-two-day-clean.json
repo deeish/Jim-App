@@ -46,11 +46,11 @@
       "weekday": "Friday",
       "name": "Lower 2",
       "exercises": [
+        { "name": "Conventional Deadlift", "sets": 3, "reps": 6, "exerciseId": "lo2_dl" },
         { "name": "Front squat", "sets": 4, "reps": 5, "exerciseId": "lo2_sq" },
-        { "name": "Deadlift", "sets": 3, "reps": 6, "exerciseId": "lo2_dl" },
-        { "name": "Split squat", "sets": 3, "reps": 10, "exerciseId": "lo2_ss" },
-        { "name": "Nordic", "sets": 3, "reps": 8, "exerciseId": "lo2_hm" },
-        { "name": "Landmine press", "sets": 3, "reps": 10, "exerciseId": "lo2_push" }
+        { "name": "Bulgarian Split Squat", "sets": 3, "reps": 10, "exerciseId": "lo2_ss" },
+        { "name": "Hamstring Curl", "sets": 3, "reps": 8, "exerciseId": "lo2_hm" },
+        { "name": "Landmine Press", "sets": 3, "reps": 10, "exerciseId": "lo2_push" }
       ]
     }
   ],

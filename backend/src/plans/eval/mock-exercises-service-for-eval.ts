@@ -8,7 +8,7 @@ function toTransformed(r: EvalCatalogExercise): TransformedExercise {
     id: r.id,
     name: r.name,
     primaryMuscleGroup: r.primaryMuscleGroup ?? 'Chest',
-    subMuscles: [],
+    subMuscles: r.subMuscles ?? [],
     secondaryMuscleGroups: r.secondaryMuscleGroups ?? [],
     equipment: r.equipment?.length ? r.equipment : ['Barbell'],
     movementPatterns: r.movementPatterns?.length ? [...r.movementPatterns] : [],

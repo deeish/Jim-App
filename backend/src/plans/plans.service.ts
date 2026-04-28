@@ -1032,6 +1032,9 @@ export class PlansService {
           hybridRepaired.sessions,
           'simple',
           this.movementPatternMapForSessions(hybridRepaired.sessions),
+          this.primaryMuscleGroupMapForSessions(hybridRepaired.sessions),
+          this.subMusclesMapForSessions(hybridRepaired.sessions),
+          true,
         );
         const hybridQuality = this.hybridChunkPassesQualityGate(
           specs,
@@ -1167,6 +1170,9 @@ export class PlansService {
             mapped,
             effectiveDetailLevel,
             this.movementPatternMapForSessions(mapped),
+            this.primaryMuscleGroupMapForSessions(mapped),
+            this.subMusclesMapForSessions(mapped),
+            true,
           )
         : null;
 
@@ -1237,6 +1243,9 @@ export class PlansService {
               mapped,
               effectiveDetailLevel,
               this.movementPatternMapForSessions(mapped),
+              this.primaryMuscleGroupMapForSessions(mapped),
+              this.subMusclesMapForSessions(mapped),
+              true,
             )
           : null;
         if (mapped && validationRetry?.ok) {
@@ -1737,6 +1746,49 @@ export class PlansService {
     return map;
   }
 
+  /**
+   * Sync map of library `primaryMuscleGroup` by exercise id for the per-session
+   * pattern-budget check in `validateGeneratedProgramChunk` (lets the validator
+   * exempt `Calves` / `Forearms` / `Cardio` and recognize `Core` rows).
+   */
+  private primaryMuscleGroupMapForSessions(
+    sessions: GeneratedSession[],
+  ): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const s of sessions) {
+      for (const e of s.exercises ?? []) {
+        const id = e.exerciseId?.trim();
+        if (!id || map.has(id)) continue;
+        const ex = this.exercises.findOne(id);
+        const pm = ex?.primaryMuscleGroup;
+        if (pm) map.set(id, pm);
+      }
+    }
+    return map;
+  }
+
+  /**
+   * Sync map of library `subMuscles` by exercise id for the per-session sub-muscle
+   * cap (`over_concentrated_sub_muscle`). The first sub-muscle is treated as the
+   * primary mover; rows whose primary group is exempt (Calves/Forearms/Core/Cardio)
+   * are skipped at validation time.
+   */
+  private subMusclesMapForSessions(
+    sessions: GeneratedSession[],
+  ): Map<string, string[]> {
+    const map = new Map<string, string[]>();
+    for (const s of sessions) {
+      for (const e of s.exercises ?? []) {
+        const id = e.exerciseId?.trim();
+        if (!id || map.has(id)) continue;
+        const ex = this.exercises.findOne(id);
+        const sm = ex?.subMuscles;
+        if (sm?.length) map.set(id, [...sm]);
+      }
+    }
+    return map;
+  }
+
   /** Validate / repair session lists: compound ordering, pull balance, warm-up tied to main lift. */
   private async applySessionEnrichment(
     sessions: GeneratedSession[],
@@ -1771,6 +1823,7 @@ export class PlansService {
             (spec.durationMin + spec.durationMax) / 2,
           ),
           detailLevel: dto.detailLevel ?? 'detailed',
+          difficulty: dto.experienceLevel,
         };
       },
       exercisesService: this.exercises,

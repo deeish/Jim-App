@@ -23,11 +23,35 @@ export function isTimeHoldExerciseName(name: string): boolean {
   return false;
 }
 
+/**
+ * Render a `restSeconds` value as a compact preview string. Mirrors the
+ * convention shown in trainer-authored programs:
+ *   - <60s → `45s`
+ *   - exact minute → `2 min`
+ *   - mixed → `1m 30s`
+ */
+export function formatRestSecondsForPreview(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s}s`;
+  const mins = Math.floor(s / 60);
+  const rem = s % 60;
+  if (rem === 0) return mins === 1 ? `1 min` : `${mins} min`;
+  return `${mins}m ${rem}s`;
+}
+
 export function exerciseUsesTimeDisplay(
   prescriptionType: ExercisePrescriptionType | undefined,
   exerciseName: string,
+  /**
+   * Belt-and-suspenders fallback for cardio rows whose `prescriptionType` is
+   * missing (legacy generated sessions, mock previews, swap cards). When
+   * `'Cardio'`, the row renders as a duration regardless of the rep value —
+   * mirrors the backend `inferPrescriptionTypeFromRawExercise` cardio gate.
+   */
+  primaryMuscleGroup?: string,
 ): boolean {
   if (prescriptionType === 'time') return true;
+  if ((primaryMuscleGroup ?? '').toLowerCase() === 'cardio') return true;
   const n = (exerciseName ?? '').trim();
   if (CARRY_OR_LOADED_WALK.test(n)) return true;
   return isTimeHoldExerciseName(exerciseName);

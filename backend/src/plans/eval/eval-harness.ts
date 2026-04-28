@@ -46,6 +46,46 @@ export function movementPatternsMapForSessions(
   return map;
 }
 
+/**
+ * Companion to {@link movementPatternsMapForSessions} — exposes `primaryMuscleGroup`
+ * for the per-session pattern-budget check (Calves/Forearms/Cardio exemptions, Core cap).
+ */
+export function primaryMuscleGroupMapForSessions(
+  sessions: GeneratedSession[],
+  findOne: (id: string) => { primaryMuscleGroup?: string } | undefined,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const s of sessions) {
+    for (const e of s.exercises ?? []) {
+      const id = e.exerciseId?.trim();
+      if (!id || map.has(id)) continue;
+      const pm = findOne(id)?.primaryMuscleGroup;
+      if (pm) map.set(id, pm);
+    }
+  }
+  return map;
+}
+
+/**
+ * Companion to {@link primaryMuscleGroupMapForSessions} — exposes `subMuscles`
+ * for the per-session sub-muscle cap (`over_concentrated_sub_muscle`).
+ */
+export function subMusclesMapForSessions(
+  sessions: GeneratedSession[],
+  findOne: (id: string) => { subMuscles?: string[] } | undefined,
+): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const s of sessions) {
+    for (const e of s.exercises ?? []) {
+      const id = e.exerciseId?.trim();
+      if (!id || map.has(id)) continue;
+      const sm = findOne(id)?.subMuscles;
+      if (sm?.length) map.set(id, [...sm]);
+    }
+  }
+  return map;
+}
+
 export type ChunkEvalRunResult = {
   sessionsOut: GeneratedSession[];
   repairNotes: string[];
@@ -91,11 +131,15 @@ export function runChunkGenerationEval(args: {
     belowMinRepairs = r.belowMinRepairs;
   }
   const movementMap = movementPatternsMapForSessions(sessions, (id) => lib.findOne(id));
+  const primaryMap = primaryMuscleGroupMapForSessions(sessions, (id) => lib.findOne(id));
+  const subMuscleMap = subMusclesMapForSessions(sessions, (id) => lib.findOne(id));
   const validation = validateGeneratedProgramChunk(
     args.specs,
     sessions,
     args.effectiveDetailLevel,
     movementMap,
+    primaryMap,
+    subMuscleMap,
   );
   return {
     sessionsOut: sessions,
@@ -146,11 +190,19 @@ export async function runChunkRepairEnrichThenValidate(args: {
   const movementMap = movementPatternsMapForSessions(sessionsEnriched, (id) =>
     mock.findOne(id),
   );
+  const primaryMap = primaryMuscleGroupMapForSessions(sessionsEnriched, (id) =>
+    mock.findOne(id),
+  );
+  const subMuscleMap = subMusclesMapForSessions(sessionsEnriched, (id) =>
+    mock.findOne(id),
+  );
   const validationAfterEnrich = validateGeneratedProgramChunk(
     args.specs,
     sessionsEnriched,
     args.effectiveDetailLevel,
     movementMap,
+    primaryMap,
+    subMuscleMap,
   );
   return {
     ...repaired,

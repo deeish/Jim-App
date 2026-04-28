@@ -14,6 +14,8 @@ export type ChunkRepairExerciseMeta = {
   prescriptionType?: GeneratedSessionExercise['prescriptionType'];
   primaryMuscleGroup?: string;
   secondaryMuscleGroups?: string[];
+  /** Library sub-muscles. First entry is treated as the primary mover by the sub-muscle cap validator. */
+  subMuscles?: string[];
 };
 
 export type ChunkRepairExerciseLibrary = {

@@ -57,6 +57,12 @@ export interface WorkoutPreview {
     bodyTag?: string;
     /** Cardio finisher row — not in session draft; hide replace control. */
     isSyntheticFinisher?: boolean;
+    /**
+     * Suggested rest between sets (seconds), stamped server-side from the
+     * goal+difficulty scheme. Cardio rows leave this undefined. Surfaced as
+     * a "· 90s rest" suffix on the preview row.
+     */
+    restSeconds?: number;
   }>;
 }
 

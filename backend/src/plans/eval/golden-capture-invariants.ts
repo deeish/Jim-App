@@ -7,7 +7,11 @@ import {
   type ParsedGenerateSessionsCapture,
 } from './generation-capture-eval';
 import { validateGeneratedProgramChunk } from '../generated-chunk-validators';
-import { movementPatternsMapForSessions } from './eval-harness';
+import {
+  movementPatternsMapForSessions,
+  primaryMuscleGroupMapForSessions,
+  subMusclesMapForSessions,
+} from './eval-harness';
 import type { EvalCatalogExercise } from './eval-types';
 
 export type GoldenInvariantResult = {
@@ -53,11 +57,22 @@ export function collectGoldenCaptureInvariantIssues(
   const movementMap = movementPatternsMapForSessions(parsed.sessionsOut, (id) =>
     byId.get(id),
   );
+  const primaryMap = primaryMuscleGroupMapForSessions(
+    parsed.sessionsOut,
+    (id) => byId.get(id),
+  );
+  const subMuscleMap = subMusclesMapForSessions(
+    parsed.sessionsOut,
+    (id) => byId.get(id),
+  );
   const validation = validateGeneratedProgramChunk(
     parsed.inputs.sessions,
     parsed.sessionsOut,
     effectiveDetail,
     movementMap,
+    primaryMap,
+    subMuscleMap,
+    true,
   );
   if (!validation.ok) {
     issues.push(`chunk validation failed: ${validation.issues.join(', ')}`);

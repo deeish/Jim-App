@@ -12,11 +12,28 @@
  *
  * When there are no exercises with sets, falls back to `plannedMinutes`.
  */
-export type ExerciseLike = { sets: number; reps?: number };
+export type ExerciseLike = {
+  sets: number;
+  reps?: number;
+  /**
+   * Synthetic preview rows (e.g. the "cardio finisher" appended by
+   * `buildWorkoutPreviewFromSessionDraft`) are not real prescribed sets and must not
+   * inflate the time estimate — otherwise the modal disagrees with the card calculation,
+   * which only sees the underlying `session.exercises`.
+   */
+  isSyntheticFinisher?: boolean;
+};
 
 /** Coerce API/preview rows (reps sometimes string) for the estimate. */
 export function exercisesLikeFromPrescription(
-  rows: Array<{ sets: number; reps?: number | string | null }> | null | undefined,
+  rows:
+    | Array<{
+        sets: number;
+        reps?: number | string | null;
+        isSyntheticFinisher?: boolean;
+      }>
+    | null
+    | undefined,
 ): ExerciseLike[] | undefined {
   if (!rows?.length) return undefined;
   return rows.map((e) => {
@@ -27,7 +44,11 @@ export function exercisesLikeFromPrescription(
       const n = Number.parseInt(r, 10);
       reps = Number.isFinite(n) ? n : undefined;
     }
-    return { sets: e.sets, reps };
+    return {
+      sets: e.sets,
+      reps,
+      ...(e.isSyntheticFinisher ? { isSyntheticFinisher: true } : {}),
+    };
   });
 }
 
@@ -61,7 +82,9 @@ export function estimateWorkoutMinutesFromExercises(
   exercises: ExerciseLike[] | null | undefined,
   plannedMinutes?: number | null,
 ): number | null {
-  const list = (exercises ?? []).filter((e) => e && (e.sets ?? 0) > 0);
+  const list = (exercises ?? []).filter(
+    (e) => e && (e.sets ?? 0) > 0 && !e.isSyntheticFinisher,
+  );
   if (list.length === 0) {
     if (plannedMinutes != null && plannedMinutes > 0) {
       return Math.min(DISPLAY_MAX_CAP, Math.round(plannedMinutes));

@@ -64,8 +64,17 @@ export function formatExerciseRepsDisplay(
   reps: string | number | undefined,
   goal: PlanInputs['goal'],
   prescriptionType?: ExercisePrescriptionType,
+  /**
+   * When provided, the formatter treats `'Cardio'` rows as time-based even if
+   * `prescriptionType` is missing AND falls back to a `"8–12 min"` band for
+   * legacy cardio rows whose `reps` value is a small rep count (e.g. `10`)
+   * rather than a seconds value (e.g. `600`). Without this, legacy captures
+   * surfaced cardio finishers as `1 × 10 sec` after Phase 6a.
+   */
+  primaryMuscleGroup?: string,
 ): string {
-  if (exerciseUsesTimeDisplay(prescriptionType, exerciseName)) {
+  const isCardio = (primaryMuscleGroup ?? '').toLowerCase() === 'cardio';
+  if (exerciseUsesTimeDisplay(prescriptionType, exerciseName, primaryMuscleGroup)) {
     const n =
       typeof reps === 'number'
         ? reps
@@ -75,9 +84,13 @@ export function formatExerciseRepsDisplay(
     if (Number.isFinite(n) && n > 0) {
       if (n >= 120 && n % 60 === 0) return `${n / 60} min`;
       if (n >= 60 && n < 120) return `${Math.round(n / 60)} min`;
+      // Legacy cardio rows sometimes stored a rep count (e.g. 10) instead of
+      // seconds. Anything below ~60 on a cardio row is almost certainly that
+      // shape — render the friendly band rather than "10 sec on the bike".
+      if (isCardio && n < 60) return '8–12 min';
       return `${n} sec`;
     }
-    return '20–45 sec';
+    return isCardio ? '8–12 min' : '20–45 sec';
   }
   if (typeof reps === 'string') {
     const t = reps.trim();
@@ -184,11 +197,15 @@ export function exerciseDraftFromGenerateResult(
       Number.isFinite(rawReps) ? rawReps : String(e.reps ?? ''),
       planInputs.goal,
       e.prescriptionType,
+      e.primaryMuscleGroup,
     ),
     repsRaw: Number.isFinite(rawReps) ? rawReps : undefined,
     prescriptionType: e.prescriptionType,
     primaryMuscleGroup: e.primaryMuscleGroup,
     secondaryMuscleGroups: coalesceSecondaryMuscleGroups(e),
+    ...(typeof e.restSeconds === 'number' && e.restSeconds > 0
+      ? { restSeconds: e.restSeconds }
+      : {}),
     notes: e.notes,
   };
 }
@@ -211,6 +228,9 @@ export function buildWorkoutPreviewFromSessionDraft(
     primaryMuscleGroup: e.primaryMuscleGroup,
     secondaryMuscleGroups: e.secondaryMuscleGroups?.length ? [...e.secondaryMuscleGroups] : undefined,
     bodyTag: shortBodyTagLabel(e.primaryMuscleGroup, e.name),
+    ...(typeof e.restSeconds === 'number' && e.restSeconds > 0
+      ? { restSeconds: e.restSeconds }
+      : {}),
     ...(e.notes?.trim() ? { notes: e.notes.trim() } : {}),
   }));
 
@@ -250,6 +270,7 @@ export function mapGroqPreviewExercise(
     primaryMuscleGroup?: string;
     secondaryMuscleGroups?: string[];
     secondaryMuscleGroup?: string;
+    restSeconds?: number;
   },
   idx: number,
   goal: PlanInputs['goal'],
@@ -262,6 +283,7 @@ export function mapGroqPreviewExercise(
       typeof e.reps === 'number' ? e.reps : String(e.reps ?? ''),
       goal,
       e.prescriptionType,
+      e.primaryMuscleGroup,
     ),
     weight: e.weight,
     notes: e.notes,
@@ -271,6 +293,9 @@ export function mapGroqPreviewExercise(
     primaryMuscleGroup: e.primaryMuscleGroup,
     secondaryMuscleGroups: coalesceSecondaryMuscleGroups(e),
     bodyTag: shortBodyTagLabel(e.primaryMuscleGroup, e.name),
+    ...(typeof e.restSeconds === 'number' && e.restSeconds > 0
+      ? { restSeconds: e.restSeconds }
+      : {}),
   };
 }
 
@@ -315,11 +340,23 @@ function previewRepsLineForGoal(e: ExerciseDraft, goal: PlanInputs['goal'] | und
   if (!goal) return e.reps;
   const raw = e.repsRaw;
   if (raw != null && Number.isFinite(raw) && raw > 0) {
-    return formatExerciseRepsDisplay(e.name, Math.round(raw), goal, e.prescriptionType);
+    return formatExerciseRepsDisplay(
+      e.name,
+      Math.round(raw),
+      goal,
+      e.prescriptionType,
+      e.primaryMuscleGroup,
+    );
   }
   const str = String(e.reps ?? '').trim();
   if (/^\d+$/.test(str)) {
-    return formatExerciseRepsDisplay(e.name, parseInt(str, 10), goal, e.prescriptionType);
+    return formatExerciseRepsDisplay(
+      e.name,
+      parseInt(str, 10),
+      goal,
+      e.prescriptionType,
+      e.primaryMuscleGroup,
+    );
   }
   return e.reps;
 }
@@ -1143,7 +1180,7 @@ export function sessionDraftToPlanSlotExercises(
       e.exerciseId != null && String(e.exerciseId).trim() !== ''
         ? String(e.exerciseId).trim()
         : `draft_${weekNumber}_${dayOfWeek}_${i}`;
-    const hold = exerciseUsesTimeDisplay(e.prescriptionType, e.name);
+    const hold = exerciseUsesTimeDisplay(e.prescriptionType, e.name, e.primaryMuscleGroup);
     const repsScalar = hold
       ? e.repsRaw != null && Number.isFinite(e.repsRaw) && e.repsRaw > 0
         ? Math.round(e.repsRaw)
@@ -1172,7 +1209,13 @@ export interface PlanWorkoutAdapter {
   title: string;
   detailLine: string;
   iconColor: string;
+  /** Heuristic estimate displayed on the card (volume-aware, blended toward planned). */
   durationMinutes: number;
+  /**
+   * Planned slot duration (mean of session `durationMin`/`durationMax`). Stable anchor for
+   * any volume-aware re-estimate downstream so the modal does not drift on re-render.
+   */
+  plannedDurationMinutes: number;
   intensity: 'Easy' | 'Medium' | 'Hard';
   type: 'strength' | 'cardio' | 'recovery';
   changeType?: 'new' | 'replaced' | 'moved';
@@ -1194,6 +1237,42 @@ const TYPE_COLORS: Record<string, string> = {
   cardio: '#E67E22',
   recovery: '#9B59B6',
 };
+
+/**
+ * Phase 8 — derive a per-session intensity badge from `(totalSets × estimatedMinutes)`
+ * rather than a static "Hard / Medium / Easy" label.
+ *
+ * Two Upper days can both look like "Medium" today even when one is 14 working
+ * sets in 35 min and the other is 24 sets in 60 min — the badge should reflect
+ * that. `isHardDay` and `recovery` keep their existing overrides so an
+ * explicitly hard week stays hard.
+ *
+ * Bands (sets × minutes):
+ *   < 400  → Easy   (≈ 8 sets in 50 min, or 12 sets in 30 min)
+ *   < 900  → Medium (≈ 18 sets in 45 min)
+ *   ≥ 900  → Hard   (≈ 22+ sets in 45+ min, or 18 sets in 60 min)
+ */
+export function deriveSessionIntensity(
+  session: SessionDraft,
+  estimatedMinutes: number,
+): 'Easy' | 'Medium' | 'Hard' {
+  if (session.type === 'recovery') return 'Easy';
+  if (session.isHardDay) return 'Hard';
+  let totalSets = 0;
+  for (const ex of session.exercises ?? []) {
+    const n = Number(ex.sets);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    // Cap per row at 6 — guards against malformed `sets: 30` style outliers
+    // that would otherwise skew the badge way off.
+    totalSets += Math.min(n, 6);
+  }
+  const minutes = Math.max(0, Math.round(estimatedMinutes));
+  if (totalSets === 0 || minutes === 0) return 'Medium';
+  const load = totalSets * minutes;
+  if (load < 400) return 'Easy';
+  if (load < 900) return 'Medium';
+  return 'Hard';
+}
 
 /** True when session has AI/coach copy worth surfacing in the week list (Phase E). */
 export function sessionHasCoachPreviewFields(session: SessionDraft): boolean {
@@ -1238,7 +1317,8 @@ export function planDraftToWeekPlans(draft: PlanDraft): WeekPlanAdapter[] {
         detailLine: previewDetailLineFromSession(session, duration),
         iconColor: TYPE_COLORS[session.type] ?? '#C7A46A',
         durationMinutes: duration,
-        intensity: session.isHardDay ? 'Hard' : session.type === 'recovery' ? 'Easy' : 'Medium',
+        plannedDurationMinutes: plannedDuration,
+        intensity: deriveSessionIntensity(session, duration),
         type: session.type,
         source: 'ai',
         draftId: draft.draftId,

@@ -18,6 +18,7 @@ import type { RootStackParamList } from '../types/navigation';
 import { useTheme, planSlotIconColors, type PlanSlotIconColors, type ColorPalette } from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
+import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
 import {
   createPlan,
   generateSingleSession,
@@ -80,7 +81,14 @@ interface PlanWorkout {
   title: string;
   detailLine: string;
   iconColor: string;
+  /** Heuristic estimate displayed on the card (volume-aware, blended toward planned). */
   durationMinutes: number;
+  /**
+   * Planned slot duration (mean of `durationMin`/`durationMax`) — the stable anchor that
+   * any volume-aware re-estimate (e.g. detail modal) should blend against. Without this,
+   * a re-estimate that uses `durationMinutes` as the anchor drifts on every render.
+   */
+  plannedDurationMinutes?: number;
   intensity: Intensity;
   type: WorkoutType;
   changeType?: 'new' | 'replaced' | 'moved';
@@ -1514,7 +1522,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                           ? previewData.exercises
                           : previewCard.workout.applyExercises,
                       ),
-                      previewCard.workout.durationMinutes,
+                      // Anchor to the slot's planned duration (stable across renders),
+                      // not the card's already-blended estimate. Falls back to the
+                      // card estimate for mock / swap cards that lack a planned slot.
+                      previewCard.workout.plannedDurationMinutes ??
+                        previewCard.workout.durationMinutes,
                     ) ?? previewCard.workout.durationMinutes}{' '}
                     min • {formatWorkoutTypeLabel(previewCard.workout.type)}
                   </Text>
@@ -1671,6 +1683,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                                     <Text style={styles.previewExerciseMeta}>
                                       {ex.sets} × {ex.reps}
                                       {ex.weight != null ? formatAtWeightFromLb(ex.weight, weightUnit) : ''}
+                                      {typeof ex.restSeconds === 'number' && ex.restSeconds > 0
+                                        ? ` · ${formatRestSecondsForPreview(ex.restSeconds)} rest`
+                                        : ''}
                                     </Text>
                                     {ex.notes?.trim() ? (
                                       <Text style={styles.previewExerciseNotes}>{ex.notes.trim()}</Text>

@@ -27,6 +27,11 @@ export interface CandidateExercise {
   equipment: string[];
   /** From library: Push, Pull, Squat, Hinge, Lunge, Carry. Used for slot enforcement. */
   movementPatterns: string[];
+  /**
+   * From library: e.g. Hamstrings, Upper Chest, Lats. First entry treated as the
+   * primary mover (drives the per-session sub-muscle cap + prompt-pool rotation).
+   */
+  subMuscles: string[];
   /** Derived: bench, overhead, squat, row, etc. One per pattern for variety. */
   variationGroup: string;
   /** First equipment or "mixed". */
@@ -276,12 +281,14 @@ export class WorkoutGeneratorService {
       primaryMuscleGroup: string;
       equipment?: string[];
       movementPatterns?: string[];
+      subMuscles?: string[];
     }): CandidateExercise => ({
       id: e.id,
       name: e.name,
       primaryMuscleGroup: e.primaryMuscleGroup,
       equipment: e.equipment ?? [],
       movementPatterns: e.movementPatterns ?? [],
+      subMuscles: e.subMuscles ?? [],
       variationGroup: this.getVariationGroupFromName(e.name),
       equipmentType: e.equipment && e.equipment[0] ? e.equipment[0] : 'mixed',
     });
@@ -486,14 +493,17 @@ export class WorkoutGeneratorService {
       else other.push(c);
     }
 
-    const shuffledGroups = groupOrder.map((g) =>
-      this.shuffleArray(byGroup.get(g) ?? []),
+    // Within each primary group, rotate across sub-muscles so the prompt pool
+    // doesn't lead with three Hamstring lifts (or three Upper-Chest pushes) in a
+    // row. The first sub-muscle on each row is treated as the primary mover.
+    const sortedGroups = groupOrder.map((g) =>
+      this.subMuscleRotateWithinPrimary(byGroup.get(g) ?? []),
     );
     const result: CandidateExercise[] = [];
     let idx = 0;
     while (true) {
       let added = 0;
-      for (const list of shuffledGroups) {
+      for (const list of sortedGroups) {
         if (idx < list.length) {
           result.push(list[idx]);
           added++;
@@ -506,12 +516,55 @@ export class WorkoutGeneratorService {
     return result;
   }
 
+  /**
+   * Round-robin candidates inside one primary group by their first sub-muscle so
+   * Groq sees a varied pool (Hamstrings → Quads → Glutes → Hamstrings…) instead
+   * of a clump. Rows without sub-muscle metadata fall into a single bucket and
+   * are interleaved at the end of each pass.
+   */
+  private subMuscleRotateWithinPrimary(
+    list: CandidateExercise[],
+  ): CandidateExercise[] {
+    if (list.length <= 1) return [...list];
+    const buckets = new Map<string, CandidateExercise[]>();
+    const noSub: CandidateExercise[] = [];
+    for (const c of this.shuffleArray([...list])) {
+      const key = String(c.subMuscles?.[0] ?? '').trim();
+      if (!key) {
+        noSub.push(c);
+        continue;
+      }
+      let arr = buckets.get(key);
+      if (!arr) {
+        arr = [];
+        buckets.set(key, arr);
+      }
+      arr.push(c);
+    }
+    const lanes = [...buckets.values(), ...(noSub.length ? [noSub] : [])];
+    const out: CandidateExercise[] = [];
+    let idx = 0;
+    while (true) {
+      let added = 0;
+      for (const lane of lanes) {
+        if (idx < lane.length) {
+          out.push(lane[idx]);
+          added++;
+        }
+      }
+      if (added === 0) break;
+      idx++;
+    }
+    return out;
+  }
+
   private libraryRowToCandidate(e: {
     id: string;
     name: string;
     primaryMuscleGroup: string;
     equipment?: string[];
     movementPatterns?: string[];
+    subMuscles?: string[];
   }): CandidateExercise {
     return {
       id: e.id,
@@ -519,6 +572,7 @@ export class WorkoutGeneratorService {
       primaryMuscleGroup: e.primaryMuscleGroup,
       equipment: e.equipment ?? [],
       movementPatterns: e.movementPatterns ?? [],
+      subMuscles: e.subMuscles ?? [],
       variationGroup: this.getVariationGroupFromName(e.name),
       equipmentType: e.equipment && e.equipment[0] ? e.equipment[0] : 'mixed',
     };
@@ -1610,6 +1664,7 @@ Important: Do NOT pick multiple variations of the same movement in one workout. 
 - For Push days: pick ONE horizontal push (e.g. flat or incline bench), ONE vertical push (e.g. overhead/shoulder press), and 1–2 isolation exercises (e.g. flyes, pushdowns, extensions). Do not pick multiple bench press variants (e.g. flat bench + close-grip bench + decline bench) in the same session.
 - For Pull days: one row, one vertical pull (pulldown/pull-up), then isolation (curls, etc.). Not multiple row variations.
 - For legs: one squat, one hinge (deadlift/hip thrust), one lunge or single-leg, then isolation. Not multiple squat variants.
+Sub-muscle variety: avoid stacking 3+ exercises whose primary mover is the same sub-muscle (e.g. three Hamstring lifts, three Upper-Chest pushes). At most 2 per sub-muscle in one strength session — Calves, Forearms, Core and Cardio are exempt.
 
 Return valid JSON with exerciseId, sets, reps${wantsExerciseNotes ? ', optional notes (one short coaching line per exercise)' : ' (no notes field)'}. Include warmUp and coolDown as separate fields. Sets and reps should follow the set/rep scheme above. Write "reasoning" that references the program (do not duplicate warm-up/cool-down in reasoning).`;
 

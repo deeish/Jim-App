@@ -296,6 +296,106 @@ describe('enrichGeneratedSession prescriptionType', () => {
     expect(out.reasoning?.toLowerCase()).toMatch(/hinge|hip/);
   });
 
+  /**
+   * Regression for the Tuesday-Lower capture
+   * (`backend/logs/generation-captures/generation-1776722579925-cc734d2b.json`)
+   * where a hinge fill-in landed in slot 3 behind two isolations because the
+   * pull/squat/hinge balance pass inserted *after* the compound-first sort and
+   * no follow-up sort ran. With the post-fill-in re-sort in place, the inserted
+   * compound must end up at slot 0 or 1, not buried.
+   */
+  it('keeps compound first after squat/hinge fill-in even when pre-enrichment is isolation-heavy', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Tuesday',
+      name: 'Lower',
+      exercises: [
+        { name: 'Seated Leg Extension', sets: 4, reps: 12, exerciseId: 'iso_quad' },
+        { name: 'Standing Calf Raise', sets: 4, reps: 12, exerciseId: 'iso_calf' },
+        { name: 'Overhead March', sets: 4, reps: 8, exerciseId: 'core_carry' },
+        { name: 'Rotational Sit-Up', sets: 4, reps: 10, exerciseId: 'core_rot1' },
+        { name: 'Landmine Rotation', sets: 4, reps: 10, exerciseId: 'core_rot2' },
+        { name: '45-Degree Leg Press', sets: 4, reps: 12, exerciseId: 'leg_press' },
+      ],
+    };
+
+    const hingePick = {
+      id: 'conv_dl',
+      name: 'Conventional Deadlift',
+      prescriptionType: 'reps' as const,
+      movementPatterns: ['Hinge'],
+      primaryMuscleGroup: 'Legs',
+      secondaryMuscleGroups: ['Back', 'Core'],
+    };
+
+    const exercisesService = {
+      findOne: (id: string) => {
+        switch (id) {
+          case 'iso_quad':
+            return {
+              id,
+              movementPatterns: [],
+              primaryMuscleGroup: 'Legs',
+            };
+          case 'iso_calf':
+            return {
+              id,
+              movementPatterns: [],
+              primaryMuscleGroup: 'Legs',
+            };
+          case 'core_carry':
+            return {
+              id,
+              movementPatterns: ['Carry'],
+              primaryMuscleGroup: 'Core',
+            };
+          case 'core_rot1':
+          case 'core_rot2':
+            return {
+              id,
+              movementPatterns: [],
+              primaryMuscleGroup: 'Core',
+            };
+          case 'leg_press':
+            return {
+              id,
+              movementPatterns: ['Squat'],
+              primaryMuscleGroup: 'Legs',
+            };
+          case 'conv_dl':
+            return {
+              id,
+              movementPatterns: ['Hinge'],
+              primaryMuscleGroup: 'Legs',
+            };
+          default:
+            return undefined;
+        }
+      },
+      getCandidatesForGenerator: (opts: { focus?: string }) =>
+        opts?.focus === 'lower' ? [hingePick] : [],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Lower' },
+      exercisesService as any,
+      [],
+      [],
+    );
+
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).toContain('conv_dl');
+    expect(ids).toContain('leg_press');
+    // Both compounds (Hinge + Squat) must be ahead of all isolations / core movements.
+    const compoundsFirst = ids.slice(0, 2).sort();
+    expect(compoundsFirst).toEqual(['conv_dl', 'leg_press'].sort());
+    // Specifically: leg extension and the rotational core moves must NOT be in slot 0.
+    expect(ids[0]).not.toBe('iso_quad');
+    expect(ids[0]).not.toBe('core_rot1');
+    expect(ids[0]).not.toBe('core_rot2');
+  });
+
   it('appends a library cardio row last for hybrid goal when no finisher or cardio exercise exists', async () => {
     const session: GeneratedSession = {
       weekIndex: 1,
@@ -707,6 +807,157 @@ describe('enrichGeneratedSession prescriptionType', () => {
 
     expect(out.exercises.map((e) => e.exerciseId)).not.toContain('tread1');
   });
+
+  /**
+   * Phase 5 — slot-1 anchor swap. The deterministic post-pass replaces a
+   * non-anchor opener (e.g. landmine_press) with a curated staple compound
+   * (flat_barbell_bench_press) when one is available in the candidate pool
+   * and shares a movement pattern.
+   */
+  it('swaps a non-anchor slot 1 (landmine_press) for a curated anchor on Upper', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Landmine Press', sets: 4, reps: 8, exerciseId: 'landmine_press' },
+        { name: 'Lat Pulldown', sets: 3, reps: 10, exerciseId: 'lat_pulldown_wide' },
+        { name: 'Curl', sets: 3, reps: 12, exerciseId: 'curl' },
+        { name: 'Pushdown', sets: 3, reps: 12, exerciseId: 'pushdown' },
+      ],
+    };
+    const exercisesService = {
+      findOne: (id: string) => {
+        if (id === 'landmine_press') {
+          return {
+            id,
+            name: 'Landmine Press',
+            movementPatterns: ['Push'],
+            primaryMuscleGroup: 'Shoulders',
+            secondaryMuscleGroups: [],
+          };
+        }
+        if (id === 'lat_pulldown_wide') {
+          return {
+            id,
+            name: 'Lat Pulldown',
+            movementPatterns: ['Pull'],
+            primaryMuscleGroup: 'Back',
+            secondaryMuscleGroups: [],
+          };
+        }
+        if (id === 'flat_barbell_bench_press') {
+          return {
+            id,
+            name: 'Flat Barbell Bench Press',
+            movementPatterns: ['Push'],
+            primaryMuscleGroup: 'Chest',
+            secondaryMuscleGroups: ['Triceps', 'Shoulders'],
+          };
+        }
+        return { id, movementPatterns: [], primaryMuscleGroup: 'Arms', name: id, secondaryMuscleGroups: [] };
+      },
+      getCandidatesForGenerator: () => [],
+    };
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Upper' },
+      exercisesService as any,
+      [],
+      [],
+      { goal: 'hypertrophy', durationMinutes: 45, detailLevel: 'detailed' },
+    );
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids[0]).toBe('flat_barbell_bench_press');
+    expect(ids).not.toContain('landmine_press');
+    expect(out.reasoning ?? '').toMatch(/staple compound/i);
+  });
+
+  it('keeps slot 1 untouched when it is already a curated anchor', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Flat Barbell Bench Press', sets: 4, reps: 6, exerciseId: 'flat_barbell_bench_press' },
+        { name: 'Lat Pulldown', sets: 3, reps: 10, exerciseId: 'lat_pulldown_wide' },
+      ],
+    };
+    const exercisesService = {
+      findOne: (id: string) => ({
+        id,
+        name: id,
+        movementPatterns: id === 'flat_barbell_bench_press' ? ['Push'] : ['Pull'],
+        primaryMuscleGroup: id === 'flat_barbell_bench_press' ? 'Chest' : 'Back',
+        secondaryMuscleGroups: [],
+      }),
+      getCandidatesForGenerator: () => [],
+    };
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Upper' },
+      exercisesService as any,
+      [],
+      [],
+      { goal: 'hypertrophy', durationMinutes: 45, detailLevel: 'detailed' },
+    );
+    expect(out.exercises[0]?.exerciseId).toBe('flat_barbell_bench_press');
+  });
+
+  it('skips the swap when no candidate anchor shares a movement pattern with slot 1', async () => {
+    // Slot 1 is a Pull move; there is no Pull-pattern anchor available because
+    // every candidate the helper inspects is exclude-listed via the chunk set.
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Lower',
+      exercises: [
+        { name: 'Cable Crunch', sets: 3, reps: 12, exerciseId: 'cable_crunch' },
+        { name: 'Calf Raise', sets: 3, reps: 15, exerciseId: 'standing_calf_raise_machine' },
+      ],
+    };
+    const exercisesService = {
+      findOne: (id: string) => {
+        if (id === 'cable_crunch') {
+          return {
+            id,
+            name: 'Cable Crunch',
+            // No tracked movement pattern — defeats the overlap check.
+            movementPatterns: [],
+            primaryMuscleGroup: 'Core',
+            secondaryMuscleGroups: [],
+          };
+        }
+        return { id, name: id, movementPatterns: [], primaryMuscleGroup: 'Legs', secondaryMuscleGroups: [] };
+      },
+      getCandidatesForGenerator: () => [],
+    };
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Lower' },
+      exercisesService as any,
+      [],
+      [],
+      // Every Lower anchor pre-loaded into the chunk-exclude set so the helper
+      // exhausts its candidate list and bails out.
+      {
+        goal: 'hypertrophy',
+        durationMinutes: 45,
+        detailLevel: 'detailed',
+        chunkExcludeExerciseIds: [
+          'back_squat',
+          'front_squat',
+          'forty_five_degree_leg_press',
+          'conventional_deadlift',
+          'sumo_deadlift',
+          'lying_leg_curl',
+          'seated_leg_extension',
+          'standing_calf_raise_machine',
+        ],
+      },
+    );
+    expect(out.exercises[0]?.exerciseId).toBe('cable_crunch');
+  });
 });
 
 describe('enrichGeneratedSessionsInChunkOrder', () => {
@@ -800,6 +1051,182 @@ describe('enrichGeneratedSessionsInChunkOrder', () => {
     const lastB = out[1]!.exercises[out[1]!.exercises.length - 1]!.exerciseId;
     expect(lastA).toBe('tread1');
     expect(lastB).toBe('bike1');
+  });
+
+  it('stamps the cardio finisher row as time-based with reps=600 (10 min)', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Bench', sets: 3, reps: 8, exerciseId: 'a_bp' },
+        { name: 'Row', sets: 3, reps: 8, exerciseId: 'a_row' },
+      ],
+    };
+    const exercisesService = {
+      findOne: (exId: string) => {
+        if (exId === 'a_bp')
+          return {
+            id: 'a_bp',
+            name: 'Bench',
+            movementPatterns: ['Push'],
+            primaryMuscleGroup: 'Chest',
+          };
+        if (exId === 'a_row')
+          return {
+            id: 'a_row',
+            name: 'Row',
+            movementPatterns: ['Pull'],
+            primaryMuscleGroup: 'Back',
+          };
+        if (exId === 'tread_no_pt')
+          return {
+            id: 'tread_no_pt',
+            name: 'Treadmill Walk',
+            primaryMuscleGroup: 'Cardio',
+            // No `prescriptionType` on the library row — the finisher append
+            // should still force `time` because primaryMuscleGroup is Cardio.
+          };
+        return undefined;
+      },
+      getCandidatesForGenerator: (opts: { focus?: string }) =>
+        opts?.focus === 'cardio'
+          ? [
+              {
+                id: 'tread_no_pt',
+                name: 'Treadmill Walk',
+                primaryMuscleGroup: 'Cardio',
+              },
+            ]
+          : [],
+    };
+
+    const out = await enrichGeneratedSessionsInChunkOrder([session], {
+      getSpec: () => ({ type: 'strength', title: 'Upper' }),
+      getAvoidPhrases: () => [],
+      getGenerationPrefs: () => ({
+        goal: 'hybrid',
+        durationMinutes: 45,
+        detailLevel: 'simple',
+      }),
+      exercisesService: exercisesService as any,
+      equipment: ['Machine'],
+    });
+
+    const last = out[0]!.exercises[out[0]!.exercises.length - 1]!;
+    expect(last.exerciseId).toBe('tread_no_pt');
+    expect(last.prescriptionType).toBe('time');
+    expect(last.reps).toBe(600);
+    expect(last.sets).toBe(1);
+  });
+
+  it('stamps restSeconds on each strength row from the goal+difficulty scheme (anchor +30s)', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Bench', sets: 4, reps: 6, exerciseId: 'a_bp' },
+        { name: 'Row', sets: 3, reps: 8, exerciseId: 'a_row' },
+        { name: 'Curl', sets: 3, reps: 12, exerciseId: 'a_curl' },
+      ],
+    };
+    const exercisesService = {
+      findOne: (exId: string) => ({
+        id: exId,
+        name: exId,
+        movementPatterns: exId === 'a_bp' ? ['Push'] : ['Pull'],
+        primaryMuscleGroup:
+          exId === 'a_bp' ? 'Chest' : exId === 'a_row' ? 'Back' : 'Biceps',
+      }),
+      getCandidatesForGenerator: () => [],
+    };
+
+    const out = await enrichGeneratedSessionsInChunkOrder([session], {
+      getSpec: () => ({ type: 'strength', title: 'Upper' }),
+      getAvoidPhrases: () => [],
+      getGenerationPrefs: () => ({
+        goal: 'strength',
+        difficulty: 'intermediate',
+        durationMinutes: 45,
+        detailLevel: 'simple',
+      }),
+      exercisesService: exercisesService as any,
+      equipment: ['Barbell'],
+    });
+
+    // strength + intermediate → 120s base rest. Anchor (slot 1) gets +30s.
+    const rows = out[0]!.exercises;
+    expect(rows[0]!.restSeconds).toBe(150);
+    expect(rows[1]!.restSeconds).toBe(120);
+    expect(rows[2]!.restSeconds).toBe(120);
+  });
+
+  it('does not stamp restSeconds on the cardio finisher row', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Bench', sets: 3, reps: 8, exerciseId: 'a_bp' },
+        { name: 'Row', sets: 3, reps: 8, exerciseId: 'a_row' },
+      ],
+    };
+    const exercisesService = {
+      findOne: (exId: string) => {
+        if (exId === 'a_bp')
+          return {
+            id: 'a_bp',
+            name: 'Bench',
+            movementPatterns: ['Push'],
+            primaryMuscleGroup: 'Chest',
+          };
+        if (exId === 'a_row')
+          return {
+            id: 'a_row',
+            name: 'Row',
+            movementPatterns: ['Pull'],
+            primaryMuscleGroup: 'Back',
+          };
+        if (exId === 'tread1')
+          return {
+            id: 'tread1',
+            name: 'Treadmill Walk Easy',
+            primaryMuscleGroup: 'Cardio',
+            prescriptionType: 'time' as const,
+          };
+        return undefined;
+      },
+      getCandidatesForGenerator: (opts: { focus?: string }) =>
+        opts?.focus === 'cardio'
+          ? [
+              {
+                id: 'tread1',
+                name: 'Treadmill Walk Easy',
+                primaryMuscleGroup: 'Cardio',
+                prescriptionType: 'time',
+              },
+            ]
+          : [],
+    };
+
+    const out = await enrichGeneratedSessionsInChunkOrder([session], {
+      getSpec: () => ({ type: 'strength', title: 'Upper' }),
+      getAvoidPhrases: () => [],
+      getGenerationPrefs: () => ({
+        goal: 'hybrid',
+        difficulty: 'intermediate',
+        durationMinutes: 45,
+        detailLevel: 'simple',
+      }),
+      exercisesService: exercisesService as any,
+      equipment: ['Machine'],
+    });
+
+    const rows = out[0]!.exercises;
+    const cardio = rows[rows.length - 1]!;
+    expect(cardio.exerciseId).toBe('tread1');
+    expect(cardio.restSeconds).toBeUndefined();
   });
 });
 

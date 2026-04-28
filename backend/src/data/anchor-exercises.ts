@@ -97,3 +97,43 @@ export function getAnchorIdsForFocus(focus: string): string[] {
   if (/^chest\b|^back\b|^shoulders?\b|^arms\b/.test(key)) return [];
   return [];
 }
+
+/**
+ * Larger set of "acceptable" anchors for slot-1 enforcement. A trainer wouldn't
+ * blink at an Upper day opening with `incline_barbell_bench_press` (a Push anchor)
+ * even though it isn't in the curated `upper` list, so the validator treats the
+ * union of related focuses as acceptable. Narrow focuses (push, pull, chest, etc.)
+ * still use the direct list.
+ */
+export function getAcceptedAnchorIdsForFocus(focus: string): string[] {
+  const key = focus.toLowerCase().trim();
+  if (/^upper\b|upper body/.test(key)) {
+    return [
+      ...new Set([
+        ...(ANCHOR_EXERCISES_BY_FOCUS.upper ?? []),
+        ...(ANCHOR_EXERCISES_BY_FOCUS['upper body'] ?? []),
+        ...(ANCHOR_EXERCISES_BY_FOCUS.push ?? []),
+        ...(ANCHOR_EXERCISES_BY_FOCUS.pull ?? []),
+      ]),
+    ];
+  }
+  if (/^legs\b|^lower\b|lower body/.test(key)) {
+    return [
+      ...new Set([
+        ...(ANCHOR_EXERCISES_BY_FOCUS.lower ?? []),
+        ...(ANCHOR_EXERCISES_BY_FOCUS['lower body'] ?? []),
+        ...(ANCHOR_EXERCISES_BY_FOCUS.legs ?? []),
+      ]),
+    ];
+  }
+  if (/full body/.test(key)) {
+    // For Full Body the "acceptable" set is the full anchor universe — any
+    // staple compound is fine in slot 1.
+    return [
+      ...new Set(
+        Object.values(ANCHOR_EXERCISES_BY_FOCUS).flat() as string[],
+      ),
+    ];
+  }
+  return getAnchorIdsForFocus(focus);
+}

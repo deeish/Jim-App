@@ -8,6 +8,8 @@ import {
   exerciseTargetsForSession,
   goalWantsStrengthCardioFinisher,
 } from '../workouts/workout-generator.service';
+import { getAcceptedAnchorIdsForFocus } from '../data/anchor-exercises';
+import { getSetRepGuidelines } from '../data/set-rep-schemes';
 
 /** One exercise row as returned by plan / workout generation (before save). */
 export type GeneratedSessionExercise = {
@@ -23,6 +25,14 @@ export type GeneratedSessionExercise = {
   primaryMuscleGroup?: string;
   /** Distinct secondary muscles from library (e.g. Triceps, Shoulders on bench press). */
   secondaryMuscleGroups?: string[];
+  /**
+   * Suggested rest between sets in seconds. Sourced from the goal+difficulty
+   * scheme in `data/set-rep-schemes.ts → getSetRepGuidelines`. Cardio rows are
+   * left undefined (no inter-set rest concept). Surfaced in the preview as
+   * `4 × 8 · 90s rest` so trainer-quality programming becomes visible to the
+   * user without requiring an LLM round-trip.
+   */
+  restSeconds?: number;
 };
 
 export type GeneratedSession = {
@@ -495,9 +505,18 @@ async function sortExercisesByCompoundOrder(
     perm.map(async (origIndex) => {
       const e = exercises[origIndex]!;
       const meta = e.exerciseId ? findMeta(e.exerciseId) : undefined;
+      // Preserve any explicit `prescriptionType` already on the row — the cardio
+      // finisher append at the end of `enrichGeneratedSession` deliberately sets
+      // `'time'` for cardio rows whose library `prescriptionType` is missing.
+      // Without this guard, the post-pass resort clobbers it back to `'reps'`.
+      // Cardio meta is also a strong fallback (treadmill / bike with no name
+      // regex match still implies time-based programming).
       const prescriptionType =
+        e.prescriptionType ??
         meta?.prescriptionType ??
-        inferPrescriptionTypeFromExerciseName(e.name);
+        ((meta?.primaryMuscleGroup ?? '').toLowerCase() === 'cardio'
+          ? 'time'
+          : inferPrescriptionTypeFromExerciseName(e.name));
       const secondaries = meta
         ? secondaryMusclesForPreview(
             meta.secondaryMuscleGroups,
@@ -521,12 +540,112 @@ export type EnrichSessionGenerationPrefs = {
   durationMinutes?: number;
   detailLevel?: 'simple' | 'detailed';
   /**
+   * User's experience level — feeds `getSetRepGuidelines(goal, difficulty)` so
+   * we can stamp `restSeconds` on each strength row in Phase 6b. Falls back to
+   * `'intermediate'` inside the scheme lookup when omitted.
+   */
+  difficulty?: string;
+  /**
    * Library `exerciseId`s already present on other sessions in this generated chunk.
    * Hybrid cardio finisher picks merge these into `excludeIds` so we do not append the
    * same catalog id twice across the chunk (`duplicate_exercise_id_across_chunk`).
    */
   chunkExcludeExerciseIds?: string[];
 };
+
+/**
+ * Deterministic safety net for "novelty drift" in slot 1 — if the LLM opens the
+ * session with a non-staple exercise (landmine variations, low-bar rotations,
+ * influencer moves) and a curated anchor with a matching movement pattern is
+ * available in the candidate pool, swap it. Mirrors the chunk validator's
+ * `slot_one_not_anchor` check — that flag drives retry-tail demotion, this
+ * swap fixes the symptom for the user when retry already used its budget.
+ *
+ * Constraints:
+ * - Only mutates strength sessions (`spec.type === 'strength'`).
+ * - Only swaps when the focus has anchors (cardio / recovery / narrow body-part
+ *   focuses are skipped via `getAcceptedAnchorIdsForFocus` returning `[]`).
+ * - Skips cardio rows when locating slot 1 (cardio finishers live at the tail).
+ * - Refuses to swap if no candidate anchor shares a tracked movement pattern
+ *   with slot 1 — prevents replacing a chest move with a row.
+ * - Preserves the original sets/reps/weight scheme; only the exercise identity
+ *   changes. Adds a coach note so the swap is visible in the reasoning copy.
+ */
+function ensureAnchorInSlotOne(args: {
+  exercises: GeneratedSessionExercise[];
+  spec: { title?: string; type: string };
+  exercisesService: ExercisesService;
+  avoidPhrases: string[];
+  chunkExcludeExerciseIds: string[];
+  coachNotes: string[];
+}): void {
+  const { exercises, spec } = args;
+  if (spec.type !== 'strength') return;
+  const accepted = getAcceptedAnchorIdsForFocus(spec.title ?? '');
+  if (!accepted.length) return;
+  const acceptedSet = new Set(accepted);
+  const findMeta = (id: string) => args.exercisesService.findOne(id);
+
+  let slotOneIdx = -1;
+  for (let i = 0; i < exercises.length; i++) {
+    const id = exercises[i]?.exerciseId?.trim();
+    if (!id) continue;
+    if (findMeta(id)?.primaryMuscleGroup === 'Cardio') continue;
+    slotOneIdx = i;
+    break;
+  }
+  if (slotOneIdx < 0) return;
+  const slotOne = exercises[slotOneIdx]!;
+  const slotOneId = slotOne.exerciseId?.trim();
+  if (!slotOneId) return;
+  if (acceptedSet.has(slotOneId)) return;
+
+  const slotOneMeta = findMeta(slotOneId);
+  const slotOnePatterns = new Set(slotOneMeta?.movementPatterns ?? []);
+  const sessionExcludeIds = new Set(
+    exercises
+      .map((e) => e.exerciseId?.trim())
+      .filter((x): x is string => !!x),
+  );
+  const chunkExcludeSet = new Set(args.chunkExcludeExerciseIds);
+
+  for (const anchorId of accepted) {
+    if (sessionExcludeIds.has(anchorId)) continue;
+    if (chunkExcludeSet.has(anchorId)) continue;
+    const anchorMeta = findMeta(anchorId);
+    if (!anchorMeta) continue;
+    if (anchorMeta.primaryMuscleGroup === 'Cardio') continue;
+    if (nameMatchesAvoidList(anchorMeta.name, args.avoidPhrases)) continue;
+    const anchorPatterns = anchorMeta.movementPatterns ?? [];
+    if (
+      slotOnePatterns.size &&
+      !anchorPatterns.some((p) => slotOnePatterns.has(p))
+    ) {
+      continue;
+    }
+    const sec = secondaryMusclesForPreview(
+      anchorMeta.secondaryMuscleGroups,
+      anchorMeta.primaryMuscleGroup,
+    );
+    exercises.splice(slotOneIdx, 1, {
+      name: anchorMeta.name,
+      exerciseId: anchorMeta.id,
+      sets: slotOne.sets,
+      reps: slotOne.reps,
+      ...(slotOne.weight != null ? { weight: slotOne.weight } : {}),
+      notes: 'Swapped in a staple compound for slot 1 (anchor enforcement).',
+      prescriptionType:
+        anchorMeta.prescriptionType ??
+        inferPrescriptionTypeFromExerciseName(anchorMeta.name),
+      primaryMuscleGroup: anchorMeta.primaryMuscleGroup,
+      ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
+    });
+    args.coachNotes.push(
+      'We led off this session with a staple compound so your heaviest work happens on a proven main lift.',
+    );
+    return;
+  }
+}
 
 /**
  * Order compounds before accessories, ensure pull balance when the title calls for it,
@@ -749,12 +868,21 @@ export async function enrichGeneratedSession(
           name: pick.name,
           exerciseId: pick.id,
           sets: 1,
-          reps: 10,
+          // 600s = 10 min, the midpoint of the 8–12 min band already in the
+          // notes. The frontend formatter converts seconds → "10 min" when
+          // `prescriptionType === 'time'` and `reps >= 60` (see
+          // `formatExerciseRepsDisplay` in `frontend/src/lib/planPipeline.ts`).
+          reps: 600,
           notes:
             'Short steady-state finisher (~8–12 min easy effort). Skip on a busy day if you prefer.',
+          // Cardio finishers are time-based regardless of name (treadmill /
+          // bike / rower / etc.). Force `time` so the row shows "10 min" not
+          // a rep band even when the picked row's `prescriptionType` is stale.
           prescriptionType:
-            pick.prescriptionType ??
-            inferPrescriptionTypeFromExerciseName(pick.name),
+            pick.primaryMuscleGroup === 'Cardio'
+              ? 'time'
+              : (pick.prescriptionType ??
+                inferPrescriptionTypeFromExerciseName(pick.name)),
           primaryMuscleGroup: pick.primaryMuscleGroup,
           ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
         });
@@ -770,7 +898,17 @@ export async function enrichGeneratedSession(
     spec,
     exercisesService,
   );
+  ensureAnchorInSlotOne({
+    exercises,
+    spec,
+    exercisesService,
+    avoidPhrases,
+    chunkExcludeExerciseIds: generationPrefs?.chunkExcludeExerciseIds ?? [],
+    coachNotes,
+  });
   moveCardioExercisesLast(exercises, findMeta);
+
+  stampRestSeconds(exercises, findMeta, generationPrefs);
 
   const mainName = inferMainLiftName(exercises, {
     sessionTitle: spec.title,
@@ -783,6 +921,36 @@ export async function enrichGeneratedSession(
     '2–5 minutes of easy walking or light cycling, then brief static stretching for the muscles you trained.';
 
   return { ...session, warmUp, exercises, reasoning, coolDown };
+}
+
+/**
+ * Stamp `restSeconds` on each non-cardio strength row from the goal+difficulty
+ * scheme. The first compound (anchor) row gets a +30s bump because the trainer
+ * convention is to give the heaviest lift longer rest than accessories — keeps
+ * the preview honest without requiring an LLM round trip.
+ *
+ * Cardio rows are left untouched: the inter-set rest concept doesn't apply,
+ * and the row is rendered as a duration ("10 min") rather than "sets × reps".
+ */
+function stampRestSeconds(
+  exercises: GeneratedSessionExercise[],
+  findMeta: (id: string) => { primaryMuscleGroup?: string } | undefined,
+  prefs: EnrichSessionGenerationPrefs | undefined,
+): void {
+  const guidelines = getSetRepGuidelines(prefs?.goal, prefs?.difficulty);
+  const baseRest = guidelines.restSeconds;
+  if (!baseRest || baseRest <= 0) return;
+  let firstStrengthSeen = false;
+  for (const ex of exercises) {
+    const id = ex.exerciseId?.trim();
+    const meta = id ? findMeta(id) : undefined;
+    if ((meta?.primaryMuscleGroup ?? '').toLowerCase() === 'cardio') continue;
+    if ((ex.primaryMuscleGroup ?? '').toLowerCase() === 'cardio') continue;
+    if (ex.restSeconds == null) {
+      ex.restSeconds = firstStrengthSeen ? baseRest : baseRest + 30;
+    }
+    firstStrengthSeen = true;
+  }
 }
 
 function collectDistinctExerciseIds(session: GeneratedSession): string[] {

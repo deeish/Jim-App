@@ -208,10 +208,14 @@ exports[`generation eval golden snapshots chunk_clean_stays_ok 1`] = `
   ],
   "upperLowerPatternRepairs": 0,
   "validation": {
+    "crossSessionOverlapExerciseIds": [],
     "duplicateExerciseIds": [],
     "issues": [],
+    "nonAnchorSlotOneExerciseIds": [],
     "ok": true,
     "patternClashExerciseIds": [],
+    "patternOverflowExerciseIds": [],
+    "subMuscleOverflowExerciseIds": [],
   },
 }
 `;
@@ -245,8 +249,8 @@ exports[`generation eval golden snapshots chunk_hybrid_goal_appends_cardio_finis
           "sets": 3,
         },
         {
-          "exerciseId": "fly",
-          "name": "Fly",
+          "exerciseId": "row",
+          "name": "Row",
           "notes": undefined,
           "prescriptionType": undefined,
           "primaryMuscleGroup": undefined,
@@ -274,10 +278,14 @@ exports[`generation eval golden snapshots chunk_hybrid_goal_appends_cardio_finis
   ],
   "upperLowerPatternRepairs": 0,
   "validation": {
+    "crossSessionOverlapExerciseIds": [],
     "duplicateExerciseIds": [],
     "issues": [],
+    "nonAnchorSlotOneExerciseIds": [],
     "ok": true,
     "patternClashExerciseIds": [],
+    "patternOverflowExerciseIds": [],
+    "subMuscleOverflowExerciseIds": [],
   },
 }
 `;
@@ -309,6 +317,16 @@ exports[`generation eval golden snapshots chunk_hybrid_goal_appends_cardio_finis
           "sets": 3,
         },
         {
+          "exerciseId": "row",
+          "name": "Row",
+          "notes": undefined,
+          "prescriptionType": "reps",
+          "primaryMuscleGroup": "Back",
+          "reps": 10,
+          "secondaryMuscleGroups": [],
+          "sets": 3,
+        },
+        {
           "exerciseId": "pd",
           "name": "Pressdown",
           "notes": undefined,
@@ -319,22 +337,12 @@ exports[`generation eval golden snapshots chunk_hybrid_goal_appends_cardio_finis
           "sets": 3,
         },
         {
-          "exerciseId": "fly",
-          "name": "Fly",
-          "notes": undefined,
-          "prescriptionType": "reps",
-          "primaryMuscleGroup": "Chest",
-          "reps": 10,
-          "secondaryMuscleGroups": [],
-          "sets": 3,
-        },
-        {
           "exerciseId": "cardio_treadmill",
           "name": "Treadmill Walk",
           "notes": "Short steady-state finisher (~8–12 min easy effort). Skip on a busy day if you prefer.",
           "prescriptionType": "time",
           "primaryMuscleGroup": "Cardio",
-          "reps": 10,
+          "reps": 600,
           "secondaryMuscleGroups": [],
           "sets": 1,
         },
@@ -347,10 +355,14 @@ exports[`generation eval golden snapshots chunk_hybrid_goal_appends_cardio_finis
     },
   ],
   "validationAfterEnrich": {
+    "crossSessionOverlapExerciseIds": [],
     "duplicateExerciseIds": [],
     "issues": [],
+    "nonAnchorSlotOneExerciseIds": [],
     "ok": true,
     "patternClashExerciseIds": [],
+    "patternOverflowExerciseIds": [],
+    "subMuscleOverflowExerciseIds": [],
   },
 }
 `;

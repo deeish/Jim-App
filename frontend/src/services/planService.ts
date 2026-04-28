@@ -161,6 +161,12 @@ export interface GenerateSessionResult {
     secondaryMuscleGroups?: string[];
     /** Older API responses — coalesced into {@link secondaryMuscleGroups} client-side. */
     secondaryMuscleGroup?: string;
+    /**
+     * Suggested rest between sets (seconds), stamped server-side from the
+     * goal+difficulty scheme. Cardio rows leave this undefined. Surfaced in
+     * the preview modal as `4 × 8 · 90s rest`.
+     */
+    restSeconds?: number;
   }>;
 }
 

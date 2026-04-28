@@ -41,6 +41,25 @@ The script prints the lowest total scores first (library catalog mode) and inclu
 
 Two-week fixtures under `src/plans/eval/captures/cross-week-*.json` are parsed by `cross-week-eval.ts` (`evaluateCrossWeekProgression`): large working-set jumps without the word “deload” in the later week summary, and heavy reuse of the same exercise ids in aligned session slots. Covered by `cross-week-eval.spec.ts`. Extend fixtures as you add real multi-week captures.
 
+## Cross-session checks (within one week)
+
+Same-week diversity is enforced by `cross-session-diversity.ts` and the `under_diversified_across_focus` validator issue. Two Upper days that both lead with a flat bench, or two Lower days that both lead with a back squat, are flagged so the retry tail demotes the second session's slot-1 id and the next batch attempt picks a contrasting opener (incline / overhead on Upper, hinge-led on Lower). Covered by `cross-session-diversity.spec.ts` + the `under_diversified_across_focus` describe block in `generated-chunk-validators.spec.ts`. Extend the classifier regexes when you add new exercise families.
+
+## Capture-diff workflow (Phase 8)
+
+When you change anything in candidate balancing (`session-enrichment.ts`, the chunk validators, or the per-session pattern / sub-muscle / cross-session caps), re-run every saved capture under `backend/logs/generation-captures/` and `backend/src/plans/eval/captures/` against the validator and diff the per-session pattern + sub-muscle distribution. Keeps regressions visible.
+
+Quick local recipe (PowerShell or bash):
+
+```bash
+# Re-score every committed capture against the current validator + scoring code.
+npm run review:queue -- 50
+# Or: target a single file end-to-end (prints final.findings + breakdown).
+npm run eval:capture:library -- logs/generation-captures/<file>.json
+```
+
+A capture that previously scored 130 and now scores 70 with a new `under_diversified_across_focus` / `over_concentrated_pattern` finding is the signal: either the new constraint is correct (re-record the capture) or the constraint is too tight (loosen the cap and add a fixture proving the loosened case).
+
 ## Wellness scope
 
 Training generation is **not** medical advice. Product copy lives in `frontend/src/constants/wellnessCopy.ts` and on Generate / Plan preview screens. Keep marketing and in-app language aligned with that scope.

@@ -36,17 +36,26 @@ function nameImpliesTime(name: string): boolean {
 /**
  * Infer prescription type from raw library fields (before or after id→name mapping).
  * Prefer explicit `prescriptionType` on the row when present and valid.
+ *
+ * Cardio rows (treadmill, bike, rower, ski erg, elliptical, versa climber, etc.)
+ * are tagged `time` automatically — their `primaryMuscleGroup === 'Cardio'` is
+ * the strongest signal we have, even if no name regex matches. Without this,
+ * the cardio finisher append in `session-enrichment.ts` ends up showing rep
+ * bands (`1 × 7-13`) instead of a duration (`~10 min`).
  */
 export function inferPrescriptionTypeFromRawExercise(raw: {
   name: string;
   aliases?: string[];
   prescriptionType?: string;
   movementPatternIds?: string[];
+  primaryMuscleGroup?: string;
+  primaryMuscleGroupId?: string;
 }): ExercisePrescriptionType {
   const explicit = raw.prescriptionType?.toLowerCase()?.trim();
   if (explicit === 'time' || explicit === 'distance' || explicit === 'reps') {
     return explicit as ExercisePrescriptionType;
   }
+  if (rawIsCardioPrimaryGroup(raw)) return 'time';
   for (const id of raw.movementPatternIds ?? []) {
     if (TIME_MOVEMENT_PATTERN_IDS.has(String(id).toLowerCase())) {
       return 'time';
@@ -57,6 +66,17 @@ export function inferPrescriptionTypeFromRawExercise(raw: {
     if (nameImpliesTime(a)) return 'time';
   }
   return 'reps';
+}
+
+/** True when the raw row describes a cardio piece, by transformed group OR raw id. */
+function rawIsCardioPrimaryGroup(raw: {
+  primaryMuscleGroup?: string;
+  primaryMuscleGroupId?: string;
+}): boolean {
+  if ((raw.primaryMuscleGroup ?? '').toLowerCase() === 'cardio') return true;
+  // Raw ids in `data/exercises_5000plus.json` use slugs like `cardio` / `cardio_endurance`.
+  if (/^cardio/i.test(raw.primaryMuscleGroupId ?? '')) return true;
+  return false;
 }
 
 /** Name-only fallback when `exerciseId` is missing (e.g. legacy rows). */

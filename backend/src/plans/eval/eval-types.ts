@@ -20,6 +20,8 @@ export type EvalCatalogExercise = {
   movementPatterns?: string[];
   primaryMuscleGroup?: string;
   secondaryMuscleGroups?: string[];
+  /** First entry is treated as the "primary mover" by the sub-muscle cap validator. */
+  subMuscles?: string[];
   prescriptionType?: ExercisePrescriptionType;
   equipment?: string[];
 };

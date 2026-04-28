@@ -30,9 +30,14 @@ import {
   formatDraftReps,
   sessionHasCoachPreviewFields,
   buildWorkoutPreviewFromSessionDraft,
+  deriveSessionIntensity,
   type PipelineDebugInfo,
 } from './planPipeline';
 import { isTimeHoldExerciseName } from './exercisePrescription';
+import {
+  exercisesLikeFromPrescription,
+  getWorkoutDisplayEstimateMinutes,
+} from './estimateWorkoutMinutes';
 import type { PlanInputs, SessionDraft, Weekday } from '../types/plan';
 
 const MON: Weekday = 'Monday';
@@ -125,6 +130,90 @@ describe('planPipeline', () => {
       };
       const preview = buildWorkoutPreviewFromSessionDraft(session, 'Upper', { goal: 'strength' });
       expect(preview.exercises[0]?.notes).toBe('Touch chest lightly');
+    });
+  });
+
+  describe('preview minutes (card vs detail modal)', () => {
+    /**
+     * Regression for the Plan Preview drift bug: the week-list card and the detail
+     * modal both display "X min" using the same heuristic. The modal previously fed
+     * the heuristic the card's already-blended output as `plannedMinutes`, which
+     * drifted the number up on every render (e.g. `87 → 96`). Card and modal must
+     * stay aligned for the same `SessionDraft`.
+     */
+    function buildSession(overrides: Partial<SessionDraft> = {}): SessionDraft {
+      return {
+        type: 'strength',
+        title: 'Upper',
+        focusTags: [],
+        durationMin: 30,
+        durationMax: 60,
+        isHardDay: true,
+        exercises: [
+          { exerciseId: 'a', name: 'Flat Barbell Bench Press', sets: 4, reps: '8' },
+          { exerciseId: 'b', name: 'Barbell Bent-Over Row', sets: 4, reps: '8' },
+          { exerciseId: 'c', name: 'Barbell Overhead Press', sets: 4, reps: '10' },
+          { exerciseId: 'd', name: 'Wide-Grip Lat Pulldown', sets: 4, reps: '12' },
+          { exerciseId: 'e', name: 'Close-Grip Barbell Floor Press', sets: 4, reps: '10' },
+          { exerciseId: 'f', name: 'Rope Cable Pushdown', sets: 4, reps: '12' },
+        ],
+        ...overrides,
+      };
+    }
+
+    it('card and modal minutes match for the same session draft', () => {
+      const session = buildSession();
+      const plannedDuration = Math.round(
+        (session.durationMin + session.durationMax) / 2,
+      );
+      const cardMinutes = getWorkoutDisplayEstimateMinutes(
+        exercisesLikeFromPrescription(session.exercises),
+        plannedDuration,
+      );
+      expect(cardMinutes).not.toBeNull();
+      const preview = buildWorkoutPreviewFromSessionDraft(session, 'Upper', {
+        goal: 'strength',
+      });
+      const modalMinutes = getWorkoutDisplayEstimateMinutes(
+        exercisesLikeFromPrescription(preview.exercises),
+        plannedDuration,
+      );
+      expect(modalMinutes).toBe(cardMinutes);
+    });
+
+    it('synthetic cardio finisher row does not inflate the modal estimate', () => {
+      const session = buildSession({
+        cardioFinisher: { suggestion: '8 min easy bike' },
+      });
+      const plannedDuration = Math.round(
+        (session.durationMin + session.durationMax) / 2,
+      );
+      const cardMinutes = getWorkoutDisplayEstimateMinutes(
+        exercisesLikeFromPrescription(session.exercises),
+        plannedDuration,
+      );
+      const preview = buildWorkoutPreviewFromSessionDraft(session, 'Upper', {
+        goal: 'balanced',
+      });
+      const finisherRow = preview.exercises[preview.exercises.length - 1];
+      expect(finisherRow?.isSyntheticFinisher).toBe(true);
+      const modalMinutes = getWorkoutDisplayEstimateMinutes(
+        exercisesLikeFromPrescription(preview.exercises),
+        plannedDuration,
+      );
+      expect(modalMinutes).toBe(cardMinutes);
+    });
+
+    it('planDraftToWeekPlans exposes plannedDurationMinutes for the modal anchor', () => {
+      const inputs = baseInputs({
+        selectedWeekdays: [MON],
+        daysPerWeek: 1,
+        splitPreference: 'full_body',
+      });
+      const draft = runPipeline(inputs, 'planned-anchor');
+      const weekPlans = planDraftToWeekPlans(draft);
+      const card = weekPlans[0].workouts[MON][0];
+      expect(card?.plannedDurationMinutes).toBeGreaterThan(0);
     });
   });
 
@@ -440,6 +529,29 @@ describe('planPipeline', () => {
       );
     });
 
+    it('renders cardio finisher reps=600 (10 min) as "10 min"', () => {
+      expect(
+        formatExerciseRepsDisplay('Treadmill Walk', 600, 'balanced', 'time', 'Cardio'),
+      ).toBe('10 min');
+    });
+
+    it('falls back to "8–12 min" band for legacy cardio rows whose reps was a small count', () => {
+      // Legacy capture had reps=10 on a cardio row; prescriptionType missing.
+      // primaryMuscleGroup="Cardio" should trigger the cardio fallback band
+      // rather than rendering "10 sec on the bike".
+      expect(
+        formatExerciseRepsDisplay('Stationary Bike', 10, 'balanced', undefined, 'Cardio'),
+      ).toBe('8–12 min');
+    });
+
+    it('treats a Cardio primary muscle as time-based even when prescriptionType is undefined', () => {
+      // 600 seconds = 10 min, prescriptionType is missing — primaryMuscleGroup
+      // alone should drive the duration display.
+      expect(
+        formatExerciseRepsDisplay('Stationary Bike', 600, 'balanced', undefined, 'Cardio'),
+      ).toBe('10 min');
+    });
+
     it('apply path stores scalar reps and note for holds', () => {
       const session: SessionDraft = {
         type: 'strength',
@@ -479,6 +591,81 @@ describe('planPipeline', () => {
       expect(slots?.[0]?.reps).toBe(45);
       expect(slots?.[0]?.notes).toContain('Time-based');
       expect(slots?.[0]?.prescriptionType).toBe('time');
+    });
+  });
+
+  describe('deriveSessionIntensity (Phase 8)', () => {
+    function strength(
+      exercises: SessionDraft['exercises'],
+      overrides: Partial<SessionDraft> = {},
+    ): SessionDraft {
+      return {
+        type: 'strength',
+        title: 'Upper',
+        focusTags: [],
+        durationMin: 45,
+        durationMax: 60,
+        isHardDay: false,
+        exercises,
+        ...overrides,
+      };
+    }
+
+    it('returns Easy for recovery sessions regardless of volume', () => {
+      const s = strength(
+        Array.from({ length: 8 }, (_, i) => ({
+          exerciseId: `e${i}`,
+          name: `E${i}`,
+          sets: 4,
+          reps: '8',
+        })),
+        { type: 'recovery' },
+      );
+      expect(deriveSessionIntensity(s, 60)).toBe('Easy');
+    });
+
+    it('returns Hard when isHardDay is set even on a light session', () => {
+      const s = strength(
+        [{ exerciseId: 'e1', name: 'E1', sets: 2, reps: '8' }],
+        { isHardDay: true },
+      );
+      expect(deriveSessionIntensity(s, 25)).toBe('Hard');
+    });
+
+    it('separates a 14-set / 35-min Upper from a 24-set / 60-min Upper', () => {
+      const light = strength([
+        { exerciseId: 'e1', name: 'E1', sets: 3, reps: '8' },
+        { exerciseId: 'e2', name: 'E2', sets: 3, reps: '8' },
+        { exerciseId: 'e3', name: 'E3', sets: 4, reps: '6' },
+        { exerciseId: 'e4', name: 'E4', sets: 4, reps: '10' },
+      ]);
+      const heavy = strength([
+        { exerciseId: 'e1', name: 'E1', sets: 4, reps: '6' },
+        { exerciseId: 'e2', name: 'E2', sets: 4, reps: '6' },
+        { exerciseId: 'e3', name: 'E3', sets: 4, reps: '8' },
+        { exerciseId: 'e4', name: 'E4', sets: 4, reps: '8' },
+        { exerciseId: 'e5', name: 'E5', sets: 4, reps: '10' },
+        { exerciseId: 'e6', name: 'E6', sets: 4, reps: '12' },
+      ]);
+      // 14 sets × 35 = 490 → Medium
+      expect(deriveSessionIntensity(light, 35)).toBe('Medium');
+      // 24 sets × 60 = 1440 → Hard
+      expect(deriveSessionIntensity(heavy, 60)).toBe('Hard');
+    });
+
+    it('caps per-row sets at 6 to guard against malformed outliers', () => {
+      const s = strength([
+        { exerciseId: 'e1', name: 'E1', sets: 30, reps: '8' },
+      ]);
+      // Without the cap, 30 × 30 = 900 → Hard. With the cap, 6 × 30 = 180 → Easy.
+      expect(deriveSessionIntensity(s, 30)).toBe('Easy');
+    });
+
+    it('falls back to Medium when sets / minutes are missing', () => {
+      const s = strength([
+        { exerciseId: 'e1', name: 'E1', sets: 0, reps: '0' },
+      ]);
+      expect(deriveSessionIntensity(s, 0)).toBe('Medium');
     });
   });
 });

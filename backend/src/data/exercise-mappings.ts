@@ -495,6 +495,8 @@ export function transformExercise(raw: RawExercise): TransformedExercise {
     aliases: raw.aliases,
     prescriptionType: raw.prescriptionType,
     movementPatternIds: raw.movementPatternIds,
+    primaryMuscleGroup,
+    primaryMuscleGroupId: raw.primaryMuscleGroupId,
   });
 
   return {
