@@ -23,21 +23,28 @@ import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import type { RootNavigatorParamList } from '../types/navigation';
 import { RootTabParamList } from '../components/NavBar';
 import { getCurrentPlanWithWeekly } from '../services/planService';
-import type { ApiPlanWorkout } from '../services/planService';
+import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import { loadWorkoutDraft } from '../lib/workoutDraftStorage';
 import type { Workout } from '../types/workout';
 import type { PersistedWorkoutDraft } from '../lib/workoutDraftStorage';
-import { resolveHomeToday, type HomeTodayResult } from '../lib/homeToday';
+import { resolveHomeToday, buildPlanByWeek, planSlotLinksWeeklyWorkout, type HomeTodayResult } from '../lib/homeToday';
+import {
+  programWeekForCalendarOffset,
+  normalizeProgramWeekNumber,
+  isRestPlanSlotTitle,
+  PLAN_WEEKDAY_NAMES_MONDAY_FIRST,
+} from '../lib/planCalendar';
 import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
 
 type HomeNavigation = BottomTabNavigationProp<RootTabParamList, 'Home'>;
 
-function getGreeting(): string {
+function getGreeting(firstName?: string): string {
   const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
+  const time = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  return firstName ? `Good ${time}, ${firstName}!` : `Good ${time}`;
 }
+
+type DotStatus = 'completed' | 'today' | 'scheduled' | 'rest';
 
 function formatTodayDateLine(): string {
   return new Date().toLocaleDateString('en-US', {
@@ -95,12 +102,16 @@ function homeLoadErrorMessage(err: unknown): string {
 export default function HomeScreen() {
   const navigation = useNavigation<HomeNavigation>();
   const { colors } = useTheme();
-  const { signOut } = useAuth();
-  const { profileAvatarId } = useUserPreferences();
+  const { user, signOut } = useAuth();
+  const { profileAvatarId, profileDisplayName } = useUserPreferences();
+  const displayName = (profileDisplayName || user?.email?.split('@')[0] || '').split(' ')[0];
+
   const [menuVisible, setMenuVisible] = useState(false);
   const [homeToday, setHomeToday] = useState<HomeTodayResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [draft, setDraft] = useState<PersistedWorkoutDraft | null>(null);
+  const [plan, setPlan] = useState<ApiPlan | null>(null);
+  const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isFirstLoad = useRef(true);
@@ -120,8 +131,10 @@ export default function HomeScreen() {
         setDraft(null);
       }
 
-      const { plan, weeklyWorkouts } = await getCurrentPlanWithWeekly();
-      setHomeToday(resolveHomeToday(plan, weeklyWorkouts ?? []));
+      const { plan: fetchedPlan, weeklyWorkouts: fetchedWeekly } = await getCurrentPlanWithWeekly();
+      setPlan(fetchedPlan ?? null);
+      setWeeklyWorkouts(fetchedWeekly ?? []);
+      setHomeToday(resolveHomeToday(fetchedPlan, fetchedWeekly ?? []));
       setLoadError(null);
     } catch (err) {
       setLoadError(homeLoadErrorMessage(err));
@@ -174,7 +187,6 @@ export default function HomeScreen() {
     () => ({
       container: { backgroundColor: colors.background },
       title: { color: colors.text },
-      subtitle: { color: colors.textSecondary },
       menuCard: {
         backgroundColor: colors.surface,
         borderColor: colors.border,
@@ -204,6 +216,37 @@ export default function HomeScreen() {
     [colors]
   );
 
+  const programWeekInfo = useMemo(() => {
+    if (!plan?.planWorkouts?.length) return null;
+    const maxWeek = Math.max(...plan.planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)));
+    const current = programWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek);
+    if (current == null) return null;
+    return { current, total: maxWeek };
+  }, [plan]);
+
+  const weekDots = useMemo((): { status: DotStatus; name: string | null }[] => {
+    if (!plan?.planWorkouts?.length) return [];
+    const maxWeek = Math.max(...plan.planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)));
+    const currentWeek = programWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek);
+    if (currentWeek == null) return [];
+    const byWeek = buildPlanByWeek(plan.planWorkouts);
+    const thisWeek = byWeek[currentWeek] ?? {};
+    const todayIdx = new Date().getDay();
+    const todayName = PLAN_WEEKDAY_NAMES_MONDAY_FIRST[todayIdx === 0 ? 6 : todayIdx - 1];
+    return PLAN_WEEKDAY_NAMES_MONDAY_FIRST.map((day) => {
+      const slots = thisWeek[day] ?? [];
+      const nonRest = slots.filter((s) => !isRestPlanSlotTitle(s.title));
+      if (!nonRest.length) return { status: 'rest', name: null };
+      const name = nonRest[0].title ?? null;
+      const completed = nonRest.some((s) =>
+        weeklyWorkouts.some((w) => planSlotLinksWeeklyWorkout(s.id, w.planWorkoutId))
+      );
+      if (completed) return { status: 'completed', name };
+      if (day === todayName) return { status: 'today', name };
+      return { status: 'scheduled', name };
+    });
+  }, [plan, weeklyWorkouts]);
+
   const scheduledWorkout = homeToday?.status === 'scheduled' ? homeToday.workout : null;
   const metaLine = scheduledWorkout ? buildTodayMetaLine(scheduledWorkout) : '';
   const hasExercises = (scheduledWorkout?.exercises?.length ?? 0) > 0;
@@ -217,7 +260,6 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={[styles.title, themedStyles.title]}>Jim</Text>
-          <Text style={[styles.subtitle, themedStyles.subtitle]}>Your workout companion</Text>
         </View>
         <TouchableOpacity
           style={styles.profileButton}
@@ -274,8 +316,10 @@ export default function HomeScreen() {
           />
         }
       >
-        <Text style={[styles.greeting, { color: colors.text }]}>{getGreeting()}</Text>
-        <Text style={[styles.dateLine, { color: colors.textMuted }]}>{formatTodayDateLine()}</Text>
+        <Text style={[styles.greeting, { color: colors.text }]}>{getGreeting(displayName || undefined)}</Text>
+        <Text style={[styles.dateLine, { color: colors.textMuted }]}>
+          {formatTodayDateLine()}{programWeekInfo ? ` · Week ${programWeekInfo.current} of ${programWeekInfo.total}` : ''}
+        </Text>
 
         {loading ? (
           <View style={styles.loadingBlock}>
@@ -284,7 +328,9 @@ export default function HomeScreen() {
           </View>
         ) : (
           <>
-            <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>Today</Text>
+            {homeToday?.status !== 'no_plan' && (
+              <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>Today</Text>
+            )}
 
             {draft ? (
               <TouchableOpacity
@@ -376,7 +422,7 @@ export default function HomeScreen() {
                     <Ionicons name="calendar-outline" size={24} color={colors.primary} />
                   </View>
                   <View style={styles.cardTextBlock}>
-                    <Text style={[styles.cardEyebrow, { color: colors.textMuted }]}>On your plan</Text>
+                    <Text style={[styles.cardEyebrow, { color: colors.textMuted }]}>Up next</Text>
                     <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
                       {homeToday.slot.title}
                     </Text>
@@ -422,28 +468,23 @@ export default function HomeScreen() {
             {!loadError && homeToday?.status === 'empty_day' ? (
               <View style={[styles.card, styles.todayHero, themedStyles.secondaryCard]}>
                 <View style={styles.todayHeroTop}>
-                  <View style={[styles.cardIconCircle, { backgroundColor: colors.primary + '18' }]}>
-                    <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
+                  <View style={[styles.cardIconCircle, { backgroundColor: colors.textMuted + '22' }]}>
+                    <Ionicons name="calendar-outline" size={24} color={colors.textMuted} />
                   </View>
                   <View style={styles.cardTextBlock}>
                     <Text style={[styles.cardEyebrow, { color: colors.textMuted }]}>Today</Text>
-                    <Text style={[styles.cardTitle, { color: colors.text }]}>Open day on your plan</Text>
+                    <Text style={[styles.cardTitle, { color: colors.text }]}>Nothing scheduled</Text>
                     <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
-                      This day has no session yet. Add a workout or generate a plan.
+                      No session on your plan today — add one from Plan if you'd like.
                     </Text>
                   </View>
                 </View>
                 <TouchableOpacity
-                  style={[styles.primaryButton, themedStyles.primaryCta]}
+                  style={[styles.secondaryOutlineBtn, { borderColor: colors.border }]}
                   onPress={goToPlan}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.primaryButtonText, themedStyles.primaryCtaText]}>Add on Plan</Text>
-                  <Ionicons name="arrow-forward" size={18} color={colors.background} />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.textLinkRow, styles.emptyTodayLink]} onPress={goToGeneratePlan} activeOpacity={0.7}>
-                  <Text style={[styles.textLink, { color: colors.primary }]}>Generate my plan</Text>
-                  <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+                  <Text style={[styles.secondaryOutlineBtnText, { color: colors.primary }]}>Open Plan</Text>
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -475,18 +516,16 @@ export default function HomeScreen() {
             ) : null}
 
             {!loadError && homeToday?.status === 'no_plan' ? (
-              <View style={[styles.card, styles.emptyToday, themedStyles.secondaryCard]}>
-                <View style={[styles.cardIconCircle, { backgroundColor: colors.primary + '1c' }]}>
-                  <Ionicons name="sparkles-outline" size={26} color={colors.primary} />
+              <View style={styles.noPlanEmpty}>
+                <View style={[styles.noPlanIconWrap, { backgroundColor: colors.primary + '18' }]}>
+                  <Ionicons name="sparkles-outline" size={36} color={colors.primary} />
                 </View>
-                <Text style={[styles.cardTitle, { color: colors.text, marginTop: 14, textAlign: 'center' }]}>
-                  No plan yet
-                </Text>
-                <Text style={[styles.cardMeta, { color: colors.textSecondary, textAlign: 'center', marginHorizontal: 4 }]}>
-                  Generate a week with AI, or build your plan manually.
+                <Text style={[styles.noPlanTitle, { color: colors.text }]}>No plan yet</Text>
+                <Text style={[styles.noPlanSub, { color: colors.textSecondary }]}>
+                  Generate a personalised week with AI, or build your schedule manually.
                 </Text>
                 <TouchableOpacity
-                  style={[styles.primaryButton, themedStyles.primaryCta, styles.emptyTodayPrimary]}
+                  style={[styles.primaryButton, styles.noPlanCta, themedStyles.primaryCta]}
                   onPress={goToGeneratePlan}
                   activeOpacity={0.88}
                   accessibilityRole="button"
@@ -495,12 +534,46 @@ export default function HomeScreen() {
                   <Ionicons name="flash-outline" size={18} color={colors.background} />
                   <Text style={[styles.primaryButtonText, themedStyles.primaryCtaText]}>Generate my plan</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.textLinkRow, styles.emptyTodayLink]} onPress={goToPlan} activeOpacity={0.7}>
-                  <Text style={[styles.textLink, { color: colors.primary }]}>Open weekly plan instead</Text>
+                <TouchableOpacity style={styles.noPlanLink} onPress={goToPlan} activeOpacity={0.7}>
+                  <Text style={[styles.textLink, { color: colors.primary }]}>Build manually instead</Text>
                   <Ionicons name="chevron-forward" size={18} color={colors.primary} />
                 </TouchableOpacity>
               </View>
             ) : null}
+
+            {!loadError && weekDots.length > 0 && (
+              <View style={styles.weekDotsSection}>
+                <Text style={[styles.sectionLabel, styles.sectionSpaced, themedStyles.sectionLabel]}>This week</Text>
+                <View style={styles.dotsRow}>
+                  {PLAN_WEEKDAY_NAMES_MONDAY_FIRST.map((day, i) => {
+                    const { status, name } = weekDots[i] ?? { status: 'rest' as DotStatus, name: null };
+                    const isToday = status === 'today';
+                    return (
+                      <View key={day} style={styles.dotWrapper}>
+                        <Text style={[styles.dotDayLabel, { color: isToday ? colors.primary : colors.textMuted, fontWeight: isToday ? '700' : '500' }]}>
+                          {day.slice(0, 2)}
+                        </Text>
+                        {status === 'rest' ? (
+                          <View style={[styles.dot, { backgroundColor: colors.textMuted + '30', width: 6, height: 6, borderRadius: 3 }]} />
+                        ) : (
+                          <View
+                            style={[
+                              styles.dot,
+                              status === 'completed' && { backgroundColor: colors.primary },
+                              isToday && { backgroundColor: colors.primary, width: 12, height: 12, borderRadius: 6 },
+                              status === 'scheduled' && { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.textMuted + '80' },
+                            ]}
+                          />
+                        )}
+                        <Text style={[styles.dotSessionName, { color: isToday ? colors.primary : colors.textMuted }]} numberOfLines={1}>
+                          {name ?? '–'}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
 
             <Text style={[styles.sectionLabel, styles.sectionSpaced, themedStyles.sectionLabel]}>Shortcuts</Text>
 
@@ -576,11 +649,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 15,
-    marginTop: 4,
-    fontWeight: '500',
   },
   greeting: {
     fontSize: 22,
@@ -694,17 +762,45 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
   },
-  emptyToday: {
-    alignItems: 'center',
-    paddingVertical: 22,
-    paddingHorizontal: 18,
-  },
-  emptyTodayPrimary: {
-    alignSelf: 'stretch',
-    marginTop: 18,
-  },
   emptyTodayLink: {
     marginTop: 14,
+  },
+  noPlanEmpty: {
+    alignItems: 'center',
+    paddingTop: 52,
+    paddingBottom: 36,
+    paddingHorizontal: 8,
+  },
+  noPlanIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  noPlanTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  noPlanSub: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    fontWeight: '500',
+    marginBottom: 32,
+  },
+  noPlanCta: {
+    alignSelf: 'stretch',
+  },
+  noPlanLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 18,
   },
   textLinkRow: {
     flexDirection: 'row',
@@ -778,5 +874,32 @@ const styles = StyleSheet.create({
   menuDivider: {
     height: 1,
     marginLeft: 16,
+  },
+  weekDotsSection: {},
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginBottom: 4,
+  },
+  dotWrapper: {
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  dotDayLabel: {
+    fontSize: 11,
+    textTransform: 'uppercase',
+  },
+  dotSessionName: {
+    fontSize: 10,
+    fontWeight: '500',
+    textAlign: 'center',
+    maxWidth: 40,
   },
 });

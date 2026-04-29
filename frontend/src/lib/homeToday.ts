@@ -26,7 +26,7 @@ export function planSlotLinksWeeklyWorkout(
   return a.length > 0 && a === b;
 }
 
-function buildPlanByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, Record<string, ApiPlanWorkout[]>> {
+export function buildPlanByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, Record<string, ApiPlanWorkout[]>> {
   const byWeek: Record<number, Record<string, ApiPlanWorkout[]>> = {};
   const weeks = [...new Set(planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)))];
   weeks.forEach((week) => {
