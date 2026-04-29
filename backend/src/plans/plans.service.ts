@@ -1139,6 +1139,9 @@ export class PlansService {
           priorWeekExerciseIds,
           cardioModalities,
           mesoHint: dto.mesoHint,
+          weekProgression: dto.weekProgression,
+          currentActivityLevel: dto.currentActivityLevel,
+          preferredExercises: dto.preferredExercises,
         });
 
       let batchOut = await runTryGenerateBatch(
@@ -1348,6 +1351,8 @@ export class PlansService {
                 ? excludeMerged
                 : undefined,
               cardioModalities,
+              currentActivityLevel: dto.currentActivityLevel,
+              preferredExercises: dto.preferredExercises,
             },
           },
           chunkGroqUsages,
@@ -1371,6 +1376,8 @@ export class PlansService {
                   ? excludeMerged
                   : undefined,
                 cardioModalities,
+                currentActivityLevel: dto.currentActivityLevel,
+                preferredExercises: dto.preferredExercises,
               },
             },
             chunkGroqUsages,
@@ -1980,13 +1987,16 @@ export class PlansService {
       .map((p) => p.toLowerCase().trim())
       .filter((p) => p.length >= 2);
     if (lowerPhrases.length === 0) return exercises;
-    return exercises.filter((e) => {
-      const nameLower = (e.name ?? '').toLowerCase();
-      const notesLower = (e.notes ?? '').toLowerCase();
-      return !lowerPhrases.some(
-        (p) => nameLower.includes(p) || notesLower.includes(p),
-      );
-    });
+    // Word-boundary regex prevents "back" from matching "Feedback", "knee" from matching "Kneeling Cable Press", etc.
+    const compiled = lowerPhrases.map((p) => ({
+      re: new RegExp(
+        `(?<![a-z])${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z])`,
+        'i',
+      ),
+    }));
+    return exercises.filter((e) =>
+      !compiled.some(({ re }) => re.test(e.name ?? '') || re.test(e.notes ?? '')),
+    );
   }
 
   /**

@@ -28,3 +28,7 @@ build/
 .expo/
 .expo-shared/
 web-build/
+
+# Claude Code
+CLAUDE.md
+.claude/

@@ -130,10 +130,10 @@ function maxExercisesFromPromptRange(promptRange: string): number {
   return lo > 0 ? lo : 10;
 }
 
-const MAX_PRIOR_WEEK_IDS_IN_BATCH_PROMPT = 48;
+const MAX_PRIOR_WEEK_IDS_IN_BATCH_PROMPT = 24;
 
 /** Merged focus-aware pool size (tabular lines); slightly under old 65 JSON rows. */
-const BATCH_CANDIDATE_CAP = 58;
+const BATCH_CANDIDATE_CAP = 40;
 
 const PER_SESSION_CANDIDATE_LIMIT = 72;
 
@@ -864,6 +864,18 @@ export class WorkoutGeneratorService {
       cardioModalities?: string[];
       /** Periodization / preview-scope hint (≤200 chars) */
       mesoHint?: string;
+      /** Per-week intensity/volume targets for progressive overload. */
+      weekProgression?: Array<{
+        weekIndex: number;
+        phase: string;
+        intensityPct: number;
+        volumeMultiplier: number;
+        repModifier: number;
+      }>;
+      /** User's current activity level outside the gym. */
+      currentActivityLevel?: string;
+      /** Preferred movements to bias exercise selection. */
+      preferredExercises?: string[];
     },
     apiKey: string,
   ): Promise<GenerateFullProgramOutcome | null> {
@@ -878,6 +890,9 @@ export class WorkoutGeneratorService {
       priorWeekExerciseIds = [],
       cardioModalities,
       mesoHint,
+      weekProgression,
+      currentActivityLevel,
+      preferredExercises,
     } = options;
     if (sessions.length < 2 || sessions.length > 7) return null;
 
@@ -953,7 +968,7 @@ export class WorkoutGeneratorService {
             this.programGoalWantsCardioFinisher(goal) &&
             String(s.type).toLowerCase() === 'strength',
         });
-        return `Day ${i + 1} (${focus}, ${s.weekday}, ~${duration} min): Choose ${targets.promptRange} exercises from the list that fit this day's focus (enough volume for ~${duration} minutes). Hard cap: at most ${maxN} objects in the "exercises" array for this day. Use ONLY exercise "id" values from the list. Main compounds first, then accessories. Within this day use only one movement variant (e.g. one bench press, not flat + incline in same day). Session rail: ${rail}`;
+        return `Day ${i + 1} (${focus}, ${s.weekday}, ~${duration} min, ${targets.promptRange} ex, cap ${maxN}): ${rail}`;
       })
       .join('\n');
 
@@ -969,7 +984,7 @@ export class WorkoutGeneratorService {
 
     const priorWeekInstruction =
       priorUniqueForPrompt.length > 0
-        ? `\nMulti-week context: these exercise ids already appeared earlier in this plan preview—prefer different ids from the list when they fit the day equally well (still honor each day's focus and volume): ${priorUniqueForPrompt.join(', ')}.`
+        ? `\nMulti-week context: do NOT repeat these exercise ids — pick different exercises from the list for each day even if these would normally be your first choice (still honor each day's focus and volume): ${priorUniqueForPrompt.join(', ')}.`
         : '';
 
     const equipmentStr = equipment.length
@@ -1006,16 +1021,20 @@ ${exercisesSchemaLine}`
   - "coolDown": string (1-2 sentences)
 ${exercisesSchemaLine}`;
 
-    const systemPrompt = `You are a certified fitness trainer designing a full weekly program in one response. You must choose exercises ONLY from the provided list by their "id". Respond with exactly one JSON object, no markdown.
+    const systemPrompt = `You are a strength and conditioning coach. Your job is to produce well-structured programs, not just lists of exercises. Programming rules you must follow:
+(1) Compounds before accessories — the first 1-2 exercises of each day must be primary compound lifts for that day's pattern (e.g. Bench Press or Overhead Press for Push; Pull-up or Row for Pull; Squat or Deadlift for Lower/Legs).
+(2) No sub-muscle stacking — do not place 3+ exercises that load the same sub-muscle in the same session (e.g. three quad-dominant movements, three pec exercises, three bicep curl variations). At most 2 per sub-muscle; Calves, Core, Cardio are exempt.
+(3) Week variety — when a focus repeats across the week (two Upper days, two Lower days, two Push days), the exercise lineup must differ meaningfully between them in primary pattern, not just name (e.g. flat press on day 1, incline or overhead emphasis on day 4; squat-led Lower on day 2, hinge-led Lower on day 5).
+(4) Follow the weekly progression targets exactly when provided — do not default to the same rep/set range every week.
+For every day in the list: use only exercise ids from the provided list; place main compounds first then accessories; include only one variant of each movement per day (e.g. one bench press — not flat + incline bench in the same session).
+You must choose exercises ONLY from the provided list by their "id". Respond with exactly one JSON object, no markdown.
 
 Exercise list format: each line is id<TAB>exercise name<TAB>primary muscle (header columns only—parse each line; use the first field as the id for "exerciseId").
 
 ${structureBlock}
-For the first two exercises of each day, prefer the strongest, well-known primary compounds for that day's pattern (e.g. main bench or push-up variant for horizontal push; pull-up or row for pull; squat or leg press for legs only on Lower/Legs days)—not redundant variations of the same pattern on the same day.
 Rep selection: pick rep numbers in the middle of the allowed range; main compounds can be slightly lower reps than accessories (2–4 reps lower is fine).
-When the program has multiple days with the same focus (e.g. Push on day 1 and Push on day 4), vary which exercises you pick for each so the user gets variety across weeks—avoid repeating the same workout.
 
-${coachCopyToneBlock()}`;
+${detailLevel !== 'simple' ? coachCopyToneBlock() : "No hype words in any text field. Keep warmUp and coolDown practical and specific to the day's movements."}`;
 
     const conditioningBlock = this.programGoalWantsCardioFinisher(goal)
       ? `\nConditioning (user goal includes strength + conditioning): For each day whose type is **strength**, end that day's "exercises" array with exactly ONE exercise taken from the list rows whose third column (muscle) is **Cardio** (bike, rower, ski erg, treadmill, elliptical, versa climber, assault runner, etc.)—a short machine/modality finisher. Put it **last**. Keep total exercises for that day within each day's range/cap (drop a small accessory if needed to fit; keep main compounds). Do **not** add this extra cardio line on days that are already cardio or recovery.`
@@ -1031,13 +1050,52 @@ ${coachCopyToneBlock()}`;
     const mesoTrim = (mesoHint ?? '').trim().slice(0, 200);
     const mesoBlock = mesoTrim.length ? `\nProgram intent: ${mesoTrim}` : '';
 
+    const progressionBlock = (weekProgression ?? []).length
+      ? `\nWeekly progression targets — follow these when choosing sets/reps within the allowed range:\n` +
+        (weekProgression ?? [])
+          .map((wp) => {
+            const repNote =
+              wp.repModifier < 0
+                ? `${Math.abs(wp.repModifier)} fewer reps than base (heavier load)`
+                : wp.repModifier > 0
+                  ? `${wp.repModifier} more reps than base (lighter, recovery week)`
+                  : 'same reps as base';
+            const volNote =
+              wp.volumeMultiplier < 0.99
+                ? `reduce sets to ~${Math.round(wp.volumeMultiplier * 100)}% of normal`
+                : wp.volumeMultiplier > 1.01
+                  ? `increase sets by ~${Math.round((wp.volumeMultiplier - 1) * 100)}%`
+                  : 'normal set count';
+            return `  Week ${wp.weekIndex} (${wp.phase}): ~${wp.intensityPct}% effort, ${volNote}, ${repNote}.`;
+          })
+          .join('\n')
+      : '';
+
+    const activityMap: Record<string, string> = {
+      '0': 'currently sedentary',
+      '1-2': 'lightly active (1–2 sessions/week outside this plan)',
+      '3-4': 'moderately active (3–4 sessions/week)',
+      '5+': 'highly active (5+ sessions/week)',
+    };
+    const profileLines = [
+      currentActivityLevel
+        ? `User activity: ${activityMap[currentActivityLevel] ?? currentActivityLevel} — scale total volume accordingly.`
+        : '',
+      preferredExercises?.length
+        ? `Preferred movements (favor these when they fit the day's focus and pattern): ${preferredExercises.slice(0, 8).join(', ')}.`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const profileBlock = profileLines.length ? `\n${profileLines}` : '';
+
     const userPrompt = `Design a ${sessions.length}-day program. Use ONLY exercise ids from the first column of each line below.
 ${candidateTable}
 ${priorWeekInstruction}
-
+${profileBlock}
 ${dayLines}
 ${varietyInstruction}
-${conditioningBlock}${conditioningModalityHint}${mesoBlock}
+${conditioningBlock}${conditioningModalityHint}${mesoBlock}${progressionBlock}
 
 Set/rep: ${setRep.description} (${setRep.setsMin}-${setRep.setsMax} sets, ${setRep.repsMin}-${setRep.repsMax} reps).${restHint} Goal: ${goal}. Difficulty: ${difficulty}. Equipment: ${equipmentStr}.${limitationsBlock}
 
@@ -1056,7 +1114,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
           { role: 'user', content: userPrompt },
         ],
         response_format: { type: 'json_object' },
-        temperature: 0.6,
+        temperature: 0.73,
         max_tokens: batchMaxTokens,
       });
     } catch {
@@ -1228,6 +1286,15 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     priorWeekExerciseIds?: string[];
     cardioModalities?: string[];
     mesoHint?: string;
+    weekProgression?: Array<{
+      weekIndex: number;
+      phase: string;
+      intensityPct: number;
+      volumeMultiplier: number;
+      repModifier: number;
+    }>;
+    currentActivityLevel?: string;
+    preferredExercises?: string[];
   }): Promise<{
     program: FullProgramDaySession[] | null;
     groqUsages: GroqCompletionUsage[];
@@ -1258,6 +1325,9 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       priorWeekExerciseIds: dto.priorWeekExerciseIds,
       cardioModalities: dto.cardioModalities,
       mesoHint: dto.mesoHint,
+      weekProgression: dto.weekProgression,
+      currentActivityLevel: dto.currentActivityLevel,
+      preferredExercises: dto.preferredExercises,
     };
 
     const pushUsage = (
@@ -1508,6 +1578,8 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
     const programDayFocus = preferences?.programDayFocus ?? focus;
     const detailLevel = preferences?.detailLevel ?? 'detailed';
     const isSimple = detailLevel === 'simple';
+    const currentActivityLevel = preferences?.currentActivityLevel;
+    const preferredExercises = preferences?.preferredExercises;
 
     const slots = getSlotsForFocus(focus);
     const isCardioOrRecovery = focusKey === 'cardio' || focusKey === 'recovery';
@@ -1565,6 +1637,22 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
         `Limitations (respect these): ${limitations.join('; ')}. Avoid exercises that conflict.`,
       );
     }
+    const perSessionActivityMap: Record<string, string> = {
+      '0': 'currently sedentary',
+      '1-2': 'lightly active (1–2 sessions/week outside this plan)',
+      '3-4': 'moderately active (3–4 sessions/week)',
+      '5+': 'highly active (5+ sessions/week)',
+    };
+    if (currentActivityLevel) {
+      userContextParts.push(
+        `User activity: ${perSessionActivityMap[currentActivityLevel] ?? currentActivityLevel} — scale total volume accordingly.`,
+      );
+    }
+    if (preferredExercises?.length) {
+      userContextParts.push(
+        `Preferred movements (favor when they fit this day's focus and pattern): ${preferredExercises.slice(0, 8).join(', ')}.`,
+      );
+    }
 
     const programContext =
       programTemplate || programDayFocus
@@ -1614,7 +1702,11 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
       ? `- "exercises": array of objects. Each must have "exerciseId" (string, must be one of the ids from the list—no made-up ids), "sets" (number), "reps" (number), and optionally "weight" (number), "notes" (string, ≤${BEGINNER_EXERCISE_NOTE_MAX_CHARS} chars, one line: form or intent). Use the exact "id" from the list. Order: main compounds first, then accessories.`
       : `- "exercises": array of objects. Each must have "exerciseId" (string, must be one of the ids from the list—no made-up ids), "sets" (number), "reps" (number), and optionally "weight" (number). Do NOT include "notes". Use the exact "id" from the list. Order: main compounds first, then accessories.`;
 
-    const systemPrompt = `You are a certified fitness trainer. You must choose exercises ONLY from the provided list by their "id". Respond with exactly one JSON object, no markdown.
+    const systemPrompt = `You are a strength and conditioning coach. Programming rules:
+(1) Compounds before accessories — primary compound lifts come first; isolation and accessories follow.
+(2) No sub-muscle stacking — avoid 3+ exercises loading the same sub-muscle in one session (e.g. three hamstring-dominant moves, three pec exercises). At most 2 per sub-muscle; Core, Calves, Cardio are exempt.
+(3) Exercise selection must match the day's mechanical demand — horizontal push ≠ vertical push ≠ isolation; row ≠ vertical pull ≠ curl.
+You must choose exercises ONLY from the provided list by their "id". Respond with exactly one JSON object, no markdown.
 - "name": string (plain 2–8 words: prefer "${programDayFocus}" or the day role; no hype words like Blast, Power, Beast, Savage, Shred, Inferno, Nitro)
 - "day": string or omit
 - "reasoning": string. ${reasoningHint} Do NOT put warm-up or cool-down here; use warmUp and coolDown fields instead.

@@ -11,6 +11,29 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+export class WeekProgressionDto {
+  /** 1-based week number within this preview chunk. */
+  @IsNumber()
+  weekIndex: number;
+
+  /** Phase label: 'foundation' | 'progression' | 'peak' | 'deload' | 'maintain' */
+  @IsString()
+  @MaxLength(20)
+  phase: string;
+
+  /** Intensity as approximate % of working max, e.g. 65, 70, 75, 60 */
+  @IsNumber()
+  intensityPct: number;
+
+  /** Set volume multiplier relative to baseline: 1.0 = normal, 1.15 = +15%, 0.7 = deload */
+  @IsNumber()
+  volumeMultiplier: number;
+
+  /** Rep modifier vs base scheme: 0 = same, -1 = 1 fewer rep (heavier), +2 = 2 more reps (lighter) */
+  @IsNumber()
+  repModifier: number;
+}
+
 export class SessionSpecDto {
   @IsIn(['strength', 'cardio', 'recovery'])
   type: 'strength' | 'cardio' | 'recovery';
@@ -94,6 +117,28 @@ export class GenerateSessionsDto {
   @IsString()
   @MaxLength(200)
   mesoHint?: string;
+
+  /** Per-week intensity and volume targets computed by the client. Max 12 weeks. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @ValidateNested({ each: true })
+  @Type(() => WeekProgressionDto)
+  weekProgression?: WeekProgressionDto[];
+
+  /** User's current activity level outside the gym. */
+  @IsOptional()
+  @IsString()
+  @IsIn(['0', '1-2', '3-4', '5+'])
+  currentActivityLevel?: string;
+
+  /** Preferred movements/lifts from the UI (max 8, 40 chars each). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @MaxLength(40, { each: true })
+  preferredExercises?: string[];
 
   @IsArray()
   @ValidateNested({ each: true })

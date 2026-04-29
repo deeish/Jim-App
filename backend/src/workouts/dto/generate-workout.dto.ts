@@ -37,5 +37,9 @@ export class GenerateWorkoutDto {
     skipGroq?: boolean;
     /** run, bike, swim, row, elliptical — order matters for Cardio finisher bias */
     cardioModalities?: string[];
+    /** User's current activity level outside the gym. */
+    currentActivityLevel?: string;
+    /** Preferred movements/lifts to bias exercise selection. */
+    preferredExercises?: string[];
   };
 }

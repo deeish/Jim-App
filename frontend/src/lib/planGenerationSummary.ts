@@ -8,6 +8,53 @@ import type { PlanInputs, Weekday } from '../types/plan';
 /** Matches server `GenerateSessionsDto.mesoHint` max length. */
 export const MESO_HINT_MAX_LENGTH = 200;
 
+export interface WeekProgressionEntry {
+  weekIndex: number;
+  /** 'foundation' | 'progression' | 'peak' | 'deload' | 'maintain' */
+  phase: string;
+  /** Approximate % of working max, e.g. 65, 70, 75, 60 */
+  intensityPct: number;
+  /** Set volume multiplier vs baseline: 1.0 = normal, 1.15 = +15%, 0.7 = deload */
+  volumeMultiplier: number;
+  /** Rep modifier vs base scheme: 0 = same, -1 = fewer reps (heavier), +2 = more reps (lighter) */
+  repModifier: number;
+}
+
+/**
+ * Computes per-week intensity/volume targets from the user's progression style.
+ * Sent to the backend as `weekProgression` so the LLM receives concrete weekly
+ * targets rather than a vague periodization hint.
+ */
+export function weekProgressionForGenerateSessions(
+  inputs: PlanInputs,
+  weekIndices: number[],
+): WeekProgressionEntry[] {
+  const ps = inputs.progressionStyle;
+  return weekIndices.map((wi) => {
+    if (ps === 'maintain') {
+      return { weekIndex: wi, phase: 'maintain', intensityPct: 70, volumeMultiplier: 1.0, repModifier: 0 };
+    }
+    if (ps === 'build_deload') {
+      const rows = [
+        { phase: 'foundation',  intensityPct: 65, volumeMultiplier: 1.0,  repModifier:  0 },
+        { phase: 'progression', intensityPct: 70, volumeMultiplier: 1.15, repModifier: -1 },
+        { phase: 'peak',        intensityPct: 75, volumeMultiplier: 1.25, repModifier: -2 },
+        { phase: 'deload',      intensityPct: 60, volumeMultiplier: 0.70, repModifier:  2 },
+      ];
+      return { weekIndex: wi, ...rows[(wi - 1) % 4]! };
+    }
+    // 'build' — linear ramp, no formal deload
+    const ramp = Math.min(wi - 1, 3);
+    return {
+      weekIndex: wi,
+      phase: ramp === 0 ? 'foundation' : ramp < 3 ? 'progression' : 'peak',
+      intensityPct: 65 + ramp * 4,
+      volumeMultiplier: parseFloat((1.0 + ramp * 0.08).toFixed(2)),
+      repModifier: -ramp,
+    };
+  });
+}
+
 const WEEKDAY_ABBR: Record<Weekday, string> = {
   Monday: 'Mon',
   Tuesday: 'Tue',

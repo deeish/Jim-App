@@ -35,7 +35,7 @@ import {
   exerciseUsesTimeDisplay,
   type ExercisePrescriptionType,
 } from './exercisePrescription';
-import { mesoHintForGenerateSessions } from './planGenerationSummary';
+import { mesoHintForGenerateSessions, weekProgressionForGenerateSessions } from './planGenerationSummary';
 import {
   exercisesLikeFromPrescription,
   getWorkoutDisplayEstimateMinutes,
@@ -644,6 +644,7 @@ function buildGenerateSessionsRequest(
     ...(planInputs.injuriesAvoid?.bodyAreas ?? []),
     ...(planInputs.injuriesAvoid?.movementsOrEquipment ?? []),
   ];
+  const weekIndices = [...new Set(sessions.map((s) => s.weekIndex))].sort((a, b) => a - b);
   return {
     goal,
     location: planInputs.location,
@@ -659,6 +660,13 @@ function buildGenerateSessionsRequest(
         ? planInputs.equipmentTags
         : undefined,
     mesoHint: mesoHintForGenerateSessions(planInputs),
+    weekProgression: weekIndices.length > 0
+      ? weekProgressionForGenerateSessions(planInputs, weekIndices)
+      : undefined,
+    currentActivityLevel: planInputs.currentActivityLevel ?? undefined,
+    preferredExercises: planInputs.preferredExercises?.length
+      ? planInputs.preferredExercises.slice(0, 8)
+      : undefined,
   };
 }
 

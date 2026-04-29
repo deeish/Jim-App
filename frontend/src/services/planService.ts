@@ -112,6 +112,15 @@ export async function updatePlan(id: string, body: CreatePlanBody): Promise<ApiP
   return response.data;
 }
 
+/** Per-week intensity/volume target sent to the LLM for structured progression. */
+export interface WeekProgressionEntry {
+  weekIndex: number;
+  phase: string;
+  intensityPct: number;
+  volumeMultiplier: number;
+  repModifier: number;
+}
+
 /** Request body for POST /plans/generate-sessions (LLM-generated session content). */
 export interface GenerateSessionsRequest {
   goal?: string;
@@ -126,6 +135,12 @@ export interface GenerateSessionsRequest {
   equipmentTags?: string[];
   /** Short periodization hint for batch Groq (max 200 chars) */
   mesoHint?: string;
+  /** Per-week intensity and volume targets so the LLM programs progressive overload correctly. */
+  weekProgression?: WeekProgressionEntry[];
+  /** User's current activity level outside the gym: '0' | '1-2' | '3-4' | '5+' */
+  currentActivityLevel?: string;
+  /** Preferred movements/lifts (max 8) to bias exercise selection. */
+  preferredExercises?: string[];
   sessions: Array<{
     type: 'strength' | 'cardio' | 'recovery';
     title?: string;
