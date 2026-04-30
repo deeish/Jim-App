@@ -242,6 +242,12 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   }, [exerciseId, loadExercise]);
 
   const handleBack = useCallback(() => {
+    if (returnToPlanExerciseContext === 'workoutDetail') {
+      resetSearchStackToSearchList(navigation);
+      const tabNav = getBottomTabNavigator(navigation);
+      tabNav?.navigate('Plan');
+      return;
+    }
     if (leaveExerciseForPlanFlow) {
       resetSearchStackToSearchList(navigation);
       const tabNav = getBottomTabNavigator(navigation);
@@ -249,7 +255,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
       return;
     }
     navigation.goBack();
-  }, [leaveExerciseForPlanFlow, navigation]);
+  }, [returnToPlanExerciseContext, leaveExerciseForPlanFlow, navigation]);
 
   useEffect(() => {
     if (!leaveExerciseForPlanFlow) return undefined;

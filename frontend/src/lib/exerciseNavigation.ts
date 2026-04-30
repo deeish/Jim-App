@@ -10,7 +10,7 @@ export function isLinkableLibraryExerciseId(raw: string | undefined | null): boo
   return true;
 }
 
-export type OpenExerciseFromPlanContext = 'preview' | 'calendar';
+export type OpenExerciseFromPlanContext = 'preview' | 'calendar' | 'workoutDetail';
 
 /** Navigate to Search tab → ExerciseDetail (nested stack). */
 export function navigateFromPlanToExerciseDetail(
@@ -30,6 +30,27 @@ export function navigateFromPlanToExerciseDetail(
     params: {
       exerciseId,
       returnToPlanExerciseContext: context,
+    },
+  });
+}
+
+/** WorkoutDetail screen (Plan stack) → Exercises stack → ExerciseDetail (back returns to WorkoutDetail). */
+export function navigateFromWorkoutDetailToExerciseDetail(
+  navigation: { getParent?: () => unknown },
+  exerciseId: string,
+): void {
+  const nav = navigation as {
+    getParent?: () =>
+      | { getParent?: () => { navigate?: (name: string, p: unknown) => void }; navigate?: (name: string, p: unknown) => void }
+      | undefined;
+  };
+  const tabNav = nav?.getParent?.()?.getParent?.() ?? nav?.getParent?.();
+  if (!tabNav || typeof (tabNav as { navigate?: unknown }).navigate !== 'function') return;
+  (tabNav as { navigate: (name: string, p: unknown) => void }).navigate('Search', {
+    screen: 'ExerciseDetail',
+    params: {
+      exerciseId,
+      returnToPlanExerciseContext: 'workoutDetail' as const,
     },
   });
 }

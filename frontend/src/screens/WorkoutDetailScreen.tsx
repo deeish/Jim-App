@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,6 +18,7 @@ import { Workout } from '../types/workout';
 import { useTheme } from '../theme/ThemeContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatWeightCompactFromLb } from '../lib/weightDisplay';
+import { isLinkableLibraryExerciseId, navigateFromWorkoutDetailToExerciseDetail } from '../lib/exerciseNavigation';
 import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
 
 type WorkoutDetailScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
@@ -484,8 +485,23 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
                 : []),
             ];
             const rowKey = exercise.id ?? `ex-${index}`;
+            const libId = exercise.exerciseId;
+            const canOpenLibrary = isLinkableLibraryExerciseId(libId);
             return (
-              <View key={rowKey} style={styles.exerciseCard}>
+              <Pressable
+                key={rowKey}
+                style={({ pressed }) => [
+                  styles.exerciseCard,
+                  canOpenLibrary && pressed ? { opacity: 0.75 } : null,
+                ]}
+                onPress={() => {
+                  if (!canOpenLibrary) {
+                    Alert.alert('Exercise details', `"${exercise.name}" isn't linked to the library yet. Open the Exercises tab and search by name.`);
+                    return;
+                  }
+                  navigateFromWorkoutDetailToExerciseDetail(navigation, libId!);
+                }}
+              >
                 <View style={styles.exerciseCardHeader}>
                   <View style={styles.exerciseIndex}>
                     <Text style={styles.exerciseIndexText}>{index + 1}</Text>
@@ -510,7 +526,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
                     <Text style={styles.exerciseMetaLine}>{metaParts.join(' · ')}</Text>
                   </View>
                 </View>
-              </View>
+              </Pressable>
             );
           })}
           <View style={styles.tertiaryBlock}>

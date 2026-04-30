@@ -41,7 +41,7 @@ export type RootStackParamList = {
      * Opened from Plan Preview or Plan calendar workout sheet; Back resets Exercises stack to SearchList
      * and focuses the Exercises tab.
      */
-    returnToPlanExerciseContext?: 'preview' | 'calendar';
+    returnToPlanExerciseContext?: 'preview' | 'calendar' | 'workoutDetail';
     /** @deprecated use returnToPlanExerciseContext === 'preview' */
     returnToPlanPreview?: boolean;
     /** Unused when leaving exercise via Back (SearchList); kept for older deep links. */
