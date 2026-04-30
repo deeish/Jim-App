@@ -2117,6 +2117,38 @@ export class PlansService {
     );
   }
 
+  /** Move a slot to a different day (and optionally week/order) within the same plan. */
+  async moveSlot(
+    planId: string,
+    slotId: string,
+    dto: { dayOfWeek: string; weekNumber?: number; orderInDay?: number },
+    userId: string,
+  ) {
+    const plan = await this.prisma.workoutPlan.findUnique({
+      where: { id: planId },
+      include: { planWorkouts: { select: { id: true } } },
+    });
+    if (!plan) throw new NotFoundException(`Plan with ID ${planId} not found`);
+    if (plan.userId && plan.userId !== userId) {
+      throw new NotFoundException(`Plan with ID ${planId} not found`);
+    }
+    const slotExists = plan.planWorkouts.some((pw) => pw.id === slotId);
+    if (!slotExists) {
+      throw new NotFoundException(
+        `Slot with ID ${slotId} not found in this plan`,
+      );
+    }
+    await this.prisma.planWorkout.update({
+      where: { id: slotId },
+      data: {
+        dayOfWeek: dto.dayOfWeek,
+        ...(dto.weekNumber !== undefined && { weekNumber: dto.weekNumber }),
+        ...(dto.orderInDay !== undefined && { orderInDay: dto.orderInDay }),
+      },
+    });
+    return this.getById(planId, userId);
+  }
+
   /** Remove a single slot from the plan. Unlinks the linked Workout if any. */
   async removeSlot(planId: string, slotId: string, userId: string) {
     if (process.env.NODE_ENV !== 'production') {

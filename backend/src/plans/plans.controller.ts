@@ -12,6 +12,7 @@ import {
 import { PlansService } from './plans.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { RemoveSlotDto } from './dto/remove-slot.dto';
+import { MoveSlotDto } from './dto/move-slot.dto';
 import { PlanSlotDto } from './dto/create-plan.dto';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
@@ -98,6 +99,17 @@ export class PlansController {
     @UserId() userId: string,
   ) {
     return this.plansService.addSlot(planId, dto, userId);
+  }
+
+  @Patch(':id/slots/:slotId/move')
+  @HttpCode(HttpStatus.OK)
+  moveSlot(
+    @Param('id') planId: string,
+    @Param('slotId') slotId: string,
+    @Body() dto: MoveSlotDto,
+    @UserId() userId: string,
+  ) {
+    return this.plansService.moveSlot(planId, slotId, dto, userId);
   }
 
   @Post(':id/slots/remove')

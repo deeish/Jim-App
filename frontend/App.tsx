@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
 import NavBar from './src/components/NavBar';
@@ -109,15 +110,17 @@ const styles = StyleSheet.create({
 
 function App() {
   return (
-    <ThemeProvider>
-      <SafeAreaProvider>
-        <UserPreferencesProvider>
-          <AuthProvider>
-            <AppContent />
-          </AuthProvider>
-        </UserPreferencesProvider>
-      </SafeAreaProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <SafeAreaProvider>
+          <UserPreferencesProvider>
+            <AuthProvider>
+              <AppContent />
+            </AuthProvider>
+          </UserPreferencesProvider>
+        </SafeAreaProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 

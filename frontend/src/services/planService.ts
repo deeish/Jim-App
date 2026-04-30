@@ -278,6 +278,19 @@ export async function addPlanSlot(planId: string, slot: PlanSlot): Promise<ApiPl
   return response.data;
 }
 
+/** Move a slot to a different day (and optionally different week/order). Returns the updated plan. */
+export async function movePlanSlot(
+  planId: string,
+  slotId: string,
+  body: { dayOfWeek: string; weekNumber?: number; orderInDay?: number },
+): Promise<ApiPlan> {
+  const response = await api.patch<ApiPlan>(
+    `/plans/${planId}/slots/${slotId}/move`,
+    body,
+  );
+  return response.data;
+}
+
 /** Remove a single slot from the plan. Returns the updated plan. */
 export async function removePlanSlot(planId: string, slotId: string): Promise<ApiPlan> {
   const url = `/plans/${planId}/slots/remove`;

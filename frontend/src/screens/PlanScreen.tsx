@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
@@ -18,7 +21,7 @@ import type { RootStackParamList } from '../types/navigation';
 import { useTheme, planSlotIconColors } from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
-import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot } from '../services/planService';
+import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot, movePlanSlot } from '../services/planService';
 import type { ApiPlan, ApiPlanExercise, ApiPlanWorkout } from '../services/planService';
 import type { Workout } from '../types/workout';
 import { materializePlanSlotWorkout } from '../services/workoutService';
@@ -137,6 +140,21 @@ type Props = {
   navigation?: PlanScreenNavigationProp;
 };
 
+function findDayAtY(
+  screenY: number,
+  containerOffsetY: number,
+  headerBottom: number,
+  scrollOffset: number,
+  dayLayouts: Record<string, { y: number; height: number }>,
+): string | null {
+  const contentY = screenY - containerOffsetY - headerBottom + scrollOffset;
+  for (const day of DAYS_OF_WEEK) {
+    const l = dayLayouts[day];
+    if (l && contentY >= l.y && contentY <= l.y + l.height) return day;
+  }
+  return null;
+}
+
 const EMPTY_PLAN: Record<string, PlanWorkout[]> = {
   Monday: [], Tuesday: [], Wednesday: [], Thursday: [], Friday: [], Saturday: [], Sunday: [],
 };
@@ -156,12 +174,40 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
   const [savedModalVisible, setSavedModalVisible] = useState(false);
   const [detailSheetWorkout, setDetailSheetWorkout] = useState<{ workout: PlanWorkout; day: string; date: Date } | null>(null);
+  const [moveContext, setMoveContext] = useState<{ workout: PlanWorkout; day: string } | null>(null);
+  const [moving, setMoving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ slotId: string; day: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<ApiPlan | null>(null);
   const [startWorkoutLoading, setStartWorkoutLoading] = useState(false);
   const [detailSheetGuideExpanded, setDetailSheetGuideExpanded] = useState(false);
   const contentScrollRef = React.useRef<ScrollView>(null);
+
+  // --- Drag-and-drop ---
+  const dragX = useSharedValue(0);
+  const dragY = useSharedValue(0);
+  const isDragging = useSharedValue(false);
+  const ghostOpacity = useSharedValue(0);
+  const moreButtonActive = useSharedValue(false);
+
+  const [draggingSlot, setDraggingSlot] = useState<{ workout: PlanWorkout; day: string } | null>(null);
+  const [hoveredDay, setHoveredDay] = useState<string | null>(null);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+
+  const containerRef       = useRef<View>(null);
+  const containerOffsetRef = useRef({ x: 0, y: 0 });
+  const headerBottomRef    = useRef(0);
+  const scrollOffsetRef    = useRef(0);
+  const dayLayoutsRef      = useRef<Record<string, { y: number; height: number }>>({});
+  const draggingSlotRef        = useRef<{ workout: PlanWorkout; day: string } | null>(null);
+  const hoveredDayRef          = useRef<string | null>(null);
+  const planByWeekRef          = useRef(planByWeek);
+  const resolvedProgramWeekRef = useRef<number | null>(null);
+
+  useEffect(() => { draggingSlotRef.current = draggingSlot; }, [draggingSlot]);
+  useEffect(() => { hoveredDayRef.current = hoveredDay; }, [hoveredDay]);
+  useEffect(() => { planByWeekRef.current = planByWeek; }, [planByWeek]);
+  // --- End drag-and-drop ---
 
   useEffect(() => {
     setDetailSheetGuideExpanded(false);
@@ -229,6 +275,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     () => programWeekForCalendarOffset(selectedWeek, anchorYmd, maxPlanWeek),
     [selectedWeek, anchorYmd, maxPlanWeek],
   );
+  useEffect(() => { resolvedProgramWeekRef.current = resolvedProgramWeek; }, [resolvedProgramWeek]);
 
   const plan = useMemo(() => {
     if (resolvedProgramWeek === null) return EMPTY_PLAN;
@@ -672,6 +719,31 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     setDeleteConfirm({ slotId: planWorkout.id, day, title: planWorkout.title });
   }, [contextWorkout, closeContextMenu]);
 
+  const handleMoveFromMenu = useCallback(() => {
+    if (!contextWorkout) return;
+    const ctx = contextWorkout;
+    closeContextMenu();
+    setMoveContext(ctx);
+  }, [contextWorkout, closeContextMenu]);
+
+  const handleMoveToDay = useCallback(async (targetDay: string) => {
+    if (!moveContext || !currentPlan?.id) return;
+    if (targetDay === moveContext.day) {
+      setMoveContext(null);
+      return;
+    }
+    setMoving(true);
+    try {
+      await movePlanSlot(currentPlan.id, moveContext.workout.id, { dayOfWeek: targetDay });
+      setMoveContext(null);
+      await loadPlan();
+    } catch (err: any) {
+      Alert.alert('Could not move workout', err.response?.data?.message ?? err.message ?? 'Try again.');
+    } finally {
+      setMoving(false);
+    }
+  }, [moveContext, currentPlan?.id, loadPlan]);
+
   const closeDeleteConfirm = useCallback(() => {
     if (!deleting) setDeleteConfirm(null);
   }, [deleting]);
@@ -732,6 +804,76 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     setSelectedWeek(0);
     contentScrollRef.current?.scrollTo({ y: 0, animated: true });
   }, []);
+
+  // --- Drag-and-drop callbacks ---
+  const updateHoveredDay = useCallback((screenY: number) => {
+    const day = findDayAtY(
+      screenY,
+      containerOffsetRef.current.y,
+      headerBottomRef.current,
+      scrollOffsetRef.current,
+      dayLayoutsRef.current,
+    );
+    hoveredDayRef.current = day; // update ref immediately — don't wait for useEffect
+    setHoveredDay(day);          // update state for visual highlight
+  }, []);
+
+  const commitDrop = useCallback(() => {
+    const target    = hoveredDayRef.current;
+    const slot      = draggingSlotRef.current;
+    const week      = resolvedProgramWeekRef.current;
+    const planId    = currentPlan?.id;
+
+    setScrollEnabled(true);
+    setDraggingSlot(null);
+    setHoveredDay(null);
+
+    if (!target || !slot || target === slot.day || !planId || week === null) return;
+
+    // Snapshot for rollback
+    const snapshot = planByWeekRef.current;
+
+    // Optimistic update — move card locally right away, no reload
+    setPlanByWeek(prev => {
+      const weekData = prev[week];
+      if (!weekData) return prev;
+      const fromDay = weekData[slot.day] ?? [];
+      const toDay   = weekData[target] ?? [];
+      const card    = fromDay.find(w => w.id === slot.workout.id);
+      if (!card) return prev;
+      return {
+        ...prev,
+        [week]: {
+          ...weekData,
+          [slot.day]: fromDay.filter(w => w.id !== slot.workout.id),
+          [target]:   [...toDay, card],
+        },
+      };
+    });
+
+    // Persist in background — revert on failure
+    movePlanSlot(planId, slot.workout.id, { dayOfWeek: target }).catch((err: any) => {
+      setPlanByWeek(snapshot);
+      Alert.alert('Could not move workout', err?.response?.data?.message ?? err?.message ?? 'Try again.');
+    });
+  }, [currentPlan?.id]);
+
+  const cancelDrag = useCallback(() => {
+    setScrollEnabled(true);
+    setDraggingSlot(null);
+    setHoveredDay(null);
+  }, []);
+
+  const ghostAnimatedStyle = useAnimatedStyle(() => ({
+    position: 'absolute',
+    left: dragX.value - containerOffsetRef.current.x,
+    top:  dragY.value - containerOffsetRef.current.y - 20,
+    opacity: ghostOpacity.value,
+    transform: [{ scale: 1.04 }],
+    zIndex: 9999,
+    pointerEvents: 'none' as const,
+  }));
+  // --- End drag-and-drop callbacks ---
 
   const formatWorkoutDetailLine = (workout: PlanWorkout): string => {
     let detail = (workout.detailLine ?? '—').replace(/·/g, '•');
@@ -799,7 +941,16 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   }
 
   return (
-    <View style={styles.container} testID="e2e-plan-root">
+    <View
+      ref={containerRef}
+      style={styles.container}
+      testID="e2e-plan-root"
+      onLayout={() => {
+        containerRef.current?.measure((_x, _y, _w, _h, pageX, pageY) => {
+          containerOffsetRef.current = { x: pageX, y: pageY };
+        });
+      }}
+    >
       {/* Dynamic header: plan name + optional subtitle from load balance */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -846,7 +997,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       </View>
 
       {/* Tight week navigation: ‹ Week of Jan 26 – Feb 1 › */}
-      <View style={styles.weekRow}>
+      <View
+        style={styles.weekRow}
+        onLayout={(e: LayoutChangeEvent) => {
+          headerBottomRef.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
+        }}
+      >
         <TouchableOpacity
           style={[styles.weekNavArrow, selectedWeek <= weekNavBounds.min && styles.weekNavArrowDisabled]}
           disabled={selectedWeek <= weekNavBounds.min}
@@ -884,6 +1040,9 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={scrollEnabled}
+        onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
       >
         {DAYS_OF_WEEK.map(day => {
           const workouts = plan[day] || [];
@@ -891,8 +1050,27 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           const isToday = isTodayDate(dayDate);
           const daySummaryText = getDaySummary(workouts);
 
+          const isDropTarget = hoveredDay === day && draggingSlot?.day !== day;
+
           return (
-            <View key={day} style={styles.daySection}>
+            <View
+              key={day}
+              style={[
+                styles.daySection,
+                isDropTarget && {
+                  backgroundColor: colors.primary + '18',
+                  borderRadius: 12,
+                  borderWidth: 2,
+                  borderColor: colors.primary,
+                },
+              ]}
+              onLayout={(e: LayoutChangeEvent) => {
+                dayLayoutsRef.current[day] = {
+                  y: e.nativeEvent.layout.y,
+                  height: e.nativeEvent.layout.height,
+                };
+              }}
+            >
               <View style={styles.dayHeader}>
                 <View style={styles.dayTitleRow}>
                   <Text style={styles.dayTitle}>{day}</Text>
@@ -934,61 +1112,114 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                 <View style={[styles.workoutStack, workouts.length > 1 && styles.workoutStackTight]}>
                   {workouts.map((workout) => {
                     const isRestDay = isRestPlanSlotTitle(workout.title);
-                    const showMoreButton = true; // Show overflow on every workout card
-                    
-                    // Render rest day as a normal card (matching visual language)
+                    const isBeingDragged = draggingSlot?.workout.id === workout.id;
+
+                    // ⋯ button tap — sets moreButtonActive so cardTap can skip handleCardPress
+                    const moreTap = Gesture.Tap()
+                      .onBegin(() => {
+                        'worklet';
+                        moreButtonActive.value = true;
+                      })
+                      .onFinalize(() => {
+                        'worklet';
+                        moreButtonActive.value = false;
+                      })
+                      .onEnd((_e, success) => {
+                        'worklet';
+                        if (success) runOnJS(openContextMenu)(workout, day);
+                      });
+
+                    const panGesture = Gesture.Pan()
+                      .activateAfterLongPress(300)
+                      .onStart((e) => {
+                        'worklet';
+                        isDragging.value = true;
+                        dragX.value = e.absoluteX;
+                        dragY.value = e.absoluteY;
+                        ghostOpacity.value = withTiming(1, { duration: 120 });
+                        runOnJS(setDraggingSlot)({ workout, day });
+                        runOnJS(setScrollEnabled)(false);
+                      })
+                      .onUpdate((e) => {
+                        'worklet';
+                        dragX.value = e.absoluteX;
+                        dragY.value = e.absoluteY;
+                        runOnJS(updateHoveredDay)(e.absoluteY);
+                      })
+                      .onEnd(() => {
+                        'worklet';
+                        isDragging.value = false;
+                        ghostOpacity.value = withTiming(0, { duration: 100 });
+                        runOnJS(commitDrop)();
+                      })
+                      .onFinalize(() => {
+                        'worklet';
+                        if (isDragging.value) {
+                          isDragging.value = false;
+                          ghostOpacity.value = withTiming(0, { duration: 100 });
+                          runOnJS(cancelDrag)();
+                        }
+                      });
+
+                    // Card tap — skips handleCardPress if ⋯ button is being touched
+                    const cardTap = Gesture.Tap()
+                      .onEnd((_e, success) => {
+                        'worklet';
+                        if (success && !moreButtonActive.value) runOnJS(handleCardPress)(workout, day);
+                      });
+
+                    // Exclusive: pan (long-press drag) wins over tap; tap fires on quick press
+                    const composed = Gesture.Exclusive(panGesture, cardTap);
+
+                    const moreButtonJSX = (
+                      <GestureDetector gesture={moreTap}>
+                        <View
+                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                          style={styles.moreButton}
+                        >
+                          <Text style={styles.moreButtonText}>⋯</Text>
+                        </View>
+                      </GestureDetector>
+                    );
+
+                    const cardStyle = [
+                      styles.workoutCard,
+                      isRestDay && styles.restDayCard,
+                      isBeingDragged && { opacity: 0.3, borderWidth: 2, borderStyle: 'dashed' as const, borderColor: colors.primary },
+                    ];
+
                     if (isRestDay) {
                       return (
-                        <Pressable
-                          key={workout.id}
-                          style={({ pressed }) => [styles.workoutCard, styles.restDayCard, pressed && styles.workoutCardPressed]}
-                          onPress={() => handleCardPress(workout, day)}
-                        >
-                          <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
-                            <Text style={styles.workoutTypeBadge}>R</Text>
+                        <GestureDetector key={workout.id} gesture={composed}>
+                          <View style={cardStyle}>
+                            <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
+                              <Text style={styles.workoutTypeBadge}>R</Text>
+                            </View>
+                            <View style={styles.workoutContent}>
+                              <Text style={styles.workoutTitle}>Rest Day</Text>
+                              <Text style={styles.workoutDetailLine}>Off / Optional walk</Text>
+                            </View>
+                            {moreButtonJSX}
                           </View>
-                          <View style={styles.workoutContent}>
-                            <Text style={styles.workoutTitle}>Rest Day</Text>
-                            <Text style={styles.workoutDetailLine}>Off / Optional walk</Text>
-                          </View>
-                          {showMoreButton && (
-                            <TouchableOpacity
-                              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                              style={styles.moreButton}
-                              onPress={() => openContextMenu(workout, day)}
-                            >
-                              <Text style={styles.moreButtonText}>⋯</Text>
-                            </TouchableOpacity>
-                          )}
-                        </Pressable>
+                        </GestureDetector>
                       );
                     }
-                    
+
                     return (
-                      <Pressable
-                        key={workout.id}
-                        style={({ pressed }) => [styles.workoutCard, pressed && styles.workoutCardPressed]}
-                        onPress={() => handleCardPress(workout, day)}
-                      >
-                        <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
-                          <Text style={styles.workoutTypeBadge}>{getWorkoutTypeLabel(workout.type).charAt(0)}</Text>
+                      <GestureDetector key={workout.id} gesture={composed}>
+                        <View style={cardStyle}>
+                          <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
+                            <Text style={styles.workoutTypeBadge}>{getWorkoutTypeLabel(workout.type).charAt(0)}</Text>
+                          </View>
+                          <View style={styles.workoutContent}>
+                            <Text style={styles.workoutTitle}>{workout.title}</Text>
+                            <Text style={styles.workoutDetailLine}>
+                              {formatWorkoutDetailLine(workout)}
+                            </Text>
+                          </View>
+                          {moreButtonJSX}
                         </View>
-                        <View style={styles.workoutContent}>
-                          <Text style={styles.workoutTitle}>{workout.title}</Text>
-                          <Text style={styles.workoutDetailLine}>
-                            {formatWorkoutDetailLine(workout)}
-                          </Text>
-                        </View>
-                        {showMoreButton && (
-                          <TouchableOpacity
-                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                            style={styles.moreButton}
-                            onPress={() => openContextMenu(workout, day)}
-                          >
-                            <Text style={styles.moreButtonText}>⋯</Text>
-                          </TouchableOpacity>
-                        )}
-                      </Pressable>
+                      </GestureDetector>
                     );
                   })}
                 </View>
@@ -1010,6 +1241,9 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                 <Text style={styles.menuItemText}>Add exercises</Text>
               </TouchableOpacity>
             )}
+            <TouchableOpacity style={styles.menuItem} onPress={handleMoveFromMenu}>
+              <Text style={styles.menuItemText}>Move to day</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.menuItem} onPress={handleDeleteFromMenu}>
               <Text style={[styles.menuItemText, styles.menuItemDanger]}>Delete</Text>
             </TouchableOpacity>
@@ -1051,6 +1285,42 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                   )}
                 </TouchableOpacity>
               </View>
+            </Pressable>
+          )}
+        </Pressable>
+      </Modal>
+
+      {/* Move to day modal */}
+      <Modal visible={!!moveContext} transparent animationType="fade">
+        <Pressable style={styles.moveOverlay} onPress={() => { if (!moving) setMoveContext(null); }}>
+          {moveContext && (
+            <Pressable style={styles.moveBox} onPress={(e) => e.stopPropagation()}>
+              <Text style={styles.moveTitle}>Move "{moveContext.workout.title}" to</Text>
+              {DAYS_OF_WEEK.map((d, idx) => {
+                const isCurrent = d === moveContext.day;
+                return (
+                  <TouchableOpacity
+                    key={d}
+                    style={[
+                      styles.moveDayItem,
+                      idx === DAYS_OF_WEEK.length - 1 && { borderBottomWidth: 0 },
+                    ]}
+                    onPress={() => void handleMoveToDay(d)}
+                    disabled={moving || isCurrent}
+                  >
+                    {moving && !isCurrent ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Text style={[styles.moveDayText, isCurrent && { color: colors.textMuted }]}>
+                        {d}{isCurrent ? ' (current)' : ''}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+              <TouchableOpacity style={styles.moveCancel} onPress={() => setMoveContext(null)} disabled={moving}>
+                <Text style={styles.moveCancelText}>Cancel</Text>
+              </TouchableOpacity>
             </Pressable>
           )}
         </Pressable>
@@ -1280,6 +1550,28 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           }}
         />
       </Modal>
+
+      {/* Drag ghost card — floats above everything while dragging */}
+      {draggingSlot && (
+        <Animated.View
+          style={[
+            styles.workoutCard,
+            ghostAnimatedStyle,
+            { width: '91%', elevation: 16, shadowOpacity: 0.35, shadowRadius: 14 },
+          ]}
+          pointerEvents="none"
+        >
+          <View style={[styles.workoutIcon, { backgroundColor: draggingSlot.workout.iconColor }]}>
+            <Text style={styles.workoutTypeBadge}>
+              {isRestPlanSlotTitle(draggingSlot.workout.title) ? 'R' : getWorkoutTypeLabel(draggingSlot.workout.type).charAt(0)}
+            </Text>
+          </View>
+          <View style={styles.workoutContent}>
+            <Text style={styles.workoutTitle}>{draggingSlot.workout.title}</Text>
+            <Text style={styles.workoutDetailLine}>{formatWorkoutDetailLine(draggingSlot.workout)}</Text>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
