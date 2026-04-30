@@ -74,6 +74,29 @@ export function isRestPlanSlotTitle(title: string | null | undefined): boolean {
   return String(title ?? '').trim().toLowerCase() === 'rest day';
 }
 
+/**
+ * Shift all workouts in a week's slot map by one day in the given direction.
+ * Returns null if the shift would push a workout past Monday (direction -1) or Sunday (direction 1).
+ * The returned map preserves every day key; empty arrays are kept so callers don't need to re-initialize.
+ */
+export function shiftWeekWorkouts<T>(
+  weekSlots: Record<string, T[]>,
+  direction: 1 | -1,
+): Record<string, T[]> | null {
+  const days = PLAN_WEEKDAY_NAMES_MONDAY_FIRST;
+  if (direction === 1 && (weekSlots['Sunday']?.length ?? 0) > 0) return null;
+  if (direction === -1 && (weekSlots['Monday']?.length ?? 0) > 0) return null;
+
+  const result: Record<string, T[]> = {};
+  for (const day of days) result[day] = [];
+  for (let i = 0; i < days.length; i++) {
+    const slots = weekSlots[days[i]];
+    if (!slots?.length) continue;
+    result[days[i + direction]] = slots;
+  }
+  return result;
+}
+
 export function getWeekStartMonday(d: Date): Date {
   const copy = new Date(d);
   const day = copy.getDay();

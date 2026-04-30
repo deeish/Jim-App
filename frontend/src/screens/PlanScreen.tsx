@@ -36,6 +36,7 @@ import {
   normalizeProgramWeekNumber,
   isRestPlanSlotTitle,
   programWeekForCalendarOffset,
+  shiftWeekWorkouts,
 } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import { getPlanSlotDisplayMinutes } from '../lib/estimateWorkoutMinutes';
@@ -181,6 +182,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [currentPlan, setCurrentPlan] = useState<ApiPlan | null>(null);
   const [startWorkoutLoading, setStartWorkoutLoading] = useState(false);
   const [detailSheetGuideExpanded, setDetailSheetGuideExpanded] = useState(false);
+  const [shifting, setShifting] = useState(false);
   const contentScrollRef = React.useRef<ScrollView>(null);
 
   // --- Drag-and-drop ---
@@ -300,6 +302,11 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   }, [loadBalance.strength, loadBalance.cardio, loadBalance.recovery]);
   const isCurrentWeek = selectedWeek === 0;
 
+  const weekSlots = resolvedProgramWeek !== null ? planByWeek[resolvedProgramWeek] : null;
+  const canShiftBack = !!weekSlots && !weekSlots['Monday']?.length;
+  const canShiftForward = !!weekSlots && !weekSlots['Sunday']?.length;
+  const hasWorkoutsThisWeek = loadBalance.strength + loadBalance.cardio + loadBalance.recovery > 0;
+
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -360,6 +367,25 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         weekNavArrowText: { fontSize: 20, color: colors.primary, fontWeight: '600' },
         weekNavCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
         weekNavLabel: { fontSize: 13, color: colors.text, fontWeight: '600' },
+        shiftRow: {
+          flexDirection: 'row',
+          justifyContent: 'center',
+          gap: 10,
+          backgroundColor: colors.surface,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+          paddingVertical: 6,
+          paddingHorizontal: 12,
+        },
+        shiftBtn: {
+          paddingHorizontal: 12,
+          paddingVertical: 5,
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: colors.primary,
+        },
+        shiftBtnDisabled: { opacity: 0.35 },
+        shiftBtnText: { fontSize: 12, color: colors.primary, fontWeight: '600' },
         outOfProgramWeekBanner: {
           paddingVertical: 8,
           paddingHorizontal: 12,
@@ -805,6 +831,36 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     contentScrollRef.current?.scrollTo({ y: 0, animated: true });
   }, []);
 
+  const handleShiftWeek = useCallback(async (direction: 1 | -1) => {
+    if (!currentPlan?.id || resolvedProgramWeek === null) return;
+    const currentWeekSlots = planByWeek[resolvedProgramWeek] ?? {};
+    const shifted = shiftWeekWorkouts(currentWeekSlots, direction);
+    if (!shifted) return;
+
+    const snapshot = currentWeekSlots;
+    setShifting(true);
+    setPlanByWeek(prev => ({ ...prev, [resolvedProgramWeek]: shifted }));
+
+    try {
+      const moves: Array<{ id: string; dayOfWeek: string }> = [];
+      for (const [day, workouts] of Object.entries(shifted)) {
+        for (const w of workouts as PlanWorkout[]) {
+          moves.push({ id: w.id, dayOfWeek: day });
+        }
+      }
+      await Promise.all(
+        moves.map(({ id, dayOfWeek }) =>
+          movePlanSlot(currentPlan.id, id, { dayOfWeek, weekNumber: resolvedProgramWeek })
+        )
+      );
+    } catch (err: any) {
+      setPlanByWeek(prev => ({ ...prev, [resolvedProgramWeek]: snapshot }));
+      Alert.alert('Could not shift workouts', err?.response?.data?.message ?? err?.message ?? 'Try again.');
+    } finally {
+      setShifting(false);
+    }
+  }, [currentPlan?.id, resolvedProgramWeek, planByWeek]);
+
   // --- Drag-and-drop callbacks ---
   const updateHoveredDay = useCallback((screenY: number) => {
     const day = findDayAtY(
@@ -1023,6 +1079,27 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           <Text style={styles.weekNavArrowText}>›</Text>
         </TouchableOpacity>
       </View>
+
+      {hasWorkoutsThisWeek ? (
+        <View style={styles.shiftRow}>
+          <TouchableOpacity
+            style={[styles.shiftBtn, (!canShiftBack || shifting) && styles.shiftBtnDisabled]}
+            disabled={!canShiftBack || shifting}
+            onPress={() => handleShiftWeek(-1)}
+            accessibilityLabel="Shift all workouts back one day"
+          >
+            <Text style={styles.shiftBtnText}>← Shift back</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.shiftBtn, (!canShiftForward || shifting) && styles.shiftBtnDisabled]}
+            disabled={!canShiftForward || shifting}
+            onPress={() => handleShiftWeek(1)}
+            accessibilityLabel="Shift all workouts forward one day"
+          >
+            <Text style={styles.shiftBtnText}>Shift forward →</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {resolvedProgramWeek === null && maxPlanWeek > 0 ? (
         <View style={styles.outOfProgramWeekBanner}>
