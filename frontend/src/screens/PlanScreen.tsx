@@ -23,8 +23,8 @@ import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot, movePlanSlot } from '../services/planService';
 import type { ApiPlan, ApiPlanExercise, ApiPlanWorkout } from '../services/planService';
-import type { Workout } from '../types/workout';
-import { materializePlanSlotWorkout } from '../services/workoutService';
+import type { Workout, WorkoutLog } from '../types/workout';
+import { materializePlanSlotWorkout, getWorkoutLogs } from '../services/workoutService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
 import {
@@ -195,6 +195,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [draggingSlot, setDraggingSlot] = useState<{ workout: PlanWorkout; day: string } | null>(null);
   const [hoveredDay, setHoveredDay] = useState<string | null>(null);
   const [scrollEnabled, setScrollEnabled] = useState(true);
+  const [weekLogs, setWeekLogs] = useState<WorkoutLog[]>([]);
 
   const containerRef       = useRef<View>(null);
   const containerOffsetRef = useRef({ x: 0, y: 0 });
@@ -243,6 +244,19 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     }
   }, [colors]);
 
+  const loadWeekLogs = useCallback(async (weekIndex: number) => {
+    try {
+      const { start, end } = getCalendarWeekRange(weekIndex);
+      const logs = await getWorkoutLogs({
+        from: formatLocalYmd(start),
+        to: formatLocalYmd(end),
+      });
+      setWeekLogs(logs.filter(l => l.completedAt != null));
+    } catch {
+      // graceful degradation — cards show no completion badges on error
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadPlan();
@@ -255,6 +269,16 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       };
     }, [loadPlan, route.params?.openSaved, navigation])
   );
+
+  useFocusEffect(
+    useCallback(() => {
+      loadWeekLogs(selectedWeek);
+    }, [loadWeekLogs, selectedWeek])
+  );
+
+  useEffect(() => {
+    loadWeekLogs(selectedWeek);
+  }, [selectedWeek, loadWeekLogs]);
 
   const maxPlanWeek = useMemo(() => {
     const list = currentPlan?.planWorkouts;
@@ -344,6 +368,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           borderRadius: 8,
           minWidth: 64,
           alignItems: 'center',
+          flexDirection: 'row',
+          gap: 6,
         },
         ctaSecondary: {
           backgroundColor: colors.surface,
@@ -624,6 +650,58 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           justifyContent: 'center',
         },
         detailSheetPrimaryText: { fontSize: 16, fontWeight: '700', color: colors.onPrimary },
+        noPlanHero: {
+          alignItems: 'center',
+          paddingTop: 40,
+          paddingBottom: 32,
+          paddingHorizontal: 16,
+          marginBottom: 8,
+        },
+        noPlanHeroIconWrap: {
+          width: 80,
+          height: 80,
+          borderRadius: 24,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 24,
+        },
+        noPlanHeroTitle: {
+          fontSize: 26,
+          fontWeight: '800',
+          letterSpacing: -0.4,
+          textAlign: 'center',
+          marginBottom: 10,
+        },
+        noPlanHeroSub: {
+          fontSize: 15,
+          lineHeight: 22,
+          textAlign: 'center',
+          fontWeight: '500',
+          marginBottom: 32,
+        },
+        noPlanHeroCta: {
+          alignSelf: 'stretch',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          paddingVertical: 14,
+          borderRadius: 12,
+        },
+        noPlanHeroCtaText: {
+          fontSize: 16,
+          fontWeight: '800',
+        },
+        noPlanHeroLink: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          marginTop: 18,
+        },
+        noPlanHeroLinkText: {
+          fontSize: 16,
+          fontWeight: '700',
+        },
       }),
     [colors]
   );
@@ -632,6 +710,15 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     (planSlotId: string): Workout | undefined =>
       weeklyWorkouts.find((w) => w.planWorkoutId === planSlotId),
     [weeklyWorkouts]
+  );
+
+  const isSlotCompleted = useCallback(
+    (planSlotId: string): boolean => {
+      const linked = resolveWorkoutForPlanSlot(planSlotId);
+      if (!linked?.id) return false;
+      return weekLogs.some(l => l.workoutId === linked.id);
+    },
+    [weekLogs, resolveWorkoutForPlanSlot]
   );
 
   const handleCardPress = useCallback(
@@ -1031,8 +1118,9 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
             >
               <Text style={[styles.historyLabelText, { color: colors.primary }]}>Saved workouts</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.ctaCompact, styles.ctaSecondary]} onPress={handleAIGenerate}>
-              <Text style={styles.ctaCompactTextSecondary}>AI Generate</Text>
+            <TouchableOpacity style={styles.ctaCompact} onPress={handleAIGenerate} accessibilityLabel="AI Generate plan">
+              <Ionicons name="sparkles-outline" size={16} color={colors.onPrimary} />
+              <Text style={styles.ctaCompactText}>AI Generate</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1121,6 +1209,35 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
         scrollEventThrottle={16}
       >
+        {currentPlan === null ? (
+          <View style={styles.noPlanHero}>
+            <View style={[styles.noPlanHeroIconWrap, { backgroundColor: colors.primary + '18' }]}>
+              <Ionicons name="sparkles-outline" size={36} color={colors.primary} />
+            </View>
+            <Text style={[styles.noPlanHeroTitle, { color: colors.text }]}>No plan yet</Text>
+            <Text style={[styles.noPlanHeroSub, { color: colors.textSecondary }]}>
+              Generate a personalised week with AI, or build your schedule manually.
+            </Text>
+            <TouchableOpacity
+              style={[styles.noPlanHeroCta, { backgroundColor: colors.primary }]}
+              onPress={handleAIGenerate}
+              activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityHint="Opens AI plan generator"
+            >
+              <Ionicons name="flash-outline" size={18} color={colors.onPrimary} />
+              <Text style={[styles.noPlanHeroCtaText, { color: colors.onPrimary }]}>Generate my plan</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.noPlanHeroLink}
+              onPress={() => handleAddWorkoutForDay('Monday')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.noPlanHeroLinkText, { color: colors.primary }]}>Build manually instead</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
         {DAYS_OF_WEEK.map(day => {
           const workouts = plan[day] || [];
           const dayDate = getDateForDay(selectedWeek, day);
@@ -1286,7 +1403,10 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                       <GestureDetector key={workout.id} gesture={composed}>
                         <View style={cardStyle}>
                           <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
-                            <Text style={styles.workoutTypeBadge}>{getWorkoutTypeLabel(workout.type).charAt(0)}</Text>
+                            {isSlotCompleted(workout.id)
+                              ? <Ionicons name="checkmark" size={22} color={colors.onPrimary} />
+                              : <Text style={styles.workoutTypeBadge}>{getWorkoutTypeLabel(workout.type).charAt(0)}</Text>
+                            }
                           </View>
                           <View style={styles.workoutContent}>
                             <Text style={styles.workoutTitle}>{workout.title}</Text>

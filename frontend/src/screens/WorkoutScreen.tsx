@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   getWorkoutById,
   saveWorkoutLog,
+  getWorkoutLogs,
   getSavedWorkoutIds,
   saveWorkout,
   unsaveWorkout,
@@ -17,7 +18,8 @@ import {
 import { getCurrentPlanWithWeekly } from '../services/planService';
 import { resolveHomeToday, type HomeTodayResult } from '../lib/homeToday';
 import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
-import { Workout, Exercise, type WorkoutSessionRestoredSnapshot } from '../types/workout';
+import { Workout, Exercise, type WorkoutSessionRestoredSnapshot, type WorkoutLog } from '../types/workout';
+import { formatLocalYmd } from '../lib/planCalendar';
 import { loadWorkoutDraft, clearWorkoutDraft } from '../lib/workoutDraftStorage';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from '../components/Button';
@@ -127,6 +129,7 @@ export default function WorkoutScreen() {
   const [removingIndex, setRemovingIndex] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [savedDraft, setSavedDraft] = useState<Awaited<ReturnType<typeof loadWorkoutDraft>>>(null);
+  const [completedLog, setCompletedLog] = useState<WorkoutLog | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = (msg: string) => {
@@ -256,6 +259,28 @@ export default function WorkoutScreen() {
           justifyContent: 'center',
         },
         draftDiscardBtnText: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+        completionBanner: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          backgroundColor: colors.success + '18',
+          borderWidth: 1,
+          borderColor: colors.success + '44',
+          marginHorizontal: 16,
+          marginBottom: 12,
+          padding: 14,
+          borderRadius: 12,
+        },
+        completionBannerTitle: {
+          fontSize: 15,
+          fontWeight: '700',
+          color: colors.success,
+        },
+        completionBannerStats: {
+          fontSize: 13,
+          color: colors.textSecondary,
+          marginTop: 2,
+        },
       }),
     [colors]
   );
@@ -346,6 +371,20 @@ export default function WorkoutScreen() {
       loadTodayWorkout();
     }
   }, [workoutIdParam]);
+
+  useEffect(() => {
+    if (!todayWorkout?.id) {
+      setCompletedLog(null);
+      return;
+    }
+    const today = formatLocalYmd(new Date());
+    getWorkoutLogs({ from: today, to: today })
+      .then(logs => {
+        const match = logs.find(l => l.workoutId === todayWorkout.id && l.completedAt != null);
+        setCompletedLog(match ?? null);
+      })
+      .catch(() => {});
+  }, [todayWorkout?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -477,6 +516,7 @@ export default function WorkoutScreen() {
   };
 
   const handleStartWorkout = () => {
+    setCompletedLog(null);
     if (!todayWorkout) {
       Alert.alert(
         'No Workout',
@@ -530,7 +570,7 @@ export default function WorkoutScreen() {
     if (sessionData) {
       setSavingLog(true);
       try {
-        await saveWorkoutLog({
+        const log = await saveWorkoutLog({
           workout: sessionData.workout,
           exercises: sessionData.exercises,
           startTime: sessionData.startTime,
@@ -541,6 +581,7 @@ export default function WorkoutScreen() {
           overallNotes: sessionData.overallNotes,
           exerciseNotes: sessionData.exerciseNotes,
         });
+        setCompletedLog(log);
         await clearWorkoutDraft();
         setSavedDraft(null);
       } catch (err) {
@@ -645,6 +686,25 @@ export default function WorkoutScreen() {
             <TouchableOpacity style={styles.draftDiscardBtn} onPress={handleDiscardDraft} activeOpacity={0.8}>
               <Text style={styles.draftDiscardBtnText}>Discard</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
+      {completedLog ? (
+        <View style={styles.completionBanner}>
+          <Ionicons name="checkmark-circle" size={26} color={colors.success} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.completionBannerTitle}>Workout Complete</Text>
+            <Text style={styles.completionBannerStats}>
+              {[
+                completedLog.totalTimeSeconds
+                  ? `${Math.floor(completedLog.totalTimeSeconds / 60)} min`
+                  : null,
+                completedLog.totalSets ? `${completedLog.totalSets} sets` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
           </View>
         </View>
       ) : null}
