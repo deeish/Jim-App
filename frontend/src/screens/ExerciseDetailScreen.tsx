@@ -248,6 +248,12 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
       tabNav?.navigate('Plan');
       return;
     }
+    if (returnToPlanExerciseContext === 'workout') {
+      resetSearchStackToSearchList(navigation);
+      const tabNav = getBottomTabNavigator(navigation);
+      tabNav?.navigate('Workout');
+      return;
+    }
     if (leaveExerciseForPlanFlow) {
       resetSearchStackToSearchList(navigation);
       const tabNav = getBottomTabNavigator(navigation);
