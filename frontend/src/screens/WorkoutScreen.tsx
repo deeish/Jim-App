@@ -131,6 +131,7 @@ export default function WorkoutScreen() {
   const [savedDraft, setSavedDraft] = useState<Awaited<ReturnType<typeof loadWorkoutDraft>>>(null);
   const [completedLog, setCompletedLog] = useState<WorkoutLog | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savingLogRef = useRef(false);
 
   const showToast = (msg: string) => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -568,6 +569,8 @@ export default function WorkoutScreen() {
 
   const handleEndWorkout = async (sessionData?: any) => {
     if (sessionData) {
+      if (savingLogRef.current) return;
+      savingLogRef.current = true;
       setSavingLog(true);
       try {
         const log = await saveWorkoutLog({
@@ -592,6 +595,7 @@ export default function WorkoutScreen() {
           [{ text: 'OK' }]
         );
       } finally {
+        savingLogRef.current = false;
         setSavingLog(false);
       }
     }

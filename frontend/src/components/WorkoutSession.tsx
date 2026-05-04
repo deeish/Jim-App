@@ -1987,6 +1987,7 @@ function WorkoutFinishScreen({
           title="View History"
           onPress={onComplete}
           variant="secondary"
+          disabled={isSaved}
           style={styles.finishButton}
         />
         {!isSaved && (
