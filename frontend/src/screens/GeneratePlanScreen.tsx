@@ -183,6 +183,26 @@ function toIsoDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+const DAY_JS_INDEX: Record<DayOfWeek, number> = {
+  Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3,
+  Thursday: 4, Friday: 5, Saturday: 6,
+};
+
+function nextTrainingDayIsoFromToday(trainingDays: DayOfWeek[]): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (!trainingDays.length) return toIsoDate(today);
+  const todayIndex = today.getDay();
+  let minDays = 7;
+  for (const day of trainingDays) {
+    const diff = (DAY_JS_INDEX[day] - todayIndex + 7) % 7;
+    if (diff < minDays) minDays = diff;
+  }
+  const result = new Date(today);
+  result.setDate(today.getDate() + minDays);
+  return toIsoDate(result);
+}
+
 function formatStartDateLabel(iso: string): string {
   const date = parseIsoDate(iso);
   return new Intl.DateTimeFormat(undefined, {
@@ -448,6 +468,18 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   const [openAvoidInjuries, setOpenAvoidInjuries] = useState(false);
   const [openPerDayTime, setOpenPerDayTime] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    setInputs((prev) => ({
+      ...prev,
+      startDateISO: nextTrainingDayIsoFromToday(prev.trainingDays),
+    }));
+  }, [inputs.trainingDays]);
 
   const editFromSnapshot = route.params?.editFromSnapshot;
   useEffect(() => {

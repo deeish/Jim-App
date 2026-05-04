@@ -52,7 +52,7 @@ import {
   shortBodyTagLabel,
 } from '../lib/previewExerciseMeta';
 import type { PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
-import { formatLocalYmd, getWeekStartMonday } from '../lib/planCalendar';
+import { formatLocalYmd, getWeekStartMonday, parseLocalYmd } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import {
   exercisesLikeFromPrescription,
@@ -1179,7 +1179,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         : inputs.goal;
       await createPlan({
         name: `Plan ${new Date().toLocaleDateString()}`,
-        weekAnchorMonday: formatLocalYmd(getWeekStartMonday(new Date())),
+        weekAnchorMonday: formatLocalYmd(getWeekStartMonday(
+          planInputs?.startDateISO ? parseLocalYmd(planInputs.startDateISO) : new Date()
+        )),
         slots,
         goal: goalForApi ?? undefined,
         experience: inputs.experienceLevel ?? undefined,
