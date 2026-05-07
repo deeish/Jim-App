@@ -671,6 +671,12 @@ export async function enrichGeneratedSession(
   const coachNotes: string[] = [];
   const findMeta = (id: string) => exercisesService.findOne(id);
 
+  for (const ex of exercises) {
+    if (ex.exerciseId && !findMeta(ex.exerciseId)) {
+      console.warn(`[Enrichment] exerciseId '${ex.exerciseId}' not found in catalog — LLM hallucination or stale id`);
+    }
+  }
+
   if (
     sessionTitleNeedsPullBalance(spec.title, spec.type) &&
     !listHasPull(exercises)

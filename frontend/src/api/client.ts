@@ -9,8 +9,16 @@ export const api = axios.create({
   },
 });
 
+let _abortController = new AbortController();
+
+export function cancelAllRequests() {
+  _abortController.abort();
+  _abortController = new AbortController();
+}
+
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
+    config.signal = _abortController.signal;
     let {
       data: { session },
     } = await supabase.auth.getSession();
@@ -54,9 +62,20 @@ api.interceptors.response.use(
       }
     }
     if (error.response?.status === 401) {
-      const headers = error.config?.headers as Record<string, string> | undefined;
+      const config = error.config as (typeof error.config) & { _isRetry?: boolean };
+      const headers = config?.headers as Record<string, string> | undefined;
       const hadToken = !!(headers?.Authorization ?? headers?.authorization);
-      if (hadToken) {
+      if (hadToken && !config?._isRetry) {
+        try {
+          const { data: { session } } = await supabase.auth.refreshSession();
+          if (session?.access_token) {
+            config._isRetry = true;
+            (config.headers as Record<string, string>).Authorization = `Bearer ${session.access_token}`;
+            return api.request(config);
+          }
+        } catch {
+          // refresh failed, fall through to sign-out
+        }
         await supabase.auth.signOut();
       }
     }

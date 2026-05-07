@@ -168,32 +168,44 @@ export class WorkoutsService {
         'This session has no exercises yet. Apply a generated plan again or add exercises from the library.',
       );
     }
-    return this.prisma.workout.create({
-      data: {
-        name: pw.title,
-        day: pw.dayOfWeek,
-        estimatedDuration: pw.durationMinutes,
-        focus: pw.detailLine ?? undefined,
-        workoutPlanId: pw.workoutPlanId,
-        planWorkoutId: pw.id,
-        userId,
-        exercises: {
-          create: pw.exercises.map((e, i) => ({
-            name: e.name ?? 'Exercise',
-            sets: e.sets,
-            reps: e.reps,
-            weight: e.weight ?? undefined,
-            notes: e.notes ?? undefined,
-            exerciseId:
-              e.exerciseId && !e.exerciseId.startsWith('generated_')
-                ? e.exerciseId
-                : undefined,
-            orderIndex: e.orderIndex ?? i,
-          })),
+    try {
+      return await this.prisma.workout.create({
+        data: {
+          name: pw.title,
+          day: pw.dayOfWeek,
+          estimatedDuration: pw.durationMinutes,
+          focus: pw.detailLine ?? undefined,
+          workoutPlanId: pw.workoutPlanId,
+          planWorkoutId: pw.id,
+          userId,
+          exercises: {
+            create: pw.exercises.map((e, i) => ({
+              name: e.name ?? 'Exercise',
+              sets: e.sets,
+              reps: e.reps,
+              weight: e.weight ?? undefined,
+              notes: e.notes ?? undefined,
+              exerciseId:
+                e.exerciseId && !e.exerciseId.startsWith('generated_')
+                  ? e.exerciseId
+                  : undefined,
+              orderIndex: e.orderIndex ?? i,
+            })),
+          },
         },
-      },
-      include: { exercises: true },
-    });
+        include: { exercises: true },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        // Concurrent request already created this workout — return the existing one
+        const created = await this.prisma.workout.findFirst({
+          where: { planWorkoutId: pw.id, userId },
+          include: { exercises: true },
+        });
+        if (created) return created;
+      }
+      throw err;
+    }
   }
 
   /** Weekly workouts from the current plan only. Used for "Today's Workout" on Workout tab — if no plan or no workout for a day, that day shows nothing. */

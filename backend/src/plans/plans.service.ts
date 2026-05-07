@@ -82,27 +82,29 @@ export class PlansService {
     };
   }
 
-  /** Current plan = most recently updated plan for this user. */
+  private async findActivePlan(userId: string) {
+    // Try isActive first; fall back to most-recently-updated for plans pre-dating this field
+    return (
+      (await this.prisma.workoutPlan.findFirst({
+        where: { userId, isActive: true },
+        include: { planWorkouts: this.planWorkoutsInclude() },
+      })) ??
+      (await this.prisma.workoutPlan.findFirst({
+        where: { userId },
+        orderBy: { updatedAt: 'desc' },
+        include: { planWorkouts: this.planWorkoutsInclude() },
+      }))
+    );
+  }
+
+  /** Current plan = active plan for this user (falls back to most-recently-updated for legacy plans). */
   async getCurrent(userId: string) {
-    const plan = await this.prisma.workoutPlan.findFirst({
-      where: { userId },
-      orderBy: { updatedAt: 'desc' },
-      include: {
-        planWorkouts: this.planWorkoutsInclude(),
-      },
-    });
-    return plan;
+    return this.findActivePlan(userId);
   }
 
   /** Current plan + weekly workouts in one call (faster for Plan screen). */
   async getCurrentWithWeekly(userId: string) {
-    const plan = await this.prisma.workoutPlan.findFirst({
-      where: { userId },
-      orderBy: { updatedAt: 'desc' },
-      include: {
-        planWorkouts: this.planWorkoutsInclude(),
-      },
-    });
+    const plan = await this.findActivePlan(userId);
     const weeklyWorkouts = plan
       ? await this.prisma.workout.findMany({
           where: { workoutPlanId: plan.id },
@@ -138,11 +140,17 @@ export class PlansService {
       ? this.dateOnlyFromYmd(dto.weekAnchorMonday)
       : null;
 
+    await this.prisma.workoutPlan.updateMany({
+      where: { userId, isActive: true },
+      data: { isActive: false },
+    });
+
     const plan = await this.prisma.workoutPlan.create({
       data: {
         name,
         userId,
         weekAnchorMonday,
+        isActive: true,
         planWorkouts: {
           create: dto.slots.map((s) => ({
             weekNumber: s.weekNumber,

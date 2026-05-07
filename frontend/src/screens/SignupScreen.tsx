@@ -95,6 +95,11 @@ export default function SignupScreen() {
             autoComplete="new-password"
             editable={!success}
           />
+          {password.length > 0 && (
+            <Text style={{ fontSize: 12, marginTop: 4, color: password.length >= 6 ? colors.success : colors.error }}>
+              {password.length >= 6 ? 'Password length OK' : `${6 - password.length} more character${6 - password.length === 1 ? '' : 's'} needed`}
+            </Text>
+          )}
 
           {error ? (
             <Text style={[styles.error, themed.error]}>{error}</Text>

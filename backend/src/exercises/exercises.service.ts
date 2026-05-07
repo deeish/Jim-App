@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -31,6 +31,7 @@ const DEFAULT_EQUIPMENT_ORDER = 12;
 @Injectable()
 export class ExercisesService implements OnModuleInit {
   private exercises: TransformedExercise[] = [];
+  private catalogLoadFailed = false;
   /** exerciseId -> YouTube video ID (from data/exercise-videos.json) */
   private videoMap = new Map<string, string>();
   /** Built once at startup; avoids remapping thousands of rows on every list request. */
@@ -88,8 +89,9 @@ export class ExercisesService implements OnModuleInit {
         `✅ Loaded and transformed ${this.exercises.length} exercises`,
       );
     } catch (error) {
-      console.error('❌ Error loading exercises:', error);
+      console.error('❌ FATAL: Error loading exercise catalog — all catalog operations will fail:', error);
       this.exercises = [];
+      this.catalogLoadFailed = true;
     }
   }
 
@@ -198,6 +200,9 @@ export class ExercisesService implements OnModuleInit {
   }
 
   findOne(id: string): TransformedExercise | undefined {
+    if (this.catalogLoadFailed) {
+      throw new InternalServerErrorException('Exercise catalog failed to load at startup');
+    }
     const ex = this.exercises.find((e) => e.id === id);
     return ex ? this.withVideo(ex) : undefined;
   }

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import type { RootStackParamList } from '../types/navigation';
@@ -50,10 +50,12 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
     }
   }, []);
 
-  useEffect(() => {
-    setLoading(true);
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      load();
+    }, [load])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

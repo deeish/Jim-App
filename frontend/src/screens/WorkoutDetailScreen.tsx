@@ -288,7 +288,10 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         error?.response?.status === 400
           ? 'Add exercises before regenerating.'
           : 'Could not regenerate. Try again.';
-      Alert.alert('Regenerate failed', typeof msg === 'string' && msg.trim() ? msg : fallback);
+      Alert.alert('Regenerate failed', typeof msg === 'string' && msg.trim() ? msg : fallback, [
+        { text: 'OK', style: 'cancel' },
+        { text: 'Retry', onPress: handleRegenerateWorkout },
+      ]);
     } finally {
       setGenerating(false);
     }

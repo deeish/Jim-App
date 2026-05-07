@@ -7,11 +7,13 @@ import {
   useCallback,
   useRef,
 } from 'react';
+import { AppState } from 'react-native';
 import type { Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 import { applySupabaseAuthUrl } from '../lib/authDeepLink';
 import { setSentryUser } from '../lib/sentry';
+import { cancelAllRequests } from '../api/client';
 
 type AuthContextValue = {
   user: User | null;
@@ -98,6 +100,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSentryUser(user ? { id: user.id } : null);
   }, [user]);
 
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        void supabase.auth.getSession();
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   const signIn = useCallback(
     async (email: string, password: string) => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -130,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     recoveryActiveRef.current = false;
     setPasswordRecoveryMode(false);
+    cancelAllRequests();
     await supabase.auth.signOut();
   }, []);
 

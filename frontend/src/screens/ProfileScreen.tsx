@@ -514,6 +514,9 @@ export default function ProfileScreen() {
                 autoCorrect
                 accessibilityLabel="Display name"
               />
+              <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'right', marginTop: 2 }}>
+                {nameDraft.length}/80
+              </Text>
             </View>
           </View>
           <View style={styles.profileEmailBlock}>

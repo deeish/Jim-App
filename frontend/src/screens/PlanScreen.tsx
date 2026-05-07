@@ -935,18 +935,28 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           moves.push({ id: w.id, dayOfWeek: day });
         }
       }
-      await Promise.all(
+      const results = await Promise.allSettled(
         moves.map(({ id, dayOfWeek }) =>
           movePlanSlot(currentPlan.id, id, { dayOfWeek, weekNumber: resolvedProgramWeek })
         )
       );
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length > 0) {
+        setPlanByWeek(prev => ({ ...prev, [resolvedProgramWeek]: snapshot }));
+        const firstErr = (failed[0] as PromiseRejectedResult).reason;
+        Alert.alert(
+          'Could not shift workouts',
+          firstErr?.response?.data?.message ?? firstErr?.message ?? 'Some moves failed. The plan has been restored.',
+        );
+        void loadPlan();
+      }
     } catch (err: any) {
       setPlanByWeek(prev => ({ ...prev, [resolvedProgramWeek]: snapshot }));
       Alert.alert('Could not shift workouts', err?.response?.data?.message ?? err?.message ?? 'Try again.');
     } finally {
       setShifting(false);
     }
-  }, [currentPlan?.id, resolvedProgramWeek, planByWeek]);
+  }, [currentPlan?.id, resolvedProgramWeek, planByWeek, loadPlan]);
 
   // --- Drag-and-drop callbacks ---
   const updateHoveredDay = useCallback((screenY: number) => {
@@ -994,12 +1004,13 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       };
     });
 
-    // Persist in background — revert on failure
+    // Persist in background — revert on failure and re-fetch to ensure UI matches server
     movePlanSlot(planId, slot.workout.id, { dayOfWeek: target }).catch((err: any) => {
       setPlanByWeek(snapshot);
       Alert.alert('Could not move workout', err?.response?.data?.message ?? err?.message ?? 'Try again.');
+      void loadPlan();
     });
-  }, [currentPlan?.id]);
+  }, [currentPlan?.id, loadPlan]);
 
   const cancelDrag = useCallback(() => {
     setScrollEnabled(true);

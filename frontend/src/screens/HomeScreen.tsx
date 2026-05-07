@@ -11,6 +11,7 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -178,9 +179,16 @@ export default function HomeScreen() {
     navigation.navigate('Workout', { workoutId: workout.id });
   };
 
-  const onSignOut = async () => {
+  const onSignOut = () => {
     closeMenu();
-    await signOut();
+    Alert.alert(
+      'Sign out?',
+      '',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
+      ]
+    );
   };
 
   const themedStyles = useMemo(

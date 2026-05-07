@@ -7,8 +7,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------
@@ -39,6 +40,7 @@ model WorkoutPlan {
   name      String
   /// Monday (local calendar) when program week 1 starts; ties slots to real weeks.
   weekAnchorMonday DateTime? @map("week_anchor_monday") @db.Date
+  isActive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -127,6 +129,7 @@ model Workout {
   @@index([userId])
   @@index([workoutPlanId])
   @@index([planWorkoutId])
+  @@unique([planWorkoutId, userId])
 }
 
 // ---------------------------------------------------------------------------

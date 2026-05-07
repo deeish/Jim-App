@@ -156,6 +156,7 @@ export default function CalendarScreen({ navigation }: Props) {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [logs, setLogs] = useState<WorkoutLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number } | null>(null);
 
   const monthStart = useMemo(() => {
@@ -173,12 +174,16 @@ export default function CalendarScreen({ navigation }: Props) {
     let cancelled = false;
     async function load() {
       setLogsLoading(true);
+      setLogsError(null);
       try {
         const data = await getWorkoutLogs({ from: monthStart, to: monthEnd });
         if (!cancelled) setLogs(data);
       } catch (err) {
         console.error('Failed to load workout logs:', err);
-        if (!cancelled) setLogs([]);
+        if (!cancelled) {
+          setLogs([]);
+          setLogsError('Could not load workout history. Check your connection and try again.');
+        }
       } finally {
         if (!cancelled) setLogsLoading(false);
       }
@@ -285,6 +290,11 @@ export default function CalendarScreen({ navigation }: Props) {
             <ActivityIndicator size="small" color={colors.primary} />
             <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading history…</Text>
           </View>
+        )}
+        {logsError && !logsLoading && (
+          <Text style={[styles.loadingText, { color: colors.error, textAlign: 'center', marginTop: 8 }]}>
+            {logsError}
+          </Text>
         )}
 
         <View style={styles.weekdayRow}>

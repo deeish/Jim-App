@@ -319,8 +319,8 @@ export default function WorkoutScreen() {
     showToast('Open Exercises tab to find this movement in the library.');
   };
 
-  const handleRemoveExercise = async (index: number) => {
-    if (!todayWorkout?.id || removingIndex !== null) return;
+  const doRemoveExercise = async (index: number) => {
+    if (!todayWorkout?.id) return;
     const name = todayWorkout.exercises[index]?.name ?? 'Exercise';
     const next = todayWorkout.exercises.filter((_, i) => i !== index);
     setRemovingIndex(index);
@@ -343,6 +343,19 @@ export default function WorkoutScreen() {
     } finally {
       setRemovingIndex(null);
     }
+  };
+
+  const handleRemoveExercise = (index: number) => {
+    if (!todayWorkout?.id || removingIndex !== null) return;
+    const name = todayWorkout.exercises[index]?.name ?? 'Exercise';
+    Alert.alert(
+      `Remove ${name}?`,
+      'This exercise will be removed from today\'s workout.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => doRemoveExercise(index) },
+      ]
+    );
   };
 
   const handleAddExercises = () => {

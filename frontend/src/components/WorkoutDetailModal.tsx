@@ -118,10 +118,10 @@ export default function WorkoutDetailModal({ visible, workout, onClose, onSwap, 
     [colors]
   );
 
-  const handleRegenerate = async () => {
+  const doRegenerate = async () => {
     try {
       setGenerating(true);
-      const newWorkout = await generateWorkout(workout.day);
+      await generateWorkout(workout.day);
       Alert.alert('Success', 'Workout regenerated!');
       onRefresh();
       onClose();
@@ -131,6 +131,17 @@ export default function WorkoutDetailModal({ visible, workout, onClose, onSwap, 
     } finally {
       setGenerating(false);
     }
+  };
+
+  const handleRegenerate = () => {
+    Alert.alert(
+      'Regenerate workout?',
+      'Your current exercises will be replaced with a new AI-generated workout.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Regenerate', style: 'destructive', onPress: doRegenerate },
+      ]
+    );
   };
 
   return (

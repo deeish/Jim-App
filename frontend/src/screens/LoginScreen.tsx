@@ -29,6 +29,10 @@ export default function LoginScreen() {
       setError('Email and password are required');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Please enter a valid email address');
+      return;
+    }
     setLoading(true);
     const { error: err } = await signIn(email.trim(), password);
     setLoading(false);

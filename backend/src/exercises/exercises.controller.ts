@@ -9,6 +9,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
 import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { ExercisesService } from './exercises.service';
@@ -100,7 +101,7 @@ export class ExercisesController {
   findOne(@Param('id') id: string) {
     const exercise = this.exercisesService.findOne(id);
     if (!exercise) {
-      return { error: 'Exercise not found' };
+      throw new NotFoundException(`Exercise '${id}' not found`);
     }
     return exercise;
   }

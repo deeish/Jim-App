@@ -481,6 +481,25 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     }));
   }, [inputs.trainingDays]);
 
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (generating) return;
+      const actionType = e.data.action.type;
+      // Only prompt on explicit user back navigation, not on programmatic resets (e.g. apply from PlanPreview)
+      if (actionType !== 'GO_BACK' && actionType !== 'POP') return;
+      e.preventDefault();
+      Alert.alert(
+        'Discard plan settings?',
+        'Going back will lose your current configuration.',
+        [
+          { text: 'Keep editing', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: () => navigation.dispatch(e.data.action) },
+        ]
+      );
+    });
+    return unsubscribe;
+  }, [navigation, generating]);
+
   const editFromSnapshot = route.params?.editFromSnapshot;
   useEffect(() => {
     if (!editFromSnapshot) return;

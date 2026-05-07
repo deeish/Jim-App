@@ -131,6 +131,22 @@ export default function WorkoutSession({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time strip after hydrate
   }, []);
 
+  // Save an initial draft immediately on session start so the workout survives an unexpected app kill.
+  useEffect(() => {
+    saveWorkoutDraft({
+      workout: session.workout,
+      startTimeIso: session.startTime.toISOString(),
+      currentExerciseIndex,
+      exerciseSessions,
+      exerciseNotes,
+      overallNotes,
+      expandedExerciseIndex,
+      focusedSetIndex,
+      showAdvancedLogging,
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only save
+  }, []);
+
   /** When Search adds exercises to this workout on the server, append matching session rows (preserves logged sets). */
   useEffect(() => {
     if (!serverWorkout?.exercises?.length || serverWorkout.id !== session.workout.id) return;
@@ -166,6 +182,25 @@ export default function WorkoutSession({
 
     return () => clearInterval(interval);
   }, [session.startTime]);
+
+  // Auto-save draft every 30 seconds so the session survives an unexpected app kill.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      saveWorkoutDraft({
+        workout: session.workout,
+        startTimeIso: session.startTime.toISOString(),
+        currentExerciseIndex,
+        exerciseSessions,
+        exerciseNotes,
+        overallNotes,
+        expandedExerciseIndex,
+        focusedSetIndex,
+        showAdvancedLogging,
+      }).catch(() => {});
+    }, 30_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.workout, session.startTime]);
 
   const formatTime = (seconds: number) => {
     if (seconds < 3600) {
@@ -782,6 +817,17 @@ export default function WorkoutSession({
           onPress={handlePrimaryAction}
           style={styles.primaryButton}
         />
+        {onExitWithoutFinishing ? (
+          <TouchableOpacity
+            style={styles.saveExitButton}
+            onPress={handleSaveProgressAndExit}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Save progress and exit workout"
+          >
+            <Text style={styles.saveExitButtonText}>Save & Exit</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Exercise Options Modal */}
@@ -2795,6 +2841,15 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   },
   primaryButton: {
     minHeight: 56,
+  },
+  saveExitButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  saveExitButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.textSecondary,
   },
   toastContainer: {
     position: 'absolute',

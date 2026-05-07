@@ -651,12 +651,15 @@ export default function SearchScreen({ navigation }: Props) {
     return (
       <TouchableOpacity
         style={[
-          styles.chip, 
+          styles.chip,
           isSelected && styles.chipSelected,
           showPartial && styles.chipPartial,
         ]}
         onPress={onPress}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${label} filter${isSelected ? ', selected' : ''}`}
+        accessibilityState={{ selected: isSelected }}
       >
         <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
           {label}
