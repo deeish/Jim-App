@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
-  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -182,7 +181,7 @@ export default function HomeScreen() {
 
   const onSignOut = () => {
     closeMenu();
-    InteractionManager.runAfterInteractions(() => {
+    setTimeout(() => {
       Alert.alert(
         'Sign out?',
         '',
@@ -191,7 +190,7 @@ export default function HomeScreen() {
           { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
         ]
       );
-    });
+    }, 350);
   };
 
   const themedStyles = useMemo(
@@ -292,7 +291,10 @@ export default function HomeScreen() {
       >
         <Pressable style={[styles.menuBackdrop, { backgroundColor: colors.overlay }]} onPress={closeMenu}>
           <View style={styles.menuAnchor} />
-          <Pressable style={[styles.menuCard, themedStyles.menuCard]} onPress={(e) => e.stopPropagation()}>
+          <View
+            style={[styles.menuCard, themedStyles.menuCard]}
+            onStartShouldSetResponder={() => true}
+          >
             <TouchableOpacity style={styles.menuItem} onPress={goToProfile} activeOpacity={0.7}>
               <Ionicons name="person-outline" size={22} color={colors.text} />
               <Text style={[styles.menuItemLabel, themedStyles.menuItemLabel]}>My profile</Text>
@@ -310,7 +312,7 @@ export default function HomeScreen() {
               <Text style={[styles.menuItemLabel, themedStyles.menuItemLabel]}>Sign out</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </TouchableOpacity>
-          </Pressable>
+          </View>
         </Pressable>
       </Modal>
 

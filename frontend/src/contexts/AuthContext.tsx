@@ -26,7 +26,7 @@ type AuthContextValue = {
   requestPasswordReset: (email: string) => Promise<{ error: Error | null }>;
   /** Call after a successful password update during recovery (fallback if auth event order varies). */
   clearPasswordRecoveryMode: () => void;
-  signOut: () => Promise<void>;
+  signOut: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -138,11 +138,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPasswordRecoveryMode(false);
   }, []);
 
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(() => {
     recoveryActiveRef.current = false;
     setPasswordRecoveryMode(false);
+    setSession(null);
+    setUser(null);
     cancelAllRequests();
-    await supabase.auth.signOut();
+    void supabase.auth.signOut();
   }, []);
 
   const value: AuthContextValue = {
