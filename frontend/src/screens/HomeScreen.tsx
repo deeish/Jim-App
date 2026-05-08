@@ -180,13 +180,12 @@ export default function HomeScreen() {
   };
 
   const onSignOut = () => {
-    closeMenu();
     Alert.alert(
       'Sign out?',
       '',
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
+        { text: 'Cancel', style: 'cancel', onPress: closeMenu },
+        { text: 'Sign out', style: 'destructive', onPress: () => { closeMenu(); void signOut(); } },
       ]
     );
   };
