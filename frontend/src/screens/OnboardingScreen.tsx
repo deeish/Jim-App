@@ -39,6 +39,9 @@ const EXPERIENCE_DESCRIPTIONS: Record<ExperienceOption, string> = {
 
 const TOTAL_STEPS = 3;
 
+const GYM_PRESET: EquipmentOption[] = [...EQUIPMENT_OPTIONS];
+const HOME_PRESET: EquipmentOption[] = ['Bodyweight', 'Dumbbell', 'Pull-up Bar', 'Resistance Band'];
+
 export default function OnboardingScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const { setGoal, setExperience, setEquipment, completeOnboarding } = useUserPreferences();
@@ -52,6 +55,10 @@ export default function OnboardingScreen({ navigation }: Props) {
     step === 0 ? selectedGoal !== null :
     step === 1 ? selectedExperience !== null :
     true;
+
+  function isPresetActive(preset: EquipmentOption[]) {
+    return preset.every(item => selectedEquipment.includes(item));
+  }
 
   function toggleEquipment(item: EquipmentOption) {
     setSelectedEquipment(prev =>
@@ -147,6 +154,39 @@ export default function OnboardingScreen({ navigation }: Props) {
             <Text style={[styles.subtitle, { color: colors.textMuted }]}>
               Select all that apply — you can update this in Profile anytime
             </Text>
+            <View style={styles.presetRow}>
+              {(
+                [
+                  { label: 'I train at a gym', sub: 'Full equipment access', preset: GYM_PRESET },
+                  { label: 'I train at home', sub: 'Minimal home setup', preset: HOME_PRESET },
+                ] as const
+              ).map(({ label, sub, preset }) => {
+                const active = isPresetActive(preset);
+                return (
+                  <TouchableOpacity
+                    key={label}
+                    style={[
+                      styles.presetCard,
+                      {
+                        backgroundColor: active ? colors.primary : colors.surface,
+                        borderColor: active ? colors.primary : colors.border,
+                        flex: 1,
+                      },
+                    ]}
+                    onPress={() => setSelectedEquipment([...preset])}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.presetLabel, { color: active ? '#fff' : colors.text }]}>
+                      {label}
+                    </Text>
+                    <Text style={[styles.presetSub, { color: active ? 'rgba(255,255,255,0.75)' : colors.textMuted }]}>
+                      {sub}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={[styles.orLabel, { color: colors.textMuted }]}>or pick individually</Text>
             <View style={styles.chipGrid}>
               {EQUIPMENT_OPTIONS.map(eq => {
                 const selected = selectedEquipment.includes(eq);
@@ -224,6 +264,11 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 17, fontWeight: '600' },
   cardSubtitle: { fontSize: 13, marginTop: 4 },
+  presetRow: { flexDirection: 'row', gap: 10, marginBottom: 6 },
+  presetCard: { borderRadius: 12, borderWidth: 2, padding: 14 },
+  presetLabel: { fontSize: 14, fontWeight: '600' },
+  presetSub: { fontSize: 12, marginTop: 3 },
+  orLabel: { fontSize: 13, marginBottom: 12, marginTop: 8 },
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chip: {
     borderRadius: 8,
