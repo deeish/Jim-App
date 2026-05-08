@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -180,14 +181,17 @@ export default function HomeScreen() {
   };
 
   const onSignOut = () => {
-    Alert.alert(
-      'Sign out?',
-      '',
-      [
-        { text: 'Cancel', style: 'cancel', onPress: closeMenu },
-        { text: 'Sign out', style: 'destructive', onPress: () => { closeMenu(); void signOut(); } },
-      ]
-    );
+    closeMenu();
+    InteractionManager.runAfterInteractions(() => {
+      Alert.alert(
+        'Sign out?',
+        '',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
+        ]
+      );
+    });
   };
 
   const themedStyles = useMemo(
