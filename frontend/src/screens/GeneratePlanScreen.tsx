@@ -20,6 +20,9 @@ import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme';
 import type { ColorPalette } from '../theme/colors';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import type { GoalOption, ExperienceOption } from '../contexts/UserPreferencesContext';
+import type { EquipmentOption } from '../constants/equipment';
 import {
   normalizeContext,
   getRecommendation,
@@ -307,6 +310,37 @@ const GOAL_DESCRIPTORS: Record<Goal, string> = {
 
 const DEFAULT_GYM_EQUIPMENT: EquipmentItem[] = ['barbell', 'dumbbells', 'machines', 'cable', 'kettlebells', 'pull-up bar', 'bands', 'cardio machines'];
 
+function prefGoalToForm(g: GoalOption): Goal | null {
+  if (g === 'Strength' || g === 'Hypertrophy') return 'strength';
+  if (g === 'Fat loss') return 'fat loss';
+  if (g === 'Endurance') return 'endurance';
+  return null;
+}
+
+function prefExperienceToForm(e: ExperienceOption): ExperienceLevel {
+  return e.toLowerCase() as ExperienceLevel;
+}
+
+const PREF_EQUIPMENT_MAP: Partial<Record<EquipmentOption, EquipmentItem>> = {
+  'Barbell': 'barbell',
+  'Dumbbell': 'dumbbells',
+  'Machine': 'machines',
+  'Smith Machine': 'machines',
+  'Cable': 'cable',
+  'Kettlebell': 'kettlebells',
+  'Pull-up Bar': 'pull-up bar',
+  'Resistance Band': 'bands',
+};
+
+function prefEquipmentToForm(list: EquipmentOption[]): EquipmentItem[] {
+  if (list.length === 0) return [...DEFAULT_GYM_EQUIPMENT];
+  const mapped = list.flatMap(e => {
+    const item = PREF_EQUIPMENT_MAP[e];
+    return item ? [item] : [];
+  });
+  return [...new Set(mapped)] as EquipmentItem[];
+}
+
 const DURATION_PRESETS = [30, 45, 60, 75] as const;
 const DURATION_MIN = 15;
 const DURATION_MAX = 180;
@@ -407,8 +441,13 @@ function getProgressionTargetOptions(goal: Goal | null): ProgressionTarget[] {
 export default function GeneratePlanScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createGeneratePlanStyles(colors), [colors]);
-  const [inputs, setInputs] = useState<GeneratePlanInputs>({
-    goal: null,
+  const {
+    goal: prefGoal,
+    experience: prefExperience,
+    equipment: prefEquipment,
+  } = useUserPreferences();
+  const [inputs, setInputs] = useState<GeneratePlanInputs>(() => ({
+    goal: prefGoalToForm(prefGoal),
     programType: null,
     programVariationIndex: 0,
     trainingDays: getDefaultTrainingDays(4),
@@ -421,10 +460,10 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     timePerSession: { min: 30, max: 60 },
     useAdvancedDurationCaps: false,
     primaryLocation: 'gym',
-    availableEquipment: [...DEFAULT_GYM_EQUIPMENT],
+    availableEquipment: prefEquipmentToForm(prefEquipment),
     detailedEquipment: [],
     cardioEquipment: null,
-    experienceLevel: null,
+    experienceLevel: prefExperienceToForm(prefExperience),
     strengthSplitPreference: null,
     hybridGoalRatio: null,
     cardioModalityPreference: [...DEFAULT_CARDIO_MODALITY_PREFERENCE],
@@ -455,7 +494,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     customSplit: null,
     equipmentAccess: [],
     age: null,
-  });
+  }));
   const [generating, setGenerating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showRecommendationDetails, setShowRecommendationDetails] = useState(false);

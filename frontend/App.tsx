@@ -8,13 +8,14 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
 import NavBar from './src/components/NavBar';
 import ProfileScreen from './src/screens/ProfileScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import SetNewPasswordScreen from './src/screens/SetNewPasswordScreen';
 import { ThemeProvider, useTheme } from './src/theme';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
-import { UserPreferencesProvider } from './src/contexts/UserPreferencesContext';
+import { UserPreferencesProvider, useUserPreferences } from './src/contexts/UserPreferencesContext';
 import { wrapWithSentry } from './src/lib/sentry';
 import type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
 
@@ -48,8 +49,9 @@ function AuthStack() {
 function AppContent() {
   const { colors, isDark } = useTheme();
   const { session, loading, passwordRecoveryMode } = useAuth();
+  const { hasCompletedOnboarding, hydrated } = useUserPreferences();
 
-  if (loading) {
+  if (loading || !hydrated) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -80,11 +82,13 @@ function AppContent() {
             <SetNewPasswordScreen />
           ) : (
             <RootStack.Navigator
+              initialRouteName={hasCompletedOnboarding ? 'Main' : 'Onboarding'}
               screenOptions={{
                 headerShown: false,
                 contentStyle: { backgroundColor: colors.background },
               }}
             >
+              <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
               <RootStack.Screen name="Main" component={NavBar} />
               <RootStack.Screen name="Profile" component={ProfileScreen} />
             </RootStack.Navigator>

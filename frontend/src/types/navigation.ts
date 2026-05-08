@@ -6,6 +6,7 @@
 import type { PlanInputs } from './plan';
 
 export type RootNavigatorParamList = {
+  Onboarding: undefined;
   Main: undefined;
   Profile: undefined;
 };

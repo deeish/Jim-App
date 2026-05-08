@@ -48,6 +48,7 @@ export type UserPreferencesState = {
   /** Shown in Profile / UI; empty → fall back to email or account metadata */
   profileDisplayName: string;
   profileAvatarId: ProfileAvatarId;
+  hasCompletedOnboarding: boolean;
 };
 
 const DEFAULTS: UserPreferencesState = {
@@ -58,6 +59,7 @@ const DEFAULTS: UserPreferencesState = {
   equipment: [],
   profileDisplayName: '',
   profileAvatarId: 'default',
+  hasCompletedOnboarding: false,
 };
 
 type UserPreferencesContextValue = {
@@ -74,6 +76,8 @@ type UserPreferencesContextValue = {
   setProfileDisplayName: (name: string) => void;
   profileAvatarId: ProfileAvatarId;
   setProfileAvatarId: (id: ProfileAvatarId) => void;
+  hasCompletedOnboarding: boolean;
+  completeOnboarding: () => void;
 };
 
 const UserPreferencesContext = createContext<UserPreferencesContextValue | null>(
@@ -115,6 +119,10 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
     PROFILE_AVATAR_IDS.has(p.profileAvatarId)
       ? (p.profileAvatarId as ProfileAvatarId)
       : DEFAULTS.profileAvatarId;
+  const hasCompletedOnboarding =
+    typeof p?.hasCompletedOnboarding === 'boolean'
+      ? p.hasCompletedOnboarding
+      : DEFAULTS.hasCompletedOnboarding;
   return {
     weightUnit,
     goal,
@@ -122,6 +130,7 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
     equipment,
     profileDisplayName,
     profileAvatarId,
+    hasCompletedOnboarding,
   };
 }
 
@@ -217,6 +226,14 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     [persist],
   );
 
+  const completeOnboarding = useCallback(() => {
+    setState((s) => {
+      const next = { ...s, hasCompletedOnboarding: true };
+      persist(next);
+      return next;
+    });
+  }, [persist]);
+
   const value = useMemo(
     () => ({
       hydrated,
@@ -232,6 +249,8 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setProfileDisplayName,
       profileAvatarId: state.profileAvatarId,
       setProfileAvatarId,
+      hasCompletedOnboarding: state.hasCompletedOnboarding,
+      completeOnboarding,
     }),
     [
       hydrated,
@@ -241,12 +260,14 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       state.equipment,
       state.profileDisplayName,
       state.profileAvatarId,
+      state.hasCompletedOnboarding,
       setWeightUnit,
       setGoal,
       setExperience,
       setEquipment,
       setProfileDisplayName,
       setProfileAvatarId,
+      completeOnboarding,
     ],
   );
 
