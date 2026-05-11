@@ -186,7 +186,7 @@ export interface GenerateSessionResult {
 }
 
 /** Production: keep UX predictable. Dev (`__DEV__`): longer previews + QA (capture does not block the server). */
-const GENERATE_SESSIONS_TIMEOUT_MS_PROD = 90_000;
+const GENERATE_SESSIONS_TIMEOUT_MS_PROD = 150_000;
 const GENERATE_SESSIONS_TIMEOUT_MS_DEV = 180_000;
 
 /** Client wait for POST /plans/generate-sessions (multi-week + Groq can exceed default axios limits). */

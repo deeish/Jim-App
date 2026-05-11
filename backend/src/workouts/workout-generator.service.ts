@@ -135,7 +135,7 @@ const MAX_PRIOR_WEEK_IDS_IN_BATCH_PROMPT = 24;
 /** Merged focus-aware pool size (tabular lines); slightly under old 65 JSON rows. */
 const BATCH_CANDIDATE_CAP = 40;
 
-const PER_SESSION_CANDIDATE_LIMIT = 72;
+const PER_SESSION_CANDIDATE_LIMIT = 48;
 
 /** Output cap per exercise when `experienceLevel === 'beginner'` (Groq completion size). */
 export const BEGINNER_EXERCISE_NOTE_MAX_CHARS = 120;
@@ -968,19 +968,20 @@ export class WorkoutGeneratorService {
             this.programGoalWantsCardioFinisher(goal) &&
             String(s.type).toLowerCase() === 'strength',
         });
-        return `Day ${i + 1} (${focus}, ${s.weekday}, ~${duration} min, ${targets.promptRange} ex, cap ${maxN}): ${rail}`;
+        const intensityLabel = isCardioOrRec
+          ? ''
+          : s.isHardDay
+            ? ', INTENSITY: high'
+            : ', INTENSITY: low';
+        const slots = isCardioOrRec ? [] : getSlotsForFocus(fk);
+        const slotLine =
+          slots.length > 0
+            ? `\n  Slot order: ${slots.map((sl) => sl.description).join(' → ')}`
+            : '';
+        return `Day ${i + 1} (${focus}, ${s.weekday}, ~${duration} min, ${targets.promptRange} ex, cap ${maxN}${intensityLabel}): ${rail}${slotLine}`;
       })
       .join('\n');
 
-    const focusCounts = new Map<string, number>();
-    for (const s of sessions) {
-      const focus = (s.title ?? s.type).trim() || 'full body';
-      focusCounts.set(focus, (focusCounts.get(focus) ?? 0) + 1);
-    }
-    const hasRepeatedFocus = [...focusCounts.values()].some((c) => c > 1);
-    const varietyInstruction = hasRepeatedFocus
-      ? '\nImportant: Multiple days have the same focus (e.g. several Push or Pull days). Vary exercise selection across those days—do not repeat the same exercise lineup on every Push day. Pick different compounds and accessories so each week feels fresh.'
-      : '';
 
     const priorWeekInstruction =
       priorUniqueForPrompt.length > 0
@@ -1024,8 +1025,10 @@ ${exercisesSchemaLine}`;
     const systemPrompt = `You are a strength and conditioning coach. Your job is to produce well-structured programs, not just lists of exercises. Programming rules you must follow:
 (1) Compounds before accessories — the first 1-2 exercises of each day must be primary compound lifts for that day's pattern (e.g. Bench Press or Overhead Press for Push; Pull-up or Row for Pull; Squat or Deadlift for Lower/Legs).
 (2) No sub-muscle stacking — do not place 3+ exercises that load the same sub-muscle in the same session (e.g. three quad-dominant movements, three pec exercises, three bicep curl variations). At most 2 per sub-muscle; Calves, Core, Cardio are exempt.
-(3) Week variety — when a focus repeats across the week (two Upper days, two Lower days, two Push days), the exercise lineup must differ meaningfully between them in primary pattern, not just name (e.g. flat press on day 1, incline or overhead emphasis on day 4; squat-led Lower on day 2, hinge-led Lower on day 5).
-(4) Follow the weekly progression targets exactly when provided — do not default to the same rep/set range every week.
+(3) Pattern balance per session — Push day: exactly 1 horizontal press + 1 vertical press (not 2 of the same angle). Pull day: exactly 1 vertical pull + 1 horizontal row. Lower/Legs day: 1 squat-pattern + 1 hinge-pattern. Upper day: 1 push compound + 1 pull compound in the first 2 slots.
+(4) When a focus repeats across the week, the FIRST exercise must differ in movement angle (flat bench → incline or OHP on repeat push day; back squat → front squat or hack squat on repeat lower day).
+(5) Follow the weekly progression targets exactly when provided — do not default to the same rep/set range every week.
+INTENSITY: high days → favor heavier compound-first selection, keep rep range at lower end of scheme. INTENSITY: low days → favor moderate loads, higher rep accessories, include more variety and isolation work.
 For every day in the list: use only exercise ids from the provided list; place main compounds first then accessories; include only one variant of each movement per day (e.g. one bench press — not flat + incline bench in the same session).
 You must choose exercises ONLY from the provided list by their "id". Respond with exactly one JSON object, no markdown.
 
@@ -1094,7 +1097,6 @@ ${candidateTable}
 ${priorWeekInstruction}
 ${profileBlock}
 ${dayLines}
-${varietyInstruction}
 ${conditioningBlock}${conditioningModalityHint}${mesoBlock}${progressionBlock}
 
 Set/rep: ${setRep.description} (${setRep.setsMin}-${setRep.setsMax} sets, ${setRep.repsMin}-${setRep.repsMax} reps).${restHint} Goal: ${goal}. Difficulty: ${difficulty}. Equipment: ${equipmentStr}.${limitationsBlock}
@@ -1607,21 +1609,7 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
       candidates,
       focusKey,
     );
-    const candidateJson = JSON.stringify(
-      candidatesForPrompt.map((c) => ({
-        id: c.id,
-        name: c.name,
-        muscleGroup: c.primaryMuscleGroup,
-        movementPattern:
-          c.movementPatterns && c.movementPatterns[0]
-            ? c.movementPatterns[0]
-            : 'Push',
-        variationGroup: c.variationGroup,
-        equipmentType: c.equipmentType,
-      })),
-      null,
-      0,
-    );
+    const candidateTable = formatCandidatesTabularForBatch(candidatesForPrompt);
 
     const slotInstructions =
       slots.length > 0 && !isCardioOrRecovery
@@ -1718,7 +1706,8 @@ ${mixedCardio ? '- "cardioFinisher": optional object with "suggestion" (string, 
 ${coachCopyToneBlock()}`;
 
     const userPrompt = `Choose ${exerciseRange} exercises from this list only. Use each exercise's "id" as "exerciseId" in your response.
-List: ${candidateJson}
+Exercise list (id\tname\tmuscle):
+${candidateTable}
 
 Focus: ${focus} (day type: ${String(focusKey)}). Difficulty: ${difficulty}. Duration: ~${duration} min. Equipment: ${equipmentStr}.${day ? ` Day: ${day}.` : ''}
 ${setRepLine}
@@ -2483,12 +2472,35 @@ Return valid JSON with exerciseId, sets, reps${wantsExerciseNotes ? ', optional 
 
     const label = (preferences?.programDayFocus || focus || 'Session').trim();
     const workoutName = plainWorkoutTitle(undefined, label, day ?? '');
-    const reasoning = `Compound movements first, then isolation.${day ? ` Fits ${day} in your weekly split.` : ''} Warm-up: 5 min light movement and dynamic stretch.`;
+    const reasoning = `Compound movements first, then isolation.${day ? ` Fits ${day} in your weekly split.` : ''}`;
+
+    const FOCUS_WARMUP: Record<string, string> = {
+      push: '5 min light cardio, arm circles, band pull-aparts, shoulder rotations.',
+      pull: '5 min row or bike, band face pulls, shoulder dislocates, scapular retractions.',
+      legs: '5 min bike, bodyweight squats, hip circles, leg swings.',
+      lower: '5 min bike, bodyweight squats, hip circles, leg swings.',
+      upper: '5 min light cardio, arm circles, band pull-aparts, thoracic rotations.',
+      'full body': '5 min bike or row, bodyweight squats, arm circles, hip circles.',
+    };
+    const FOCUS_COOLDOWN: Record<string, string> = {
+      push: 'Stretch chest, front deltoids, and triceps; 2 min slow walk.',
+      pull: 'Stretch lats, biceps, and rear deltoids; 2 min slow walk.',
+      legs: 'Stretch quads, hamstrings, hip flexors, and calves.',
+      lower: 'Stretch quads, hamstrings, hip flexors, and calves.',
+      upper: 'Stretch chest, lats, and shoulders; 2 min slow walk.',
+      'full body': 'Stretch quads, hamstrings, chest, and lats; 2 min slow walk.',
+    };
+    const warmUp =
+      FOCUS_WARMUP[focusKey] ?? '5 min light cardio, dynamic stretching.';
+    const coolDown =
+      FOCUS_COOLDOWN[focusKey] ?? 'Stretch major muscle groups worked; 2 min slow walk.';
 
     return {
       name: workoutName,
       day,
       reasoning,
+      warmUp,
+      coolDown,
       exercises,
     };
   }

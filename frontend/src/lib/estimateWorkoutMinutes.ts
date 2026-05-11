@@ -52,7 +52,7 @@ export function exercisesLikeFromPrescription(
   });
 }
 
-const MIN_PER_SET_BASE = 3;
+const MIN_PER_SET_BASE = 2.5;
 const MIN_BETWEEN_EXERCISES = 1.5;
 /** Bigger sessions get a bit more buffer; 1-movement days stay tighter. */
 const WARMUP_BASE = 3.5;
@@ -61,7 +61,7 @@ const WARMUP_PER_MOVE = 0.65;
 const DISPLAY_MIN_FLOOR = 10;
 const DISPLAY_MAX_CAP = 150;
 /** How much planned session length pulls the heuristic (0 = ignore plan, 1 = use plan only). */
-const PLANNED_BLEND = 0.22;
+const PLANNED_BLEND = 0.40;
 
 function minutesPerSet(reps: number | undefined): number {
   if (reps == null || !Number.isFinite(reps)) return MIN_PER_SET_BASE;

@@ -17,7 +17,10 @@ import {
 } from '../workouts/workout-generator.service';
 import { ExercisesService } from '../exercises/exercises.service';
 import { CreatePlanDto, PlanSlotDto } from './dto/create-plan.dto';
-import { GenerateSessionsDto } from './dto/generate-sessions.dto';
+import {
+  GenerateSessionsDto,
+  WeekProgressionDto,
+} from './dto/generate-sessions.dto';
 import { RepairProgramSessionsDto } from './dto/repair-program-sessions.dto';
 import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
 import {
@@ -574,6 +577,43 @@ export class PlansService {
   /** Unique ids passed to prompts / exclude lists; oldest→newest so `.slice(-N)` = freshest. */
   private static readonly PRIOR_CONTEXT_MAX_UNIQUE = 120;
 
+  private static tryCloneAndProgress(
+    specs: GenerateSessionsDto['sessions'],
+    week1ByFocus: Map<string, GeneratedSession>,
+    weekProgression: WeekProgressionDto[],
+  ): GeneratedSession[] | null {
+    if (specs.length === 0) return [];
+    const weekIndex = specs[0]?.weekIndex;
+    if (weekIndex == null) return null;
+
+    const prog = weekProgression.find((wp) => wp.weekIndex === weekIndex);
+    if (!prog) return null;
+
+    const cloned: GeneratedSession[] = [];
+    for (const spec of specs) {
+      const key = ((spec.title ?? spec.type) || 'full body').toLowerCase().trim();
+      const source = week1ByFocus.get(key);
+      if (!source) return null;
+
+      cloned.push({
+        ...source,
+        weekIndex: spec.weekIndex,
+        weekday: spec.weekday,
+        exercises: source.exercises.map((ex) => ({
+          ...ex,
+          sets: Math.max(
+            1,
+            prog.volumeMultiplier >= 1
+              ? Math.ceil(ex.sets * prog.volumeMultiplier)
+              : Math.floor(ex.sets * prog.volumeMultiplier),
+          ),
+          reps: Math.max(1, Math.min(100, ex.reps + prog.repModifier)),
+        })),
+      });
+    }
+    return cloned;
+  }
+
   private static foldGroqUsages(usages: GroqCompletionUsage[]): {
     groqCalls: number;
     prompt_tokens: number;
@@ -776,11 +816,6 @@ export class PlansService {
 
     const results: GeneratedSession[] = [];
     const usedExerciseIdsByWeek = new Map<number, string[]>();
-    const polishDays: Array<{
-      weekday: string;
-      focusLabel: string;
-      exerciseNames: string[];
-    }> = [];
 
     for (const spec of specs) {
       const isHard = spec.isHardDay;
@@ -877,42 +912,9 @@ export class PlansService {
         cardioFinisher: generated.cardioFinisher,
         exercises: filteredExercises,
       });
-      polishDays.push({
-        weekday: spec.weekday,
-        focusLabel: (spec.title ?? spec.type ?? 'Session').trim(),
-        exerciseNames: filteredExercises.map((e) => e.name).filter(Boolean),
-      });
     }
 
-    const apiKey = this.config.get<string>('GROQ_API_KEY')?.trim();
-    if (!apiKey) return { sessions: results, polishApplied: false };
-
-    const equipmentNote =
-      location === 'home'
-        ? equipment?.length
-          ? equipment.join(', ')
-          : 'home / bodyweight'
-        : equipment?.length
-          ? equipment.join(', ')
-          : 'general gym equipment';
-
-    const polish = await this.workoutGenerator.polishSimpleBatchSessionCopy(
-      { goal, equipmentNote, days: polishDays },
-      apiKey,
-    );
-    if (!polish || polish.length !== results.length) {
-      return { sessions: results, polishApplied: false };
-    }
-
-    for (let i = 0; i < results.length; i++) {
-      const p = polish[i]!;
-      const s = results[i]!;
-      s.name = p.name;
-      if (p.reasoning !== undefined) s.reasoning = p.reasoning;
-      if (p.warmUp !== undefined) s.warmUp = p.warmUp;
-      if (p.coolDown !== undefined) s.coolDown = p.coolDown;
-    }
-    return { sessions: results, polishApplied: true };
+    return { sessions: results, polishApplied: false };
   }
 
   private async generateSessionsForSpecChunk(
@@ -1298,6 +1300,30 @@ export class PlansService {
               : failedIssues,
           groq: traceGroq(),
         });
+        // Accept the best batch result rather than falling through to sequential per-session
+        // LLM calls (which can chain 8+ Groq calls and reliably exceed the 90s timeout).
+        if (mapped) {
+          chunkWarnings.push(
+            'This week used best-available batch output (minor quality warnings present).',
+          );
+          return {
+            sessions: mapped,
+            chunkGroqUsages,
+            trace: {
+              ...traceBase(),
+              ...traceChunkExtras(),
+              path: 'batch_ok',
+              validatorFirstPass: this.serializeChunkValidation(validationFirst),
+              validatorSecondPass: validationRetry
+                ? this.serializeChunkValidation(validationRetry)
+                : null,
+              validatorIssuesFromRetry:
+                validationRetry?.issues.length ? validationRetry.issues : failedIssues,
+              batchRetryPriorExerciseIdsTail: retryPrior,
+            },
+            warnings: chunkWarnings.slice(),
+          };
+        }
         pendingBatchFallbackTrace = {
           ...traceBase(),
           ...traceChunkExtras(),
@@ -1361,6 +1387,7 @@ export class PlansService {
               cardioModalities,
               currentActivityLevel: dto.currentActivityLevel,
               preferredExercises: dto.preferredExercises,
+              skipGroq: true,
             },
           },
           chunkGroqUsages,
@@ -1386,6 +1413,7 @@ export class PlansService {
                 cardioModalities,
                 currentActivityLevel: dto.currentActivityLevel,
                 preferredExercises: dto.preferredExercises,
+                skipGroq: true,
               },
             },
             chunkGroqUsages,
@@ -1511,6 +1539,8 @@ export class PlansService {
     const pipelineChunks: ChunkGenerationTrace[] = [];
     /** Chronological exercise picks (repeats allowed) for true “recent usage” semantics. */
     let priorExerciseHistory: string[] = [];
+    let firstWeekIndex: number | null = null;
+    const firstWeekSessionsByFocus = new Map<string, GeneratedSession>();
     let sumPromptTokens = 0;
     let sumCompletionTokens = 0;
     let sumTotalTokens = 0;
@@ -1523,6 +1553,37 @@ export class PlansService {
 
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
       const chunk = chunks[chunkIndex]!;
+
+      // Weeks 2+: clone week-1 exercise selection and apply progression math — no LLM call.
+      const chunkWeekIndex = chunk.specs[0]?.weekIndex;
+      if (
+        firstWeekIndex !== null &&
+        chunkWeekIndex !== firstWeekIndex &&
+        firstWeekSessionsByFocus.size > 0 &&
+        dto.weekProgression?.length
+      ) {
+        const cloned = PlansService.tryCloneAndProgress(
+          chunk.specs,
+          firstWeekSessionsByFocus,
+          dto.weekProgression,
+        );
+        if (cloned) {
+          for (let j = 0; j < chunk.indices.length; j++) {
+            orderedResults[chunk.indices[j]!] = cloned[j]!;
+          }
+          for (const session of cloned) {
+            for (const ex of session.exercises ?? []) {
+              const id = ex.exerciseId?.trim();
+              if (id) priorExerciseHistory.push(id);
+            }
+          }
+          priorExerciseHistory = priorExerciseHistory.slice(
+            -PlansService.PRIOR_EXERCISE_HISTORY_MAX,
+          );
+          continue;
+        }
+      }
+
       const priorContextIds = PlansService.priorExerciseIdsOldestFirstAmongRecent(
         priorExerciseHistory,
         PlansService.PRIOR_EXERCISE_HISTORY_MAX,
@@ -1559,7 +1620,16 @@ export class PlansService {
         );
       }
       for (let j = 0; j < chunk.indices.length; j++) {
-        orderedResults[chunk.indices[j]] = chunkResults[j];
+        orderedResults[chunk.indices[j]!] = chunkResults[j]!;
+      }
+      // Capture week-1 sessions for clone-and-progress on subsequent weeks.
+      if (chunkIndex === 0 && chunkResults.length > 0) {
+        firstWeekIndex = chunk.specs[0]!.weekIndex;
+        for (let j = 0; j < chunkResults.length; j++) {
+          const spec = chunk.specs[j]!;
+          const key = ((spec.title ?? spec.type) || 'full body').toLowerCase().trim();
+          firstWeekSessionsByFocus.set(key, chunkResults[j]!);
+        }
       }
       for (const session of chunkResults) {
         for (const ex of session.exercises ?? []) {
