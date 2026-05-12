@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -23,6 +22,7 @@ import type { ColorPalette } from '../theme/colors';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import type { GoalOption, ExperienceOption } from '../contexts/UserPreferencesContext';
 import type { EquipmentOption } from '../constants/equipment';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   normalizeContext,
   getRecommendation,
@@ -486,7 +486,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
       recovery: { min: 10, max: 20 },
     },
     weekdayWeekendSplit: false,
-    workoutDetailLevel: 'simple',
+    workoutDetailLevel: 'detailed',
     strengthFormat: 'straight sets',
     cardioFormat: 'intervals',
     trainingSplitPreference: null,
@@ -495,7 +495,6 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     equipmentAccess: [],
     age: null,
   }));
-  const [generating, setGenerating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showRecommendationDetails, setShowRecommendationDetails] = useState(false);
   const [showCustomSplitSheet, setShowCustomSplitSheet] = useState(false);
@@ -522,7 +521,6 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      if (generating) return;
       const actionType = e.data.action.type;
       // Only prompt on explicit user back navigation, not on programmatic resets (e.g. apply from PlanPreview)
       if (actionType !== 'GO_BACK' && actionType !== 'POP') return;
@@ -537,7 +535,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
       );
     });
     return unsubscribe;
-  }, [navigation, generating]);
+  }, [navigation]);
 
   const editFromSnapshot = route.params?.editFromSnapshot;
   useEffect(() => {
@@ -545,6 +543,14 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     const patch = planInputsToFormPatch(editFromSnapshot) as Partial<GeneratePlanInputs>;
     setInputs((prev) => ({ ...prev, ...patch }));
   }, [editFromSnapshot]);
+
+  useEffect(() => {
+    AsyncStorage.getItem('jim_saved_custom_splits').then((raw) => {
+      if (raw) {
+        try { setSavedCustomSplits(JSON.parse(raw)); } catch {}
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (!showAdvanced) {
@@ -770,13 +776,10 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     setInputs(prev => ({ ...prev, progressionTarget: target }));
   };
 
-  const handleGenerate = async () => {
-    const progressionStyle = inputs.progressionStyle ?? 'build';
+  const handleGenerate = () => {
     if (!inputs.goal || !inputs.primaryLocation || !inputs.availableEquipment.length || !inputs.trainingDays.length) {
       return;
     }
-
-    setGenerating(true);
 
     // Normalize perDayTimeCaps: only include days with a numeric cap (omit 'default' / undefined)
     const perDayTimeCapsForPreview: Record<string, number> = {};
@@ -784,88 +787,85 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
       if (typeof cap === 'number') perDayTimeCapsForPreview[day] = cap;
     }
 
-    setTimeout(() => {
-      setGenerating(false);
-      const planInputs = buildPlanInputs({
-        form: {
-          goal: inputs.goal!,
-          programType: inputs.programType ?? '',
-          trainingDays: inputs.trainingDays,
-          startDateISO: inputs.startDateISO,
-          timePerSession: inputs.timePerSession,
-          primaryLocation: inputs.primaryLocation,
-          weeks: inputs.weeks,
-          workoutDetailLevel: inputs.workoutDetailLevel,
-          progressionStyle: inputs.progressionStyle,
-          maxHardDaysInRow: inputs.maxHardDaysInRow,
-          maxHardDaysPerWeek: inputs.maxHardDaysPerWeek,
-          avoidList: inputs.avoidList,
-          sessionCaps: inputs.sessionCaps,
-          useAdvancedDurationCaps: inputs.useAdvancedDurationCaps,
-          trainingSplitPreference: inputs.trainingSplitPreference,
-          customSplit: inputs.trainingSplitPreference === 'custom' && inputs.customSplit ? inputs.customSplit : null,
-          cardioModalityPreference: inputs.cardioModalityPreference,
-          availableEquipment: inputs.availableEquipment,
-          experienceLevel: inputs.experienceLevel ?? 'intermediate',
-        },
-        effectiveSplitPreference: effectiveSplitPreference ?? null,
-        useRecommended: !!(recommendation && effectiveSplitPreference === recommendation.recommendedSplit),
-      });
-      navigation.navigate('PlanPreview', {
-        planInputs,
-        inputs: {
-          goal: inputs.goal!,
-          programType: inputs.programType || '',
-          programVariationIndex: inputs.programVariationIndex,
-          trainingDays: inputs.trainingDays,
-          startDateISO: inputs.startDateISO,
-          autoScheduleMode: false,
-          restDayPreference: inputs.restDayPreference,
-          allowDoubleSessions: false,
-          maxDoubleDaysPerWeek: 0,
-          weeks: inputs.weeks,
-          timePerSession: inputs.timePerSession,
-          primaryLocation: inputs.primaryLocation,
-          availableEquipment: inputs.availableEquipment,
-          detailedEquipment: inputs.detailedEquipment,
-          cardioEquipment: inputs.cardioEquipment,
-          experienceLevel: inputs.experienceLevel ?? 'intermediate',
-          strengthSplitPreference: inputs.strengthSplitPreference,
-          hybridGoalRatio: inputs.hybridGoalRatio,
-          cardioModalityPreference: inputs.cardioModalityPreference,
-          weekdayMaxMinutes: inputs.weekdayMaxMinutes,
-          weekendMaxMinutes: inputs.weekendMaxMinutes,
-          perDayTimeCaps: perDayTimeCapsForPreview,
-          progressionStyle: inputs.progressionStyle ?? 'build',
-          deloadEnabled: inputs.deloadEnabled,
-          deloadFrequency: inputs.deloadFrequency,
-          difficultyRamp: inputs.difficultyRamp,
-          progressionTarget: inputs.progressionTarget,
-          maxHardDaysInRow: inputs.maxHardDaysInRow,
-          maxHardDaysPerWeek: inputs.maxHardDaysPerWeek,
-          focusPriority: inputs.focusPriority,
-          avoidList: inputs.avoidList,
-          sessionCaps: inputs.sessionCaps,
-          weekdayWeekendSplit: inputs.weekdayWeekendSplit,
-          workoutDetailLevel: inputs.workoutDetailLevel,
-          strengthFormat: inputs.strengthFormat,
-          cardioFormat: inputs.cardioFormat,
-          trainingSplitPreference: effectiveSplitPreference ?? inputs.trainingSplitPreference,
-          customSplitHint: inputs.customSplitHint?.trim() || undefined,
-          customSplit: (inputs.trainingSplitPreference === 'custom' && inputs.customSplit ? inputs.customSplit : undefined) as RootStackParamList['PlanPreview']['inputs']['customSplit'],
-          equipmentAccess: inputs.equipmentAccess,
-          age: inputs.age ?? undefined,
-        },
-        draftId: `draft-${Date.now()}`,
-      });
-    }, 1500);
+    const planInputs = buildPlanInputs({
+      form: {
+        goal: inputs.goal!,
+        programType: inputs.programType ?? '',
+        trainingDays: inputs.trainingDays,
+        startDateISO: inputs.startDateISO,
+        timePerSession: inputs.timePerSession,
+        primaryLocation: inputs.primaryLocation,
+        weeks: inputs.weeks,
+        workoutDetailLevel: inputs.workoutDetailLevel,
+        progressionStyle: inputs.progressionStyle,
+        maxHardDaysInRow: inputs.maxHardDaysInRow,
+        maxHardDaysPerWeek: inputs.maxHardDaysPerWeek,
+        avoidList: inputs.avoidList,
+        sessionCaps: inputs.sessionCaps,
+        useAdvancedDurationCaps: inputs.useAdvancedDurationCaps,
+        trainingSplitPreference: inputs.trainingSplitPreference,
+        customSplit: inputs.trainingSplitPreference === 'custom' && inputs.customSplit ? inputs.customSplit : null,
+        cardioModalityPreference: inputs.cardioModalityPreference,
+        availableEquipment: inputs.availableEquipment,
+        experienceLevel: inputs.experienceLevel ?? 'intermediate',
+      },
+      effectiveSplitPreference: effectiveSplitPreference ?? null,
+      useRecommended: !!(recommendation && effectiveSplitPreference === recommendation.recommendedSplit),
+    });
+    navigation.navigate('PlanPreview', {
+      planInputs,
+      inputs: {
+        goal: inputs.goal!,
+        programType: inputs.programType || '',
+        programVariationIndex: inputs.programVariationIndex,
+        trainingDays: inputs.trainingDays,
+        startDateISO: inputs.startDateISO,
+        autoScheduleMode: false,
+        restDayPreference: inputs.restDayPreference,
+        allowDoubleSessions: false,
+        maxDoubleDaysPerWeek: 0,
+        weeks: inputs.weeks,
+        timePerSession: inputs.timePerSession,
+        primaryLocation: inputs.primaryLocation,
+        availableEquipment: inputs.availableEquipment,
+        detailedEquipment: inputs.detailedEquipment,
+        cardioEquipment: inputs.cardioEquipment,
+        experienceLevel: inputs.experienceLevel ?? 'intermediate',
+        strengthSplitPreference: inputs.strengthSplitPreference,
+        hybridGoalRatio: inputs.hybridGoalRatio,
+        cardioModalityPreference: inputs.cardioModalityPreference,
+        weekdayMaxMinutes: inputs.weekdayMaxMinutes,
+        weekendMaxMinutes: inputs.weekendMaxMinutes,
+        perDayTimeCaps: perDayTimeCapsForPreview,
+        progressionStyle: inputs.progressionStyle ?? 'build',
+        deloadEnabled: inputs.deloadEnabled,
+        deloadFrequency: inputs.deloadFrequency,
+        difficultyRamp: inputs.difficultyRamp,
+        progressionTarget: inputs.progressionTarget,
+        maxHardDaysInRow: inputs.maxHardDaysInRow,
+        maxHardDaysPerWeek: inputs.maxHardDaysPerWeek,
+        focusPriority: inputs.focusPriority,
+        avoidList: inputs.avoidList,
+        sessionCaps: inputs.sessionCaps,
+        weekdayWeekendSplit: inputs.weekdayWeekendSplit,
+        workoutDetailLevel: inputs.workoutDetailLevel,
+        strengthFormat: inputs.strengthFormat,
+        cardioFormat: inputs.cardioFormat,
+        trainingSplitPreference: effectiveSplitPreference ?? inputs.trainingSplitPreference,
+        customSplitHint: inputs.customSplitHint?.trim() || undefined,
+        customSplit: (inputs.trainingSplitPreference === 'custom' && inputs.customSplit ? inputs.customSplit : undefined) as RootStackParamList['PlanPreview']['inputs']['customSplit'],
+        equipmentAccess: inputs.equipmentAccess,
+        age: inputs.age ?? undefined,
+      },
+      draftId: `draft-${Date.now()}`,
+    });
   };
 
   const canGenerate =
     !!inputs.goal &&
     inputs.trainingDays.length > 0 &&
     !!inputs.primaryLocation &&
-    (inputs.primaryLocation === 'gym' || (inputs.availableEquipment.length > 0 && inputs.cardioEquipment !== null)) &&
+    (inputs.primaryLocation === 'gym' || inputs.availableEquipment.length > 0) &&
     inputs.timePerSession.min > 0 &&
     inputs.timePerSession.max > 0;
 
@@ -1058,39 +1058,26 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {/* Equipment — required when Home; Gym assumes standard equipment */}
-        {/* Equipment access — shown immediately when Home is selected */}
-        {inputs.primaryLocation === 'home' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Equipment access</Text>
-            <Text style={styles.sectionSubtitle}>What equipment do you have at home?</Text>
-            <View style={styles.chipsRow}>
-              {(['dumbbells', 'bands', 'pull-up bar', 'barbell', 'machines', 'none'] as EquipmentAccess[]).map(equipment => {
-                const isSelected = inputs.equipmentAccess.includes(equipment);
-                return (
-                  <TouchableOpacity
-                    key={equipment}
-                    style={[styles.chip, isSelected && styles.chipSelected]}
-                    onPress={() => {
-                      setInputs(prev => ({
-                        ...prev,
-                        equipmentAccess: isSelected
-                          ? prev.equipmentAccess.filter(e => e !== equipment)
-                          : [...prev.equipmentAccess, equipment],
-                      }));
-                    }}
-                  >
-                    <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                      {equipment === 'pull-up bar' ? 'Pull-up Bar' : equipment.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+        {/* Experience level */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Experience level</Text>
+          <Text style={styles.sectionSubtitle}>Your training background — affects sets, reps, and intensity</Text>
+          <View style={styles.optionsRow}>
+            {(['beginner', 'intermediate', 'advanced'] as ExperienceLevel[]).map(level => (
+              <TouchableOpacity
+                key={level}
+                style={[styles.optionButton, inputs.experienceLevel === level && styles.optionButtonSelected]}
+                onPress={() => setInputs(prev => ({ ...prev, experienceLevel: level }))}
+              >
+                <Text style={[styles.optionButtonText, inputs.experienceLevel === level && styles.optionButtonTextSelected]}>
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        )}
+        </View>
 
-        {/* Gym: assume standard equipment (no selector). Home: equipment selector shown above. */}
+        {/* Gym: assume standard equipment (no selector). Home: equipment selector shown below. */}
         {inputs.primaryLocation === 'home' && (
           <>
             <View style={styles.section}>
@@ -1703,7 +1690,9 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                     const saved: SavedCustomSplit = { ...payload, id: payload.id ?? `split-${now}`, name, createdAt: now, lastUsedAt: now };
                     setSavedCustomSplits((prev) => {
                       const without = prev.filter((s) => s.id !== saved.id);
-                      return [...without, saved];
+                      const next = [...without, saved];
+                      AsyncStorage.setItem('jim_saved_custom_splits', JSON.stringify(next)).catch(() => {});
+                      return next;
                     });
                     setInputs((prev) => ({ ...prev, trainingSplitPreference: 'custom', customSplit: { ...payload, id: saved.id } }));
                     setShowCustomSplitSheet(false);
@@ -2275,30 +2264,6 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
               )}
             </View>
 
-            {(inputs.goal === 'strength' || inputs.goal === 'hybrid') && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Strength split preference</Text>
-                <Text style={styles.sectionSubtitle}>How should strength workouts be split?</Text>
-                <View style={styles.optionsRow}>
-                  {(['full body', 'upper-lower', 'ppl', '3-day full body', 'surprise me'] as StrengthSplitPreference[]).map(split => (
-                    <TouchableOpacity
-                      key={split}
-                      style={[styles.optionButton, inputs.strengthSplitPreference === split && styles.optionButtonSelected]}
-                      onPress={() => setInputs(prev => ({
-                        ...prev,
-                        strengthSplitPreference: prev.strengthSplitPreference === split ? null : split,
-                      }))}
-                    >
-                      <Text style={[styles.optionButtonText, inputs.strengthSplitPreference === split && styles.optionButtonTextSelected]}>
-                        {split === 'full body' ? 'Full Body' : split === 'upper-lower' ? 'Upper-Lower' : split === 'ppl' ? 'Push/Pull/Legs' : split === '3-day full body' ? '3-day Full Body' : 'Surprise me'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-
-
             {(inputs.goal === 'endurance' || inputs.goal === 'hybrid') && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Cardio modality preferences</Text>
@@ -2384,15 +2349,11 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
             <TouchableOpacity
               style={[styles.generateButton, !canGenerate && styles.generateButtonDisabled]}
               onPress={handleGenerate}
-              disabled={!canGenerate || generating}
+              disabled={!canGenerate}
             >
-              {generating ? (
-                <ActivityIndicator size="small" color={colors.onPrimary} />
-              ) : (
-                <Text style={styles.generateButtonText}>
-                  Generate Week 1 Preview
-                </Text>
-              )}
+              <Text style={styles.generateButtonText}>
+                {inputs.weeks === 1 ? 'Generate Plan Preview' : `Generate ${inputs.weeks}-Week Preview`}
+              </Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
