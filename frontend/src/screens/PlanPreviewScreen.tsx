@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
-import { useTheme, planSlotIconColors, type PlanSlotIconColors, type ColorPalette } from '../theme';
+import { useTheme, planSlotIconColors, type ColorPalette } from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
@@ -42,6 +42,11 @@ import {
   linesForPlanGenerationSnapshot,
   linesLegacyFormNotInAiRequest,
 } from '../lib/planGenerationSummary';
+import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
+import {
+  formatExercisePrescriptionCompact,
+  profileGoalToPlanGoal,
+} from '../lib/workoutExerciseDisplay';
 import {
   AI_PROGRAMMING_TRANSPARENCY,
   NOT_MEDICAL_FOOTNOTE_SHORT,
@@ -251,156 +256,11 @@ function programTypeToTemplateId(programType: string): string | undefined {
   return undefined;
 }
 
-// Generate plan for all weeks
-function generateFullPlan(
-  inputs: PlanPreviewScreenRouteProp['params']['inputs'],
-  draftId: string,
-  icons: PlanSlotIconColors,
-): WeekPlan[] {
-  const weeks: WeekPlan[] = [];
-  const numWeeks = inputs.weeks || 1;
-  
-  for (let weekNum = 1; weekNum <= numWeeks; weekNum++) {
-    const plan: Record<string, PlanWorkout[]> = {};
-    const trainingDays = inputs.trainingDays || [];
-    
-    let doubleSessionCount = 0;
-    const maxDoubleDays = inputs.allowDoubleSessions ? inputs.maxDoubleDaysPerWeek : 0;
-    
-    trainingDays.forEach((day, index) => {
-      const workouts: PlanWorkout[] = [];
-      const isDoubleDay = inputs.allowDoubleSessions && doubleSessionCount < maxDoubleDays && index < maxDoubleDays;
-      
-      // Add progression based on week number
-      const weekMultiplier = 1 + (weekNum - 1) * 0.1; // 10% increase per week
-      
-      if (inputs.goal === 'strength') {
-        const workoutType = index % 2 === 0 ? 'Upper Body' : 'Lower Body';
-        workouts.push({
-          id: `draft-w${weekNum}-${day}-1`,
-          title: workoutType,
-          detailLine: '6 exercises • Push focus',
-          iconColor: icons.strength,
-          durationMinutes: Math.round((inputs.timePerSession.min + 10) * weekMultiplier),
-          intensity: index === 0 ? 'Hard' : 'Medium',
-          type: 'strength',
-          changeType: 'new',
-          source: 'ai',
-          draftId: draftId,
-          week: weekNum,
-        });
-        
-        if (isDoubleDay) {
-          workouts.push({
-            id: `draft-w${weekNum}-${day}-2`,
-            title: 'Cardio',
-            detailLine: 'Zone 2',
-            iconColor: icons.cardioAlt,
-            durationMinutes: inputs.timePerSession.min - 15,
-            intensity: 'Easy',
-            type: 'cardio',
-            changeType: 'new',
-            source: 'ai',
-            draftId: draftId,
-            week: weekNum,
-          });
-          doubleSessionCount++;
-        }
-      } else if (inputs.goal === 'endurance') {
-        // Mixed days: strength + run (no cardio-only days)
-        const strengthPart = index % 2 === 0 ? 'Lower Body' : 'Full Body';
-        workouts.push({
-          id: `draft-w${weekNum}-${day}-1`,
-          title: `${strengthPart} + Run`,
-          detailLine: index % 2 === 0 ? '4 exercises + 20 min run' : '5 exercises + 15 min run',
-          iconColor: icons.strength,
-          durationMinutes: Math.round(inputs.timePerSession.min * weekMultiplier),
-          intensity: index === 0 ? 'Hard' : 'Medium',
-          type: 'strength',
-          changeType: 'new',
-          source: 'ai',
-          draftId: draftId,
-          week: weekNum,
-        });
-        
-        if (isDoubleDay) {
-          workouts.push({
-            id: `draft-w${weekNum}-${day}-2`,
-            title: 'Recovery',
-            detailLine: 'Stretch & mobility',
-            iconColor: icons.recovery,
-            durationMinutes: 15,
-            intensity: 'Easy',
-            type: 'recovery',
-            changeType: 'new',
-            source: 'ai',
-            draftId: draftId,
-            week: weekNum,
-          });
-          doubleSessionCount++;
-        }
-      } else {
-        // Hybrid or fat loss: strength-focused days only (no standalone cardio)
-        const types = ['Upper Body', 'Lower Body', 'Full Body'];
-        const workoutType = types[index % 3];
-        const detailLines = ['6 exercises • Push focus', '6 exercises • Legs & core', '5 exercises • Full body'];
-        workouts.push({
-          id: `draft-w${weekNum}-${day}-1`,
-          title: workoutType,
-          detailLine: detailLines[index % 3],
-          iconColor: icons.strength,
-          durationMinutes: Math.round(inputs.timePerSession.min * weekMultiplier),
-          intensity: index === 0 ? 'Hard' : 'Medium',
-          type: 'strength',
-          changeType: 'new',
-          source: 'ai',
-          draftId: draftId,
-          week: weekNum,
-        });
-        
-        if (isDoubleDay) {
-          workouts.push({
-            id: `draft-w${weekNum}-${day}-2`,
-            title: 'Recovery',
-            detailLine: 'Stretch & mobility',
-            iconColor: icons.recovery,
-            durationMinutes: 15,
-            intensity: 'Easy',
-            type: 'recovery',
-            changeType: 'new',
-            source: 'ai',
-            draftId: draftId,
-            week: weekNum,
-          });
-          doubleSessionCount++;
-        }
-      }
-      
-      plan[day] = workouts;
-    });
-    
-    weeks.push({
-      weekNumber: weekNum,
-      workouts: plan,
-    });
-  }
-  
-  return weeks;
-}
-
-function getInitialPlanData(
-  inputs: RootStackParamList['PlanPreview']['inputs'],
-  draftId: string,
-  icons: PlanSlotIconColors,
-): WeekPlan[] {
-  return generateFullPlan(inputs, draftId, icons);
-}
 
 export default function PlanPreviewScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
-  const slotIcons = useMemo(() => planSlotIconColors(colors), [colors]);
   const styles = useMemo(() => createPlanPreviewStyles(colors), [colors]);
-  const { weightUnit } = useUserPreferences();
+  const { weightUnit, goal } = useUserPreferences();
   const { inputs, draftId, planInputs, returnToPlanCard } = route.params;
   const isFocused = useIsFocused();
   const [applying, setApplying] = useState(false);
@@ -421,14 +281,14 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const [loadingPreview, setLoadingPreview] = useState(!!planInputs);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null);
-  const [planData, setPlanData] = useState<WeekPlan[]>(() =>
-    planInputs ? [] : getInitialPlanData(inputs, draftId, planSlotIconColors(colors))
-  );
+  const [planData, setPlanData] = useState<WeekPlan[]>([]);
   const [cardToReopen, setCardToReopen] = useState(returnToPlanCard ?? null);
   useEffect(() => {
     setCardToReopen(returnToPlanCard ?? null);
   }, [returnToPlanCard?.workoutId, returnToPlanCard?.weekNumber, returnToPlanCard?.day]);
   const groqPreviewCacheRef = useRef<Map<string, WorkoutPreview>>(new Map());
+
+  const planGoal = useMemo(() => profileGoalToPlanGoal(goal), [goal]);
 
   useEffect(() => {
     groqPreviewCacheRef.current.clear();
@@ -503,7 +363,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
 
         if (workout.type === 'recovery') {
           setPreviewUsesDraft(true);
-          setPreviewData({ name: workout.title, exercises: [], reasoning: workout.detailLine });
+          setPreviewData({ name: workout.title, exercises: [], reasoning: stripCoachAdviceBullets(workout.detailLine) });
           return;
         }
 
@@ -667,7 +527,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       if (workout.type === 'recovery') {
         setPreviewCard({ workout, day });
         setPreviewUsesDraft(true);
-        setPreviewData({ name: workout.title, exercises: [], reasoning: workout.detailLine });
+        setPreviewData({ name: workout.title, exercises: [], reasoning: stripCoachAdviceBullets(workout.detailLine) });
         return;
       }
       setPreviewCard({ workout, day });
@@ -808,12 +668,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         setPlanData((prev) =>
           prev.map((w) => (w.weekNumber === weekNum ? weekPlans[weekNum - 1] : w))
         );
-      } else {
-        await new Promise((r) => setTimeout(r, 1500));
-        const newPlan = generateFullPlan(inputs, draftId, slotIcons);
-        setPlanData((prev) =>
-          prev.map((w) => (w.weekNumber === weekNum ? newPlan[weekNum - 1] : w))
-        );
       }
     } catch (_e) {
       Alert.alert('Regeneration failed', "Couldn't generate. Try again.");
@@ -843,23 +697,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         }
         setPlanDraft(result.draft);
         setPlanData(planDraftToWeekPlans(result.draft) as WeekPlan[]);
-      } else {
-        await new Promise((r) => setTimeout(r, 1500));
-        setPlanData((prev) =>
-          prev.map((week) => ({
-            ...week,
-            workouts: Object.fromEntries(
-              Object.entries(week.workouts).map(([day, workouts]) => [
-                day,
-                workouts.map((w) =>
-                  w.type === 'cardio'
-                    ? { ...w, title: 'New Cardio', detailLine: 'Regenerated', changeType: 'replaced' as const }
-                    : w
-                ),
-              ])
-            ),
-          }))
-        );
       }
     } catch (_e) {
       Alert.alert('Regeneration failed', "Couldn't generate. Try again.");
@@ -879,55 +716,12 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         }
         setPlanDraft(result.draft);
         setPlanData(planDraftToWeekPlans(result.draft) as WeekPlan[]);
-      } else {
-        await new Promise((r) => setTimeout(r, 1500));
-        setPlanData((prev) =>
-          prev.map((week) => ({
-            ...week,
-            workouts: Object.fromEntries(
-              Object.entries(week.workouts).map(([day, workouts]) => [
-                day,
-                workouts.map((w) => ({
-                  ...w,
-                  intensity:
-                    w.intensity === 'Hard' ? 'Medium' : w.intensity === 'Medium' ? 'Easy' : w.intensity,
-                  changeType: w.intensity !== 'Easy' ? ('replaced' as const) : w.changeType,
-                })),
-              ])
-            ),
-          }))
-        );
       }
     } catch (_e) {
       Alert.alert('Regeneration failed', "Couldn't generate. Try again.");
     } finally {
       setRegenerating(null);
     }
-  };
-  
-  const handleSwapModality = async (from: string, to: string) => {
-    setRegenerating('swap');
-    setTimeout(() => {
-      setPlanData(prev => prev.map(week => ({
-        ...week,
-        workouts: Object.fromEntries(
-          Object.entries(week.workouts).map(([day, workouts]) => [
-            day,
-            workouts.map(w => {
-              if (w.title.toLowerCase().includes(from.toLowerCase())) {
-                return {
-                  ...w,
-                  title: w.title.replace(new RegExp(from, 'i'), to),
-                  changeType: 'replaced' as const,
-                };
-              }
-              return w;
-            })
-          ])
-        )
-      })));
-      setRegenerating(null);
-    }, 1500);
   };
   
   const handleMoveWorkout = useCallback((workoutId: string, fromDay: string) => {
@@ -1177,8 +971,19 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             ? 'hybrid'
             : planInputs.goal
         : inputs.goal;
+      const goalLabel = planInputs?.goal === 'fat_loss' ? 'Fat Loss'
+        : planInputs?.goal === 'balanced' ? 'Balanced'
+        : planInputs?.goal === 'endurance' ? 'Endurance'
+        : planInputs?.goal === 'strength' ? 'Strength'
+        : inputs.goal === 'fat loss' ? 'Fat Loss'
+        : inputs.goal === 'hybrid' ? 'Balanced'
+        : inputs.goal === 'endurance' ? 'Endurance'
+        : 'Strength';
+      const daysCount = inputs.trainingDays?.length ?? planData[0] ? Object.keys(planData[0]?.workouts ?? {}).length : 4;
+      const weeksCount = planInputs?.weeksCount ?? inputs.weeks ?? 1;
+      const derivedName = `${goalLabel} · ${daysCount}d/wk · ${weeksCount > 1 ? `${weeksCount} wks` : '1 wk'}`;
       await createPlan({
-        name: `Plan ${new Date().toLocaleDateString()}`,
+        name: derivedName,
         weekAnchorMonday: formatLocalYmd(getWeekStartMonday(
           planInputs?.startDateISO ? parseLocalYmd(planInputs.startDateISO) : new Date()
         )),
@@ -1196,8 +1001,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           routes: [{ name: 'PlanList' }],
         }),
       );
-    } catch (err) {
-      console.error('Failed to apply plan:', err);
+    } catch {
       Alert.alert('Could not save plan', 'Check your connection and try again.');
     } finally {
       setApplying(false);
@@ -1485,7 +1289,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                       </View>
                       <View style={styles.workoutContent}>
                         <Text style={styles.workoutTitle}>{workout.title}</Text>
-                        <Text style={styles.workoutDetailLine}>{workout.detailLine}</Text>
+                        <Text style={styles.workoutDetailLine}>{stripCoachAdviceBullets(workout.detailLine)}</Text>
                       </View>
                       {moveMode?.workoutId === workout.id && (
                         <View style={styles.moveIndicator}>
@@ -1683,7 +1487,16 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                                       })}
                                     </View>
                                     <Text style={styles.previewExerciseMeta}>
-                                      {ex.sets} × {ex.reps}
+                                      {formatExercisePrescriptionCompact(
+                                        {
+                                          name: ex.name,
+                                          sets: ex.sets,
+                                          reps: ex.reps,
+                                          prescriptionType: ex.prescriptionType,
+                                          primaryMuscleGroup: ex.primaryMuscleGroup,
+                                        },
+                                        planGoal,
+                                      )}
                                       {ex.weight != null ? formatAtWeightFromLb(ex.weight, weightUnit) : ''}
                                       {typeof ex.restSeconds === 'number' && ex.restSeconds > 0
                                         ? ` · ${formatRestSecondsForPreview(ex.restSeconds)} rest`
@@ -1868,41 +1681,6 @@ function createPlanPreviewStyles(colors: ColorPalette) {
   retryButtonText: {
     color: colors.onPrimary,
     fontWeight: '600',
-  },
-  debugPanel: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    maxHeight: 320,
-  },
-  debugPanelHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-  },
-  debugPanelTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  debugPanelToggle: {
-    fontSize: 12,
-  },
-  debugPanelContent: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    maxHeight: 280,
-  },
-  debugSectionTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  debugJson: {
-    fontSize: 11,
-    fontFamily: 'monospace',
   },
   weekTabs: {
     maxHeight: 50,
