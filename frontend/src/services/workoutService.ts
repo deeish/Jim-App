@@ -1,11 +1,6 @@
 import { Workout, WorkoutLog, ExerciseSession } from '../types/workout';
 import { api } from '../api/client';
 
-export const getWeeklyWorkouts = async (): Promise<Workout[]> => {
-  const response = await api.get('/workouts/weekly');
-  return response.data;
-};
-
 /** Create (or return) a Workout row from a plan slot’s stored exercises. */
 export const materializePlanSlotWorkout = async (planWorkoutId: string): Promise<Workout> => {
   const response = await api.post<Workout>(

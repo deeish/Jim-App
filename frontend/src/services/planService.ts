@@ -64,6 +64,16 @@ export interface ApiPlan {
   planWorkouts: ApiPlanWorkout[];
 }
 
+/** Resolves plan slot linked to a materialized workout (Plan ↔ Home ETA sync). */
+export function planSlotForWorkout(
+  plan: ApiPlan | null | undefined,
+  planWorkoutId: string | null | undefined,
+): ApiPlanWorkout | undefined {
+  const id = planWorkoutId?.trim();
+  if (!id || !plan?.planWorkouts?.length) return undefined;
+  return plan.planWorkouts.find((pw) => pw.id === id);
+}
+
 export async function getCurrentPlan(): Promise<ApiPlan | null> {
   const response = await api.get<ApiPlan | null>('/plans/me');
   return response.data;
@@ -295,13 +305,10 @@ export async function movePlanSlot(
 export async function removePlanSlot(planId: string, slotId: string): Promise<ApiPlan> {
   const url = `/plans/${planId}/slots/remove`;
   const body = { slotId };
-  console.warn('[planService] removePlanSlot POST', url, body);
   try {
     const response = await api.post<ApiPlan>(url, body);
-    console.warn('[planService] removePlanSlot OK, slots:', response.data?.planWorkouts?.length);
     return response.data;
   } catch (e: any) {
-    console.warn('[planService] removePlanSlot FAILED', e?.response?.status, e?.response?.data ?? e?.message);
     throw e;
   }
 }

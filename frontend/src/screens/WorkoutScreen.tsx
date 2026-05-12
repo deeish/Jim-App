@@ -15,9 +15,10 @@ import {
   unsaveWorkout,
   updateWorkout,
 } from '../services/workoutService';
-import { getCurrentPlanWithWeekly } from '../services/planService';
+import { getCurrentPlanWithWeekly, getCurrentPlan, planSlotForWorkout } from '../services/planService';
+import type { ApiPlan } from '../services/planService';
 import { resolveHomeToday, type HomeTodayResult } from '../lib/homeToday';
-import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
+import { resolveWorkoutEtaMinutes } from '../lib/estimateWorkoutMinutes';
 import { Workout, Exercise, type WorkoutSessionRestoredSnapshot, type WorkoutLog } from '../types/workout';
 import { formatLocalYmd } from '../lib/planCalendar';
 import { loadWorkoutDraft, clearWorkoutDraft } from '../lib/workoutDraftStorage';
@@ -132,6 +133,8 @@ export default function WorkoutScreen() {
   const [completedLog, setCompletedLog] = useState<WorkoutLog | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingLogRef = useRef(false);
+  /** Active plan snapshot for ETA (same slot blend as Plan tab). */
+  const [planForEta, setPlanForEta] = useState<ApiPlan | null>(null);
 
   const showToast = (msg: string) => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -182,6 +185,21 @@ export default function WorkoutScreen() {
         },
         emptyText: { fontSize: 20, color: colors.textTertiary, marginBottom: 8, fontWeight: '600' },
         emptySubtext: { fontSize: 16, color: colors.textMuted, textAlign: 'center' },
+        noExercisesCard: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          paddingVertical: 16,
+          paddingHorizontal: 14,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderStyle: 'dashed',
+          borderColor: colors.primary + '50',
+          backgroundColor: colors.primary + '08',
+          marginTop: 8,
+        },
+        noExercisesText: { fontSize: 15, fontWeight: '700', color: colors.primary },
+        noExercisesHint: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
         footer: {
           paddingHorizontal: 14,
           paddingTop: 10,
@@ -286,11 +304,22 @@ export default function WorkoutScreen() {
     [colors]
   );
 
+  const workoutEtaSlot = useMemo(
+    () => planSlotForWorkout(planForEta, todayWorkout?.planWorkoutId ?? null),
+    [planForEta, todayWorkout?.planWorkoutId],
+  );
+
+  /** Same slot lookup during an active session (draft resume may omit todayWorkout). */
+  const sessionEtaSlot = useMemo(
+    () => planSlotForWorkout(planForEta, session?.workout?.planWorkoutId ?? null),
+    [planForEta, session?.workout?.planWorkoutId],
+  );
+
   const workoutMetaLine = useMemo(() => {
     if (!todayWorkout) return '';
     const parts: string[] = [];
-    const planned = todayWorkout.estimatedDuration ?? null;
-    const displayMin = getWorkoutDisplayEstimateMinutes(todayWorkout.exercises, planned);
+    const displayMin = resolveWorkoutEtaMinutes(todayWorkout, workoutEtaSlot ?? null);
+    const plannedStrip = todayWorkout.estimatedDuration ?? workoutEtaSlot?.durationMinutes ?? null;
     const n = todayWorkout.exercises?.length ?? 0;
     if (displayMin != null) parts.push(`Est. ${displayMin} min`);
     const exercisePhrase = `${n} ${n === 1 ? 'exercise' : 'exercises'}`;
@@ -300,7 +329,7 @@ export default function WorkoutScreen() {
       for (const seg of segments) {
         if (/^\d+\s*min$/i.test(seg)) {
           const m = parseInt(seg, 10);
-          if (m === displayMin || m === planned) continue;
+          if (m === displayMin || m === plannedStrip) continue;
         }
         if (/^\d+\s*exercises?$/i.test(seg)) continue;
         parts.push(seg);
@@ -308,7 +337,7 @@ export default function WorkoutScreen() {
     }
     parts.push(exercisePhrase);
     return parts.join(' · ');
-  }, [todayWorkout]);
+  }, [todayWorkout, workoutEtaSlot]);
 
   const handleOpenExerciseDetail = (exercise: Exercise) => {
     const id = exercise.exerciseId;
@@ -430,9 +459,13 @@ export default function WorkoutScreen() {
       (async () => {
         try {
           if (workoutIdParam) {
-            const w = await getWorkoutById(workoutIdParam);
+            const [w, plan] = await Promise.all([
+              getWorkoutById(workoutIdParam),
+              getCurrentPlan(),
+            ]);
             if (!cancelled) {
               setPlanToday(null);
+              setPlanForEta(plan ?? null);
               setTodayWorkout(w);
             }
           } else {
@@ -441,11 +474,13 @@ export default function WorkoutScreen() {
               const resolved = resolveHomeToday(plan, weeklyWorkouts ?? []);
               if (!cancelled) {
                 setPlanToday(resolved);
+                setPlanForEta(plan ?? null);
                 setTodayWorkout(resolved.status === 'scheduled' ? resolved.workout : null);
               }
             } catch {
               if (!cancelled) {
                 setPlanToday({ status: 'no_plan' });
+                setPlanForEta(null);
                 setTodayWorkout(null);
               }
             }
@@ -453,6 +488,7 @@ export default function WorkoutScreen() {
         } catch {
           if (!cancelled && workoutIdParam) {
             setPlanToday(null);
+            setPlanForEta(null);
             setTodayWorkout(null);
           }
         }
@@ -480,11 +516,16 @@ export default function WorkoutScreen() {
     try {
       setLoading(true);
       setPlanToday(null);
-      const workout = await getWorkoutById(id);
+      const [workout, plan] = await Promise.all([
+        getWorkoutById(id),
+        getCurrentPlan(),
+      ]);
+      setPlanForEta(plan ?? null);
       setTodayWorkout(workout);
     } catch (error) {
       console.error('Error loading workout:', error);
       setTodayWorkout(null);
+      setPlanForEta(null);
     } finally {
       setLoading(false);
     }
@@ -498,6 +539,7 @@ export default function WorkoutScreen() {
         getSavedWorkoutIds().catch(() => []),
       ]);
       setSavedWorkoutIds(ids);
+      setPlanForEta(plan ?? null);
       const resolved = resolveHomeToday(plan, weeklyWorkouts ?? []);
       setPlanToday(resolved);
       setTodayWorkout(resolved.status === 'scheduled' ? resolved.workout : null);
@@ -505,6 +547,7 @@ export default function WorkoutScreen() {
       console.error('Error loading today\'s workout:', error);
       setPlanToday({ status: 'no_plan' });
       setTodayWorkout(null);
+      setPlanForEta(null);
     } finally {
       setLoading(false);
     }
@@ -630,6 +673,7 @@ export default function WorkoutScreen() {
       <WorkoutSession
         session={session}
         serverWorkout={liveServerWorkout}
+        etaPlanSlot={sessionEtaSlot ?? null}
         onComplete={handleEndWorkout}
         onUpdate={setSession}
         onExitWithoutFinishing={handleExitWithoutFinishing}
@@ -732,11 +776,29 @@ export default function WorkoutScreen() {
             <View style={styles.exerciseSectionHeader}>
               <View style={styles.sectionTitleRow}>
                 <Text style={styles.sectionTitle}>Exercises</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Tap a row for details · trash removes from this workout
-                </Text>
+                {todayWorkout.exercises.length > 0 && (
+                  <Text style={styles.sectionSubtitle}>
+                    Tap a row for details · trash removes from this workout
+                  </Text>
+                )}
               </View>
             </View>
+            {todayWorkout.exercises.length === 0 && (
+              <TouchableOpacity
+                style={styles.noExercisesCard}
+                onPress={handleAddExercises}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Add exercises from library"
+              >
+                <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.noExercisesText}>Add your first exercise</Text>
+                  <Text style={styles.noExercisesHint}>Browse the library below</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
             {todayWorkout.exercises.map((exercise, index) => (
               <ExerciseCard
                 key={exercise.exerciseId ? `${exercise.exerciseId}-${index}` : `ex-${index}`}

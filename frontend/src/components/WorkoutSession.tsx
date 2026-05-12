@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Workout, ExerciseSession, CompletedSet, type WorkoutSessionRestoredSnapshot } from '../types/workout';
 import { saveWorkoutDraft } from '../lib/workoutDraftStorage';
-import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
+import { resolveWorkoutEtaMinutes, type EtaPlanSlotLike } from '../lib/estimateWorkoutMinutes';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from './Button';
 import { useTheme } from '../theme';
@@ -27,6 +27,7 @@ import {
   kgToLb,
   lbToKg,
 } from '../lib/weightDisplay';
+import { formatPlanTargetRepDisplay, profileGoalToPlanGoal } from '../lib/workoutExerciseDisplay';
 import type { ColorPalette } from '../theme/colors';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
@@ -59,6 +60,8 @@ interface WorkoutSessionProps {
   session: WorkoutSessionState;
   /** Fetched template from server while session is active; new exercises are merged into the live session. */
   serverWorkout?: Workout | null;
+  /** When set, ETA matches Plan tab blending (estimatedDuration ↔ slot.durationMinutes). */
+  etaPlanSlot?: EtaPlanSlotLike | null;
   onComplete: (sessionData: any) => void;
   onUpdate: Dispatch<SetStateAction<WorkoutSessionState | null>>;
   onExitWithoutFinishing?: () => void | Promise<void>;
@@ -68,6 +71,7 @@ interface WorkoutSessionProps {
 export default function WorkoutSession({
   session,
   serverWorkout,
+  etaPlanSlot,
   onComplete,
   onUpdate,
   onExitWithoutFinishing,
@@ -219,13 +223,18 @@ export default function WorkoutSession({
 
   const workoutMetaLine = useMemo(() => {
     const parts: string[] = [];
-    const planned = session.workout.estimatedDuration ?? null;
     const activePrescription = exerciseSessions
       .filter((es) => !es.skipped)
       .map((es) => es.exercise);
     const prescription =
       activePrescription.length > 0 ? activePrescription : session.workout.exercises ?? [];
-    const displayMin = getWorkoutDisplayEstimateMinutes(prescription, planned);
+    const plannedStrip =
+      session.workout.estimatedDuration ?? etaPlanSlot?.durationMinutes ?? null;
+    const displayMin = resolveWorkoutEtaMinutes(
+      session.workout,
+      etaPlanSlot ?? null,
+      prescription,
+    );
 
     if (displayMin != null) {
       parts.push(`Est. ${displayMin} min`);
@@ -240,7 +249,7 @@ export default function WorkoutSession({
       for (const seg of segments) {
         if (/^\d+\s*min$/i.test(seg)) {
           const m = parseInt(seg, 10);
-          if (m === displayMin || m === planned) continue;
+          if (m === displayMin || m === plannedStrip) continue;
         }
         if (/^\d+\s*exercises?$/i.test(seg)) {
           continue;
@@ -254,6 +263,7 @@ export default function WorkoutSession({
     session.workout.estimatedDuration,
     session.workout.focus,
     session.workout.exercises,
+    etaPlanSlot?.durationMinutes,
     exerciseSessions,
     elapsedTime,
   ]);
@@ -530,6 +540,19 @@ export default function WorkoutSession({
   };
 
   const handleEndWorkout = () => {
+    const allSkipped =
+      exerciseSessions.length > 0 && exerciseSessions.every((es) => es.skipped);
+    if (allSkipped) {
+      Alert.alert(
+        'All exercises skipped',
+        'You skipped every exercise. Are you sure you want to finish without logging anything?',
+        [
+          { text: 'Keep training', style: 'cancel' },
+          { text: 'Finish anyway', style: 'destructive', onPress: () => setShowFinishScreen(true) },
+        ]
+      );
+      return;
+    }
     if (isWorkoutComplete()) {
       setShowFinishScreen(true);
     } else {
@@ -1048,7 +1071,8 @@ function ExerciseCard({
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
-  const { weightUnit } = useUserPreferences();
+  const { weightUnit, goal } = useUserPreferences();
+  const planGoal = useMemo(() => profileGoalToPlanGoal(goal), [goal]);
   const [weightStep, setWeightStep] = useState(5);
   const [editingReps, setEditingReps] = useState(false);
   const [editingWeight, setEditingWeight] = useState(false);
@@ -1117,12 +1141,9 @@ function ExerciseCard({
     const collapsedTotal = exerciseSession.completedSets.length;
     const collapsedDone = exerciseSession.completedSets.filter((s) => s.completed).length;
     const wLb = lastWeight || exerciseData.weight;
-    const planShort = `${exerciseSession.completedSets.length}×${exerciseData.reps}${
-      exerciseData.weight === 0 || (!exerciseData.weight && !lastWeight)
-        ? ' (BW)'
-        : wLb
-          ? formatAtWeightFromLb(wLb, weightUnit)
-          : ''
+    const repShown = formatPlanTargetRepDisplay(exerciseData, planGoal);
+    const planShort = `${exerciseSession.completedSets.length}×${repShown}${
+      wLb ? formatAtWeightFromLb(wLb, weightUnit) : ''
     }`;
     const canOpenLibraryGuide =
       !!navigation && isLinkableLibraryExerciseId(exerciseData.exerciseId);
@@ -1195,12 +1216,11 @@ function ExerciseCard({
   const nextSet = nextSetIdx >= 0 ? exerciseSession.completedSets[nextSetIdx] : null;
   const completedCount = exerciseSession.completedSets.filter((s) => s.completed).length;
   const lastCompleted = completedCount > 0 ? exerciseSession.completedSets[completedCount - 1] : null;
-  const planLabel = `Plan: ${exerciseData.sets}×${exerciseData.reps}${
+  const repShownPlan = formatPlanTargetRepDisplay(exerciseData, planGoal);
+  const planLabel = `Plan: ${exerciseData.sets}×${repShownPlan}${
     exerciseData.weight != null && exerciseData.weight !== 0
       ? formatAtWeightFromLb(exerciseData.weight, weightUnit)
-      : exerciseData.weight === 0
-        ? ' (BW)'
-        : ''
+      : ''
   }`;
 
   return (
@@ -1268,7 +1288,7 @@ function ExerciseCard({
           Last set today: {lastCompleted.reps}×
           {lastCompleted.weight != null && lastCompleted.weight > 0
             ? formatWeightCompactFromLb(lastCompleted.weight, weightUnit)
-            : 'BW'}
+            : '—'}
         </Text>
       )}
 
@@ -1466,7 +1486,7 @@ function ExerciseCard({
                             ? weightUnit === 'kg'
                               ? String(Math.round(lbToKg(nextSet.weight) * 10) / 10)
                               : String(nextSet.weight)
-                            : 'BW'}
+                            : '—'}
                         </Text>
                       </TouchableOpacity>
                     )}

@@ -35,7 +35,7 @@ function formatDuration(seconds: number): string {
 }
 
 function SetRow({ set, colors }: { set: WorkoutLogEntrySet; colors: Record<string, string> }) {
-  const weightStr = set.weight != null && set.weight > 0 ? `${set.weight} lb` : 'BW';
+  const weightStr = set.weight != null && set.weight > 0 ? `${set.weight} lb` : '—';
   return (
     <View style={styles.setRow}>
       <Text style={[styles.setNumber, { color: colors.textMuted }]}>Set {set.setNumber}</Text>
@@ -475,13 +475,6 @@ const styles = StyleSheet.create({
   dayText: {
     fontSize: 16,
     fontWeight: '500',
-  },
-  logDot: {
-    position: 'absolute',
-    bottom: 4,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
   },
   logBadge: {
     position: 'absolute',

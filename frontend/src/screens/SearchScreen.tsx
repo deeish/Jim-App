@@ -1222,7 +1222,7 @@ export default function SearchScreen({ navigation }: Props) {
           )}
         </View>
 
-        {!addMode && savedExerciseIds.length > 0 && (
+        {savedExerciseIds.length > 0 && (
           <TouchableOpacity
             style={styles.savedExercisesRow}
             onPress={openSavedList}

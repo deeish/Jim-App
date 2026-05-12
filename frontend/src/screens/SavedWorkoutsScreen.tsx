@@ -13,14 +13,17 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
-import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
-import { getSavedWorkouts } from '../services/workoutService';
+import { resolveWorkoutEtaMinutes } from '../lib/estimateWorkoutMinutes';
+import { getSavedWorkouts, unsaveWorkout } from '../services/workoutService';
+import { getCurrentPlan, planSlotForWorkout } from '../services/planService';
+import type { ApiPlan } from '../services/planService';
 import type { Workout } from '../types/workout';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
 
-function savedWorkoutDurationLabel(w: Workout): string | null {
-  const m = getWorkoutDisplayEstimateMinutes(w.exercises, w.estimatedDuration ?? null);
+function savedWorkoutDurationLabel(w: Workout, plan: ApiPlan | null): string | null {
+  const slot = planSlotForWorkout(plan, w.planWorkoutId);
+  const m = resolveWorkoutEtaMinutes(w, slot ?? null);
   return m != null ? `${m} min` : null;
 }
 
@@ -35,15 +38,22 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
   const navigation = useNavigation<NavProp>();
   const { colors } = useTheme();
   const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [planSnap, setPlanSnap] = useState<ApiPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [unsavingId, setUnsavingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const list = await getSavedWorkouts();
+      const [list, plan] = await Promise.all([
+        getSavedWorkouts(),
+        getCurrentPlan().catch(() => null),
+      ]);
       setWorkouts(list);
+      setPlanSnap(plan);
     } catch {
       setWorkouts([]);
+      setPlanSnap(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -94,12 +104,27 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
           borderWidth: 1,
           borderColor: colors.border,
         },
-        cardTitle: { fontSize: 17, fontWeight: '600', color: colors.text, marginBottom: 4 },
+        cardTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+        cardTitle: { flex: 1, fontSize: 17, fontWeight: '600', color: colors.text },
+        cardUnsaveBtn: { padding: 4, marginLeft: 8 },
         cardMeta: { fontSize: 13, color: colors.textSecondary },
         cardExercises: { fontSize: 13, color: colors.textTertiary, marginTop: 6 },
       }),
     [colors]
   );
+
+  const handleUnsave = useCallback(async (id: string) => {
+    if (unsavingId) return;
+    setUnsavingId(id);
+    try {
+      await unsaveWorkout(id);
+      setWorkouts((prev) => prev.filter((w) => w.id !== id));
+    } catch {
+      // ignore — workout stays in list
+    } finally {
+      setUnsavingId(null);
+    }
+  }, [unsavingId]);
 
   const handleBack = useCallback(() => {
     if (onClose) onClose();
@@ -152,10 +177,25 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
               activeOpacity={0.7}
               onPress={() => handleSelectWorkout(w.id)}
             >
-              <Text style={styles.cardTitle}>{w.name}</Text>
-              {(w.day || savedWorkoutDurationLabel(w)) && (
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle} numberOfLines={2}>{w.name}</Text>
+                <TouchableOpacity
+                  style={styles.cardUnsaveBtn}
+                  onPress={() => handleUnsave(w.id)}
+                  hitSlop={8}
+                  accessibilityLabel={`Remove ${w.name} from saved`}
+                  accessibilityRole="button"
+                >
+                  {unsavingId === w.id ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons name="heart" size={20} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              </View>
+              {(w.day || savedWorkoutDurationLabel(w, planSnap)) && (
                 <Text style={styles.cardMeta}>
-                  {[w.day, savedWorkoutDurationLabel(w)].filter(Boolean).join(' • ')}
+                  {[w.day, savedWorkoutDurationLabel(w, planSnap)].filter(Boolean).join(' • ')}
                 </Text>
               )}
               {w.exercises?.length > 0 && (

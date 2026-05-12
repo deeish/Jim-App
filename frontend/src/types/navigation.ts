@@ -35,7 +35,6 @@ export type RootStackParamList = {
     };
     addToWorkout?: { workoutId: string; workoutName: string; existingExerciseIds?: string[] };
   } | undefined;
-  WeeklyWorkout: undefined;
   ExerciseDetail: {
     exerciseId: string;
     /**

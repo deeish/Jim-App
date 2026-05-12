@@ -13,13 +13,18 @@ import {
   saveWorkout,
   unsaveWorkout,
 } from '../services/workoutService';
+import { getCurrentPlan, planSlotForWorkout } from '../services/planService';
+import type { ApiPlan } from '../services/planService';
 import WorkoutLikeButton from '../components/WorkoutLikeButton';
 import { Workout } from '../types/workout';
 import { useTheme } from '../theme/ThemeContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
-import { formatWeightCompactFromLb } from '../lib/weightDisplay';
 import { isLinkableLibraryExerciseId, navigateFromWorkoutDetailToExerciseDetail } from '../lib/exerciseNavigation';
-import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
+import { resolveWorkoutEtaMinutes } from '../lib/estimateWorkoutMinutes';
+import {
+  formatExercisePrescriptionBulleted,
+  profileGoalToPlanGoal,
+} from '../lib/workoutExerciseDisplay';
 
 type WorkoutDetailScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
 type WorkoutDetailScreenRouteProp = RouteProp<RootStackParamList, 'WorkoutDetail'>;
@@ -32,7 +37,7 @@ type Props = {
 export default function WorkoutDetailScreen({ navigation, route }: Props) {
   const { workoutId } = route.params || {};
   const { colors } = useTheme();
-  const { weightUnit } = useUserPreferences();
+  const { weightUnit, goal } = useUserPreferences();
   const insets = useSafeAreaInsets();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,6 +46,15 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   const [savingLike, setSavingLike] = useState(false);
   /** Collapsed by default — exercises stay “above the fold”; expand when you want the long AI copy. */
   const [guideExpanded, setGuideExpanded] = useState(false);
+  /** Current plan snapshot to resolve slot duration when this workout is tied to Plan. */
+  const [slotLookupPlan, setSlotLookupPlan] = useState<ApiPlan | null>(null);
+
+  const detailEtaSlot = useMemo(
+    () => planSlotForWorkout(slotLookupPlan, workout?.planWorkoutId ?? null),
+    [slotLookupPlan, workout?.planWorkoutId],
+  );
+
+  const planGoal = useMemo(() => profileGoalToPlanGoal(goal), [goal]);
 
   const styles = useMemo(
     () =>
@@ -231,8 +245,12 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
     if (!workoutId) return;
     try {
       setLoading(true);
-      const data = await getWorkoutById(workoutId);
+      const [data, plan] = await Promise.all([
+        getWorkoutById(workoutId),
+        getCurrentPlan().catch(() => null),
+      ]);
       setWorkout(data);
+      setSlotLookupPlan(plan);
       setSaved(!!(data as Workout & { saved?: boolean }).saved);
     } catch (error) {
       console.error('Error loading workout:', error);
@@ -265,7 +283,6 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
       setGenerating(true);
       const newWorkout = await generateWorkout();
       setWorkout(newWorkout);
-      Alert.alert('Success', 'Workout generated successfully!');
     } catch (error) {
       console.error('Error generating workout:', error);
       Alert.alert('Error', 'Failed to generate workout');
@@ -407,10 +424,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
             <Text style={styles.workoutDay}>{workout.day}</Text>
           )}
           {(() => {
-            const m = getWorkoutDisplayEstimateMinutes(
-              workout.exercises,
-              workout.estimatedDuration ?? null,
-            );
+            const m = resolveWorkoutEtaMinutes(workout, detailEtaSlot ?? null);
             return m != null ? (
               <Text style={styles.workoutEst}>Est. {m} min</Text>
             ) : null;
@@ -480,13 +494,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
             </TouchableOpacity>
           </View>
           {workout.exercises.map((exercise, index) => {
-            const metaParts = [
-              `${exercise.sets} sets`,
-              `${exercise.reps} reps`,
-              ...(exercise.weight
-                ? [formatWeightCompactFromLb(exercise.weight, weightUnit)]
-                : []),
-            ];
+            const metaLine = formatExercisePrescriptionBulleted(exercise, planGoal, weightUnit);
             const rowKey = exercise.id ?? `ex-${index}`;
             const libId = exercise.exerciseId;
             const canOpenLibrary = isLinkableLibraryExerciseId(libId);
@@ -526,7 +534,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
                         <Ionicons name="trash-outline" size={22} color={colors.textMuted} />
                       </TouchableOpacity>
                     </View>
-                    <Text style={styles.exerciseMetaLine}>{metaParts.join(' · ')}</Text>
+                    <Text style={styles.exerciseMetaLine}>{metaLine}</Text>
                   </View>
                 </View>
               </Pressable>

@@ -23,7 +23,7 @@ import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot, movePlanSlot } from '../services/planService';
 import type { ApiPlan, ApiPlanExercise, ApiPlanWorkout } from '../services/planService';
-import type { Workout, WorkoutLog } from '../types/workout';
+import type { Exercise, Workout, WorkoutLog } from '../types/workout';
 import { materializePlanSlotWorkout, getWorkoutLogs } from '../services/workoutService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
@@ -39,7 +39,15 @@ import {
   shiftWeekWorkouts,
 } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
-import { getPlanSlotDisplayMinutes } from '../lib/estimateWorkoutMinutes';
+import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
+import {
+  exercisesLikeFromPrescription,
+  getPlanSlotDisplayMinutes,
+} from '../lib/estimateWorkoutMinutes';
+import {
+  formatExercisePrescriptionCompact,
+  profileGoalToPlanGoal,
+} from '../lib/workoutExerciseDisplay';
 
 type PlanScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Plan'>;
 
@@ -165,7 +173,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const navigation = navigationProp ?? navFromHook;
   const route = useRoute<RouteProp<RootStackParamList, 'PlanList'>>();
   const { colors } = useTheme();
-  const { weightUnit } = useUserPreferences();
+  const { weightUnit, goal } = useUserPreferences();
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [planByWeek, setPlanByWeek] = useState<Record<number, Record<string, PlanWorkout[]>>>({});
   const [planLoading, setPlanLoading] = useState(true);
@@ -196,6 +204,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [hoveredDay, setHoveredDay] = useState<string | null>(null);
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [weekLogs, setWeekLogs] = useState<WorkoutLog[]>([]);
+
+  const planGoal = useMemo(() => profileGoalToPlanGoal(goal), [goal]);
 
   const containerRef       = useRef<View>(null);
   const containerOffsetRef = useRef({ x: 0, y: 0 });
@@ -485,6 +495,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         workoutTypeBadge: { fontSize: 16, fontWeight: '700', color: colors.onPrimary },
         workoutContent: { flex: 1 },
         workoutTitle: { fontSize: 15, fontWeight: '600', color: colors.text, marginBottom: 2 },
+        /** Canonical ETA (matches Home + detail sheet), not AI `detailLine` copy. */
+        workoutEtaLine: { fontSize: 13, color: colors.textSecondary, marginTop: 2, fontWeight: '600' },
         workoutDetailLine: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
         moreButton: { position: 'absolute', top: 8, right: 8, padding: 4 },
         moreButtonText: { fontSize: 18, color: colors.textMuted, fontWeight: '700' },
@@ -706,10 +718,25 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     [colors]
   );
 
-  const resolveWorkoutForPlanSlot = useCallback(
-    (planSlotId: string): Workout | undefined =>
-      weeklyWorkouts.find((w) => w.planWorkoutId === planSlotId),
-    [weeklyWorkouts]
+  /** Prefer string-normalized IDs so we match Home’s `planSlotLinksWeeklyWorkout` (avoids ETA drift when JSON types vary). */
+  const resolveWorkoutForPlanSlot = useCallback((planSlotId: string): Workout | undefined => {
+    const sid = String(planSlotId ?? '').trim();
+    if (!sid) return undefined;
+    return weeklyWorkouts.find((w) => String(w.planWorkoutId ?? '').trim() === sid);
+  }, [weeklyWorkouts]);
+
+  /** Same heuristic as Plan detail modal + Home “Est.” (not the AI `detailLine` text under the card). */
+  const planSlotEtaMinutesDisplay = useCallback(
+    (w: PlanWorkout): number => {
+      const linked = resolveWorkoutForPlanSlot(w.id);
+      const planned = linked?.estimatedDuration ?? w.durationMinutes;
+      return getPlanSlotDisplayMinutes(
+        planned,
+        exercisesLikeFromPrescription(w.planExercises ?? null),
+        exercisesLikeFromPrescription(linked?.exercises ?? null),
+      );
+    },
+    [resolveWorkoutForPlanSlot],
   );
 
   const isSlotCompleted = useCallback(
@@ -1005,9 +1032,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     });
 
     // Persist in background — revert on failure and re-fetch to ensure UI matches server
-    movePlanSlot(planId, slot.workout.id, { dayOfWeek: target }).catch((err: any) => {
+    movePlanSlot(planId, slot.workout.id, { dayOfWeek: target }).catch(() => {
       setPlanByWeek(snapshot);
-      Alert.alert('Could not move workout', err?.response?.data?.message ?? err?.message ?? 'Try again.');
       void loadPlan();
     });
   }, [currentPlan?.id, loadPlan]);
@@ -1029,15 +1055,32 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   }));
   // --- End drag-and-drop callbacks ---
 
+  /**
+   * `detailLine` may embed a stale minute guess (e.g. "68 min"); canonical duration is **Est.** above.
+   * Remove minute-only bullets so the subtitle does not contradict recomputed time.
+   */
+  function scrubStaleMinuteBullets(parts: string[]): string[] {
+    return parts.filter((s) => {
+      const t = s.trim();
+      if (!t) return false;
+      if (/^\d+\s*exercises?$/i.test(t)) return true;
+      if (/^(?:~|approx\.?\s*)?\d+\s*(?:[-–—]\s*\d+\s*)?min\b/i.test(t)) return false;
+      return true;
+    });
+  }
+
   const formatWorkoutDetailLine = (workout: PlanWorkout): string => {
-    let detail = (workout.detailLine ?? '—').replace(/·/g, '•');
+    let detail = stripCoachAdviceBullets(workout.detailLine ?? '') || '—';
+    detail = detail.replace(/·/g, '•');
+    const parts = scrubStaleMinuteBullets(
+      detail.split(/\s*•\s*/).map((s) => s.trim()).filter(Boolean),
+    );
     const n = workout.planExercises?.length ?? 0;
     if (workout.type === 'strength' && n > 0) {
-      const parts = detail.split(/\s*•\s*/).map((s) => s.trim()).filter(Boolean);
       const rest = parts.filter((s) => !/^\d+\s*exercises?$/i.test(s)).join(' • ');
       return rest ? `${n} exercises • ${rest}` : `${n} exercises`;
     }
-    return detail;
+    return parts.length ? parts.join(' • ') : '—';
   };
 
   const getWorkoutTypeLabel = (type: WorkoutType): string => {
@@ -1049,10 +1092,16 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     const totalMin = workouts.reduce((s, w) => {
       if (isRestPlanSlotTitle(w.title)) return s + w.durationMinutes;
       const linked = resolveWorkoutForPlanSlot(w.id);
-      const planEx = w.planExercises?.map((e) => ({ sets: e.sets, reps: e.reps }));
       const planned =
         linked?.estimatedDuration ?? w.durationMinutes;
-      return s + getPlanSlotDisplayMinutes(planned, planEx, linked?.exercises);
+      return (
+        s +
+        getPlanSlotDisplayMinutes(
+          planned,
+          exercisesLikeFromPrescription(w.planExercises ?? null),
+          exercisesLikeFromPrescription(linked?.exercises ?? null),
+        )
+      );
     }, 0);
     const sessionCount = workouts.length;
     
@@ -1421,6 +1470,9 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                           </View>
                           <View style={styles.workoutContent}>
                             <Text style={styles.workoutTitle}>{workout.title}</Text>
+                            <Text style={styles.workoutEtaLine}>
+                              Est. {planSlotEtaMinutesDisplay(workout)} min
+                            </Text>
                             <Text style={styles.workoutDetailLine}>
                               {formatWorkoutDetailLine(workout)}
                             </Text>
@@ -1544,10 +1596,10 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
             const planLines = apiSlot?.exercises?.length
               ? apiSlot.exercises
               : detailSheetWorkout.workout.planExercises ?? [];
-            const fromPlanRows = planLines
+            const sortedSlotRx = planLines
               .slice()
-              .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
-              .map((ex, idx) => ({
+              .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+            const fromPlanRows = sortedSlotRx.map((ex, idx) => ({
                 id: ex.id,
                 exerciseId: (ex as ApiPlanExercise).exerciseId,
                 name: ex.name ?? 'Exercise',
@@ -1574,8 +1626,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                     {detailSheetWorkout.workout.type} •{' '}
                     {getPlanSlotDisplayMinutes(
                       linked?.estimatedDuration ?? detailSheetWorkout.workout.durationMinutes,
-                      fromPlanRows.map((ex) => ({ sets: ex.sets, reps: ex.reps })),
-                      linked?.exercises,
+                      exercisesLikeFromPrescription(sortedSlotRx),
+                      exercisesLikeFromPrescription(linked?.exercises ?? null),
                     )}{' '}
                     min
                     {detailSheetWorkout.workout.intensity ? ` • ${detailSheetWorkout.workout.intensity}` : ''}
@@ -1676,7 +1728,16 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                             >
                               <Text style={styles.detailSheetExerciseName}>{ex.name}</Text>
                               <Text style={styles.detailSheetExerciseMeta}>
-                                {ex.sets} × {ex.reps}
+                                {formatExercisePrescriptionCompact(
+                                  {
+                                    name: ex.name ?? 'Exercise',
+                                    sets: ex.sets,
+                                    reps: ex.reps,
+                                    prescriptionType: (ex as Exercise).prescriptionType,
+                                    primaryMuscleGroup: (ex as Exercise).primaryMuscleGroup,
+                                  },
+                                  planGoal,
+                                )}
                                 {ex.weight != null ? formatAtWeightFromLb(ex.weight, weightUnit) : ''}
                               </Text>
                               {ex.notes ? (
@@ -1776,6 +1837,9 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           </View>
           <View style={styles.workoutContent}>
             <Text style={styles.workoutTitle}>{draggingSlot.workout.title}</Text>
+            <Text style={styles.workoutEtaLine}>
+              Est. {planSlotEtaMinutesDisplay(draggingSlot.workout)} min
+            </Text>
             <Text style={styles.workoutDetailLine}>{formatWorkoutDetailLine(draggingSlot.workout)}</Text>
           </View>
         </Animated.View>

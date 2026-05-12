@@ -6,12 +6,9 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
-  Platform,
-  ViewStyle,
   ScrollView,
   ActivityIndicator,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -23,7 +20,8 @@ import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import type { RootNavigatorParamList } from '../types/navigation';
 import { RootTabParamList } from '../components/NavBar';
-import { getCurrentPlanWithWeekly } from '../services/planService';
+import { showConfirmDialog } from '../lib/confirmAlert';
+import { getCurrentPlanWithWeekly, planSlotForWorkout } from '../services/planService';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import { loadWorkoutDraft } from '../lib/workoutDraftStorage';
 import type { Workout } from '../types/workout';
@@ -35,7 +33,12 @@ import {
   isRestPlanSlotTitle,
   PLAN_WEEKDAY_NAMES_MONDAY_FIRST,
 } from '../lib/planCalendar';
-import { getWorkoutDisplayEstimateMinutes } from '../lib/estimateWorkoutMinutes';
+import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
+import {
+  exercisesLikeFromPrescription,
+  getPlanSlotDisplayMinutes,
+  resolveWorkoutEtaMinutes,
+} from '../lib/estimateWorkoutMinutes';
 
 type HomeNavigation = BottomTabNavigationProp<RootTabParamList, 'Home'>;
 
@@ -55,20 +58,20 @@ function formatTodayDateLine(): string {
   });
 }
 
-function buildTodayMetaLine(workout: Workout): string {
+function buildTodayMetaLine(workout: Workout, planSlot: ApiPlanWorkout | undefined): string {
   const parts: string[] = [];
-  const planned = workout.estimatedDuration ?? null;
-  const displayMin = getWorkoutDisplayEstimateMinutes(workout.exercises, planned);
+  const displayMin = resolveWorkoutEtaMinutes(workout, planSlot ?? null);
+  const plannedStrip = workout.estimatedDuration ?? planSlot?.durationMinutes ?? null;
   const n = workout.exercises?.length ?? 0;
   if (displayMin != null) parts.push(`Est. ${displayMin} min`);
   const exercisePhrase = `${n} ${n === 1 ? 'exercise' : 'exercises'}`;
-  const focusRaw = workout.focus?.trim();
-  if (focusRaw) {
-    const segments = focusRaw.split(/\s*·\s*/).map((s) => s.trim()).filter(Boolean);
+  const focusCleaned = stripCoachAdviceBullets(workout.focus ?? '');
+  if (focusCleaned) {
+    const segments = focusCleaned.split(/\s*•\s*/).map((s) => s.trim()).filter(Boolean);
     for (const seg of segments) {
       if (/^\d+\s*min$/i.test(seg)) {
         const m = parseInt(seg, 10);
-        if (m === displayMin || m === planned) continue;
+        if (m === displayMin || m === plannedStrip) continue;
       }
       if (/^\d+\s*exercises?$/i.test(seg)) continue;
       parts.push(seg);
@@ -80,11 +83,14 @@ function buildTodayMetaLine(workout: Workout): string {
 
 function buildPendingSlotMeta(slot: ApiPlanWorkout): string {
   const parts: string[] = [];
-  const exerciseLike = slot.exercises?.map((e) => ({ sets: e.sets, reps: e.reps }));
-  const displayMin = getWorkoutDisplayEstimateMinutes(exerciseLike, slot.durationMinutes);
+  const displayMin = getPlanSlotDisplayMinutes(
+    slot.durationMinutes,
+    exercisesLikeFromPrescription(slot.exercises),
+    undefined,
+  );
   if (displayMin != null) parts.push(`${displayMin} min`);
-  const detail = slot.detailLine?.trim();
-  if (detail) parts.push(detail.replace(/·/g, '·'));
+  const detail = stripCoachAdviceBullets(slot.detailLine ?? '');
+  if (detail) parts.push(detail);
   return parts.length ? parts.join(' · ') : 'Set up exercises from your plan';
 }
 
@@ -182,14 +188,12 @@ export default function HomeScreen() {
   const onSignOut = () => {
     closeMenu();
     setTimeout(() => {
-      Alert.alert(
-        'Sign out?',
-        '',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
-        ]
-      );
+      showConfirmDialog({
+        title: 'Sign out?',
+        confirmText: 'Sign out',
+        destructive: true,
+        onConfirm: () => void signOut(),
+      });
     }, 350);
   };
 
@@ -204,6 +208,7 @@ export default function HomeScreen() {
       },
       menuItemLabel: { color: colors.text },
       menuItemLabelDisabled: { color: colors.textMuted },
+      menuItemSoonBadge: { color: colors.textMuted, borderColor: colors.border },
       menuDivider: { backgroundColor: colors.border },
       accentHairline: { backgroundColor: colors.primary },
       heroRing: { borderColor: colors.primary + '55' },
@@ -258,7 +263,12 @@ export default function HomeScreen() {
   }, [plan, weeklyWorkouts]);
 
   const scheduledWorkout = homeToday?.status === 'scheduled' ? homeToday.workout : null;
-  const metaLine = scheduledWorkout ? buildTodayMetaLine(scheduledWorkout) : '';
+  const homeTodayPlanSlot = useMemo(
+    () =>
+      scheduledWorkout?.planWorkoutId ? planSlotForWorkout(plan ?? null, scheduledWorkout.planWorkoutId) : undefined,
+    [plan, scheduledWorkout?.planWorkoutId],
+  );
+  const metaLine = scheduledWorkout ? buildTodayMetaLine(scheduledWorkout, homeTodayPlanSlot) : '';
   const hasExercises = (scheduledWorkout?.exercises?.length ?? 0) > 0;
 
   return (
@@ -289,11 +299,18 @@ export default function HomeScreen() {
         animationType="fade"
         onRequestClose={closeMenu}
       >
-        <Pressable style={[styles.menuBackdrop, { backgroundColor: colors.overlay }]} onPress={closeMenu}>
-          <View style={styles.menuAnchor} />
+        {/* Backdrop and menu card are siblings — do not nest the card inside backdrop Pressable
+            or wrapping View with responder capture; that blocks menu row presses (Android / some web). */}
+        <View style={styles.menuModalRoot}>
+          <Pressable
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.overlay }]}
+            onPress={closeMenu}
+            accessibilityLabel="Dismiss profile menu"
+            accessibilityRole="button"
+          />
           <View
-            style={[styles.menuCard, themedStyles.menuCard]}
-            onStartShouldSetResponder={() => true}
+            style={[styles.menuCardWrap, themedStyles.menuCard]}
+            pointerEvents="box-none"
           >
             <TouchableOpacity style={styles.menuItem} onPress={goToProfile} activeOpacity={0.7}>
               <Ionicons name="person-outline" size={22} color={colors.text} />
@@ -304,7 +321,7 @@ export default function HomeScreen() {
             <View style={[styles.menuItem, styles.menuItemDisabled]}>
               <Ionicons name="people-outline" size={22} color={colors.textMuted} />
               <Text style={[styles.menuItemLabelDisabled, themedStyles.menuItemLabelDisabled]}>Invite a friend</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              <Text style={[styles.menuItemSoonBadge, themedStyles.menuItemSoonBadge]}>Soon</Text>
             </View>
             <View style={[styles.menuDivider, themedStyles.menuDivider]} />
             <TouchableOpacity style={styles.menuItem} onPress={onSignOut} activeOpacity={0.7}>
@@ -313,7 +330,7 @@ export default function HomeScreen() {
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <ScrollView
@@ -840,21 +857,14 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontWeight: '500',
   },
-  menuBackdrop: {
+  menuModalRoot: {
     flex: 1,
-    paddingTop: PROFILE_BUTTON_TOP + 36,
-    paddingRight: PROFILE_BUTTON_RIGHT,
-    alignItems: 'flex-end',
-    ...(Platform.OS === 'web' ? { cursor: 'default' } : {}),
-  } as ViewStyle,
-  menuAnchor: {
-    position: 'absolute',
-    top: PROFILE_BUTTON_TOP,
-    right: PROFILE_BUTTON_RIGHT,
-    width: 40,
-    height: 40,
   },
-  menuCard: {
+  /** Same vertical offset as legacy layout: below header profile control */
+  menuCardWrap: {
+    position: 'absolute',
+    top: PROFILE_BUTTON_TOP + 36,
+    right: PROFILE_BUTTON_RIGHT,
     width: MENU_WIDTH,
     borderRadius: 12,
     borderWidth: 1,
@@ -878,6 +888,15 @@ const styles = StyleSheet.create({
   },
   menuItemDisabled: {
     opacity: 0.6,
+  },
+  menuItemSoonBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    overflow: 'hidden',
   },
   menuItemLabelDisabled: {
     flex: 1,

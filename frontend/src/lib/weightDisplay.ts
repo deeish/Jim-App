@@ -17,7 +17,7 @@ export function roundLb(lb: number): number {
 }
 
 export function formatWeightFromLb(lb: number, unit: WeightUnit): string {
-  if (lb <= 0) return 'BW';
+  if (lb <= 0) return '';
   if (unit === 'lb') return `${Math.round(lb)} lb`;
   const kg = lbToKg(lb);
   const n = kg >= 10 ? Math.round(kg) : Math.round(kg * 10) / 10;
@@ -41,6 +41,6 @@ export function formatWeightCompactFromLb(
   lb: number | null | undefined,
   unit: WeightUnit,
 ): string {
-  if (lb == null || lb <= 0) return 'BW';
+  if (lb == null || lb <= 0) return '';
   return formatWeightFromLb(lb, unit);
 }
