@@ -14,6 +14,7 @@ import {
   saveWorkout,
   unsaveWorkout,
   updateWorkout,
+  type SaveWorkoutLogParams,
 } from '../services/workoutService';
 import { getCurrentPlanWithWeekly, getCurrentPlan, planSlotForWorkout } from '../services/planService';
 import type { ApiPlan } from '../services/planService';
@@ -122,7 +123,6 @@ export default function WorkoutScreen() {
   const [planToday, setPlanToday] = useState<HomeTodayResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<WorkoutSessionState | null>(null);
-  const [savingLog, setSavingLog] = useState(false);
   const [savedWorkoutIds, setSavedWorkoutIds] = useState<string[]>([]);
   const [savingLike, setSavingLike] = useState(false);
   /** Latest server workout while a session is active (for merging exercises added from Search). */
@@ -420,13 +420,16 @@ export default function WorkoutScreen() {
       setCompletedLog(null);
       return;
     }
+    let cancelled = false;
     const today = formatLocalYmd(new Date());
     getWorkoutLogs({ from: today, to: today })
       .then(logs => {
+        if (cancelled) return;
         const match = logs.find(l => l.workoutId === todayWorkout.id && l.completedAt != null);
         setCompletedLog(match ?? null);
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, [todayWorkout?.id]);
 
   useFocusEffect(
@@ -573,7 +576,6 @@ export default function WorkoutScreen() {
   };
 
   const handleStartWorkout = () => {
-    setCompletedLog(null);
     if (!todayWorkout) {
       Alert.alert(
         'No Workout',
@@ -586,6 +588,7 @@ export default function WorkoutScreen() {
       return;
     }
 
+    setCompletedLog(null);
     void clearWorkoutDraft();
     setSavedDraft(null);
     setSession({
@@ -620,14 +623,13 @@ export default function WorkoutScreen() {
   const handleDiscardDraft = async () => {
     await clearWorkoutDraft();
     setSavedDraft(null);
-    showToast('Saved session cleared');
+    showToast('Draft discarded');
   };
 
-  const handleEndWorkout = async (sessionData?: any) => {
+  const handleEndWorkout = async (sessionData?: SaveWorkoutLogParams) => {
     if (sessionData) {
       if (savingLogRef.current) return;
       savingLogRef.current = true;
-      setSavingLog(true);
       try {
         const log = await saveWorkoutLog({
           workout: sessionData.workout,
@@ -652,12 +654,15 @@ export default function WorkoutScreen() {
         );
       } finally {
         savingLogRef.current = false;
-        setSavingLog(false);
       }
     }
     setSession(null);
     setLiveServerWorkout(null);
-    loadTodayWorkout(); // Refresh in case workout was updated
+    if (workoutIdParam) {
+      loadWorkoutById(workoutIdParam);
+    } else {
+      loadTodayWorkout();
+    }
   };
 
   const handleExitWithoutFinishing = async () => {
