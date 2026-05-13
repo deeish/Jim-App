@@ -1,18 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { WorkoutsService } from '../workouts/workouts.service';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
 
 @Injectable()
 export class WorkoutLogsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workoutsService: WorkoutsService,
+  ) {}
 
   async create(dto: CreateWorkoutLogDto, userId: string) {
-    const workout = await this.prisma.workout.findUnique({
-      where: { id: dto.workoutId },
-    });
-    if (!workout) {
-      throw new NotFoundException(`Workout with ID ${dto.workoutId} not found`);
-    }
+    // Throws NotFoundException if the workout doesn't exist or the user can't access it
+    // (direct ownership, or via the plan the workout belongs to).
+    await this.workoutsService.findOne(dto.workoutId, userId);
 
     const startedAt = new Date(dto.startedAt);
     const completedAt = dto.completedAt

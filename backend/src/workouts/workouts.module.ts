@@ -10,6 +10,6 @@ import { PrismaModule } from '../prisma/prisma.module';
   imports: [AuthModule, ExercisesModule, PrismaModule],
   controllers: [WorkoutsController],
   providers: [WorkoutsService, WorkoutGeneratorService],
-  exports: [WorkoutGeneratorService],
+  exports: [WorkoutGeneratorService, WorkoutsService],
 })
 export class WorkoutsModule {}
