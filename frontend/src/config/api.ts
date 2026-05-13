@@ -21,6 +21,13 @@ import { Platform } from 'react-native';
 const envBase = process.env.EXPO_PUBLIC_API_BASE?.trim();
 const BASE = envBase && envBase.length > 0 ? envBase : 'http://localhost:3000';
 
+if (!__DEV__ && BASE.startsWith('http://')) {
+  // Production builds must talk to the API over TLS — anything else exposes tokens on the wire.
+  throw new Error(
+    `EXPO_PUBLIC_API_BASE must use https:// in production builds (got: ${BASE})`,
+  );
+}
+
 // Export the base URL with /api suffix
 export const API_BASE_URL = `${BASE}/api`;
 
