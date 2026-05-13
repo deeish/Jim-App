@@ -38,7 +38,10 @@ export class AuthService {
       });
       return this.jwksClient;
     } catch (err: any) {
-      this.logger.error('Failed to create JWKS client', err?.message ?? String(err));
+      this.logger.error(
+        'Failed to create JWKS client',
+        err?.message ?? String(err),
+      );
       return null;
     }
   }
@@ -58,6 +61,13 @@ export class AuthService {
     const alg = decoded.header.alg;
     const kid = decoded.header.kid;
 
+    const audience =
+      this.config.get<string>('SUPABASE_JWT_AUDIENCE') ?? 'authenticated';
+    const supabaseUrlForIss = this.config.get<string>('SUPABASE_URL');
+    const issuer = supabaseUrlForIss
+      ? `${supabaseUrlForIss.replace(/\/+$/, '')}/auth/v1`
+      : undefined;
+
     // Try HS256 with legacy JWT secret first
     if (alg === 'HS256') {
       const secret = this.config.get<string>('SUPABASE_JWT_SECRET');
@@ -67,6 +77,9 @@ export class AuthService {
       try {
         const payload = jwt.verify(token, secret, {
           algorithms: ['HS256'],
+          audience,
+          ...(issuer ? { issuer } : {}),
+          clockTolerance: 5,
         }) as { sub?: string; email?: string };
         const sub = payload.sub;
         if (!sub) throw new UnauthorizedException('Invalid token');
@@ -86,7 +99,9 @@ export class AuthService {
       const client = this.getJwksClient();
       if (!client) {
         const supabaseUrl = this.config.get<string>('SUPABASE_URL');
-        this.logger.warn(`JWKS client not available. SUPABASE_URL: ${supabaseUrl}`);
+        this.logger.warn(
+          `JWKS client not available. SUPABASE_URL: ${supabaseUrl}`,
+        );
         throw new UnauthorizedException('JWKS not available');
       }
       try {
@@ -94,6 +109,9 @@ export class AuthService {
         const publicKey = key.getPublicKey();
         const payload = jwt.verify(token, publicKey, {
           algorithms: [alg],
+          audience,
+          ...(issuer ? { issuer } : {}),
+          clockTolerance: 5,
         }) as { sub?: string; email?: string };
         const sub = payload.sub;
         if (!sub) throw new UnauthorizedException('Invalid token');
