@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as jwt from 'jsonwebtoken';
@@ -13,6 +13,7 @@ export interface JwtPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private jwksClient: JwksClientInstance | null = null;
 
   constructor(
@@ -25,9 +26,7 @@ export class AuthService {
     if (this.jwksClient) return this.jwksClient;
     const supabaseUrl = this.config.get<string>('SUPABASE_URL');
     if (!supabaseUrl) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[Auth] SUPABASE_URL not configured');
-      }
+      this.logger.warn('SUPABASE_URL not configured');
       return null;
     }
     try {
@@ -39,12 +38,7 @@ export class AuthService {
       });
       return this.jwksClient;
     } catch (err: any) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.error(
-          '[Auth] Failed to create JWKS client:',
-          err?.message ?? err,
-        );
-      }
+      this.logger.error('Failed to create JWKS client', err?.message ?? String(err));
       return null;
     }
   }
@@ -78,10 +72,7 @@ export class AuthService {
         if (!sub) throw new UnauthorizedException('Invalid token');
         return { sub, email: payload.email ?? undefined };
       } catch (err: any) {
-        const message = err?.message ?? 'Unknown';
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn('[Auth] HS256 verify failed:', message);
-        }
+        this.logger.warn(`HS256 verify failed: ${err?.message ?? 'Unknown'}`);
         throw new UnauthorizedException('Invalid or expired token');
       }
     }
@@ -89,20 +80,13 @@ export class AuthService {
     // Try RS256/ES256 with JWKS (new signing keys)
     if (alg === 'RS256' || alg === 'ES256') {
       if (!kid) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn('[Auth] Token missing kid (key ID) for', alg);
-        }
+        this.logger.warn(`Token missing kid (key ID) for ${alg}`);
         throw new UnauthorizedException('Token missing key identifier');
       }
       const client = this.getJwksClient();
       if (!client) {
         const supabaseUrl = this.config.get<string>('SUPABASE_URL');
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn(
-            '[Auth] JWKS client not available. SUPABASE_URL:',
-            supabaseUrl,
-          );
-        }
+        this.logger.warn(`JWKS client not available. SUPABASE_URL: ${supabaseUrl}`);
         throw new UnauthorizedException('JWKS not available');
       }
       try {
@@ -115,11 +99,7 @@ export class AuthService {
         if (!sub) throw new UnauthorizedException('Invalid token');
         return { sub, email: payload.email ?? undefined };
       } catch (err: any) {
-        const message = err?.message ?? 'Unknown';
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn(`[Auth] ${alg} verify failed:`, message);
-          if (err.stack) console.warn('[Auth] Stack:', err.stack);
-        }
+        this.logger.warn(`${alg} verify failed: ${err?.message ?? 'Unknown'}`);
         throw new UnauthorizedException('Invalid or expired token');
       }
     }

@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class SavedExercisesService {
+  private readonly logger = new Logger(SavedExercisesService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async getSavedExerciseIds(userId: string): Promise<string[]> {
@@ -11,22 +13,12 @@ export class SavedExercisesService {
       select: { exerciseId: true },
     });
     const ids = rows.map((r) => r.exerciseId);
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(
-        '[SavedExercisesService] getSavedExerciseIds',
-        userId,
-        '->',
-        ids.length,
-        'ids',
-      );
-    }
+    this.logger.debug(`getSavedExerciseIds ${userId} -> ${ids.length} ids`);
     return ids;
   }
 
   async saveExercise(userId: string, exerciseId: string): Promise<void> {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[SavedExercisesService] saveExercise', userId, exerciseId);
-    }
+    this.logger.debug(`saveExercise ${userId} ${exerciseId}`);
     await this.prisma.savedExercise.upsert({
       where: { userId_exerciseId: { userId, exerciseId } },
       create: { userId, exerciseId },
@@ -35,9 +27,7 @@ export class SavedExercisesService {
   }
 
   async unsaveExercise(userId: string, exerciseId: string): Promise<void> {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[SavedExercisesService] unsaveExercise', userId, exerciseId);
-    }
+    this.logger.debug(`unsaveExercise ${userId} ${exerciseId}`);
     await this.prisma.savedExercise.deleteMany({
       where: { userId, exerciseId },
     });

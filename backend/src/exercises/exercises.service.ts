@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, OnModuleInit } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -30,6 +30,7 @@ const DEFAULT_EQUIPMENT_ORDER = 12;
 
 @Injectable()
 export class ExercisesService implements OnModuleInit {
+  private readonly logger = new Logger(ExercisesService.name);
   private exercises: TransformedExercise[] = [];
   private catalogLoadFailed = false;
   /** exerciseId -> YouTube video ID (from data/exercise-videos.json) */
@@ -58,10 +59,10 @@ export class ExercisesService implements OnModuleInit {
         ),
       );
       if (this.videoMap.size > 0) {
-        console.log(`✅ Loaded ${this.videoMap.size} exercise video mappings`);
+        this.logger.log(`Loaded ${this.videoMap.size} exercise video mappings`);
       }
-    } catch {
-      // File missing or invalid: no videos
+    } catch (e) {
+      this.logger.warn(`exercise-videos.json missing or invalid — no video links: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -85,11 +86,9 @@ export class ExercisesService implements OnModuleInit {
       // Transform all exercises from ID format to display names
       this.exercises = rawData.map((raw) => transformExercise(raw));
 
-      console.log(
-        `✅ Loaded and transformed ${this.exercises.length} exercises`,
-      );
+      this.logger.log(`Loaded and transformed ${this.exercises.length} exercises`);
     } catch (error) {
-      console.error('❌ FATAL: Error loading exercise catalog — all catalog operations will fail:', error);
+      this.logger.error('FATAL: Error loading exercise catalog — all catalog operations will fail', error instanceof Error ? error.stack : String(error));
       this.exercises = [];
       this.catalogLoadFailed = true;
     }

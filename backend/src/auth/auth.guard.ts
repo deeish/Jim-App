@@ -2,12 +2,15 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
+  private readonly logger = new Logger(AuthGuard.name);
+
   constructor(private readonly authService: AuthService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -18,9 +21,7 @@ export class AuthGuard implements CanActivate {
       : undefined;
 
     if (!token) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[Auth] No Bearer token in request to', request.url);
-      }
+      this.logger.warn(`No Bearer token in request to ${request.url}`);
       throw new UnauthorizedException(
         'Missing or invalid Authorization header',
       );
