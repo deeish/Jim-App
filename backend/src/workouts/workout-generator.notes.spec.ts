@@ -9,8 +9,10 @@ describe('normalizeExerciseNoteForOutput', () => {
   });
 
   it('trims, collapses whitespace, and caps length for beginners', () => {
-    const long = 'a'.repeat(BEGINNER_EXERCISE_NOTE_MAX_CHARS + 40);
-    const out = normalizeExerciseNoteForOutput(`  foo \n bar  ${'x'.repeat(200)}`, true);
+    const out = normalizeExerciseNoteForOutput(
+      `  foo \n bar  ${'x'.repeat(200)}`,
+      true,
+    );
     expect(out!.length).toBe(BEGINNER_EXERCISE_NOTE_MAX_CHARS);
     expect(out!.startsWith('foo bar')).toBe(true);
   });

@@ -23,7 +23,6 @@ const OVERHEAD_RX =
   /\boverhead\b|\b(ohp|military)\b|\bshoulder\s+press\b|\bz[-\s]?press\b|\bpush\s+press\b|\bjerk\b|\bstrict\s+press\b|\barnold\s+press\b/i;
 const FLAT_BENCH_RX =
   /\b(flat|bench)\s+(barbell|dumbbell|smith|cable|machine)?\s*(bench\s+)?press\b|\b(barbell|dumbbell|smith|cable|machine)\s+bench\s+press\b|\bbench\s+press\b/i;
-const PRESS_NOUN_RX = /\bpress\b|\bdip\b|\bpush[-\s]?up\b/i;
 
 const HORIZONTAL_PULL_RX =
   /\brow\b|\b(seated|chest[-\s]?supported|inverted|t[-\s]?bar|landmine)\s+row\b/i;
@@ -32,8 +31,7 @@ const VERTICAL_PULL_RX =
 
 const LUNGE_DOM_RX =
   /\b(lunge|step[-\s]?up|split\s+squat|bulgarian|reverse\s+lunge|walking\s+lunge|side\s+lunge|cossack)\b/i;
-const SQUAT_DOM_RX =
-  /\b(squat|leg\s+press|hack\s+squat|pistol|sissy)\b/i;
+const SQUAT_DOM_RX = /\b(squat|leg\s+press|hack\s+squat|pistol|sissy)\b/i;
 const HINGE_DOM_RX =
   /\b(deadlift|rdl|romanian|good\s+morning|hip\s+(thrust|hinge)|swing|kettlebell\s+swing|glute\s+bridge|hamstring\s+curl|nordic|cable\s+pull[-\s]?through)\b/i;
 
@@ -142,7 +140,10 @@ export function buildSessionDiversitySignature(
   exercises: ReadonlyArray<{ exerciseId?: string; name?: string }>,
   primaryMuscleGroupByExerciseId?: ReadonlyMap<string, string>,
 ): SessionDiversitySignature {
-  const slotOne = findSlotOneStrength(exercises, primaryMuscleGroupByExerciseId);
+  const slotOne = findSlotOneStrength(
+    exercises,
+    primaryMuscleGroupByExerciseId,
+  );
   const hasUnilateral = (exercises ?? []).some((e) => {
     const id = e.exerciseId?.trim();
     if (id && primaryMuscleGroupByExerciseId?.get(id)?.trim() === 'Cardio') {

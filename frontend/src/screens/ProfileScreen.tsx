@@ -10,6 +10,7 @@ import {
   Modal,
   Linking,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -30,8 +31,9 @@ import {
   FEEDBACK_MAILTO,
   PRIVACY_POLICY_URL,
   TERMS_OF_SERVICE_URL,
-  buildDeleteAccountMailto,
 } from '../constants/legalUrls';
+import { exportMyData, deleteMyAccount } from '../services/userService';
+import { shareJsonExport } from '../lib/shareDataExport';
 import { PROFILE_AVATARS, type ProfileAvatarId } from '../constants/profileAvatars';
 
 function SectionHeader({ title, colors }: { title: string; colors: ColorPalette }) {
@@ -345,7 +347,7 @@ const styles = { ...staticStyles, ...layoutStyles };
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const { colors, isDark, setTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const {
     hydrated: prefsHydrated,
     weightUnit,
@@ -365,6 +367,8 @@ export default function ProfileScreen() {
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false);
   const [equipmentDraft, setEquipmentDraft] = useState<EquipmentOption[]>([]);
   const [listPicker, setListPicker] = useState<'goal' | 'experience' | null>(null);
+  const [dataExporting, setDataExporting] = useState(false);
+  const [accountDeleting, setAccountDeleting] = useState(false);
 
   const appVersion =
     Constants.expoConfig?.version ??
@@ -444,27 +448,84 @@ export default function ProfileScreen() {
   const pickGoal = useCallback(() => setListPicker('goal'), []);
   const pickExperience = useCallback(() => setListPicker('experience'), []);
 
+  const handleExportMyData = useCallback(async () => {
+    if (!user || dataExporting) return;
+    setDataExporting(true);
+    try {
+      const bundle = await exportMyData();
+      const json = JSON.stringify(bundle, null, 2);
+      await shareJsonExport(json, 'Export my data');
+    } catch (e) {
+      console.warn('[ProfileScreen] export failed:', e);
+      const message =
+        e && typeof e === 'object' && 'message' in e && typeof (e as Error).message === 'string'
+          ? (e as Error).message
+          : 'Could not export your data.';
+      Alert.alert('Export failed', message);
+    } finally {
+      setDataExporting(false);
+    }
+  }, [user, dataExporting]);
+
+  const runDeleteAccount = useCallback(async () => {
+    if (!user) return;
+    setAccountDeleting(true);
+    try {
+      const result = await deleteMyAccount();
+      if (!result.supabaseAuthDeleted) {
+        await new Promise<void>((resolve) => {
+          Alert.alert(
+            'Data removed',
+            'Your app data was deleted. Sign-in may still work until the server is configured with SUPABASE_SERVICE_ROLE_KEY for full removal, or you delete the user in the Supabase dashboard.',
+            [{ text: 'OK', onPress: () => resolve() }],
+          );
+        });
+      }
+      await signOut();
+    } catch (e) {
+      console.warn('[ProfileScreen] delete account failed:', e);
+      const message =
+        e && typeof e === 'object' && 'message' in e && typeof (e as Error).message === 'string'
+          ? (e as Error).message
+          : 'Could not delete your account.';
+      Alert.alert('Deletion failed', message);
+    } finally {
+      setAccountDeleting(false);
+    }
+  }, [user, signOut]);
+
   const handleDeleteAccount = useCallback(() => {
-    const email = user?.email?.trim();
-    if (!email) {
-      Alert.alert('Unavailable', 'Sign in to request account deletion.');
+    if (!user?.email) {
+      Alert.alert('Unavailable', 'Sign in to delete your account.');
       return;
     }
     Alert.alert(
       'Delete account?',
-      'This opens your email app with a pre-filled request. We delete your account and associated data after we process it.',
+      'This permanently deletes your workouts, plans, and logs from our servers. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Open email',
-          onPress: () => {
-            const url = buildDeleteAccountMailto(email, user?.id);
-            void openUrl(url, 'Email');
-          },
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert(
+              'Delete forever?',
+              'Are you sure? All your app data will be removed.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete my account',
+                  style: 'destructive',
+                  onPress: () => {
+                    void runDeleteAccount();
+                  },
+                },
+              ],
+            ),
         },
       ],
     );
-  }, [user?.email, user?.id, openUrl]);
+  }, [user?.email, runDeleteAccount]);
 
   const equipmentSummary =
     equipment.length === 0
@@ -687,6 +748,41 @@ export default function ProfileScreen() {
           />
         </View>
 
+        <SectionHeader title="Your data" colors={colors} />
+        {user ? (
+          <View style={[styles.sectionCard, themedStyles.sectionCard]}>
+            <Row
+              label="Export my data"
+              onPress={() => {
+                void handleExportMyData();
+              }}
+              colors={colors}
+              showChevron
+              right={
+                dataExporting ? (
+                  <ActivityIndicator color={colors.primary} size="small" />
+                ) : undefined
+              }
+            />
+            <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+            <TouchableOpacity
+              style={[styles.row, accountDeleting ? { opacity: 0.65 } : null]}
+              onPress={handleDeleteAccount}
+              disabled={accountDeleting}
+              accessibilityRole="button"
+              accessibilityLabel="Delete account"
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.rowLabel, { color: colors.error }]}>Delete account</Text>
+              <View style={styles.rowRight}>
+                {accountDeleting ? (
+                  <ActivityIndicator color={colors.error} size="small" />
+                ) : null}
+              </View>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         <SectionHeader title="About" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
           <Row label="App version" value={String(appVersion)} colors={colors} />
@@ -713,21 +809,6 @@ export default function ProfileScreen() {
           />
         </View>
 
-        {user ? (
-          <TouchableOpacity
-            style={[styles.sectionCard, themedStyles.sectionCard, styles.deleteAccountRow]}
-            onPress={handleDeleteAccount}
-            accessibilityRole="button"
-            accessibilityLabel="Delete account"
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.deleteAccountRowText, { color: colors.error }]}>
-              Delete account
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-
-        <View style={styles.bottomPad} />
       </ScrollView>
 
       <Modal

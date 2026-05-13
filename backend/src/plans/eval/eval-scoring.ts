@@ -1,4 +1,7 @@
-import type { ChunkValidationResult, ChunkValidatorIssue } from '../generated-chunk-validators';
+import type {
+  ChunkValidationResult,
+  ChunkValidatorIssue,
+} from '../generated-chunk-validators';
 import type { EvalCatalogExercise } from './eval-types';
 import {
   idealStrengthExercisePermutation,
@@ -53,7 +56,10 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
 
-function issueCount(v: ChunkValidationResult, issue: ChunkValidatorIssue): number {
+function issueCount(
+  v: ChunkValidationResult,
+  issue: ChunkValidatorIssue,
+): number {
   return v.issues.includes(issue) ? 1 : 0;
 }
 
@@ -137,7 +143,10 @@ function scoreBalance(
     if (/\bupper\b|\bpull\b|\bback\b/.test(t)) {
       const ok = hasPattern(s, byId, 'Pull');
       checks.push(ok ? 1 : 0);
-      if (!ok) findings.push(`"${spec.title ?? spec.weekday}" lacks a clear Pull movement.`);
+      if (!ok)
+        findings.push(
+          `"${spec.title ?? spec.weekday}" lacks a clear Pull movement.`,
+        );
     }
     if (/\blower\b|\blegs?\b/.test(t)) {
       const squat = hasPattern(s, byId, 'Squat');
@@ -145,7 +154,9 @@ function scoreBalance(
       const ok = squat && hinge;
       checks.push(ok ? 1 : 0);
       if (!ok) {
-        findings.push(`"${spec.title ?? spec.weekday}" misses Squat/Hinge pattern coverage.`);
+        findings.push(
+          `"${spec.title ?? spec.weekday}" misses Squat/Hinge pattern coverage.`,
+        );
       }
     }
   }
@@ -169,7 +180,8 @@ function scoreVolumeFit(
   for (let i = 0; i < specs.length; i++) {
     const spec = specs[i]!;
     const s = sessions[i]!;
-    const isCardioOrRecovery = spec.type === 'cardio' || spec.type === 'recovery';
+    const isCardioOrRecovery =
+      spec.type === 'cardio' || spec.type === 'recovery';
     const duration = Math.round((spec.durationMin + spec.durationMax) / 2);
     const { minExercises, promptRange } = exerciseTargetsForSession(
       duration,
@@ -225,12 +237,14 @@ function scoreMovementDiversity(
       for (const e of sessions[i]?.exercises ?? []) {
         const id = e.exerciseId?.trim();
         if (!id) continue;
-        for (const p of byId.get(id)?.movementPatterns ?? []) set.add(String(p).trim());
+        for (const p of byId.get(id)?.movementPatterns ?? [])
+          set.add(String(p).trim());
       }
       const n = keys.filter((k) => set.has(k)).length;
       best = Math.max(best, n);
     }
-    const score = best >= 4 ? 8 : best === 3 ? 5 : best === 2 ? 2 : best === 1 ? 0 : 0;
+    const score =
+      best >= 4 ? 8 : best === 3 ? 5 : best === 2 ? 2 : best === 1 ? 0 : 0;
     if (best < 4) {
       findings.push(
         `Movement diversity on short chunk: ${best}/5 key patterns; pro programming usually hits ≥4 when the session allows.`,
@@ -244,7 +258,8 @@ function scoreMovementDiversity(
     for (const e of sessions[i]?.exercises ?? []) {
       const id = e.exerciseId?.trim();
       if (!id) continue;
-      for (const p of byId.get(id)?.movementPatterns ?? []) union.add(String(p).trim());
+      for (const p of byId.get(id)?.movementPatterns ?? [])
+        union.add(String(p).trim());
     }
   }
   const n = keys.filter((k) => union.has(k)).length;
@@ -287,14 +302,20 @@ function scoreLibraryMetadata(
   return Math.round(ratio * 8);
 }
 
-function scoreCoachingSurface(sessions: GeneratedSession[], findings: string[], skip: boolean): number {
+function scoreCoachingSurface(
+  sessions: GeneratedSession[],
+  findings: string[],
+  skip: boolean,
+): number {
   if (skip) return 10;
   if (!sessions.length) return 0;
   const anyCoachCopy = sessions.some(
     (s) => !!s.warmUp?.trim() || !!s.reasoning?.trim() || !!s.coolDown?.trim(),
   );
   if (!anyCoachCopy) {
-    findings.push('No warm-up / rationale / cool-down text on sessions (coaching surface empty).');
+    findings.push(
+      'No warm-up / rationale / cool-down text on sessions (coaching surface empty).',
+    );
     return 4;
   }
   let points = 0;
@@ -320,7 +341,9 @@ function scoreCoachingSurface(sessions: GeneratedSession[], findings: string[], 
   }
   const avg = points / sessions.length;
   if (avg < 0.82) {
-    findings.push('Coaching surface incomplete (missing warm-up / why / cool-down on some sessions).');
+    findings.push(
+      'Coaching surface incomplete (missing warm-up / why / cool-down on some sessions).',
+    );
   }
   return Math.round(avg * 10);
 }
@@ -386,8 +409,7 @@ const PRO_COACHING_SIGNAL_RE =
 function countProCoachingSignals(text: string): number {
   const re = new RegExp(PRO_COACHING_SIGNAL_RE.source, 'gi');
   let hits = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
+  while (re.exec(text) !== null) {
     hits++;
     if (hits > 16) break;
   }
@@ -455,7 +477,11 @@ function scorePrescriptionHygiene(
         (e.prescriptionType === 'time' || meta?.prescriptionType === 'time');
       const sets = Number(e.sets);
       const reps = Number(e.reps);
-      let rowOk = Number.isFinite(sets) && Number.isFinite(reps) && sets >= 1 && reps >= 1;
+      let rowOk =
+        Number.isFinite(sets) &&
+        Number.isFinite(reps) &&
+        sets >= 1 &&
+        reps >= 1;
       if (rowOk) {
         if (sets > 12 || sets < 1) rowOk = false;
         if (!isTimeCardio) {
@@ -590,7 +616,9 @@ function scoreConditioning(
     .filter(([s]) => s.type === 'strength')
     .map(([, i]) => i);
   if (!strengthIdx.length) return 10;
-  const cardioDays = strengthIdx.filter((i) => hasCardioExercise(sessions[i]!, byId)).length;
+  const cardioDays = strengthIdx.filter((i) =>
+    hasCardioExercise(sessions[i]!, byId),
+  ).length;
   const ratio = cardioDays / strengthIdx.length;
   const score = Math.round(ratio * 10);
   if (ratio < 1) {
@@ -601,10 +629,7 @@ function scoreConditioning(
   return score;
 }
 
-function scoreStructural(
-  v: ChunkValidationResult,
-  findings: string[],
-): number {
+function scoreStructural(v: ChunkValidationResult, findings: string[]): number {
   let structural = 28;
   structural -= issueCount(v, 'duplicate_exercise_id_in_session') * 25;
   structural -= issueCount(v, 'duplicate_exercise_id_across_chunk') * 20;
@@ -663,8 +688,17 @@ export function scoreGeneratedChunk(args: {
     findings,
     !!opt.skipConditioning,
   );
-  const coachingSurface = scoreCoachingSurface(args.sessions, findings, !!opt.skipCoaching);
-  const libraryMetadata = scoreLibraryMetadata(args.sessions, byId, findings, !!opt.skipMetadata);
+  const coachingSurface = scoreCoachingSurface(
+    args.sessions,
+    findings,
+    !!opt.skipCoaching,
+  );
+  const libraryMetadata = scoreLibraryMetadata(
+    args.sessions,
+    byId,
+    findings,
+    !!opt.skipMetadata,
+  );
   const workoutOrder = scoreWorkoutOrder(
     args.specs,
     args.sessions,
@@ -714,7 +748,9 @@ export function scoreGeneratedChunk(args: {
   if (!args.validation.ok) {
     const cap = Math.round(EVAL_SCORE_MAX_TOTAL * 0.45);
     if (total > cap) {
-      findings.push(`Hard cap: total score clamped to ${cap} while validator reports issues.`);
+      findings.push(
+        `Hard cap: total score clamped to ${cap} while validator reports issues.`,
+      );
       total = cap;
     }
   }

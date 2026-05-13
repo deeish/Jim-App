@@ -10,6 +10,7 @@ import { ExercisesModule } from './exercises/exercises.module';
 import { WorkoutLogsModule } from './workout-logs/workout-logs.module';
 import { PlansModule } from './plans/plans.module';
 import { HealthModule } from './health/health.module';
+import { UsersModule } from './users/users.module';
 import { AiThrottlerGuard } from './common/ai-throttler.guard';
 import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
 
@@ -32,6 +33,8 @@ import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
         SUPABASE_JWT_SECRET: Joi.string().min(20).required(),
         SUPABASE_JWT_AUDIENCE: Joi.string().default('authenticated'),
         GROQ_API_KEY: Joi.string().required(),
+        /** Optional: server-only; required to remove Supabase Auth user on account deletion. */
+        SUPABASE_SERVICE_ROLE_KEY: Joi.string().optional().allow(''),
       }),
       validationOptions: { allowUnknown: true, abortEarly: false },
     }),
@@ -104,6 +107,7 @@ import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
     WorkoutLogsModule,
     PlansModule,
     HealthModule,
+    UsersModule,
   ],
   providers: [
     AiThrottlerGuard,
