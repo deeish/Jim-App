@@ -857,6 +857,9 @@ export class PlansService {
           },
         });
       } catch (firstErr) {
+        this.logger.warn(
+          `[PlansService] tryHybridSimpleChunk first attempt failed: ${(firstErr as Error)?.message ?? firstErr}`,
+        );
         try {
           generated = await this.workoutGenerator.generateWorkout({
             day: spec.weekday,
@@ -877,7 +880,10 @@ export class PlansService {
               cardioModalities,
             },
           });
-        } catch {
+        } catch (retryErr) {
+          this.logger.warn(
+            `[PlansService] tryHybridSimpleChunk retry also failed: ${(retryErr as Error)?.message ?? retryErr}`,
+          );
           return null;
         }
       }
@@ -2229,12 +2235,9 @@ export class PlansService {
 
   /** Remove a single slot from the plan. Unlinks the linked Workout if any. */
   async removeSlot(planId: string, slotId: string, userId: string) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[PlansService] removeSlot', { planId, slotId });
-    }
+    this.logger.log(`[PlansService] removeSlot planId=${planId} slotId=${slotId}`);
     if (!slotId) {
-      if (process.env.NODE_ENV !== 'production')
-        console.warn('[PlansService] removeSlot: slotId is missing');
+      this.logger.warn('[PlansService] removeSlot: slotId is missing');
       throw new NotFoundException('Slot ID is required');
     }
     const plan = await this.prisma.workoutPlan.findUnique({
@@ -2247,12 +2250,9 @@ export class PlansService {
     }
     const slot = plan.planWorkouts.find((pw) => pw.id === slotId);
     if (!slot) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[PlansService] removeSlot: slot not in plan', {
-          slotId,
-          planSlotIds: plan.planWorkouts.map((pw) => pw.id),
-        });
-      }
+      this.logger.warn(
+        `[PlansService] removeSlot: slot not in plan slotId=${slotId}`,
+      );
       throw new NotFoundException(
         `Slot with ID ${slotId} not found in this plan`,
       );
