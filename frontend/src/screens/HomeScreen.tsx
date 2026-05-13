@@ -792,9 +792,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
   },
-  emptyTodayLink: {
-    marginTop: 14,
-  },
   noPlanEmpty: {
     alignItems: 'center',
     paddingTop: 52,
@@ -831,12 +828,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     marginTop: 18,
-  },
-  textLinkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 16,
   },
   textLink: {
     fontSize: 16,
