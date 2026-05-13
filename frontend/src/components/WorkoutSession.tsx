@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Workout, ExerciseSession, CompletedSet, type WorkoutSessionRestoredSnapshot } from '../types/workout';
 import { saveWorkoutDraft } from '../lib/workoutDraftStorage';
+import type { SaveWorkoutLogParams } from '../services/workoutService';
 import { resolveWorkoutEtaMinutes, type EtaPlanSlotLike } from '../lib/estimateWorkoutMinutes';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from './Button';
@@ -62,7 +63,7 @@ interface WorkoutSessionProps {
   serverWorkout?: Workout | null;
   /** When set, ETA matches Plan tab blending (estimatedDuration ↔ slot.durationMinutes). */
   etaPlanSlot?: EtaPlanSlotLike | null;
-  onComplete: (sessionData: any) => void;
+  onComplete: (sessionData?: SaveWorkoutLogParams) => void;
   onUpdate: Dispatch<SetStateAction<WorkoutSessionState | null>>;
   onExitWithoutFinishing?: () => void | Promise<void>;
   navigation?: NativeStackNavigationProp<RootStackParamList>;
@@ -128,6 +129,12 @@ export default function WorkoutSession({
       toastTimeoutRef.current = null;
     }, 2000);
   };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!session.restoredSnapshot) return;
@@ -1530,124 +1537,6 @@ function ExerciseCard({
   );
 }
 
-// Simplified Set Row Component - Read-only display for editing
-function SetRow({
-  set,
-  exerciseIndex,
-  setIndex,
-  onComplete,
-  onUpdate,
-  showAdvancedLogging,
-}: {
-  set: CompletedSet;
-  exerciseIndex: number;
-  setIndex: number;
-  onComplete: (exerciseIndex: number, setIndex: number) => void;
-  onUpdate: (exerciseIndex: number, setIndex: number, field: 'reps' | 'weight' | 'rpe', value: number) => void;
-  showAdvancedLogging: boolean;
-}) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
-  const { weightUnit } = useUserPreferences();
-  const [isEditing, setIsEditing] = useState(false);
-  const [reps, setReps] = useState(set.reps.toString());
-  const [weight, setWeight] = useState('');
-  const [rpe, setRpe] = useState(set.rpe?.toString() || '');
-
-  if (set.completed) {
-    return null; // Completed sets shown in read-only section
-  }
-
-  if (!isEditing) {
-    return (
-      <TouchableOpacity
-        style={styles.setRowReadOnly}
-        onPress={() => {
-          setReps(String(set.reps));
-          setWeight(
-            set.weight != null && set.weight > 0
-              ? weightUnit === 'kg'
-                ? String(Math.round(lbToKg(set.weight) * 10) / 10)
-                : String(set.weight)
-              : '',
-          );
-          setRpe(set.rpe?.toString() ?? '');
-          setIsEditing(true);
-        }}
-      >
-        <Text style={styles.setRowReadOnlyText}>
-          {set.reps} reps
-          {set.weight ? formatAtWeightFromLb(set.weight, weightUnit) : ''}
-          {showAdvancedLogging && set.rpe ? ` • RPE ${set.rpe}` : ''}
-        </Text>
-        <Text style={styles.setRowEditHint}>Tap to edit</Text>
-      </TouchableOpacity>
-    );
-  }
-
-  return (
-    <View style={styles.setRow}>
-      <Text style={styles.setNumber}>{set.setNumber}</Text>
-      <TextInput
-        style={styles.setInput}
-        value={reps}
-        onChangeText={(text) => {
-          setReps(text);
-          const num = parseInt(text) || 0;
-          onUpdate(exerciseIndex, setIndex, 'reps', num);
-        }}
-        keyboardType="numeric"
-        placeholder={`${set.reps} reps`}
-        autoFocus
-      />
-      <TextInput
-        style={styles.setInput}
-        value={weight}
-        onChangeText={(text) => {
-          setWeight(text);
-          const num = parseFloat(text);
-          if (isNaN(num)) return;
-          const lb = weightUnit === 'kg' ? kgToLb(num) : num;
-          onUpdate(exerciseIndex, setIndex, 'weight', Math.round(lb * 10) / 10);
-        }}
-        keyboardType="decimal-pad"
-        placeholder={
-          set.weight
-            ? weightUnit === 'kg'
-              ? String(Math.round(lbToKg(set.weight) * 10) / 10)
-              : `${set.weight}`
-            : weightUnit === 'kg'
-              ? 'kg'
-              : 'lb'
-        }
-      />
-      {showAdvancedLogging && (
-        <TextInput
-          style={[styles.setInput, styles.setInputRpe]}
-          value={rpe}
-          onChangeText={(text) => {
-            setRpe(text);
-            const num = parseInt(text) || 0;
-            if (num >= 1 && num <= 10) {
-              onUpdate(exerciseIndex, setIndex, 'rpe', num);
-            }
-          }}
-          keyboardType="numeric"
-          placeholder="RPE"
-          maxLength={2}
-        />
-      )}
-      <TouchableOpacity
-        style={styles.setRowDoneButton}
-        onPress={() => setIsEditing(false)}
-      >
-        <Text style={styles.setRowDoneButtonText}>Done</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-// Exercise Options Modal
 function ExerciseOptionsModal({
   visible,
   onClose,
@@ -2717,42 +2606,6 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   },
   setsContainer: {
     marginBottom: 12,
-  },
-  setRowReadOnly: {
-    padding: 12,
-    backgroundColor: palette.background,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
-    marginBottom: 8,
-  },
-  setRowReadOnlyText: {
-    fontSize: 16,
-    color: palette.text,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  setRowEditHint: {
-    fontSize: 12,
-    color: palette.textTertiary,
-    fontStyle: 'italic',
-  },
-  setRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
-  },
-  setRowDoneButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: palette.primary,
-    borderRadius: 6,
-  },
-  setRowDoneButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
   setCheckbox: {
     width: 24,
