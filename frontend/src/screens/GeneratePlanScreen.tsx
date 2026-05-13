@@ -547,7 +547,9 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   useEffect(() => {
     AsyncStorage.getItem('jim_saved_custom_splits').then((raw) => {
       if (raw) {
-        try { setSavedCustomSplits(JSON.parse(raw)); } catch {}
+        try { setSavedCustomSplits(JSON.parse(raw)); } catch (e) {
+          console.warn('Failed to parse saved custom splits:', e);
+        }
       }
     });
   }, []);
@@ -1691,7 +1693,9 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                     setSavedCustomSplits((prev) => {
                       const without = prev.filter((s) => s.id !== saved.id);
                       const next = [...without, saved];
-                      AsyncStorage.setItem('jim_saved_custom_splits', JSON.stringify(next)).catch(() => {});
+                      AsyncStorage.setItem('jim_saved_custom_splits', JSON.stringify(next)).catch((e) => {
+                        console.warn('Failed to save custom splits:', e);
+                      });
                       return next;
                     });
                     setInputs((prev) => ({ ...prev, trainingSplitPreference: 'custom', customSplit: { ...payload, id: saved.id } }));
@@ -2850,47 +2854,6 @@ function createGeneratePlanStyles(c: ColorPalette) {
   optionButtonTextSelected: {
     color: c.onPrimary,
   },
-  optionButtonDisabled: {
-    opacity: 0.5,
-  },
-  optionButtonTextDisabled: {
-    color: c.textMuted,
-  },
-  optionButtonContent: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 4,
-  },
-  optionButtonBodyPartRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  optionButtonBodyPartLabel: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  recommendedBadge: {
-    backgroundColor: c.primarySoft,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  recommendedBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: c.primary,
-  },
-  chipInfoIcon: {
-    padding: 6,
-    marginLeft: 4,
-  },
   recommendationCompactRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3020,15 +2983,6 @@ function createGeneratePlanStyles(c: ColorPalette) {
     fontWeight: '600',
     color: c.textSecondary,
   },
-  sectionDeemphasized: {
-    opacity: 0.85,
-  },
-  sectionTitleDeemphasized: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: c.textSecondary,
-    marginBottom: 4,
-  },
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -3136,44 +3090,6 @@ function createGeneratePlanStyles(c: ColorPalette) {
   durationRangeUnit: {
     fontSize: 13,
     color: c.textMuted,
-  },
-  timeRangeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  timeInput: {
-    width: 72,
-    maxWidth: 72,
-  },
-  timeLabel: {
-    fontSize: 12,
-    color: c.textMuted,
-    marginBottom: 4,
-  },
-  timeInputField: {
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    fontSize: 16,
-    color: c.text,
-    minHeight: 40,
-  },
-  customSplitInput: {
-    marginTop: 10,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    fontSize: 15,
-    color: c.text,
-    minHeight: 72,
-    textAlignVertical: 'top',
   },
   customSplitBackdrop: {
     flex: 1,
@@ -3423,14 +3339,6 @@ function createGeneratePlanStyles(c: ColorPalette) {
     color: c.text,
     marginBottom: 2,
   },
-  timeSeparator: {
-    fontSize: 16,
-    color: c.textSecondary,
-  },
-  timeUnit: {
-    fontSize: 14,
-    color: c.textSecondary,
-  },
   chipsRowMargin: {
     marginTop: 8,
   },
@@ -3441,18 +3349,6 @@ function createGeneratePlanStyles(c: ColorPalette) {
     marginRight: 8,
     width: '100%',
     marginBottom: 4,
-  },
-  daysPerWeekRow: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: c.border,
-  },
-  daysPerWeekLabel: {
-    fontSize: 14,
-    color: c.textSecondary,
-    fontWeight: '600',
-    textAlign: 'center',
   },
   chip: {
     paddingVertical: 8,
@@ -3473,24 +3369,6 @@ function createGeneratePlanStyles(c: ColorPalette) {
   },
   chipTextSelected: {
     color: c.onPrimary,
-  },
-  chipDisabled: {
-    opacity: 0.4,
-  },
-  chipTextDisabled: {
-    opacity: 0.5,
-  },
-  warningText: {
-    fontSize: 12,
-    color: c.warning,
-    fontStyle: 'italic',
-    marginBottom: 8,
-  },
-  definitionText: {
-    fontSize: 12,
-    color: c.textMuted,
-    fontStyle: 'italic',
-    marginBottom: 12,
   },
   advancedToggle: {
     flexDirection: 'row',
@@ -3522,21 +3400,6 @@ function createGeneratePlanStyles(c: ColorPalette) {
     fontSize: 12,
     color: c.textMuted,
     lineHeight: 16,
-  },
-  advancedToggleText: {
-    fontSize: 14,
-    color: c.textSecondary,
-    fontWeight: '600',
-  },
-  advancedToggleIcon: {
-    fontSize: 12,
-    color: c.textMuted,
-  },
-  advancedDurationSection: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: c.border,
   },
   sessionCapRow: {
     flexDirection: 'row',
@@ -3601,27 +3464,6 @@ function createGeneratePlanStyles(c: ColorPalette) {
   },
   toggleThumbOn: {
     transform: [{ translateX: 22 }],
-  },
-  doubleSessionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: c.border,
-  },
-  constraintRow: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  constraintItem: {
-    flex: 1,
-  },
-  constraintLabel: {
-    fontSize: 12,
-    color: c.textMuted,
-    marginBottom: 8,
   },
   perDayCapsSection: {
     marginTop: 12,
@@ -3747,61 +3589,6 @@ function createGeneratePlanStyles(c: ColorPalette) {
     fontStyle: 'italic',
     textAlign: 'center',
     marginTop: 4,
-  },
-  timeAvailabilityRow: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 12,
-  },
-  timeAvailabilityItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  timeAvailabilityLabel: {
-    fontSize: 12,
-    color: c.textMuted,
-    marginBottom: 8,
-  },
-  timeAvailabilityUnit: {
-    fontSize: 12,
-    color: c.textMuted,
-    marginTop: 4,
-  },
-  splitPreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: c.surface,
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: c.border,
-  },
-  splitPreviewContent: {
-    flex: 1,
-  },
-  splitPreviewLabel: {
-    fontSize: 12,
-    color: c.textMuted,
-    marginBottom: 4,
-    fontWeight: '600',
-  },
-  splitPreviewText: {
-    fontSize: 13,
-    color: c.text,
-    fontWeight: '500',
-  },
-  splitPreviewHint: {
-    fontSize: 11,
-    color: c.textMuted,
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-  splitPreviewArrow: {
-    fontSize: 18,
-    color: c.primary,
-    fontWeight: '600',
-    marginLeft: 8,
   },
   footerContainer: {
     backgroundColor: c.surface,
