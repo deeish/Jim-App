@@ -190,7 +190,8 @@ export default function SearchScreen({ navigation }: Props) {
     try {
       const list = await getSavedExercises();
       setSavedExercisesList(list);
-    } catch {
+    } catch (e) {
+      console.warn('[SearchScreen] getSavedExercises failed:', e);
       setSavedExercisesList([]);
     } finally {
       setLoadingSavedList(false);
@@ -1149,8 +1150,6 @@ export default function SearchScreen({ navigation }: Props) {
               const state = getMuscleGroupState(group);
               const subMuscles = getSubMuscles(group);
               const selectedSubMuscles = filters.subMuscles.filter(m => subMuscles.includes(m));
-              const isSelected = state === 'full' || state === 'partial';
-              
               return (
                 <Chip
                   key={group}
