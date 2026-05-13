@@ -65,7 +65,11 @@ export class PlansService {
   ): string[] | undefined {
     if (!raw?.length) return undefined;
     const out = raw
-      .map((x) => String(x ?? '').toLowerCase().trim())
+      .map((x) =>
+        String(x ?? '')
+          .toLowerCase()
+          .trim(),
+      )
       .filter((x) => PlansService.CARDIO_MODALITY_WHITELIST.has(x));
     const dedup = [...new Set(out)].slice(0, 5);
     return dedup.length ? dedup : undefined;
@@ -591,7 +595,9 @@ export class PlansService {
 
     const cloned: GeneratedSession[] = [];
     for (const spec of specs) {
-      const key = ((spec.title ?? spec.type) || 'full body').toLowerCase().trim();
+      const key = ((spec.title ?? spec.type) || 'full body')
+        .toLowerCase()
+        .trim();
       const source = week1ByFocus.get(key);
       if (!source) return null;
 
@@ -732,7 +738,9 @@ export class PlansService {
       total_tokens: number;
     };
   }): void {
-    this.logger.log(JSON.stringify({ event: 'generate_sessions_chunk', ...payload }));
+    this.logger.log(
+      JSON.stringify({ event: 'generate_sessions_chunk', ...payload }),
+    );
   }
 
   private logGenerateSessionsRequestSummary(payload: {
@@ -748,9 +756,7 @@ export class PlansService {
     );
   }
 
-  private serializeChunkValidation(
-    v: ChunkValidationResult,
-  ): {
+  private serializeChunkValidation(v: ChunkValidationResult): {
     ok: boolean;
     issues: string[];
     duplicateExerciseIds: string[];
@@ -803,9 +809,7 @@ export class PlansService {
     priorContextExerciseIds: string[],
     cardioModalities: string[] | undefined,
     experienceLevel: 'beginner' | 'intermediate' | 'advanced',
-  ): Promise<
-    { sessions: GeneratedSession[]; polishApplied: boolean } | null
-  > {
+  ): Promise<{ sessions: GeneratedSession[]; polishApplied: boolean } | null> {
     const cappedPrior = [
       ...new Set(
         priorContextExerciseIds
@@ -1160,7 +1164,7 @@ export class PlansService {
           preferredExercises: dto.preferredExercises,
         });
 
-      let batchOut = await runTryGenerateBatch(
+      const batchOut = await runTryGenerateBatch(
         cappedPrior.length ? cappedPrior : undefined,
       );
       chunkGroqUsages.push(...batchOut.groqUsages);
@@ -1286,8 +1290,10 @@ export class PlansService {
               ...traceBase(),
               ...traceChunkExtras(),
               path: 'batch_ok',
-              validatorFirstPass: this.serializeChunkValidation(validationFirst),
-              validatorSecondPass: this.serializeChunkValidation(validationRetry),
+              validatorFirstPass:
+                this.serializeChunkValidation(validationFirst),
+              validatorSecondPass:
+                this.serializeChunkValidation(validationRetry),
               validatorIssuesFromRetry: failedIssues,
               batchRetryPriorExerciseIdsTail: retryPrior,
             },
@@ -1319,12 +1325,14 @@ export class PlansService {
               ...traceBase(),
               ...traceChunkExtras(),
               path: 'batch_ok',
-              validatorFirstPass: this.serializeChunkValidation(validationFirst),
+              validatorFirstPass:
+                this.serializeChunkValidation(validationFirst),
               validatorSecondPass: validationRetry
                 ? this.serializeChunkValidation(validationRetry)
                 : null,
-              validatorIssuesFromRetry:
-                validationRetry?.issues.length ? validationRetry.issues : failedIssues,
+              validatorIssuesFromRetry: validationRetry?.issues.length
+                ? validationRetry.issues
+                : failedIssues,
               batchRetryPriorExerciseIdsTail: retryPrior,
             },
             warnings: chunkWarnings.slice(),
@@ -1495,7 +1503,10 @@ export class PlansService {
     };
   }
 
-  async generateSessions(dto: GenerateSessionsDto): Promise<{
+  async generateSessions(
+    dto: GenerateSessionsDto,
+    userId: string,
+  ): Promise<{
     sessions: Array<{
       weekIndex: number;
       weekday: string;
@@ -1514,6 +1525,9 @@ export class PlansService {
     }>;
     generationNotes?: string[];
   }> {
+    this.logger.debug(
+      `generateSessions user=${userId} sessions=${dto.sessions?.length ?? 0}`,
+    );
     const goal = dto.goal ?? 'strength';
     const location = dto.location ?? 'gym';
     const detailLevel = dto.detailLevel ?? 'detailed';
@@ -1590,23 +1604,28 @@ export class PlansService {
         }
       }
 
-      const priorContextIds = PlansService.priorExerciseIdsOldestFirstAmongRecent(
-        priorExerciseHistory,
-        PlansService.PRIOR_EXERCISE_HISTORY_MAX,
-        PlansService.PRIOR_CONTEXT_MAX_UNIQUE,
-      );
-      const { sessions: chunkResults, chunkGroqUsages, trace, warnings } =
-        await this.generateSessionsForSpecChunk(
-          chunk.specs,
-          dto,
-          goal,
-          location,
-          detailLevel,
-          makeItEasier,
-          limitations,
-          generatorEquipment,
-          priorContextIds,
+      const priorContextIds =
+        PlansService.priorExerciseIdsOldestFirstAmongRecent(
+          priorExerciseHistory,
+          PlansService.PRIOR_EXERCISE_HISTORY_MAX,
+          PlansService.PRIOR_CONTEXT_MAX_UNIQUE,
         );
+      const {
+        sessions: chunkResults,
+        chunkGroqUsages,
+        trace,
+        warnings,
+      } = await this.generateSessionsForSpecChunk(
+        chunk.specs,
+        dto,
+        goal,
+        location,
+        detailLevel,
+        makeItEasier,
+        limitations,
+        generatorEquipment,
+        priorContextIds,
+      );
       allGenerationNotes.push(...warnings);
       pipelineChunks.push({
         ...trace,
@@ -1633,7 +1652,9 @@ export class PlansService {
         firstWeekIndex = chunk.specs[0]!.weekIndex;
         for (let j = 0; j < chunkResults.length; j++) {
           const spec = chunk.specs[j]!;
-          const key = ((spec.title ?? spec.type) || 'full body').toLowerCase().trim();
+          const key = ((spec.title ?? spec.type) || 'full body')
+            .toLowerCase()
+            .trim();
           firstWeekSessionsByFocus.set(key, chunkResults[j]!);
         }
       }
@@ -1651,7 +1672,9 @@ export class PlansService {
     if (chunks.length > 1) {
       const mergeWeekMin = Math.min(...dto.sessions.map((s) => s.weekIndex));
       const mergeEffectiveDetailLevel: 'simple' | 'detailed' =
-        detailLevel === 'detailed' && mergeWeekMin >= 2 ? 'simple' : detailLevel;
+        detailLevel === 'detailed' && mergeWeekMin >= 2
+          ? 'simple'
+          : detailLevel;
       const mergedRepaired = repairChunkGeneratedSessions({
         sessions: orderedResults,
         specs: dto.sessions,
@@ -1680,7 +1703,9 @@ export class PlansService {
     const enriched = await this.applySessionEnrichment(orderedResults, dto);
 
     const generationNotesOut =
-      allGenerationNotes.length > 0 ? [...new Set(allGenerationNotes)] : undefined;
+      allGenerationNotes.length > 0
+        ? [...new Set(allGenerationNotes)]
+        : undefined;
 
     void writeGenerationCapture({
       kind: 'generate_sessions',
@@ -1716,7 +1741,8 @@ export class PlansService {
           totalSessionsInRequest: dto.sessions.length,
           priorExerciseHistoryMax: PlansService.PRIOR_EXERCISE_HISTORY_MAX,
           priorContextMaxUnique: PlansService.PRIOR_CONTEXT_MAX_UNIQUE,
-          goalWantsStrengthCardioFinisher: goalWantsStrengthCardioFinisher(goal),
+          goalWantsStrengthCardioFinisher:
+            goalWantsStrengthCardioFinisher(goal),
         },
         chunks: pipelineChunks,
       },
@@ -1752,10 +1778,14 @@ export class PlansService {
    * Re-run chunk repair + session enrichment on a full merged program (e.g. after
    * regenerating one week client-side) without calling Groq.
    */
-  async repairProgramSessions(dto: RepairProgramSessionsDto): Promise<{
+  async repairProgramSessions(
+    dto: RepairProgramSessionsDto,
+    userId: string,
+  ): Promise<{
     sessions: GeneratedSession[];
     generationNotes?: string[];
   }> {
+    this.logger.debug(`repairProgramSessions user=${userId}`);
     const goal = dto.goal ?? 'strength';
     const location = dto.location ?? 'gym';
     const detailLevel = dto.detailLevel ?? 'detailed';
@@ -1922,7 +1952,8 @@ export class PlansService {
     });
   }
 
-  async generateSingleSession(dto: GenerateSingleSessionDto) {
+  async generateSingleSession(dto: GenerateSingleSessionDto, userId: string) {
+    this.logger.debug(`generateSingleSession user=${userId}`);
     const goal = dto.goal ?? 'strength';
     const location = dto.location ?? 'gym';
     const equipment =
@@ -2015,7 +2046,8 @@ export class PlansService {
           equipment,
           limitations,
           excludeExerciseNames: dto.excludeExerciseNames,
-          goalWantsStrengthCardioFinisher: goalWantsStrengthCardioFinisher(goal),
+          goalWantsStrengthCardioFinisher:
+            goalWantsStrengthCardioFinisher(goal),
           sessionType: dto.type,
           weekIndex: dto.weekIndex,
           weekday: dto.weekday,
@@ -2078,8 +2110,11 @@ export class PlansService {
         'i',
       ),
     }));
-    return exercises.filter((e) =>
-      !compiled.some(({ re }) => re.test(e.name ?? '') || re.test(e.notes ?? '')),
+    return exercises.filter(
+      (e) =>
+        !compiled.some(
+          ({ re }) => re.test(e.name ?? '') || re.test(e.notes ?? ''),
+        ),
     );
   }
 
@@ -2193,12 +2228,7 @@ export class PlansService {
       throw new NotFoundException(`Plan with ID ${planId} not found`);
     }
 
-    return this.appendPlanSlotCore(
-      plan.id,
-      plan.planWorkouts,
-      slot,
-      userId,
-    );
+    return this.appendPlanSlotCore(plan.id, plan.planWorkouts, slot, userId);
   }
 
   /** Move a slot to a different day (and optionally week/order) within the same plan. */
@@ -2235,7 +2265,9 @@ export class PlansService {
 
   /** Remove a single slot from the plan. Unlinks the linked Workout if any. */
   async removeSlot(planId: string, slotId: string, userId: string) {
-    this.logger.log(`[PlansService] removeSlot planId=${planId} slotId=${slotId}`);
+    this.logger.log(
+      `[PlansService] removeSlot planId=${planId} slotId=${slotId}`,
+    );
     if (!slotId) {
       this.logger.warn('[PlansService] removeSlot: slotId is missing');
       throw new NotFoundException('Slot ID is required');

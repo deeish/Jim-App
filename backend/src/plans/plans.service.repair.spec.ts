@@ -14,10 +14,12 @@ function buildExercisesMock(rows: RepairLibraryRow[]) {
   const byId = new Map(rows.map((r) => [r.id, r]));
   return {
     findOne: jest.fn((id: string) => byId.get(id)),
-    getCandidatesForGenerator: jest.fn(({ excludeIds }: { excludeIds?: string[] }) => {
-      const ex = new Set(excludeIds ?? []);
-      return rows.filter((r) => !ex.has(r.id));
-    }),
+    getCandidatesForGenerator: jest.fn(
+      ({ excludeIds }: { excludeIds?: string[] }) => {
+        const ex = new Set(excludeIds ?? []);
+        return rows.filter((r) => !ex.has(r.id));
+      },
+    ),
     candidatesForChunkRepairScavenge: jest.fn((excludeIds: string[]) => {
       const ex = new Set(excludeIds ?? []);
       return rows.filter((r) => !ex.has(r.id));
@@ -53,9 +55,9 @@ describe('PlansService.repairProgramSessions', () => {
       generatedSessions: [],
     };
 
-    await expect(service.repairProgramSessions(dto)).rejects.toBeInstanceOf(
-      HttpException,
-    );
+    await expect(
+      service.repairProgramSessions(dto, 'test-user'),
+    ).rejects.toBeInstanceOf(HttpException);
   });
 
   it('repairs duplicate ids and returns generation notes', async () => {
@@ -113,18 +115,22 @@ describe('PlansService.repairProgramSessions', () => {
           weekIndex: 1,
           weekday: 'Monday',
           name: 'Upper',
-          exercises: [{ name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' }],
+          exercises: [
+            { name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' },
+          ],
         },
         {
           weekIndex: 1,
           weekday: 'Tuesday',
           name: 'Push',
-          exercises: [{ name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' }],
+          exercises: [
+            { name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' },
+          ],
         },
       ],
     };
 
-    const out = await service.repairProgramSessions(dto);
+    const out = await service.repairProgramSessions(dto, 'test-user');
     expect(out.sessions[0]?.exercises?.[0]?.exerciseId).toBe('dup-a');
     expect(out.sessions[1]?.exercises?.[0]?.exerciseId).toBe('alt-push');
     expect(out.generationNotes?.some((n) => /repeated exercise/i.test(n))).toBe(

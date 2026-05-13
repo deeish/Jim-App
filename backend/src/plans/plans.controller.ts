@@ -55,8 +55,11 @@ export class PlansController {
    */
   @Post('repair-program-sessions')
   @HttpCode(HttpStatus.OK)
-  repairProgramSessions(@Body() dto: RepairProgramSessionsDto) {
-    return this.plansService.repairProgramSessions(dto);
+  repairProgramSessions(
+    @Body() dto: RepairProgramSessionsDto,
+    @UserId() userId: string,
+  ) {
+    return this.plansService.repairProgramSessions(dto, userId);
   }
 
   @Get(':id')
@@ -73,15 +76,18 @@ export class PlansController {
   @Post('generate-sessions')
   @UseGuards(AiThrottlerGuard)
   @HttpCode(HttpStatus.OK)
-  generateSessions(@Body() dto: GenerateSessionsDto) {
-    return this.plansService.generateSessions(dto);
+  generateSessions(@Body() dto: GenerateSessionsDto, @UserId() userId: string) {
+    return this.plansService.generateSessions(dto, userId);
   }
 
   @Post('generate-single-session')
   @UseGuards(AiThrottlerGuard)
   @HttpCode(HttpStatus.OK)
-  generateSingleSession(@Body() dto: GenerateSingleSessionDto) {
-    return this.plansService.generateSingleSession(dto);
+  generateSingleSession(
+    @Body() dto: GenerateSingleSessionDto,
+    @UserId() userId: string,
+  ) {
+    return this.plansService.generateSingleSession(dto, userId);
   }
 
   @Patch(':id')
