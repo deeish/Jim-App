@@ -1,5 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+/**
+ * Schemes/hosts allowed to deliver Supabase auth tokens via deep link. Anything else is rejected
+ * to prevent a malicious app from forcing a session-fixation by handing us tokens it controls.
+ */
+const TRUSTED_LINK_PREFIXES = ['jimapp://', 'exp://', 'https://jmfshcpgtuqdjmtpexqg.supabase.co'];
+
+function isTrustedAuthLink(url: string): boolean {
+  return TRUSTED_LINK_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
 /** Parse Supabase implicit auth params from `#access_token=...` or `?...` query string. */
 export function parseAuthParamsFromUrl(url: string): {
   access_token: string | null;
@@ -59,6 +69,10 @@ export async function applySupabaseAuthUrl(
   url: string,
   onRecovery: () => void,
 ): Promise<void> {
+  if (!isTrustedAuthLink(url)) {
+    console.warn('[auth] rejecting deep link from untrusted origin');
+    return;
+  }
   const parsed = parseAuthParamsFromUrl(url);
   const { access_token, refresh_token, type, error, error_description } = parsed;
   if (error) {
