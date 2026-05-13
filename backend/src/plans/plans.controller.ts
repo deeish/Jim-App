@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Logger,
   Post,
   Patch,
   Body,
@@ -24,6 +25,8 @@ import { AiThrottlerGuard } from '../common/ai-throttler.guard';
 @Controller('plans')
 @UseGuards(AuthGuard)
 export class PlansController {
+  private readonly logger = new Logger(PlansController.name);
+
   constructor(private readonly plansService: PlansService) {}
 
   @Get('me/with-weekly')
@@ -119,12 +122,7 @@ export class PlansController {
     @Body() dto: RemoveSlotDto,
     @UserId() userId: string,
   ) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[PlansController] removeSlot', {
-        planId,
-        slotId: dto?.slotId,
-      });
-    }
+    this.logger.debug(`removeSlot planId=${planId} slotId=${dto?.slotId}`);
     return this.plansService.removeSlot(planId, dto.slotId, userId);
   }
 }
