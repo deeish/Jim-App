@@ -286,9 +286,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     }, [loadWeekLogs, selectedWeek])
   );
 
-  useEffect(() => {
-    loadWeekLogs(selectedWeek);
-  }, [selectedWeek, loadWeekLogs]);
 
   const maxPlanWeek = useMemo(() => {
     const list = currentPlan?.planWorkouts;
@@ -807,7 +804,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     navigation,
   ]);
 
-  const openContextMenu = useCallback((workout: PlanWorkout, day: string, e?: any) => {
+  const openContextMenu = useCallback((workout: PlanWorkout, day: string) => {
     setContextWorkout({ workout, day });
   }, []);
 
