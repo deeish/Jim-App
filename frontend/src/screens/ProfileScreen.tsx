@@ -435,7 +435,8 @@ export default function ProfileScreen() {
         return;
       }
       await Linking.openURL(url);
-    } catch {
+    } catch (e) {
+      console.warn('[ProfileScreen] openUrl failed:', e);
       Alert.alert('Unavailable', `Could not open ${label}.`);
     }
   }, []);
