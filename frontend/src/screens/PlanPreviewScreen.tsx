@@ -447,13 +447,12 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   // Calculate summaries for current week
   const weekSummary = useMemo(() => {
     if (!currentWeek) {
-      return { sessions: 0, strength: 0, cardio: 0, recovery: 0, sessionsWithCardioExercise: 0 };
+      return { sessions: 0, strength: 0, sessionsWithCardioExercise: 0 };
     }
 
     let sessions = 0;
     let strength = 0;
     let cardio = 0;
-    let recovery = 0;
 
     DAYS_OF_WEEK.forEach((day) => {
       const workouts = currentWeek.workouts[day] || [];
@@ -462,15 +461,13 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       workouts.forEach((workout) => {
         if (workout.type === 'strength') strength++;
         else if (workout.type === 'cardio') cardio++;
-        else if (workout.type === 'recovery') recovery++;
       });
     });
 
     const fromDraft = countSessionsWithCardioExerciseInWeek(planDraft, selectedWeek);
-    const sessionsWithCardioExercise =
-      fromDraft !== null ? fromDraft : cardio;
+    const sessionsWithCardioExercise = fromDraft !== null ? fromDraft : cardio;
 
-    return { sessions, strength, cardio, recovery, sessionsWithCardioExercise };
+    return { sessions, strength, sessionsWithCardioExercise };
   }, [currentWeek, planDraft, selectedWeek]);
 
   /** Balanced/endurance + modality prefs: conditioning is baked into strength days, not a separate day. */
@@ -510,6 +507,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
 
   const handleCardPress = useCallback(
     async (workout: PlanWorkout, day: string) => {
+      setPreviewLoading(false);
       if (workout.type === 'recovery') {
         setPreviewCard({ workout, day });
         setPreviewData({ name: workout.title, exercises: [], reasoning: stripCoachAdviceBullets(workout.detailLine) });
@@ -655,6 +653,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       Alert.alert('Regeneration failed', "Couldn't generate. Try again.");
     } finally {
       setRegenerating(null);
+      setMoveMode(null);
     }
   };
 
@@ -684,6 +683,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       Alert.alert('Regeneration failed', "Couldn't generate. Try again.");
     } finally {
       setRegenerating(null);
+      setMoveMode(null);
     }
   };
 
@@ -703,9 +703,10 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       Alert.alert('Regeneration failed', "Couldn't generate. Try again.");
     } finally {
       setRegenerating(null);
+      setMoveMode(null);
     }
   };
-  
+
   const handleMoveWorkout = useCallback((workoutId: string, fromDay: string) => {
     setMoveMode({ workoutId, fromDay });
   }, []);
@@ -960,7 +961,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         : inputs.goal === 'hybrid' ? 'Balanced'
         : inputs.goal === 'endurance' ? 'Endurance'
         : 'Strength';
-      const daysCount = inputs.trainingDays?.length ?? 4;
+      const daysCount = planInputs?.daysPerWeek ?? inputs.trainingDays?.length ?? 4;
       const weeksCount = planInputs?.weeksCount ?? inputs.weeks ?? 1;
       const derivedName = `${goalLabel} · ${daysCount}d/wk · ${weeksCount > 1 ? `${weeksCount} wks` : '1 wk'}`;
       await createPlan({
@@ -991,8 +992,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   
   const getChangeBadgeStyle = (changeType?: string) => {
     switch (changeType) {
-      case 'new':
-        return { backgroundColor: colors.successSoft, color: colors.success };
       case 'replaced':
         return { backgroundColor: colors.warningSoft, color: colors.warning };
       case 'moved':
@@ -1048,57 +1047,61 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Week Tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.weekTabs}
-          contentContainerStyle={styles.weekTabsContent}
-        >
-          {planData.map((week) => (
-            <TouchableOpacity
-              key={week.weekNumber}
-              style={[
-                styles.weekTab,
-                selectedWeek === week.weekNumber && styles.weekTabActive,
-              ]}
-              onPress={() => setSelectedWeek(week.weekNumber)}
+        {planData.length > 0 && (
+          <>
+            {/* Week Tabs */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.weekTabs}
+              contentContainerStyle={styles.weekTabsContent}
             >
-              <Text
-                style={[
-                  styles.weekTabText,
-                  selectedWeek === week.weekNumber && styles.weekTabTextActive,
-                ]}
-              >
-                Week {week.weekNumber}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+              {planData.map((week) => (
+                <TouchableOpacity
+                  key={week.weekNumber}
+                  style={[
+                    styles.weekTab,
+                    selectedWeek === week.weekNumber && styles.weekTabActive,
+                  ]}
+                  onPress={() => setSelectedWeek(week.weekNumber)}
+                >
+                  <Text
+                    style={[
+                      styles.weekTabText,
+                      selectedWeek === week.weekNumber && styles.weekTabTextActive,
+                    ]}
+                  >
+                    Week {week.weekNumber}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-        {/* Week Summary */}
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Sessions</Text>
-              <Text style={styles.summaryValue}>{weekSummary.sessions}/week</Text>
+            {/* Week Summary */}
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>Sessions</Text>
+                  <Text style={styles.summaryValue}>{weekSummary.sessions}/week</Text>
+                </View>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>Strength</Text>
+                  <Text style={styles.summaryValue}>{weekSummary.strength}</Text>
+                </View>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>Has cardio</Text>
+                  <Text style={styles.summaryValue}>{weekSummary.sessionsWithCardioExercise}</Text>
+                </View>
+              </View>
+              {conditioningInStrengthSessions ? (
+                <Text style={styles.summaryHint}>
+                  Has cardio counts any session with a cardio exercise (including short finishers on strength
+                  days), not only a full cardio-type day.
+                </Text>
+              ) : null}
             </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Strength</Text>
-              <Text style={styles.summaryValue}>{weekSummary.strength}</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Has cardio</Text>
-              <Text style={styles.summaryValue}>{weekSummary.sessionsWithCardioExercise}</Text>
-            </View>
-          </View>
-          {conditioningInStrengthSessions ? (
-            <Text style={styles.summaryHint}>
-              Has cardio counts any session with a cardio exercise (including short finishers on strength
-              days), not only a full cardio-type day.
-            </Text>
-          ) : null}
-        </View>
+          </>
+        )}
 
         {planInputs ? (
           <Text style={styles.previewCoachSurfaceHint}>
