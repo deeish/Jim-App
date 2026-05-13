@@ -337,12 +337,9 @@ export class WorkoutGeneratorService {
         if (groqUsageSink) groqUsageSink.push(outcome.usage);
         if (outcome.ok) return this.attachLibraryMuscleTags(outcome.workout);
       } catch (err) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn(
-            '[WorkoutGenerator] Groq failed, using rule-based:',
-            (err as Error)?.message ?? err,
-          );
-        }
+        this.logger.warn(
+          `[WorkoutGenerator] Groq failed, using rule-based: ${(err as Error)?.message ?? err}`,
+        );
       }
     }
 
@@ -1119,7 +1116,8 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
         temperature: 0.73,
         max_tokens: batchMaxTokens,
       });
-    } catch {
+    } catch (err) {
+      this.logger.warn(`[WorkoutGenerator] generateFullProgram Groq call failed: ${(err as Error)?.message ?? err}`);
       return null;
     }
 
