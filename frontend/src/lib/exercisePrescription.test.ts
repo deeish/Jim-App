@@ -15,6 +15,12 @@ describe('exerciseUsesTimeDisplay (cardio fallback)', () => {
     );
   });
 
+  it('detects treadmill-style modality names without catalog muscle metadata', () => {
+    expect(
+      exerciseUsesTimeDisplay(undefined, 'Treadmill Walk (Easy / Zone 2)', undefined),
+    ).toBe(true);
+  });
+
   it('returns false for a typical strength row (no cardio, not a hold)', () => {
     expect(exerciseUsesTimeDisplay(undefined, 'Bench Press', 'Chest')).toBe(
       false,

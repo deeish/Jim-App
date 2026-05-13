@@ -137,3 +137,37 @@ export function getPlanSlotDisplayMinutes(
       : planExercises;
   return getWorkoutDisplayEstimateMinutes(list, durationMinutes) ?? durationMinutes;
 }
+
+/** Plan-slot row shape for ETA (aligned with Plan tab / `getPlanSlotDisplayMinutes`). */
+export type EtaPlanSlotLike = {
+  durationMinutes: number;
+  exercises?: Array<{ sets: number; reps?: number | string | null }> | null;
+};
+
+/** Saved workout shape for ETA. */
+export type EtaWorkoutLike = {
+  estimatedDuration?: number;
+  exercises?: Array<{ sets: number; reps?: number | string | null }> | null;
+};
+
+/**
+ * Single ETA number for Home / Workout tab / session header so it stays aligned with Plan.
+ * Uses the same precedence as calendar + detail sheet: blend `estimatedDuration` with slot
+ * `durationMinutes`; prefer materialized prescription, else slot exercises.
+ *
+ * Pass `prescriptionExercises` when the live UI uses edited session rows (e.g. skips / in-session order).
+ */
+export function resolveWorkoutEtaMinutes(
+  workout: EtaWorkoutLike,
+  planSlot?: EtaPlanSlotLike | null,
+  prescriptionExercises?: EtaWorkoutLike['exercises'] | null,
+): number | null {
+  const rows = prescriptionExercises ?? workout.exercises;
+  const linkedLike = exercisesLikeFromPrescription(rows);
+  if (!planSlot) {
+    return getWorkoutDisplayEstimateMinutes(linkedLike, workout.estimatedDuration ?? null);
+  }
+  const plannedBlend = workout.estimatedDuration ?? planSlot.durationMinutes;
+  const slotLike = exercisesLikeFromPrescription(planSlot.exercises);
+  return getPlanSlotDisplayMinutes(plannedBlend, slotLike, linkedLike);
+}

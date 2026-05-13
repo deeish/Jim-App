@@ -1,3 +1,5 @@
+import type { ExercisePrescriptionType } from '../lib/exercisePrescription';
+
 export interface Exercise {
   id?: string;
   name: string;
@@ -8,6 +10,8 @@ export interface Exercise {
   exerciseId?: string; // Link to exercise library
   orderIndex?: number;
   primaryMuscleGroup?: string;
+  /** When API sends it (often omitted on persisted rows); UI infers time from name + cardio patterns. */
+  prescriptionType?: ExercisePrescriptionType;
   targetMuscles?: string[];
 }
 

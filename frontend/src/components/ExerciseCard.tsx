@@ -4,7 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Exercise } from '../types/workout';
 import { useTheme } from '../theme/ThemeContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
-import { formatAtWeightFromLb } from '../lib/weightDisplay';
+import {
+  formatExercisePrescriptionExerciseCard,
+  profileGoalToPlanGoal,
+} from '../lib/workoutExerciseDisplay';
 
 interface ExerciseCardProps {
   exercise: Exercise;
@@ -31,7 +34,7 @@ export default function ExerciseCard({
   showOrderBadge = false,
 }: ExerciseCardProps) {
   const { colors } = useTheme();
-  const { weightUnit } = useUserPreferences();
+  const { weightUnit, goal } = useUserPreferences();
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -106,11 +109,10 @@ export default function ExerciseCard({
     [colors]
   );
 
+  const planGoal = useMemo(() => profileGoalToPlanGoal(goal), [goal]);
+
   const formatPrescription = () => {
-    const setsReps = `${exercise.sets}×${exercise.reps}`;
-    if (exercise.reps === 1 && exercise.weight === 0) return `${exercise.sets}×${exercise.reps}s`;
-    if (exercise.weight === 0 || !exercise.weight) return `${setsReps} (BW)`;
-    return `${setsReps}${formatAtWeightFromLb(exercise.weight, weightUnit)}`;
+    return formatExercisePrescriptionExerciseCard(exercise, planGoal, weightUnit);
   };
 
   const body = (

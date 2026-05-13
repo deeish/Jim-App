@@ -98,7 +98,7 @@ describe('planPipeline', () => {
       expect(sessionHasCoachPreviewFields(session)).toBe(true);
     });
 
-    it('includes Coach advice on week card detail when coach fields exist', () => {
+    it('preview detail line has duration, type, exercise count (no Coach advice tag)', () => {
       const inputs = baseInputs({
         selectedWeekdays: [MON],
         daysPerWeek: 1,
@@ -107,7 +107,9 @@ describe('planPipeline', () => {
       const draft = runPipeline(inputs, 'coach-line');
       const weekPlans = planDraftToWeekPlans(draft);
       const line = weekPlans[0].workouts[MON][0]?.detailLine ?? '';
-      expect(line).toMatch(/Coach advice/);
+      expect(line).not.toMatch(/coach advice/i);
+      expect(line).toMatch(/\bmin\b/i);
+      expect(line).toMatch(/Strength|Cardio|Recovery/);
     });
 
     it('passes exercise notes through buildWorkoutPreviewFromSessionDraft', () => {

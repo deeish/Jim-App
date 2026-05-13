@@ -10,6 +10,10 @@ const TIME_HOLD_NAME =
 const CARRY_OR_LOADED_WALK =
   /\b(carry|carries|farmer|pinch|suitcase|yoke|prowler|sled|loaded\s+carry)\b/i;
 
+/** Machine/modality names for cardio finishers — DB rows often omit primaryMuscleGroup. */
+const CARDIO_MODALITY_NAME =
+  /\b(?:treadmill|elliptical|(?:stationary\s+)?bike|spin(?:\s+bike)?|air\s*dyne|rowing|rower|(?:ski|assault)\s*erg|ski\s*erg|ergometer|versa\s*climber|stair\s*(?:master|climber)|step\s*mill|walking\s+pad)\b/i;
+
 export function isTimeHoldExerciseName(name: string): boolean {
   const n = (name ?? '').trim();
   if (!n) return false;
@@ -54,5 +58,6 @@ export function exerciseUsesTimeDisplay(
   if ((primaryMuscleGroup ?? '').toLowerCase() === 'cardio') return true;
   const n = (exerciseName ?? '').trim();
   if (CARRY_OR_LOADED_WALK.test(n)) return true;
+  if (CARDIO_MODALITY_NAME.test(n)) return true;
   return isTimeHoldExerciseName(exerciseName);
 }
