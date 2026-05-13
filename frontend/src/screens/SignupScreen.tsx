@@ -96,7 +96,7 @@ export default function SignupScreen() {
             editable={!success}
           />
           {password.length > 0 && (
-            <Text style={{ fontSize: 12, marginTop: 4, color: password.length >= 6 ? colors.success : colors.error }}>
+            <Text style={[styles.passwordHint, { color: password.length >= 6 ? colors.success : colors.error }]}>
               {password.length >= 6 ? 'Password length OK' : `${6 - password.length} more character${6 - password.length === 1 ? '' : 's'} needed`}
             </Text>
           )}
@@ -161,6 +161,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     marginBottom: 20,
+  },
+  passwordHint: {
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 8,
   },
   error: {
     fontSize: 14,

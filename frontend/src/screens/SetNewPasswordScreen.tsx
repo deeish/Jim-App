@@ -110,6 +110,7 @@ export default function SetNewPasswordScreen() {
             title="Sign out"
             onPress={() => signOut()}
             variant="secondary"
+            disabled={loading}
             style={styles.secondaryBtn}
           />
         </View>
