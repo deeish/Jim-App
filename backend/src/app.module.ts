@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import * as Joi from 'joi';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { WorkoutsModule } from './workouts/workouts.module';
@@ -16,6 +17,23 @@ import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validationSchema: Joi.object({
+        NODE_ENV: Joi.string()
+          .valid('development', 'production', 'test')
+          .default('development'),
+        PORT: Joi.number().port().default(3000),
+        DATABASE_URL: Joi.string()
+          .uri({ scheme: ['postgresql', 'postgres'] })
+          .required(),
+        DIRECT_URL: Joi.string()
+          .uri({ scheme: ['postgresql', 'postgres'] })
+          .optional(),
+        SUPABASE_URL: Joi.string().uri().required(),
+        SUPABASE_JWT_SECRET: Joi.string().min(20).required(),
+        SUPABASE_JWT_AUDIENCE: Joi.string().default('authenticated'),
+        GROQ_API_KEY: Joi.string().required(),
+      }),
+      validationOptions: { allowUnknown: true, abortEarly: false },
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
