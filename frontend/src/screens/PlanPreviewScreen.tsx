@@ -28,7 +28,6 @@ import {
 } from '../services/planService';
 import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
 import {
-  runPipeline,
   runPipelineSafe,
   regeneratePipelineWeek,
   regeneratePipelineCardioSessions,
@@ -196,11 +195,6 @@ function progressionHintFromPlanInputs(planInputs: PlanInputs | undefined): stri
   }
 }
 
-function parseRepScalar(reps: string): number {
-  const m = String(reps).match(/\d+/);
-  return m ? parseInt(m[0], 10) : 8;
-}
-
 /** Exercises for API apply — prefer card snapshot, else same mapping as planDraftToWeekPlans uses. */
 function slotExercisesFromDraft(
   draft: PlanDraft,
@@ -272,8 +266,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const [previewCard, setPreviewCard] = useState<{ workout: PlanWorkout; day: string } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<WorkoutPreview | null>(null);
-  /** True when modal shows PlanDraft session; false after "alternate" Groq preview. */
-  const [previewUsesDraft, setPreviewUsesDraft] = useState(true);
   const [replacingExerciseName, setReplacingExerciseName] = useState<string | null>(null);
   const [expandedReasoning, setExpandedReasoning] = useState<Partial<Record<ReasoningSectionKey, boolean>>>({});
   const [generationSummaryOpen, setGenerationSummaryOpen] = useState(false);
@@ -331,7 +323,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     setPreviewCard(null);
     setPreviewData(null);
     setPreviewLoading(false);
-    setPreviewUsesDraft(true);
     setSwapModalVisible(false);
   }, [isFocused]);
   
@@ -362,7 +353,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         setPreviewLoading(true);
 
         if (workout.type === 'recovery') {
-          setPreviewUsesDraft(true);
           setPreviewData({ name: workout.title, exercises: [], reasoning: stripCoachAdviceBullets(workout.detailLine) });
           return;
         }
@@ -378,7 +368,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                 goal: previewFormattingGoal(planInputs, inputs.goal),
               }),
             );
-            setPreviewUsesDraft(true);
           }
           return;
         }
@@ -388,7 +377,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         const cached = groqPreviewCacheRef.current.get(cacheKey);
         if (cached) {
           if (!cancelled) {
-            setPreviewUsesDraft(false);
             setPreviewData(cached);
           }
           return;
@@ -432,7 +420,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
 
         groqPreviewCacheRef.current.set(cacheKey, mapped);
         if (!cancelled) {
-          setPreviewUsesDraft(false);
           setPreviewData(mapped);
         }
       } catch (_e) {
@@ -516,7 +503,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       setPreviewCard(null);
       setPreviewData(null);
       setPreviewLoading(false);
-      setPreviewUsesDraft(true);
       navigateFromPlanToExerciseDetail(navigation, id, 'preview');
     },
     [navigation],
@@ -526,7 +512,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     async (workout: PlanWorkout, day: string) => {
       if (workout.type === 'recovery') {
         setPreviewCard({ workout, day });
-        setPreviewUsesDraft(true);
         setPreviewData({ name: workout.title, exercises: [], reasoning: stripCoachAdviceBullets(workout.detailLine) });
         return;
       }
@@ -546,7 +531,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
               goal: previewFormattingGoal(planInputs, inputs.goal),
             }),
           );
-          setPreviewUsesDraft(true);
           return;
         }
       }
@@ -554,13 +538,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       const cacheKey = groqPreviewCacheKey(selectedWeek, day, workout.id);
       const cached = groqPreviewCacheRef.current.get(cacheKey);
       if (cached) {
-        setPreviewUsesDraft(false);
         setPreviewLoading(false);
         setPreviewData(cached);
         return;
       }
 
-      setPreviewUsesDraft(false);
       setPreviewLoading(true);
       setPreviewData(null);
       try {
@@ -875,7 +857,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             goal: previewFormattingGoal(planInputs, inputs.goal),
           }),
         );
-        setPreviewUsesDraft(false);
       } catch (e) {
         Alert.alert('Replace failed', (e as Error)?.message ?? "Couldn't replace exercise. Try again.");
       } finally {
@@ -979,7 +960,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         : inputs.goal === 'hybrid' ? 'Balanced'
         : inputs.goal === 'endurance' ? 'Endurance'
         : 'Strength';
-      const daysCount = inputs.trainingDays?.length ?? planData[0] ? Object.keys(planData[0]?.workouts ?? {}).length : 4;
+      const daysCount = inputs.trainingDays?.length ?? 4;
       const weeksCount = planInputs?.weeksCount ?? inputs.weeks ?? 1;
       const derivedName = `${goalLabel} · ${daysCount}d/wk · ${weeksCount > 1 ? `${weeksCount} wks` : '1 wk'}`;
       await createPlan({
@@ -1174,7 +1155,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         ) : null}
 
         {/* Adjust this week — practical rerolls based on current pipeline actions */}
-        <View style={styles.adjustWeekSection}>
+        {!loadingPreview && <View style={styles.adjustWeekSection}>
           <Text style={styles.adjustWeekLabel}>Adjust this week</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.adjustWeekScrollContent}>
             <TouchableOpacity
@@ -1213,7 +1194,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
               )}
             </TouchableOpacity>
           </ScrollView>
-        </View>
+        </View>}
 
         <View style={styles.dayListColumn}>
         {DAYS_OF_WEEK.map(day => {
@@ -1236,7 +1217,16 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                 <View style={styles.dayActions}>
                   <TouchableOpacity
                     style={styles.dayActionIcon}
-                    onPress={() => handleRemoveWorkout(day)}
+                    onPress={() =>
+                      Alert.alert(
+                        'Remove workout?',
+                        `Remove the workout on ${day}?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Remove', style: 'destructive', onPress: () => handleRemoveWorkout(day) },
+                        ],
+                      )
+                    }
                     accessibilityLabel="Remove workout"
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
@@ -1251,14 +1241,26 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                     <Ionicons name="swap-horizontal" size={22} color={colors.textSecondary} />
                   </TouchableOpacity>
                   {moveMode && (
-                    <TouchableOpacity
-                      style={[styles.dayActionButton, isMoveTarget && styles.dayActionButtonActive]}
-                      onPress={() => handleMoveToDay(day)}
-                    >
-                      <Text style={[styles.dayActionText, isMoveTarget && styles.dayActionTextActive]}>
-                        Move Here
-                      </Text>
-                    </TouchableOpacity>
+                    <>
+                      {moveMode.fromDay === day && (
+                        <TouchableOpacity
+                          style={styles.dayActionButton}
+                          onPress={() => setMoveMode(null)}
+                        >
+                          <Text style={styles.dayActionText}>Cancel</Text>
+                        </TouchableOpacity>
+                      )}
+                      {isMoveTarget && (
+                        <TouchableOpacity
+                          style={[styles.dayActionButton, styles.dayActionButtonActive]}
+                          onPress={() => handleMoveToDay(day)}
+                        >
+                          <Text style={[styles.dayActionText, styles.dayActionTextActive]}>
+                            Move Here
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
                   )}
                 </View>
               </View>
@@ -1275,7 +1277,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                       onLongPress={() => handleMoveWorkout(workout.id, day)}
                       activeOpacity={0.7}
                     >
-                      {workout.changeType && (
+                      {(workout.changeType === 'replaced' || workout.changeType === 'moved') && (
                         <View style={[styles.changeBadge, { backgroundColor: badgeStyle.backgroundColor }]}>
                           <Text style={[styles.changeBadgeText, { color: badgeStyle.color }]}>
                             {workout.changeType.toUpperCase()}
