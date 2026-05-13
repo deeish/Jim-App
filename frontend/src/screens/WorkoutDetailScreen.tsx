@@ -251,7 +251,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
       ]);
       setWorkout(data);
       setSlotLookupPlan(plan);
-      setSaved(!!(data as Workout & { saved?: boolean }).saved);
+      setSaved(!!data.saved);
     } catch (error) {
       console.error('Error loading workout:', error);
       Alert.alert('Error', 'Failed to load workout');
