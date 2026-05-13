@@ -36,8 +36,6 @@ import {
   type ExercisePrescriptionType,
 } from './exercisePrescription';
 import { formatExerciseRepsDisplay } from './formatExerciseRepsDisplay';
-
-export { formatDraftReps, formatExerciseRepsDisplay } from './formatExerciseRepsDisplay';
 import { mesoHintForGenerateSessions, weekProgressionForGenerateSessions } from './planGenerationSummary';
 import {
   exercisesLikeFromPrescription,
@@ -47,6 +45,7 @@ import type { WorkoutPreview } from '../services/workoutService';
 import { shortBodyTagLabel, parseCardioFinisherRow } from './previewExerciseMeta';
 
 export { isTimeHoldExerciseName } from './exercisePrescription';
+export { formatDraftReps, formatExerciseRepsDisplay } from './formatExerciseRepsDisplay';
 
 const WEEKDAYS: Weekday[] = [
   'Monday',

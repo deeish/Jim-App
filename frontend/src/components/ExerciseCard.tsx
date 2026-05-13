@@ -109,11 +109,8 @@ export default function ExerciseCard({
     [colors]
   );
 
-  const planGoal = useMemo(() => profileGoalToPlanGoal(goal), [goal]);
-
-  const formatPrescription = () => {
-    return formatExercisePrescriptionExerciseCard(exercise, planGoal, weightUnit);
-  };
+  const formatPrescription = () =>
+    formatExercisePrescriptionExerciseCard(exercise, profileGoalToPlanGoal(goal), weightUnit);
 
   const body = (
     <>

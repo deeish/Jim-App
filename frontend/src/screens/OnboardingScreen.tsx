@@ -179,7 +179,7 @@ export default function OnboardingScreen({ navigation }: Props) {
                     <Text style={[styles.presetLabel, { color: active ? colors.onPrimary : colors.text }]}>
                       {label}
                     </Text>
-                    <Text style={[styles.presetSub, { color: active ? 'rgba(255,255,255,0.75)' : colors.textMuted }]}>
+                    <Text style={[styles.presetSub, { color: active ? colors.onPrimary : colors.textMuted }]}>
                       {sub}
                     </Text>
                   </TouchableOpacity>
