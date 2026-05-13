@@ -14,6 +14,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { getWorkoutLogs } from '../services/workoutService';
 import type { WorkoutLog, WorkoutLogEntry, WorkoutLogEntrySet } from '../types/workout';
+import { formatLocalYmd } from '../lib/planCalendar';
 
 type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'History'>;
 
@@ -159,16 +160,14 @@ export default function CalendarScreen({ navigation }: Props) {
   const [logsError, setLogsError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number } | null>(null);
 
-  const monthStart = useMemo(() => {
-    const d = new Date(selectedYear, selectedMonth, 1);
-    d.setHours(0, 0, 0, 0);
-    return d.toISOString().slice(0, 10);
-  }, [selectedYear, selectedMonth]);
-  const monthEnd = useMemo(() => {
-    const d = new Date(selectedYear, selectedMonth + 1, 0);
-    d.setHours(23, 59, 59, 999);
-    return d.toISOString().slice(0, 10);
-  }, [selectedYear, selectedMonth]);
+  const monthStart = useMemo(
+    () => formatLocalYmd(new Date(selectedYear, selectedMonth, 1)),
+    [selectedYear, selectedMonth],
+  );
+  const monthEnd = useMemo(
+    () => formatLocalYmd(new Date(selectedYear, selectedMonth + 1, 0)),
+    [selectedYear, selectedMonth],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -197,7 +196,7 @@ export default function CalendarScreen({ navigation }: Props) {
   const logsByDay = useMemo(() => {
     const map: Record<string, WorkoutLog[]> = {};
     logs.forEach((log) => {
-      const key = new Date(log.startedAt).toISOString().slice(0, 10);
+      const key = formatLocalYmd(new Date(log.startedAt));
       if (!map[key]) map[key] = [];
       map[key].push(log);
     });
