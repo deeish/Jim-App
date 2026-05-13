@@ -176,7 +176,7 @@ export default function OnboardingScreen({ navigation }: Props) {
                     onPress={() => setSelectedEquipment([...preset])}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.presetLabel, { color: active ? '#fff' : colors.text }]}>
+                    <Text style={[styles.presetLabel, { color: active ? colors.onPrimary : colors.text }]}>
                       {label}
                     </Text>
                     <Text style={[styles.presetSub, { color: active ? 'rgba(255,255,255,0.75)' : colors.textMuted }]}>
@@ -203,7 +203,7 @@ export default function OnboardingScreen({ navigation }: Props) {
                     onPress={() => toggleEquipment(eq)}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.chipLabel, { color: selected ? '#fff' : colors.text }]}>
+                    <Text style={[styles.chipLabel, { color: selected ? colors.onPrimary : colors.text }]}>
                       {eq}
                     </Text>
                   </TouchableOpacity>
@@ -234,7 +234,7 @@ export default function OnboardingScreen({ navigation }: Props) {
           ]}
           activeOpacity={canProceed ? 0.8 : 1}
         >
-          <Text style={styles.nextBtnText}>
+          <Text style={[styles.nextBtnText, { color: colors.onPrimary }]}>
             {step === TOTAL_STEPS - 1 ? 'Get my plan' : 'Next'}
           </Text>
         </TouchableOpacity>
@@ -288,5 +288,5 @@ const styles = StyleSheet.create({
   backBtn: { minWidth: 60 },
   backText: { fontSize: 16 },
   nextBtn: { borderRadius: 10, paddingVertical: 14, paddingHorizontal: 28 },
-  nextBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  nextBtnText: { fontSize: 16, fontWeight: '600' },
 });
