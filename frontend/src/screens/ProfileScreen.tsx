@@ -117,7 +117,7 @@ function PickerAvatarGlyph({
     <MaterialCommunityIcons
       name={opt.mci as ComponentProps<typeof MaterialCommunityIcons>['name']}
       size={24}
-      color={colors.primary}
+      color={opt.color}
     />
   );
 }
@@ -616,10 +616,10 @@ export default function ProfileScreen() {
                         styles.avatarOptionOuter,
                         {
                           borderWidth: selected ? 3 : 2,
-                          borderColor: selected ? colors.primary : colors.border,
+                          borderColor: selected ? opt.color : colors.border,
                           backgroundColor: selected
-                            ? colors.primary + '22'
-                            : colors.primary + '0C',
+                            ? opt.color + '22'
+                            : opt.color + '0C',
                         },
                       ]}
                       accessibilityRole="button"

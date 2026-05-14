@@ -15,13 +15,14 @@ export function ProfileAvatarDisc({
   colors: ColorPalette;
 }) {
   const entry = getProfileAvatar(avatarId);
+  const accentColor = entry.color;
   const disc = {
     width: size,
     height: size,
     borderRadius: size / 2,
     borderWidth: 3,
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '24',
+    borderColor: accentColor,
+    backgroundColor: accentColor + '24',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   };
@@ -41,7 +42,7 @@ export function ProfileAvatarDisc({
       <MaterialCommunityIcons
         name={entry.mci as ComponentProps<typeof MaterialCommunityIcons>['name']}
         size={Math.round(size * 0.5)}
-        color={colors.primary}
+        color={accentColor}
       />
     </View>
   );

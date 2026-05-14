@@ -1,20 +1,19 @@
-/**
- * Profile marks: default silhouette + MaterialCommunityIcons with gym / character / fun vibes.
- * Same `id` values as before so saved preferences keep working.
- */
 export const PROFILE_AVATARS = [
-  { id: 'default', mci: null as string | null },
-  { id: 'muscle', mci: 'weight-lifter' },
-  { id: 'runner', mci: 'run-fast' },
-  { id: 'cyclist', mci: 'bike-fast' },
-  { id: 'yoga', mci: 'yoga' },
-  { id: 'lift', mci: 'arm-flex' },
-  { id: 'swim', mci: 'swim' },
-  { id: 'ball', mci: 'basketball' },
-  { id: 'tennis', mci: 'tennis' },
-  { id: 'fire', mci: 'boxing-glove' },
-  { id: 'star', mci: 'party-popper' },
-  { id: 'trophy', mci: 'trophy-award' },
+  { id: 'default',   mci: null as string | null,  color: '#9E9E9E' },
+  { id: 'muscle',    mci: 'dumbbell',              color: '#E53935' },
+  { id: 'runner',    mci: 'run-fast',              color: '#00ACC1' },
+  { id: 'cyclist',   mci: 'rocket',                color: '#5E35B1' },
+  { id: 'yoga',      mci: 'yoga',                  color: '#7B1FA2' },
+  { id: 'lift',      mci: 'arm-flex',              color: '#FF6D00' },
+  { id: 'swim',      mci: 'brain',                 color: '#00897B' },
+  { id: 'ball',      mci: 'chess-knight',          color: '#1565C0' },
+  { id: 'tennis',    mci: 'skull',                 color: '#546E7A' },
+  { id: 'fire',      mci: 'fire',                  color: '#F4511E' },
+  { id: 'star',      mci: 'heart-flash',           color: '#E91E63' },
+  { id: 'trophy',    mci: 'trophy',                color: '#F9A825' },
+  { id: 'lightning', mci: 'lightning-bolt',        color: '#FFB300' },
+  { id: 'crown',     mci: 'crown',                 color: '#FFD600' },
+  { id: 'robot',     mci: 'robot',                 color: '#37474F' },
 ] as const;
 
 export type ProfileAvatarId = (typeof PROFILE_AVATARS)[number]['id'];
