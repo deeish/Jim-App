@@ -20,6 +20,7 @@ import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme';
 import type { ColorPalette } from '../theme/colors';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { storedInjuryTagsToAvoidList } from '../constants/injuryTags';
 import type { GoalOption, ExperienceOption } from '../contexts/UserPreferencesContext';
 import type { EquipmentOption } from '../constants/equipment';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -442,9 +443,15 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createGeneratePlanStyles(colors), [colors]);
   const {
+    hydrated: prefsHydrated,
     goal: prefGoal,
     experience: prefExperience,
     equipment: prefEquipment,
+    trainingFrequency,
+    trainingDaysFlexible,
+    preferredTrainingDays,
+    injuryTagIds,
+    injuryNotes,
   } = useUserPreferences();
   const [inputs, setInputs] = useState<GeneratePlanInputs>(() => ({
     goal: prefGoalToForm(prefGoal),
@@ -495,7 +502,15 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     equipmentAccess: [],
     age: null,
   }));
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  /**
+   * Wizard state. The screen is split into 3 steps so users aren't dumped onto a single
+   * 3000-line form. State (`inputs`, handlers, modals) is unchanged — only which section
+   * of JSX is visible. `currentStep === 1` is equivalent to the old `showAdvanced === true`
+   * so dependent modal-closing logic still works.
+   */
+  const [currentStep, setCurrentStep] = useState<0 | 1 | 2>(0);
+  const showAdvanced = currentStep === 1;
+  const scrollViewRef = useRef<ScrollView>(null);
   const [showRecommendationDetails, setShowRecommendationDetails] = useState(false);
   const [showCustomSplitSheet, setShowCustomSplitSheet] = useState(false);
   const [customSplitDraft, setCustomSplitDraft] = useState<CustomSplitData>({ templates: [], rotationRule: 'repeat_weekly', abs: 'none', cardio: 'none' });
@@ -506,6 +521,37 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   const [openAvoidInjuries, setOpenAvoidInjuries] = useState(false);
   const [openPerDayTime, setOpenPerDayTime] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showWellnessDetail, setShowWellnessDetail] = useState(false);
+
+  const seededProfileIntoPlanInputs = useRef(false);
+  const editFromSnapshot = route.params?.editFromSnapshot;
+
+  useEffect(() => {
+    if (!prefsHydrated || editFromSnapshot || seededProfileIntoPlanInputs.current) return;
+    seededProfileIntoPlanInputs.current = true;
+    const fromInjuries = storedInjuryTagsToAvoidList(injuryTagIds) as AvoidItem[];
+    const trainingDays: DayOfWeek[] =
+      trainingDaysFlexible || preferredTrainingDays.length === 0
+        ? getDefaultTrainingDays(trainingFrequency)
+        : [...(preferredTrainingDays as DayOfWeek[])].sort(
+            (a, b) => DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b),
+          );
+    setInputs((prev) => ({
+      ...prev,
+      trainingDays,
+      startDateISO: nextTrainingDayIsoFromToday(trainingDays),
+      avoidList: Array.from(new Set([...fromInjuries, ...prev.avoidList])),
+      customSplitHint: injuryNotes.trim() ? injuryNotes.trim() : prev.customSplitHint,
+    }));
+  }, [
+    prefsHydrated,
+    editFromSnapshot,
+    injuryTagIds,
+    injuryNotes,
+    preferredTrainingDays,
+    trainingDaysFlexible,
+    trainingFrequency,
+  ]);
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -537,7 +583,6 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     return unsubscribe;
   }, [navigation]);
 
-  const editFromSnapshot = route.params?.editFromSnapshot;
   useEffect(() => {
     if (!editFromSnapshot) return;
     const patch = planInputsToFormPatch(editFromSnapshot) as Partial<GeneratePlanInputs>;
@@ -863,13 +908,41 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     });
   };
 
-  const canGenerate =
-    !!inputs.goal &&
-    inputs.trainingDays.length > 0 &&
+  /**
+   * Per-step "ready to advance" flags. These mirror the legacy `canGenerate` predicate
+   * sliced by step, so the Next button gates the user before they hit Generate. We never
+   * weaken the final canGenerate check — it's still the AND of the two readiness flags.
+   */
+  const basicsReady = !!inputs.goal && inputs.trainingDays.length > 0;
+  const detailsReady =
     !!inputs.primaryLocation &&
     (inputs.primaryLocation === 'gym' || inputs.availableEquipment.length > 0) &&
     inputs.timePerSession.min > 0 &&
     inputs.timePerSession.max > 0;
+  const canGenerate = basicsReady && detailsReady;
+
+  const STEP_LABELS = ['Basics', 'Details', 'Review'] as const;
+  const TOTAL_STEPS = STEP_LABELS.length;
+  const stepCanAdvance =
+    currentStep === 0 ? basicsReady : currentStep === 1 ? detailsReady : canGenerate;
+
+  // Send the ScrollView back to the top whenever the visible step changes — each step
+  // should feel like a fresh page rather than a jump into mid-form.
+  useEffect(() => {
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+  }, [currentStep]);
+
+  const handleWizardNext = useCallback(() => {
+    if (currentStep < TOTAL_STEPS - 1) {
+      setCurrentStep((s) => ((s + 1) as 0 | 1 | 2));
+    }
+  }, [currentStep, TOTAL_STEPS]);
+
+  const handleWizardBack = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep((s) => ((s - 1) as 0 | 1 | 2));
+    }
+  }, [currentStep]);
 
 
 
@@ -882,7 +955,6 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>Generate Plan</Text>
-            <Text style={styles.headerSubtitle}>{planSummary}</Text>
           </View>
           <View style={styles.headerSpacer} />
         </View>
@@ -892,13 +964,43 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           <Text style={styles.summaryStripLine} numberOfLines={2}>{summaryStripLine}</Text>
         </View>
 
-        <ScrollView 
-          style={styles.content} 
+        <View style={styles.wizardProgressContainer} accessibilityRole="tablist">
+          {STEP_LABELS.map((label, idx) => {
+            const isActive = idx === currentStep;
+            const isCompleted = idx < currentStep;
+            return (
+              <View
+                key={label}
+                style={[
+                  styles.wizardProgressPill,
+                  isActive && styles.wizardProgressPillActive,
+                  isCompleted && styles.wizardProgressPillCompleted,
+                ]}
+                accessibilityState={{ selected: isActive }}
+              >
+                <Text
+                  style={[
+                    styles.wizardProgressPillText,
+                    (isActive || isCompleted) && styles.wizardProgressPillTextActive,
+                  ]}
+                >
+                  {`${idx + 1}. ${label}`}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.content}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={true}
           showsHorizontalScrollIndicator={false}
         >
-        {/* Plan basics — always visible */}
+
+        {/* Step 1: Plan basics — goal, training days, weeks, start date */}
+        {currentStep === 0 && (
         <View style={styles.essentialsPanel}>
           <Text style={styles.essentialsKicker}>Plan basics</Text>
           <Text style={styles.essentialsSubkicker}>Goal, weekly schedule, and how many weeks to generate</Text>
@@ -1016,31 +1118,16 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           </View>
         </View>
         </View>
+        )}
 
-        <View style={styles.zoneDivider} />
-
-        <TouchableOpacity
-          style={[styles.advancedToggle, showAdvanced && styles.advancedToggleExpanded]}
-          onPress={() => setShowAdvanced(!showAdvanced)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.advancedToggleTextBlock}>
-            <Text style={styles.advancedToggleTitle}>More plan options</Text>
-            <Text style={styles.advancedToggleHint}>Location, session time, style & split, optional limits</Text>
-          </View>
-          <Ionicons
-            name={showAdvanced ? 'chevron-down' : 'chevron-forward'}
-            size={22}
-            color={colors.textMuted}
-          />
-        </TouchableOpacity>
-
-        {showAdvanced && (
+        {/* Step 2: Plan details — location, equipment, duration, plan style, split, progression, etc. */}
+        {currentStep === 1 && (
           <View style={styles.advancedSurface}>
-          <View style={styles.advancedIntro}>
-            <Text style={styles.advancedIntroTitle}>Optional details</Text>
-            <Text style={styles.advancedIntroBody}>Everything below refines location, workouts, and limits. Plan basics stay above.</Text>
+          <View style={styles.groupDivider}>
+            <Text style={styles.groupDividerLabel}>Session setup</Text>
+            <View style={styles.groupDividerLine} />
           </View>
+
         {/* Primary location — first: constrains available exercises */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Primary location</Text>
@@ -1077,6 +1164,39 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               </TouchableOpacity>
             ))}
           </View>
+        </View>
+
+        {/* Age (optional) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Age</Text>
+          <Text style={styles.sectionSubtitle}>Optional. Used to adjust recovery and progression rate.</Text>
+          <View style={styles.numberInputRow}>
+            <TouchableOpacity
+              style={styles.numberButton}
+              onPressIn={holdAgeDown.onPressIn}
+              onPressOut={holdAgeDown.onPressOut}
+            >
+              <Text style={styles.numberButtonText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.numberDisplay}>
+              {inputs.age != null ? inputs.age : '—'}
+            </Text>
+            <TouchableOpacity
+              style={styles.numberButton}
+              onPressIn={holdAgeUp.onPressIn}
+              onPressOut={holdAgeUp.onPressOut}
+            >
+              <Text style={styles.numberButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+          {inputs.age != null && (
+            <TouchableOpacity
+              style={{ marginTop: 8 }}
+              onPress={() => setInputs(prev => ({ ...prev, age: null }))}
+            >
+              <Text style={[styles.sectionSubtitle, { color: colors.primary }]}>Clear</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Gym: assume standard equipment (no selector). Home: equipment selector shown below. */}
@@ -1167,7 +1287,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                 {isRange && (
                   <View style={styles.durationRangeControl}>
                     <View style={styles.durationRangeRow}>
-                      <Text style={styles.durationRangeLabel}>Min</Text>
+                      <Text style={styles.durationRangeLabel}>From</Text>
                       <View style={styles.numberInputRow}>
                         <TouchableOpacity
                           style={styles.numberButton}
@@ -1188,7 +1308,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                       <Text style={styles.durationRangeUnit}>min</Text>
                     </View>
                     <View style={styles.durationRangeRow}>
-                      <Text style={styles.durationRangeLabel}>Max</Text>
+                      <Text style={styles.durationRangeLabel}>To</Text>
                       <View style={styles.numberInputRow}>
                         <TouchableOpacity
                           style={styles.numberButton}
@@ -1215,24 +1335,36 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           })()}
         </View>
 
+        <View style={styles.groupDivider}>
+          <Text style={styles.groupDividerLabel}>Program design</Text>
+          <View style={styles.groupDividerLine} />
+        </View>
+
         {/* Plan style (conditional on goal) */}
         {inputs.goal && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Plan style</Text>
             <Text style={styles.sectionSubtitle}>How should this plan prioritize your goal?</Text>
             <Text style={styles.sectionHelper}>This affects intensity and cardio style. The split decides how lifting days are organized.</Text>
-            <View style={styles.optionsRow}>
-              {getPlanStyleOptions(inputs.goal).map(option => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[styles.optionButton, inputs.programType === option.value && styles.optionButtonSelected]}
-                  onPress={() => handleProgramTypeSelect(option.value)}
-                >
-                  <Text style={[styles.optionButtonText, inputs.programType === option.value && styles.optionButtonTextSelected]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.planStyleList}>
+              {getPlanStyleOptions(inputs.goal).map(option => {
+                const isSelected = inputs.programType === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[styles.planStyleOption, isSelected && styles.planStyleOptionSelected]}
+                    onPress={() => handleProgramTypeSelect(option.value)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.planStyleRadio, isSelected && styles.planStyleRadioSelected]}>
+                      {isSelected && <View style={styles.planStyleRadioDot} />}
+                    </View>
+                    <Text style={[styles.planStyleOptionText, isSelected && styles.planStyleOptionTextSelected]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         )}
@@ -1241,15 +1373,28 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Training split preference</Text>
           <Text style={styles.sectionSubtitle}>Pick a structure, or let the app choose the best one.</Text>
-          <View style={styles.optionsRowCompact}>
+          <View style={styles.splitTileGrid}>
             {(['full body', 'upper-lower', 'ppl', 'body part', 'custom'] as TrainingSplitPreference[]).map(split => {
               const days = daysPerWeek;
               const pplDisabled = days >= 2 && days <= 3;
               const bodyPartDisabled = days <= 3;
               const isDisabled =
                 (split === 'ppl' && pplDisabled) || (split === 'body part' && bodyPartDisabled);
-              const isRecommendedSplit = recommendation && (split === recommendation.recommendedSplit);
+              const isRecommendedSplit = !isDisabled && recommendation && (split === recommendation.recommendedSplit);
               const isSelected = inputs.trainingSplitPreference === split;
+
+              const SPLIT_LABELS: Record<string, string> = {
+                'full body': 'Full Body',
+                'upper-lower': 'Upper / Lower',
+                'ppl': 'Push / Pull / Legs',
+                'body part': 'Body Part Days',
+                'custom': 'Custom…',
+              };
+              const DISABLED_NOTES: Partial<Record<string, string>> = {
+                'ppl': '4+ days',
+                'body part': '4+ days',
+              };
+
               const handleSplitPress = () => {
                 if (isDisabled) return;
                 if (split === 'custom') {
@@ -1266,82 +1411,51 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                 if (recommendation && split === recommendation.recommendedSplit) setShowRecommendationDetails(true);
               };
 
-              if (split === 'body part') {
-                return (
-                  <View
-                    key={split}
-                    style={[
-                      styles.optionButtonCompact,
-                      isSelected && styles.optionButtonCompactSelected,
-                      isDisabled && styles.optionButtonCompactDisabled,
-                      styles.optionButtonBodyPartRowCompact,
-                    ]}
-                  >
-                    <TouchableOpacity
-                      style={styles.optionButtonBodyPartLabelCompact}
-                      onPress={handleSplitPress}
-                      disabled={isDisabled}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[
-                        styles.optionButtonTextCompact,
-                        isSelected && styles.optionButtonTextCompactSelected,
-                        isDisabled && styles.optionButtonTextCompactDisabled,
-                      ]}>
-                        Body Part Days
-                      </Text>
-                      {isRecommendedSplit && (
-                        <TouchableOpacity
-                          onPress={() => { setInputs(prev => ({ ...prev, trainingSplitPreference: 'body part' })); setShowRecommendationDetails(true); }}
-                          style={styles.recommendedBadgeCompact}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={styles.recommendedBadgeTextCompact}>Recommended</Text>
-                        </TouchableOpacity>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => Alert.alert('Body Part Days', 'One muscle group per day (e.g. chest, back, legs). Good for volume and recovery.')}
-                      style={styles.chipInfoIconCompact}
-                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
-                    </TouchableOpacity>
-                  </View>
-                );
-              }
-
               return (
                 <TouchableOpacity
                   key={split}
                   style={[
-                    styles.optionButtonCompact,
-                    isSelected && styles.optionButtonCompactSelected,
-                    isDisabled && styles.optionButtonCompactDisabled,
+                    styles.splitTile,
+                    isSelected && styles.splitTileSelected,
+                    isDisabled && styles.splitTileDisabled,
+                    split === 'custom' && styles.splitTileFullWidth,
                   ]}
                   onPress={handleSplitPress}
                   disabled={isDisabled}
+                  activeOpacity={isDisabled ? 1 : 0.7}
                 >
-                  <View style={styles.optionButtonContentCompact}>
+                  <View style={styles.splitTileHeader}>
+                    <View style={[styles.planStyleRadio, isSelected && styles.planStyleRadioSelected]}>
+                      {isSelected && <View style={styles.planStyleRadioDot} />}
+                    </View>
                     <Text style={[
-                      styles.optionButtonTextCompact,
-                      isSelected && styles.optionButtonTextCompactSelected,
-                      isDisabled && styles.optionButtonTextCompactDisabled,
-                    ]}>
-                      {split === 'full body' ? 'Full Body' : split === 'upper-lower' ? 'Upper/Lower' : split === 'ppl' ? 'Push/Pull/Legs' : 'Custom'}
+                      styles.splitTileLabel,
+                      isSelected && styles.splitTileLabelSelected,
+                      isDisabled && styles.splitTileLabelDisabled,
+                    ]} numberOfLines={2}>
+                      {SPLIT_LABELS[split] ?? split}
                     </Text>
                     {isRecommendedSplit && (
+                      <View style={styles.splitOptionBadge}>
+                        <Text style={styles.splitOptionBadgeText}>Rec</Text>
+                      </View>
+                    )}
+                    {split === 'body part' && !isDisabled && (
                       <TouchableOpacity
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        onPress={() => setShowRecommendationDetails(true)}
-                        style={styles.recommendedBadgeCompact}
-                        activeOpacity={0.8}
+                        onPress={() => Alert.alert('Body Part Days', 'One muscle group per day (e.g. chest, back, legs). Good for volume and recovery.')}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        activeOpacity={0.7}
                       >
-                        <Text style={styles.recommendedBadgeTextCompact}>Recommended</Text>
+                        <Ionicons name="information-circle-outline" size={16} color={isSelected ? colors.primary : colors.textMuted} />
                       </TouchableOpacity>
                     )}
+                    {split === 'custom' && (
+                      <Ionicons name="chevron-forward" size={16} color={isSelected ? colors.primary : colors.textMuted} />
+                    )}
                   </View>
+                  {isDisabled && DISABLED_NOTES[split] && (
+                    <Text style={styles.splitTileDisabledNote}>needs {DISABLED_NOTES[split]}</Text>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -1743,39 +1857,6 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
             </View>
           </Pressable>
         </Modal>
-
-        {/* Age (optional) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Age</Text>
-          <Text style={styles.sectionSubtitle}>Optional. Used to adjust recovery and progression rate.</Text>
-          <View style={styles.numberInputRow}>
-            <TouchableOpacity
-              style={styles.numberButton}
-              onPressIn={holdAgeDown.onPressIn}
-              onPressOut={holdAgeDown.onPressOut}
-            >
-              <Text style={styles.numberButtonText}>−</Text>
-            </TouchableOpacity>
-            <Text style={styles.numberDisplay}>
-              {inputs.age != null ? inputs.age : '—'}
-            </Text>
-            <TouchableOpacity
-              style={styles.numberButton}
-              onPressIn={holdAgeUp.onPressIn}
-              onPressOut={holdAgeUp.onPressOut}
-            >
-              <Text style={styles.numberButtonText}>+</Text>
-            </TouchableOpacity>
-          </View>
-          {inputs.age != null && (
-            <TouchableOpacity
-              style={{ marginTop: 8 }}
-              onPress={() => setInputs(prev => ({ ...prev, age: null }))}
-            >
-              <Text style={[styles.sectionSubtitle, { color: colors.primary }]}>Clear</Text>
-            </TouchableOpacity>
-          )}
-        </View>
 
         {/* Hybrid control (conditional on goal) */}
         {inputs.goal === 'hybrid' && (
@@ -2340,25 +2421,125 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
           </View>
         )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{WELLNESS_SCOPE_TITLE}</Text>
-          <Text style={styles.wellnessScopeBody}>{WELLNESS_SCOPE_BODY}</Text>
-          <Text style={styles.sectionHelper}>{NOT_MEDICAL_FOOTNOTE_SHORT}</Text>
-        </View>
+        {/* Step 3: Review — recap + wellness scope. Generate button lives in the footer. */}
+        {currentStep === 2 && (
+          <>
+            <View style={styles.reviewCard}>
+              <Text style={styles.reviewKicker}>Review</Text>
+              <Text style={styles.reviewSubkicker}>
+                Confirm your plan basics before generating. Tap Back to adjust anything.
+              </Text>
+              <View style={styles.reviewSummaryGrid}>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewRowLabel}>Goal</Text>
+                  <Text style={styles.reviewRowValue}>{inputs.goal ? GOAL_LABELS[inputs.goal] : '—'}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewRowLabel}>Schedule</Text>
+                  <Text style={styles.reviewRowValue}>
+                    {`${daysPerWeek} day${daysPerWeek !== 1 ? 's' : ''}/week · ${inputs.weeks} week${inputs.weeks !== 1 ? 's' : ''}`}
+                  </Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewRowLabel}>Where</Text>
+                  <Text style={styles.reviewRowValue}>
+                    {inputs.primaryLocation
+                      ? inputs.primaryLocation.charAt(0).toUpperCase() + inputs.primaryLocation.slice(1)
+                      : '—'}
+                  </Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewRowLabel}>Time/session</Text>
+                  <Text style={styles.reviewRowValue}>{`${inputs.timePerSession.min}–${inputs.timePerSession.max} min`}</Text>
+                </View>
+                {inputs.programType ? (
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewRowLabel}>Style</Text>
+                    <Text style={styles.reviewRowValue}>{inputs.programType}</Text>
+                  </View>
+                ) : null}
+                {effectiveSplitPreference ? (
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewRowLabel}>Split</Text>
+                    <Text style={styles.reviewRowValue}>
+                      {effectiveSplitPreference === 'custom'
+                        ? 'Custom split'
+                        : splitFamilyToLabel(effectiveSplitPreference)}
+                    </Text>
+                  </View>
+                ) : null}
+                {inputs.avoidList.length > 0 ? (
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewRowLabel}>Avoiding</Text>
+                    <Text style={styles.reviewRowValue}>{inputs.avoidList.join(', ')}</Text>
+                  </View>
+                ) : null}
+              </View>
+              {!canGenerate && (
+                <Text style={styles.reviewWarning}>
+                  Missing required basics. Tap Back to complete the earlier steps.
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.wellnessToggleRow}
+                onPress={() => setShowWellnessDetail(v => !v)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sectionTitle}>{WELLNESS_SCOPE_TITLE}</Text>
+                <Ionicons
+                  name={showWellnessDetail ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={colors.textMuted}
+                />
+              </TouchableOpacity>
+              {showWellnessDetail && (
+                <Text style={styles.wellnessScopeBody}>{WELLNESS_SCOPE_BODY}</Text>
+              )}
+              <Text style={styles.sectionHelper}>{NOT_MEDICAL_FOOTNOTE_SHORT}</Text>
+            </View>
+          </>
+        )}
 
         </ScrollView>
 
         <SafeAreaView style={styles.footerContainer} edges={['bottom']}>
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.generateButton, !canGenerate && styles.generateButtonDisabled]}
-              onPress={handleGenerate}
-              disabled={!canGenerate}
-            >
-              <Text style={styles.generateButtonText}>
-                {inputs.weeks === 1 ? 'Generate Plan Preview' : `Generate ${inputs.weeks}-Week Preview`}
-              </Text>
-            </TouchableOpacity>
+            {currentStep > 0 && (
+              <TouchableOpacity
+                style={styles.wizardBackButton}
+                onPress={handleWizardBack}
+                accessibilityRole="button"
+                accessibilityLabel="Go back to previous step"
+              >
+                <Text style={styles.wizardBackButtonText}>Back</Text>
+              </TouchableOpacity>
+            )}
+            {currentStep < TOTAL_STEPS - 1 ? (
+              <TouchableOpacity
+                style={[styles.generateButton, !stepCanAdvance && styles.generateButtonDisabled]}
+                onPress={handleWizardNext}
+                disabled={!stepCanAdvance}
+                accessibilityRole="button"
+                accessibilityLabel={`Continue to step ${currentStep + 2}`}
+              >
+                <Text style={styles.generateButtonText}>Next</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.generateButton, !canGenerate && styles.generateButtonDisabled]}
+                onPress={handleGenerate}
+                disabled={!canGenerate}
+                accessibilityRole="button"
+                accessibilityLabel="Generate plan preview"
+              >
+                <Text style={styles.generateButtonText}>
+                  {inputs.weeks === 1 ? 'Generate Plan Preview' : `Generate ${inputs.weeks}-Week Preview`}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </SafeAreaView>
       </SafeAreaView>
@@ -2480,6 +2661,108 @@ function createGeneratePlanStyles(c: ColorPalette) {
     paddingTop: 14,
     paddingBottom: 8,
     marginBottom: 8,
+  },
+  wizardProgressRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  wizardProgressPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  wizardProgressPillActive: {
+    backgroundColor: c.primary,
+    borderColor: c.primary,
+  },
+  wizardProgressPillCompleted: {
+    backgroundColor: c.primarySoft,
+    borderColor: c.primary,
+  },
+  wizardProgressPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: c.textMuted,
+    letterSpacing: 0.3,
+  },
+  wizardProgressPillTextActive: {
+    color: c.onPrimary,
+  },
+  wizardBackButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  wizardBackButtonText: {
+    color: c.text,
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  wizardBackButtonPlaceholder: {
+    width: 1,
+  },
+  reviewCard: {
+    backgroundColor: c.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: c.border,
+    padding: 16,
+    marginBottom: 12,
+  },
+  reviewKicker: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: c.primary,
+    marginBottom: 4,
+  },
+  reviewSubkicker: {
+    fontSize: 13,
+    color: c.textMuted,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  reviewSummaryGrid: {
+    gap: 8,
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: c.border,
+  },
+  reviewRowLabel: {
+    fontSize: 13,
+    color: c.textMuted,
+    fontWeight: '600',
+    flexShrink: 0,
+  },
+  reviewRowValue: {
+    fontSize: 14,
+    color: c.text,
+    fontWeight: '500',
+    textAlign: 'right',
+    flexShrink: 1,
+  },
+  reviewWarning: {
+    marginTop: 12,
+    fontSize: 13,
+    color: c.error,
+    fontStyle: 'italic',
   },
   essentialsKicker: {
     fontSize: 12,
@@ -2827,6 +3110,7 @@ function createGeneratePlanStyles(c: ColorPalette) {
     opacity: 0.9,
   },
   optionButton: {
+    flex: 1,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -3597,8 +3881,12 @@ function createGeneratePlanStyles(c: ColorPalette) {
   },
   footer: {
     padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   generateButton: {
+    flex: 1,
     backgroundColor: c.primary,
     paddingVertical: 14,
     borderRadius: 8,
@@ -3612,6 +3900,153 @@ function createGeneratePlanStyles(c: ColorPalette) {
     fontSize: 16,
     fontWeight: '600',
     color: c.onPrimary,
+  },
+  wizardProgressContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: c.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: c.border,
+  },
+  groupDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  groupDividerLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: c.textMuted,
+    flexShrink: 0,
+  },
+  groupDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: c.border,
+  },
+  planStyleList: {
+    gap: 8,
+  },
+  planStyleOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surface,
+  },
+  planStyleOptionSelected: {
+    borderColor: c.primary,
+    borderWidth: 2,
+    backgroundColor: c.primarySoft,
+  },
+  planStyleRadio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: c.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  planStyleRadioSelected: {
+    borderColor: c.primary,
+  },
+  planStyleRadioDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: c.primary,
+  },
+  planStyleOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: c.textSecondary,
+    flex: 1,
+  },
+  planStyleOptionTextSelected: {
+    color: c.primary,
+  },
+  splitOptionBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: c.primarySoft,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: c.primary,
+  },
+  splitOptionBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: c.primary,
+    letterSpacing: 0.3,
+  },
+  splitTileGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  splitTile: {
+    flex: 1,
+    minWidth: '47%',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surface,
+  },
+  splitTileSelected: {
+    borderColor: c.primary,
+    borderWidth: 2,
+    backgroundColor: c.primarySoft,
+  },
+  splitTileDisabled: {
+    opacity: 0.45,
+  },
+  splitTileFullWidth: {
+    flexBasis: '100%',
+    flex: 0,
+  },
+  splitTileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  splitTileLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: c.textSecondary,
+  },
+  splitTileLabelSelected: {
+    color: c.primary,
+  },
+  splitTileLabelDisabled: {
+    color: c.textMuted,
+  },
+  splitTileDisabledNote: {
+    fontSize: 11,
+    color: c.textMuted,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  wellnessToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   });
 }
