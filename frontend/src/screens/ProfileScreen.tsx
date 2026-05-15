@@ -124,10 +124,12 @@ function PickerAvatarGlyph({
 
 const staticStyles = StyleSheet.create({
   sectionHeader: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 10,
-    marginLeft: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    marginLeft: 2,
   },
   row: {
     flexDirection: 'row',
@@ -274,7 +276,7 @@ const layoutStyles = StyleSheet.create({
   },
   deleteAccountRowText: { fontSize: 16, fontWeight: '600' },
   sectionCard: {
-    borderRadius: 12,
+    borderRadius: 14,
     marginBottom: 28,
     borderWidth: 1,
     overflow: 'hidden',
@@ -529,7 +531,7 @@ export default function ProfileScreen() {
 
   const equipmentSummary =
     equipment.length === 0
-      ? 'None set — exercise search uses all equipment'
+      ? 'All equipment'
       : equipment.join(', ');
 
   return (
@@ -576,9 +578,11 @@ export default function ProfileScreen() {
                 autoCorrect
                 accessibilityLabel="Display name"
               />
-              <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'right', marginTop: 2 }}>
-                {nameDraft.length}/80
-              </Text>
+              {nameDraft.length > 0 && (
+                <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'right', marginTop: 2 }}>
+                  {nameDraft.length}/80
+                </Text>
+              )}
             </View>
           </View>
           <View style={styles.profileEmailBlock}>
@@ -595,7 +599,7 @@ export default function ProfileScreen() {
           />
           <View style={styles.avatarPickerStrip}>
             <Text style={[styles.avatarPickerLabel, { color: colors.textMuted }]}>
-              Avatar · swipe for more
+              Avatar
             </Text>
             <View style={styles.avatarPickerClip}>
               <ScrollView
@@ -713,12 +717,6 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
-          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <Row
-            label="Notifications"
-            value="Coming soon"
-            colors={colors}
-          />
         </View>
 
         <SectionHeader title="Preferences" colors={colors} />
