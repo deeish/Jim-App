@@ -26,6 +26,7 @@ import type { ApiPlan, ApiPlanExercise, ApiPlanWorkout } from '../services/planS
 import type { Exercise, Workout, WorkoutLog } from '../types/workout';
 import { materializePlanSlotWorkout, getWorkoutLogs } from '../services/workoutService';
 import LoadingSpinner from '../components/LoadingSpinner';
+import WorkoutDayRow, { pickWorkoutIcon, pickWorkoutAccent, workoutEyebrow } from '../components/WorkoutDayRow';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
 import {
   formatLocalYmd,
@@ -39,7 +40,6 @@ import {
   shiftWeekWorkouts,
 } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
-import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
 import {
   exercisesLikeFromPrescription,
   getPlanSlotDisplayMinutes,
@@ -87,6 +87,12 @@ function getDateForDay(weekIndex: number, dayName: string): Date {
 function isTodayDate(d: Date): boolean {
   const today = new Date();
   return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+}
+
+function getTodayDayName(): string {
+  const idx = new Date().getDay();
+  const mondayBased = idx === 0 ? 6 : idx - 1;
+  return DAYS_OF_WEEK[mondayBased];
 }
 
 function apiSlotToPlanWorkout(pw: ApiPlanWorkout, iconColors: Record<string, string>): PlanWorkout {
@@ -183,6 +189,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
   const [savedModalVisible, setSavedModalVisible] = useState(false);
   const [detailSheetWorkout, setDetailSheetWorkout] = useState<{ workout: PlanWorkout; day: string; date: Date } | null>(null);
+  const [restSheetWorkout, setRestSheetWorkout] = useState<{ workout: PlanWorkout; day: string; date: Date } | null>(null);
   const [moveContext, setMoveContext] = useState<{ workout: PlanWorkout; day: string } | null>(null);
   const [moving, setMoving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ slotId: string; day: string; title: string } | null>(null);
@@ -216,6 +223,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const hoveredDayRef          = useRef<string | null>(null);
   const planByWeekRef          = useRef(planByWeek);
   const resolvedProgramWeekRef = useRef<number | null>(null);
+  const didScrollToTodayRef    = useRef(false);
 
   useEffect(() => { draggingSlotRef.current = draggingSlot; }, [draggingSlot]);
   useEffect(() => { hoveredDayRef.current = hoveredDay; }, [hoveredDay]);
@@ -315,6 +323,28 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     return planByWeek[resolvedProgramWeek] ?? EMPTY_PLAN;
   }, [planByWeek, resolvedProgramWeek]);
 
+  // Reset the scroll-to-today flag when the user navigates to a different week.
+  useEffect(() => {
+    didScrollToTodayRef.current = false;
+  }, [selectedWeek]);
+
+  // On the current week, auto-scroll to today's section after layout settles.
+  useEffect(() => {
+    if (selectedWeek !== 0 || planLoading || didScrollToTodayRef.current) return;
+    const dayName = getTodayDayName();
+    const timer = setTimeout(() => {
+      const layout = dayLayoutsRef.current[dayName];
+      if (layout && layout.height > 0) {
+        contentScrollRef.current?.scrollTo({
+          y: Math.max(0, layout.y - 24),
+          animated: true,
+        });
+        didScrollToTodayRef.current = true;
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [selectedWeek, planLoading, plan]);
+
   const weekRange = getCalendarWeekRange(selectedWeek);
   const loadBalance = computeLoadBalance(plan);
   const headerSubtitle = useMemo(() => {
@@ -395,7 +425,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           paddingVertical: 6,
           paddingHorizontal: 12,
         },
-        weekNavArrow: { padding: 4, minWidth: 32, alignItems: 'center' },
+        weekNavArrow: {
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          minWidth: 44,
+          minHeight: 44,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
         weekNavArrowDisabled: { opacity: 0.35 },
         weekNavArrowText: { fontSize: 20, color: colors.primary, fontWeight: '600' },
         weekNavCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
@@ -403,22 +440,26 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         shiftRow: {
           flexDirection: 'row',
           justifyContent: 'center',
-          gap: 10,
+          gap: 12,
           backgroundColor: colors.surface,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
-          paddingVertical: 6,
+          paddingVertical: 12,
           paddingHorizontal: 12,
         },
         shiftBtn: {
-          paddingHorizontal: 12,
-          paddingVertical: 5,
-          borderRadius: 8,
-          borderWidth: 1,
+          flex: 1,
+          minHeight: 48,
+          paddingHorizontal: 14,
+          paddingVertical: 12,
+          borderRadius: 12,
+          borderWidth: 2,
           borderColor: colors.primary,
+          alignItems: 'center',
+          justifyContent: 'center',
         },
         shiftBtnDisabled: { opacity: 0.35 },
-        shiftBtnText: { fontSize: 12, color: colors.primary, fontWeight: '600' },
+        shiftBtnText: { fontSize: 14, color: colors.primary, fontWeight: '700' },
         outOfProgramWeekBanner: {
           paddingVertical: 8,
           paddingHorizontal: 12,
@@ -428,75 +469,22 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         },
         outOfProgramWeekText: { fontSize: 12, color: colors.textSecondary, textAlign: 'center' },
         content: { flex: 1 },
-        contentContainer: { padding: 12, paddingBottom: 32 },
-        daySection: { marginBottom: 18 },
-        dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-        dayTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-        dayTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
-        todayChip: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: colors.secondary,
-          paddingHorizontal: 8,
-          paddingVertical: 4,
-          borderRadius: 6,
-          gap: 4,
-        },
-        todayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.onPrimary },
-        todayText: { fontSize: 11, fontWeight: '600', color: colors.onPrimary },
-        daySummaryContainer: { alignItems: 'flex-end' },
-        daySummaryRow: { flexDirection: 'row', alignItems: 'baseline' },
-        daySummary: { fontSize: 12, color: colors.text, fontWeight: '600' },
-        dayHelperText: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
-        emptyDay: {
-          backgroundColor: colors.surface,
+        contentContainer: { padding: 12, paddingBottom: 32, gap: 8 },
+        dayGroup: {
           borderRadius: 12,
-          padding: 20,
+        },
+        dayGroupDropTarget: {
+          backgroundColor: colors.primary + '14',
           borderWidth: 1,
-          borderColor: colors.border,
-          borderStyle: 'dashed',
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
+          borderColor: colors.primary,
         },
-        emptyDayAddIcon: { fontSize: 20, color: colors.primary, fontWeight: '600' },
-        emptyDayText: { fontSize: 15, color: colors.primary, fontWeight: '600' },
-        emptyDayHint: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
-        restDayCard: { opacity: 0.7 },
-        workoutStack: { gap: 12 },
-        workoutStackTight: { gap: 6 },
-        workoutCard: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: colors.surface,
-          borderRadius: 12,
-          padding: 12,
-          paddingRight: 12,
-          elevation: 2,
-          shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-          position: 'relative',
-        },
-        workoutCardPressed: { opacity: 0.85 },
-        workoutIcon: {
+        moreButton: {
           width: 44,
           height: 44,
-          borderRadius: 8,
-          marginRight: 12,
-          justifyContent: 'center',
           alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 22,
         },
-        workoutTypeBadge: { fontSize: 16, fontWeight: '700', color: colors.onPrimary },
-        workoutContent: { flex: 1 },
-        workoutTitle: { fontSize: 15, fontWeight: '600', color: colors.text, marginBottom: 2 },
-        /** Canonical ETA (matches Home + detail sheet), not AI `detailLine` copy. */
-        workoutEtaLine: { fontSize: 13, color: colors.textSecondary, marginTop: 2, fontWeight: '600' },
-        workoutDetailLine: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-        moreButton: { position: 'absolute', top: 8, right: 8, padding: 4 },
-        moreButtonText: { fontSize: 18, color: colors.textMuted, fontWeight: '700' },
         menuOverlay: {
           flex: 1,
           backgroundColor: colors.scrim,
@@ -561,18 +549,37 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         detailSheetTitleRow: {
           paddingHorizontal: 22,
           paddingTop: 22,
-          paddingBottom: 4,
+          paddingBottom: 18,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          gap: 14,
         },
-        detailSheetTitle: { fontSize: 22, fontWeight: '700', color: colors.text, letterSpacing: -0.3 },
+        detailSheetHeroIcon: {
+          width: 48,
+          height: 48,
+          borderRadius: 14,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        detailSheetHeroText: { flex: 1, minWidth: 0 },
+        detailSheetEyebrow: {
+          fontSize: 11,
+          fontWeight: '800',
+          letterSpacing: 1.2,
+          textTransform: 'uppercase',
+          color: colors.textMuted,
+          marginBottom: 4,
+        },
+        detailSheetTitle: { fontSize: 22, fontWeight: '700', color: colors.text, letterSpacing: -0.3, lineHeight: 27 },
         detailSheetMeta: {
-          fontSize: 14,
+          fontSize: 13,
+          fontWeight: '600',
           color: colors.textSecondary,
-          paddingHorizontal: 22,
-          paddingTop: 14,
-          textTransform: 'capitalize',
+          marginTop: 6,
         },
+        detailSheetSubLine: { fontSize: 12, color: colors.textTertiary, marginTop: 4 },
         detailSheetDetail: { fontSize: 14, color: colors.textTertiary, paddingHorizontal: 22, paddingTop: 6 },
         detailSheetGuide: {
           marginTop: 14,
@@ -616,9 +623,9 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           letterSpacing: 1.35,
         },
         detailSheetExerciseRow: {
-          paddingVertical: 12,
-          borderBottomWidth: StyleSheet.hairlineWidth,
-          borderBottomColor: colors.border,
+          paddingVertical: 14,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.textMuted + '44',
         },
         detailSheetExerciseRowLast: { borderBottomWidth: 0 },
         detailSheetExerciseName: { fontSize: 16, fontWeight: '600', color: colors.text, lineHeight: 22 },
@@ -632,33 +639,78 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           paddingTop: 16,
           paddingBottom: 20,
           backgroundColor: colors.surface,
-          gap: 10,
+          gap: 12,
         },
-        detailSheetFooterRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
-        detailSheetGhostBtn: {
-          flex: 1,
+        detailSheetLinkRow: {
+          flexDirection: 'row',
+          justifyContent: 'center',
+          alignItems: 'stretch',
+          gap: 10,
+          paddingTop: 2,
+        },
+        detailSheetFooterBtnSecondary: {
           minHeight: 48,
-          paddingHorizontal: 10,
-          paddingVertical: 12,
+          paddingVertical: 14,
+          paddingHorizontal: 14,
           borderRadius: 12,
+          backgroundColor: colors.background,
           borderWidth: 1,
           borderColor: colors.border,
-          backgroundColor: 'transparent',
-          justifyContent: 'center',
           alignItems: 'center',
+          justifyContent: 'center',
         },
-        detailSheetGhostBtnText: { fontSize: 15, fontWeight: '600', color: colors.text, textAlign: 'center' },
+        detailSheetFooterBtnFlex: { flex: 1 },
+        detailSheetFooterBtnOutline: {
+          backgroundColor: colors.primary + '14',
+          borderColor: colors.primary,
+          borderWidth: 2,
+        },
+        detailSheetFooterBtnSecondaryText: {
+          fontSize: 15,
+          fontWeight: '700',
+          color: colors.text,
+        },
+        detailSheetFooterBtnOutlineText: {
+          fontSize: 15,
+          fontWeight: '700',
+          color: colors.primary,
+        },
+        restSheetBox: {
+          backgroundColor: colors.surface,
+          borderRadius: 20,
+          width: '100%',
+          maxWidth: 360,
+          overflow: 'hidden',
+          borderWidth: 1,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: 12 },
+          shadowOpacity: 0.45,
+          shadowRadius: 28,
+          elevation: 16,
+        },
+        restSheetBody: {
+          paddingHorizontal: 22,
+          paddingTop: 18,
+          paddingBottom: 6,
+        },
+        restSheetBodyText: {
+          fontSize: 14,
+          fontWeight: '500',
+          lineHeight: 21,
+          color: colors.textSecondary,
+        },
         detailSheetPrimaryFull: {
           width: '100%',
-          minHeight: 50,
-          paddingVertical: 14,
+          minHeight: 54,
+          paddingVertical: 16,
           paddingHorizontal: 16,
-          borderRadius: 12,
+          borderRadius: 14,
           backgroundColor: colors.primary,
           alignItems: 'center',
           justifyContent: 'center',
         },
-        detailSheetPrimaryText: { fontSize: 16, fontWeight: '700', color: colors.onPrimary },
+        detailSheetPrimaryText: { fontSize: 17, fontWeight: '800', color: colors.onPrimary },
         noPlanHero: {
           alignItems: 'center',
           paddingTop: 40,
@@ -749,16 +801,17 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     (workout: PlanWorkout, day: string) => {
       const dayDate = getDateForDay(selectedWeek, day);
       if (isRestPlanSlotTitle(workout.title)) {
-        setDetailSheetWorkout({ workout, day, date: dayDate });
+        setRestSheetWorkout({ workout, day, date: dayDate });
         return;
       }
-      // Always open detail sheet so user sees exercises + reasoning, then can View full or Start
+      // Workout days open the detail sheet so the user can preview before committing.
       setDetailSheetWorkout({ workout, day, date: dayDate });
     },
     [selectedWeek]
   );
 
   const closeDetailSheet = useCallback(() => setDetailSheetWorkout(null), []);
+  const closeRestSheet = useCallback(() => setRestSheetWorkout(null), []);
 
   const handleStartWorkout = useCallback(async () => {
     if (!detailSheetWorkout) return;
@@ -816,6 +869,11 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     if (!contextWorkout) return;
     const linkedWorkout = resolveWorkoutForPlanSlot(contextWorkout.workout.id);
     closeContextMenu();
+    if (isRestPlanSlotTitle(contextWorkout.workout.title)) {
+      const dayDate = getDateForDay(selectedWeek, contextWorkout.day);
+      setRestSheetWorkout({ workout: contextWorkout.workout, day: contextWorkout.day, date: dayDate });
+      return;
+    }
     if (linkedWorkout) {
       navigation.navigate('WorkoutDetail', { workoutId: linkedWorkout.id });
     } else {
@@ -1052,45 +1110,13 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   }));
   // --- End drag-and-drop callbacks ---
 
-  /**
-   * `detailLine` may embed a stale minute guess (e.g. "68 min"); canonical duration is **Est.** above.
-   * Remove minute-only bullets so the subtitle does not contradict recomputed time.
-   */
-  function scrubStaleMinuteBullets(parts: string[]): string[] {
-    return parts.filter((s) => {
-      const t = s.trim();
-      if (!t) return false;
-      if (/^\d+\s*exercises?$/i.test(t)) return true;
-      if (/^(?:~|approx\.?\s*)?\d+\s*(?:[-–—]\s*\d+\s*)?min\b/i.test(t)) return false;
-      return true;
-    });
-  }
-
-  const formatWorkoutDetailLine = (workout: PlanWorkout): string => {
-    let detail = stripCoachAdviceBullets(workout.detailLine ?? '') || '—';
-    detail = detail.replace(/·/g, '•');
-    const parts = scrubStaleMinuteBullets(
-      detail.split(/\s*•\s*/).map((s) => s.trim()).filter(Boolean),
-    );
-    const n = workout.planExercises?.length ?? 0;
-    if (workout.type === 'strength' && n > 0) {
-      const rest = parts.filter((s) => !/^\d+\s*exercises?$/i.test(s)).join(' • ');
-      return rest ? `${n} exercises • ${rest}` : `${n} exercises`;
-    }
-    return parts.length ? parts.join(' • ') : '—';
-  };
-
-  const getWorkoutTypeLabel = (type: WorkoutType): string => {
-    return type.charAt(0).toUpperCase() + type.slice(1);
-  };
-
   const getDaySummary = (workouts: PlanWorkout[]): string => {
-    if (workouts.length === 0) return 'Rest (no time)';
-    const totalMin = workouts.reduce((s, w) => {
-      if (isRestPlanSlotTitle(w.title)) return s + w.durationMinutes;
+    if (workouts.length === 0) return 'Rest';
+    const activeWorkouts = workouts.filter((w) => !isRestPlanSlotTitle(w.title));
+    if (activeWorkouts.length === 0) return 'Rest';
+    const totalMin = activeWorkouts.reduce((s, w) => {
       const linked = resolveWorkoutForPlanSlot(w.id);
-      const planned =
-        linked?.estimatedDuration ?? w.durationMinutes;
+      const planned = linked?.estimatedDuration ?? w.durationMinutes;
       return (
         s +
         getPlanSlotDisplayMinutes(
@@ -1100,22 +1126,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         )
       );
     }, 0);
-    const sessionCount = workouts.length;
-    
-    // Check if it's a rest day
-    if (workouts.length === 1 && isRestPlanSlotTitle(workouts[0]?.title)) {
-      return 'Rest (no time)';
-    }
-    
-    // Filter out rest days for intensity calculation
-    const activeWorkouts = workouts.filter((w) => !isRestPlanSlotTitle(w.title));
-    if (activeWorkouts.length === 0) {
-      return 'Rest (no time)';
-    }
-    
-    const intensityLabel = activeWorkouts.some(w => w.intensity === 'Hard') ? 'Hard' : activeWorkouts.some(w => w.intensity === 'Medium') ? 'Medium' : 'Easy';
-    
-    return `${totalMin} min • ${sessionCount} ${sessionCount === 1 ? 'session' : 'sessions'} • ${intensityLabel}`;
+    const sessionCount = activeWorkouts.length;
+    return `${totalMin} min • ${sessionCount} ${sessionCount === 1 ? 'session' : 'sessions'}`;
   };
 
   if (planLoading) {
@@ -1299,22 +1311,13 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           const workouts = plan[day] || [];
           const dayDate = getDateForDay(selectedWeek, day);
           const isToday = isTodayDate(dayDate);
-          const daySummaryText = getDaySummary(workouts);
-
           const isDropTarget = hoveredDay === day && draggingSlot?.day !== day;
+          const dayLabel = day.slice(0, 3);
 
           return (
             <View
               key={day}
-              style={[
-                styles.daySection,
-                isDropTarget && {
-                  backgroundColor: colors.primary + '18',
-                  borderRadius: 12,
-                  borderWidth: 2,
-                  borderColor: colors.primary,
-                },
-              ]}
+              style={[styles.dayGroup, isDropTarget && styles.dayGroupDropTarget]}
               onLayout={(e: LayoutChangeEvent) => {
                 dayLayoutsRef.current[day] = {
                   y: e.nativeEvent.layout.y,
@@ -1322,164 +1325,111 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                 };
               }}
             >
-              <View style={styles.dayHeader}>
-                <View style={styles.dayTitleRow}>
-                  <Text style={styles.dayTitle}>{day}</Text>
-                  {isToday && (
-                    <View style={styles.todayChip}>
-                      <View style={styles.todayDot} />
-                      <Text style={styles.todayText}>Today</Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.daySummaryContainer}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <TouchableOpacity
-                      onPress={() => handleAddWorkoutForDay(day)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Text style={[styles.dayHelperText, { color: colors.primary, fontWeight: '600' }]}>+ Add</Text>
-                    </TouchableOpacity>
-                    <View style={styles.daySummaryRow}>
-                      <Text style={styles.daySummary}>{daySummaryText}</Text>
-                      {workouts.length > 1 && (
-                        <Text style={styles.dayHelperText}> • {workouts.length} workouts</Text>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              </View>
-
               {workouts.length === 0 ? (
                 <TouchableOpacity
-                  style={styles.emptyDay}
                   onPress={() => handleAddWorkoutForDay(day)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add workout for ${day}`}
                 >
-                  <Text style={styles.emptyDayAddIcon}>+</Text>
-                  <Text style={styles.emptyDayText}>Add workout</Text>
+                  <WorkoutDayRow
+                    dayLabel={dayLabel}
+                    kind="empty"
+                    title={`Add workout for ${day}`}
+                    isToday={isToday}
+                  />
                 </TouchableOpacity>
               ) : (
-                <View style={[styles.workoutStack, workouts.length > 1 && styles.workoutStackTight]}>
-                  {workouts.map((workout) => {
-                    const isRestDay = isRestPlanSlotTitle(workout.title);
-                    const isBeingDragged = draggingSlot?.workout.id === workout.id;
+                workouts.map((workout, idx) => {
+                  const isRestDay = isRestPlanSlotTitle(workout.title);
+                  const isBeingDragged = draggingSlot?.workout.id === workout.id;
+                  const isFirstOfDay = idx === 0;
 
-                    // ⋯ button tap — sets moreButtonActive so cardTap can skip handleCardPress
-                    const moreTap = Gesture.Tap()
-                      .onBegin(() => {
-                        'worklet';
-                        moreButtonActive.value = true;
-                      })
-                      .onFinalize(() => {
-                        'worklet';
-                        moreButtonActive.value = false;
-                      })
-                      .onEnd((_e, success) => {
-                        'worklet';
-                        if (success) runOnJS(openContextMenu)(workout, day);
-                      });
+                  const moreTap = Gesture.Tap()
+                    .onBegin(() => {
+                      'worklet';
+                      moreButtonActive.value = true;
+                    })
+                    .onFinalize(() => {
+                      'worklet';
+                      moreButtonActive.value = false;
+                    })
+                    .onEnd((_e, success) => {
+                      'worklet';
+                      if (success) runOnJS(openContextMenu)(workout, day);
+                    });
 
-                    const panGesture = Gesture.Pan()
-                      .activateAfterLongPress(300)
-                      .onStart((e) => {
-                        'worklet';
-                        isDragging.value = true;
-                        dragX.value = e.absoluteX;
-                        dragY.value = e.absoluteY;
-                        ghostOpacity.value = withTiming(1, { duration: 120 });
-                        runOnJS(setDraggingSlot)({ workout, day });
-                        runOnJS(setScrollEnabled)(false);
-                      })
-                      .onUpdate((e) => {
-                        'worklet';
-                        dragX.value = e.absoluteX;
-                        dragY.value = e.absoluteY;
-                        runOnJS(updateHoveredDay)(e.absoluteY);
-                      })
-                      .onEnd(() => {
-                        'worklet';
+                  const panGesture = Gesture.Pan()
+                    .activateAfterLongPress(300)
+                    .onStart((e) => {
+                      'worklet';
+                      isDragging.value = true;
+                      dragX.value = e.absoluteX;
+                      dragY.value = e.absoluteY;
+                      ghostOpacity.value = withTiming(1, { duration: 120 });
+                      runOnJS(setDraggingSlot)({ workout, day });
+                      runOnJS(setScrollEnabled)(false);
+                    })
+                    .onUpdate((e) => {
+                      'worklet';
+                      dragX.value = e.absoluteX;
+                      dragY.value = e.absoluteY;
+                      runOnJS(updateHoveredDay)(e.absoluteY);
+                    })
+                    .onEnd(() => {
+                      'worklet';
+                      isDragging.value = false;
+                      ghostOpacity.value = withTiming(0, { duration: 100 });
+                      runOnJS(commitDrop)();
+                    })
+                    .onFinalize(() => {
+                      'worklet';
+                      if (isDragging.value) {
                         isDragging.value = false;
                         ghostOpacity.value = withTiming(0, { duration: 100 });
-                        runOnJS(commitDrop)();
-                      })
-                      .onFinalize(() => {
-                        'worklet';
-                        if (isDragging.value) {
-                          isDragging.value = false;
-                          ghostOpacity.value = withTiming(0, { duration: 100 });
-                          runOnJS(cancelDrag)();
-                        }
-                      });
+                        runOnJS(cancelDrag)();
+                      }
+                    });
 
-                    // Card tap — skips handleCardPress if ⋯ button is being touched
-                    const cardTap = Gesture.Tap()
-                      .onEnd((_e, success) => {
-                        'worklet';
-                        if (success && !moreButtonActive.value) runOnJS(handleCardPress)(workout, day);
-                      });
+                  const cardTap = Gesture.Tap()
+                    .onEnd((_e, success) => {
+                      'worklet';
+                      if (success && !moreButtonActive.value) runOnJS(handleCardPress)(workout, day);
+                    });
 
-                    // Exclusive: pan (long-press drag) wins over tap; tap fires on quick press
-                    const composed = Gesture.Exclusive(panGesture, cardTap);
+                  const composed = Gesture.Exclusive(panGesture, cardTap);
 
-                    const moreButtonJSX = (
-                      <GestureDetector gesture={moreTap}>
-                        <View
-                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                          style={styles.moreButton}
-                        >
-                          <Text style={styles.moreButtonText}>⋯</Text>
-                        </View>
-                      </GestureDetector>
-                    );
+                  const moreButtonJSX = (
+                    <GestureDetector gesture={moreTap}>
+                      <View
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        style={styles.moreButton}
+                        accessibilityRole="button"
+                        accessibilityLabel="More options"
+                      >
+                        <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
+                      </View>
+                    </GestureDetector>
+                  );
 
-                    const cardStyle = [
-                      styles.workoutCard,
-                      isRestDay && styles.restDayCard,
-                      isBeingDragged && { opacity: 0.3, borderWidth: 2, borderStyle: 'dashed' as const, borderColor: colors.primary },
-                    ];
-
-                    if (isRestDay) {
-                      return (
-                        <GestureDetector key={workout.id} gesture={composed}>
-                          <View style={cardStyle}>
-                            <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
-                              <Text style={styles.workoutTypeBadge}>R</Text>
-                            </View>
-                            <View style={styles.workoutContent}>
-                              <Text style={styles.workoutTitle}>Rest Day</Text>
-                              <Text style={styles.workoutDetailLine}>Off / Optional walk</Text>
-                            </View>
-                            {moreButtonJSX}
-                          </View>
-                        </GestureDetector>
-                      );
-                    }
-
-                    return (
-                      <GestureDetector key={workout.id} gesture={composed}>
-                        <View style={cardStyle}>
-                          <View style={[styles.workoutIcon, { backgroundColor: workout.iconColor }]}>
-                            {isSlotCompleted(workout.id)
-                              ? <Ionicons name="checkmark" size={22} color={colors.onPrimary} />
-                              : <Text style={styles.workoutTypeBadge}>{getWorkoutTypeLabel(workout.type).charAt(0)}</Text>
-                            }
-                          </View>
-                          <View style={styles.workoutContent}>
-                            <Text style={styles.workoutTitle}>{workout.title}</Text>
-                            <Text style={styles.workoutEtaLine}>
-                              Est. {planSlotEtaMinutesDisplay(workout)} min
-                            </Text>
-                            <Text style={styles.workoutDetailLine}>
-                              {formatWorkoutDetailLine(workout)}
-                            </Text>
-                          </View>
-                          {moreButtonJSX}
-                        </View>
-                      </GestureDetector>
-                    );
-                  })}
-                </View>
+                  return (
+                    <GestureDetector key={workout.id} gesture={composed}>
+                      <View collapsable={false}>
+                        <WorkoutDayRow
+                          dayLabel={isFirstOfDay ? dayLabel : null}
+                          kind={isRestDay ? 'rest' : 'workout'}
+                          type={workout.type}
+                          title={isRestDay ? 'Rest day' : workout.title}
+                          etaMinutes={isRestDay ? null : planSlotEtaMinutesDisplay(workout)}
+                          isToday={isToday}
+                          isCompleted={!isRestDay && isSlotCompleted(workout.id)}
+                          isBeingDragged={isBeingDragged}
+                          moreButton={moreButtonJSX}
+                        />
+                      </View>
+                    </GestureDetector>
+                  );
+                })
               )}
             </View>
           );
@@ -1617,21 +1567,42 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                   bounces={false}
                 >
                   <View style={styles.detailSheetTitleRow}>
-                    <Text style={styles.detailSheetTitle}>{detailSheetWorkout.workout.title}</Text>
+                    <View
+                      style={[
+                        styles.detailSheetHeroIcon,
+                        {
+                          backgroundColor:
+                            pickWorkoutAccent(detailSheetWorkout.workout.type, isRestDay, colors) + '22',
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={pickWorkoutIcon(detailSheetWorkout.workout.type, isRestDay)}
+                        size={26}
+                        color={pickWorkoutAccent(detailSheetWorkout.workout.type, isRestDay, colors)}
+                      />
+                    </View>
+                    <View style={styles.detailSheetHeroText}>
+                      <Text style={styles.detailSheetEyebrow}>
+                        {workoutEyebrow(detailSheetWorkout.workout.type, isRestDay)}
+                      </Text>
+                      <Text style={styles.detailSheetTitle} numberOfLines={2}>
+                        {detailSheetWorkout.workout.title}
+                      </Text>
+                      {!isRestDay ? (
+                        <Text style={styles.detailSheetMeta}>
+                          Est. {getPlanSlotDisplayMinutes(
+                            linked?.estimatedDuration ?? detailSheetWorkout.workout.durationMinutes,
+                            exercisesLikeFromPrescription(sortedSlotRx),
+                            exercisesLikeFromPrescription(linked?.exercises ?? null),
+                          )} min
+                        </Text>
+                      ) : null}
+                      <Text style={styles.detailSheetSubLine}>
+                        {detailSheetWorkout.day} • {detailSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={styles.detailSheetMeta}>
-                    {detailSheetWorkout.workout.type} •{' '}
-                    {getPlanSlotDisplayMinutes(
-                      linked?.estimatedDuration ?? detailSheetWorkout.workout.durationMinutes,
-                      exercisesLikeFromPrescription(sortedSlotRx),
-                      exercisesLikeFromPrescription(linked?.exercises ?? null),
-                    )}{' '}
-                    min
-                    {detailSheetWorkout.workout.intensity ? ` • ${detailSheetWorkout.workout.intensity}` : ''}
-                  </Text>
-                  <Text style={styles.detailSheetDetail}>
-                    {detailSheetWorkout.day} • {detailSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </Text>
 
                   {!isRestDay && linked && (linked.warmUp || linked.reasoning || linked.coolDown) ? (
                     <View style={styles.detailSheetGuide}>
@@ -1761,24 +1732,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                     </TouchableOpacity>
                   ) : (
                     <>
-                      <View style={styles.detailSheetFooterRow}>
-                        <TouchableOpacity style={styles.detailSheetGhostBtn} onPress={closeDetailSheet}>
-                          <Text style={styles.detailSheetGhostBtnText}>Back</Text>
-                        </TouchableOpacity>
-                        {linked ? (
-                          <TouchableOpacity
-                            style={styles.detailSheetGhostBtn}
-                            onPress={() => {
-                              closeDetailSheet();
-                              navigation.navigate('WorkoutDetail', { workoutId: linked.id });
-                            }}
-                          >
-                            <Text style={styles.detailSheetGhostBtnText} numberOfLines={1}>
-                              Workout details
-                            </Text>
-                          </TouchableOpacity>
-                        ) : null}
-                      </View>
                       <TouchableOpacity
                         style={[
                           styles.detailSheetPrimaryFull,
@@ -1793,12 +1746,94 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                           <Text style={styles.detailSheetPrimaryText}>Start workout</Text>
                         )}
                       </TouchableOpacity>
+                      <View style={styles.detailSheetLinkRow}>
+                        <TouchableOpacity
+                          style={[styles.detailSheetFooterBtnSecondary, styles.detailSheetFooterBtnFlex]}
+                          onPress={closeDetailSheet}
+                          accessibilityRole="button"
+                          accessibilityLabel="Close"
+                        >
+                          <Text style={styles.detailSheetFooterBtnSecondaryText}>Close</Text>
+                        </TouchableOpacity>
+                        {linked ? (
+                          <TouchableOpacity
+                            style={[
+                              styles.detailSheetFooterBtnSecondary,
+                              styles.detailSheetFooterBtnFlex,
+                              styles.detailSheetFooterBtnOutline,
+                            ]}
+                            onPress={() => {
+                              closeDetailSheet();
+                              navigation.navigate('WorkoutDetail', { workoutId: linked.id });
+                            }}
+                            accessibilityRole="button"
+                          >
+                            <Text style={styles.detailSheetFooterBtnOutlineText}>Workout details</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
                     </>
                   )}
                 </View>
               </Pressable>
             );
           })()}
+        </Pressable>
+      </Modal>
+
+      {/* Rest day sheet — compact, with "Make this a workout day" CTA */}
+      <Modal visible={!!restSheetWorkout} transparent animationType="fade">
+        <Pressable style={styles.detailSheetOverlay} onPress={closeRestSheet}>
+          {restSheetWorkout && (
+            <Pressable style={styles.restSheetBox} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.detailSheetTitleRow}>
+                <View
+                  style={[
+                    styles.detailSheetHeroIcon,
+                    { backgroundColor: colors.secondary + '22' },
+                  ]}
+                >
+                  <Ionicons name="moon-outline" size={26} color={colors.secondary} />
+                </View>
+                <View style={styles.detailSheetHeroText}>
+                  <Text style={styles.detailSheetEyebrow}>REST</Text>
+                  <Text style={styles.detailSheetTitle}>Rest Day</Text>
+                  <Text style={styles.detailSheetSubLine}>
+                    {restSheetWorkout.day} • {restSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.restSheetBody}>
+                <Text style={styles.restSheetBodyText}>
+                  Recovery — optional easy walk or mobility today.
+                </Text>
+              </View>
+              <View style={styles.detailSheetFooter}>
+                <TouchableOpacity
+                  style={styles.detailSheetPrimaryFull}
+                  onPress={() => {
+                    const day = restSheetWorkout.day;
+                    closeRestSheet();
+                    handleAddWorkoutForDay(day);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Make this a workout day"
+                >
+                  <Text style={styles.detailSheetPrimaryText}>Make this a workout day</Text>
+                </TouchableOpacity>
+                <View style={styles.detailSheetLinkRow}>
+                  <TouchableOpacity
+                    style={[styles.detailSheetFooterBtnSecondary, styles.detailSheetFooterBtnFlex]}
+                    onPress={closeRestSheet}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close"
+                  >
+                    <Text style={styles.detailSheetFooterBtnSecondaryText}>Close</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Pressable>
+          )}
         </Pressable>
       </Modal>
 
@@ -1821,24 +1856,25 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       {draggingSlot && (
         <Animated.View
           style={[
-            styles.workoutCard,
             ghostAnimatedStyle,
-            { width: '91%', elevation: 16, shadowOpacity: 0.35, shadowRadius: 14 },
+            { width: '91%', elevation: 16, shadowOpacity: 0.35, shadowRadius: 14, shadowColor: colors.shadow },
           ]}
           pointerEvents="none"
         >
-          <View style={[styles.workoutIcon, { backgroundColor: draggingSlot.workout.iconColor }]}>
-            <Text style={styles.workoutTypeBadge}>
-              {isRestPlanSlotTitle(draggingSlot.workout.title) ? 'R' : getWorkoutTypeLabel(draggingSlot.workout.type).charAt(0)}
-            </Text>
-          </View>
-          <View style={styles.workoutContent}>
-            <Text style={styles.workoutTitle}>{draggingSlot.workout.title}</Text>
-            <Text style={styles.workoutEtaLine}>
-              Est. {planSlotEtaMinutesDisplay(draggingSlot.workout)} min
-            </Text>
-            <Text style={styles.workoutDetailLine}>{formatWorkoutDetailLine(draggingSlot.workout)}</Text>
-          </View>
+          <WorkoutDayRow
+            dayLabel={null}
+            kind={isRestPlanSlotTitle(draggingSlot.workout.title) ? 'rest' : 'workout'}
+            type={draggingSlot.workout.type}
+            title={isRestPlanSlotTitle(draggingSlot.workout.title) ? 'Rest day' : draggingSlot.workout.title}
+            etaMinutes={
+              isRestPlanSlotTitle(draggingSlot.workout.title)
+                ? null
+                : planSlotEtaMinutesDisplay(draggingSlot.workout)
+            }
+            isToday={false}
+            isCompleted={false}
+            isBeingDragged={false}
+          />
         </Animated.View>
       )}
     </View>
