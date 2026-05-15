@@ -207,8 +207,6 @@ export default function HomeScreen() {
         shadowColor: colors.shadow,
       },
       menuItemLabel: { color: colors.text },
-      menuItemLabelDisabled: { color: colors.textMuted },
-      menuItemSoonBadge: { color: colors.textMuted, borderColor: colors.border },
       menuDivider: { backgroundColor: colors.border },
       accentHairline: { backgroundColor: colors.primary },
       heroRing: { borderColor: colors.primary + '55' },
@@ -318,12 +316,6 @@ export default function HomeScreen() {
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </TouchableOpacity>
             <View style={[styles.menuDivider, themedStyles.menuDivider]} />
-            <View style={[styles.menuItem, styles.menuItemDisabled]}>
-              <Ionicons name="people-outline" size={22} color={colors.textMuted} />
-              <Text style={[styles.menuItemLabelDisabled, themedStyles.menuItemLabelDisabled]}>Invite a friend</Text>
-              <Text style={[styles.menuItemSoonBadge, themedStyles.menuItemSoonBadge]}>Soon</Text>
-            </View>
-            <View style={[styles.menuDivider, themedStyles.menuDivider]} />
             <TouchableOpacity style={styles.menuItem} onPress={onSignOut} activeOpacity={0.7}>
               <Ionicons name="log-out-outline" size={22} color={colors.text} />
               <Text style={[styles.menuItemLabel, themedStyles.menuItemLabel]}>Sign out</Text>
@@ -379,7 +371,7 @@ export default function HomeScreen() {
                     {draft.workout.name}
                   </Text>
                   <Text style={[styles.cardMeta, { color: colors.textSecondary }]} numberOfLines={1}>
-                    Tap to resume on Workout
+                    Continue your session
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
@@ -433,7 +425,7 @@ export default function HomeScreen() {
                   activeOpacity={0.85}
                 >
                   <Text style={[styles.primaryButtonText, themedStyles.primaryCtaText]}>
-                    {hasExercises ? 'Open workout' : 'Open workout — add exercises'}
+                    Open workout
                   </Text>
                   <Ionicons name="arrow-forward" size={18} color={colors.background} />
                 </TouchableOpacity>
@@ -505,7 +497,7 @@ export default function HomeScreen() {
                     <Text style={[styles.cardEyebrow, { color: colors.textMuted }]}>Today</Text>
                     <Text style={[styles.cardTitle, { color: colors.text }]}>Nothing scheduled</Text>
                     <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
-                      No session on your plan today — add one from Plan if you'd like.
+                      No session on your plan today.
                     </Text>
                   </View>
                 </View>
@@ -529,8 +521,7 @@ export default function HomeScreen() {
                     <Text style={[styles.cardEyebrow, { color: colors.textMuted }]}>This calendar week</Text>
                     <Text style={[styles.cardTitle, { color: colors.text }]}>Outside your program</Text>
                     <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
-                      Before your program start or after the last program week. Switch week on Plan or extend
-                      your program.
+                      Your date falls outside the program weeks. Open Plan to extend or switch weeks.
                     </Text>
                   </View>
                 </View>
@@ -552,7 +543,7 @@ export default function HomeScreen() {
                 </View>
                 <Text style={[styles.noPlanTitle, { color: colors.text }]}>No plan yet</Text>
                 <Text style={[styles.noPlanSub, { color: colors.textSecondary }]}>
-                  Generate a personalised week with AI, or build your schedule manually.
+                  Generate a personalized week with AI, or build your schedule manually.
                 </Text>
                 <TouchableOpacity
                   style={[styles.primaryButton, styles.noPlanCta, themedStyles.primaryCta]}
@@ -873,23 +864,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   menuItemLabel: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  menuItemDisabled: {
-    opacity: 0.6,
-  },
-  menuItemSoonBadge: {
-    fontSize: 11,
-    fontWeight: '700',
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    overflow: 'hidden',
-  },
-  menuItemLabelDisabled: {
     flex: 1,
     fontSize: 16,
     fontWeight: '500',
