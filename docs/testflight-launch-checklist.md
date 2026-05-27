@@ -284,9 +284,47 @@ Before uploading to TestFlight at all:
 
 ## 3. MEDIUM — fix soon, not gating
 
-### 3.1 Backend crash reporting — ✅ DONE (2026-05-26)
+**Section 3 progress (updated 2026-05-26 after revert):**
 
-`@sentry/node` v10 installed and wired. Backend now captures unhandled exceptions and 5xx `HttpException`s with full stack traces, attached to the same `requestId` the frontend can quote.
+| Item | Status | Notes |
+|------|--------|-------|
+| 3.1 Backend Sentry | ⚠️ Attempted, reverted | `2d11cb5` → reverted by `005abe9`; Render rejected the deploy without logs captured |
+| 3.2 Request-ID correlation | ⚠️ Attempted, reverted | Bundled with 3.1 in `2d11cb5`; reverted with it |
+| 3.3 `/ready` probes Supabase + Groq | ⚠️ Attempted, reverted | Bundled with 3.1 in `2d11cb5`; reverted with it |
+| 3.4 iOS permission descriptions | ✅ No-op (verified clean) | No permission-gated packages installed |
+| 3.5 Cold-install onboarding walkthrough | ⬜ Needs device | After first build |
+| 3.6 In-app support contact | ⚠️ Known broken, deferred | `FEEDBACK_MAILTO` has no recipient; user chose to defer |
+| 3.7 Accessibility labels | ⬜ Post-launch acceptable | |
+| 3.8 Account deletion + export verification | ⬜ Needs running app | |
+
+**Re-attempt strategy for 3.1/3.2/3.3:** Render rejected `2d11cb5` (a single commit containing all three changes) but never gave us logs. Next attempt should split into three separate commits on a feature branch so we can deploy one at a time and identify which change Render rejects. Suggested order:
+
+1. **request-id middleware alone** — no new deps, just `crypto.randomUUID()` + an Express middleware. If this fails to deploy, the issue is not the code I added.
+2. **expanded `/ready`** — adds external HTTP probes. Most likely to interact with Render's health-check timeout — see 3.3 notes for the specific risk.
+3. **`@sentry/node`** — adds the heaviest new dependency. Most likely to fail at `npm install` on Render's builder.
+
+Get the Render deploy log this time. If a deploy fails silently again, change Render's health-check path to `/api/health` (liveness) instead of `/api/health/ready` to rule out probe-timeout rollback.
+
+---
+
+### 3.1 Backend crash reporting — ⚠️ ATTEMPTED THEN REVERTED (2026-05-26)
+
+**Status:** committed in `2d11cb5`, reverted in `005abe9` after ~18 minutes of failed Render deploys. The implementation notes below are preserved so the next attempt can pick up where this one left off — the code passed local lint, `tsc --noEmit`, `nest build`, and 134 unit tests, but failed on Render for an unknown reason (no logs captured at revert time).
+
+**Hypotheses to investigate next time** (ranked by likelihood):
+1. `@sentry/node` v10 pulls native `@opentelemetry/*` deps that may fail `npm install` on Render's free-tier builder.
+2. Render Node version locked below 20 (engines.node says >=20 in package.json).
+3. Build succeeds but `instrument.ts` import path fails at runtime on Linux (case-sensitivity).
+4. New `/ready` is too slow on first request and Render's startup health probe times out → rollback.
+5. Render's "Manual Deploy" actually targeted an older commit, not the new one.
+
+**Next attempt strategy:** split into separate commits on a feature branch (request-id alone, then `/ready` alone, then Sentry alone) so we can identify which change Render rejects. Get the deploy log this time.
+
+---
+
+**Implementation details (for the next attempt — code was working locally):**
+
+`@sentry/node` v10 installed and wired. Backend captures unhandled exceptions and 5xx `HttpException`s with full stack traces, attached to the same `requestId` the frontend can quote.
 
 Implementation:
 - **`backend/src/instrument.ts` (new)** — initializes Sentry. **No-op if `SENTRY_DSN` is unset**, so dev and tests need zero changes.
@@ -311,7 +349,15 @@ Verified: backend lint, `tsc --noEmit`, `nest build` (`dist/src/instrument.js` p
 - [ ] Redeploy.
 - [ ] Smoke test: hit any endpoint that throws (or temporarily add a `/api/health/boom` route, throw, then revert). Confirm the event lands in Sentry with `request_id` populated.
 
-### 3.2 Request-ID correlation — ✅ DONE (2026-05-26)
+### 3.2 Request-ID correlation — ⚠️ ATTEMPTED THEN REVERTED (2026-05-26)
+
+**Status:** committed in `2d11cb5`, reverted in `005abe9` (bundled with 3.1 and 3.3 in one commit, so all three got pulled together). Implementation below is preserved.
+
+**Next attempt:** ship this on its own commit first. It has no new dependencies, just `crypto.randomUUID()` and an Express middleware function, so it's the cleanest possible deploy test — if THIS commit fails on Render too, the failure is not about the code I added.
+
+---
+
+**Implementation details (for the next attempt — code was working locally):**
 
 Added `backend/src/common/request-id.middleware.ts`. Wired in `backend/src/main.ts` before helmet/body-parser. Updated `SanitizedExceptionFilter` to include the request ID in log lines and (for unhandled 500s) in the response body.
 
@@ -324,9 +370,19 @@ Behavior:
 
 Verified: backend lint, `tsc --noEmit`, and 134 unit tests all pass.
 
-### 3.3 Health `/ready` probes Supabase + Groq — ✅ DONE (2026-05-26)
+### 3.3 Health `/ready` probes Supabase + Groq — ⚠️ ATTEMPTED THEN REVERTED (2026-05-26)
 
-`/api/health/ready` now reports the state of every external dependency, not just DB. New shape:
+**Status:** committed in `2d11cb5`, reverted in `005abe9`. Implementation below is preserved.
+
+**Specific Render risk to investigate** for this change: the new `/ready` does external HTTP calls (Supabase JWKS + Groq `/models`) on the first request. With Render's free-tier cold start + a 3s per-probe timeout, the *first* `/ready` response can take up to ~6s. If Render's deploy-time health-check probe has a shorter timeout, it may consider the deploy unhealthy and roll back — silently. The 30s in-memory cache means subsequent probes are fast, but Render only sees the first one.
+
+**Possible mitigation for the next attempt:** keep `/api/health` (liveness) as the Render health-check path; leave `/api/health/ready` for monitoring tools only. Render's UI lets you change the health-check path per service.
+
+---
+
+**Implementation details (for the next attempt — code was working locally):**
+
+`/api/health/ready` reports the state of every external dependency, not just DB. New shape:
 
 ```json
 {
