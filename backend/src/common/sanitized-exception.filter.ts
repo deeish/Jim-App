@@ -5,7 +5,9 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import * as Sentry from '@sentry/node';
 import type { Response } from 'express';
+import { isSentryEnabled } from '../instrument';
 import type { RequestWithId } from './request-id.middleware';
 
 /**
@@ -26,6 +28,9 @@ export class SanitizedExceptionFilter implements ExceptionFilter {
       const status = exception.getStatus();
       const body = exception.getResponse();
       this.logLine('http_exception', status, req.method, path, requestId);
+      if (status >= 500) {
+        this.reportToSentry(exception, req, status);
+      }
       return res.status(status).json(body);
     }
 
@@ -37,6 +42,7 @@ export class SanitizedExceptionFilter implements ExceptionFilter {
       path,
       requestId,
     );
+    this.reportToSentry(err, req, HttpStatus.INTERNAL_SERVER_ERROR);
     if (!isProd && err?.stack) {
       console.error(err.stack.split('\n').slice(0, 12).join('\n'));
     }
@@ -44,6 +50,24 @@ export class SanitizedExceptionFilter implements ExceptionFilter {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       message: 'Internal server error',
       ...(requestId ? { requestId } : {}),
+    });
+  }
+
+  private reportToSentry(
+    exception: unknown,
+    req: RequestWithId,
+    status: number,
+  ): void {
+    if (!isSentryEnabled) return;
+    Sentry.withScope((scope) => {
+      if (req.id) scope.setTag('request_id', req.id);
+      scope.setTag('http.status', String(status));
+      scope.setContext('request', {
+        method: req.method,
+        path: req.originalUrl ?? req.url ?? '',
+        request_id: req.id,
+      });
+      Sentry.captureException(exception);
     });
   }
 
