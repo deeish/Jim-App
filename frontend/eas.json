@@ -9,17 +9,35 @@
       "channel": "preview",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE": "https://jim-app-l8o7.onrender.com",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://jmfshcpgtuqdjmtpexqg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_e-hPpy13X6YRNomCMRcVCA_3xxbGHUF",
+        "EXPO_PUBLIC_APP_ENV": "preview"
       }
     },
     "production": {
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_BASE": "https://jim-app-l8o7.onrender.com",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://jmfshcpgtuqdjmtpexqg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_e-hPpy13X6YRNomCMRcVCA_3xxbGHUF",
+        "EXPO_PUBLIC_APP_ENV": "production"
+      }
     },
     "staging": {
       "distribution": "internal",
       "channel": "staging",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE": "https://jim-app-l8o7.onrender.com",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://jmfshcpgtuqdjmtpexqg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_e-hPpy13X6YRNomCMRcVCA_3xxbGHUF",
+        "EXPO_PUBLIC_APP_ENV": "staging"
       }
     }
   },
