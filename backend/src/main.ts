@@ -1,4 +1,3 @@
-import './instrument';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -8,7 +7,6 @@ import * as bodyParser from 'body-parser';
 import { AppModule } from './app.module';
 import { buildAllowedCorsOrigins } from './cors-origins';
 import { JsonProductionLogger } from './common/json-logger.service';
-import { requestIdMiddleware } from './common/request-id.middleware';
 
 function jsonBodyLimit(): string {
   const raw = process.env.JSON_BODY_LIMIT?.trim();
@@ -26,7 +24,6 @@ async function bootstrap() {
   });
 
   const bodyLimit = jsonBodyLimit();
-  app.use(requestIdMiddleware);
   app.use(
     helmet({
       contentSecurityPolicy: false,
@@ -84,9 +81,7 @@ async function bootstrap() {
     health: '/api/health',
     ready: '/api/health/ready',
   };
-  http.get('/', (_req: Request, res: Response) =>
-    res.status(200).json(rootJson),
-  );
+  http.get('/', (_req: Request, res: Response) => res.status(200).json(rootJson));
   http.head('/', (_req: Request, res: Response) => res.status(200).end());
 
   const port = process.env.PORT || 3000;
