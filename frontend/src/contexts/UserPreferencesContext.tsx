@@ -17,6 +17,16 @@ import {
   PROFILE_AVATAR_IDS,
   type ProfileAvatarId,
 } from '../constants/profileAvatars';
+import {
+  DAYS_OF_WEEK_PREF,
+  TRAINING_FREQUENCY_OPTIONS,
+  type DayOfWeekPreference,
+  type TrainingFrequencyOption,
+} from '../constants/trainingSchedule';
+import {
+  parseStoredInjuryTagIds,
+  type StoredInjuryTagId,
+} from '../constants/injuryTags';
 
 const STORAGE_KEY = 'jim_user_preferences_v1';
 const DISPLAY_NAME_MAX = 80;
@@ -39,6 +49,11 @@ export const EXPERIENCE_OPTIONS = [
 export type GoalOption = (typeof GOAL_OPTIONS)[number];
 export type ExperienceOption = (typeof EXPERIENCE_OPTIONS)[number];
 
+export type { StoredInjuryTagId };
+
+const VALID_PREF_DAY = new Set<string>(DAYS_OF_WEEK_PREF);
+const MAX_INJURY_NOTES = 400;
+
 export type UserPreferencesState = {
   weightUnit: WeightUnit;
   goal: GoalOption;
@@ -49,6 +64,15 @@ export type UserPreferencesState = {
   profileDisplayName: string;
   profileAvatarId: ProfileAvatarId;
   hasCompletedOnboarding: boolean;
+  /** Target lifting days per week (plan generator default). */
+  trainingFrequency: TrainingFrequencyOption;
+  /** When true, weekdays follow a balanced template; otherwise use preferredTrainingDays. */
+  trainingDaysFlexible: boolean;
+  /** Specific weekdays — only meaningful when trainingDaysFlexible is false. */
+  preferredTrainingDays: DayOfWeekPreference[];
+  injuryTagIds: StoredInjuryTagId[];
+  /** Optional free-text for the generator (“restrictions”). */
+  injuryNotes: string;
 };
 
 const DEFAULTS: UserPreferencesState = {
@@ -60,6 +84,11 @@ const DEFAULTS: UserPreferencesState = {
   profileDisplayName: '',
   profileAvatarId: 'default',
   hasCompletedOnboarding: false,
+  trainingFrequency: 4,
+  trainingDaysFlexible: true,
+  preferredTrainingDays: [],
+  injuryTagIds: [],
+  injuryNotes: '',
 };
 
 type UserPreferencesContextValue = {
@@ -78,6 +107,16 @@ type UserPreferencesContextValue = {
   setProfileAvatarId: (id: ProfileAvatarId) => void;
   hasCompletedOnboarding: boolean;
   completeOnboarding: () => void;
+  trainingFrequency: TrainingFrequencyOption;
+  setTrainingFrequency: (n: TrainingFrequencyOption) => void;
+  trainingDaysFlexible: boolean;
+  setTrainingDaysFlexible: (flexible: boolean) => void;
+  preferredTrainingDays: DayOfWeekPreference[];
+  setPreferredTrainingDays: (days: DayOfWeekPreference[]) => void;
+  injuryTagIds: StoredInjuryTagId[];
+  setInjuryTagIds: (ids: StoredInjuryTagId[]) => void;
+  injuryNotes: string;
+  setInjuryNotes: (notes: string) => void;
 };
 
 const UserPreferencesContext = createContext<UserPreferencesContextValue | null>(
@@ -123,6 +162,25 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
     typeof p?.hasCompletedOnboarding === 'boolean'
       ? p.hasCompletedOnboarding
       : DEFAULTS.hasCompletedOnboarding;
+  const trainingFrequency =
+    TRAINING_FREQUENCY_OPTIONS.includes(p.trainingFrequency as TrainingFrequencyOption)
+      ? (p.trainingFrequency as TrainingFrequencyOption)
+      : DEFAULTS.trainingFrequency;
+  const trainingDaysFlexible =
+    typeof p.trainingDaysFlexible === 'boolean'
+      ? p.trainingDaysFlexible
+      : DEFAULTS.trainingDaysFlexible;
+  const preferredTrainingDays = Array.isArray(p.preferredTrainingDays)
+    ? (p.preferredTrainingDays.filter(
+        (x): x is DayOfWeekPreference =>
+          typeof x === 'string' && VALID_PREF_DAY.has(x),
+      ) as DayOfWeekPreference[])
+    : DEFAULTS.preferredTrainingDays;
+  const injuryTagIds = parseStoredInjuryTagIds(p.injuryTagIds);
+  const injuryNotes =
+    typeof p.injuryNotes === 'string'
+      ? p.injuryNotes.slice(0, MAX_INJURY_NOTES)
+      : DEFAULTS.injuryNotes;
   return {
     weightUnit,
     goal,
@@ -131,6 +189,11 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
     profileDisplayName,
     profileAvatarId,
     hasCompletedOnboarding,
+    trainingFrequency,
+    trainingDaysFlexible,
+    preferredTrainingDays,
+    injuryTagIds,
+    injuryNotes,
   };
 }
 
@@ -234,6 +297,61 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     });
   }, [persist]);
 
+  const setTrainingFrequency = useCallback(
+    (trainingFrequency: TrainingFrequencyOption) => {
+      setState((s) => {
+        const next = { ...s, trainingFrequency };
+        persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
+
+  const setTrainingDaysFlexible = useCallback(
+    (trainingDaysFlexible: boolean) => {
+      setState((s) => {
+        const next = { ...s, trainingDaysFlexible };
+        persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
+
+  const setPreferredTrainingDays = useCallback(
+    (preferredTrainingDays: DayOfWeekPreference[]) => {
+      setState((s) => {
+        const next = { ...s, preferredTrainingDays };
+        persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
+
+  const setInjuryTagIds = useCallback(
+    (injuryTagIds: StoredInjuryTagId[]) => {
+      setState((s) => {
+        const next = { ...s, injuryTagIds: parseStoredInjuryTagIds(injuryTagIds) };
+        persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
+
+  const setInjuryNotes = useCallback(
+    (notes: string) => {
+      setState((s) => {
+        const next = { ...s, injuryNotes: notes.slice(0, MAX_INJURY_NOTES) };
+        persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
+
   const value = useMemo(
     () => ({
       hydrated,
@@ -251,6 +369,16 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setProfileAvatarId,
       hasCompletedOnboarding: state.hasCompletedOnboarding,
       completeOnboarding,
+      trainingFrequency: state.trainingFrequency,
+      setTrainingFrequency,
+      trainingDaysFlexible: state.trainingDaysFlexible,
+      setTrainingDaysFlexible,
+      preferredTrainingDays: state.preferredTrainingDays,
+      setPreferredTrainingDays,
+      injuryTagIds: state.injuryTagIds,
+      setInjuryTagIds,
+      injuryNotes: state.injuryNotes,
+      setInjuryNotes,
     }),
     [
       hydrated,
@@ -261,6 +389,11 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       state.profileDisplayName,
       state.profileAvatarId,
       state.hasCompletedOnboarding,
+      state.trainingFrequency,
+      state.trainingDaysFlexible,
+      state.preferredTrainingDays,
+      state.injuryTagIds,
+      state.injuryNotes,
       setWeightUnit,
       setGoal,
       setExperience,
@@ -268,6 +401,11 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setProfileDisplayName,
       setProfileAvatarId,
       completeOnboarding,
+      setTrainingFrequency,
+      setTrainingDaysFlexible,
+      setPreferredTrainingDays,
+      setInjuryTagIds,
+      setInjuryNotes,
     ],
   );
 
