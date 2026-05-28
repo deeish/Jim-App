@@ -10,7 +10,10 @@ const capturesDir = path.join(__dirname, 'captures');
 describe('cross-week progression eval', () => {
   it('flags a sharp volume jump without deload framing', () => {
     const raw = JSON.parse(
-      fs.readFileSync(path.join(capturesDir, 'cross-week-two-week-sample.json'), 'utf8'),
+      fs.readFileSync(
+        path.join(capturesDir, 'cross-week-two-week-sample.json'),
+        'utf8',
+      ),
     ) as unknown;
     const parsed = parseCrossWeekEvalFixture(raw);
     expect(parsed).not.toBeNull();
@@ -35,7 +38,10 @@ describe('cross-week progression eval', () => {
 
   it('flags heavy reuse of the same exercise ids in aligned slots', () => {
     const raw = JSON.parse(
-      fs.readFileSync(path.join(capturesDir, 'cross-week-overlap-sample.json'), 'utf8'),
+      fs.readFileSync(
+        path.join(capturesDir, 'cross-week-overlap-sample.json'),
+        'utf8',
+      ),
     ) as unknown;
     const parsed = parseCrossWeekEvalFixture(raw);
     expect(parsed).not.toBeNull();
@@ -46,7 +52,10 @@ describe('cross-week progression eval', () => {
 
   it('stays quiet when week two is explicitly a deload and volume drops', () => {
     const raw = JSON.parse(
-      fs.readFileSync(path.join(capturesDir, 'cross-week-deload-ok-sample.json'), 'utf8'),
+      fs.readFileSync(
+        path.join(capturesDir, 'cross-week-deload-ok-sample.json'),
+        'utf8',
+      ),
     ) as unknown;
     const parsed = parseCrossWeekEvalFixture(raw);
     expect(parsed).not.toBeNull();

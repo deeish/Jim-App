@@ -7,12 +7,16 @@ describe('mapPlanGenerationUiEquipmentToLibrary', () => {
       'dumbbells',
       'pull-up bar',
     ]);
-    expect(out).toEqual(expect.arrayContaining(['Barbell', 'Dumbbell', 'Pull-up Bar']));
+    expect(out).toEqual(
+      expect.arrayContaining(['Barbell', 'Dumbbell', 'Pull-up Bar']),
+    );
     expect(new Set(out).size).toBe(out.length);
   });
 
   it('returns empty for none or unknown', () => {
     expect(mapPlanGenerationUiEquipmentToLibrary([])).toEqual([]);
-    expect(mapPlanGenerationUiEquipmentToLibrary(['none', 'unknown'])).toEqual([]);
+    expect(mapPlanGenerationUiEquipmentToLibrary(['none', 'unknown'])).toEqual(
+      [],
+    );
   });
 });

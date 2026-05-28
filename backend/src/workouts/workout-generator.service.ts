@@ -88,7 +88,8 @@ export function goalWantsStrengthCardioFinisher(
   );
 }
 
-const HYPE_TITLE_TOKEN = /\b(blast|beast|savage|shred|inferno|torch|obliterate|nitro)\b/i;
+const HYPE_TITLE_TOKEN =
+  /\b(blast|beast|savage|shred|inferno|torch|obliterate|nitro)\b/i;
 const HYPE_BODY_FOCUS_LINE =
   /\b(upper|lower)\s+body\s+(blast|power|strength|endurance)\b/i;
 const HYPE_PUSH_PULL_LINE = /\b(push|pull)\s+(power|blast|strength)\b/i;
@@ -112,7 +113,9 @@ export function plainWorkoutTitle(
     HYPE_BODY_FOCUS_LINE.test(n) ||
     HYPE_PUSH_PULL_LINE.test(n);
   const short =
-    label.length > 48 ? `${label.slice(0, 46).replace(/\s+$/, '').trim()}…` : label;
+    label.length > 48
+      ? `${label.slice(0, 46).replace(/\s+$/, '').trim()}…`
+      : label;
   if (usePlain) {
     return w ? `${short} · ${w}` : short;
   }
@@ -211,7 +214,9 @@ export type GenerateFullProgramOutcome =
   | { ok: true; sessions: FullProgramDaySession[]; usage: GroqCompletionUsage }
   | { ok: false; usage?: GroqCompletionUsage };
 
-function groqUsageFromResponse(response: GroqUsageLogShape): GroqCompletionUsage {
+function groqUsageFromResponse(
+  response: GroqUsageLogShape,
+): GroqCompletionUsage {
   const u = response.usage;
   return {
     prompt_tokens: u?.prompt_tokens,
@@ -761,7 +766,10 @@ export class WorkoutGeneratorService {
       }
     }
 
-    const capped = Array.from(mergedById.values()).slice(0, BATCH_CANDIDATE_CAP);
+    const capped = Array.from(mergedById.values()).slice(
+      0,
+      BATCH_CANDIDATE_CAP,
+    );
     return this.buildCandidateListWithAnchorsFirst(capped, anchorIdOrder);
   }
 
@@ -979,7 +987,6 @@ export class WorkoutGeneratorService {
       })
       .join('\n');
 
-
     const priorWeekInstruction =
       priorUniqueForPrompt.length > 0
         ? `\nMulti-week context: do NOT repeat these exercise ids — pick different exercises from the list for each day even if these would normally be your first choice (still honor each day's focus and volume): ${priorUniqueForPrompt.join(', ')}.`
@@ -1117,7 +1124,9 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
         max_tokens: batchMaxTokens,
       });
     } catch (err) {
-      this.logger.warn(`[WorkoutGenerator] generateFullProgram Groq call failed: ${(err as Error)?.message ?? err}`);
+      this.logger.warn(
+        `[WorkoutGenerator] generateFullProgram Groq call failed: ${(err as Error)?.message ?? err}`,
+      );
       return null;
     }
 
@@ -1400,7 +1409,10 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
   }
 
   /** Token / finish_reason only (no prompt or user content). */
-  private logGroqCompletionMeta(label: string, response: GroqUsageLogShape): void {
+  private logGroqCompletionMeta(
+    label: string,
+    response: GroqUsageLogShape,
+  ): void {
     const u = response.usage;
     const fr = response.choices?.[0]?.finish_reason;
     if (!u && fr == null) return;
@@ -1437,14 +1449,12 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       }>;
     },
     apiKey: string,
-  ): Promise<
-    Array<{
-      name: string;
-      reasoning?: string;
-      warmUp?: string;
-      coolDown?: string;
-    }> | null
-  > {
+  ): Promise<Array<{
+    name: string;
+    reasoning?: string;
+    warmUp?: string;
+    coolDown?: string;
+  }> | null> {
     const { goal, equipmentNote = 'general gym equipment', days } = options;
     if (!days.length || !apiKey?.trim()) return null;
 
@@ -1862,16 +1872,15 @@ Return valid JSON with exerciseId, sets, reps${wantsExerciseNotes ? ', optional 
     const coolDown = parsed.coolDown
       ? String(parsed.coolDown).trim().slice(0, 300)
       : undefined;
-    const cardioFinisher =
-      strengthPlusConditioning
-        ? undefined
-        : parsed.cardioFinisher?.suggestion
-          ? {
-              suggestion: String(parsed.cardioFinisher.suggestion)
-                .trim()
-                .slice(0, 200),
-            }
-          : undefined;
+    const cardioFinisher = strengthPlusConditioning
+      ? undefined
+      : parsed.cardioFinisher?.suggestion
+        ? {
+            suggestion: String(parsed.cardioFinisher.suggestion)
+              .trim()
+              .slice(0, 200),
+          }
+        : undefined;
 
     return {
       ok: true,
@@ -2477,8 +2486,10 @@ Return valid JSON with exerciseId, sets, reps${wantsExerciseNotes ? ', optional 
       pull: '5 min row or bike, band face pulls, shoulder dislocates, scapular retractions.',
       legs: '5 min bike, bodyweight squats, hip circles, leg swings.',
       lower: '5 min bike, bodyweight squats, hip circles, leg swings.',
-      upper: '5 min light cardio, arm circles, band pull-aparts, thoracic rotations.',
-      'full body': '5 min bike or row, bodyweight squats, arm circles, hip circles.',
+      upper:
+        '5 min light cardio, arm circles, band pull-aparts, thoracic rotations.',
+      'full body':
+        '5 min bike or row, bodyweight squats, arm circles, hip circles.',
     };
     const FOCUS_COOLDOWN: Record<string, string> = {
       push: 'Stretch chest, front deltoids, and triceps; 2 min slow walk.',
@@ -2486,12 +2497,14 @@ Return valid JSON with exerciseId, sets, reps${wantsExerciseNotes ? ', optional 
       legs: 'Stretch quads, hamstrings, hip flexors, and calves.',
       lower: 'Stretch quads, hamstrings, hip flexors, and calves.',
       upper: 'Stretch chest, lats, and shoulders; 2 min slow walk.',
-      'full body': 'Stretch quads, hamstrings, chest, and lats; 2 min slow walk.',
+      'full body':
+        'Stretch quads, hamstrings, chest, and lats; 2 min slow walk.',
     };
     const warmUp =
       FOCUS_WARMUP[focusKey] ?? '5 min light cardio, dynamic stretching.';
     const coolDown =
-      FOCUS_COOLDOWN[focusKey] ?? 'Stretch major muscle groups worked; 2 min slow walk.';
+      FOCUS_COOLDOWN[focusKey] ??
+      'Stretch major muscle groups worked; 2 min slow walk.';
 
     return {
       name: workoutName,

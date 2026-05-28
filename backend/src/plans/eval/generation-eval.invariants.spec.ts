@@ -109,17 +109,23 @@ describe('generation eval invariants (randomized)', () => {
       expect(out.sessionsEnriched).toHaveLength(specs.length);
       for (const s of out.sessionsEnriched) {
         expect((s.exercises ?? []).length).toBeGreaterThan(0);
-        expect((s.exercises ?? []).every((e) => !!String(e.name ?? '').trim())).toBe(true);
+        expect(
+          (s.exercises ?? []).every((e) => !!String(e.name ?? '').trim()),
+        ).toBe(true);
 
         // Cardio rows should be clustered at the end after enrich.
         const rows = s.exercises ?? [];
         let seenCardio = false;
         for (const e of rows) {
           const id = e.exerciseId?.trim() ?? '';
-          const isCardio = id ? mock.findOne(id)?.primaryMuscleGroup === 'Cardio' : false;
+          const isCardio = id
+            ? mock.findOne(id)?.primaryMuscleGroup === 'Cardio'
+            : false;
           if (isCardio) seenCardio = true;
           if (seenCardio && !isCardio) {
-            throw new Error(`Non-cardio row appears after cardio in session "${s.name}"`);
+            throw new Error(
+              `Non-cardio row appears after cardio in session "${s.name}"`,
+            );
           }
         }
       }

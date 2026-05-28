@@ -19,7 +19,9 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-export function parseCrossWeekEvalFixture(raw: unknown): CrossWeekEvalFixture | null {
+export function parseCrossWeekEvalFixture(
+  raw: unknown,
+): CrossWeekEvalFixture | null {
   const r = asRecord(raw);
   if (!r) return null;
   if (r.kind !== 'cross_week_eval_fixture') return null;
@@ -107,9 +109,10 @@ function totalWorkingSets(sessions: GeneratedSession[]): number {
  * Flags large set-volume jumps without explicit deload language, and heavy reuse
  * of the same exercise ids on the same calendar day + session type (not fragile array index).
  */
-export function evaluateCrossWeekProgression(
-  weeks: CrossWeekEvalWeekSlice[],
-): { ok: boolean; findings: string[] } {
+export function evaluateCrossWeekProgression(weeks: CrossWeekEvalWeekSlice[]): {
+  ok: boolean;
+  findings: string[];
+} {
   const findings: string[] = [];
   if (weeks.length < 2) return { ok: true, findings };
   const sorted = [...weeks].sort((a, b) => a.weekIndex - b.weekIndex);
@@ -118,7 +121,9 @@ export function evaluateCrossWeekProgression(
   const setA = totalWorkingSets(prior.sessionsOut);
   const setB = totalWorkingSets(next.sessionsOut);
   if (setA > 0 && setB / setA > 1.35) {
-    const deloadHint = (next.programSummary ?? '').toLowerCase().includes('deload');
+    const deloadHint = (next.programSummary ?? '')
+      .toLowerCase()
+      .includes('deload');
     if (!deloadHint) {
       findings.push(
         `Cross-week volume: total working sets rose ~${Math.round((setB / setA - 1) * 100)}% from week ${prior.weekIndex} to ${next.weekIndex} without an explicit deload note in the later week summary.`,

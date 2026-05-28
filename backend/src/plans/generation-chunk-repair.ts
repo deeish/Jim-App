@@ -146,7 +146,8 @@ function pickBestCandidate(
   const filtered = pool.filter(predicate);
   if (!filtered.length) return undefined;
   filtered.sort(
-    (a, b) => scorePatternAffinity(origMeta, b) - scorePatternAffinity(origMeta, a),
+    (a, b) =>
+      scorePatternAffinity(origMeta, b) - scorePatternAffinity(origMeta, a),
   );
   return filtered[0];
 }
@@ -226,7 +227,8 @@ function pickWithEquipmentTiers(
   avoidPhrases: string[],
 ): ChunkRepairExerciseMeta | undefined {
   const combined = (c: ChunkRepairExerciseMeta) =>
-    (avoidPhrases.length === 0 || !nameMatchesAvoidList(c.name, avoidPhrases)) &&
+    (avoidPhrases.length === 0 ||
+      !nameMatchesAvoidList(c.name, avoidPhrases)) &&
     predicate(c);
 
   let pool = mergeCandidatePools(library, focusTries, equipment, excludeIds);
@@ -363,7 +365,8 @@ function collectAllChunkExerciseIds(sessions: GeneratedSession[]): string[] {
 }
 
 function namedExerciseCount(session: GeneratedSession): number {
-  return (session.exercises ?? []).filter((e) => String(e.name ?? '').trim()).length;
+  return (session.exercises ?? []).filter((e) => String(e.name ?? '').trim())
+    .length;
 }
 
 function appendPredicateForSpec(
@@ -388,7 +391,8 @@ function appendLibraryRowToSession(
     exerciseId: pick.id,
     sets: 3,
     reps: prescriptionType === 'time' ? 10 : 8,
-    notes: 'Added so the session meets the minimum exercise count for its length.',
+    notes:
+      'Added so the session meets the minimum exercise count for its length.',
     prescriptionType,
     ...(pick.primaryMuscleGroup
       ? { primaryMuscleGroup: pick.primaryMuscleGroup }
@@ -412,7 +416,8 @@ function runBelowMinimumPass(
   for (let si = 0; si < sessions.length; si++) {
     const spec = specs[si]!;
     const session = sessions[si]!;
-    const isCardioOrRecovery = spec.type === 'cardio' || spec.type === 'recovery';
+    const isCardioOrRecovery =
+      spec.type === 'cardio' || spec.type === 'recovery';
     const duration = Math.round((spec.durationMin + spec.durationMax) / 2);
     const { minExercises } = exerciseTargetsForSession(
       duration,

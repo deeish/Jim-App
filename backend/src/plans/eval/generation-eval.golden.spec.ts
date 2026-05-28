@@ -1,4 +1,7 @@
-import { runChunkGenerationEval, runChunkRepairEnrichThenValidate } from './eval-harness';
+import {
+  runChunkGenerationEval,
+  runChunkRepairEnrichThenValidate,
+} from './eval-harness';
 import { loadAllEvalScenarios } from './all-eval-scenarios';
 import type { GeneratedSession } from '../session-enrichment';
 
@@ -31,36 +34,39 @@ describe('generation eval golden snapshots', () => {
   ]);
   const golden = all.filter((s) => ids.has(s.id));
 
-  it.each(golden.map((s) => [s.id, s] as const))('%s', async (_id, scenario) => {
-    const repaired = runChunkGenerationEval({
-      specs: scenario.specs,
-      sessions: scenario.sessionsBeforeRepair,
-      catalog: scenario.catalog,
-      equipment: scenario.equipment,
-      effectiveDetailLevel: scenario.effectiveDetailLevel,
-      applyRepair: true,
-    });
-    expect({
-      validation: repaired.validation,
-      sessionsOut: normalizeSessions(repaired.sessionsOut),
-      repairNotes: repaired.repairNotes,
-      duplicateRepairs: repaired.duplicateRepairs,
-      upperLowerPatternRepairs: repaired.upperLowerPatternRepairs,
-    }).toMatchSnapshot();
-
-    if (scenario.enrichPrefs) {
-      const enriched = await runChunkRepairEnrichThenValidate({
+  it.each(golden.map((s) => [s.id, s] as const))(
+    '%s',
+    async (_id, scenario) => {
+      const repaired = runChunkGenerationEval({
         specs: scenario.specs,
         sessions: scenario.sessionsBeforeRepair,
         catalog: scenario.catalog,
         equipment: scenario.equipment,
         effectiveDetailLevel: scenario.effectiveDetailLevel,
-        enrichPrefs: scenario.enrichPrefs,
+        applyRepair: true,
       });
       expect({
-        validationAfterEnrich: enriched.validationAfterEnrich,
-        sessionsEnriched: normalizeSessions(enriched.sessionsEnriched),
+        validation: repaired.validation,
+        sessionsOut: normalizeSessions(repaired.sessionsOut),
+        repairNotes: repaired.repairNotes,
+        duplicateRepairs: repaired.duplicateRepairs,
+        upperLowerPatternRepairs: repaired.upperLowerPatternRepairs,
       }).toMatchSnapshot();
-    }
-  });
+
+      if (scenario.enrichPrefs) {
+        const enriched = await runChunkRepairEnrichThenValidate({
+          specs: scenario.specs,
+          sessions: scenario.sessionsBeforeRepair,
+          catalog: scenario.catalog,
+          equipment: scenario.equipment,
+          effectiveDetailLevel: scenario.effectiveDetailLevel,
+          enrichPrefs: scenario.enrichPrefs,
+        });
+        expect({
+          validationAfterEnrich: enriched.validationAfterEnrich,
+          sessionsEnriched: normalizeSessions(enriched.sessionsEnriched),
+        }).toMatchSnapshot();
+      }
+    },
+  );
 });

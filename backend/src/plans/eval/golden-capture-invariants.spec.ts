@@ -8,7 +8,10 @@ const libraryPath = path.join(process.cwd(), 'data', 'exercises_5000plus.json');
 describe('golden capture invariants', () => {
   it('passes all golden checks on the synthetic hybrid two-day good fixture', () => {
     const raw = JSON.parse(
-      fs.readFileSync(path.join(capturesDir, 'capture-synthetic-hybrid-two-day-good.json'), 'utf8'),
+      fs.readFileSync(
+        path.join(capturesDir, 'capture-synthetic-hybrid-two-day-good.json'),
+        'utf8',
+      ),
     ) as unknown;
     const { ok, issues } = collectGoldenCaptureInvariantIssues(raw, {
       exerciseLibraryPath: libraryPath,
@@ -28,7 +31,10 @@ describe('golden capture invariants', () => {
    */
   it('still passes the hybrid-cardio invariant on the real-shape week sample (flagged for over-concentration + non-anchor slot 1)', () => {
     const raw = JSON.parse(
-      fs.readFileSync(path.join(capturesDir, 'generation-capture-hybrid-week-sample.json'), 'utf8'),
+      fs.readFileSync(
+        path.join(capturesDir, 'generation-capture-hybrid-week-sample.json'),
+        'utf8',
+      ),
     ) as unknown;
     const { ok, issues } = collectGoldenCaptureInvariantIssues(raw, {
       exerciseLibraryPath: libraryPath,

@@ -11,9 +11,18 @@ import {
 const capturesDir = path.join(__dirname, 'captures');
 
 describe('generation capture eval', () => {
-  const hybridWeekPath = path.join(capturesDir, 'generation-capture-hybrid-week-sample.json');
-  const goodTwoDayPath = path.join(capturesDir, 'capture-synthetic-hybrid-two-day-good.json');
-  const duplicateChunkPath = path.join(capturesDir, 'capture-synthetic-duplicate-across-chunk.json');
+  const hybridWeekPath = path.join(
+    capturesDir,
+    'generation-capture-hybrid-week-sample.json',
+  );
+  const goodTwoDayPath = path.join(
+    capturesDir,
+    'capture-synthetic-hybrid-two-day-good.json',
+  );
+  const duplicateChunkPath = path.join(
+    capturesDir,
+    'capture-synthetic-duplicate-across-chunk.json',
+  );
 
   it('scores the committed hybrid-week capture (real Groq output shape)', () => {
     const raw = JSON.parse(fs.readFileSync(hybridWeekPath, 'utf8')) as unknown;
@@ -21,7 +30,9 @@ describe('generation capture eval', () => {
     expect(validation.ok).toBe(true);
     expect(score.breakdown.total).toBeLessThanOrEqual(EVAL_SCORE_MAX_TOTAL);
     expect(score.breakdown.conditioning).toBe(10);
-    expect(score.findings.some((f) => /Conditioning coverage/i.test(f))).toBe(false);
+    expect(score.findings.some((f) => /Conditioning coverage/i.test(f))).toBe(
+      false,
+    );
   });
 
   it('scores pre-enrichment vs final and summarizes pipeline on the hybrid-week capture', () => {
@@ -46,13 +57,21 @@ describe('generation capture eval', () => {
     expect(lib.catalog.mode).toBe('library');
     expect(lib.catalog.resolvedIds).toBe(lib.catalog.totalIds);
     expect(lib.final.score.breakdown.conditioning).toBe(10);
-    expect(infer.final.score.breakdown.total).toBeLessThanOrEqual(EVAL_SCORE_MAX_TOTAL);
-    expect(lib.final.score.breakdown.total).toBeLessThanOrEqual(EVAL_SCORE_MAX_TOTAL);
+    expect(infer.final.score.breakdown.total).toBeLessThanOrEqual(
+      EVAL_SCORE_MAX_TOTAL,
+    );
+    expect(lib.final.score.breakdown.total).toBeLessThanOrEqual(
+      EVAL_SCORE_MAX_TOTAL,
+    );
   });
 
   it('flags duplicate_exercise_id_across_chunk on the synthetic bad capture', () => {
-    const raw = JSON.parse(fs.readFileSync(duplicateChunkPath, 'utf8')) as unknown;
-    const { validation, score } = scoreGenerationCapture(raw, { catalogMode: 'library' });
+    const raw = JSON.parse(
+      fs.readFileSync(duplicateChunkPath, 'utf8'),
+    ) as unknown;
+    const { validation, score } = scoreGenerationCapture(raw, {
+      catalogMode: 'library',
+    });
     expect(validation.ok).toBe(false);
     expect(validation.issues).toContain('duplicate_exercise_id_across_chunk');
     expect(score.breakdown.structural).toBeLessThan(28);

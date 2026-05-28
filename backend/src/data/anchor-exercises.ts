@@ -130,9 +130,7 @@ export function getAcceptedAnchorIdsForFocus(focus: string): string[] {
     // For Full Body the "acceptable" set is the full anchor universe — any
     // staple compound is fine in slot 1.
     return [
-      ...new Set(
-        Object.values(ANCHOR_EXERCISES_BY_FOCUS).flat() as string[],
-      ),
+      ...new Set(Object.values(ANCHOR_EXERCISES_BY_FOCUS).flat() as string[]),
     ];
   }
   return getAnchorIdsForFocus(focus);

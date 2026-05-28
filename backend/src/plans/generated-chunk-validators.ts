@@ -313,7 +313,9 @@ function findOverConcentratedPatternIds(
 }
 
 function countIdsPerSession(
-  sessions: ReadonlyArray<{ exercises?: ReadonlyArray<{ exerciseId?: string }> }>,
+  sessions: ReadonlyArray<{
+    exercises?: ReadonlyArray<{ exerciseId?: string }>;
+  }>,
 ): { perSession: string[][]; totals: Map<string, number> } {
   const perSession: string[][] = [];
   const totals = new Map<string, number>();
@@ -491,7 +493,10 @@ export function validateGeneratedProgramChunk(
   if (primaryMuscleGroupByExerciseId) {
     const focusGroups = new Map<
       CrossSessionFocus,
-      Array<{ session: GeneratedSession; spec: GenerateSessionsDto['sessions'][number] }>
+      Array<{
+        session: GeneratedSession;
+        spec: GenerateSessionsDto['sessions'][number];
+      }>
     >();
     for (let i = 0; i < specs.length; i++) {
       const spec = specs[i]!;

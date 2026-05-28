@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -62,7 +67,9 @@ export class ExercisesService implements OnModuleInit {
         this.logger.log(`Loaded ${this.videoMap.size} exercise video mappings`);
       }
     } catch (e) {
-      this.logger.warn(`exercise-videos.json missing or invalid — no video links: ${e instanceof Error ? e.message : String(e)}`);
+      this.logger.warn(
+        `exercise-videos.json missing or invalid — no video links: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 
@@ -86,9 +93,14 @@ export class ExercisesService implements OnModuleInit {
       // Transform all exercises from ID format to display names
       this.exercises = rawData.map((raw) => transformExercise(raw));
 
-      this.logger.log(`Loaded and transformed ${this.exercises.length} exercises`);
+      this.logger.log(
+        `Loaded and transformed ${this.exercises.length} exercises`,
+      );
     } catch (error) {
-      this.logger.error('FATAL: Error loading exercise catalog — all catalog operations will fail', error instanceof Error ? error.stack : String(error));
+      this.logger.error(
+        'FATAL: Error loading exercise catalog — all catalog operations will fail',
+        error instanceof Error ? error.stack : String(error),
+      );
       this.exercises = [];
       this.catalogLoadFailed = true;
     }
@@ -200,7 +212,9 @@ export class ExercisesService implements OnModuleInit {
 
   findOne(id: string): TransformedExercise | undefined {
     if (this.catalogLoadFailed) {
-      throw new InternalServerErrorException('Exercise catalog failed to load at startup');
+      throw new InternalServerErrorException(
+        'Exercise catalog failed to load at startup',
+      );
     }
     const ex = this.exercises.find((e) => e.id === id);
     return ex ? this.withVideo(ex) : undefined;
@@ -267,7 +281,9 @@ export class ExercisesService implements OnModuleInit {
    * Generator pool should not include duplicate exercise names with conflicting IDs/muscle labels.
    * Keep one canonical row per exact name (case-insensitive), preferring richer/common records.
    */
-  private dedupeCandidateNames(results: TransformedExercise[]): TransformedExercise[] {
+  private dedupeCandidateNames(
+    results: TransformedExercise[],
+  ): TransformedExercise[] {
     const byName = new Map<string, TransformedExercise>();
     const rank = (e: TransformedExercise): number => {
       let score = 0;

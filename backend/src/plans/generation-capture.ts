@@ -248,7 +248,13 @@ export async function writeGenerationCapture(args: {
     capturedAt,
     inputs: toJsonSafe(args.inputs),
     outputs: toJsonSafe(args.outputs),
-    ...(args.pipeline ? { pipeline: toJsonSafe(args.pipeline) as GenerationCaptureRecordV1['pipeline'] } : {}),
+    ...(args.pipeline
+      ? {
+          pipeline: toJsonSafe(
+            args.pipeline,
+          ) as GenerationCaptureRecordV1['pipeline'],
+        }
+      : {}),
     meta: {
       ...args.meta,
       run: runMeta,

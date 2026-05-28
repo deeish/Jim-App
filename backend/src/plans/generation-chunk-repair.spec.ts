@@ -71,17 +71,25 @@ describe('repairChunkGeneratedSessions', () => {
         weekIndex: 0,
         weekday: 'Monday',
         name: 'Upper',
-        exercises: [{ name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' }],
+        exercises: [
+          { name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' },
+        ],
       },
       {
         weekIndex: 0,
         weekday: 'Tuesday',
         name: 'Push',
-        exercises: [{ name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' }],
+        exercises: [
+          { name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' },
+        ],
       },
     ];
 
-    const { sessions: out, duplicateRepairs, notes } = repairChunkGeneratedSessions({
+    const {
+      sessions: out,
+      duplicateRepairs,
+      notes,
+    } = repairChunkGeneratedSessions({
       sessions,
       specs,
       library: mockLibrary(),
@@ -112,18 +120,26 @@ describe('repairChunkGeneratedSessions', () => {
         weekday: 'Monday',
         name: 'Upper 1',
         exercises: [
-          { name: 'Romanian Deadlift', sets: 3, reps: 8, exerciseId: 'hinge-bad' },
+          {
+            name: 'Romanian Deadlift',
+            sets: 3,
+            reps: 8,
+            exerciseId: 'hinge-bad',
+          },
         ],
       },
     ];
 
-    const { sessions: out, upperLowerPatternRepairs, notes } =
-      repairChunkGeneratedSessions({
-        sessions,
-        specs,
-        library: mockLibrary(),
-        equipment: undefined,
-      });
+    const {
+      sessions: out,
+      upperLowerPatternRepairs,
+      notes,
+    } = repairChunkGeneratedSessions({
+      sessions,
+      specs,
+      library: mockLibrary(),
+      equipment: undefined,
+    });
 
     expect(upperLowerPatternRepairs).toBe(1);
     expect(notes.some((n) => /upper-focus/i.test(n))).toBe(true);
@@ -174,17 +190,25 @@ describe('repairChunkGeneratedSessions', () => {
         weekIndex: 0,
         weekday: 'Monday',
         name: 'Upper',
-        exercises: [{ name: 'Shared Move', sets: 3, reps: 8, exerciseId: 'only-id' }],
+        exercises: [
+          { name: 'Shared Move', sets: 3, reps: 8, exerciseId: 'only-id' },
+        ],
       },
       {
         weekIndex: 0,
         weekday: 'Tuesday',
         name: 'Push',
-        exercises: [{ name: 'Shared Move', sets: 3, reps: 8, exerciseId: 'only-id' }],
+        exercises: [
+          { name: 'Shared Move', sets: 3, reps: 8, exerciseId: 'only-id' },
+        ],
       },
     ];
 
-    const { sessions: out, notes, duplicateRepairs } = repairChunkGeneratedSessions({
+    const {
+      sessions: out,
+      notes,
+      duplicateRepairs,
+    } = repairChunkGeneratedSessions({
       sessions,
       specs,
       library,
@@ -339,13 +363,17 @@ describe('repairChunkGeneratedSessions', () => {
         weekIndex: 0,
         weekday: 'Monday',
         name: 'Upper',
-        exercises: [{ name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' }],
+        exercises: [
+          { name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' },
+        ],
       },
       {
         weekIndex: 0,
         weekday: 'Tuesday',
         name: 'Push',
-        exercises: [{ name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' }],
+        exercises: [
+          { name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' },
+        ],
       },
     ];
 
@@ -386,8 +414,18 @@ describe('repairChunkGeneratedSessions', () => {
       getCandidatesForGenerator: ({ excludeIds }) => {
         const ex = new Set(excludeIds ?? []);
         return [
-          { id: 'a1', name: 'A', movementPatterns: ['Push'], primaryMuscleGroup: 'Chest' },
-          { id: 'b1', name: 'B', movementPatterns: ['Pull'], primaryMuscleGroup: 'Back' },
+          {
+            id: 'a1',
+            name: 'A',
+            movementPatterns: ['Push'],
+            primaryMuscleGroup: 'Chest',
+          },
+          {
+            id: 'b1',
+            name: 'B',
+            movementPatterns: ['Pull'],
+            primaryMuscleGroup: 'Back',
+          },
           {
             id: 'u1',
             name: 'U1',

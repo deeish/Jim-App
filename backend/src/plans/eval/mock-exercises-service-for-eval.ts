@@ -36,7 +36,9 @@ export function createEvalMockExercisesService(
     excludeIds?: string[];
     limit?: number;
   }): TransformedExercise[] => {
-    const exclude = new Set((options.excludeIds ?? []).map((x) => String(x).trim()));
+    const exclude = new Set(
+      (options.excludeIds ?? []).map((x) => String(x).trim()),
+    );
     let pool = rows.filter((e) => !exclude.has(e.id));
     const f = (options.focus ?? '').toLowerCase();
     const limit = options.limit ?? 70;
@@ -62,7 +64,9 @@ export function createEvalMockExercisesService(
     excludeIds: string[],
     limit = 220,
   ): TransformedExercise[] => {
-    const ex = new Set(excludeIds.map((i) => String(i ?? '').trim()).filter(Boolean));
+    const ex = new Set(
+      excludeIds.map((i) => String(i ?? '').trim()).filter(Boolean),
+    );
     return rows.filter((e) => !ex.has(e.id)).slice(0, limit);
   };
 

@@ -30,7 +30,8 @@ function withLowerDayGuard(core: string, fk: FocusKey | string): string {
     'arms',
   ].includes(String(fk));
   if (!upperish) return core;
-  const merged = (core.endsWith('.') ? core.slice(0, -1) : core) + LOWER_ON_NON_LOWER_DAY;
+  const merged =
+    (core.endsWith('.') ? core.slice(0, -1) : core) + LOWER_ON_NON_LOWER_DAY;
   return merged.slice(0, RAIL_MAX);
 }
 
@@ -62,7 +63,11 @@ function experienceHint(
 
 function goalHint(goal: string): string {
   const g = goalLower(goal);
-  if (g.includes('fat') || g.includes('weight loss') || g.includes('weight_loss'))
+  if (
+    g.includes('fat') ||
+    g.includes('weight loss') ||
+    g.includes('weight_loss')
+  )
     return 'Keep density sustainable so main lifts stay high quality.';
   if (g.includes('endurance') || g.includes('cardio'))
     return 'Bias sustainable pacing; keep strength work submaximal where it shares a day.';
@@ -74,7 +79,9 @@ function goalHint(goal: string): string {
 /**
  * One short line the model should treat as a hard preference for exercise selection order.
  */
-export function sessionCoachingRailLine(input: SessionCoachingRailInput): string {
+export function sessionCoachingRailLine(
+  input: SessionCoachingRailInput,
+): string {
   const type = (input.sessionType ?? '').toLowerCase().trim();
   const focus = (input.focusLabel ?? '').trim() || 'full body';
   const fk = normalizeFocusToKey(focus) as FocusKey | string;
@@ -164,8 +171,8 @@ export function sessionCoachingRailLine(input: SessionCoachingRailInput): string
  */
 export function coachCopyToneBlock(): string {
   return (
-    'Coach copy rules: programSummary and each day\'s reasoning must describe real structure (what leads, what follows, why that order)—not generic motivation. ' +
-    'Each day\'s reasoning must name the first two priority lifts (or patterns) from the exercise list, not broad fitness slogans. ' +
+    "Coach copy rules: programSummary and each day's reasoning must describe real structure (what leads, what follows, why that order)—not generic motivation. " +
+    "Each day's reasoning must name the first two priority lifts (or patterns) from the exercise list, not broad fitness slogans. " +
     'No hype words in reasoning/warmUp/coolDown (same spirit as workout names: avoid beast/crush/destroy/shred/etc.). ' +
     'warmUp should prep the same movement patterns as the first heavy lifts; coolDown targets tissues loaded that day. ' +
     'Beginners: movement quality over maxing; intermediates: ~RPE 7–8 on main compounds unless easier is requested.'

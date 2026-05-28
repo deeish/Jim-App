@@ -23,11 +23,7 @@ function makeSession(
   };
 }
 
-function makeSpec(
-  focus: string,
-  weekIndex = 2,
-  weekday = 'Monday',
-): Spec {
+function makeSpec(focus: string, weekIndex = 2, weekday = 'Monday'): Spec {
   return {
     weekIndex,
     weekday,
@@ -64,7 +60,9 @@ describe('PlansService.tryCloneAndProgress', () => {
     it('clones session with ceil sets and decremented reps', () => {
       const source = makeSession('push', 3, 10);
       const map = new Map([['push', source]]);
-      const result = clone([makeSpec('push')], map, [makeProgression(2, 1.08, -1)]);
+      const result = clone([makeSpec('push')], map, [
+        makeProgression(2, 1.08, -1),
+      ]);
 
       expect(result).not.toBeNull();
       expect(result).toHaveLength(1);
@@ -77,7 +75,9 @@ describe('PlansService.tryCloneAndProgress', () => {
     it('sets weekIndex and weekday from spec, not source', () => {
       const source = makeSession('push', 3, 10, 1, 'Monday');
       const map = new Map([['push', source]]);
-      const result = clone([makeSpec('push', 3, 'Wednesday')], map, [makeProgression(3, 1.15, -2)]);
+      const result = clone([makeSpec('push', 3, 'Wednesday')], map, [
+        makeProgression(3, 1.15, -2),
+      ]);
 
       expect(result![0].weekIndex).toBe(3);
       expect(result![0].weekday).toBe('Wednesday');
@@ -99,7 +99,9 @@ describe('PlansService.tryCloneAndProgress', () => {
     it('clones session with floor sets and incremented reps', () => {
       const source = makeSession('push', 4, 8);
       const map = new Map([['push', source]]);
-      const result = clone([makeSpec('push', 4)], map, [makeProgression(4, 0.7, 2)]);
+      const result = clone([makeSpec('push', 4)], map, [
+        makeProgression(4, 0.7, 2),
+      ]);
 
       // floor(4 * 0.7) = floor(2.8) = 2
       expect(result![0].exercises[0].sets).toBe(2);
@@ -150,21 +152,27 @@ describe('PlansService.tryCloneAndProgress', () => {
       const source = makeSession('push', 1, 10);
       const map = new Map([['push', source]]);
       // floor(1 * 0.3) = 0 → clamped to 1
-      const result = clone([makeSpec('push')], map, [makeProgression(2, 0.3, 0)]);
+      const result = clone([makeSpec('push')], map, [
+        makeProgression(2, 0.3, 0),
+      ]);
       expect(result![0].exercises[0].sets).toBe(1);
     });
 
     it('clamps reps to minimum 1 when repModifier is large negative', () => {
       const source = makeSession('push', 3, 1);
       const map = new Map([['push', source]]);
-      const result = clone([makeSpec('push')], map, [makeProgression(2, 1.0, -10)]);
+      const result = clone([makeSpec('push')], map, [
+        makeProgression(2, 1.0, -10),
+      ]);
       expect(result![0].exercises[0].reps).toBe(1);
     });
 
     it('clamps reps to maximum 100 when repModifier is large positive', () => {
       const source = makeSession('push', 3, 99);
       const map = new Map([['push', source]]);
-      const result = clone([makeSpec('push')], map, [makeProgression(2, 1.0, 10)]);
+      const result = clone([makeSpec('push')], map, [
+        makeProgression(2, 1.0, 10),
+      ]);
       expect(result![0].exercises[0].reps).toBe(100);
     });
   });

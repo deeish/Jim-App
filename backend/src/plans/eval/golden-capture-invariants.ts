@@ -48,9 +48,12 @@ export function collectGoldenCaptureInvariantIssues(
   const parsed = parseGenerateSessionsCapture(raw);
   const libraryPath = opts?.exerciseLibraryPath ?? defaultLibraryPath();
   const catalog: EvalCatalogExercise[] = fs.existsSync(libraryPath)
-    ? buildCatalogForSessionsFromLibrary(parsed.sessionsOut, libraryPath).catalog
+    ? buildCatalogForSessionsFromLibrary(parsed.sessionsOut, libraryPath)
+        .catalog
     : [];
-  const byId = new Map<string, EvalCatalogExercise>(catalog.map((c) => [c.id, c]));
+  const byId = new Map<string, EvalCatalogExercise>(
+    catalog.map((c) => [c.id, c]),
+  );
 
   const effectiveDetail =
     parsed.inputs.detailLevel === 'detailed' ? 'detailed' : 'simple';
@@ -61,9 +64,8 @@ export function collectGoldenCaptureInvariantIssues(
     parsed.sessionsOut,
     (id) => byId.get(id),
   );
-  const subMuscleMap = subMusclesMapForSessions(
-    parsed.sessionsOut,
-    (id) => byId.get(id),
+  const subMuscleMap = subMusclesMapForSessions(parsed.sessionsOut, (id) =>
+    byId.get(id),
   );
   const validation = validateGeneratedProgramChunk(
     parsed.inputs.sessions,

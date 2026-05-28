@@ -33,7 +33,9 @@ describe('MOVEMENT_PATTERN_FILLINS (Phase D)', () => {
     for (const raw of rawData) {
       const rawIds = raw.movementPatternIds ?? [];
       if (!rawIds.length) continue;
-      const legacy = rawIds.map((id) => MOVEMENT_PATTERN_MAP[id]).filter(Boolean);
+      const legacy = rawIds
+        .map((id) => MOVEMENT_PATTERN_MAP[id])
+        .filter(Boolean);
       if (legacy.length === 0) droppedBefore++;
 
       const t = transformExercise(raw);

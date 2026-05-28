@@ -1,5 +1,8 @@
 import type { GenerationEvalScenario } from './eval-types';
-import { runChunkGenerationEval, runChunkRepairEnrichThenValidate } from './eval-harness';
+import {
+  runChunkGenerationEval,
+  runChunkRepairEnrichThenValidate,
+} from './eval-harness';
 import { scoreGeneratedChunk, type EvalScoreResult } from './eval-scoring';
 
 export type ScoredEvalScenarioRow = {

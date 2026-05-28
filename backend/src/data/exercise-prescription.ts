@@ -25,7 +25,10 @@ function nameImpliesTime(name: string): boolean {
   if (CARRY_OR_LOADED_WALK.test(n)) return true;
   if (/\bside\s+plank\b/i.test(n) && /\brow\b/i.test(n)) return false;
   if (TIME_NAME.test(n)) {
-    if (/\bplank\b/i.test(n) && /\b(row|rotation|reach|drag|dumbbell)\b/i.test(n)) {
+    if (
+      /\bplank\b/i.test(n) &&
+      /\b(row|rotation|reach|drag|dumbbell)\b/i.test(n)
+    ) {
       return false;
     }
     return true;

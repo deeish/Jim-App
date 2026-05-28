@@ -103,16 +103,36 @@ export const GENERATION_EVAL_SCENARIOS: GenerationEvalScenario[] = [
       },
     ],
     catalog: [
-      { id: 'dup_shared', name: 'Bench', movementPatterns: ['Push'], primaryMuscleGroup: 'Chest' },
+      {
+        id: 'dup_shared',
+        name: 'Bench',
+        movementPatterns: ['Push'],
+        primaryMuscleGroup: 'Chest',
+      },
       {
         id: 'alt_a',
         name: 'Incline Press',
         movementPatterns: ['Push'],
         primaryMuscleGroup: 'Chest',
       },
-      { id: 'alt_b', name: 'Cable Row', movementPatterns: ['Pull'], primaryMuscleGroup: 'Back' },
-      { id: 'alt_c', name: 'Leg Press', movementPatterns: ['Squat'], primaryMuscleGroup: 'Legs' },
-      { id: 'alt_d', name: 'RDL', movementPatterns: ['Hinge'], primaryMuscleGroup: 'Legs' },
+      {
+        id: 'alt_b',
+        name: 'Cable Row',
+        movementPatterns: ['Pull'],
+        primaryMuscleGroup: 'Back',
+      },
+      {
+        id: 'alt_c',
+        name: 'Leg Press',
+        movementPatterns: ['Squat'],
+        primaryMuscleGroup: 'Legs',
+      },
+      {
+        id: 'alt_d',
+        name: 'RDL',
+        movementPatterns: ['Hinge'],
+        primaryMuscleGroup: 'Legs',
+      },
       // Fillers default Push; spread tracked patterns so each session keeps
       // realistic movement diversity (matters for `over_concentrated_pattern`).
       ...(['m', 't', 'th', 'f'] as const).flatMap((p) =>
@@ -122,19 +142,25 @@ export const GENERATION_EVAL_SCENARIOS: GenerationEvalScenario[] = [
           if (p === 'm') {
             // Upper day: Push + Pull + Carry (no Push monoculture).
             primaryMuscleGroup = i === 1 ? 'Chest' : i === 2 ? 'Back' : 'Core';
-            movementPatterns = i === 2 ? ['Pull'] : i === 3 ? ['Carry'] : ['Push'];
+            movementPatterns =
+              i === 2 ? ['Pull'] : i === 3 ? ['Carry'] : ['Push'];
           } else if (p === 't') {
             // Lower day: Hinge + Squat + Lunge.
             primaryMuscleGroup = i === 1 ? 'Legs' : i === 2 ? 'Glutes' : 'Legs';
-            movementPatterns = i === 1 ? ['Hinge'] : i === 2 ? ['Squat'] : ['Lunge'];
+            movementPatterns =
+              i === 1 ? ['Hinge'] : i === 2 ? ['Squat'] : ['Lunge'];
           } else if (p === 'th') {
             // Upper 2: Pull + Push + Carry (different angle from Monday).
-            primaryMuscleGroup = i === 1 ? 'Back' : i === 2 ? 'Shoulders' : 'Core';
-            movementPatterns = i === 1 ? ['Pull'] : i === 2 ? ['Push'] : ['Carry'];
+            primaryMuscleGroup =
+              i === 1 ? 'Back' : i === 2 ? 'Shoulders' : 'Core';
+            movementPatterns =
+              i === 1 ? ['Pull'] : i === 2 ? ['Push'] : ['Carry'];
           } else {
             // Lower 2: Squat + Hinge + Lunge.
-            primaryMuscleGroup = i === 1 ? 'Legs' : i === 2 ? 'Hamstrings' : 'Legs';
-            movementPatterns = i === 1 ? ['Squat'] : i === 2 ? ['Hinge'] : ['Lunge'];
+            primaryMuscleGroup =
+              i === 1 ? 'Legs' : i === 2 ? 'Hamstrings' : 'Legs';
+            movementPatterns =
+              i === 1 ? ['Squat'] : i === 2 ? ['Hinge'] : ['Lunge'];
           }
           return {
             id: `${p}_${i}`,
@@ -147,7 +173,10 @@ export const GENERATION_EVAL_SCENARIOS: GenerationEvalScenario[] = [
     ],
     expect: {
       runRepair: true,
-      after: { validatorOk: true, issuesMustNotInclude: ['duplicate_exercise_id_across_chunk'] },
+      after: {
+        validatorOk: true,
+        issuesMustNotInclude: ['duplicate_exercise_id_across_chunk'],
+      },
       expectRepairNotes: true,
     },
   },
@@ -158,7 +187,8 @@ export const GENERATION_EVAL_SCENARIOS: GenerationEvalScenario[] = [
       skipWorkoutOrder: true,
       skipDiversity: true,
     },
-    description: 'Upper title with hinge-pattern library id should be repairable to pass validator.',
+    description:
+      'Upper title with hinge-pattern library id should be repairable to pass validator.',
     effectiveDetailLevel: 'simple',
     specs: [
       {
@@ -328,8 +358,18 @@ export const GENERATION_EVAL_SCENARIOS: GenerationEvalScenario[] = [
       },
     ],
     catalog: [
-      { id: 'a1', name: 'A', movementPatterns: ['Push'], primaryMuscleGroup: 'Chest' },
-      { id: 'b1', name: 'B', movementPatterns: ['Pull'], primaryMuscleGroup: 'Back' },
+      {
+        id: 'a1',
+        name: 'A',
+        movementPatterns: ['Push'],
+        primaryMuscleGroup: 'Chest',
+      },
+      {
+        id: 'b1',
+        name: 'B',
+        movementPatterns: ['Pull'],
+        primaryMuscleGroup: 'Back',
+      },
       {
         id: 'u1',
         name: 'U1',

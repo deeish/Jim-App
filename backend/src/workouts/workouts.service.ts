@@ -242,7 +242,7 @@ export class WorkoutsService {
     const owned =
       workout.userId === userId ||
       (workout.workoutPlanId && workout.workoutPlan?.userId === userId) ||
-      (workout.planWorkout?.workoutPlan?.userId === userId);
+      workout.planWorkout?.workoutPlan?.userId === userId;
     if (!owned) {
       throw new NotFoundException(`Workout with ID ${id} not found`);
     }
@@ -412,12 +412,12 @@ export class WorkoutsService {
         'Add at least one exercise before regenerating, or use Add from library.',
       );
     }
-    const focusLabel = (existing.focus && existing.focus.trim()) || existing.name;
+    const focusLabel =
+      (existing.focus && existing.focus.trim()) || existing.name;
     const excludeIds = existing.exercises
       .map((e) => e.exerciseId)
       .filter(
-        (x): x is string =>
-          !!x && x.length > 0 && !x.startsWith('generated_'),
+        (x): x is string => !!x && x.length > 0 && !x.startsWith('generated_'),
       );
     const dto: GenerateWorkoutDto = {
       day: existing.day ?? undefined,

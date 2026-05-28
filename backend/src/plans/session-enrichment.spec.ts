@@ -68,9 +68,7 @@ describe('sessionTitleNeedsSquatHingeBalance', () => {
   });
 
   it('is false for upper-only days and non-strength', () => {
-    expect(sessionTitleNeedsSquatHingeBalance('Upper', 'strength')).toBe(
-      false,
-    );
+    expect(sessionTitleNeedsSquatHingeBalance('Upper', 'strength')).toBe(false);
     expect(sessionTitleNeedsSquatHingeBalance('Push', 'strength')).toBe(false);
     expect(sessionTitleNeedsSquatHingeBalance('Legs', 'cardio')).toBe(false);
   });
@@ -83,7 +81,12 @@ describe('enrichGeneratedSession prescriptionType', () => {
       weekday: 'Monday',
       name: 'Upper Strength',
       exercises: [
-        { name: 'Custom Bracing Drill', sets: 3, reps: 10, exerciseId: 'hold_1' },
+        {
+          name: 'Custom Bracing Drill',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'hold_1',
+        },
       ],
     };
 
@@ -310,12 +313,37 @@ describe('enrichGeneratedSession prescriptionType', () => {
       weekday: 'Tuesday',
       name: 'Lower',
       exercises: [
-        { name: 'Seated Leg Extension', sets: 4, reps: 12, exerciseId: 'iso_quad' },
-        { name: 'Standing Calf Raise', sets: 4, reps: 12, exerciseId: 'iso_calf' },
+        {
+          name: 'Seated Leg Extension',
+          sets: 4,
+          reps: 12,
+          exerciseId: 'iso_quad',
+        },
+        {
+          name: 'Standing Calf Raise',
+          sets: 4,
+          reps: 12,
+          exerciseId: 'iso_calf',
+        },
         { name: 'Overhead March', sets: 4, reps: 8, exerciseId: 'core_carry' },
-        { name: 'Rotational Sit-Up', sets: 4, reps: 10, exerciseId: 'core_rot1' },
-        { name: 'Landmine Rotation', sets: 4, reps: 10, exerciseId: 'core_rot2' },
-        { name: '45-Degree Leg Press', sets: 4, reps: 12, exerciseId: 'leg_press' },
+        {
+          name: 'Rotational Sit-Up',
+          sets: 4,
+          reps: 10,
+          exerciseId: 'core_rot1',
+        },
+        {
+          name: 'Landmine Rotation',
+          sets: 4,
+          reps: 10,
+          exerciseId: 'core_rot2',
+        },
+        {
+          name: '45-Degree Leg Press',
+          sets: 4,
+          reps: 12,
+          exerciseId: 'leg_press',
+        },
       ],
     };
 
@@ -468,9 +496,7 @@ describe('enrichGeneratedSession prescriptionType', () => {
       weekIndex: 1,
       weekday: 'Tuesday',
       name: 'Lower',
-      exercises: [
-        { name: 'Squat', sets: 3, reps: 5, exerciseId: 'sq1' },
-      ],
+      exercises: [{ name: 'Squat', sets: 3, reps: 5, exerciseId: 'sq1' }],
     };
     const exercisesService = {
       findOne: (id: string) => {
@@ -728,8 +754,14 @@ describe('enrichGeneratedSession prescriptionType', () => {
     };
     const exercisesService = {
       findOne: (id: string) => {
-        if (id === 'bench') return { id, movementPatterns: ['Push'], primaryMuscleGroup: 'Chest' };
-        if (id === 'row') return { id, movementPatterns: ['Pull'], primaryMuscleGroup: 'Back' };
+        if (id === 'bench')
+          return {
+            id,
+            movementPatterns: ['Push'],
+            primaryMuscleGroup: 'Chest',
+          };
+        if (id === 'row')
+          return { id, movementPatterns: ['Pull'], primaryMuscleGroup: 'Back' };
         return { id, movementPatterns: [], primaryMuscleGroup: 'Arms' };
       },
       getCandidatesForGenerator: () => [],
@@ -820,8 +852,18 @@ describe('enrichGeneratedSession prescriptionType', () => {
       weekday: 'Monday',
       name: 'Upper',
       exercises: [
-        { name: 'Landmine Press', sets: 4, reps: 8, exerciseId: 'landmine_press' },
-        { name: 'Lat Pulldown', sets: 3, reps: 10, exerciseId: 'lat_pulldown_wide' },
+        {
+          name: 'Landmine Press',
+          sets: 4,
+          reps: 8,
+          exerciseId: 'landmine_press',
+        },
+        {
+          name: 'Lat Pulldown',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'lat_pulldown_wide',
+        },
         { name: 'Curl', sets: 3, reps: 12, exerciseId: 'curl' },
         { name: 'Pushdown', sets: 3, reps: 12, exerciseId: 'pushdown' },
       ],
@@ -855,7 +897,13 @@ describe('enrichGeneratedSession prescriptionType', () => {
             secondaryMuscleGroups: ['Triceps', 'Shoulders'],
           };
         }
-        return { id, movementPatterns: [], primaryMuscleGroup: 'Arms', name: id, secondaryMuscleGroups: [] };
+        return {
+          id,
+          movementPatterns: [],
+          primaryMuscleGroup: 'Arms',
+          name: id,
+          secondaryMuscleGroups: [],
+        };
       },
       getCandidatesForGenerator: () => [],
     };
@@ -879,16 +927,28 @@ describe('enrichGeneratedSession prescriptionType', () => {
       weekday: 'Monday',
       name: 'Upper',
       exercises: [
-        { name: 'Flat Barbell Bench Press', sets: 4, reps: 6, exerciseId: 'flat_barbell_bench_press' },
-        { name: 'Lat Pulldown', sets: 3, reps: 10, exerciseId: 'lat_pulldown_wide' },
+        {
+          name: 'Flat Barbell Bench Press',
+          sets: 4,
+          reps: 6,
+          exerciseId: 'flat_barbell_bench_press',
+        },
+        {
+          name: 'Lat Pulldown',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'lat_pulldown_wide',
+        },
       ],
     };
     const exercisesService = {
       findOne: (id: string) => ({
         id,
         name: id,
-        movementPatterns: id === 'flat_barbell_bench_press' ? ['Push'] : ['Pull'],
-        primaryMuscleGroup: id === 'flat_barbell_bench_press' ? 'Chest' : 'Back',
+        movementPatterns:
+          id === 'flat_barbell_bench_press' ? ['Push'] : ['Pull'],
+        primaryMuscleGroup:
+          id === 'flat_barbell_bench_press' ? 'Chest' : 'Back',
         secondaryMuscleGroups: [],
       }),
       getCandidatesForGenerator: () => [],
@@ -913,7 +973,12 @@ describe('enrichGeneratedSession prescriptionType', () => {
       name: 'Lower',
       exercises: [
         { name: 'Cable Crunch', sets: 3, reps: 12, exerciseId: 'cable_crunch' },
-        { name: 'Calf Raise', sets: 3, reps: 15, exerciseId: 'standing_calf_raise_machine' },
+        {
+          name: 'Calf Raise',
+          sets: 3,
+          reps: 15,
+          exerciseId: 'standing_calf_raise_machine',
+        },
       ],
     };
     const exercisesService = {
@@ -928,7 +993,13 @@ describe('enrichGeneratedSession prescriptionType', () => {
             secondaryMuscleGroups: [],
           };
         }
-        return { id, name: id, movementPatterns: [], primaryMuscleGroup: 'Legs', secondaryMuscleGroups: [] };
+        return {
+          id,
+          name: id,
+          movementPatterns: [],
+          primaryMuscleGroup: 'Legs',
+          secondaryMuscleGroups: [],
+        };
       },
       getCandidatesForGenerator: () => [],
     };

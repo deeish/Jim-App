@@ -116,12 +116,7 @@ describe('validateGeneratedProgramChunk', () => {
         { name: 'F', sets: 3, reps: 10, exerciseId: 'f' },
       ]),
     ];
-    const r = validateGeneratedProgramChunk(
-      specs,
-      sessions,
-      'detailed',
-      meta,
-    );
+    const r = validateGeneratedProgramChunk(specs, sessions, 'detailed', meta);
     expect(r.ok).toBe(false);
     expect(r.issues).toContain('primary_lower_pattern_on_upper_focus');
     expect(r.patternClashExerciseIds).toContain('hinge1');
@@ -156,12 +151,7 @@ describe('validateGeneratedProgramChunk', () => {
         })),
       ]),
     ];
-    const r = validateGeneratedProgramChunk(
-      specs,
-      sessions,
-      'detailed',
-      meta,
-    );
+    const r = validateGeneratedProgramChunk(specs, sessions, 'detailed', meta);
     expect(r.ok).toBe(true);
   });
 
@@ -248,7 +238,12 @@ describe('validateGeneratedProgramChunk', () => {
         session([
           { name: 'Back Squat', sets: 4, reps: 6, exerciseId: 'sq' },
           { name: 'Romanian DL', sets: 3, reps: 8, exerciseId: 'hinge' },
-          { name: 'Standing Calf Raise', sets: 3, reps: 12, exerciseId: 'calf1' },
+          {
+            name: 'Standing Calf Raise',
+            sets: 3,
+            reps: 12,
+            exerciseId: 'calf1',
+          },
           { name: 'Seated Calf Raise', sets: 3, reps: 12, exerciseId: 'calf2' },
           { name: 'Donkey Calf Raise', sets: 3, reps: 12, exerciseId: 'calf3' },
         ]),
@@ -329,7 +324,12 @@ describe('validateGeneratedProgramChunk', () => {
         session([
           { name: 'Back Squat', sets: 4, reps: 6, exerciseId: 'back_squat' },
           { name: 'Front Squat', sets: 3, reps: 10, exerciseId: 'front_squat' },
-          { name: 'Conventional Deadlift', sets: 3, reps: 8, exerciseId: 'conventional_deadlift' },
+          {
+            name: 'Conventional Deadlift',
+            sets: 3,
+            reps: 8,
+            exerciseId: 'conventional_deadlift',
+          },
           { name: 'Hip Thrust', sets: 3, reps: 8, exerciseId: 'h2' },
           { name: 'Bench', sets: 3, reps: 8, exerciseId: 'push' },
           { name: 'Row', sets: 3, reps: 8, exerciseId: 'pull' },
@@ -347,7 +347,14 @@ describe('validateGeneratedProgramChunk', () => {
     });
 
     it('does not check the budget on Cardio/Recovery days', () => {
-      const specs = [spec({ title: 'Cardio', type: 'cardio', durationMin: 30, durationMax: 30 })];
+      const specs = [
+        spec({
+          title: 'Cardio',
+          type: 'cardio',
+          durationMin: 30,
+          durationMax: 30,
+        }),
+      ];
       const movement = new Map<string, string[]>();
       const primary = new Map<string, string>([
         ['c1', 'Cardio'],
@@ -481,7 +488,12 @@ describe('validateGeneratedProgramChunk', () => {
         session([
           { name: 'Incline BB Press', sets: 4, reps: 6, exerciseId: 'p1' },
           { name: 'Incline DB Press', sets: 3, reps: 8, exerciseId: 'p2' },
-          { name: 'Low-to-High Cable Fly', sets: 3, reps: 10, exerciseId: 'p3' },
+          {
+            name: 'Low-to-High Cable Fly',
+            sets: 3,
+            reps: 10,
+            exerciseId: 'p3',
+          },
           { name: 'Lat Pulldown', sets: 3, reps: 10, exerciseId: 'pull1' },
           { name: 'Filler1', sets: 3, reps: 8, exerciseId: 'f1' },
           { name: 'Filler2', sets: 3, reps: 8, exerciseId: 'f2' },
@@ -629,8 +641,18 @@ describe('validateGeneratedProgramChunk', () => {
       ]);
       const sessions = [
         session([
-          { name: 'Landmine Press', sets: 4, reps: 8, exerciseId: 'landmine_press' },
-          { name: 'Lat Pulldown', sets: 3, reps: 10, exerciseId: 'lat_pulldown_wide' },
+          {
+            name: 'Landmine Press',
+            sets: 4,
+            reps: 8,
+            exerciseId: 'landmine_press',
+          },
+          {
+            name: 'Lat Pulldown',
+            sets: 3,
+            reps: 10,
+            exerciseId: 'lat_pulldown_wide',
+          },
           { name: 'Filler1', sets: 3, reps: 8, exerciseId: 'f1' },
           { name: 'Filler2', sets: 3, reps: 8, exerciseId: 'f2' },
           { name: 'Filler3', sets: 3, reps: 8, exerciseId: 'f3' },
@@ -661,7 +683,12 @@ describe('validateGeneratedProgramChunk', () => {
       ]);
       const sessions = [
         session([
-          { name: 'Landmine Press', sets: 4, reps: 8, exerciseId: 'landmine_press' },
+          {
+            name: 'Landmine Press',
+            sets: 4,
+            reps: 8,
+            exerciseId: 'landmine_press',
+          },
           { name: 'Filler1', sets: 3, reps: 8, exerciseId: 'f1' },
           { name: 'Filler2', sets: 3, reps: 8, exerciseId: 'f2' },
           { name: 'Filler3', sets: 3, reps: 8, exerciseId: 'f3' },
@@ -691,8 +718,18 @@ describe('validateGeneratedProgramChunk', () => {
       ]);
       const sessions = [
         session([
-          { name: 'Flat Bench', sets: 4, reps: 6, exerciseId: 'flat_barbell_bench_press' },
-          { name: 'Lat Pulldown', sets: 3, reps: 10, exerciseId: 'lat_pulldown_wide' },
+          {
+            name: 'Flat Bench',
+            sets: 4,
+            reps: 6,
+            exerciseId: 'flat_barbell_bench_press',
+          },
+          {
+            name: 'Lat Pulldown',
+            sets: 3,
+            reps: 10,
+            exerciseId: 'lat_pulldown_wide',
+          },
           { name: 'Filler1', sets: 3, reps: 8, exerciseId: 'f1' },
           { name: 'Filler2', sets: 3, reps: 8, exerciseId: 'f2' },
           { name: 'Filler3', sets: 3, reps: 8, exerciseId: 'f3' },
@@ -724,7 +761,12 @@ describe('validateGeneratedProgramChunk', () => {
       ]);
       const sessions = [
         session([
-          { name: 'Incline Bench', sets: 4, reps: 6, exerciseId: 'incline_barbell_bench_press' },
+          {
+            name: 'Incline Bench',
+            sets: 4,
+            reps: 6,
+            exerciseId: 'incline_barbell_bench_press',
+          },
           { name: 'Filler1', sets: 3, reps: 8, exerciseId: 'f1' },
           { name: 'Filler2', sets: 3, reps: 8, exerciseId: 'f2' },
           { name: 'Filler3', sets: 3, reps: 8, exerciseId: 'f3' },
@@ -756,7 +798,12 @@ describe('validateGeneratedProgramChunk', () => {
       ]);
       const sessions = [
         session([
-          { name: 'Treadmill Walk', sets: 1, reps: 10, exerciseId: 'treadmill_walk' },
+          {
+            name: 'Treadmill Walk',
+            sets: 1,
+            reps: 10,
+            exerciseId: 'treadmill_walk',
+          },
           { name: 'Back Squat', sets: 4, reps: 6, exerciseId: 'back_squat' },
           { name: 'Filler1', sets: 3, reps: 8, exerciseId: 'f1' },
           { name: 'Filler2', sets: 3, reps: 8, exerciseId: 'f2' },
@@ -778,9 +825,7 @@ describe('validateGeneratedProgramChunk', () => {
 
     it('does not flag narrow body-part focuses (Chest / Back / Shoulders / Arms) — no anchors defined', () => {
       const specs = [spec({ title: 'Chest' })];
-      const movement = new Map<string, string[]>([
-        ['fly_machine', ['Push']],
-      ]);
+      const movement = new Map<string, string[]>([['fly_machine', ['Push']]]);
       const primary = new Map<string, string>([['fly_machine', 'Chest']]);
       const sessions = [
         session([
@@ -810,7 +855,12 @@ describe('validateGeneratedProgramChunk', () => {
       ]);
       const sessions = [
         session([
-          { name: 'Landmine Press', sets: 4, reps: 8, exerciseId: 'landmine_press' },
+          {
+            name: 'Landmine Press',
+            sets: 4,
+            reps: 8,
+            exerciseId: 'landmine_press',
+          },
           { name: 'Filler1', sets: 3, reps: 8, exerciseId: 'f1' },
           { name: 'Filler2', sets: 3, reps: 8, exerciseId: 'f2' },
           { name: 'Filler3', sets: 3, reps: 8, exerciseId: 'f3' },
@@ -845,13 +895,23 @@ describe('validateGeneratedProgramChunk', () => {
       const sessions = [
         session(
           [
-            { name: 'Barbell Bench Press', sets: 4, reps: 6, exerciseId: 'bench_a' },
+            {
+              name: 'Barbell Bench Press',
+              sets: 4,
+              reps: 6,
+              exerciseId: 'bench_a',
+            },
           ],
           { weekday: 'Mon' },
         ),
         session(
           [
-            { name: 'Dumbbell Bench Press', sets: 4, reps: 8, exerciseId: 'bench_b' },
+            {
+              name: 'Dumbbell Bench Press',
+              sets: 4,
+              reps: 8,
+              exerciseId: 'bench_b',
+            },
           ],
           { weekday: 'Thu' },
         ),
@@ -885,13 +945,23 @@ describe('validateGeneratedProgramChunk', () => {
       const sessions = [
         session(
           [
-            { name: 'Barbell Bench Press', sets: 4, reps: 6, exerciseId: 'bench_a' },
+            {
+              name: 'Barbell Bench Press',
+              sets: 4,
+              reps: 6,
+              exerciseId: 'bench_a',
+            },
           ],
           { weekday: 'Mon' },
         ),
         session(
           [
-            { name: 'Incline Dumbbell Press', sets: 4, reps: 8, exerciseId: 'incline_b' },
+            {
+              name: 'Incline Dumbbell Press',
+              sets: 4,
+              reps: 8,
+              exerciseId: 'incline_b',
+            },
           ],
           { weekday: 'Thu' },
         ),
@@ -923,10 +993,9 @@ describe('validateGeneratedProgramChunk', () => {
         ['rdl', 'Hamstrings'],
       ]);
       const bothSquats = [
-        session(
-          [{ name: 'Back Squat', sets: 4, reps: 6, exerciseId: 'sq1' }],
-          { weekday: 'Tue' },
-        ),
+        session([{ name: 'Back Squat', sets: 4, reps: 6, exerciseId: 'sq1' }], {
+          weekday: 'Tue',
+        }),
         session(
           [{ name: 'Front Squat', sets: 4, reps: 6, exerciseId: 'sq2' }],
           { weekday: 'Fri' },
@@ -943,10 +1012,9 @@ describe('validateGeneratedProgramChunk', () => {
       expect(r1.crossSessionOverlapExerciseIds).toContain('sq2');
 
       const squatThenHinge = [
-        session(
-          [{ name: 'Back Squat', sets: 4, reps: 6, exerciseId: 'sq1' }],
-          { weekday: 'Tue' },
-        ),
+        session([{ name: 'Back Squat', sets: 4, reps: 6, exerciseId: 'sq1' }], {
+          weekday: 'Tue',
+        }),
         session(
           [{ name: 'Romanian Deadlift', sets: 4, reps: 8, exerciseId: 'rdl' }],
           { weekday: 'Fri' },
@@ -968,7 +1036,14 @@ describe('validateGeneratedProgramChunk', () => {
       const primary = new Map<string, string>([['bench', 'Chest']]);
       const sessions = [
         session(
-          [{ name: 'Barbell Bench Press', sets: 4, reps: 6, exerciseId: 'bench' }],
+          [
+            {
+              name: 'Barbell Bench Press',
+              sets: 4,
+              reps: 6,
+              exerciseId: 'bench',
+            },
+          ],
           { weekday: 'Mon' },
         ),
       ];
@@ -995,9 +1070,7 @@ describe('buildRetryPriorExerciseIds', () => {
     ];
     const validation = {
       ok: false,
-      issues: [
-        'primary_lower_pattern_on_upper_focus',
-      ] as ChunkValidatorIssue[],
+      issues: ['primary_lower_pattern_on_upper_focus'] as ChunkValidatorIssue[],
       duplicateExerciseIds: [] as string[],
       patternClashExerciseIds: ['hinge1'],
       patternOverflowExerciseIds: [] as string[],
@@ -1101,8 +1174,18 @@ describe('buildRetryPriorExerciseIds', () => {
     const prior = ['p1'];
     const sessions: GeneratedSession[] = [
       session([
-        { name: 'Landmine Press', sets: 4, reps: 8, exerciseId: 'landmine_press' },
-        { name: 'Lat Pulldown', sets: 3, reps: 10, exerciseId: 'lat_pulldown_wide' },
+        {
+          name: 'Landmine Press',
+          sets: 4,
+          reps: 8,
+          exerciseId: 'landmine_press',
+        },
+        {
+          name: 'Lat Pulldown',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'lat_pulldown_wide',
+        },
       ]),
     ];
     const validation = {
@@ -1128,11 +1211,21 @@ describe('buildRetryPriorExerciseIds', () => {
     const prior = ['p1'];
     const sessions: GeneratedSession[] = [
       session([
-        { name: 'Barbell Bench Press', sets: 4, reps: 6, exerciseId: 'bench_a' },
+        {
+          name: 'Barbell Bench Press',
+          sets: 4,
+          reps: 6,
+          exerciseId: 'bench_a',
+        },
       ]),
       session(
         [
-          { name: 'Dumbbell Bench Press', sets: 4, reps: 8, exerciseId: 'bench_b' },
+          {
+            name: 'Dumbbell Bench Press',
+            sets: 4,
+            reps: 8,
+            exerciseId: 'bench_b',
+          },
         ],
         { weekday: 'Thu' },
       ),

@@ -6,7 +6,10 @@ import { validateGeneratedProgramChunk } from '../generated-chunk-validators';
 import { scoreGeneratedChunk, type EvalScoreResult } from './eval-scoring';
 import type { EvalCatalogExercise } from './eval-types';
 import { movementPatternsMapForSessions } from './eval-harness';
-import { transformExercise, type RawExercise } from '../../data/exercise-mappings';
+import {
+  transformExercise,
+  type RawExercise,
+} from '../../data/exercise-mappings';
 
 export type ParsedGenerateSessionsCapture = {
   inputs: {
@@ -28,11 +31,15 @@ function asRecord(value: unknown): Record<string, unknown> | null {
  * Parse a `GENERATION_CAPTURE=1` JSON file (`kind: "generate_sessions"`).
  * Returns final {@link outputs.sessions} and optional {@link outputs.sessionsPreEnrichment}.
  */
-export function parseGenerateSessionsCapture(raw: unknown): ParsedGenerateSessionsCapture {
+export function parseGenerateSessionsCapture(
+  raw: unknown,
+): ParsedGenerateSessionsCapture {
   const r = asRecord(raw);
   if (!r) throw new Error('Capture: expected JSON object');
   if (r.kind !== 'generate_sessions') {
-    throw new Error(`Capture: expected kind "generate_sessions", got ${String(r.kind)}`);
+    throw new Error(
+      `Capture: expected kind "generate_sessions", got ${String(r.kind)}`,
+    );
   }
   const inputs = asRecord(r.inputs);
   if (!inputs) throw new Error('Capture: missing inputs');
@@ -61,7 +68,8 @@ export function parseGenerateSessionsCapture(raw: unknown): ParsedGenerateSessio
   return {
     inputs: {
       goal: typeof inputs.goal === 'string' ? inputs.goal : undefined,
-      detailLevel: typeof inputs.detailLevel === 'string' ? inputs.detailLevel : undefined,
+      detailLevel:
+        typeof inputs.detailLevel === 'string' ? inputs.detailLevel : undefined,
       sessions: specs,
     },
     sessionsOut: sessions,
@@ -83,7 +91,9 @@ export type CapturePipelineSummary = {
   anyFinishReasonLength: boolean;
 };
 
-export function summarizeCapturePipeline(raw: unknown): CapturePipelineSummary | undefined {
+export function summarizeCapturePipeline(
+  raw: unknown,
+): CapturePipelineSummary | undefined {
   const r = asRecord(raw);
   if (!r) return undefined;
   const pipe = asRecord(r.pipeline);
@@ -142,7 +152,11 @@ export function inferMovementPatternsForCaptureExercise(ex: {
   ) {
     p.add('Hinge');
   }
-  if (/\b(squat|leg press|hack squat|goblet squat|front squat|wall sit|leg extension)\b/.test(blob)) {
+  if (
+    /\b(squat|leg press|hack squat|goblet squat|front squat|wall sit|leg extension)\b/.test(
+      blob,
+    )
+  ) {
     p.add('Squat');
   }
   if (/\b(lunge|split squat|step-?up|curtsy|lateral lunge)\b/.test(blob)) {
@@ -166,7 +180,8 @@ export function inferMovementPatternsForCaptureExercise(ex: {
   if (p.size === 0) {
     const pm = (ex.primaryMuscleGroup ?? '').toLowerCase();
     if (pm === 'back') p.add('Pull');
-    else if (pm === 'chest' || pm === 'shoulders' || pm === 'arms') p.add('Push');
+    else if (pm === 'chest' || pm === 'shoulders' || pm === 'arms')
+      p.add('Push');
     else if (pm === 'legs' || pm === 'glutes') p.add('Squat');
     else if (pm === 'core') p.add('Push');
   }
@@ -210,9 +225,14 @@ export function buildInferCatalogFromCaptureSessions(
   return [...byId.values()];
 }
 
-let cachedLibrary: { path: string; map: Map<string, EvalCatalogExercise> } | null = null;
+let cachedLibrary: {
+  path: string;
+  map: Map<string, EvalCatalogExercise>;
+} | null = null;
 
-function loadExerciseLibraryMap(jsonPath: string): Map<string, EvalCatalogExercise> {
+function loadExerciseLibraryMap(
+  jsonPath: string,
+): Map<string, EvalCatalogExercise> {
   if (cachedLibrary?.path === jsonPath) return cachedLibrary.map;
   const raw = JSON.parse(fs.readFileSync(jsonPath, 'utf8')) as RawExercise[];
   const map = new Map<string, EvalCatalogExercise>();
@@ -301,7 +321,9 @@ function scoreSessionsWithCatalog(
 ): GenerationCaptureScoreResult {
   const effectiveDetailLevel = effectiveDetail(inputs.detailLevel);
   const byId = new Map(catalog.map((c) => [c.id, c]));
-  const movementMap = movementPatternsMapForSessions(sessions, (id) => byId.get(id));
+  const movementMap = movementPatternsMapForSessions(sessions, (id) =>
+    byId.get(id),
+  );
   const validation = validateGeneratedProgramChunk(
     inputs.sessions,
     sessions,
@@ -424,15 +446,27 @@ export function scoreGenerationCaptureFull(
     path.join(process.cwd(), 'data', 'exercises_5000plus.json');
 
   const finalCat = buildCatalogForMode(parsed.sessionsOut, mode, libraryPath);
-  let final = scoreSessionsWithCatalog(parsed.inputs, parsed.sessionsOut, finalCat.catalog);
+  let final = scoreSessionsWithCatalog(
+    parsed.inputs,
+    parsed.sessionsOut,
+    finalCat.catalog,
+  );
 
   let pre: GenerationCaptureScoreResult | undefined;
   let preCatStats: GenerationCaptureFullResult['preCatalog'];
   let strengthFloor: GenerationCaptureFullResult['strengthFloor'];
   let deltaTotal: number | undefined;
   if (parsed.sessionsPreEnrichment) {
-    const pc = buildCatalogForMode(parsed.sessionsPreEnrichment, mode, libraryPath);
-    pre = scoreSessionsWithCatalog(parsed.inputs, parsed.sessionsPreEnrichment, pc.catalog);
+    const pc = buildCatalogForMode(
+      parsed.sessionsPreEnrichment,
+      mode,
+      libraryPath,
+    );
+    pre = scoreSessionsWithCatalog(
+      parsed.inputs,
+      parsed.sessionsPreEnrichment,
+      pc.catalog,
+    );
     preCatStats = {
       mode: pc.usedLibrary ? 'library' : 'infer',
       resolvedIds: pc.resolvedIds,

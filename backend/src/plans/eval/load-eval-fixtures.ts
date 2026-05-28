@@ -24,7 +24,9 @@ function assertScenarioShape(
     throw new Error(`Eval fixture ${filename}: missing non-empty "id"`);
   }
   if (!Array.isArray(specs) || specs.length === 0) {
-    throw new Error(`Eval fixture ${filename}: "specs" must be a non-empty array`);
+    throw new Error(
+      `Eval fixture ${filename}: "specs" must be a non-empty array`,
+    );
   }
   if (!Array.isArray(sessions) || sessions.length === 0) {
     throw new Error(
@@ -37,7 +39,9 @@ function assertScenarioShape(
     );
   }
   if (!Array.isArray(catalog) || catalog.length === 0) {
-    throw new Error(`Eval fixture ${filename}: "catalog" must be a non-empty array`);
+    throw new Error(
+      `Eval fixture ${filename}: "catalog" must be a non-empty array`,
+    );
   }
   const expectRec = asRecord(expect);
   const afterRec = asRecord(expectRec?.after);
@@ -62,7 +66,9 @@ function assertScenarioShape(
   if (r.evalScoring !== undefined) {
     const es = asRecord(r.evalScoring);
     if (!es) {
-      throw new Error(`Eval fixture ${filename}: "evalScoring" must be an object`);
+      throw new Error(
+        `Eval fixture ${filename}: "evalScoring" must be an object`,
+      );
     }
     const allowed = new Set([
       'skipBalance',
@@ -77,10 +83,14 @@ function assertScenarioShape(
     ]);
     for (const [k, v] of Object.entries(es)) {
       if (!allowed.has(k)) {
-        throw new Error(`Eval fixture ${filename}: unknown evalScoring key "${k}"`);
+        throw new Error(
+          `Eval fixture ${filename}: unknown evalScoring key "${k}"`,
+        );
       }
       if (typeof v !== 'boolean') {
-        throw new Error(`Eval fixture ${filename}: evalScoring.${k} must be boolean`);
+        throw new Error(
+          `Eval fixture ${filename}: evalScoring.${k} must be boolean`,
+        );
       }
     }
   }

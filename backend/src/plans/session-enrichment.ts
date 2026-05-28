@@ -87,7 +87,9 @@ export function listHasPull(exercises: GeneratedSessionExercise[]): boolean {
 }
 
 /** Upper-emphasis session titles (exclude explicit lower/legs-only days). */
-export function sessionTitleIsUpperEmphasis(title: string | undefined): boolean {
+export function sessionTitleIsUpperEmphasis(
+  title: string | undefined,
+): boolean {
   if (!title) return false;
   const t = title.toLowerCase();
   if (/\b(cardio|recovery|run|conditioning)\b/.test(t)) return false;
@@ -98,7 +100,9 @@ export function sessionTitleIsUpperEmphasis(title: string | undefined): boolean 
   ) {
     return false;
   }
-  return /\bupper\b|\bpush\b|\bpull\b|\bchest\b|\bback\b|\bshoulders?\b|\barms\b/.test(t);
+  return /\bupper\b|\bpush\b|\bpull\b|\bchest\b|\bback\b|\bshoulders?\b|\barms\b/.test(
+    t,
+  );
 }
 
 /** Lower / legs strength days where knee-dominant + hip hinge coverage is expected when metadata allows checks. */
@@ -109,7 +113,11 @@ export function sessionTitleNeedsSquatHingeBalance(
   if (type !== 'strength') return false;
   const t = (title ?? '').toLowerCase();
   if (/\b(cardio|recovery|run|conditioning)\b/.test(t)) return false;
-  if (/\bupper\b|\bpush\b|\bpull\b|\bchest\b|\bback\b|\bshoulders\b|\barms\b/.test(t)) {
+  if (
+    /\bupper\b|\bpush\b|\bpull\b|\bchest\b|\bback\b|\bshoulders\b|\barms\b/.test(
+      t,
+    )
+  ) {
     if (!/\blegs?\b|\blower\b|\bquad\b|\bhamstring\b|\bglute\b/.test(t))
       return false;
   }
@@ -253,9 +261,9 @@ function compoundSortScore(
  */
 export function idealStrengthExercisePermutation(
   exercises: GeneratedSessionExercise[],
-  findMeta: (id: string) =>
-    | { movementPatterns?: string[]; primaryMuscleGroup?: string }
-    | undefined,
+  findMeta: (
+    id: string,
+  ) => { movementPatterns?: string[]; primaryMuscleGroup?: string } | undefined,
   sessionTitle?: string,
 ): number[] {
   const n = exercises.length;
@@ -298,12 +306,10 @@ function cardioNameMatchesModality(name: string, modality: string): boolean {
   const n = (name ?? '').toLowerCase();
   const m = modality.toLowerCase().trim();
   if (!m) return false;
-  if (m === 'run' || m === 'running')
-    return /\b(run|jog|treadmill)\b/i.test(n);
+  if (m === 'run' || m === 'running') return /\b(run|jog|treadmill)\b/i.test(n);
   if (m === 'bike' || m === 'cycle')
     return /\b(bike|bicycle|cycle|assault bike|air bike)\b/i.test(n);
-  if (m === 'row' || m === 'rowing')
-    return /\b(row|rowing)\b/i.test(n);
+  if (m === 'row' || m === 'rowing') return /\b(row|rowing)\b/i.test(n);
   if (m === 'swim' || m === 'swimming') return /\b(swim)\b/i.test(n);
   if (m === 'elliptical')
     return /\b(elliptical|arc trainer|cross trainer)\b/i.test(n);
@@ -394,9 +400,9 @@ function exerciseRowIsBalanceInsert(e: GeneratedSessionExercise): boolean {
 
 function pickStrengthTrimIndex(
   exercises: GeneratedSessionExercise[],
-  findMeta: (id: string) =>
-    | { movementPatterns?: string[]; primaryMuscleGroup?: string }
-    | undefined,
+  findMeta: (
+    id: string,
+  ) => { movementPatterns?: string[]; primaryMuscleGroup?: string } | undefined,
 ): number {
   const n = exercises.length;
   const protectedIndices = new Set<number>();
@@ -446,9 +452,9 @@ function pickStrengthTrimIndex(
  */
 function trimStrengthExercisesToSoftCap(args: {
   exercises: GeneratedSessionExercise[];
-  findMeta: (id: string) =>
-    | { movementPatterns?: string[]; primaryMuscleGroup?: string }
-    | undefined;
+  findMeta: (
+    id: string,
+  ) => { movementPatterns?: string[]; primaryMuscleGroup?: string } | undefined;
   maxEx: number;
   coachNotes: string[];
 }): void {
@@ -500,7 +506,11 @@ async function sortExercisesByCompoundOrder(
   exercisesService: ExercisesService,
 ): Promise<GeneratedSessionExercise[]> {
   const findMeta = (id: string) => exercisesService.findOne(id);
-  const perm = idealStrengthExercisePermutation(exercises, findMeta, spec.title);
+  const perm = idealStrengthExercisePermutation(
+    exercises,
+    findMeta,
+    spec.title,
+  );
   return Promise.all(
     perm.map(async (origIndex) => {
       const e = exercises[origIndex]!;
@@ -603,9 +613,7 @@ function ensureAnchorInSlotOne(args: {
   const slotOneMeta = findMeta(slotOneId);
   const slotOnePatterns = new Set(slotOneMeta?.movementPatterns ?? []);
   const sessionExcludeIds = new Set(
-    exercises
-      .map((e) => e.exerciseId?.trim())
-      .filter((x): x is string => !!x),
+    exercises.map((e) => e.exerciseId?.trim()).filter((x): x is string => !!x),
   );
   const chunkExcludeSet = new Set(args.chunkExcludeExerciseIds);
 
@@ -673,7 +681,9 @@ export async function enrichGeneratedSession(
 
   for (const ex of exercises) {
     if (ex.exerciseId && !findMeta(ex.exerciseId)) {
-      console.warn(`[Enrichment] exerciseId '${ex.exerciseId}' not found in catalog — LLM hallucination or stale id`);
+      console.warn(
+        `[Enrichment] exerciseId '${ex.exerciseId}' not found in catalog — LLM hallucination or stale id`,
+      );
     }
   }
 
@@ -711,7 +721,9 @@ export async function enrichGeneratedSession(
           pick.prescriptionType ??
           inferPrescriptionTypeFromExerciseName(pick.name),
         primaryMuscleGroup: pick.primaryMuscleGroup,
-        ...(pullSecondaries.length ? { secondaryMuscleGroups: pullSecondaries } : {}),
+        ...(pullSecondaries.length
+          ? { secondaryMuscleGroups: pullSecondaries }
+          : {}),
       });
       coachNotes.push(
         'Added a pull movement from the library so this upper/pull day includes a clear pull pattern.',
@@ -723,9 +735,7 @@ export async function enrichGeneratedSession(
     let cover = unionPatternsFromSession(exercises, findMeta);
     if (cover.withMetaCount >= 2) {
       const excludeForLower = () =>
-        exercises
-          .map((e) => e.exerciseId)
-          .filter((id): id is string => !!id);
+        exercises.map((e) => e.exerciseId).filter((id): id is string => !!id);
       const lowerPool = () =>
         exercisesService.getCandidatesForGenerator({
           focus: 'lower',
@@ -737,7 +747,9 @@ export async function enrichGeneratedSession(
         const pick = lowerPool().find(
           (c) =>
             c.movementPatterns?.includes('Squat') &&
-            !exercises.some((e) => e.exerciseId === c.id || e.name === c.name) &&
+            !exercises.some(
+              (e) => e.exerciseId === c.id || e.name === c.name,
+            ) &&
             !nameMatchesAvoidList(c.name, avoidPhrases),
         );
         if (pick) {
@@ -768,7 +780,9 @@ export async function enrichGeneratedSession(
         const pick = lowerPool().find(
           (c) =>
             c.movementPatterns?.includes('Hinge') &&
-            !exercises.some((e) => e.exerciseId === c.id || e.name === c.name) &&
+            !exercises.some(
+              (e) => e.exerciseId === c.id || e.name === c.name,
+            ) &&
             !nameMatchesAvoidList(c.name, avoidPhrases),
         );
         if (pick) {
@@ -921,7 +935,10 @@ export async function enrichGeneratedSession(
     findMeta,
   });
   const warmUp = tieWarmupToMainLift(session.warmUp, mainName);
-  const reasoning = appendDeterministicCoachNotes(session.reasoning, coachNotes);
+  const reasoning = appendDeterministicCoachNotes(
+    session.reasoning,
+    coachNotes,
+  );
   const coolDown =
     session.coolDown?.trim() ||
     '2–5 minutes of easy walking or light cycling, then brief static stretching for the muscles you trained.';

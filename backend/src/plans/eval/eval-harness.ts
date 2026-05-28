@@ -13,7 +13,9 @@ import type { ChunkValidationResult } from '../generated-chunk-validators';
 import type { EvalCatalogExercise } from './eval-types';
 import { createEvalMockExercisesService } from './mock-exercises-service-for-eval';
 
-function mockRepairLibrary(rows: EvalCatalogExercise[]): ChunkRepairExerciseLibrary {
+function mockRepairLibrary(
+  rows: EvalCatalogExercise[],
+): ChunkRepairExerciseLibrary {
   const byId = new Map(rows.map((r) => [r.id, r]));
   return {
     findOne: (id: string) => byId.get(id),
@@ -22,7 +24,9 @@ function mockRepairLibrary(rows: EvalCatalogExercise[]): ChunkRepairExerciseLibr
       return rows.filter((r) => !ex.has(r.id));
     },
     candidatesForChunkRepairScavenge: (excludeIds, limit = 200) => {
-      const ex = new Set(excludeIds.map((i) => String(i ?? '').trim()).filter(Boolean));
+      const ex = new Set(
+        excludeIds.map((i) => String(i ?? '').trim()).filter(Boolean),
+      );
       const out = rows.filter((r) => !ex.has(r.id));
       return limit ? out.slice(0, limit) : out;
     },
@@ -130,9 +134,15 @@ export function runChunkGenerationEval(args: {
     upperLowerPatternRepairs = r.upperLowerPatternRepairs;
     belowMinRepairs = r.belowMinRepairs;
   }
-  const movementMap = movementPatternsMapForSessions(sessions, (id) => lib.findOne(id));
-  const primaryMap = primaryMuscleGroupMapForSessions(sessions, (id) => lib.findOne(id));
-  const subMuscleMap = subMusclesMapForSessions(sessions, (id) => lib.findOne(id));
+  const movementMap = movementPatternsMapForSessions(sessions, (id) =>
+    lib.findOne(id),
+  );
+  const primaryMap = primaryMuscleGroupMapForSessions(sessions, (id) =>
+    lib.findOne(id),
+  );
+  const subMuscleMap = subMusclesMapForSessions(sessions, (id) =>
+    lib.findOne(id),
+  );
   const validation = validateGeneratedProgramChunk(
     args.specs,
     sessions,

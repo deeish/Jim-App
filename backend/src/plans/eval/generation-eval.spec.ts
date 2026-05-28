@@ -12,7 +12,9 @@ describe('generation eval (frozen chunk scenarios)', () => {
     '%s',
     async (_id, scenario) => {
       if (!scenario.expect.runRepair) {
-        throw new Error(`Scenario ${scenario.id}: set runRepair true or add a no-repair branch`);
+        throw new Error(
+          `Scenario ${scenario.id}: set runRepair true or add a no-repair branch`,
+        );
       }
 
       const before = runChunkGenerationEval({
@@ -26,7 +28,9 @@ describe('generation eval (frozen chunk scenarios)', () => {
 
       if (scenario.enrichPrefs) {
         if (!scenario.expect.afterEnrich) {
-          throw new Error(`Scenario ${scenario.id}: enrichPrefs requires expect.afterEnrich`);
+          throw new Error(
+            `Scenario ${scenario.id}: enrichPrefs requires expect.afterEnrich`,
+          );
         }
         const out = await runChunkRepairEnrichThenValidate({
           specs: scenario.specs,
@@ -45,11 +49,17 @@ describe('generation eval (frozen chunk scenarios)', () => {
           expect(out.validation.issues).not.toContain(issue);
         }
 
-        expect(out.validationAfterEnrich.ok).toBe(scenario.expect.afterEnrich.validatorOk);
-        for (const issue of scenario.expect.afterEnrich.issuesMustInclude ?? []) {
-          expect(out.validationAfterEnrich.issues).toContain(issue as ChunkValidatorIssue);
+        expect(out.validationAfterEnrich.ok).toBe(
+          scenario.expect.afterEnrich.validatorOk,
+        );
+        for (const issue of scenario.expect.afterEnrich.issuesMustInclude ??
+          []) {
+          expect(out.validationAfterEnrich.issues).toContain(
+            issue as ChunkValidatorIssue,
+          );
         }
-        for (const issue of scenario.expect.afterEnrich.issuesMustNotInclude ?? []) {
+        for (const issue of scenario.expect.afterEnrich.issuesMustNotInclude ??
+          []) {
           expect(out.validationAfterEnrich.issues).not.toContain(issue);
         }
 
@@ -93,11 +103,15 @@ describe('generation eval (frozen chunk scenarios)', () => {
 
       if (scenario.id === 'chunk_duplicate_across_four_strength_days') {
         expect(before.validation.ok).toBe(false);
-        expect(before.validation.issues).toContain('duplicate_exercise_id_across_chunk');
+        expect(before.validation.issues).toContain(
+          'duplicate_exercise_id_across_chunk',
+        );
         expect(after.duplicateRepairs).toBeGreaterThan(0);
       }
       if (scenario.id === 'chunk_upper_focus_hinge_clash') {
-        expect(before.validation.issues).toContain('primary_lower_pattern_on_upper_focus');
+        expect(before.validation.issues).toContain(
+          'primary_lower_pattern_on_upper_focus',
+        );
         expect(after.upperLowerPatternRepairs).toBeGreaterThan(0);
       }
       if (scenario.id === 'chunk_clean_stays_ok') {
@@ -110,7 +124,9 @@ describe('generation eval (frozen chunk scenarios)', () => {
         expect(after.validation.ok).toBe(true);
       }
       if (scenario.id === 'chunk_in_session_dup_repaired') {
-        expect(before.validation.issues).toContain('duplicate_exercise_id_in_session');
+        expect(before.validation.issues).toContain(
+          'duplicate_exercise_id_in_session',
+        );
         expect(after.duplicateRepairs).toBeGreaterThan(0);
       }
       if (scenario.id === 'chunk_lower_two_day_clean') {
