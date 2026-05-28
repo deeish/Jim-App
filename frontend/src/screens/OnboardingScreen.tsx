@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  FadeInDown,
+  ZoomIn,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { ColorPalette } from '../theme/colors';
 import { useTheme } from '../theme';
@@ -27,25 +28,34 @@ import {
   type TrainingFrequencyOption,
 } from '../constants/trainingSchedule';
 import { PROFILE_INJURY_TAG_OPTIONS } from '../constants/injuryTags';
+import PressableScale from '../components/PressableScale';
+import { haptics } from '../lib/haptics';
 import type { RootNavigatorParamList } from '../types/navigation';
+
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 type Props = {
   navigation: NativeStackNavigationProp<RootNavigatorParamList, 'Onboarding'>;
 };
 
-const GOAL_DESCRIPTIONS: Record<GoalOption, string> = {
-  Strength: 'Build a stronger, more powerful body',
-  Hypertrophy: 'Grow muscle size and definition',
-  'Fat loss': 'Burn fat and improve body composition',
-  'General fitness': 'Stay healthy and active',
-  Endurance: 'Build cardiovascular fitness',
+const GOAL_META: Record<GoalOption, { icon: IconName; desc: string }> = {
+  Strength: { icon: 'barbell-outline', desc: 'Build a stronger, more powerful body' },
+  Hypertrophy: { icon: 'fitness-outline', desc: 'Grow muscle size and definition' },
+  'Fat loss': { icon: 'flame-outline', desc: 'Burn fat and improve body composition' },
+  'General fitness': { icon: 'heart-outline', desc: 'Stay healthy and active' },
+  Endurance: { icon: 'bicycle-outline', desc: 'Build cardiovascular fitness' },
 };
 
-const EXPERIENCE_DESCRIPTIONS: Record<ExperienceOption, string> = {
-  Beginner: 'New to structured training or returning after a long break',
-  Intermediate: 'Training consistently for 6+ months',
-  Advanced: 'Years of focused training with a solid foundation',
+const EXPERIENCE_META: Record<ExperienceOption, { icon: IconName; desc: string }> = {
+  Beginner: { icon: 'leaf-outline', desc: 'New to structured training or returning after a break' },
+  Intermediate: { icon: 'trending-up-outline', desc: 'Training consistently for 6+ months' },
+  Advanced: { icon: 'trophy-outline', desc: 'Years of focused training with a solid foundation' },
 };
+
+const INJURY_LABEL: Record<StoredInjuryTagId, string> = PROFILE_INJURY_TAG_OPTIONS.reduce(
+  (acc, { id, label }) => ({ ...acc, [id]: label }),
+  {} as Record<StoredInjuryTagId, string>,
+);
 
 const STEP_HEADINGS: { title: string; subtitle: string }[] = [
   { title: "What's your main goal?", subtitle: "We'll tailor your plan around this" },
@@ -53,9 +63,11 @@ const STEP_HEADINGS: { title: string; subtitle: string }[] = [
   { title: 'How often do you train?', subtitle: "We'll shape your weekly split around this" },
   { title: 'What equipment do you have?', subtitle: 'Select all that apply — change it anytime in Profile' },
   { title: 'Anything to work around?', subtitle: 'Optional — most people skip this. Not medical advice.' },
+  { title: 'Looks good?', subtitle: 'Review your setup — you can change anything later in Profile.' },
 ];
 
 const TOTAL_STEPS = STEP_HEADINGS.length;
+const LAST_STEP = TOTAL_STEPS - 1;
 
 const GYM_PRESET: EquipmentOption[] = [...EQUIPMENT_OPTIONS];
 const HOME_PRESET: EquipmentOption[] = ['Bodyweight', 'Dumbbell', 'Pull-up Bar', 'Resistance Band'];
@@ -85,6 +97,12 @@ export default function OnboardingScreen({ navigation }: Props) {
   const [injuryTags, setInjuryTags] = useState<StoredInjuryTagId[]>([]);
   const [injuryNotes, setInjuryNotesDraft] = useState('');
 
+  const progress = useSharedValue((1) / TOTAL_STEPS);
+  useEffect(() => {
+    progress.value = withTiming((step + 1) / TOTAL_STEPS, { duration: 300 });
+  }, [step, progress]);
+  const fillStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
+
   const scheduleOk = flexibleDays || selectedWeekdays.length === selectedFrequency;
   const canProceed =
     step === 0
@@ -97,9 +115,8 @@ export default function OnboardingScreen({ navigation }: Props) {
             ? selectedEquipment.length > 0
             : true;
 
-  const isLastStep = step === TOTAL_STEPS - 1;
-
   function toggleEquipment(item: EquipmentOption) {
+    haptics.select();
     setSelectedEquipment((prev) =>
       prev.includes(item) ? prev.filter((e) => e !== item) : [...prev, item],
     );
@@ -110,11 +127,13 @@ export default function OnboardingScreen({ navigation }: Props) {
   }
 
   function selectFrequency(n: TrainingFrequencyOption) {
+    haptics.select();
     setSelectedFrequency(n);
     setSelectedWeekdays((prev) => (prev.length > n ? prev.slice(0, n) : prev));
   }
 
   function togglePreferredDay(day: DayOfWeekPreference) {
+    haptics.select();
     setSelectedWeekdays((prev) => {
       if (prev.includes(day)) return prev.filter((d) => d !== day);
       if (prev.length >= selectedFrequency) return prev;
@@ -125,15 +144,18 @@ export default function OnboardingScreen({ navigation }: Props) {
   }
 
   function toggleInjuryTag(id: StoredInjuryTagId) {
+    haptics.select();
     setInjuryTags((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   function handleNext() {
     if (!canProceed) return;
-    if (!isLastStep) {
+    if (step < LAST_STEP) {
+      haptics.step();
       setStep((s) => s + 1);
       return;
     }
+    haptics.success();
     if (selectedGoal) setGoal(selectedGoal);
     if (selectedExperience) setExperience(selectedExperience);
     setTrainingFrequency(selectedFrequency);
@@ -147,25 +169,27 @@ export default function OnboardingScreen({ navigation }: Props) {
   }
 
   const heading = STEP_HEADINGS[step];
-  const ctaLabel = isLastStep
-    ? injuryTags.length === 0 && !injuryNotes.trim()
-      ? 'Skip & get my plan'
-      : 'Get my plan'
-    : 'Continue';
+  const equipmentValue =
+    selectedEquipment.length === 0
+      ? 'None selected'
+      : selectedEquipment.length === EQUIPMENT_OPTIONS.length
+        ? 'Full gym'
+        : selectedEquipment.join(' · ');
+  const scheduleValue = flexibleDays
+    ? `${selectedFrequency} days/week · flexible`
+    : `${selectedFrequency} days · ${selectedWeekdays.map((d) => d.slice(0, 3)).join(', ')}`;
+  const injuryValue =
+    injuryTags.length === 0
+      ? injuryNotes.trim()
+        ? injuryNotes.trim()
+        : 'Nothing to note'
+      : injuryTags.map((id) => INJURY_LABEL[id]).join(', ');
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.progressWrap}>
         <View style={styles.progressTrack}>
-          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.progressSeg,
-                { backgroundColor: i <= step ? colors.primary : colors.border },
-              ]}
-            />
-          ))}
+          <Animated.View style={[styles.progressFill, fillStyle]} />
         </View>
         <Text style={styles.stepCaption}>
           Step {step + 1} of {TOTAL_STEPS}
@@ -177,190 +201,230 @@ export default function OnboardingScreen({ navigation }: Props) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>{heading.title}</Text>
-        <Text style={styles.subtitle}>{heading.subtitle}</Text>
+        <Animated.View key={step} entering={FadeInDown.duration(260)}>
+          <Text style={styles.title}>{heading.title}</Text>
+          <Text style={styles.subtitle}>{heading.subtitle}</Text>
 
-        {step === 0 &&
-          GOAL_OPTIONS.map((g) => (
-            <SelectableCard
-              key={g}
-              colors={colors}
-              selected={selectedGoal === g}
-              title={g}
-              subtitle={GOAL_DESCRIPTIONS[g]}
-              onPress={() => setSelectedGoal(g)}
-            />
-          ))}
-
-        {step === 1 &&
-          EXPERIENCE_OPTIONS.map((e) => (
-            <SelectableCard
-              key={e}
-              colors={colors}
-              selected={selectedExperience === e}
-              title={e}
-              subtitle={EXPERIENCE_DESCRIPTIONS[e]}
-              onPress={() => setSelectedExperience(e)}
-            />
-          ))}
-
-        {step === 2 && (
-          <>
-            {TRAINING_FREQUENCY_OPTIONS.map((n) => (
+          {step === 0 &&
+            GOAL_OPTIONS.map((g) => (
               <SelectableCard
-                key={n}
+                key={g}
                 colors={colors}
-                selected={selectedFrequency === n}
-                title={`${n} days per week`}
-                subtitle={
-                  n <= 4
-                    ? 'Balanced progression for busy schedules'
-                    : 'Higher frequency — suits experienced lifters'
-                }
-                onPress={() => selectFrequency(n)}
+                icon={GOAL_META[g].icon}
+                selected={selectedGoal === g}
+                title={g}
+                subtitle={GOAL_META[g].desc}
+                onPress={() => {
+                  haptics.select();
+                  setSelectedGoal(g);
+                }}
               />
             ))}
 
-            <Text style={styles.sectionLabel}>Preferred days</Text>
-            <View style={styles.segmentRow}>
-              {(
-                [
-                  { label: 'Flexible', value: true },
-                  { label: 'Pick days', value: false },
-                ] as const
-              ).map(({ label, value }) => {
-                const active = flexibleDays === value;
-                return (
-                  <TouchableOpacity
-                    key={label}
-                    style={[styles.segment, active ? styles.segmentActive : null]}
-                    onPress={() => setFlexibleDays(value)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[styles.segmentText, active ? styles.segmentTextActive : null]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+          {step === 1 &&
+            EXPERIENCE_OPTIONS.map((e) => (
+              <SelectableCard
+                key={e}
+                colors={colors}
+                icon={EXPERIENCE_META[e].icon}
+                selected={selectedExperience === e}
+                title={e}
+                subtitle={EXPERIENCE_META[e].desc}
+                onPress={() => {
+                  haptics.select();
+                  setSelectedExperience(e);
+                }}
+              />
+            ))}
 
-            {flexibleDays ? (
-              <Text style={styles.helperText}>We'll spread your sessions evenly across the week.</Text>
-            ) : (
-              <>
-                <Text style={styles.helperText}>
-                  Tap {selectedFrequency} days ({selectedWeekdays.length}/{selectedFrequency} chosen)
-                </Text>
-                <View style={styles.chipGrid}>
-                  {DAYS_OF_WEEK_PREF.map((day) => {
-                    const sel = selectedWeekdays.includes(day);
-                    const atCap = !sel && selectedWeekdays.length >= selectedFrequency;
-                    return (
-                      <Chip
-                        key={day}
-                        colors={colors}
-                        selected={sel}
-                        dimmed={atCap}
-                        label={day.slice(0, 3)}
-                        onPress={() => togglePreferredDay(day)}
+          {step === 2 && (
+            <>
+              {TRAINING_FREQUENCY_OPTIONS.map((n) => (
+                <SelectableCard
+                  key={n}
+                  colors={colors}
+                  icon="calendar-outline"
+                  selected={selectedFrequency === n}
+                  title={`${n} days per week`}
+                  subtitle={
+                    n <= 4
+                      ? 'Balanced progression for busy schedules'
+                      : 'Higher frequency — suits experienced lifters'
+                  }
+                  onPress={() => selectFrequency(n)}
+                />
+              ))}
+
+              <Text style={styles.sectionLabel}>Preferred days</Text>
+              <View style={styles.segmentRow}>
+                {(
+                  [
+                    { label: 'Flexible', value: true },
+                    { label: 'Pick days', value: false },
+                  ] as const
+                ).map(({ label, value }) => {
+                  const active = flexibleDays === value;
+                  return (
+                    <PressableScale
+                      key={label}
+                      style={[styles.segment, active ? styles.segmentActive : null]}
+                      onPress={() => {
+                        haptics.select();
+                        setFlexibleDays(value);
+                      }}
+                    >
+                      <Text style={[styles.segmentText, active ? styles.segmentTextActive : null]}>
+                        {label}
+                      </Text>
+                    </PressableScale>
+                  );
+                })}
+              </View>
+
+              {flexibleDays ? (
+                <Text style={styles.helperText}>We'll spread your sessions evenly across the week.</Text>
+              ) : (
+                <>
+                  <Text style={styles.helperText}>
+                    Tap {selectedFrequency} days ({selectedWeekdays.length}/{selectedFrequency} chosen)
+                  </Text>
+                  <View style={styles.chipGrid}>
+                    {DAYS_OF_WEEK_PREF.map((day) => {
+                      const sel = selectedWeekdays.includes(day);
+                      const atCap = !sel && selectedWeekdays.length >= selectedFrequency;
+                      return (
+                        <Chip
+                          key={day}
+                          colors={colors}
+                          selected={sel}
+                          dimmed={atCap}
+                          label={day.slice(0, 3)}
+                          onPress={() => togglePreferredDay(day)}
+                        />
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <View style={styles.presetRow}>
+                {(
+                  [
+                    { label: 'Gym', sub: 'Full equipment', icon: 'business-outline' as IconName, preset: GYM_PRESET },
+                    { label: 'Home', sub: 'Minimal setup', icon: 'home-outline' as IconName, preset: HOME_PRESET },
+                  ] as const
+                ).map(({ label, sub, icon, preset }) => {
+                  const active = isPresetActive(preset);
+                  return (
+                    <PressableScale
+                      key={label}
+                      style={[
+                        styles.presetCard,
+                        styles.cardShadow,
+                        {
+                          backgroundColor: active ? colors.primarySoft : colors.surface,
+                          borderColor: active ? colors.primary : colors.border,
+                        },
+                      ]}
+                      onPress={() => {
+                        haptics.select();
+                        setSelectedEquipment([...preset]);
+                      }}
+                    >
+                      <Ionicons
+                        name={icon}
+                        size={24}
+                        color={active ? colors.primary : colors.textSecondary}
                       />
-                    );
-                  })}
-                </View>
-              </>
-            )}
-          </>
-        )}
+                      <Text style={[styles.presetLabel, { color: colors.text }]}>{label}</Text>
+                      <Text style={[styles.presetSub, { color: colors.textMuted }]}>{sub}</Text>
+                    </PressableScale>
+                  );
+                })}
+              </View>
+              <Text style={styles.sectionLabel}>Or pick individually</Text>
+              <View style={styles.chipGrid}>
+                {EQUIPMENT_OPTIONS.map((eq) => (
+                  <Chip
+                    key={eq}
+                    colors={colors}
+                    selected={selectedEquipment.includes(eq)}
+                    label={eq}
+                    onPress={() => toggleEquipment(eq)}
+                  />
+                ))}
+              </View>
+            </>
+          )}
 
-        {step === 3 && (
-          <>
-            <View style={styles.presetRow}>
-              {(
-                [
-                  { label: 'Gym', sub: 'Full equipment', preset: GYM_PRESET },
-                  { label: 'Home', sub: 'Minimal setup', preset: HOME_PRESET },
-                ] as const
-              ).map(({ label, sub, preset }) => {
-                const active = isPresetActive(preset);
-                return (
-                  <TouchableOpacity
-                    key={label}
-                    style={[
-                      styles.presetCard,
-                      {
-                        backgroundColor: active ? colors.primarySoft : colors.surface,
-                        borderColor: active ? colors.primary : colors.border,
-                      },
-                    ]}
-                    onPress={() => setSelectedEquipment([...preset])}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[styles.presetLabel, { color: colors.text }]}>{label}</Text>
-                    <Text style={[styles.presetSub, { color: colors.textMuted }]}>{sub}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Text style={styles.sectionLabel}>Or pick individually</Text>
-            <View style={styles.chipGrid}>
-              {EQUIPMENT_OPTIONS.map((eq) => (
-                <Chip
-                  key={eq}
-                  colors={colors}
-                  selected={selectedEquipment.includes(eq)}
-                  label={eq}
-                  onPress={() => toggleEquipment(eq)}
-                />
-              ))}
-            </View>
-          </>
-        )}
+          {step === 4 && (
+            <>
+              <View style={styles.chipGrid}>
+                {PROFILE_INJURY_TAG_OPTIONS.map(({ id, label }) => (
+                  <Chip
+                    key={id}
+                    colors={colors}
+                    selected={injuryTags.includes(id)}
+                    label={label}
+                    onPress={() => toggleInjuryTag(id)}
+                  />
+                ))}
+              </View>
+              <Text style={styles.sectionLabel}>Other notes</Text>
+              <TextInput
+                style={styles.textarea}
+                value={injuryNotes}
+                onChangeText={setInjuryNotesDraft}
+                placeholder='e.g. "No deep squats this month — physio"'
+                placeholderTextColor={colors.textMuted}
+                multiline
+              />
+            </>
+          )}
 
-        {step === 4 && (
-          <>
-            <View style={styles.chipGrid}>
-              {PROFILE_INJURY_TAG_OPTIONS.map(({ id, label }) => (
-                <Chip
-                  key={id}
-                  colors={colors}
-                  selected={injuryTags.includes(id)}
-                  label={label}
-                  onPress={() => toggleInjuryTag(id)}
-                />
-              ))}
+          {step === 5 && (
+            <View style={styles.summaryWrap}>
+              <SummaryRow
+                colors={colors}
+                icon={selectedGoal ? GOAL_META[selectedGoal].icon : 'help-outline'}
+                label="Goal"
+                value={selectedGoal ?? '—'}
+              />
+              <SummaryRow
+                colors={colors}
+                icon={selectedExperience ? EXPERIENCE_META[selectedExperience].icon : 'help-outline'}
+                label="Experience"
+                value={selectedExperience ?? '—'}
+              />
+              <SummaryRow colors={colors} icon="calendar-outline" label="Schedule" value={scheduleValue} />
+              <SummaryRow colors={colors} icon="barbell-outline" label="Equipment" value={equipmentValue} />
+              <SummaryRow colors={colors} icon="medkit-outline" label="Working around" value={injuryValue} />
             </View>
-            <Text style={styles.sectionLabel}>Other notes</Text>
-            <TextInput
-              style={styles.textarea}
-              value={injuryNotes}
-              onChangeText={setInjuryNotesDraft}
-              placeholder='e.g. "No deep squats this month — physio"'
-              placeholderTextColor={colors.textMuted}
-              multiline
-            />
-          </>
-        )}
+          )}
+        </Animated.View>
       </ScrollView>
 
       <View style={styles.footer}>
         {step > 0 ? (
-          <TouchableOpacity onPress={() => setStep((s) => s - 1)} style={styles.backBtn} activeOpacity={0.7}>
+          <PressableScale onPress={() => setStep((s) => s - 1)} style={styles.backBtn}>
             <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
+          </PressableScale>
         ) : (
           <View style={styles.backBtn} />
         )}
-        <TouchableOpacity
+        <PressableScale
           onPress={handleNext}
           disabled={!canProceed}
           style={[styles.nextBtn, !canProceed && styles.nextBtnDisabled]}
-          activeOpacity={0.85}
         >
           <Text style={[styles.nextBtnText, !canProceed && styles.nextBtnTextDisabled]}>
-            {ctaLabel}
+            {step === LAST_STEP ? 'Get my plan' : 'Continue'}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </SafeAreaView>
   );
@@ -368,12 +432,14 @@ export default function OnboardingScreen({ navigation }: Props) {
 
 function SelectableCard({
   colors,
+  icon,
   selected,
   title,
   subtitle,
   onPress,
 }: {
   colors: ColorPalette;
+  icon: IconName;
   selected: boolean;
   title: string;
   subtitle?: string;
@@ -381,35 +447,42 @@ function SelectableCard({
 }) {
   const styles = makeStyles(colors);
   return (
-    <TouchableOpacity
+    <PressableScale
       style={[
         styles.card,
+        styles.cardShadow,
         {
           backgroundColor: selected ? colors.primarySoft : colors.surface,
           borderColor: selected ? colors.primary : colors.border,
         },
       ]}
       onPress={onPress}
-      activeOpacity={0.85}
     >
+      <View
+        style={[
+          styles.iconTile,
+          { backgroundColor: selected ? colors.primary : colors.primarySoft },
+        ]}
+      >
+        <Ionicons name={icon} size={22} color={selected ? colors.onPrimary : colors.primary} />
+      </View>
       <View style={styles.cardTextWrap}>
         <Text style={[styles.cardTitle, { color: colors.text }]}>{title}</Text>
         {subtitle ? (
           <Text style={[styles.cardSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>
         ) : null}
       </View>
-      <View
-        style={[
-          styles.check,
-          {
-            borderColor: selected ? colors.primary : colors.border,
-            backgroundColor: selected ? colors.primary : 'transparent',
-          },
-        ]}
-      >
-        {selected ? <Text style={[styles.checkMark, { color: colors.onPrimary }]}>✓</Text> : null}
-      </View>
-    </TouchableOpacity>
+      {selected ? (
+        <Animated.View
+          entering={ZoomIn.duration(180)}
+          style={[styles.check, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+        >
+          <Ionicons name="checkmark" size={15} color={colors.onPrimary} />
+        </Animated.View>
+      ) : (
+        <View style={[styles.check, { borderColor: colors.border }]} />
+      )}
+    </PressableScale>
   );
 }
 
@@ -428,7 +501,7 @@ function Chip({
 }) {
   const styles = makeStyles(colors);
   return (
-    <TouchableOpacity
+    <PressableScale
       style={[
         styles.chip,
         {
@@ -438,12 +511,39 @@ function Chip({
         },
       ]}
       onPress={onPress}
-      activeOpacity={0.85}
     >
+      {selected ? (
+        <Ionicons name="checkmark" size={14} color={colors.onPrimary} style={styles.chipCheck} />
+      ) : null}
       <Text style={[styles.chipLabel, { color: selected ? colors.onPrimary : colors.text }]}>
         {label}
       </Text>
-    </TouchableOpacity>
+    </PressableScale>
+  );
+}
+
+function SummaryRow({
+  colors,
+  icon,
+  label,
+  value,
+}: {
+  colors: ColorPalette;
+  icon: IconName;
+  label: string;
+  value: string;
+}) {
+  const styles = makeStyles(colors);
+  return (
+    <View style={styles.summaryRow}>
+      <View style={[styles.iconTile, { backgroundColor: colors.primarySoft }]}>
+        <Ionicons name={icon} size={20} color={colors.primary} />
+      </View>
+      <View style={styles.cardTextWrap}>
+        <Text style={styles.summaryLabel}>{label}</Text>
+        <Text style={[styles.summaryValue, { color: colors.text }]}>{value}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -451,24 +551,44 @@ function makeStyles(colors: ColorPalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     progressWrap: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
-    progressTrack: { flexDirection: 'row', gap: 6 },
-    progressSeg: { flex: 1, height: 4, borderRadius: 2 },
+    progressTrack: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.border,
+      overflow: 'hidden',
+    },
+    progressFill: { height: 6, borderRadius: 3, backgroundColor: colors.primary },
     stepCaption: { fontSize: 12, fontWeight: '600', marginTop: 10, color: colors.textMuted },
     scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
     title: { fontSize: 27, fontWeight: '700', marginBottom: 6, color: colors.text },
     subtitle: { fontSize: 15, lineHeight: 21, marginBottom: 22, color: colors.textSecondary },
+    cardShadow: {
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 6,
+      elevation: 2,
+    },
     card: {
       flexDirection: 'row',
       alignItems: 'center',
       borderRadius: 14,
       borderWidth: 1.5,
-      paddingVertical: 16,
-      paddingHorizontal: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 14,
       marginBottom: 12,
+    },
+    iconTile: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 14,
     },
     cardTextWrap: { flex: 1, paddingRight: 12 },
     cardTitle: { fontSize: 17, fontWeight: '600' },
-    cardSubtitle: { fontSize: 13, marginTop: 4, lineHeight: 18 },
+    cardSubtitle: { fontSize: 13, marginTop: 3, lineHeight: 18 },
     check: {
       width: 24,
       height: 24,
@@ -477,7 +597,6 @@ function makeStyles(colors: ColorPalette) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    checkMark: { fontSize: 14, fontWeight: '800', lineHeight: 16 },
     sectionLabel: {
       fontSize: 13,
       fontWeight: '700',
@@ -502,11 +621,19 @@ function makeStyles(colors: ColorPalette) {
     segmentText: { fontSize: 15, fontWeight: '600', color: colors.textSecondary },
     segmentTextActive: { color: colors.onPrimary },
     presetRow: { flexDirection: 'row', gap: 12 },
-    presetCard: { flex: 1, borderRadius: 14, borderWidth: 1.5, paddingVertical: 18, paddingHorizontal: 16 },
-    presetLabel: { fontSize: 16, fontWeight: '700' },
+    presetCard: { flex: 1, borderRadius: 14, borderWidth: 1.5, paddingVertical: 18, paddingHorizontal: 16, alignItems: 'flex-start' },
+    presetLabel: { fontSize: 16, fontWeight: '700', marginTop: 10 },
     presetSub: { fontSize: 13, marginTop: 3 },
     chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    chip: { borderRadius: 22, borderWidth: 1.5, paddingVertical: 10, paddingHorizontal: 16 },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: 22,
+      borderWidth: 1.5,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+    },
+    chipCheck: { marginRight: 6 },
     chipLabel: { fontSize: 14, fontWeight: '600' },
     textarea: {
       borderWidth: 1.5,
@@ -520,6 +647,24 @@ function makeStyles(colors: ColorPalette) {
       marginTop: 4,
       color: colors.text,
     },
+    summaryWrap: { gap: 12 },
+    summaryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+    },
+    summaryLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      color: colors.textMuted,
+    },
+    summaryValue: { fontSize: 16, fontWeight: '600', marginTop: 2 },
     footer: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -529,7 +674,7 @@ function makeStyles(colors: ColorPalette) {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
     },
-    backBtn: { minWidth: 64, paddingVertical: 8 },
+    backBtn: { minWidth: 64, paddingVertical: 12 },
     backText: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
     nextBtn: {
       flex: 1,
