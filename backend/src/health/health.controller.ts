@@ -25,14 +25,6 @@ export class HealthController {
     };
   }
 
-  // TEMP: Sentry end-to-end verification route. Throws an unhandled error so
-  // SanitizedExceptionFilter routes it through reportToSentry. Remove after
-  // confirming the event lands in the jim-api Sentry project.
-  @Get('boom')
-  boom(): never {
-    throw new Error('Sentry verification boom — temporary route');
-  }
-
   @Get('ready')
   async readiness(@Res({ passthrough: true }) res: Response) {
     const [db, supabase, groq] = await Promise.all([
