@@ -55,6 +55,8 @@ export default function SignupScreen() {
 
   const themed = {
     container: { backgroundColor: colors.background },
+    wordmark: { color: colors.primary },
+    tagline: { color: colors.textMuted },
     title: { color: colors.text },
     subtitle: { color: colors.textMuted },
     input: {
@@ -65,7 +67,9 @@ export default function SignupScreen() {
     label: { color: colors.textSecondary },
     link: { color: colors.primary },
     error: { color: colors.error },
+    errorBox: { backgroundColor: colors.surface, borderColor: colors.error },
     success: { color: colors.success },
+    successBox: { backgroundColor: colors.successSoft, borderColor: colors.success },
   };
 
   return (
@@ -75,76 +79,83 @@ export default function SignupScreen() {
         style={styles.keyboard}
       >
         <View style={styles.content}>
+          <View style={styles.brand}>
+            <Text style={[styles.wordmark, themed.wordmark]}>Jim</Text>
+            <Text style={[styles.tagline, themed.tagline]}>Train with intent</Text>
+          </View>
+
           <Text style={[styles.title, themed.title]}>Create account</Text>
           <Text style={[styles.subtitle, themed.subtitle]}>
             Sign up to start planning workouts
           </Text>
 
-          <Text style={[styles.label, themed.label]}>Email</Text>
-          <TextInput
-            style={[styles.input, themed.input]}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            placeholderTextColor={colors.textMuted}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
-            editable={!success}
-          />
+          <View style={styles.form}>
+            <Text style={[styles.label, themed.label]}>Email</Text>
+            <TextInput
+              style={[styles.input, themed.input]}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              editable={!success}
+            />
 
-          <Text style={[styles.label, themed.label]}>
-            Password (min {MIN_PASSWORD_LENGTH} characters)
-          </Text>
-          <PasswordInput
-            containerStyle={styles.passwordField}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            autoComplete="new-password"
-            editable={!success}
-          />
-          {password.length > 0 && (
-            <Text
-              style={[
-                styles.passwordHint,
-                {
-                  color:
-                    password.length >= MIN_PASSWORD_LENGTH
-                      ? colors.success
-                      : colors.error,
-                },
-              ]}
-            >
-              {password.length >= MIN_PASSWORD_LENGTH
-                ? 'Password length OK'
-                : `${MIN_PASSWORD_LENGTH - password.length} more character${
-                    MIN_PASSWORD_LENGTH - password.length === 1 ? '' : 's'
-                  } needed`}
+            <Text style={[styles.label, themed.label]}>
+              Password (min {MIN_PASSWORD_LENGTH} characters)
             </Text>
-          )}
+            <PasswordInput
+              containerStyle={styles.passwordField}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              autoComplete="new-password"
+              editable={!success}
+            />
+            {password.length > 0 && (
+              <Text
+                style={[
+                  styles.passwordHint,
+                  {
+                    color:
+                      password.length >= MIN_PASSWORD_LENGTH ? colors.success : colors.textMuted,
+                  },
+                ]}
+              >
+                {password.length >= MIN_PASSWORD_LENGTH
+                  ? 'Password length looks good'
+                  : `${MIN_PASSWORD_LENGTH - password.length} more character${
+                      MIN_PASSWORD_LENGTH - password.length === 1 ? '' : 's'
+                    } needed`}
+              </Text>
+            )}
 
-          {error ? (
-            <Text style={[styles.error, themed.error]}>{error}</Text>
-          ) : null}
-          {success ? (
-            <Text style={[styles.success, themed.success]}>
-              Check your email to confirm your account, then sign in.
-            </Text>
-          ) : null}
+            {error ? (
+              <View style={[styles.noticeBox, themed.errorBox]}>
+                <Text style={[styles.notice, themed.error]}>{error}</Text>
+              </View>
+            ) : null}
+            {success ? (
+              <View style={[styles.noticeBox, themed.successBox]}>
+                <Text style={[styles.notice, themed.success]}>
+                  Check your email to confirm your account, then sign in.
+                </Text>
+              </View>
+            ) : null}
 
-          <Button
-            title="Sign up"
-            onPress={handleSignUp}
-            loading={loading}
-            disabled={success}
-            style={styles.button}
-          />
+            <Button
+              title="Sign up"
+              onPress={handleSignUp}
+              loading={loading}
+              disabled={success}
+              style={styles.button}
+            />
+          </View>
 
           <View style={styles.footer}>
-            <Text style={[styles.footerText, themed.subtitle]}>
-              Already have an account?{' '}
-            </Text>
+            <Text style={[styles.footerText, themed.subtitle]}>Already have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login' as never)}>
               <Text style={[styles.link, themed.link]}>Sign in</Text>
             </TouchableOpacity>
@@ -161,50 +172,55 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 48,
+    paddingTop: 56,
   },
+  brand: { alignItems: 'center', marginBottom: 36 },
+  wordmark: { fontSize: 40, fontWeight: '800', letterSpacing: 1 },
+  tagline: { fontSize: 14, fontWeight: '500', marginTop: 4 },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
-    marginBottom: 8,
+    textAlign: 'center',
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: 16,
-    marginBottom: 32,
+    fontSize: 15,
+    textAlign: 'center',
+    marginBottom: 28,
   },
+  form: {},
   label: {
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
   },
   input: {
-    borderWidth: 1,
-    borderRadius: 12,
+    borderWidth: 1.5,
+    borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    marginBottom: 20,
+    marginBottom: 14,
   },
-  passwordField: { marginBottom: 20 },
+  passwordField: { marginBottom: 8 },
   passwordHint: {
     fontSize: 12,
-    marginTop: 4,
-    marginBottom: 8,
+    marginBottom: 14,
   },
-  error: {
-    fontSize: 14,
-    marginBottom: 12,
+  noticeBox: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 14,
   },
-  success: {
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  button: { marginTop: 8 },
+  notice: { fontSize: 14, lineHeight: 19 },
+  button: { marginTop: 4 },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 24,
+    marginTop: 28,
   },
   footerText: { fontSize: 15 },
   link: { fontSize: 15, fontWeight: '600' },
