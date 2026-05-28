@@ -13,6 +13,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/Button';
+import PasswordInput from '../components/PasswordInput';
+import { validateEmail, mapAuthError } from '../lib/authValidation';
 
 export default function LoginScreen() {
   const navigation = useNavigation();
@@ -25,19 +27,20 @@ export default function LoginScreen() {
 
   const handleSignIn = async () => {
     setError(null);
-    if (!email.trim() || !password) {
-      setError('Email and password are required');
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setError(emailError);
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Please enter a valid email address');
+    if (!password) {
+      setError('Password is required');
       return;
     }
     setLoading(true);
     const { error: err } = await signIn(email.trim(), password);
     setLoading(false);
     if (err) {
-      setError(err.message ?? 'Sign in failed');
+      setError(mapAuthError(err.message));
       return;
     }
   };
@@ -82,14 +85,12 @@ export default function LoginScreen() {
           />
 
           <Text style={[styles.label, themed.label]}>Password</Text>
-          <TextInput
+          <PasswordInput
             testID="e2e-login-password"
-            style={[styles.input, themed.input]}
+            containerStyle={styles.passwordField}
             value={password}
             onChangeText={setPassword}
             placeholder="••••••••"
-            placeholderTextColor={colors.textMuted}
-            secureTextEntry
             autoComplete="password"
           />
 
@@ -157,6 +158,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 12,
   },
+  passwordField: { marginBottom: 12 },
   forgotWrap: { alignSelf: 'flex-end', marginBottom: 16 },
   forgotText: { fontSize: 14, fontWeight: '600' },
   error: {

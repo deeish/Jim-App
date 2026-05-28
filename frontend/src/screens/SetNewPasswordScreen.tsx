@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -11,7 +10,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/Button';
+import PasswordInput from '../components/PasswordInput';
 import { supabase } from '../lib/supabase';
+import { validatePassword, mapAuthError } from '../lib/authValidation';
 
 /**
  * Shown after the user opens the password-reset link from email (PASSWORD_RECOVERY session).
@@ -26,8 +27,9 @@ export default function SetNewPasswordScreen() {
 
   const handleSubmit = async () => {
     setError(null);
-    if (!password || password.length < 6) {
-      setError('Password must be at least 6 characters');
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     if (password !== confirm) {
@@ -38,7 +40,7 @@ export default function SetNewPasswordScreen() {
     const { error: err } = await supabase.auth.updateUser({ password });
     setLoading(false);
     if (err) {
-      setError(err.message ?? 'Could not update password');
+      setError(mapAuthError(err.message));
       return;
     }
     clearPasswordRecoveryMode();
@@ -71,24 +73,20 @@ export default function SetNewPasswordScreen() {
           </Text>
 
           <Text style={[styles.label, themed.label]}>New password</Text>
-          <TextInput
-            style={[styles.input, themed.input]}
+          <PasswordInput
+            containerStyle={styles.passwordField}
             value={password}
             onChangeText={setPassword}
             placeholder="••••••••"
-            placeholderTextColor={colors.textMuted}
-            secureTextEntry
             autoComplete="new-password"
           />
 
           <Text style={[styles.label, themed.label]}>Confirm password</Text>
-          <TextInput
-            style={[styles.input, themed.input]}
+          <PasswordInput
+            containerStyle={styles.passwordField}
             value={confirm}
             onChangeText={setConfirm}
             placeholder="••••••••"
-            placeholderTextColor={colors.textMuted}
-            secureTextEntry
             autoComplete="new-password"
           />
 
@@ -142,14 +140,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
   },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 20,
-  },
+  passwordField: { marginBottom: 20 },
   error: {
     fontSize: 14,
     marginBottom: 12,

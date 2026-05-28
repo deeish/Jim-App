@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/Button';
+import { validateEmail, mapAuthError } from '../lib/authValidation';
 
 export default function ForgotPasswordScreen() {
   const navigation = useNavigation();
@@ -25,15 +26,16 @@ export default function ForgotPasswordScreen() {
 
   const handleSend = async () => {
     setError(null);
-    if (!email.trim()) {
-      setError('Enter your email address');
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setError(emailError);
       return;
     }
     setLoading(true);
     const { error: err } = await requestPasswordReset(email.trim());
     setLoading(false);
     if (err) {
-      setError(err.message ?? 'Could not send reset email');
+      setError(mapAuthError(err.message));
       return;
     }
     setSent(true);

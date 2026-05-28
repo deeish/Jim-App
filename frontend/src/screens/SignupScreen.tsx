@@ -13,6 +13,13 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/Button';
+import PasswordInput from '../components/PasswordInput';
+import {
+  MIN_PASSWORD_LENGTH,
+  validateEmail,
+  validatePassword,
+  mapAuthError,
+} from '../lib/authValidation';
 
 export default function SignupScreen() {
   const navigation = useNavigation();
@@ -26,19 +33,21 @@ export default function SignupScreen() {
 
   const handleSignUp = async () => {
     setError(null);
-    if (!email.trim() || !password) {
-      setError('Email and password are required');
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setError(emailError);
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     setLoading(true);
     const { error: err } = await signUp(email.trim(), password);
     setLoading(false);
     if (err) {
-      setError(err.message ?? 'Sign up failed');
+      setError(mapAuthError(err.message));
       return;
     }
     setSuccess(true);
@@ -84,20 +93,34 @@ export default function SignupScreen() {
             editable={!success}
           />
 
-          <Text style={[styles.label, themed.label]}>Password (min 6 characters)</Text>
-          <TextInput
-            style={[styles.input, themed.input]}
+          <Text style={[styles.label, themed.label]}>
+            Password (min {MIN_PASSWORD_LENGTH} characters)
+          </Text>
+          <PasswordInput
+            containerStyle={styles.passwordField}
             value={password}
             onChangeText={setPassword}
             placeholder="••••••••"
-            placeholderTextColor={colors.textMuted}
-            secureTextEntry
             autoComplete="new-password"
             editable={!success}
           />
           {password.length > 0 && (
-            <Text style={[styles.passwordHint, { color: password.length >= 6 ? colors.success : colors.error }]}>
-              {password.length >= 6 ? 'Password length OK' : `${6 - password.length} more character${6 - password.length === 1 ? '' : 's'} needed`}
+            <Text
+              style={[
+                styles.passwordHint,
+                {
+                  color:
+                    password.length >= MIN_PASSWORD_LENGTH
+                      ? colors.success
+                      : colors.error,
+                },
+              ]}
+            >
+              {password.length >= MIN_PASSWORD_LENGTH
+                ? 'Password length OK'
+                : `${MIN_PASSWORD_LENGTH - password.length} more character${
+                    MIN_PASSWORD_LENGTH - password.length === 1 ? '' : 's'
+                  } needed`}
             </Text>
           )}
 
@@ -162,6 +185,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 20,
   },
+  passwordField: { marginBottom: 20 },
   passwordHint: {
     fontSize: 12,
     marginTop: 4,
