@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,9 +9,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withRepeat,
   withDelay,
-  withSequence,
   Easing,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,7 +36,7 @@ import { PROFILE_INJURY_TAG_OPTIONS } from '../constants/injuryTags';
 import PressableScale from '../components/PressableScale';
 import Button from '../components/Button';
 import Aurora from '../components/Aurora';
-import JGlyph from '../components/JGlyph';
+import JimLogo from '../components/JimLogo';
 import { haptics } from '../lib/haptics';
 import type { RootNavigatorParamList } from '../types/navigation';
 
@@ -217,7 +215,7 @@ export default function OnboardingScreen({ navigation }: Props) {
             <Aurora colors={colors} />
             <View style={styles.welcomeTop}>
               <Rise delay={60} style={styles.brandWrap}>
-                <AnimatedLogo colors={colors} />
+                <JimLogo interactive />
               </Rise>
               <Rise delay={140} style={styles.block}>
                 <Text style={styles.welcomeTitle}>
@@ -551,110 +549,6 @@ function Rise({
   return <Animated.View style={[style, aStyle]}>{children}</Animated.View>;
 }
 
-function AnimatedLogo({ colors }: { colors: ColorPalette }) {
-  const styles = makeStyles(colors);
-  const breath = useSharedValue(0);
-  const pulseA = useSharedValue(0);
-  const pulseB = useSharedValue(0);
-  const shimmer = useSharedValue(0);
-  // Tap-to-flex easter egg: `flex` etches abs onto the J, `pop` bounces the tile.
-  const flex = useSharedValue(0);
-  const pop = useSharedValue(0);
-
-  const handleFlex = () => {
-    haptics.select();
-    pop.value = withSequence(
-      withTiming(1, { duration: 130, easing: Easing.out(Easing.ease) }),
-      withTiming(0, { duration: 240, easing: Easing.inOut(Easing.ease) }),
-    );
-    flex.value = withSequence(
-      withTiming(1, { duration: 200, easing: Easing.out(Easing.ease) }),
-      withDelay(700, withTiming(0, { duration: 360, easing: Easing.in(Easing.ease) })),
-    );
-  };
-
-  useEffect(() => {
-    breath.value = withRepeat(
-      withTiming(1, { duration: 2600, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true,
-    );
-    const pulse = () =>
-      withRepeat(withTiming(1, { duration: 2800, easing: Easing.out(Easing.ease) }), -1, false);
-    pulseA.value = pulse();
-    pulseB.value = withDelay(1400, pulse());
-    // Specular sheen sweeps across the tile, then pauses, on a loop.
-    shimmer.value = withRepeat(
-      withDelay(1200, withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.ease) })),
-      -1,
-      false,
-    );
-  }, [breath, pulseA, pulseB, shimmer]);
-
-  const tileStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 + breath.value * 0.05 + pop.value * 0.12 }],
-  }));
-  const haloStyle = useAnimatedStyle(() => ({
-    opacity: 0.5 + breath.value * 0.3,
-    transform: [{ scale: 0.96 + breath.value * 0.08 }],
-  }));
-  const ringAStyle = useAnimatedStyle(() => ({
-    opacity: (1 - pulseA.value) * 0.5,
-    transform: [{ scale: 0.7 + pulseA.value * 0.9 }],
-  }));
-  const ringBStyle = useAnimatedStyle(() => ({
-    opacity: (1 - pulseB.value) * 0.5,
-    transform: [{ scale: 0.7 + pulseB.value * 0.9 }],
-  }));
-  const sheenStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: -38 + shimmer.value * 150 }, { rotate: '18deg' }],
-  }));
-
-  return (
-    <View style={styles.logoCol}>
-      <Pressable
-        onPress={handleFlex}
-        style={styles.pulseBox}
-        accessibilityRole="imagebutton"
-        accessibilityLabel="Jim logo"
-      >
-        <Animated.View style={[styles.pulseHalo, haloStyle]} pointerEvents="none" />
-        <Animated.View style={[styles.pulseRing, ringAStyle]} pointerEvents="none" />
-        <Animated.View
-          style={[styles.pulseRing, styles.pulseRingAccent, ringBStyle]}
-          pointerEvents="none"
-        />
-        <Animated.View style={[styles.logoTile, tileStyle]}>
-          <View style={styles.logoTileClip}>
-            <LinearGradient
-              colors={[colors.primary, colors.accent]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <LinearGradient
-              colors={['rgba(255,255,255,0.24)', 'rgba(255,255,255,0)']}
-              locations={[0, 0.6]}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            />
-            <Animated.View style={[styles.sheenBand, sheenStyle]} pointerEvents="none">
-              <LinearGradient
-                colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.sheenFill}
-              />
-            </Animated.View>
-            <JGlyph size={72} colors={colors} fallbackStyle={styles.logoGlyph} flex={flex} />
-          </View>
-        </Animated.View>
-      </Pressable>
-      <Text style={styles.logoWordmark}>Jim</Text>
-    </View>
-  );
-}
-
 function SelectableCard({
   colors,
   icon,
@@ -817,64 +711,6 @@ function makeStyles(colors: ColorPalette) {
     },
     welcomeTop: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     brandWrap: { alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' },
-    logoCol: { alignItems: 'center' },
-    pulseBox: { width: 150, height: 150, alignItems: 'center', justifyContent: 'center' },
-    pulseRing: {
-      position: 'absolute',
-      width: 88,
-      height: 88,
-      borderRadius: 44,
-      borderWidth: 2,
-      borderColor: colors.primary,
-    },
-    pulseRingAccent: { borderColor: colors.accent },
-    pulseHalo: {
-      position: 'absolute',
-      width: 132,
-      height: 132,
-      borderRadius: 66,
-      backgroundColor: colors.primarySoft,
-    },
-    logoTile: {
-      width: 72,
-      height: 72,
-      borderRadius: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.18,
-      shadowRadius: 10,
-      elevation: 6,
-    },
-    logoTileClip: {
-      width: 72,
-      height: 72,
-      borderRadius: 20,
-      overflow: 'hidden',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    sheenBand: { position: 'absolute', top: -30, left: 0, width: 26, height: 132 },
-    sheenFill: { flex: 1 },
-    logoGlyph: {
-      fontSize: 42,
-      fontWeight: '900',
-      fontStyle: 'italic',
-      lineHeight: 48,
-      letterSpacing: -1,
-      color: colors.onPrimary,
-      includeFontPadding: false,
-      textAlignVertical: 'center',
-    },
-    logoWordmark: {
-      fontSize: 30,
-      fontWeight: '900',
-      fontStyle: 'italic',
-      letterSpacing: 0.5,
-      color: colors.text,
-      marginTop: 2,
-    },
     welcomeTitle: {
       fontSize: 32,
       fontWeight: '800',
