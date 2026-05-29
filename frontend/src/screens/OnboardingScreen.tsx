@@ -1,12 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Pressable } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeInDown,
   ZoomIn,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withRepeat,
+  withDelay,
+  withSequence,
+  Easing,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -15,6 +21,7 @@ import { useTheme } from '../theme';
 import {
   useUserPreferences,
   GOAL_OPTIONS,
+  GOAL_LABELS,
   EXPERIENCE_OPTIONS,
   type GoalOption,
   type ExperienceOption,
@@ -29,6 +36,9 @@ import {
 } from '../constants/trainingSchedule';
 import { PROFILE_INJURY_TAG_OPTIONS } from '../constants/injuryTags';
 import PressableScale from '../components/PressableScale';
+import Button from '../components/Button';
+import Aurora from '../components/Aurora';
+import JGlyph from '../components/JGlyph';
 import { haptics } from '../lib/haptics';
 import type { RootNavigatorParamList } from '../types/navigation';
 
@@ -84,10 +94,12 @@ export default function OnboardingScreen({ navigation }: Props) {
     setPreferredTrainingDays,
     setInjuryTagIds,
     setInjuryNotes,
+    setProfileDisplayName,
     completeOnboarding,
   } = useUserPreferences();
 
   const [step, setStep] = useState(0);
+  const [showWelcome, setShowWelcome] = useState(true);
   const [selectedGoal, setSelectedGoal] = useState<GoalOption | null>(null);
   const [selectedExperience, setSelectedExperience] = useState<ExperienceOption | null>(null);
   const [selectedFrequency, setSelectedFrequency] = useState<TrainingFrequencyOption>(4);
@@ -96,6 +108,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentOption[]>([]);
   const [injuryTags, setInjuryTags] = useState<StoredInjuryTagId[]>([]);
   const [injuryNotes, setInjuryNotesDraft] = useState('');
+  const [displayName, setDisplayName] = useState('');
 
   const progress = useSharedValue((1) / TOTAL_STEPS);
   useEffect(() => {
@@ -164,8 +177,15 @@ export default function OnboardingScreen({ navigation }: Props) {
     setEquipment(selectedEquipment);
     setInjuryTagIds(injuryTags);
     setInjuryNotes(injuryNotes.trim());
+    if (displayName.trim()) setProfileDisplayName(displayName.trim());
     completeOnboarding();
-    navigation.replace('Main');
+    navigation.replace('Main', {
+      screen: 'Plan',
+      params: {
+        screen: 'GeneratePlan',
+        params: { autoGenerate: true, fromOnboarding: true },
+      },
+    });
   }
 
   const heading = STEP_HEADINGS[step];
@@ -186,8 +206,64 @@ export default function OnboardingScreen({ navigation }: Props) {
       : injuryTags.map((id) => INJURY_LABEL[id]).join(', ');
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.progressWrap}>
+    <View style={styles.root}>
+      <LinearGradient
+        colors={[`${colors.primary}22`, colors.background] as const}
+        style={StyleSheet.absoluteFill}
+      />
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        {showWelcome ? (
+          <View style={styles.welcomeContent}>
+            <Aurora colors={colors} />
+            <View style={styles.welcomeTop}>
+              <Rise delay={60} style={styles.brandWrap}>
+                <AnimatedLogo colors={colors} />
+              </Rise>
+              <Rise delay={140} style={styles.block}>
+                <Text style={styles.welcomeTitle}>
+                  Let's build <Text style={styles.welcomeTitleAccent}>your plan</Text>
+                </Text>
+              </Rise>
+              <Rise delay={200} style={styles.block}>
+                <Text style={styles.welcomeSubtitle}>
+                  A few quick questions and we'll tailor a program to your goals, schedule, and
+                  equipment.
+                </Text>
+              </Rise>
+              <View style={styles.featureList}>
+                <Rise delay={280}>
+                  <FeatureRow colors={colors} icon="barbell-outline" text="Matched to your goal" />
+                </Rise>
+                <Rise delay={350}>
+                  <FeatureRow
+                    colors={colors}
+                    icon="calendar-outline"
+                    text="Fits your weekly schedule"
+                  />
+                </Rise>
+                <Rise delay={420}>
+                  <FeatureRow
+                    colors={colors}
+                    icon="construct-outline"
+                    text="Uses only your equipment"
+                  />
+                </Rise>
+              </View>
+            </View>
+            <Rise delay={520} style={styles.welcomeFooter}>
+              <Text style={styles.welcomeCaption}>Takes about a minute</Text>
+              <Button
+                title="Get started"
+                onPress={() => {
+                  haptics.step();
+                  setShowWelcome(false);
+                }}
+              />
+            </Rise>
+          </View>
+        ) : (
+          <>
+        <View style={styles.progressWrap}>
         <View style={styles.progressTrack}>
           <Animated.View style={[styles.progressFill, fillStyle]} />
         </View>
@@ -205,21 +281,25 @@ export default function OnboardingScreen({ navigation }: Props) {
           <Text style={styles.title}>{heading.title}</Text>
           <Text style={styles.subtitle}>{heading.subtitle}</Text>
 
-          {step === 0 &&
-            GOAL_OPTIONS.map((g) => (
-              <SelectableCard
-                key={g}
-                colors={colors}
-                icon={GOAL_META[g].icon}
-                selected={selectedGoal === g}
-                title={g}
-                subtitle={GOAL_META[g].desc}
-                onPress={() => {
-                  haptics.select();
-                  setSelectedGoal(g);
-                }}
-              />
-            ))}
+          {step === 0 && (
+            <>
+              {GOAL_OPTIONS.map((g) => (
+                <SelectableCard
+                  key={g}
+                  colors={colors}
+                  icon={GOAL_META[g].icon}
+                  selected={selectedGoal === g}
+                  title={GOAL_LABELS[g]}
+                  subtitle={GOAL_META[g].desc}
+                  onPress={() => {
+                    haptics.select();
+                    setSelectedGoal(g);
+                  }}
+                />
+              ))}
+              <Text style={styles.helperText}>You can change this anytime in Profile.</Text>
+            </>
+          )}
 
           {step === 1 &&
             EXPERIENCE_OPTIONS.map((e) => (
@@ -387,12 +467,24 @@ export default function OnboardingScreen({ navigation }: Props) {
           )}
 
           {step === 5 && (
-            <View style={styles.summaryWrap}>
+            <>
+              <Text style={styles.sectionLabel}>What should we call you?</Text>
+              <TextInput
+                style={styles.nameInput}
+                value={displayName}
+                onChangeText={setDisplayName}
+                placeholder="First name (optional)"
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="words"
+                returnKeyType="done"
+                maxLength={40}
+              />
+              <View style={styles.summaryWrap}>
               <SummaryRow
                 colors={colors}
                 icon={selectedGoal ? GOAL_META[selectedGoal].icon : 'help-outline'}
                 label="Goal"
-                value={selectedGoal ?? '—'}
+                value={selectedGoal ? GOAL_LABELS[selectedGoal] : '—'}
               />
               <SummaryRow
                 colors={colors}
@@ -403,19 +495,19 @@ export default function OnboardingScreen({ navigation }: Props) {
               <SummaryRow colors={colors} icon="calendar-outline" label="Schedule" value={scheduleValue} />
               <SummaryRow colors={colors} icon="barbell-outline" label="Equipment" value={equipmentValue} />
               <SummaryRow colors={colors} icon="medkit-outline" label="Working around" value={injuryValue} />
-            </View>
+              </View>
+            </>
           )}
         </Animated.View>
       </ScrollView>
 
       <View style={styles.footer}>
-        {step > 0 ? (
-          <PressableScale onPress={() => setStep((s) => s - 1)} style={styles.backBtn}>
-            <Text style={styles.backText}>Back</Text>
-          </PressableScale>
-        ) : (
-          <View style={styles.backBtn} />
-        )}
+        <PressableScale
+          onPress={() => (step > 0 ? setStep((s) => s - 1) : setShowWelcome(true))}
+          style={styles.backBtn}
+        >
+          <Text style={styles.backText}>Back</Text>
+        </PressableScale>
         <PressableScale
           onPress={handleNext}
           disabled={!canProceed}
@@ -426,7 +518,140 @@ export default function OnboardingScreen({ navigation }: Props) {
           </Text>
         </PressableScale>
       </View>
-    </SafeAreaView>
+          </>
+        )}
+      </SafeAreaView>
+    </View>
+  );
+}
+
+/**
+ * Mount entrance for the welcome screen. Uses a plain style animation
+ * (opacity + translateY) rather than a layout `entering` animation, which on
+ * react-native-web breaks flex centering when the subtree re-mounts (e.g. when
+ * navigating back to the welcome step).
+ */
+function Rise({
+  delay = 0,
+  style,
+  children,
+}: {
+  delay?: number;
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+}) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withDelay(delay, withTiming(1, { duration: 420, easing: Easing.out(Easing.ease) }));
+  }, [p, delay]);
+  const aStyle = useAnimatedStyle(() => ({
+    opacity: p.value,
+    transform: [{ translateY: (1 - p.value) * 16 }],
+  }));
+  return <Animated.View style={[style, aStyle]}>{children}</Animated.View>;
+}
+
+function AnimatedLogo({ colors }: { colors: ColorPalette }) {
+  const styles = makeStyles(colors);
+  const breath = useSharedValue(0);
+  const pulseA = useSharedValue(0);
+  const pulseB = useSharedValue(0);
+  const shimmer = useSharedValue(0);
+  // Tap-to-flex easter egg: `flex` etches abs onto the J, `pop` bounces the tile.
+  const flex = useSharedValue(0);
+  const pop = useSharedValue(0);
+
+  const handleFlex = () => {
+    haptics.select();
+    pop.value = withSequence(
+      withTiming(1, { duration: 130, easing: Easing.out(Easing.ease) }),
+      withTiming(0, { duration: 240, easing: Easing.inOut(Easing.ease) }),
+    );
+    flex.value = withSequence(
+      withTiming(1, { duration: 200, easing: Easing.out(Easing.ease) }),
+      withDelay(700, withTiming(0, { duration: 360, easing: Easing.in(Easing.ease) })),
+    );
+  };
+
+  useEffect(() => {
+    breath.value = withRepeat(
+      withTiming(1, { duration: 2600, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+    const pulse = () =>
+      withRepeat(withTiming(1, { duration: 2800, easing: Easing.out(Easing.ease) }), -1, false);
+    pulseA.value = pulse();
+    pulseB.value = withDelay(1400, pulse());
+    // Specular sheen sweeps across the tile, then pauses, on a loop.
+    shimmer.value = withRepeat(
+      withDelay(1200, withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.ease) })),
+      -1,
+      false,
+    );
+  }, [breath, pulseA, pulseB, shimmer]);
+
+  const tileStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + breath.value * 0.05 + pop.value * 0.12 }],
+  }));
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: 0.5 + breath.value * 0.3,
+    transform: [{ scale: 0.96 + breath.value * 0.08 }],
+  }));
+  const ringAStyle = useAnimatedStyle(() => ({
+    opacity: (1 - pulseA.value) * 0.5,
+    transform: [{ scale: 0.7 + pulseA.value * 0.9 }],
+  }));
+  const ringBStyle = useAnimatedStyle(() => ({
+    opacity: (1 - pulseB.value) * 0.5,
+    transform: [{ scale: 0.7 + pulseB.value * 0.9 }],
+  }));
+  const sheenStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -38 + shimmer.value * 150 }, { rotate: '18deg' }],
+  }));
+
+  return (
+    <View style={styles.logoCol}>
+      <Pressable
+        onPress={handleFlex}
+        style={styles.pulseBox}
+        accessibilityRole="imagebutton"
+        accessibilityLabel="Jim logo"
+      >
+        <Animated.View style={[styles.pulseHalo, haloStyle]} pointerEvents="none" />
+        <Animated.View style={[styles.pulseRing, ringAStyle]} pointerEvents="none" />
+        <Animated.View
+          style={[styles.pulseRing, styles.pulseRingAccent, ringBStyle]}
+          pointerEvents="none"
+        />
+        <Animated.View style={[styles.logoTile, tileStyle]}>
+          <View style={styles.logoTileClip}>
+            <LinearGradient
+              colors={[colors.primary, colors.accent]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <LinearGradient
+              colors={['rgba(255,255,255,0.24)', 'rgba(255,255,255,0)']}
+              locations={[0, 0.6]}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+            <Animated.View style={[styles.sheenBand, sheenStyle]} pointerEvents="none">
+              <LinearGradient
+                colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.sheenFill}
+              />
+            </Animated.View>
+            <JGlyph size={72} colors={colors} fallbackStyle={styles.logoGlyph} flex={flex} />
+          </View>
+        </Animated.View>
+      </Pressable>
+      <Text style={styles.logoWordmark}>Jim</Text>
+    </View>
   );
 }
 
@@ -522,6 +747,26 @@ function Chip({
   );
 }
 
+function FeatureRow({
+  colors,
+  icon,
+  text,
+}: {
+  colors: ColorPalette;
+  icon: IconName;
+  text: string;
+}) {
+  const styles = makeStyles(colors);
+  return (
+    <View style={styles.featureRow}>
+      <View style={[styles.iconTile, { backgroundColor: colors.primarySoft }]}>
+        <Ionicons name={icon} size={20} color={colors.primary} />
+      </View>
+      <Text style={[styles.featureText, { color: colors.text }]}>{text}</Text>
+    </View>
+  );
+}
+
 function SummaryRow({
   colors,
   icon,
@@ -549,7 +794,8 @@ function SummaryRow({
 
 function makeStyles(colors: ColorPalette) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
+    root: { flex: 1 },
+    container: { flex: 1, backgroundColor: 'transparent' },
     progressWrap: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
     progressTrack: {
       height: 6,
@@ -562,6 +808,116 @@ function makeStyles(colors: ColorPalette) {
     scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
     title: { fontSize: 27, fontWeight: '700', marginBottom: 6, color: colors.text },
     subtitle: { fontSize: 15, lineHeight: 21, marginBottom: 22, color: colors.textSecondary },
+    welcomeContent: {
+      flex: 1,
+      paddingHorizontal: 24,
+      paddingTop: 32,
+      paddingBottom: 16,
+      overflow: 'hidden',
+    },
+    welcomeTop: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    brandWrap: { alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' },
+    logoCol: { alignItems: 'center' },
+    pulseBox: { width: 150, height: 150, alignItems: 'center', justifyContent: 'center' },
+    pulseRing: {
+      position: 'absolute',
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      borderWidth: 2,
+      borderColor: colors.primary,
+    },
+    pulseRingAccent: { borderColor: colors.accent },
+    pulseHalo: {
+      position: 'absolute',
+      width: 132,
+      height: 132,
+      borderRadius: 66,
+      backgroundColor: colors.primarySoft,
+    },
+    logoTile: {
+      width: 72,
+      height: 72,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      elevation: 6,
+    },
+    logoTileClip: {
+      width: 72,
+      height: 72,
+      borderRadius: 20,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sheenBand: { position: 'absolute', top: -30, left: 0, width: 26, height: 132 },
+    sheenFill: { flex: 1 },
+    logoGlyph: {
+      fontSize: 42,
+      fontWeight: '900',
+      fontStyle: 'italic',
+      lineHeight: 48,
+      letterSpacing: -1,
+      color: colors.onPrimary,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    },
+    logoWordmark: {
+      fontSize: 30,
+      fontWeight: '900',
+      fontStyle: 'italic',
+      letterSpacing: 0.5,
+      color: colors.text,
+      marginTop: 2,
+    },
+    welcomeTitle: {
+      fontSize: 32,
+      fontWeight: '800',
+      letterSpacing: -0.5,
+      textAlign: 'center',
+      marginTop: 16,
+      color: colors.text,
+    },
+    welcomeTitleAccent: { color: colors.primary },
+    welcomeSubtitle: {
+      fontSize: 15,
+      lineHeight: 22,
+      textAlign: 'center',
+      marginTop: 8,
+      marginBottom: 28,
+      paddingHorizontal: 4,
+      color: colors.textSecondary,
+    },
+    block: { alignSelf: 'stretch' },
+    featureList: { alignSelf: 'stretch', gap: 12 },
+    featureRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 2,
+    },
+    featureText: { flex: 1, fontSize: 15, fontWeight: '600' },
+    welcomeFooter: {},
+    welcomeCaption: {
+      fontSize: 13,
+      textAlign: 'center',
+      marginBottom: 12,
+      color: colors.textMuted,
+    },
     cardShadow: {
       shadowColor: colors.shadow,
       shadowOffset: { width: 0, height: 2 },
@@ -647,6 +1003,18 @@ function makeStyles(colors: ColorPalette) {
       marginTop: 4,
       color: colors.text,
     },
+    nameInput: {
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 16,
+      marginTop: 4,
+      marginBottom: 8,
+      color: colors.text,
+      backgroundColor: colors.surface,
+    },
     summaryWrap: { gap: 12 },
     summaryRow: {
       flexDirection: 'row',
@@ -683,9 +1051,14 @@ function makeStyles(colors: ColorPalette) {
       paddingVertical: 15,
       alignItems: 'center',
       backgroundColor: colors.primary,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 3.84,
+      elevation: 5,
     },
     nextBtnDisabled: { backgroundColor: colors.border },
-    nextBtnText: { fontSize: 16, fontWeight: '700', color: colors.onPrimary },
+    nextBtnText: { fontSize: 18, fontWeight: '600', color: colors.onPrimary },
     nextBtnTextDisabled: { color: colors.textMuted },
   });
 }
