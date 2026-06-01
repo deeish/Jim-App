@@ -1,8 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * Schemes/hosts allowed to deliver Supabase auth tokens via deep link. Anything else is rejected
- * to prevent a malicious app from forcing a session-fixation by handing us tokens it controls.
+ * Schemes/hosts allowed to deliver Supabase auth links via deep link. Anything else is rejected.
+ * Note: the app's own `jimapp://` scheme is necessarily trusted, so this list does NOT by itself
+ * stop a hostile link — the PKCE flow (below) is what defeats session fixation: a `?code=` is
+ * useless without the matching code-verifier this device generated when it started the flow.
  */
 const TRUSTED_LINK_PREFIXES = ['jimapp://', 'exp://', 'https://jmfshcpgtuqdjmtpexqg.supabase.co'];
 
@@ -10,54 +12,50 @@ function isTrustedAuthLink(url: string): boolean {
   return TRUSTED_LINK_PREFIXES.some((prefix) => url.startsWith(prefix));
 }
 
-/** Parse Supabase implicit auth params from `#access_token=...` or `?...` query string. */
+/**
+ * Parse Supabase PKCE auth params from a deep link. The authorization `code` arrives in the query
+ * string (`?code=...`); errors may arrive in either the query or the hash. We deliberately no
+ * longer read `access_token`/`refresh_token` — under PKCE the link never carries live tokens.
+ */
 export function parseAuthParamsFromUrl(url: string): {
-  access_token: string | null;
-  refresh_token: string | null;
+  code: string | null;
   type: string | null;
   error: string | null;
   error_description: string | null;
 } {
+  const empty = { code: null, type: null, error: null, error_description: null };
   try {
     const hashIdx = url.indexOf('#');
     const qIdx = url.indexOf('?');
-    let paramString = '';
-    if (hashIdx >= 0) paramString = url.slice(hashIdx + 1);
-    else if (qIdx >= 0) paramString = url.slice(qIdx + 1);
-    if (!paramString) {
-      return {
-        access_token: null,
-        refresh_token: null,
-        type: null,
-        error: null,
-        error_description: null,
-      };
+    // PKCE puts the code in the query; merge both query and hash so errors are caught either way.
+    const segments: string[] = [];
+    if (qIdx >= 0) {
+      const end = hashIdx > qIdx ? hashIdx : url.length;
+      segments.push(url.slice(qIdx + 1, end));
     }
-    const params = new URLSearchParams(paramString);
+    if (hashIdx >= 0) segments.push(url.slice(hashIdx + 1));
+    if (segments.length === 0) return empty;
+    const params = new URLSearchParams(segments.join('&'));
     return {
-      access_token: params.get('access_token'),
-      refresh_token: params.get('refresh_token'),
+      code: params.get('code'),
       type: params.get('type'),
       error: params.get('error'),
       error_description: params.get('error_description'),
     };
   } catch {
-    return {
-      access_token: null,
-      refresh_token: null,
-      type: null,
-      error: null,
-      error_description: null,
-    };
+    return empty;
   }
 }
 
-/** True when this URL is almost certainly our password-reset deep link (tokens + reset path or type). */
+/**
+ * True when this URL is our password-reset deep link: an explicit recovery type, or our reset path
+ * carrying a code (success) or an error (e.g. an expired link redirects to `auth/reset?error=...`).
+ */
 export function isPasswordRecoveryUrl(url: string, type: string | null): boolean {
   if (type === 'recovery') return true;
   const lower = url.toLowerCase();
   if (!lower.includes('auth/reset') && !lower.includes('auth%2freset')) return false;
-  return /[#&?]access_token=/.test(url);
+  return /[#&?](code|error)=/.test(url);
 }
 
 export type ApplyAuthUrlResult = {
@@ -73,9 +71,13 @@ const SIGN_IN_LINK_FAILED =
   "We couldn't sign you in from that link. Please try signing in again.";
 
 /**
- * Apply tokens from a deep link (e.g. password recovery email). Recovery is only reported once
- * `setSession` actually succeeds — an expired/invalid link returns `{ recovery: false, error }`
- * so callers never trap the user on the set-new-password screen without a live session.
+ * Apply a PKCE auth code from a deep link (e.g. password recovery email). The code is exchanged for
+ * a session via `exchangeCodeForSession`, which only succeeds if this device holds the code-verifier
+ * it stored when the flow was initiated — so a link an attacker hands us cannot install a session.
+ *
+ * Recovery is reported only after the exchange succeeds; an expired/invalid link (or a stale
+ * implicit-flow link from before PKCE was enabled) returns `{ recovery: false, error }` so callers
+ * never trap the user on the set-new-password screen without a live session.
  */
 export async function applySupabaseAuthUrl(
   client: SupabaseClient,
@@ -85,24 +87,20 @@ export async function applySupabaseAuthUrl(
     console.warn('[auth] rejecting deep link from untrusted origin');
     return { recovery: false };
   }
-  const parsed = parseAuthParamsFromUrl(url);
-  const { access_token, refresh_token, type, error, error_description } = parsed;
+  const { code, type, error, error_description } = parseAuthParamsFromUrl(url);
   const isRecovery = isPasswordRecoveryUrl(url, type);
   if (error) {
-    console.warn(
-      '[auth] deep link error:',
-      error,
-      error_description ?? '',
-    );
+    console.warn('[auth] deep link error:', error, error_description ?? '');
     return { recovery: false, error: isRecovery ? RECOVERY_LINK_FAILED : SIGN_IN_LINK_FAILED };
   }
-  if (!access_token || !refresh_token) return { recovery: false };
-  const { error: sessionError } = await client.auth.setSession({
-    access_token,
-    refresh_token,
-  });
-  if (sessionError) {
-    console.warn('[auth] setSession from deep link failed:', sessionError.message);
+  if (!code) {
+    // A recovery-looking link with no PKCE code is a stale implicit-flow link (issued before PKCE
+    // was enabled). Surface a friendly error so the user requests a fresh one; ignore otherwise.
+    return isRecovery ? { recovery: false, error: RECOVERY_LINK_FAILED } : { recovery: false };
+  }
+  const { error: exchangeError } = await client.auth.exchangeCodeForSession(code);
+  if (exchangeError) {
+    console.warn('[auth] exchangeCodeForSession from deep link failed:', exchangeError.message);
     return { recovery: false, error: isRecovery ? RECOVERY_LINK_FAILED : SIGN_IN_LINK_FAILED };
   }
   return { recovery: isRecovery };

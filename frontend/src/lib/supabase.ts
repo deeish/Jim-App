@@ -43,5 +43,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // PKCE: auth links (password reset, email confirm) carry a one-time `?code=` instead of live
+    // tokens. The code-verifier is stored in `authStorage` when a flow starts and never leaves the
+    // device, so a code alone can't install a session — see applySupabaseAuthUrl in authDeepLink.ts.
+    flowType: 'pkce',
   },
 });
