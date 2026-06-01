@@ -58,6 +58,21 @@ export function isPasswordRecoveryUrl(url: string, type: string | null): boolean
   return /[#&?](code|error)=/.test(url);
 }
 
+/**
+ * Guards against handling the same auth deep link twice. PKCE `?code=` values are single-use, so a
+ * duplicate exchange (cold start delivering the launch URL to both `getInitialURL` and the `url`
+ * listener, or the user tapping the email link again) would fail on the consumed code and wrongly
+ * look like an expired link. Returns true the first time a URL is seen, false on repeats.
+ */
+export function createAuthUrlDeduper(): (url: string) => boolean {
+  const seen = new Set<string>();
+  return (url: string) => {
+    if (seen.has(url)) return false;
+    seen.add(url);
+    return true;
+  };
+}
+
 export type ApplyAuthUrlResult = {
   /** True only when a password-recovery session was successfully established. */
   recovery: boolean;

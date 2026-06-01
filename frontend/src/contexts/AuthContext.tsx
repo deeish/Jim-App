@@ -11,7 +11,11 @@ import { AppState } from 'react-native';
 import type { Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
-import { applySupabaseAuthUrl, type ApplyAuthUrlResult } from '../lib/authDeepLink';
+import {
+  applySupabaseAuthUrl,
+  createAuthUrlDeduper,
+  type ApplyAuthUrlResult,
+} from '../lib/authDeepLink';
 import { setSentryUser } from '../lib/sentry';
 import { cancelAllRequests } from '../api/client';
 
@@ -45,6 +49,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    // Single-use PKCE codes must not be exchanged twice — dedupe across the two delivery paths
+    // (initial URL + `url` events) and repeat taps so a consumed code can't masquerade as expired.
+    const shouldProcessUrl = createAuthUrlDeduper();
 
     // Apply the outcome of a deep link. Recovery mode is entered ONLY when setSession
     // succeeded (result.recovery); a failed/expired link surfaces an error instead of
@@ -62,6 +69,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPasswordRecoveryMode(true);
         setRecoveryLinkError(null);
       }
+    };
+
+    const processAuthUrl = async (url: string) => {
+      if (!shouldProcessUrl(url)) return;
+      handleAuthUrlResult(await applySupabaseAuthUrl(supabase, url));
     };
 
     const {
@@ -84,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const initialUrl = await Linking.getInitialURL();
         if (!cancelled && initialUrl) {
-          handleAuthUrlResult(await applySupabaseAuthUrl(supabase, initialUrl));
+          await processAuthUrl(initialUrl);
         }
       } catch (e) {
         console.warn('[auth] initial URL handling failed', e);
@@ -102,9 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const linkSub = Linking.addEventListener('url', ({ url }) => {
       if (cancelled || !url) return;
-      void (async () => {
-        handleAuthUrlResult(await applySupabaseAuthUrl(supabase, url));
-      })();
+      void processAuthUrl(url);
     });
 
     return () => {

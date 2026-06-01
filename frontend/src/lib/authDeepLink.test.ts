@@ -3,6 +3,7 @@ import {
   parseAuthParamsFromUrl,
   isPasswordRecoveryUrl,
   applySupabaseAuthUrl,
+  createAuthUrlDeduper,
 } from './authDeepLink';
 
 const RESET_PATH = 'jimapp://auth/reset';
@@ -63,6 +64,28 @@ describe('isPasswordRecoveryUrl', () => {
   it('is false for the reset path without a code, or a non-reset path', () => {
     expect(isPasswordRecoveryUrl(RESET_PATH, null)).toBe(false);
     expect(isPasswordRecoveryUrl('jimapp://auth/confirm?code=abc', null)).toBe(false);
+  });
+});
+
+describe('createAuthUrlDeduper', () => {
+  it('returns true the first time a URL is seen and false on repeats', () => {
+    const shouldProcess = createAuthUrlDeduper();
+    expect(shouldProcess(`${RESET_PATH}?code=abc`)).toBe(true);
+    expect(shouldProcess(`${RESET_PATH}?code=abc`)).toBe(false);
+    expect(shouldProcess(`${RESET_PATH}?code=abc`)).toBe(false);
+  });
+
+  it('treats distinct URLs (e.g. a freshly requested link) independently', () => {
+    const shouldProcess = createAuthUrlDeduper();
+    expect(shouldProcess(`${RESET_PATH}?code=first`)).toBe(true);
+    expect(shouldProcess(`${RESET_PATH}?code=second`)).toBe(true);
+  });
+
+  it('does not share state between separate dedupers', () => {
+    const a = createAuthUrlDeduper();
+    const b = createAuthUrlDeduper();
+    expect(a(`${RESET_PATH}?code=x`)).toBe(true);
+    expect(b(`${RESET_PATH}?code=x`)).toBe(true);
   });
 });
 
