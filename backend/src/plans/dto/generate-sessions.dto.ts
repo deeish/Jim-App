@@ -68,6 +68,12 @@ export class GenerateSessionsDto {
   @IsString()
   goal?: string;
 
+  /** Free-text limitations from onboarding/profile, e.g. "recovering from a knee tweak". */
+  @IsOptional()
+  @IsString()
+  @MaxLength(280)
+  restrictions?: string;
+
   @IsOptional()
   @IsString()
   @IsIn(['gym', 'home'])

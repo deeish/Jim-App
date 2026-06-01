@@ -860,6 +860,8 @@ export class WorkoutGeneratorService {
       goal?: string;
       equipment?: string[];
       limitations?: string[];
+      /** Free-text limitations rendered verbatim into the prompt. */
+      restrictions?: string;
       detailLevel?: 'simple' | 'detailed';
       makeItEasier?: boolean;
       experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
@@ -889,6 +891,7 @@ export class WorkoutGeneratorService {
       goal = 'hypertrophy',
       equipment = [],
       limitations = [],
+      restrictions,
       detailLevel = 'detailed',
       makeItEasier = false,
       experienceLevel: experienceLevelOpt,
@@ -999,6 +1002,10 @@ export class WorkoutGeneratorService {
       limitations.length > 0
         ? `\nLimitations (respect these): ${limitations.slice(0, 8).join('; ').slice(0, 200)}.`
         : '';
+    const restrictionsTrimmed = (restrictions ?? '').trim().slice(0, 280);
+    const restrictionsBlock = restrictionsTrimmed
+      ? `\nUser restrictions (respect these, adapt or substitute exercises accordingly): ${restrictionsTrimmed}`
+      : '';
 
     const nameRules =
       'Workout "name" must be plain and short: prefer the day focus label plus an optional "A"/"B" or "1"/"2" when the same focus repeats (e.g. "Upper · A", "Lower · B"). No hype words: Blast, Power, Beast, Savage, Shred, Endurance, Destroy, Nitro, Inferno, or similar marketing.';
@@ -1103,7 +1110,7 @@ ${profileBlock}
 ${dayLines}
 ${conditioningBlock}${conditioningModalityHint}${mesoBlock}${progressionBlock}
 
-Set/rep: ${setRep.description} (${setRep.setsMin}-${setRep.setsMax} sets, ${setRep.repsMin}-${setRep.repsMax} reps).${restHint} Goal: ${goal}. Difficulty: ${difficulty}. Equipment: ${equipmentStr}.${limitationsBlock}
+Set/rep: ${setRep.description} (${setRep.setsMin}-${setRep.setsMax} sets, ${setRep.repsMin}-${setRep.repsMax} reps).${restHint} Goal: ${goal}. Difficulty: ${difficulty}. Equipment: ${equipmentStr}.${limitationsBlock}${restrictionsBlock}
 
 Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.length} objects). Each day: "name", "reasoning", "warmUp", "coolDown", "exercises" (array of objects with exerciseId, sets, reps${wantsExerciseNotes ? ', optional notes (≤' + String(BEGINNER_EXERCISE_NOTE_MAX_CHARS) + ' chars each)' : '; omit notes on every exercise'}).`;
 
@@ -1288,6 +1295,8 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     detailLevel?: 'simple' | 'detailed';
     makeItEasier?: boolean;
     avoidConstraints?: string[];
+    /** Free-text limitations to respect verbatim (kept separate from the avoid-phrase list). */
+    restrictions?: string;
     /** Home: HOME list. Gym + checklist: mapped library labels. Gym + empty: omit (wide open). */
     equipmentFilter?: string[];
     experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
@@ -1328,6 +1337,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       goal: dto.goal ?? 'hypertrophy',
       equipment,
       limitations: dto.avoidConstraints ?? [],
+      restrictions: dto.restrictions,
       detailLevel: dto.detailLevel ?? ('detailed' as const),
       makeItEasier: dto.makeItEasier === true,
       experienceLevel: dto.experienceLevel,

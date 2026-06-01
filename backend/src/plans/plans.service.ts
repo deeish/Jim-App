@@ -1154,6 +1154,7 @@ export class PlansService {
           detailLevel: effectiveDetailLevel,
           makeItEasier,
           avoidConstraints: limitations,
+          restrictions: dto.restrictions,
           equipmentFilter: equipment,
           experienceLevel: experienceProfile,
           priorWeekExerciseIds,
