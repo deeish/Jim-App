@@ -1,40 +1,22 @@
 import React from 'react';
-import { Platform, Text } from 'react-native';
 import type { TextStyle, StyleProp } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
-import { WithSkiaWeb } from '@shopify/react-native-skia/lib/module/web';
 import type { ColorPalette } from '../theme/colors';
+import JGlyphSkia from './JGlyphSkia';
 
 /**
- * Falls back to a styled text "J" if the Skia letterform can't render (web:
- * during CanvasKit load, or if it fails). A logo glyph must never crash the app.
- */
-class GlyphBoundary extends React.Component<
-  { fallback: React.ReactNode; children: React.ReactNode },
-  { failed: boolean }
-> {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  componentDidCatch(error: unknown) {
-    // eslint-disable-next-line no-console
-    console.warn('[JGlyph] Skia letterform failed; using text fallback.', error);
-  }
-  render() {
-    return this.state.failed ? this.props.fallback : this.props.children;
-  }
-}
-
-/**
- * Custom Skia "J" monogram. Native renders it directly; web lazy-loads it after
- * CanvasKit is ready, showing the text "J" (styled via `fallbackStyle`) until
- * then — so the mark degrades gracefully everywhere.
+ * Custom Skia "J" monogram (native). Renders the letterform directly via the
+ * native Skia module.
+ *
+ * The web variant lives in `JGlyph.web.tsx` and MUST stay a separate file: Metro
+ * bundles static imports for every platform, so importing the web-only
+ * `@shopify/react-native-skia/lib/module/web` entry here would pull CanvasKit/WASM
+ * (which imports Node `fs`) into the native bundle and break the iOS/Android build.
+ * `fallbackStyle` is part of the shared prop contract but unused on native.
  */
 export default function JGlyph({
   size = 72,
   colors,
-  fallbackStyle,
   flex,
 }: {
   size?: number;
@@ -42,22 +24,5 @@ export default function JGlyph({
   fallbackStyle?: StyleProp<TextStyle>;
   flex?: SharedValue<number>;
 }) {
-  const textFallback = <Text style={fallbackStyle}>J</Text>;
-  if (Platform.OS === 'web') {
-    return (
-      <GlyphBoundary fallback={textFallback}>
-        <WithSkiaWeb
-          getComponent={() => import('./JGlyphSkia')}
-          componentProps={{ size, colors, flex }}
-          fallback={textFallback}
-          opts={{
-            locateFile: (file: string) =>
-              `https://cdn.jsdelivr.net/npm/canvaskit-wasm@0.40.0/bin/full/${file}`,
-          }}
-        />
-      </GlyphBoundary>
-    );
-  }
-  const JGlyphSkia = require('./JGlyphSkia').default;
   return <JGlyphSkia size={size} colors={colors} flex={flex} />;
 }
