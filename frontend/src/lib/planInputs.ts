@@ -20,7 +20,15 @@ import type {
   Weekday,
 } from '../types/plan';
 
-const BODY_AREAS = ['knees', 'shoulders', 'lower back'];
+const BODY_AREAS = [
+  'knees',
+  'shoulders',
+  'lower back',
+  'wrists or elbows',
+  'hips',
+  'ankles',
+  'neck',
+];
 const WEEKDAY_ORDER: Weekday[] = [
   'Monday',
   'Tuesday',
@@ -44,6 +52,8 @@ export interface FormStateForPlanInputs {
   maxHardDaysInRow: number;
   maxHardDaysPerWeek: number;
   avoidList: string[];
+  /** Free-text limitations note (onboarding injury notes / Generate Plan hint). */
+  restrictions?: string | null;
   sessionCaps: {
     strength: { min: number; max: number };
     cardio: { min: number; max: number };
@@ -274,6 +284,7 @@ export function buildPlanInputs(options: BuildPlanInputsOptions): PlanInputs {
     durationOverrides,
     hardDayLimits,
     injuriesAvoid,
+    restrictions: form.restrictions?.trim() ? form.restrictions.trim() : undefined,
     currentActivityLevel,
     preferredExercises: form.preferredExercises ?? [],
     experienceLevel: normalizeExperienceLevel(form.experienceLevel ?? undefined),

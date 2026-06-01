@@ -7,7 +7,7 @@ import { useTheme } from '../theme';
  * App logo lockup for the auth screens: a rounded primary tile with a barbell
  * glyph, the "Jim" wordmark, and a tagline.
  */
-export default function BrandMark() {
+export default function BrandMark({ showTagline = true }: { showTagline?: boolean }) {
   const { colors } = useTheme();
   return (
     <View style={styles.wrap}>
@@ -23,7 +23,9 @@ export default function BrandMark() {
         <Ionicons name="barbell" size={34} color={colors.onPrimary} />
       </View>
       <Text style={[styles.wordmark, { color: colors.text }]}>Jim</Text>
-      <Text style={[styles.tagline, { color: colors.textMuted }]}>Train with intent</Text>
+      {showTagline ? (
+        <Text style={[styles.tagline, { color: colors.textMuted }]}>Train with intent</Text>
+      ) : null}
     </View>
   );
 }

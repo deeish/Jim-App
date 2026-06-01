@@ -5,9 +5,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from './AuthContext';
 import type { WeightUnit } from '../lib/weightDisplay';
 import {
   EQUIPMENT_OPTIONS,
@@ -28,7 +30,13 @@ import {
   type StoredInjuryTagId,
 } from '../constants/injuryTags';
 
-const STORAGE_KEY = 'jim_user_preferences_v1';
+/**
+ * Pre-per-user device-global key. Kept only for a one-time migration into the
+ * signed-in user's key, so existing single-user installs don't lose their prefs.
+ */
+const LEGACY_STORAGE_KEY = 'jim_user_preferences_v1';
+const PREFS_KEY_PREFIX = 'jim_user_preferences_v1:';
+const keyForUser = (userId: string) => `${PREFS_KEY_PREFIX}${userId}`;
 const DISPLAY_NAME_MAX = 80;
 const VALID_EQUIPMENT = new Set<string>(EQUIPMENT_OPTIONS);
 
@@ -39,6 +47,19 @@ export const GOAL_OPTIONS = [
   'General fitness',
   'Endurance',
 ] as const;
+
+/**
+ * Display labels for goals. The stored values above are kept as-is (the backend
+ * and plan generator key off them); this only changes what the user reads, so
+ * the jargon "Hypertrophy" surfaces as the plain-language "Build muscle".
+ */
+export const GOAL_LABELS: Record<(typeof GOAL_OPTIONS)[number], string> = {
+  Strength: 'Strength',
+  Hypertrophy: 'Build muscle',
+  'Fat loss': 'Fat loss',
+  'General fitness': 'General fitness',
+  Endurance: 'Endurance',
+};
 
 export const EXPERIENCE_OPTIONS = [
   'Beginner',
@@ -52,7 +73,12 @@ export type ExperienceOption = (typeof EXPERIENCE_OPTIONS)[number];
 export type { StoredInjuryTagId };
 
 const VALID_PREF_DAY = new Set<string>(DAYS_OF_WEEK_PREF);
-const MAX_INJURY_NOTES = 400;
+/**
+ * Max length for the free-text injury/restrictions note. MUST stay <= the backend
+ * `restrictions` cap (`@MaxLength(280)` in generate-sessions.dto.ts) — a longer note
+ * is sent verbatim as `restrictions` and would 400 the plan-generation request.
+ */
+export const MAX_INJURY_NOTES = 280;
 
 export type UserPreferencesState = {
   weightUnit: WeightUnit;
@@ -198,14 +224,40 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
 }
 
 export function UserPreferencesProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const userId = user?.id;
+  // Latest user id for the persist callback (kept stable across renders).
+  const userIdRef = useRef<string | undefined>(undefined);
+  userIdRef.current = userId;
+
   const [hydrated, setHydrated] = useState(false);
   const [state, setState] = useState<UserPreferencesState>(DEFAULTS);
 
+  // Preferences are scoped per account. Re-hydrate whenever the signed-in user
+  // changes; on sign-out (no user) drop the previous user's prefs from memory so
+  // they can't leak into the next account or the auth screens.
   useEffect(() => {
     let cancelled = false;
+    if (!userId) {
+      setState(DEFAULTS);
+      setHydrated(true);
+      return;
+    }
+    setHydrated(false);
     void (async () => {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const userKey = keyForUser(userId);
+        let raw = await AsyncStorage.getItem(userKey);
+        if (raw == null) {
+          // One-time migration from the old device-global key into this user's
+          // key (then remove it so it can't bleed into other accounts).
+          const legacy = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
+          if (legacy != null) {
+            raw = legacy;
+            await AsyncStorage.setItem(userKey, legacy);
+            await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
+          }
+        }
         if (!cancelled) setState(mergeDefaults(parseStored(raw)));
       } catch {
         if (!cancelled) setState(DEFAULTS);
@@ -216,10 +268,12 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   const persist = useCallback((next: UserPreferencesState) => {
-    void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+    const id = userIdRef.current;
+    if (!id) return; // logged out — no account key to persist to
+    void AsyncStorage.setItem(keyForUser(id), JSON.stringify(next)).catch(() => {});
   }, []);
 
   const setWeightUnit = useCallback(

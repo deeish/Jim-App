@@ -3,11 +3,13 @@
  * that causes "Cannot read properties of null (reading 'useMemo')" on load.
  */
 
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { PlanInputs } from './plan';
+import type { RootTabParamList } from '../components/NavBar';
 
 export type RootNavigatorParamList = {
   Onboarding: undefined;
-  Main: undefined;
+  Main: NavigatorScreenParams<RootTabParamList> | undefined;
   Profile: undefined;
 };
 
@@ -49,7 +51,9 @@ export type RootStackParamList = {
     returnToPlanCard?: { weekNumber: number; day: string; workoutId: string };
   };
   WorkoutDetail: { workoutId: string };
-  GeneratePlan: { editFromSnapshot?: PlanInputs } | undefined;
+  GeneratePlan:
+    | { editFromSnapshot?: PlanInputs; autoGenerate?: boolean; fromOnboarding?: boolean }
+    | undefined;
   History: undefined;
   PlanPreview: {
     /** Canonical snapshot when user taps Generate; use this downstream. */
@@ -111,6 +115,8 @@ export type RootStackParamList = {
       age?: number;
     };
     draftId: string;
+    /** Onboarding "Get my plan" flow — land on Home after Apply, Back goes Home. */
+    fromOnboarding?: boolean;
     /** When returning from ExerciseDetail, reopen the exact card the user clicked. */
     returnToPlanCard?: { weekNumber: number; day: string; workoutId: string };
   };

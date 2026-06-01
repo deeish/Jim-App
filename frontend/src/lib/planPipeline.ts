@@ -566,6 +566,7 @@ function buildGenerateSessionsRequest(
     location: planInputs.location,
     detailLevel: planInputs.detailLevel,
     avoidConstraints: avoidConstraints.length ? avoidConstraints : undefined,
+    restrictions: planInputs.restrictions,
     makeItEasier: (options as { makeItEasier?: boolean } | undefined)?.makeItEasier,
     sessions,
     cardioModalities:

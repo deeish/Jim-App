@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 
 import NavBar from './src/components/NavBar';
 import ProfileScreen from './src/screens/ProfileScreen';
@@ -16,6 +16,7 @@ import SetNewPasswordScreen from './src/screens/SetNewPasswordScreen';
 import { ThemeProvider, useTheme } from './src/theme';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { UserPreferencesProvider, useUserPreferences } from './src/contexts/UserPreferencesContext';
+import { DevPreviewProvider, useDevPreview } from './src/contexts/DevPreviewContext';
 import { wrapWithSentry } from './src/lib/sentry';
 import type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
 
@@ -46,10 +47,27 @@ function AuthStack() {
   );
 }
 
+/** DEV-ONLY placeholder shown when the onboarding preview reaches `Main`. */
+function DevPreviewDone() {
+  const { colors } = useTheme();
+  const { setPreviewOnboarding } = useDevPreview();
+  return (
+    <View style={[styles.loading, { backgroundColor: colors.background }]}>
+      <Text style={[styles.loadingText, { color: colors.text }]}>
+        Onboarding preview complete
+      </Text>
+      <TouchableOpacity onPress={() => setPreviewOnboarding(false)}>
+        <Text style={[styles.loadingText, { color: colors.primary }]}>Back to login</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function AppContent() {
   const { colors, isDark } = useTheme();
   const { session, loading, passwordRecoveryMode } = useAuth();
   const { hasCompletedOnboarding, hydrated } = useUserPreferences();
+  const { previewOnboarding } = useDevPreview();
 
   if (loading || !hydrated) {
     return (
@@ -77,7 +95,18 @@ function AppContent() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <NavigationContainer theme={navTheme}>
-        {session ? (
+        {__DEV__ && previewOnboarding ? (
+          <RootStack.Navigator
+            initialRouteName="Onboarding"
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.background },
+            }}
+          >
+            <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
+            <RootStack.Screen name="Main" component={DevPreviewDone} />
+          </RootStack.Navigator>
+        ) : session ? (
           passwordRecoveryMode ? (
             <SetNewPasswordScreen />
           ) : (
@@ -117,11 +146,13 @@ function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <SafeAreaProvider>
-          <UserPreferencesProvider>
-            <AuthProvider>
-              <AppContent />
-            </AuthProvider>
-          </UserPreferencesProvider>
+          <AuthProvider>
+            <UserPreferencesProvider>
+              <DevPreviewProvider>
+                <AppContent />
+              </DevPreviewProvider>
+            </UserPreferencesProvider>
+          </AuthProvider>
         </SafeAreaProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

@@ -10,6 +10,7 @@ import {
   Modal,
   Pressable,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -315,6 +316,7 @@ function prefGoalToForm(g: GoalOption): Goal | null {
   if (g === 'Strength' || g === 'Hypertrophy') return 'strength';
   if (g === 'Fat loss') return 'fat loss';
   if (g === 'Endurance') return 'endurance';
+  if (g === 'General fitness') return 'hybrid';
   return null;
 }
 
@@ -524,6 +526,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   const [showWellnessDetail, setShowWellnessDetail] = useState(false);
 
   const seededProfileIntoPlanInputs = useRef(false);
+  const [profileSeeded, setProfileSeeded] = useState(false);
   const editFromSnapshot = route.params?.editFromSnapshot;
 
   useEffect(() => {
@@ -543,6 +546,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
       avoidList: Array.from(new Set([...fromInjuries, ...prev.avoidList])),
       customSplitHint: injuryNotes.trim() ? injuryNotes.trim() : prev.customSplitHint,
     }));
+    setProfileSeeded(true);
   }, [
     prefsHydrated,
     editFromSnapshot,
@@ -823,7 +827,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     setInputs(prev => ({ ...prev, progressionTarget: target }));
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = (opts?: { replace?: boolean; fromOnboarding?: boolean }) => {
     if (!inputs.goal || !inputs.primaryLocation || !inputs.availableEquipment.length || !inputs.trainingDays.length) {
       return;
     }
@@ -855,11 +859,12 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
         cardioModalityPreference: inputs.cardioModalityPreference,
         availableEquipment: inputs.availableEquipment,
         experienceLevel: inputs.experienceLevel ?? 'intermediate',
+        restrictions: inputs.customSplitHint,
       },
       effectiveSplitPreference: effectiveSplitPreference ?? null,
       useRecommended: !!(recommendation && effectiveSplitPreference === recommendation.recommendedSplit),
     });
-    navigation.navigate('PlanPreview', {
+    const previewParams = {
       planInputs,
       inputs: {
         goal: inputs.goal!,
@@ -905,8 +910,31 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
         age: inputs.age ?? undefined,
       },
       draftId: `draft-${Date.now()}`,
-    });
+      fromOnboarding: opts?.fromOnboarding,
+    };
+    if (opts?.replace) navigation.replace('PlanPreview', previewParams);
+    else navigation.navigate('PlanPreview', previewParams);
   };
+
+  const didAutoGenerate = useRef(false);
+  const [autoFallback, setAutoFallback] = useState(false);
+  const autoGenerate = !!route.params?.autoGenerate;
+  useEffect(() => {
+    if (!autoGenerate || didAutoGenerate.current || !profileSeeded) return;
+    const ready =
+      !!inputs.goal &&
+      !!inputs.primaryLocation &&
+      inputs.availableEquipment.length > 0 &&
+      inputs.trainingDays.length > 0;
+    if (!ready) {
+      // Couldn't auto-build (e.g. no mappable goal) — show the form instead of dead-ending.
+      setAutoFallback(true);
+      return;
+    }
+    didAutoGenerate.current = true;
+    handleGenerate({ replace: true, fromOnboarding: route.params?.fromOnboarding });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoGenerate, profileSeeded, inputs.goal, inputs.primaryLocation, inputs.availableEquipment, inputs.trainingDays]);
 
   /**
    * Per-step "ready to advance" flags. These mirror the legacy `canGenerate` predicate
@@ -945,6 +973,18 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   }, [currentStep]);
 
 
+
+  if (autoGenerate && !autoFallback) {
+    return (
+      <View style={styles.outerContainer}>
+        <SafeAreaView style={[styles.container, styles.autoGenCenter]} edges={['top', 'bottom']}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.autoGenTitle}>Building your plan…</Text>
+          <Text style={styles.autoGenSub}>Setting things up from your answers.</Text>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.outerContainer}>
@@ -2530,7 +2570,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
             ) : (
               <TouchableOpacity
                 style={[styles.generateButton, !canGenerate && styles.generateButtonDisabled]}
-                onPress={handleGenerate}
+                onPress={() => handleGenerate()}
                 disabled={!canGenerate}
                 accessibilityRole="button"
                 accessibilityLabel="Generate plan preview"
@@ -2587,6 +2627,23 @@ function createGeneratePlanStyles(c: ColorPalette) {
   container: {
     flex: 1,
     backgroundColor: c.background,
+  },
+  autoGenCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  autoGenTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: c.text,
+    marginTop: 16,
+  },
+  autoGenSub: {
+    fontSize: 14,
+    color: c.textMuted,
+    marginTop: 6,
+    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',

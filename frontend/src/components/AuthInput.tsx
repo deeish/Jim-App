@@ -3,7 +3,6 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Text,
   StyleSheet,
   type TextInputProps,
   type ViewStyle,
@@ -25,8 +24,9 @@ type Props = Omit<TextInputProps, 'secureTextEntry'> & {
 
 /**
  * Auth form field: bordered row with an optional leading icon and, for
- * passwords, a show/hide toggle. Email and password fields share this so
- * they're visually identical. All other TextInput props pass through.
+ * passwords, a show/hide toggle. The border + leading icon highlight in the
+ * primary color while focused. Email and password fields share this so they're
+ * visually identical. All other TextInput props pass through.
  */
 export default function AuthInput({
   value,
@@ -34,21 +34,29 @@ export default function AuthInput({
   leadingIcon,
   secure = false,
   containerStyle,
+  onFocus,
+  onBlur,
   ...rest
 }: Props) {
   const { colors } = useTheme();
   const [visible, setVisible] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   return (
     <View
       style={[
         styles.wrap,
-        { backgroundColor: colors.surface, borderColor: colors.border },
+        { backgroundColor: colors.surface, borderColor: focused ? colors.primary : colors.border },
         containerStyle,
       ]}
     >
       {leadingIcon ? (
-        <Ionicons name={leadingIcon} size={20} color={colors.textMuted} style={styles.leading} />
+        <Ionicons
+          name={leadingIcon}
+          size={20}
+          color={focused ? colors.primary : colors.textMuted}
+          style={styles.leading}
+        />
       ) : null}
       <TextInput
         style={[styles.input, { color: colors.text }]}
@@ -56,6 +64,14 @@ export default function AuthInput({
         onChangeText={onChangeText}
         placeholderTextColor={colors.textMuted}
         secureTextEntry={secure && !visible}
+        onFocus={(e) => {
+          setFocused(true);
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          onBlur?.(e);
+        }}
         {...rest}
       />
       {secure ? (
@@ -64,8 +80,13 @@ export default function AuthInput({
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           accessibilityRole="button"
           accessibilityLabel={visible ? 'Hide password' : 'Show password'}
+          style={styles.toggle}
         >
-          <Text style={[styles.toggle, { color: colors.primary }]}>{visible ? 'Hide' : 'Show'}</Text>
+          <Ionicons
+            name={visible ? 'eye-off-outline' : 'eye-outline'}
+            size={20}
+            color={colors.textMuted}
+          />
         </TouchableOpacity>
       ) : null}
     </View>
@@ -82,5 +103,5 @@ const styles = StyleSheet.create({
   },
   leading: { marginRight: 10 },
   input: { flex: 1, paddingVertical: 14, fontSize: 16 },
-  toggle: { fontSize: 14, fontWeight: '600', paddingLeft: 12 },
+  toggle: { paddingLeft: 12 },
 });

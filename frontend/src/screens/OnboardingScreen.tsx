@@ -21,6 +21,7 @@ import {
   GOAL_OPTIONS,
   GOAL_LABELS,
   EXPERIENCE_OPTIONS,
+  MAX_INJURY_NOTES,
   type GoalOption,
   type ExperienceOption,
   type StoredInjuryTagId,
@@ -460,6 +461,7 @@ export default function OnboardingScreen({ navigation }: Props) {
                 placeholder='e.g. "No deep squats this month — physio"'
                 placeholderTextColor={colors.textMuted}
                 multiline
+                maxLength={MAX_INJURY_NOTES}
               />
             </>
           )}

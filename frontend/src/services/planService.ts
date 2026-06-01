@@ -137,6 +137,8 @@ export interface GenerateSessionsRequest {
   location?: 'gym' | 'home';
   detailLevel?: 'simple' | 'detailed';
   avoidConstraints?: string[];
+  /** Free-text limitations from onboarding/profile, respected verbatim by the prompt. */
+  restrictions?: string;
   makeItEasier?: boolean;
   /** Ordered modality hints: run, bike, swim, row, elliptical */
   cardioModalities?: string[];

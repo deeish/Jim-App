@@ -1,6 +1,10 @@
 import React, { useMemo } from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
+import { Text, StyleSheet, ActivityIndicator, Pressable, ViewStyle, TextStyle } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useTheme } from '../theme';
+import { haptics } from '../lib/haptics';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface ButtonProps {
   title: string;
@@ -25,12 +29,15 @@ export default function Button({
   testID,
 }: ButtonProps) {
   const { colors } = useTheme();
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const inactive = disabled || loading;
   const styles = useMemo(
     () =>
       StyleSheet.create({
         button: {
           padding: 18,
-          borderRadius: 12,
+          borderRadius: 14,
           alignItems: 'center',
           shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: 2 },
@@ -52,16 +59,25 @@ export default function Button({
     [colors]
   );
   return (
-    <TouchableOpacity
+    <AnimatedPressable
       testID={testID}
       style={[
         styles.button,
         variant === 'primary' ? styles.primary : styles.secondary,
-        (disabled || loading) && styles.disabled,
+        inactive && styles.disabled,
         style,
+        animatedStyle,
       ]}
       onPress={onPress}
-      disabled={disabled || loading}
+      disabled={inactive}
+      onPressIn={() => {
+        if (inactive) return;
+        haptics.select();
+        scale.value = withSpring(0.97, { damping: 18, stiffness: 260 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 18, stiffness: 260 });
+      }}
     >
       {loading ? (
         <ActivityIndicator color={variant === 'primary' ? colors.onPrimary : colors.primary} />
@@ -70,6 +86,6 @@ export default function Button({
           {title}
         </Text>
       )}
-    </TouchableOpacity>
+    </AnimatedPressable>
   );
 }

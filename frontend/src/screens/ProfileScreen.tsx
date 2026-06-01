@@ -23,6 +23,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   useUserPreferences,
   GOAL_OPTIONS,
+  GOAL_LABELS,
   EXPERIENCE_OPTIONS,
 } from '../contexts/UserPreferencesContext';
 import type { ColorPalette } from '../theme/colors';
@@ -723,7 +724,7 @@ export default function ProfileScreen() {
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
           <Row
             label="Goal"
-            value={goal}
+            value={GOAL_LABELS[goal]}
             onPress={pickGoal}
             colors={colors}
             showChevron
@@ -843,7 +844,9 @@ export default function ProfileScreen() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.equipLabel, themedStyles.equipLabel]}>{opt}</Text>
+                  <Text style={[styles.equipLabel, themedStyles.equipLabel]}>
+                    {listPicker === 'goal' ? GOAL_LABELS[opt as keyof typeof GOAL_LABELS] : opt}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>

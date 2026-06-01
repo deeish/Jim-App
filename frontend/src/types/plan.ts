@@ -94,6 +94,8 @@ export interface PlanInputs {
   durationOverrides: DurationOverrides | null;
   hardDayLimits: HardDayLimitsInput;
   injuriesAvoid: InjuriesAvoidInput;
+  /** Free-text limitations note (onboarding/profile); sent verbatim to the generator prompt. */
+  restrictions?: string;
   currentActivityLevel: CurrentActivityLevelId | null;
   preferredExercises: string[];
   /** Maps to POST /plans/generate-sessions; drives set/rep + Groq difficulty (default intermediate). */

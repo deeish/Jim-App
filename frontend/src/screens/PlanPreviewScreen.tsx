@@ -255,7 +255,12 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createPlanPreviewStyles(colors), [colors]);
   const { weightUnit, goal } = useUserPreferences();
-  const { inputs, draftId, planInputs, returnToPlanCard } = route.params;
+  const { inputs, draftId, planInputs, returnToPlanCard, fromOnboarding } = route.params;
+  const goHome = () => {
+    // Clear the Plan stack so a stale Preview isn't left mounted, then switch to the Home tab.
+    navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'PlanList' }] }));
+    navigation.getParent()?.navigate('Home' as never);
+  };
   const isFocused = useIsFocused();
   const [applying, setApplying] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState(1);
@@ -976,13 +981,18 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
         programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
       });
-      // Plan tab stack root is PlanList (calendar). Reset so Preview/Generate aren’t left on the stack.
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: 'PlanList' }],
-        }),
-      );
+      // First plan from onboarding → drop the user on Home (greeting + today's session).
+      // Otherwise reset the Plan stack to PlanList so Preview/Generate aren't left on the stack.
+      if (fromOnboarding) {
+        goHome();
+      } else {
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'PlanList' }],
+          }),
+        );
+      }
     } catch {
       Alert.alert('Could not save plan', 'Check your connection and try again.');
     } finally {
@@ -1004,8 +1014,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
+        <TouchableOpacity
+          onPress={() => (fromOnboarding ? goHome() : navigation.goBack())}
+          style={styles.backButton}
+        >
+          <Text style={styles.backButtonText}>{fromOnboarding ? '← Home' : '← Back'}</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Preview Plan</Text>
         <View style={styles.headerSpacer} />
@@ -1015,9 +1028,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.text }]}>
-            {planInputs && planInputs.weeksCount > 1
-              ? 'Generating your plan… Multi-week previews take longer (often about 1–2 minutes).'
-              : 'Generating your plan… This may take a minute.'}
+            {fromOnboarding
+              ? 'Building your plan… This may take a minute.'
+              : planInputs && planInputs.weeksCount > 1
+                ? 'Generating your plan… Multi-week previews take longer (often about 1–2 minutes).'
+                : 'Generating your plan… This may take a minute.'}
           </Text>
         </View>
       )}
