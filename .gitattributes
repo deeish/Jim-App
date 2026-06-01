@@ -1,0 +1,27 @@
+# Normalize line endings. Without this, core.autocrlf=true on Windows lets tools
+# (e.g. eslint --fix) rewrite files with CRLF, producing spurious "modified" diffs
+# with zero content changes. Storing text as LF in the repo and checking it out as
+# LF on every platform keeps the working tree stable.
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF to run correctly.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets — never normalize or diff as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.wasm binary
+*.mp4 binary
+*.zip binary
+*.jar binary
+*.keystore binary
