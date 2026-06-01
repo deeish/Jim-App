@@ -11,7 +11,7 @@ import { AppState } from 'react-native';
 import type { Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
-import { applySupabaseAuthUrl } from '../lib/authDeepLink';
+import { applySupabaseAuthUrl, type ApplyAuthUrlResult } from '../lib/authDeepLink';
 import { setSentryUser } from '../lib/sentry';
 import { cancelAllRequests } from '../api/client';
 
@@ -21,6 +21,10 @@ type AuthContextValue = {
   loading: boolean;
   /** True after user opens password-reset link (must set new password before normal app use). */
   passwordRecoveryMode: boolean;
+  /** Set when a deep link (e.g. an expired reset link) could not be applied; shown on the auth stack. */
+  recoveryLinkError: string | null;
+  /** Dismiss the recovery-link error (e.g. once the user starts typing on Login). */
+  clearRecoveryLinkError: () => void;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   requestPasswordReset: (email: string) => Promise<{ error: Error | null }>;
@@ -36,10 +40,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(false);
+  const [recoveryLinkError, setRecoveryLinkError] = useState<string | null>(null);
   const recoveryActiveRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+
+    // Apply the outcome of a deep link. Recovery mode is entered ONLY when setSession
+    // succeeded (result.recovery); a failed/expired link surfaces an error instead of
+    // trapping the user on the set-new-password screen with no live session.
+    const handleAuthUrlResult = (result: ApplyAuthUrlResult) => {
+      if (cancelled) return;
+      if (result.error) {
+        recoveryActiveRef.current = false;
+        setPasswordRecoveryMode(false);
+        setRecoveryLinkError(result.error);
+        return;
+      }
+      if (result.recovery) {
+        recoveryActiveRef.current = true;
+        setPasswordRecoveryMode(true);
+        setRecoveryLinkError(null);
+      }
+    };
 
     const {
       data: { subscription },
@@ -61,11 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const initialUrl = await Linking.getInitialURL();
         if (!cancelled && initialUrl) {
-          await applySupabaseAuthUrl(supabase, initialUrl, () => {
-            if (cancelled) return;
-            recoveryActiveRef.current = true;
-            setPasswordRecoveryMode(true);
-          });
+          handleAuthUrlResult(await applySupabaseAuthUrl(supabase, initialUrl));
         }
       } catch (e) {
         console.warn('[auth] initial URL handling failed', e);
@@ -83,10 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const linkSub = Linking.addEventListener('url', ({ url }) => {
       if (cancelled || !url) return;
-      void applySupabaseAuthUrl(supabase, url, () => {
-        recoveryActiveRef.current = true;
-        setPasswordRecoveryMode(true);
-      });
+      void (async () => {
+        handleAuthUrlResult(await applySupabaseAuthUrl(supabase, url));
+      })();
     });
 
     return () => {
@@ -138,6 +156,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPasswordRecoveryMode(false);
   }, []);
 
+  const clearRecoveryLinkError = useCallback(() => {
+    setRecoveryLinkError(null);
+  }, []);
+
   const signOut = useCallback(async () => {
     recoveryActiveRef.current = false;
     setPasswordRecoveryMode(false);
@@ -158,6 +180,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     loading,
     passwordRecoveryMode,
+    recoveryLinkError,
+    clearRecoveryLinkError,
     signIn,
     signUp,
     requestPasswordReset,

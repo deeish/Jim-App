@@ -60,36 +60,50 @@ export function isPasswordRecoveryUrl(url: string, type: string | null): boolean
   return /[#&?]access_token=/.test(url);
 }
 
+export type ApplyAuthUrlResult = {
+  /** True only when a password-recovery session was successfully established. */
+  recovery: boolean;
+  /** User-facing message when the link could not be applied (e.g. expired/invalid token). */
+  error?: string;
+};
+
+const RECOVERY_LINK_FAILED =
+  'Your password reset link is invalid or has expired. Please request a new one.';
+const SIGN_IN_LINK_FAILED =
+  "We couldn't sign you in from that link. Please try signing in again.";
+
 /**
- * Apply tokens from a deep link (e.g. password recovery email). Call `onRecovery` before setSession
- * when `type=recovery` so UI can show SetNewPassword even if PASSWORD_RECOVERY fires late.
+ * Apply tokens from a deep link (e.g. password recovery email). Recovery is only reported once
+ * `setSession` actually succeeds — an expired/invalid link returns `{ recovery: false, error }`
+ * so callers never trap the user on the set-new-password screen without a live session.
  */
 export async function applySupabaseAuthUrl(
   client: SupabaseClient,
   url: string,
-  onRecovery: () => void,
-): Promise<void> {
+): Promise<ApplyAuthUrlResult> {
   if (!isTrustedAuthLink(url)) {
     console.warn('[auth] rejecting deep link from untrusted origin');
-    return;
+    return { recovery: false };
   }
   const parsed = parseAuthParamsFromUrl(url);
   const { access_token, refresh_token, type, error, error_description } = parsed;
+  const isRecovery = isPasswordRecoveryUrl(url, type);
   if (error) {
     console.warn(
       '[auth] deep link error:',
       error,
       error_description ?? '',
     );
-    return;
+    return { recovery: false, error: isRecovery ? RECOVERY_LINK_FAILED : SIGN_IN_LINK_FAILED };
   }
-  if (!access_token || !refresh_token) return;
-  if (isPasswordRecoveryUrl(url, type)) onRecovery();
+  if (!access_token || !refresh_token) return { recovery: false };
   const { error: sessionError } = await client.auth.setSession({
     access_token,
     refresh_token,
   });
   if (sessionError) {
     console.warn('[auth] setSession from deep link failed:', sessionError.message);
+    return { recovery: false, error: isRecovery ? RECOVERY_LINK_FAILED : SIGN_IN_LINK_FAILED };
   }
+  return { recovery: isRecovery };
 }
