@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -114,6 +115,7 @@ export default function HomeScreen() {
   const displayName = (profileDisplayName || user?.email?.split('@')[0] || '').split(' ')[0];
 
   const [menuVisible, setMenuVisible] = useState(false);
+  const [pendingSignOutConfirm, setPendingSignOutConfirm] = useState(false);
   const [homeToday, setHomeToday] = useState<HomeTodayResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [draft, setDraft] = useState<PersistedWorkoutDraft | null>(null);
@@ -185,16 +187,26 @@ export default function HomeScreen() {
     navigation.navigate('Workout', { workoutId: workout.id });
   };
 
+  const confirmSignOut = () => {
+    showConfirmDialog({
+      title: 'Sign out?',
+      confirmText: 'Sign out',
+      destructive: true,
+      onConfirm: () => void signOut(),
+    });
+  };
+
   const onSignOut = () => {
-    closeMenu();
-    setTimeout(() => {
-      showConfirmDialog({
-        title: 'Sign out?',
-        confirmText: 'Sign out',
-        destructive: true,
-        onConfirm: () => void signOut(),
-      });
-    }, 350);
+    // iOS refuses to present an Alert while another modal (the menu) is still
+    // dismissing, so defer the confirm to the Modal's onDismiss instead of a
+    // fragile fixed delay. On Android/web there's no such conflict — show it now.
+    if (Platform.OS === 'ios') {
+      setPendingSignOutConfirm(true);
+      closeMenu();
+    } else {
+      closeMenu();
+      confirmSignOut();
+    }
   };
 
   const themedStyles = useMemo(
@@ -296,6 +308,14 @@ export default function HomeScreen() {
         transparent
         animationType="fade"
         onRequestClose={closeMenu}
+        onDismiss={() => {
+          // iOS-only: fires once the menu has fully dismissed, so it's now safe
+          // to present the sign-out confirm Alert.
+          if (pendingSignOutConfirm) {
+            setPendingSignOutConfirm(false);
+            confirmSignOut();
+          }
+        }}
       >
         {/* Backdrop and menu card are siblings — do not nest the card inside backdrop Pressable
             or wrapping View with responder capture; that blocks menu row presses (Android / some web). */}
