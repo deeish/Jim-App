@@ -50,6 +50,7 @@ export default function SignupScreen() {
     <AuthScreenLayout
       title="Create account"
       subtitle="Sign up to start planning workouts"
+      centerContent
       footer={
         <>
           <Text style={[styles.footerText, { color: colors.textMuted }]}>

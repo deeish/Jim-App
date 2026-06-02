@@ -43,6 +43,7 @@ export default function ForgotPasswordScreen() {
           ? 'If an account exists for that email, we sent a link. Open it on this device to choose a new password.'
           : 'We will email you a link to reset your password.'
       }
+      centerContent
       onBack={() => navigation.goBack()}
       backLabel="Back to sign in"
     >
