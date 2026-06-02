@@ -118,7 +118,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   backText: { fontSize: 16, fontWeight: '600', marginLeft: 2 },
-  centerArea: { flex: 1, justifyContent: 'center' },
+  // Center the block, but bias it slightly above true center (the paddingBottom
+  // reserves space at the bottom, shifting content up ~40px) so there's less
+  // headroom above the logo. Tune this single value to taste.
+  centerArea: { flex: 1, justifyContent: 'center', paddingBottom: 80 },
   brandWrap: { alignItems: 'center', marginTop: 8, marginBottom: 28 },
   title: { fontSize: 26, fontWeight: '700', textAlign: 'center', marginBottom: 6 },
   subtitle: { fontSize: 15, lineHeight: 21, textAlign: 'center', marginBottom: 28 },
