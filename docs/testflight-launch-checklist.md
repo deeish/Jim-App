@@ -295,7 +295,7 @@ Before uploading to TestFlight at all:
 | 3.3 `/ready` probes Supabase + Groq | ✅ Done, deployed | PR #2 (`306d361`). Verified live: `{"checks":{"db":"ok","supabase":"ok","groq":"ok"}}` |
 | 3.4 iOS permission descriptions | ✅ No-op (verified clean) | No permission-gated packages installed |
 | 3.5 Cold-install onboarding walkthrough | ⬜ Needs device | After first build |
-| 3.6 In-app support contact | ⚠️ Known broken, deferred | `FEEDBACK_MAILTO` has no recipient; user chose to defer |
+| 3.6 In-app support contact | ✅ Fixed (2026-06-02) | `FEEDBACK_MAILTO` now addresses `myjimplanner@gmail.com` (override: `EXPO_PUBLIC_FEEDBACK_EMAIL`) |
 | 3.7 Accessibility labels | ⬜ Post-launch acceptable | |
 | 3.8 Account deletion + export verification | ⬜ Needs running app | |
 
@@ -414,9 +414,11 @@ The first-run flow is: SignUp → Onboarding (5 steps) → HomeScreen (empty). A
 - [ ] Cold-install on a fresh iCloud account / device. Walk through end-to-end. Look for: dead-end empty states, confusing copy on the "Generate plan" CTA, modal that doesn't dismiss, missing loading spinner on plan generation.
 - [ ] Sample screens to scrutinize: `HomeScreen.tsx`, `GeneratePlanScreen.tsx`, `PlanPreviewScreen.tsx`.
 
-### 3.6 In-app support contact — ⚠️ KNOWN BROKEN, DEFERRED (2026-05-26)
+### 3.6 In-app support contact — ✅ FIXED (2026-06-02)
 
-**The current value is broken** — `frontend/src/constants/legalUrls.ts:16-17`:
+**Fixed:** `FEEDBACK_MAILTO` now sends to the dedicated support inbox `myjimplanner@gmail.com`, overridable via `EXPO_PUBLIC_FEEDBACK_EMAIL` (matches the `PRIVACY_POLICY_URL` / `TERMS_OF_SERVICE_URL` pattern in the same file; documented in `frontend/.env.example`). Tapping "Feedback & support" in `ProfileScreen` now opens the mail app pre-addressed.
+
+**Historical context (the bug that was fixed)** — `frontend/src/constants/legalUrls.ts` previously read:
 
 ```ts
 export const FEEDBACK_MAILTO =

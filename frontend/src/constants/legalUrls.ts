@@ -12,6 +12,9 @@ export const PRIVACY_POLICY_URL =
 export const TERMS_OF_SERVICE_URL =
   process.env.EXPO_PUBLIC_TERMS_OF_SERVICE_URL?.trim() || FALLBACK_TERMS;
 
-/** mailto: link for Feedback & support */
-export const FEEDBACK_MAILTO =
-  'mailto:?subject=Jim%20App%20feedback';
+/** Support inbox for "Feedback & support". Override via EXPO_PUBLIC_FEEDBACK_EMAIL. */
+const FEEDBACK_EMAIL =
+  process.env.EXPO_PUBLIC_FEEDBACK_EMAIL?.trim() || 'myjimplanner@gmail.com';
+
+/** mailto: link for Feedback & support — opens the user's mail app pre-addressed. */
+export const FEEDBACK_MAILTO = `mailto:${FEEDBACK_EMAIL}?subject=Jim%20App%20feedback`;
