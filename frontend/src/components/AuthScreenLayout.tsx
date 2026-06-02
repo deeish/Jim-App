@@ -29,6 +29,12 @@ type Props = {
   onBack?: () => void;
   backLabel?: string;
   contentStyle?: StyleProp<ViewStyle>;
+  /**
+   * Vertically center the brand/title/body block in the available space (footer stays
+   * pinned to the bottom, back link to the top). Opt-in so short screens like Login feel
+   * balanced; the default (false) preserves the top-aligned layout other screens rely on.
+   */
+  centerContent?: boolean;
 };
 
 /**
@@ -46,6 +52,7 @@ export default function AuthScreenLayout({
   onBack,
   backLabel = 'Back',
   contentStyle,
+  centerContent = false,
 }: Props) {
   const { colors } = useTheme();
 
@@ -76,18 +83,20 @@ export default function AuthScreenLayout({
               </TouchableOpacity>
             ) : null}
 
-            {showBrand ? (
-              <View style={styles.brandWrap}>
-                <JimLogo showTagline />
-              </View>
-            ) : null}
+            <View style={centerContent ? styles.centerArea : undefined}>
+              {showBrand ? (
+                <View style={styles.brandWrap}>
+                  <JimLogo showTagline />
+                </View>
+              ) : null}
 
-            <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-            {subtitle ? (
-              <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
-            ) : null}
+              <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+              {subtitle ? (
+                <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
+              ) : null}
 
-            <View style={styles.body}>{children}</View>
+              <View style={styles.body}>{children}</View>
+            </View>
 
             {footer ? <View style={styles.footer}>{footer}</View> : null}
           </Animated.View>
@@ -109,6 +118,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   backText: { fontSize: 16, fontWeight: '600', marginLeft: 2 },
+  centerArea: { flex: 1, justifyContent: 'center' },
   brandWrap: { alignItems: 'center', marginTop: 8, marginBottom: 28 },
   title: { fontSize: 26, fontWeight: '700', textAlign: 'center', marginBottom: 6 },
   subtitle: { fontSize: 15, lineHeight: 21, textAlign: 'center', marginBottom: 28 },

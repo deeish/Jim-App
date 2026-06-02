@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { Text, StyleSheet, TouchableOpacity, type TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +19,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const passwordRef = useRef<TextInput>(null);
 
   // A failed/expired reset link routes the user here with an explanation rather
   // than trapping them on the set-new-password screen.
@@ -52,8 +53,8 @@ export default function LoginScreen() {
 
   return (
     <AuthScreenLayout
-      title="Welcome to Jim"
-      subtitle="Log in to continue, or create an account."
+      title="Log in"
+      centerContent
       footer={
         <>
           <Text style={[styles.footerText, { color: colors.textMuted }]}>
@@ -79,10 +80,15 @@ export default function LoginScreen() {
         autoCapitalize="none"
         keyboardType="email-address"
         autoComplete="email"
+        textContentType="username"
+        returnKeyType="next"
+        blurOnSubmit={false}
+        onSubmitEditing={() => passwordRef.current?.focus()}
       />
 
       <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
       <AuthInput
+        ref={passwordRef}
         testID="e2e-login-password"
         containerStyle={styles.field}
         leadingIcon="lock-closed-outline"
@@ -91,6 +97,9 @@ export default function LoginScreen() {
         onChangeText={setPassword}
         placeholder="••••••••"
         autoComplete="password"
+        textContentType="password"
+        returnKeyType="go"
+        onSubmitEditing={() => void handleSignIn()}
       />
 
       <TouchableOpacity

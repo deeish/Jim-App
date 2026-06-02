@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, forwardRef } from 'react';
 import {
   View,
   TextInput,
@@ -28,16 +28,19 @@ type Props = Omit<TextInputProps, 'secureTextEntry'> & {
  * primary color while focused. Email and password fields share this so they're
  * visually identical. All other TextInput props pass through.
  */
-export default function AuthInput({
-  value,
-  onChangeText,
-  leadingIcon,
-  secure = false,
-  containerStyle,
-  onFocus,
-  onBlur,
-  ...rest
-}: Props) {
+const AuthInput = forwardRef<TextInput, Props>(function AuthInput(
+  {
+    value,
+    onChangeText,
+    leadingIcon,
+    secure = false,
+    containerStyle,
+    onFocus,
+    onBlur,
+    ...rest
+  },
+  ref,
+) {
   const { colors } = useTheme();
   const [visible, setVisible] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -59,6 +62,7 @@ export default function AuthInput({
         />
       ) : null}
       <TextInput
+        ref={ref}
         style={[styles.input, { color: colors.text }]}
         value={value}
         onChangeText={onChangeText}
@@ -91,7 +95,9 @@ export default function AuthInput({
       ) : null}
     </View>
   );
-}
+});
+
+export default AuthInput;
 
 const styles = StyleSheet.create({
   wrap: {
