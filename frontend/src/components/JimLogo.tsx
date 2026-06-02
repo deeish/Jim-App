@@ -20,7 +20,7 @@ import JGlyph from './JGlyph';
  * Skia "J" monogram, a glossy highlight + sweeping sheen, breathing pulse rings,
  * and the "Jim" wordmark. Shared across onboarding and the auth screens.
  *
- * - `showTagline` renders the "Train with intent" line (auth screens).
+ * - `showTagline` renders the "Workout plans, built around you" line (auth screens).
  * - `interactive` enables the tap-to-flex easter egg (the J flexes its abs).
  */
 export default function JimLogo({
@@ -144,7 +144,7 @@ export default function JimLogo({
         <View style={styles.pulseBox}>{badge}</View>
       )}
       <Text style={styles.wordmark}>Jim</Text>
-      {showTagline ? <Text style={styles.tagline}>Train with intent</Text> : null}
+      {showTagline ? <Text style={styles.tagline}>Workout plans, built around you</Text> : null}
     </View>
   );
 }

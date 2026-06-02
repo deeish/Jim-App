@@ -52,15 +52,15 @@ export default function LoginScreen() {
 
   return (
     <AuthScreenLayout
-      title="Welcome back"
-      subtitle="Sign in to continue"
+      title="Welcome to Jim"
+      subtitle="Log in to continue, or create an account."
       footer={
         <>
           <Text style={[styles.footerText, { color: colors.textMuted }]}>
-            Don't have an account?{' '}
+            New here?{' '}
           </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Signup' as never)}>
-            <Text style={[styles.link, { color: colors.primary }]}>Sign up</Text>
+            <Text style={[styles.link, { color: colors.primary }]}>Create an account</Text>
           </TouchableOpacity>
         </>
       }
