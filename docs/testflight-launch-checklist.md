@@ -37,11 +37,11 @@ Work top-to-bottom. Tick items as you go.
 | 1.1 Replace placeholder app assets | ✅ Done (temporary art) | On-brand gold→orange "J" chip generated 2026-06-02 (icon/splash/adaptive/favicon; real KB sizes; icon is opaque RGB, no alpha). Swap for final art before public App Store. |
 | 1.2 Settle bundle identifier | ☑ Deferred to App Store push | Keep `com.jimapp.app` for internal TestFlight |
 | 1.3 Wire EAS build profiles to env vars | ✅ Done | `env` blocks added to all three profiles; values verified still valid after Supabase restore |
-| 1.4 Link Expo project (`eas init`) | ⬜ Open | Requires your Expo account; commands below |
+| 1.4 Link Expo project (`eas init`) | ✅ Done (2026-06-02) | Linked `@deeish1/jim-app` (projectId `1b20c133-…fab3b0`) in `app.json` + `owner`. Also fixed an invalid top-level `update` block in `eas.json` that was failing schema validation (would have blocked all `eas` commands). |
 | 1.5 Restore production infrastructure | ✅ Done | Supabase unpaused; Render `/api/health` and `/ready` both 200; anon key still valid |
 | 1.6 Set `CORS_ORIGINS` on Render | ✅ Implicitly done | Render booted to 200 — only possible if CORS_ORIGINS is set (otherwise boot throws) |
 
-**Section 1 BLOCKERS remaining for first build:** just **1.4** (`eas init`) — which needs only your **free Expo account**, no Apple Developer account. **1.1** now has temporary on-brand art (swap before public launch). Everything else in this section is cleared.
+**Section 1 BLOCKERS remaining for first build:** **none — all cleared (2026-06-02).** 1.1 has temporary on-brand art (swap before public launch); 1.4 linked the Expo project `@deeish1/jim-app`. The first iOS build now only needs the **Apple Developer account** ($99/yr).
 
 ---
 
@@ -86,22 +86,16 @@ Get-ChildItem 'frontend\assets' -Filter '*.png' | Select-Object Name, Length
 
 **Background — what was broken before:** `eas.json` had no `env` blocks at all. `frontend/src/config/api.ts:22` falls back to `http://localhost:3000` if `EXPO_PUBLIC_API_BASE` is unset; lines 24–28 then throw at launch in any non-`__DEV__` build because the URL is `http://`. A production binary built with the old `eas.json` would crash on first open.
 
-### 1.4 Link the Expo project — **BLOCKER**
+### 1.4 Link the Expo project — **BLOCKER** — ✅ DONE (2026-06-02)
 
-You must be at a terminal with browser access (the `eas login` flow opens an OAuth page).
+Project linked: **`@deeish1/jim-app`**, projectId **`1b20c133-46eb-43d0-b4ca-d8f083fab3b0`**, owner `deeish1`. Created via `eas init` (authenticated with a one-time `EXPO_TOKEN`, since the account is GitHub/SSO).
 
-```powershell
-cd frontend
-npx eas-cli@latest login          # one-time; opens browser for Expo account login
-npx eas-cli@latest init            # creates the Expo project, writes expo.extra.eas.projectId into app.json
-```
+- [x] Expo account created (GitHub SSO).
+- [x] `eas init` run — project created at https://expo.dev/accounts/deeish1/projects/jim-app
+- [x] `app.json` now has `expo.extra.eas.projectId` **and** `owner: "deeish1"`, both committed (`769c1d0`).
+- [x] **Fixed a blocking `eas.json` bug along the way** (`1c0c2fd`): a top-level `update` block isn't part of the eas.json schema and failed validation on eas-cli v20 — it would have blocked `eas build` too. Update channels are still set per build profile via `channel`.
 
-- [ ] Run `eas login`.
-- [ ] Run `eas init` from `frontend/`. Accept the suggested slug or set your own.
-- [ ] Confirm `app.json` now has `expo.extra.eas.projectId` set. **Commit that change** — it must be tracked or every machine will try to create its own project.
-- [ ] (Recommended) verify EAS auth: `npx eas-cli@latest whoami`.
-
-Without this, `eas build` will fail at the project-link step.
+**Note on the dynamic config:** because `app.config.js` exists, `eas init` couldn't auto-persist the projectId via the JS file and threw a cosmetic `Cannot read properties of undefined (reading 'eas')` at the end — but it had already written `extra.eas.projectId` into `app.json`, which `app.config.js` spreads through. Verified linked via `eas project:info`.
 
 ### 1.5 Restore production infrastructure — ✅ DONE (2026-05-26)
 
