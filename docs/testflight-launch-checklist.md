@@ -171,7 +171,7 @@ Actions:
 | 2.2 Sign-out routing bug | ✅ Fixed + committed (`b1c52e9`) | Root cause: iOS can't present an Alert over a dismissing Modal; fix presents confirm from `Modal onDismiss`. Only on-device verify remains. |
 | 2.3 Supabase password-reset deep link | ⬜ Open (blocked on 1.5) | Supabase dashboard — bundled with the Supabase recreation in 1.5 |
 | 2.4 Supabase email-verification posture | ⬜ Open (blocked on 1.5) | Supabase dashboard decision |
-| 2.5 Sentry DSN | ⬜ Open | You said you'll create the project; then I'll add the DSN to `eas.json` |
+| 2.5 Sentry DSN | ✅ Done (mobile DSN set) | `EXPO_PUBLIC_SENTRY_DSN` set in all 3 `eas.json` profiles + committed. Source-map upload secrets pending `eas init` (Task 8). |
 | 2.6 Groq call timeout | ✅ Done in code | 15s AbortController at all three call sites; lint + 134 tests green |
 | 2.7 Loosen AI rate limits | ⬜ Open (blocked on 1.5) | Render env vars |
 | 2.8 Disable `GENERATION_CAPTURE` | ⬜ Open (blocked on 1.5) | Confirm Render env |
@@ -179,7 +179,7 @@ Actions:
 | 2.10 Verify build-number auto-increment | ⬜ Verify after first build | Requires first TestFlight upload to test |
 | 2.11 Pre-flight test on real iOS device | ⬜ Verify after first build | Requires `eas build --profile preview --platform ios` |
 
-**What's left for you:** 2.5 (create Sentry project), and the four Supabase/Render dashboard items (2.3, 2.4, 2.7, 2.8) that you'll do alongside 1.5 since they all live in the same dashboards.
+**What's left for you:** nothing in the dashboards — **2.3, 2.4, 2.5, 2.7, 2.8 are all done (2026-06-02)**. Only the device-verify items remain (2.2, 2.10, 2.11), which require the first iOS build (Apple Developer account).
 
 ---
 
@@ -216,14 +216,14 @@ Reference: `docs/mobile-release.md` lines 96–103.
   - Not required = lower friction, but bots can create real accounts (low risk for an unannounced TestFlight).
 - [ ] Set in Supabase Dashboard → Auth → Settings → "Confirm email."
 
-### 2.5 Configure Sentry DSN and verify ingest — **HIGH**
+### 2.5 Configure Sentry DSN and verify ingest — **HIGH** — ✅ DSN DONE (2026-06-02)
 
-Sentry is already wired: `frontend/src/lib/sentry.ts:5-7` gates init on `EXPO_PUBLIC_SENTRY_DSN`, and `@sentry/react-native` is in `frontend/app.json:34` plugins. Today the DSN is unset, so you'll get **zero** crash data from TestFlight testers.
+Sentry is wired: `frontend/src/lib/sentry.ts` gates init on `EXPO_PUBLIC_SENTRY_DSN`, and `@sentry/react-native` is in `frontend/app.json:34` plugins (`@sentry/react-native/expo` configured in `app.config.js`).
 
-- [ ] Create or pick a Sentry project.
-- [ ] Set `EXPO_PUBLIC_SENTRY_DSN` (via EAS secret + `eas.json` env block — see 1.3).
-- [ ] Set `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` as EAS secrets so source maps upload on build.
-- [ ] After the first build, force a crash or call `Sentry.captureMessage('test')` from a debug button, and confirm it appears in the Sentry dashboard.
+- [x] Create or pick a Sentry project. **(mobile project exists in the user's Sentry org)**
+- [x] Set `EXPO_PUBLIC_SENTRY_DSN` — **set in all 3 `eas.json` profiles and committed.** (Inline in `eas.json` is fine per 1.3; `EXPO_PUBLIC_*` is embedded in the bundle anyway.)
+- [ ] Set `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` as **EAS secrets** so source maps upload on build (needs the EAS project → do during Task 8 / 1.4).
+- [ ] After the first build, force a crash or call `Sentry.captureMessage('test')` from a debug button, and confirm it appears in the Sentry dashboard. *(needs a build → Apple account)*
 
 Reference: `docs/sentry-client.md`.
 
