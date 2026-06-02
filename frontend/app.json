@@ -2,6 +2,7 @@
   "expo": {
     "name": "Jim App",
     "slug": "jim-app",
+    "owner": "deeish1",
     "scheme": "jimapp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -33,6 +34,11 @@
     "plugins": [
       "@sentry/react-native",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1b20c133-46eb-43d0-b4ca-d8f083fab3b0"
+      }
+    }
   }
 }
