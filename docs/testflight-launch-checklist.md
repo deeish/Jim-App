@@ -11,7 +11,7 @@
 > 2. Install on device → run the **Section 4** device checklist (sign-out 2.2, cold-install onboarding 3.5, plan generation, password-reset deep link, account deletion 3.8).
 > 3. `eas submit` → TestFlight.
 >
-> _(One more pre-purchase task to finish first — see below / ask Claude.)_
+> _(One pre-purchase task first: fix plan-generation workout quality — see [`PLAN_GENERATION_QUALITY_FIXES.md`](./PLAN_GENERATION_QUALITY_FIXES.md). 5 deterministic, free-Groq-safe fixes; verified working at 2 Groq calls / 3-week plan.)_
 
 A strict, file-by-file punch list of everything to fix, add, or double-check before pushing this build to TestFlight. Items here are the ones that are **not** already covered by the existing ops docs. For background and "what's been built," see the References section at the bottom.
 
