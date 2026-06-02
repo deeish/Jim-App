@@ -1,165 +1,141 @@
 # Plan Generation — Workout Quality Fixes (pre-launch)
 
-**Created:** 2026-06-02
+**Created:** 2026-06-02 · **Reviewed against code:** 2026-06-02 (second pass — see "Verification notes")
 **Owner:** Dylan
 **Status:** Planning — this is the **last quality gate before buying the Apple Developer account** and shipping to TestFlight.
-**Source of evidence:** local generation capture `backend/logs/generation-captures/generation-1780442571106-6181c27c.json` (a real 3-week, 12-session plan generated 2026-06-02). Goal `hybrid`, experience `advanced`, detail `detailed`, location `gym`, Upper/Lower 4-day split.
+**Source of evidence:** local capture `backend/logs/generation-captures/generation-1780442571106-6181c27c.json` (real 3-week, 12-session plan, 2026-06-02). Goal `hybrid`, experience `advanced`, detail `detailed`, gym, Upper/Lower 4-day split.
 
 ---
 
-## Guiding constraint — we are on the FREE Groq tier
+## Guiding constraint — FREE Groq tier (token verdict: ✅ optimal)
 
-Every fix below is deliberately **deterministic, server-side post-processing** (validators, repair passes, rounding/caps stamped after the model returns). **None of them add a Groq call or enlarge a prompt.** Today a 3-week plan costs **2 Groq calls total** (week 1 is generated, weeks 2–3 are cloned with progression math — confirmed in the capture: `meta.groq.groqCalls = 2`). We keep that. Prompt tweaks are listed only as optional "nudges," never as the primary fix, because on the free tier we cannot rely on the model and cannot afford retries.
+Every fix below is **deterministic, server-side post-processing**. **None adds a Groq call or enlarges a prompt.** A 3-week plan currently costs **2 Groq calls total** (week 1 generated; weeks 2–3 cloned + progressed with no LLM — confirmed: `meta.groq.groqCalls = 2`). All fixes preserve that; one (lower exercise-count target) slightly *reduces* completion tokens.
 
-**Principle:** the LLM proposes; deterministic code disposes. Quality must be guaranteed by code, not by hoping the 70B model behaves.
+**Why not fix this in the prompt?** On the free tier we can't rely on a 70B model obeying instructions and can't afford a retry to fix a bad session. Deterministic code *guarantees* the rule; a prompt only *requests* it. So: **the LLM proposes, code disposes.** This is the token-optimal choice, not a compromise.
 
 ---
 
-## Summary
+## Summary (revised after code review)
 
 | # | Issue | Severity | Root cause (file) | Recommended fix | Effort |
 |---|-------|----------|-------------------|-----------------|--------|
-| 1 | Per-session volume too high (24→30→33 sets) | High | No total-set cap; `set-rep-schemes.ts` + `exerciseTargetsForSession` (`workout-generator.service.ts:53`) | Deterministic **per-session + per-muscle set budget** post-pass | M |
-| 2 | Progression over-inflates volume (+25% not +8%) | High | `Math.ceil` in `tryCloneAndProgress` (`plans.service.ts:613`) | `ceil`→`round`; distribute the delta instead of +1/exercise; soften multipliers | S |
-| 3 | Split integrity broken (chest/flyes on "Lower" days) | High | `runUpperPatternPass` is upper-only; **no lower pass** (`generation-chunk-repair.ts:450`) | Add `runLowerPatternPass` (mirror image) | M |
-| 4 | Redundant selection (3–4 hinge variants in one session) | Medium | No per-session **movement-pattern cap** (dedup only matches identical ids) | Per-session pattern-count cap in the repair pass | M |
-| 5 | Cardio finisher prescribed as "5×11 sets" | Medium | LLM-placed cardio rows keep strength sets/reps; only the *appended* finisher is normalized (`session-enrichment.ts`) | Normalize **all** `type:"time"`/cardio rows to a single timed bout | S |
+| 2 | Progression over-inflates volume (+25% not +8%) | High | `Math.ceil` at `plans.service.ts:613` | **`ceil`→`round`** (one line) | XS |
+| 5 | Cardio shown as "5 × 11" | Medium (user-visible) | LLM-placed `time` rows keep strength `sets`/`reps`; clean finisher append is skipped when a cardio row already exists (`session-enrichment.ts:844`) | Coerce **all** cardio/`time` rows to the canonical `sets:1, reps:600, type:'time'` shape | S |
+| 3 | Split integrity broken — legs on Upper days, chest on Lower days | High | Purity pass is upper-only **and** Squat/Hinge-only — misses lunges + every Lower day (`generation-chunk-repair.ts:450-495`) | Replace with **one bidirectional purity pass keyed on `primaryMuscleGroup`** | M |
+| 1 | Per-session volume too high (24→30→33 sets) | High | No total-set cap; high `exerciseTargetsForSession` tier + flat scheme | **Lower source targets** (scheme + exercise count) **+ simple per-session total-set clamp** | M |
+| 4 | Redundant selection (3–4 hinge variants/session) | Low (optional) | No per-session pattern cap; partly a dedup side effect | Make cross-week dedup pattern-aware *or* a light cap pass — **defer, not launch-blocking** | M |
 
-Severity = impact on a knowledgeable user's trust at first open. 1–3 are the ones a real lifter notices immediately.
-
----
-
-## Issue 1 — Per-session volume is too high
-
-**Symptom (from capture):** every working exercise gets a flat set count — 4 (wk1), 5 (wk2), 5 (wk3) — across 6 exercises, giving **24 / 30 / 30–33 working sets per session**. Week-3 Tuesday "Lower-A" had **7 leg exercises (~30+ leg sets in one session)** — far past the point of diminishing returns and brutally fatiguing.
-
-**Root cause:** sets and exercise count are decided independently with **no ceiling on their product**:
-- `backend/src/data/set-rep-schemes.ts` — `hybrid/advanced` = `setsMin 4, setsMax 5` (per exercise). Sets are assigned *per exercise* with no awareness of how many exercises the session has.
-- `exerciseTargetsForSession` (`backend/src/workouts/workout-generator.service.ts:53-70`) — for `detailed` + duration > 55 min returns `minExercises: 7, promptRange "7-10"`. So the model is *asked* for 7–10 exercises, each gets 4–5 sets → 28–50 sets. Nothing reconciles the two.
-
-**Options considered:**
-- **(A) Lower the set scheme** (e.g., hybrid/advanced → 3–4). Simple, but blunt: it also lowers low-exercise-count sessions that were fine, and doesn't stop a 7-exercise day.
-- **(B) Lower `exerciseTargetsForSession` high tier** (7-10 → 5-7). Helps, but the real problem is total volume, not count alone.
-- **(C, recommended) Add a deterministic per-session volume-budget post-pass** that caps total working sets and per-muscle sets, trimming the *last* set from accessory/isolation movements first (never from the primary compound). Runs after generation + repair, before enrichment, in `plans.service.ts` (or a new `session-volume-budget.ts`).
-
-**Recommended fix (C):**
-- Define an experience-scaled budget, e.g. **strength working sets per session**: beginner ≤ 14, intermediate ≤ 18, advanced ≤ 22; **per primary muscle group per session ≤ ~12**. (Tune; these are evidence-aligned upper bounds, not targets.)
-- Algorithm: compute total working sets (exclude cardio/`time` rows). While over budget, remove one set from the exercise with the most sets that is **not** the session's anchor/compound (use `movementPatterns` / `primaryMuscleGroup` + order index), floor at 2 sets. Then enforce the per-muscle cap the same way.
-- Combine with a light **(B)**: drop the top tier of `exerciseTargetsForSession` from `7-10`/min 7 to about `6-8`/min 6 for `detailed`. Fewer junk slots up front means the budget pass rarely has to trim hard.
-
-**Why this is free-Groq-safe:** pure arithmetic on the returned JSON. No model involvement.
-
-**Effort:** Medium. **Risk:** Low (only ever removes sets; never calls out for replacements).
+Ordered by recommended implementation sequence (easiest/highest-confidence first). Severity = impact on a knowledgeable user's trust at first open.
 
 ---
 
-## Issue 2 — Progression over-inflates volume
+## Verification notes (what the second code pass confirmed or changed)
 
-**Symptom:** week 1 = 4 sets/exercise, week 2 = **5**, week 3 = **5**. The intended week-2 bump is only **+8%**, but every exercise jumped a full set (+25%), so a 24-set session became 30.
+- **Issue 5 is user-visible, not just ugly data.** `frontend/src/lib/workoutExerciseDisplay.ts:55,72` formats a time row as `` `${sets} × ${duration}` `` — so `sets:5` on a treadmill row renders literally as "5 × …". The canonical *good* shape already exists in the appended finisher (`session-enrichment.ts:887-908`: `sets:1, reps:600` → "10 min"). The bug surfaces only when the **model places its own cardio row**, which makes `shouldAppendHybridCardioFinisher` skip the clean append (`:844-848`).
+- **Issue 3 fix changed.** The current `runUpperPatternPass` only swaps **Squat/Hinge** off **upper** titles (`:462,473`). It misses **lunges** (capture: *Barbell Curtsy Lunge / Forward Lunge on "Upper-A/B"*) and has **no lower-day coverage at all**. So the fix is **not** "mirror the narrow pass" — it's one **bidirectional** pass on `primaryMuscleGroup` (Legs off upper; Chest/Back/Shoulders/Arms off lower). Reuse existing helpers (`LOWER_PATTERN_NAME:59`, `PULL_NAME:49`, `sessionTitleIsUpperEmphasis:89`) and `library.findOne(id).primaryMuscleGroup`.
+- **Cloned weeks are covered.** `repairChunkGeneratedSessions` runs per-chunk (week 1) **and** merged across all weeks when `chunks>1` (`plans.service.ts:1679`); `applySessionEnrichment` always runs (`:1704`). So purity/variety go in the repair pass, volume/cardio-normalize go in enrichment — both reach weeks 2–3.
+- **Issues 2 simplified** to a one-line change; **Issue 4 deprioritized** to optional.
 
-**Root cause:** `PlansService.tryCloneAndProgress` (`backend/src/plans/plans.service.ts:608-617`):
+---
+
+## Issue 2 — Progression over-inflates volume  ·  **fix first (XS)**
+
+**Symptom:** wk1 = 4 sets/exercise, wk2 = **5** (intended +8%, got +25% on every exercise).
+
+**Root cause:** `PlansService.tryCloneAndProgress` (`backend/src/plans/plans.service.ts:610-615`):
 ```ts
-sets: Math.max(1,
-  prog.volumeMultiplier >= 1
-    ? Math.ceil(ex.sets * prog.volumeMultiplier)   // ← ceil(4 × 1.08) = ceil(4.32) = 5
-    : Math.floor(ex.sets * prog.volumeMultiplier)),
-reps: Math.max(1, Math.min(100, ex.reps + prog.repModifier)),
+sets: Math.max(1, prog.volumeMultiplier >= 1
+  ? Math.ceil(ex.sets * prog.volumeMultiplier)   // ceil(4 × 1.08) = 5  ← the bug
+  : Math.floor(ex.sets * prog.volumeMultiplier)),
 ```
-`Math.ceil` rounds **any** positive fraction up to the next whole set, applied to **every** exercise, so a 1.08 multiplier across 6 exercises adds 6 sets, not ~2. Compounding the problem, the same week stacks **three** stressors at once — more sets, **fewer reps** (`repModifier` −1/−2), and **higher intensity** (`intensityPct` 65→69→73). Multipliers come from `frontend/src/lib/planGenerationSummary.ts:28-56` (`build`: 1.0/1.08/1.16; `build_deload`: 1.0/1.15/1.25/0.70).
 
-**Options considered:**
-- **(A) `ceil`→`round`.** One-character-ish change. `round(4×1.08)=4`, `round(4×1.16)=5`. Removes the artifact immediately. Minimal risk.
-- **(B) Distribute the delta at the session level.** Compute target total sets = `round(week1Total × multiplier)`, then add/remove sets on the **top 1–2 compounds only**, not uniformly. More faithful to "+8% volume," keeps accessories stable.
-- **(C) Soften the multipliers** in `weekProgressionForGenerateSessions` (cap volume at ~1.15; don't raise volume *and* drop reps *and* raise intensity to their maxes in the same week).
+**Fix (the whole thing):** `Math.ceil` → `Math.round` (and `Math.floor`→`Math.round` for symmetry on deloads). Then `round(4×1.08)=4`, `round(4×1.16)=5` → a 4-set base ramps 4/4/5 instead of 4/5/5.
 
-**Recommended fix:** **A + B + C together** — they're cheap and complementary. A stops the rounding blow-up now; B makes progression realistic; C prevents the `build_deload` "peak" week (1.25 vol, −2 reps, 75%) from being a triple-whammy. After Issue 1's budget pass also runs on cloned weeks, totals stay bounded regardless.
+**Conscious consequence:** with `round`, a *low* base (e.g. 3 sets after Issue 1) won't add a set until the multiplier hits ~1.17, so short programs progress via **intensity + reps** (which already ramp) rather than set count. That is correct, not a regression — adding sets is not the only valid progression.
 
-**Free-Groq-safe:** yes — cloned weeks never call Groq; this is all arithmetic.
+**De-scoped (don't build now):** "distribute the +delta to top compounds" and "soften the multipliers." `round` alone resolves the artifact; the multipliers in `frontend/src/lib/planGenerationSummary.ts:28-56` are fine once rounding is sane.
 
-**Effort:** Small. **Risk:** Low.
+**Risk:** ~none. **Token cost:** none (cloned weeks never call Groq).
 
 ---
 
-## Issue 3 — Split integrity broken (upper movements on "Lower" days)
+## Issue 5 — Cardio prescribed as "sets × reps"  ·  **fix second (S)**
 
-**Symptom (from capture):** Friday "Lower-B" contained **Flat Barbell Bench Press**; week-1 "Lower-B" had a **Dumbbell Fly**. Chest pressing on a lower-body day is an obvious programming error.
+**Symptom (capture):** "Treadmill Incline Walk: 4×12", "Assault / Air Bike: 5×11" — `prescriptionType:'time'` but strength-style `sets`/`reps`. Renders as "5 × 11" (`workoutExerciseDisplay.ts:55`).
 
-**Root cause:** the deterministic split-repair is **one-directional**. `runUpperPatternPass` (`backend/src/plans/generation-chunk-repair.ts:450-495`) only fires on **upper-emphasis** strength titles and only removes **squat/hinge** movements:
-```ts
-if (spec.type !== 'strength' || !sessionTitleIsUpperEmphasis(spec.title)) continue;
-...
-if (!patternsIncludeSquatHinge(meta?.movementPatterns)) continue;  // swap squat/hinge OFF upper days
-```
-There is **no `runLowerPatternPass`** — nothing strips chest/shoulder/horizontal-press movements **off lower days**. So the model's cross-assignment survives to the user.
+**Root cause:** only the *appended* hybrid finisher is normalized (`session-enrichment.ts:887` → `sets:1, reps:600`). When the **model** already put a cardio row in the body, the append is skipped (`:844-848`) and that row keeps its invented `sets`/`reps`.
 
-**Recommended fix:** add a mirror-image **`runLowerPatternPass`**, wired into `repairChunkGeneratedSessions` right after the upper pass (`generation-chunk-repair.ts:540`):
-- Fire on `spec.type === 'strength' && sessionTitleIsLowerEmphasis(spec.title)` (add the helper mirroring `sessionTitleIsUpperEmphasis`; "lower", "leg(s)", "lower-a/b", "posterior", "quad", "glute").
-- For each row whose `movementPatterns`/`primaryMuscleGroup` is **upper-only** (Chest, Shoulders, Back, Arms / Horizontal Press, Vertical Press, Row, Pulldown), swap it via the existing `pickWithEquipmentTiers(...)` with predicate `(c) => isLowerBody(c)` — reusing the exact machinery the upper pass uses.
-- **Must-skip:** the appended hybrid **cardio finisher** (a treadmill/bike row is *expected* on a lower day for hybrid goals). Skip rows with `prescriptionType === 'time'` or `primaryMuscleGroup === 'Cardio'`, so the finisher is never "repaired" away. (See Issue 5 — the finisher should be clearly tagged.)
+**Fix:** in enrichment (after the finisher logic, over every session), normalize **any** row where `prescriptionType === 'time'` **or** `primaryMuscleGroup === 'Cardio'` to the canonical shape: `sets = 1`, `reps = 600` (or convert a sub-60 value to a sane minute bout), `prescriptionType = 'time'`. Reuse the exact contract the appended finisher already uses. Also **exclude these rows from working-set totals** (feeds Issue 1) and **from the purity swap** (Issue 3 must not "repair" a legitimate finisher off a lower day).
 
-**Free-Groq-safe:** yes — swaps come from the local exercise library, no Groq.
-
-**Effort:** Medium (mostly mirroring an existing, tested pass). **Risk:** Low–Medium — verify it can always find a lower-body replacement (fall back to leaving the row rather than emptying the slot).
+**Risk:** Low. **Frontend check:** `formatExerciseRepsDisplay` already converts `reps>=60` → "N min" for time rows, so `reps:600` renders "10 min". Add a lib test.
 
 ---
 
-## Issue 4 — Redundant exercise selection within a session
+## Issue 3 — Split integrity broken  ·  **fix third (M) — highest credibility win**
 
-**Symptom (from capture):** week-3 Tuesday paired **RDL + Single-Leg RDL + Stiff-Leg Deadlift** (three near-identical hinges); week-1 Friday paired **Sumo + Conventional Deadlift**. Movement variety within a session is poor.
+**Symptom (capture):** Friday "Lower-B" → **Flat Barbell Bench Press**; "Lower-B" → **Dumbbell Fly**; *and* "Upper-A/B" → **Curtsy / Forward Lunge** (Legs).
 
-**Root cause:** the existing dedup (`runDuplicatePass`) only catches **identical library ids** across sessions. Three *different* hinge ids are not duplicates, so nothing flags them. There is **no per-session cap on how many lifts share a movement pattern**.
+**Root cause:** `runUpperPatternPass` (`backend/src/plans/generation-chunk-repair.ts:450-495`) fires only on upper titles and only removes Squat/Hinge `movementPatterns` — so it misses lunges on upper days and does nothing for lower days.
 
-**Recommended fix:** add a **per-session movement-pattern cap** to the repair pass (same file/family as Issues 3): e.g., **max 2 lifts per primary `movementPattern` per session** (Hinge, Squat, Horizontal Press, Vertical Press, Row, Pulldown, Lunge). On the 3rd+ of a pattern, swap to the session's **under-represented** pattern via `pickWithEquipmentTiers`. Order matters: run **after** the upper/lower purity passes (so we don't add an upper movement to satisfy variety on a lower day) and **before** the volume budget.
+**Fix — replace it with one bidirectional `runFocusPurityPass`:**
+- Classify each session's focus from its title: `sessionTitleIsUpperEmphasis(spec.title)` (exists) and a new `sessionTitleIsLowerEmphasis` (mirror; "lower", "leg(s)", "quad", "glute", "posterior", "lower-a/b"). Sessions that are clearly neither (full-body, "AI decide", PPL push/pull ambiguity) are **left alone** — they're allowed mixed movements.
+- For an **upper** session, any row whose `library.findOne(id).primaryMuscleGroup === 'Legs'` is swapped (via the existing `pickWithEquipmentTiers`) for an upper movement. For a **lower** session, any row whose `primaryMuscleGroup ∈ {Chest, Shoulders, Back, Arms}` is swapped for a lower movement.
+- **Skip cardio/`time` rows** (the hybrid finisher legitimately sits on any day).
+- **Fallback:** if no valid replacement is found, leave the row rather than empty the slot (same as the current pass).
 
-**Free-Groq-safe:** yes — library swaps only.
+Keyed on `primaryMuscleGroup`, this is strictly more correct than the current pattern-only check and removes ~40 lines of narrow logic.
 
-**Effort:** Medium. **Risk:** Low–Medium (ensure the swap pool isn't exhausted; fall back to keeping the row).
-
----
-
-## Issue 5 — Cardio finisher prescribed as "sets × reps"
-
-**Symptom (from capture):** "Treadmill Incline Walk: **4×12**", "Assault / Air Bike: **5×11**" — with `prescriptionType: "time"` but strength-style `sets`/`reps` still attached. A timed walk shouldn't read as 5 sets of 11.
-
-**Root cause:** `session-enrichment.ts` carefully normalizes the **appended** hybrid cardio finisher to a time bout (`prescriptionType: 'time'`, `reps ≈ minutes`), but **cardio rows the model places in the session body** keep whatever `sets`/`reps` it invented. There's no single normalization that guarantees *every* cardio/time row has a sane shape.
-
-**Recommended fix:** one deterministic normalization at the end of enrichment: for **any** row where `prescriptionType === 'time'` or `primaryMuscleGroup === 'Cardio'`, force **`sets = 1`** and convert the duration into the field the UI reads for time rows (e.g., a single bout of N minutes), and **exclude these rows from working-set counts** (ties into Issue 1's budget and Issue 3's skip rule). This makes the cardio shape correct everywhere, not just for the appended finisher.
-
-**Free-Groq-safe:** yes — pure normalization.
-
-**Effort:** Small. **Risk:** Low. **Bonus:** also verify the frontend display (`frontend/src/lib/exercisePrescription.ts`) renders a `time` row as "~N min", not "S × R".
+**Risk:** Low–Medium. Add invariant tests: "no Legs row on an upper-titled day," "no upper row on a lower-titled day." **Token cost:** none (library swaps).
 
 ---
 
-## Recommended implementation order
+## Issue 1 — Per-session volume too high  ·  **fix fourth (M) — the headline**
 
-Phased so each step is independently testable and low-risk. All server-side; no new Groq calls.
+**Symptom (capture):** flat 4/5/5 sets × 6–7 exercises = **24 / 30 / 30–33 working sets/session**; wk3 Tue had ~7 leg lifts (~30 leg sets in one day).
 
-1. **Issue 2 (S)** — `ceil`→`round` + soften multipliers. *Immediate, removes the worst volume artifact on weeks 2+.*
-2. **Issue 5 (S)** — normalize all cardio/time rows. *Unblocks accurate set-counting for the next steps.*
-3. **Issue 3 (M)** — `runLowerPatternPass`. *Highest user-visible credibility win.*
-4. **Issue 4 (M)** — per-session movement-pattern cap.
-5. **Issue 1 (M)** — per-session + per-muscle volume budget (runs last, after purity + variety, so it trims a clean session).
+**Root cause:** sets (per exercise, `set-rep-schemes.ts` hybrid/advanced = 4–5) and exercise count (`exerciseTargetsForSession`, `workout-generator.service.ts:53-70`; detailed + >55 min → min 7, "7-10") are chosen independently with **no cap on their product**.
 
-Each step: `cd backend && npm run lint && npm test` (the `plans/eval/` harness + golden/invariant specs should stay green — extend them with a "no upper movement on lower day", "≤2 per pattern", and "session set budget" invariant).
+**Fix (phased — source first, clamp as guarantee):**
+1. **Lower the source targets** (cheapest, slightly fewer tokens):
+   - `exerciseTargetsForSession` detailed top tier `7-10`/min 7 → about **`6-8`/min 6**; mid tier stays.
+   - Optionally trim `hybrid`/`advanced` scheme `setsMax` 5 → 4 (the model already picked the low end). The model usually respects the prompt range, so this does most of the work.
+2. **Deterministic per-session total-set clamp** (the guarantee), in the same final enrichment pass as Issue 5: compute working sets (exclude cardio/`time`), and while over an experience-scaled cap (e.g. beginner 14 / intermediate 18 / advanced 22), remove one set from the highest-set **non-anchor** exercise (floor 2). Runs on all weeks (post-merge), so cloned weeks are capped too.
 
----
+**Deferred (phase 2, only if needed):** per-muscle-group cap and accessory-aware trimming. The simple total clamp already bounds the worst case; add granularity later if captures still look lopsided.
 
-## How to verify
+**Heads-up:** changing `exerciseTargetsForSession` will shift `plans/eval/` golden expectations — update the goldens/invariants in the same PR.
 
-1. Re-generate the same hybrid/advanced 4-day plan locally (capture is enabled in `backend/.env`).
-2. Parse the newest capture and check:
-   - **Per-session working sets** ≤ budget (e.g., ≤ 22 advanced) and **per-muscle ≤ ~12**.
-   - **Weeks 2–3** show a realistic bump (≈ +1–2 total sets), not +1 per exercise.
-   - **Zero** upper-only movements on lower-titled days (and vice-versa, already enforced).
-   - **≤ 2** lifts per movement pattern per session.
-   - Every cardio/`time` row has `sets: 1` and a minute-based duration.
-   - `meta.groq.groqCalls` is still ~**2** for a 3-week plan (we did not add LLM cost).
+**Risk:** Low (clamp only ever removes sets). **Token cost:** neutral-to-negative.
 
 ---
 
-## Out of scope (note for later, not blocking launch)
+## Issue 4 — Redundant within-session selection  ·  **optional, not launch-blocking**
 
-- Per-exercise **set differentiation by role** (compound 4 / accessory 3 / isolation 2) — nicer than a flat scheme; larger change to set assignment. The budget pass (Issue 1) approximates the benefit for now.
-- Session **duration estimate vs prescribed volume** reconciliation (the preview's "~15 min" label vs a 20+ set session) — worth auditing `estimateWorkoutMinutes.ts` once volume is capped.
-- Prompt-level nudges (telling the model the per-session set budget and split purity up front) — optional future polish; **not** relied on, because free-tier output isn't guaranteed.
+**Symptom (capture):** wk3 Tue: RDL + Single-Leg RDL + Stiff-Leg DL; wk1 Fri: Sumo + Conventional DL.
+
+**Root cause:** dedup only matches **identical** ids; three *different* hinges aren't duplicates. Notably this clusters in **cloned+deduped** weeks — the cross-week dedup swaps for week-to-week variety without within-session pattern awareness, so it can *create* pattern clusters.
+
+**Recommended (defer):** rather than a brand-new pass, make the existing dedup swap **pattern-aware** — when it picks a replacement, prefer one whose `movementPattern` is under-represented in the target session (cap ~2 per pattern). Fold into the dedup work later. **This is a polish item; ship the first four fixes and a TestFlight build without it.**
+
+---
+
+## Implementation order & placement
+
+1. **Issue 2** — `ceil`→`round` in `tryCloneAndProgress` (`plans.service.ts:613`).
+2. **Issue 5** — cardio/time normalization in `applySessionEnrichment` (always runs, all weeks).
+3. **Issue 3** — replace `runUpperPatternPass` with bidirectional `runFocusPurityPass` in `generation-chunk-repair.ts` (runs per-chunk + merged).
+4. **Issue 1** — lower `exerciseTargetsForSession` tier + per-session total-set clamp (clamp in the same enrichment pass as #2).
+5. **Issue 4** — *optional*, after a build is in testers' hands.
+
+Each step: `cd backend && npm run lint && npm test` (keep `plans/eval/` golden + invariant specs green; extend them with the new invariants). One small commit per step.
+
+## How to verify (re-run the local capture)
+- Per-session working sets ≤ cap (advanced ≤ 22); no week jumps +1/exercise.
+- **Zero** Legs rows on upper-titled days and zero upper rows on lower-titled days.
+- Every cardio/`time` row: `sets:1`, renders as "N min".
+- `meta.groq.groqCalls` still ≈ **2** for a 3-week plan (no added LLM cost).
+
+## Out of scope (post-launch)
+- Per-exercise set differentiation by role (compound 4 / accessory 3 / isolation 2).
+- Session duration-estimate vs prescribed-volume reconciliation (`estimateWorkoutMinutes.ts`).
+- Any prompt-level nudges (kept as non-load-bearing polish only).
