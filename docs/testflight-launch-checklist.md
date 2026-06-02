@@ -1,8 +1,8 @@
 # TestFlight launch checklist
 
-**Last reviewed:** 2026-05-26
+**Last reviewed:** 2026-06-02
 **Owner:** Dylan
-**Status:** Pre-launch — not yet shipped to TestFlight
+**Status:** Pre-launch — **all code/repo items are committed**; remaining work is assets, accounts (Expo/Apple/Sentry), dashboard config (Supabase/Render), and on-device verification. Not yet shipped to TestFlight.
 
 A strict, file-by-file punch list of everything to fix, add, or double-check before pushing this build to TestFlight. Items here are the ones that are **not** already covered by the existing ops docs. For background and "what's been built," see the References section at the bottom.
 
@@ -34,27 +34,29 @@ Work top-to-bottom. Tick items as you go.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| 1.1 Replace placeholder app assets | ⬜ Open | Needs real art; placeholders verified 70 bytes each |
+| 1.1 Replace placeholder app assets | ✅ Done (temporary art) | On-brand gold→orange "J" chip generated 2026-06-02 (icon/splash/adaptive/favicon; real KB sizes; icon is opaque RGB, no alpha). Swap for final art before public App Store. |
 | 1.2 Settle bundle identifier | ☑ Deferred to App Store push | Keep `com.jimapp.app` for internal TestFlight |
 | 1.3 Wire EAS build profiles to env vars | ✅ Done | `env` blocks added to all three profiles; values verified still valid after Supabase restore |
 | 1.4 Link Expo project (`eas init`) | ⬜ Open | Requires your Expo account; commands below |
 | 1.5 Restore production infrastructure | ✅ Done | Supabase unpaused; Render `/api/health` and `/ready` both 200; anon key still valid |
 | 1.6 Set `CORS_ORIGINS` on Render | ✅ Implicitly done | Render booted to 200 — only possible if CORS_ORIGINS is set (otherwise boot throws) |
 
-**Section 1 BLOCKERS remaining for first build:** just **1.1** (real assets) and **1.4** (`eas init`). Everything else in this section is cleared.
+**Section 1 BLOCKERS remaining for first build:** just **1.4** (`eas init`) — which needs only your **free Expo account**, no Apple Developer account. **1.1** now has temporary on-brand art (swap before public launch). Everything else in this section is cleared.
 
 ---
 
-### 1.1 Replace placeholder app assets — **BLOCKER**
+### 1.1 Replace placeholder app assets — **BLOCKER** — ✅ DONE with temporary art (2026-06-02)
 
-All four PNGs in `frontend/assets/` are 70-byte placeholders (verified via `Get-ChildItem`). EAS Build will compile, but Apple's automated icon validation will reject the build.
+The four 70-byte placeholders were replaced with on-brand temporary art generated from the `JimLogo` mark (gold→orange diagonal gradient chip, cream heavy-italic "J", glossy top highlight). These are real, valid PNGs that pass Apple's icon validation — good enough to ship the first internal TestFlight. **Swap for finished art before public App Store submission.**
 
-- [ ] **`frontend/assets/icon.png`** — replace with a real **1024×1024 opaque PNG**. **No alpha channel** — Apple rejects icons with transparency. Expo generates the rest of the iOS icon sizes from this.
-- [ ] **`frontend/assets/splash.png`** — replace with a launch image. Expo recommends **1284×2778** (iPhone 14 Plus / Pro Max native) or larger; smaller dimensions will be scaled. The current `splash.backgroundColor` in `app.json:13` is `#0F1110` (dark) — pick a splash that looks good on that bg, or change the bg.
-- [ ] **`frontend/assets/adaptive-icon.png`** — Android adaptive icon foreground. **1024×1024 PNG**, with the meaningful content inside the **center 66%** (Android masks the outer ring). Current background is `#0F1110` (`app.json:25`).
-- [ ] **`frontend/assets/favicon.png`** — Expo Web favicon. **48×48** (or 32×32) PNG. Lowest priority but ship a real one.
+- [x] **`frontend/assets/icon.png`** — 1024×1024, **opaque RGB (no alpha)** ✅, full-bleed gradient + "J". (~56 KB)
+- [x] **`frontend/assets/splash.png`** — 1284×2778, dark `#0F1110` bg with the centered chip; matches `splash.backgroundColor` in `app.json`. (~41 KB)
+- [x] **`frontend/assets/adaptive-icon.png`** — 1024×1024 transparent foreground, chip centered inside the safe zone (Android masks the outer ring; bg `#0F1110` from `app.json`). (~41 KB)
+- [x] **`frontend/assets/favicon.png`** — 48×48 opaque. (~2 KB)
 
-**Verify after replacing:**
+To regenerate or replace later: drop final 1024×1024 (opaque, no alpha) art at `icon.png` and a launch image at `splash.png`; EAS derives the rest. There is no penalty for iterating on art during internal beta.
+
+**Verify (already passing):**
 ```powershell
 Get-ChildItem 'frontend\assets' -Filter '*.png' | Select-Object Name, Length
 # Each file should now be at least a few KB, not 70 bytes.
@@ -166,7 +168,7 @@ Actions:
 | Item | Status | Notes |
 |------|--------|-------|
 | 2.1 `.env` in `.gitignore` | ✅ Already done | Both files contain the entries; original audit only read `head -20` |
-| 2.2 Sign-out routing bug | ⬜ Open (blocked on 1.5) | Needs a real iOS build to verify |
+| 2.2 Sign-out routing bug | ✅ Fixed + committed (`b1c52e9`) | Root cause: iOS can't present an Alert over a dismissing Modal; fix presents confirm from `Modal onDismiss`. Only on-device verify remains. |
 | 2.3 Supabase password-reset deep link | ⬜ Open (blocked on 1.5) | Supabase dashboard — bundled with the Supabase recreation in 1.5 |
 | 2.4 Supabase email-verification posture | ⬜ Open (blocked on 1.5) | Supabase dashboard decision |
 | 2.5 Sentry DSN | ⬜ Open | You said you'll create the project; then I'll add the DSN to `eas.json` |
@@ -190,12 +192,12 @@ Verified 2026-05-26 by reading both files in full:
 
 The initial audit reported this as missing because it only inspected the first 20 lines of each file. False alarm; nothing to change.
 
-### 2.2 Verify the sign-out routing bug — **HIGH**
+### 2.2 Verify the sign-out routing bug — **HIGH** — ✅ FIXED + COMMITTED (`b1c52e9`), device-verify only
 
-Memory tracks an unresolved sign-out routing bug on `HomeScreen`; commit `f4b4367` was the latest attempt. Expo Go and TestFlight builds can behave differently around navigation reset on `signOut()`, so the issue may surface differently (or finally clearly) in a real native build.
+**Root cause found & fixed (2026-06-01, committed `b1c52e9`):** the HomeScreen profile-menu sign-out did nothing on iOS because `showConfirmDialog` is the OS-level `Alert.alert`, and iOS silently drops an Alert presented while another modal (the menu `<Modal>`) is still dismissing. The old `setTimeout(350ms)` band-aid was too short on some devices. Fix: on iOS, set a `pendingSignOutConfirm` flag + `closeMenu()`, then present the confirm from the menu `<Modal onDismiss={…}>` (fires after full dismissal); Android/web present immediately. `AuthContext.signOut` and the `App.tsx` AuthStack swap were always correct.
 
-- [ ] On a real iOS TestFlight build, sign in → open Home → sign out from the profile menu. App must navigate cleanly back to the Login screen with no white flash, no stuck modal, and no auth-restored-on-refresh behavior.
-- [ ] Files to revisit: `frontend/src/screens/HomeScreen.tsx`, `frontend/src/contexts/AuthContext.tsx`.
+- [ ] **Device verify only:** on a real iOS TestFlight build, sign in → open Home → sign out from the profile menu. Confirm dialog must appear, then the app navigates cleanly back to Login with no white flash, no stuck modal, no auth-restored-on-refresh. (The fix is logically sound and passes tsc/tests, but the original bug was device-specific, so confirm on hardware.)
+- Files: `frontend/src/screens/HomeScreen.tsx`, `frontend/src/lib/confirmAlert.ts`, `frontend/src/contexts/AuthContext.tsx`.
 
 ### 2.3 Configure password-reset deep link in Supabase — **HIGH**
 
@@ -523,7 +525,7 @@ Acceptable risk for trusted friends; **not** acceptable for public launch.
 
 Things I (Claude) already track in auto-memory that intersect with launch:
 
-- **Sign-out routing bug** (`project_signout_bug.md`) — 3 fix attempts, `f4b4367` latest. Verify on a real device build per 2.2.
+- **Sign-out routing bug** (`project_signout_bug.md`) — root cause found & fixed, committed `b1c52e9`. Device-verify only, per 2.2.
 - **Codebase audit in progress** (`project_audit_progress.md`) — 10 files reviewed; `GeneratePlanScreen.tsx` next. Not blocking but a known unfinished sweep that may turn up additional items for this checklist.
 
 ---
