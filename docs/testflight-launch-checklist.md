@@ -2,7 +2,16 @@
 
 **Last reviewed:** 2026-06-02
 **Owner:** Dylan
-**Status:** Pre-launch — **all code/repo items are committed**; remaining work is assets, accounts (Expo/Apple/Sentry), dashboard config (Supabase/Render), and on-device verification. Not yet shipped to TestFlight.
+**Status:** Pre-launch — **all Apple-free work is complete** (Section-1 blockers cleared, dashboards configured, Expo project `@deeish1/jim-app` linked, code committed & green). Not yet shipped to TestFlight.
+
+> ## ▶ NEXT STEP → Buy the Apple Developer Program membership ($99/yr)
+>
+> As of **2026-06-02**, every task that does **not** require Apple is done. The single remaining gate before the first TestFlight build is the **Apple Developer Program membership** — enroll at **developer.apple.com/programs**. Everything after it is Apple-gated:
+> 1. `eas build --profile preview --platform ios` (EAS will prompt for your Apple login to create signing certs) + `eas device:create` to register your iPhone.
+> 2. Install on device → run the **Section 4** device checklist (sign-out 2.2, cold-install onboarding 3.5, plan generation, password-reset deep link, account deletion 3.8).
+> 3. `eas submit` → TestFlight.
+>
+> _(One more pre-purchase task to finish first — see below / ask Claude.)_
 
 A strict, file-by-file punch list of everything to fix, add, or double-check before pushing this build to TestFlight. Items here are the ones that are **not** already covered by the existing ops docs. For background and "what's been built," see the References section at the bottom.
 
