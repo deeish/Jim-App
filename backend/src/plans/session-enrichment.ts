@@ -56,7 +56,7 @@ const ISOLATION_NAME =
   /\b(fly|flies|flyes|cable\s+fly|pec\s+deck|curl|curls|\bcable\s+curl|lateral\s+raise|front\s+raise|skull|push[-\s]?down|kickback|crossover|pullover|shrug|wrist|rear\s+delt|triceps\s+extension|overhead\s+extension)\b/i;
 
 /** Squat / hinge class movements that belong on lower days, not Upper/Push/Pull focus. */
-const LOWER_PATTERN_NAME =
+export const LOWER_PATTERN_NAME =
   /\b(deadlift|sumo|conventional\b|\brdl\b|romanian|good\s*morning|squat|leg\s+press|hack\s+squat|goblet\s+squat|front\s+squat|lunge|split\s+squat|hip\s+thrust|glute\s+bridge)\b/i;
 
 /** Strength sessions that should include at least one pull pattern (upper / pull / back emphasis). */
@@ -101,6 +101,25 @@ export function sessionTitleIsUpperEmphasis(
     return false;
   }
   return /\bupper\b|\bpush\b|\bpull\b|\bchest\b|\bback\b|\bshoulders?\b|\barms\b/.test(
+    t,
+  );
+}
+
+/**
+ * Lower-emphasis session titles (mirror of {@link sessionTitleIsUpperEmphasis}).
+ * Excludes upper days and ambiguous full-body so the purity pass only acts on
+ * titles that clearly own the lower body.
+ */
+export function sessionTitleIsLowerEmphasis(
+  title: string | undefined,
+): boolean {
+  if (!title) return false;
+  const t = title.toLowerCase();
+  if (/\b(cardio|recovery|run|conditioning)\b/.test(t)) return false;
+  if (/\bfull\s+body\b/.test(t)) return false;
+  // An explicit upper marker (incl. PPL push/pull) wins — never treat as lower.
+  if (/\bupper\b|\bpush\b|\bpull\b/.test(t)) return false;
+  return /\blower\b|\blegs?\b|leg\s+day|\bquad\b|\bhamstring\b|\bglute\b|\bposterior\b|\bcalf\b/.test(
     t,
   );
 }

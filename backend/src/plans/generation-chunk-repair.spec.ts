@@ -32,6 +32,25 @@ function mockLibrary(): ChunkRepairExerciseLibrary {
         movementPatterns: ['Pull'],
         primaryMuscleGroup: 'Back',
       },
+      {
+        id: 'squat-leg',
+        name: 'Back Squat',
+        movementPatterns: ['Squat'],
+        primaryMuscleGroup: 'Legs',
+      },
+      {
+        // Filed under Back (catalog quirk) but a legitimate lower-day hinge.
+        id: 'dl-back',
+        name: 'Conventional Deadlift',
+        movementPatterns: ['Hinge', 'Pull'],
+        primaryMuscleGroup: 'Back',
+      },
+      {
+        id: 'lunge-leg',
+        name: 'Walking Lunge',
+        movementPatterns: ['Lunge'],
+        primaryMuscleGroup: 'Legs',
+      },
     ].map((e) => [e.id, e]),
   );
 
@@ -142,8 +161,93 @@ describe('repairChunkGeneratedSessions', () => {
     });
 
     expect(upperLowerPatternRepairs).toBe(1);
-    expect(notes.some((n) => /upper-focus/i.test(n))).toBe(true);
+    expect(notes.some((n) => /focus/i.test(n))).toBe(true);
     expect(out[0]!.exercises[0]!.exerciseId).toBe('upper-safe');
+  });
+
+  it('removes an upper movement from a lower-focus day but keeps a deadlift', () => {
+    const specs: GenerateSessionsDto['sessions'] = [
+      {
+        weekIndex: 0,
+        weekday: 'Monday',
+        type: 'strength',
+        title: 'Lower',
+        durationMin: 45,
+        durationMax: 60,
+        isHardDay: false,
+      },
+    ];
+    const sessions: GeneratedSession[] = [
+      {
+        weekIndex: 0,
+        weekday: 'Monday',
+        name: 'Lower',
+        exercises: [
+          // Chest press on a leg day → must be swapped for a lower movement.
+          { name: 'Bench Press', sets: 3, reps: 8, exerciseId: 'dup-a' },
+          // Deadlift filed under Back → must be KEPT (it is lower work).
+          {
+            name: 'Conventional Deadlift',
+            sets: 3,
+            reps: 5,
+            exerciseId: 'dl-back',
+          },
+        ],
+      },
+    ];
+
+    const { sessions: out, upperLowerPatternRepairs } =
+      repairChunkGeneratedSessions({
+        sessions,
+        specs,
+        library: mockLibrary(),
+        equipment: undefined,
+      });
+
+    expect(upperLowerPatternRepairs).toBe(1);
+    // Bench swapped to a lower movement…
+    expect(['squat-leg', 'hinge-bad', 'lunge-leg']).toContain(
+      out[0]!.exercises[0]!.exerciseId,
+    );
+    // …deadlift untouched.
+    expect(out[0]!.exercises[1]!.exerciseId).toBe('dl-back');
+  });
+
+  it('removes a lunge (Legs) from an upper-focus day — pattern the old pass missed', () => {
+    const specs: GenerateSessionsDto['sessions'] = [
+      {
+        weekIndex: 0,
+        weekday: 'Monday',
+        type: 'strength',
+        title: 'Upper',
+        durationMin: 45,
+        durationMax: 60,
+        isHardDay: false,
+      },
+    ];
+    const sessions: GeneratedSession[] = [
+      {
+        weekIndex: 0,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          { name: 'Walking Lunge', sets: 3, reps: 10, exerciseId: 'lunge-leg' },
+        ],
+      },
+    ];
+
+    const { sessions: out, upperLowerPatternRepairs } =
+      repairChunkGeneratedSessions({
+        sessions,
+        specs,
+        library: mockLibrary(),
+        equipment: undefined,
+      });
+
+    expect(upperLowerPatternRepairs).toBe(1);
+    expect(['dup-a', 'alt-push', 'upper-safe']).toContain(
+      out[0]!.exercises[0]!.exerciseId,
+    );
   });
 
   it('uses catalog scavenge when focus pools return no candidates', () => {

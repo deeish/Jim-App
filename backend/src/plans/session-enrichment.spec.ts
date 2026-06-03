@@ -2,6 +2,7 @@ import {
   enrichGeneratedSession,
   enrichGeneratedSessionsInChunkOrder,
   inferMainLiftName,
+  sessionTitleIsLowerEmphasis,
   sessionTitleIsUpperEmphasis,
   sessionTitleNeedsSquatHingeBalance,
   shouldAppendHybridCardioFinisher,
@@ -17,6 +18,28 @@ describe('sessionTitleIsUpperEmphasis', () => {
   it('is false for legs-only and full body', () => {
     expect(sessionTitleIsUpperEmphasis('Legs')).toBe(false);
     expect(sessionTitleIsUpperEmphasis('Full Body')).toBe(false);
+  });
+});
+
+describe('sessionTitleIsLowerEmphasis', () => {
+  it('is true for Lower, Lower 2, Legs and Leg Day titles', () => {
+    expect(sessionTitleIsLowerEmphasis('Lower')).toBe(true);
+    expect(sessionTitleIsLowerEmphasis('Lower 2')).toBe(true);
+    expect(sessionTitleIsLowerEmphasis('Legs')).toBe(true);
+    expect(sessionTitleIsLowerEmphasis('Leg Day')).toBe(true);
+  });
+
+  it('is false for upper, push/pull, full body and cardio', () => {
+    expect(sessionTitleIsLowerEmphasis('Upper')).toBe(false);
+    expect(sessionTitleIsLowerEmphasis('Push')).toBe(false);
+    expect(sessionTitleIsLowerEmphasis('Pull')).toBe(false);
+    expect(sessionTitleIsLowerEmphasis('Full Body')).toBe(false);
+    expect(sessionTitleIsLowerEmphasis('Cardio')).toBe(false);
+  });
+
+  it('is mutually exclusive with upper emphasis on Upper/Lower titles', () => {
+    expect(sessionTitleIsUpperEmphasis('Lower')).toBe(false);
+    expect(sessionTitleIsLowerEmphasis('Upper')).toBe(false);
   });
 });
 

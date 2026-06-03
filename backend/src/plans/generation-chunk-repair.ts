@@ -1,6 +1,8 @@
 import type { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import {
+  LOWER_PATTERN_NAME,
   nameMatchesAvoidList,
+  sessionTitleIsLowerEmphasis,
   sessionTitleIsUpperEmphasis,
   type GeneratedSession,
   type GeneratedSessionExercise,
@@ -447,7 +449,68 @@ function runBelowMinimumPass(
   return repairs;
 }
 
-function runUpperPatternPass(
+/** Upper-body primary muscle groups (Back handled separately — it also holds hinges). */
+const UPPER_BODY_GROUPS = new Set(['Chest', 'Shoulders', 'Arms']);
+
+/**
+ * A lower-body movement: a Legs row, a squat/hinge movement pattern, or a name
+ * that reads as lower work (lunge, deadlift, RDL, hip thrust…). The name regex
+ * is the safety net for the catalog's inconsistent tagging — conventional/sumo/
+ * trap deadlifts are filed under `Back`, RDL/good-morning under `Legs`.
+ */
+function isLowerMovement(
+  name: string | undefined,
+  meta: ChunkRepairExerciseMeta | undefined,
+): boolean {
+  return (
+    meta?.primaryMuscleGroup === 'Legs' ||
+    patternsIncludeSquatHinge(meta?.movementPatterns) ||
+    LOWER_PATTERN_NAME.test(name ?? '')
+  );
+}
+
+/**
+ * An upper-body movement that does not belong on a leg day: Chest/Shoulders/Arms,
+ * or a `Back` row that is NOT a hinge/squat (a pulldown or horizontal row — but a
+ * deadlift/good-morning, also filed under Back, stays on lower days).
+ */
+function isUpperMovement(
+  name: string | undefined,
+  meta: ChunkRepairExerciseMeta | undefined,
+): boolean {
+  const group = meta?.primaryMuscleGroup;
+  if (group && UPPER_BODY_GROUPS.has(group)) return true;
+  if (group === 'Back') return !isLowerMovement(name, meta);
+  return false;
+}
+
+/** Leg-biased candidate pool so lower-day swaps don't draw upper movements. */
+function lowerFocusTries(
+  spec: GenerateSessionsDto['sessions'][number],
+): string[] {
+  const primary = (spec.title ?? spec.type ?? 'Lower').trim() || 'Lower';
+  return [
+    ...new Set([
+      primary,
+      'legs',
+      'lower',
+      'lower body',
+      'quad',
+      'hamstring',
+      'glute',
+      'calf',
+    ]),
+  ];
+}
+
+/**
+ * Bidirectional split-purity pass: swap movements that fight the session's
+ * upper/lower title. On Upper/Push/Pull days remove lower movements (legs,
+ * squats, hinges, lunges); on Lower/Legs days remove upper movements (chest,
+ * shoulders, arms, upper-back pulls) while keeping deadlifts/RDLs. Sessions whose
+ * title is neither (full-body, AI-decide) are left untouched, as are cardio rows.
+ */
+function runFocusPurityPass(
   sessions: GeneratedSession[],
   specs: GenerateSessionsDto['sessions'],
   library: ChunkRepairExerciseLibrary,
@@ -459,9 +522,16 @@ function runUpperPatternPass(
 
   for (let si = 0; si < sessions.length; si++) {
     const spec = specs[si]!;
-    if (spec.type !== 'strength' || !sessionTitleIsUpperEmphasis(spec.title)) {
-      continue;
-    }
+    if (spec.type !== 'strength') continue;
+    const focus: 'upper' | 'lower' | undefined = sessionTitleIsUpperEmphasis(
+      spec.title,
+    )
+      ? 'upper'
+      : sessionTitleIsLowerEmphasis(spec.title)
+        ? 'lower'
+        : undefined;
+    if (!focus) continue;
+
     const session = sessions[si]!;
     const exercises = session.exercises ?? [];
 
@@ -470,17 +540,32 @@ function runUpperPatternPass(
       const id = row.exerciseId?.trim();
       if (!id) continue;
       const meta = library.findOne(id);
-      if (!patternsIncludeSquatHinge(meta?.movementPatterns)) continue;
+      // A legitimate cardio finisher can sit on any day — never swap it.
+      if (meta?.primaryMuscleGroup === 'Cardio') continue;
+
+      const misplaced =
+        focus === 'upper'
+          ? isLowerMovement(row.name, meta)
+          : isUpperMovement(row.name, meta);
+      if (!misplaced) continue;
 
       const excludeIds = collectExerciseIdsExcept(sessions, si, ei);
       const avoidPhrases = avoidPhrasesForSpec(avoidConstraintsGlobal, spec);
+      const focusTries =
+        focus === 'upper' ? focusTriesForSpec(spec) : lowerFocusTries(spec);
+      const predicate =
+        focus === 'upper'
+          ? (c: ChunkRepairExerciseMeta) =>
+              c.primaryMuscleGroup !== 'Cardio' && !isLowerMovement(c.name, c)
+          : (c: ChunkRepairExerciseMeta) =>
+              c.primaryMuscleGroup !== 'Cardio' && isLowerMovement(c.name, c);
       const pick = pickWithEquipmentTiers(
         library,
-        focusTriesForSpec(spec),
+        focusTries,
         equipment,
         excludeIds,
         meta,
-        (c) => !patternsIncludeSquatHinge(c.movementPatterns),
+        predicate,
         tierFlags,
         avoidPhrases,
       );
@@ -496,8 +581,8 @@ function runUpperPatternPass(
 
 /**
  * Deterministic post-pass on a generated chunk: dedupe library ids across the chunk (in session order),
- * remove Squat/Hinge library patterns on upper-emphasis strength titles, then backfill rows when the
- * model returned fewer exercises than {@link exerciseTargetsForSession} requires.
+ * enforce upper/lower split purity (swap movements that fight the day's title, in either direction),
+ * then backfill rows when the model returned fewer exercises than {@link exerciseTargetsForSession} requires.
  */
 export function repairChunkGeneratedSessions(args: {
   sessions: GeneratedSession[];
@@ -537,7 +622,7 @@ export function repairChunkGeneratedSessions(args: {
     tierFlags,
     avoidConstraintsGlobal,
   );
-  const upperLowerPatternRepairs = runUpperPatternPass(
+  const upperLowerPatternRepairs = runFocusPurityPass(
     sessions,
     specs,
     library,
@@ -613,7 +698,7 @@ export function repairChunkGeneratedSessions(args: {
   }
   if (upperLowerPatternRepairs > 0) {
     notes.push(
-      'Swapped squat/hinge-pattern lifts on upper-focus days so titles and movement patterns align.',
+      'Swapped exercises that did not match the day’s upper/lower focus so each session matches its title.',
     );
   }
   if (belowMinRepairs > 0) {
