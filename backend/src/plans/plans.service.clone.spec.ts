@@ -57,7 +57,7 @@ const clone = (PlansService as any).tryCloneAndProgress as (
 
 describe('PlansService.tryCloneAndProgress', () => {
   describe('happy path — build progression', () => {
-    it('clones session with ceil sets and decremented reps', () => {
+    it('clones session with rounded sets and decremented reps', () => {
       const source = makeSession('push', 3, 10);
       const map = new Map([['push', source]]);
       const result = clone([makeSpec('push')], map, [
@@ -66,8 +66,8 @@ describe('PlansService.tryCloneAndProgress', () => {
 
       expect(result).not.toBeNull();
       expect(result).toHaveLength(1);
-      // ceil(3 * 1.08) = ceil(3.24) = 4
-      expect(result![0].exercises[0].sets).toBe(4);
+      // round(3 * 1.08) = round(3.24) = 3 — a +8% week must not add a whole set
+      expect(result![0].exercises[0].sets).toBe(3);
       // 10 + (-1) = 9
       expect(result![0].exercises[0].reps).toBe(9);
     });
@@ -96,15 +96,16 @@ describe('PlansService.tryCloneAndProgress', () => {
   });
 
   describe('happy path — deload week', () => {
-    it('clones session with floor sets and incremented reps', () => {
+    it('clones session with rounded sets and incremented reps', () => {
       const source = makeSession('push', 4, 8);
       const map = new Map([['push', source]]);
       const result = clone([makeSpec('push', 4)], map, [
         makeProgression(4, 0.7, 2),
       ]);
 
-      // floor(4 * 0.7) = floor(2.8) = 2
-      expect(result![0].exercises[0].sets).toBe(2);
+      // round(4 * 0.7) = round(2.8) = 3 — tracks the 0.7× intent more faithfully
+      // than floor (which over-cut to 2)
+      expect(result![0].exercises[0].sets).toBe(3);
       // 8 + 2 = 10
       expect(result![0].exercises[0].reps).toBe(10);
     });
@@ -151,7 +152,7 @@ describe('PlansService.tryCloneAndProgress', () => {
     it('clamps sets to minimum 1 when volumeMultiplier is very small', () => {
       const source = makeSession('push', 1, 10);
       const map = new Map([['push', source]]);
-      // floor(1 * 0.3) = 0 → clamped to 1
+      // round(1 * 0.3) = 0 → clamped to 1
       const result = clone([makeSpec('push')], map, [
         makeProgression(2, 0.3, 0),
       ]);

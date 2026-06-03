@@ -607,12 +607,10 @@ export class PlansService {
         weekday: spec.weekday,
         exercises: source.exercises.map((ex) => ({
           ...ex,
-          sets: Math.max(
-            1,
-            prog.volumeMultiplier >= 1
-              ? Math.ceil(ex.sets * prog.volumeMultiplier)
-              : Math.floor(ex.sets * prog.volumeMultiplier),
-          ),
+          // `round` (not `ceil`) so a +8% week doesn't add a whole set to every
+          // exercise (ceil(4×1.08)=5 was a silent +25%). Short programs then
+          // progress via intensity/reps until the multiplier genuinely rounds up.
+          sets: Math.max(1, Math.round(ex.sets * prog.volumeMultiplier)),
           reps: Math.max(1, Math.min(100, ex.reps + prog.repModifier)),
         })),
       });
