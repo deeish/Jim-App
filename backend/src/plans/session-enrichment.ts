@@ -9,7 +9,10 @@ import {
   goalWantsStrengthCardioFinisher,
 } from '../workouts/workout-generator.service';
 import { getAcceptedAnchorIdsForFocus } from '../data/anchor-exercises';
-import { getSetRepGuidelines } from '../data/set-rep-schemes';
+import {
+  getSetRepGuidelines,
+  normalizeDifficulty,
+} from '../data/set-rep-schemes';
 
 /** One exercise row as returned by plan / workout generation (before save). */
 export type GeneratedSessionExercise = {
@@ -348,6 +351,102 @@ function moveCardioExercisesLast(
     else non.push(e);
   }
   exercises.splice(0, exercises.length, ...non, ...cardio);
+}
+
+/**
+ * Cardio-machine modality names — belt-and-suspenders for a model-placed cardio
+ * row whose `exerciseId` doesn't resolve to a `Cardio` library row. Mirrors the
+ * frontend `CARDIO_MODALITY_NAME` (`exercisePrescription.ts`). Deliberately does
+ * NOT match carries/holds (farmer/plank/hang) — those are strength, not cardio.
+ */
+const CARDIO_MODALITY_NAME =
+  /\b(?:treadmill|elliptical|(?:stationary\s+)?bike|spin(?:\s+bike)?|air\s*dyne|air\s*bike|rowing|rower|(?:ski|assault)\s*erg|ski\s*erg|ergometer|versa\s*climber|stair\s*(?:master|climber)|step\s*mill|walking\s+pad)\b/i;
+
+/**
+ * A cardio row is one whose library `primaryMuscleGroup === 'Cardio'` (the
+ * strongest signal — covers treadmill/bike/rower plus conditioning carries the
+ * catalog files under Cardio) or, failing a resolvable id, whose name is a
+ * cardio machine. Keyed on Cardio — NOT on `prescriptionType === 'time'`, which
+ * legitimately covers planks/hangs/loaded carries we must leave alone.
+ */
+export function isCardioRow(
+  e: GeneratedSessionExercise,
+  findOne: (id: string) => { primaryMuscleGroup?: string } | undefined,
+): boolean {
+  const id = e.exerciseId?.trim();
+  const group =
+    (id ? findOne(id)?.primaryMuscleGroup : undefined) ?? e.primaryMuscleGroup;
+  if ((group ?? '').toLowerCase() === 'cardio') return true;
+  return CARDIO_MODALITY_NAME.test(e.name ?? '');
+}
+
+/**
+ * Force every cardio row to the canonical time shape (`sets:1`, `reps:600`,
+ * `prescriptionType:'time'`) so it renders "10 min" instead of an invented
+ * "5 × 11". The model sometimes places its own cardio row with strength-style
+ * sets/reps, which skips the clean appended finisher. A `reps` value under 60 is
+ * a rep count, not seconds, so snap it to a 10-min bout; genuine durations
+ * (>= 60s) are preserved.
+ */
+function normalizeCardioRowShape(
+  exercises: GeneratedSessionExercise[],
+  findOne: (id: string) => { primaryMuscleGroup?: string } | undefined,
+): void {
+  for (const e of exercises) {
+    if (!isCardioRow(e, findOne)) continue;
+    e.sets = 1;
+    if (e.reps == null || e.reps < 60) e.reps = 600;
+    e.prescriptionType = 'time';
+  }
+}
+
+/** Per-session working-set ceiling, scaled to training experience. */
+function workingSetCapForDifficulty(difficulty: string | undefined): number {
+  switch (normalizeDifficulty(difficulty)) {
+    case 'beginner':
+      return 14;
+    case 'advanced':
+      return 22;
+    default:
+      return 18;
+  }
+}
+
+/**
+ * Guarantee a sane per-session working-set total. The model + per-exercise
+ * scheme are chosen independently, so a detailed advanced session can stack
+ * 6–7 lifts × 5 sets = 30+ sets — too much to finish or recover from. While the
+ * strength total is over the experience-scaled cap, shave one set off the
+ * highest-set accessory (never the slot-0 anchor, never below 2, never cardio).
+ * Only ever removes sets, so it can't inflate a reasonable session.
+ */
+function clampSessionWorkingSets(
+  exercises: GeneratedSessionExercise[],
+  findOne: (id: string) => { primaryMuscleGroup?: string } | undefined,
+  difficulty: string | undefined,
+): void {
+  const cap = workingSetCapForDifficulty(difficulty);
+  const isStrength = (e: GeneratedSessionExercise) => !isCardioRow(e, findOne);
+  const total = () =>
+    exercises.reduce(
+      (sum, e) => (isStrength(e) ? sum + (e.sets ?? 0) : sum),
+      0,
+    );
+
+  let guard = 0;
+  while (total() > cap && guard < 200) {
+    guard++;
+    // Skip slot 0 (the anchor / heaviest main lift) and cardio; only trim rows
+    // still above the floor of 2 sets.
+    let target: GeneratedSessionExercise | undefined;
+    for (let i = 1; i < exercises.length; i++) {
+      const e = exercises[i]!;
+      if (!isStrength(e) || (e.sets ?? 0) <= 2) continue;
+      if (!target || (e.sets ?? 0) > (target.sets ?? 0)) target = e;
+    }
+    if (!target) break;
+    target.sets -= 1;
+  }
 }
 
 function pickLibraryCardioFinisherExercise(
@@ -946,6 +1045,8 @@ export async function enrichGeneratedSession(
     coachNotes,
   });
   moveCardioExercisesLast(exercises, findMeta);
+  normalizeCardioRowShape(exercises, findMeta);
+  clampSessionWorkingSets(exercises, findMeta, generationPrefs?.difficulty);
 
   stampRestSeconds(exercises, findMeta, generationPrefs);
 

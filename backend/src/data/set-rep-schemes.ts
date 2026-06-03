@@ -177,11 +177,10 @@ const SCHEMES: Record<GoalKey, Record<DifficultyKey, SetRepGuidelines>> = {
     },
     advanced: {
       setsMin: 4,
-      setsMax: 5,
+      setsMax: 4,
       repsMin: 5,
       repsMax: 12,
-      description:
-        '4-5 sets of 5-12 reps. Compound focus with accessory volume.',
+      description: '4 sets of 5-12 reps. Compound focus with accessory volume.',
       restSeconds: 90,
     },
   },

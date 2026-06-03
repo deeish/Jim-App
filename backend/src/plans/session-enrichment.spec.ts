@@ -97,6 +97,187 @@ describe('sessionTitleNeedsSquatHingeBalance', () => {
   });
 });
 
+describe('enrichGeneratedSession cardio row normalization', () => {
+  const cardioService = {
+    findOne: (id: string) => {
+      if (id === 'tm1')
+        return {
+          id: 'tm1',
+          name: 'Treadmill Incline Walk',
+          primaryMuscleGroup: 'Cardio',
+          movementPatterns: [],
+        };
+      if (id === 'bench1')
+        return {
+          id: 'bench1',
+          name: 'Bench Press',
+          primaryMuscleGroup: 'Chest',
+          movementPatterns: ['Push'],
+          prescriptionType: 'reps' as const,
+        };
+      if (id === 'plank1')
+        return {
+          id: 'plank1',
+          name: 'Forearm Plank',
+          primaryMuscleGroup: 'Core',
+          movementPatterns: [],
+          prescriptionType: 'time' as const,
+        };
+      return undefined;
+    },
+    getCandidatesForGenerator: () => [],
+  };
+
+  it('forces a model-placed cardio row to 1 × 600s (renders "10 min")', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Bench Press', sets: 4, reps: 8, exerciseId: 'bench1' },
+        {
+          name: 'Treadmill Incline Walk',
+          sets: 5,
+          reps: 11,
+          exerciseId: 'tm1',
+        },
+      ],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Upper' },
+      cardioService as any,
+      [],
+      [],
+    );
+
+    const cardio = out.exercises.find(
+      (e) => e.name === 'Treadmill Incline Walk',
+    )!;
+    expect(cardio.sets).toBe(1);
+    expect(cardio.reps).toBe(600);
+    expect(cardio.prescriptionType).toBe('time');
+    // strength row left exactly as the model wrote it
+    const bench = out.exercises.find((e) => e.name === 'Bench Press')!;
+    expect(bench.sets).toBe(4);
+    expect(bench.reps).toBe(8);
+  });
+
+  it('catches a cardio machine by name when its id does not resolve', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Bench Press', sets: 4, reps: 8, exerciseId: 'bench1' },
+        { name: 'Assault / Air Bike', sets: 5, reps: 12 },
+      ],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Upper' },
+      cardioService as any,
+      [],
+      [],
+    );
+
+    const bike = out.exercises.find((e) => e.name === 'Assault / Air Bike')!;
+    expect(bike.sets).toBe(1);
+    expect(bike.reps).toBe(600);
+    expect(bike.prescriptionType).toBe('time');
+  });
+
+  it('clamps a high-volume advanced session to the working-set cap, sparing the anchor and cardio', async () => {
+    // 6 strength lifts × 5 sets = 30 working sets; advanced cap is 22.
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Lower',
+      exercises: [
+        { name: 'Back Squat', sets: 5, reps: 6, exerciseId: 'sq1' },
+        { name: 'Romanian Deadlift', sets: 5, reps: 8, exerciseId: 'rdl1' },
+        { name: 'Leg Press', sets: 5, reps: 10, exerciseId: 'lp1' },
+        { name: 'Walking Lunge', sets: 5, reps: 10, exerciseId: 'lun1' },
+        { name: 'Leg Extension', sets: 5, reps: 12, exerciseId: 'ext1' },
+        { name: 'Standing Calf Raise', sets: 5, reps: 15, exerciseId: 'calf1' },
+        { name: 'Treadmill Jog', sets: 5, reps: 11, exerciseId: 'tm1' },
+      ],
+    };
+
+    const legService = {
+      findOne: (id: string) => {
+        if (id === 'tm1')
+          return { id, name: 'Treadmill Jog', primaryMuscleGroup: 'Cardio' };
+        const names: Record<string, string> = {
+          sq1: 'Back Squat',
+          rdl1: 'Romanian Deadlift',
+          lp1: 'Leg Press',
+          lun1: 'Walking Lunge',
+          ext1: 'Leg Extension',
+          calf1: 'Standing Calf Raise',
+        };
+        return names[id]
+          ? {
+              id,
+              name: names[id]!,
+              primaryMuscleGroup: 'Legs',
+              movementPatterns: ['Squat'],
+            }
+          : undefined;
+      },
+      getCandidatesForGenerator: () => [],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Lower' },
+      legService as any,
+      [],
+      [],
+      { difficulty: 'advanced', durationMinutes: 70, detailLevel: 'detailed' },
+    );
+
+    const strength = out.exercises.filter((e) => e.name !== 'Treadmill Jog');
+    const totalSets = strength.reduce((s, e) => s + (e.sets ?? 0), 0);
+    expect(totalSets).toBeLessThanOrEqual(22);
+    // anchor (slot 0) keeps its full 5 sets
+    expect(out.exercises[0]!.sets).toBe(5);
+    // no row trimmed below the floor of 2
+    expect(strength.every((e) => (e.sets ?? 0) >= 2)).toBe(true);
+    // cardio finisher untouched by the clamp (already normalized to 1 set)
+    const cardio = out.exercises.find((e) => e.name === 'Treadmill Jog')!;
+    expect(cardio.sets).toBe(1);
+  });
+
+  it('leaves an isometric hold (time, but NOT cardio) untouched', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Bench Press', sets: 4, reps: 8, exerciseId: 'bench1' },
+        { name: 'Forearm Plank', sets: 3, reps: 45, exerciseId: 'plank1' },
+      ],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Upper' },
+      cardioService as any,
+      [],
+      [],
+    );
+
+    const plank = out.exercises.find((e) => e.name === 'Forearm Plank')!;
+    // regression guard: a 3 × 45 sec plank must not become 1 × 10 min
+    expect(plank.sets).toBe(3);
+    expect(plank.reps).toBe(45);
+    expect(plank.prescriptionType).toBe('time');
+  });
+});
+
 describe('enrichGeneratedSession prescriptionType', () => {
   it('uses library prescriptionType when exerciseId resolves', async () => {
     const session: GeneratedSession = {
