@@ -6,8 +6,45 @@ import {
   sessionTitleIsUpperEmphasis,
   sessionTitleNeedsSquatHingeBalance,
   shouldAppendHybridCardioFinisher,
+  workingSetCap,
   type GeneratedSession,
 } from './session-enrichment';
+
+describe('workingSetCap', () => {
+  it('caps by experience when the session is long enough to fit it', () => {
+    expect(
+      workingSetCap({
+        difficulty: 'advanced',
+        goal: 'hybrid',
+        durationMinutes: 90,
+      }),
+    ).toBe(22);
+  });
+
+  it('caps by duration for a short/medium session', () => {
+    // 45-min advanced strength (~150s rest) fits ~15 working sets, not 22.
+    expect(
+      workingSetCap({
+        difficulty: 'advanced',
+        goal: 'strength',
+        durationMinutes: 45,
+      }),
+    ).toBe(15);
+    // Shorter hybrid rest fits more in the same 45 minutes.
+    expect(
+      workingSetCap({
+        difficulty: 'advanced',
+        goal: 'hybrid',
+        durationMinutes: 45,
+      }),
+    ).toBe(19);
+  });
+
+  it('falls back to the experience cap when duration is unknown', () => {
+    expect(workingSetCap({ difficulty: 'beginner' })).toBe(14);
+    expect(workingSetCap(undefined)).toBe(18);
+  });
+});
 
 describe('sessionTitleIsUpperEmphasis', () => {
   it('is true for Upper 2 and Push titles', () => {

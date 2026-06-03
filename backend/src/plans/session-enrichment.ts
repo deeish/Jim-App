@@ -400,16 +400,37 @@ function normalizeCardioRowShape(
   }
 }
 
-/** Per-session working-set ceiling, scaled to training experience. */
-function workingSetCapForDifficulty(difficulty: string | undefined): number {
-  switch (normalizeDifficulty(difficulty)) {
-    case 'beginner':
-      return 14;
-    case 'advanced':
-      return 22;
-    default:
-      return 18;
+/**
+ * Per-session working-set ceiling: the lower of an experience ceiling and what
+ * actually fits the session length the user picked. Without the duration term
+ * every session pinned to the experience cap (22 sets), which at strength rest
+ * periods is 60+ minutes of work in a slot the user set to 45.
+ */
+export function workingSetCap(
+  prefs: EnrichSessionGenerationPrefs | undefined,
+): number {
+  const experienceCap =
+    normalizeDifficulty(prefs?.difficulty) === 'beginner'
+      ? 14
+      : normalizeDifficulty(prefs?.difficulty) === 'advanced'
+        ? 22
+        : 18;
+
+  const duration = prefs?.durationMinutes;
+  if (!duration || !Number.isFinite(duration) || duration <= 0) {
+    return experienceCap;
   }
+  // Each working set costs ~its rest interval + ~35s under load; reserve ~6 min
+  // for the warm-up. Rest is capped at 120s because accessories don't truly rest
+  // as long as the main lift. So a 45-min strength day (~150s rest) fits ~15
+  // sets and a 45-min hybrid day (~90s rest) ~19 — both inside the chosen time.
+  const rest = Math.min(
+    getSetRepGuidelines(prefs?.goal, prefs?.difficulty).restSeconds ?? 90,
+    120,
+  );
+  const perSetMinutes = (rest + 35) / 60;
+  const durationCap = Math.max(6, Math.round((duration - 6) / perSetMinutes));
+  return Math.min(experienceCap, durationCap);
 }
 
 /**
@@ -423,9 +444,9 @@ function workingSetCapForDifficulty(difficulty: string | undefined): number {
 function clampSessionWorkingSets(
   exercises: GeneratedSessionExercise[],
   findOne: (id: string) => { primaryMuscleGroup?: string } | undefined,
-  difficulty: string | undefined,
+  prefs: EnrichSessionGenerationPrefs | undefined,
 ): void {
-  const cap = workingSetCapForDifficulty(difficulty);
+  const cap = workingSetCap(prefs);
   const isStrength = (e: GeneratedSessionExercise) => !isCardioRow(e, findOne);
   const total = () =>
     exercises.reduce(
@@ -1046,7 +1067,7 @@ export async function enrichGeneratedSession(
   });
   moveCardioExercisesLast(exercises, findMeta);
   normalizeCardioRowShape(exercises, findMeta);
-  clampSessionWorkingSets(exercises, findMeta, generationPrefs?.difficulty);
+  clampSessionWorkingSets(exercises, findMeta, generationPrefs);
 
   stampRestSeconds(exercises, findMeta, generationPrefs);
 
