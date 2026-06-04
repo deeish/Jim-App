@@ -13,6 +13,7 @@ import {
 import type { LayoutChangeEvent } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS, withTiming } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
@@ -179,6 +180,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const navigation = navigationProp ?? navFromHook;
   const route = useRoute<RouteProp<RootStackParamList, 'PlanList'>>();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { weightUnit, goal } = useUserPreferences();
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [planByWeek, setPlanByWeek] = useState<Record<number, Record<string, PlanWorkout[]>>>({});
@@ -395,7 +397,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         detailsToggleContent: { flexDirection: 'row', alignItems: 'center' },
         detailsToggleText: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
         detailsToggleIcon: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
-        ctaRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+        ctaRow: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 },
         historyLabelButton: { paddingVertical: 8, paddingHorizontal: 12 },
         historyLabelText: { fontSize: 14, fontWeight: '600' },
         ctaCompact: {
@@ -1164,36 +1166,32 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       }}
     >
       {/* Dynamic header: plan name + optional subtitle from load balance */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerTitles}>
-            <Text style={styles.headerTitle}>{currentPlan?.name ?? 'My Plan'}</Text>
-            {headerSubtitle ? (
-              <Text style={styles.goalContext}>{headerSubtitle}</Text>
-            ) : null}
-          </View>
-          <View style={styles.ctaRow}>
-            <TouchableOpacity
-              style={styles.historyLabelButton}
-              onPress={() => navigation.navigate('History')}
-              accessibilityLabel="Workout history"
-            >
-              <Text style={[styles.historyLabelText, { color: colors.primary }]}>History</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.historyLabelButton}
-              onPress={() => setSavedModalVisible(true)}
-              accessibilityLabel="Saved workouts"
-            >
-              <Text style={[styles.historyLabelText, { color: colors.primary }]}>Saved workouts</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.ctaCompact} onPress={handleAIGenerate} accessibilityLabel="AI Generate plan">
-              <Ionicons name="sparkles-outline" size={16} color={colors.onPrimary} />
-              <Text style={styles.ctaCompactText}>AI Generate</Text>
-            </TouchableOpacity>
-          </View>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <Text style={styles.headerTitle} numberOfLines={1}>{currentPlan?.name ?? 'My Plan'}</Text>
+        {headerSubtitle ? (
+          <Text style={styles.goalContext} numberOfLines={1}>{headerSubtitle}</Text>
+        ) : null}
+        <View style={styles.ctaRow}>
+          <TouchableOpacity
+            style={styles.historyLabelButton}
+            onPress={() => navigation.navigate('History')}
+            accessibilityLabel="Workout history"
+          >
+            <Text style={[styles.historyLabelText, { color: colors.primary }]}>History</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.historyLabelButton}
+            onPress={() => setSavedModalVisible(true)}
+            accessibilityLabel="Saved workouts"
+          >
+            <Text style={[styles.historyLabelText, { color: colors.primary }]}>Saved workouts</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.ctaCompact} onPress={handleAIGenerate} accessibilityLabel="AI Generate plan">
+            <Ionicons name="sparkles-outline" size={16} color={colors.onPrimary} />
+            <Text style={styles.ctaCompactText}>AI Generate</Text>
+          </TouchableOpacity>
         </View>
-        
+
         {/* Collapsible Details section */}
         <TouchableOpacity
           style={styles.detailsToggle}
