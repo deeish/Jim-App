@@ -167,12 +167,14 @@ export default function WorkoutScreen() {
         backButtonText: { fontSize: 16, fontWeight: '600' },
         header: {
           backgroundColor: colors.surface,
-          padding: 20,
+          paddingHorizontal: 20,
+          paddingTop: 16,
+          paddingBottom: 14,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
         },
-        title: { fontSize: 28, fontWeight: 'bold', color: colors.text, marginBottom: 8 },
-        workoutName: { fontSize: 18, color: colors.primary, fontWeight: '600', marginBottom: 8 },
+        title: { fontSize: 26, fontWeight: 'bold', color: colors.text, marginBottom: 4 },
+        workoutName: { fontSize: 18, color: colors.primary, fontWeight: '600', marginBottom: 4 },
         content: { flex: 1 },
         exercisesContainer: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 6 },
         emptyContainer: {
@@ -202,7 +204,7 @@ export default function WorkoutScreen() {
         noExercisesHint: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
         footer: {
           paddingHorizontal: 14,
-          paddingTop: 10,
+          paddingTop: 8,
           paddingBottom: 16,
           gap: 8,
           backgroundColor: colors.surface,
@@ -215,7 +217,7 @@ export default function WorkoutScreen() {
           lineHeight: 20,
           color: colors.textSecondary,
           fontWeight: '500',
-          marginTop: 4,
+          marginTop: 2,
         },
         exercisesSection: { paddingHorizontal: 4, paddingTop: 4 },
         exerciseSectionHeader: {
@@ -228,7 +230,7 @@ export default function WorkoutScreen() {
           flexDirection: 'row',
           alignItems: 'center',
           gap: 8,
-          paddingVertical: 9,
+          paddingVertical: 8,
           paddingHorizontal: 12,
           borderRadius: 10,
           borderWidth: 1,
@@ -709,11 +711,11 @@ export default function WorkoutScreen() {
           styles.header,
           {
             // Tab screens don't get automatic top safe area; fromPlan uses backBar for that.
-            paddingTop: fromPlan ? 20 : 16 + Math.max(insets.top, 8),
+            paddingTop: fromPlan ? 16 : 8 + Math.max(insets.top, 8),
           },
         ]}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <Text style={styles.title}>{headerTitle}</Text>
           {todayWorkout?.id && (
             <WorkoutLikeButton
