@@ -19,7 +19,7 @@ interface ExerciseGroupCardProps {
   savingLike?: boolean;
 }
 
-export default function ExerciseGroupCard({ group, onPress, onPressVariation, isSelected, isDisabled, saved, onLikePress, savingLike }: ExerciseGroupCardProps) {
+function ExerciseGroupCard({ group, onPress, onPressVariation, isSelected, isDisabled, saved, onLikePress, savingLike }: ExerciseGroupCardProps) {
   const { colors } = useTheme();
   const [showVariations, setShowVariations] = useState(false);
   const exercise = group.primaryExercise;
@@ -347,7 +347,9 @@ export default function ExerciseGroupCard({ group, onPress, onPressVariation, is
           })}
         </View>
       )}
-      
+
     </View>
   );
 }
+
+export default React.memo(ExerciseGroupCard);

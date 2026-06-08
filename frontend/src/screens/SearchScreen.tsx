@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   TextInput,
   Animated,
@@ -488,39 +489,36 @@ export default function SearchScreen({ navigation }: Props) {
     return groups.slice(0, 3).join(' & ');
   }, []);
 
-  // The results list can be ~1000 cards in a non-virtualized ScrollView, so a full
-  // re-render is expensive (~seconds). Memoize the card elements keyed on the data
-  // that actually affects them — toggling unrelated UI state (the Equipment / Advanced
-  // Filters dropdowns) then reuses these elements and skips re-rendering the whole list.
-  const renderedExerciseCards = useMemo(
-    () =>
-      exerciseGroups.map((group, index) => {
-        const isAnyInGroupSelected = group.exercises.some((e) => selectedIds.has(e.id));
-        const existingIds = addToWorkout?.existingExerciseIds ?? [];
-        const isAlreadyInWorkout =
-          existingIds.length > 0 && group.exercises.some((e) => existingIds.includes(e.id));
-        return (
-          <ExerciseGroupCard
-            key={`${group.baseName}-${index}`}
-            group={group}
-            isSelected={addMode ? isAnyInGroupSelected : undefined}
-            isDisabled={isAlreadyInWorkout}
-            saved={savedExerciseIds.includes(group.primaryExercise.id)}
-            onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
-            savingLike={savingLikeId === group.primaryExercise.id}
-            onPress={(exercise) => {
-              if (addMode) toggleSelectForAddToPlan(exercise.id);
-              else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-            }}
-            onPressVariation={(exercise) => {
-              if (addMode) toggleSelectForAddToPlan(exercise.id);
-              else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-            }}
-          />
-        );
-      }),
+  // Render a single exercise card for the virtualized results FlatList. The list used to
+  // be a non-virtualized ScrollView that mounted every card (~hundreds) at once, which
+  // caused multi-second jank on broad filters. The FlatList now renders only the cards
+  // near the viewport and recycles the rest.
+  const renderExerciseCard = useCallback(
+    ({ item: group }: { item: ExerciseGroup }) => {
+      const isAnyInGroupSelected = group.exercises.some((e) => selectedIds.has(e.id));
+      const existingIds = addToWorkout?.existingExerciseIds ?? [];
+      const isAlreadyInWorkout =
+        existingIds.length > 0 && group.exercises.some((e) => existingIds.includes(e.id));
+      return (
+        <ExerciseGroupCard
+          group={group}
+          isSelected={addMode ? isAnyInGroupSelected : undefined}
+          isDisabled={isAlreadyInWorkout}
+          saved={savedExerciseIds.includes(group.primaryExercise.id)}
+          onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
+          savingLike={savingLikeId === group.primaryExercise.id}
+          onPress={(exercise) => {
+            if (addMode) toggleSelectForAddToPlan(exercise.id);
+            else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
+          }}
+          onPressVariation={(exercise) => {
+            if (addMode) toggleSelectForAddToPlan(exercise.id);
+            else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
+          }}
+        />
+      );
+    },
     [
-      exerciseGroups,
       selectedIds,
       addMode,
       addToWorkout,
@@ -1170,11 +1168,26 @@ export default function SearchScreen({ navigation }: Props) {
       )}
 
       {/* Content */}
-      <ScrollView
+      <FlatList
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-      >
+        data={exerciseGroups}
+        keyExtractor={(group, index) => `${group.baseName}-${index}`}
+        renderItem={renderExerciseCard}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        ListEmptyComponent={
+          !isLoading && !error && activeFilterCount > 0 ? (
+            <View style={styles.resultsPreview}>
+              <Text style={styles.resultsPreviewText}>No exercises found</Text>
+              <Text style={styles.resultsPreviewHint}>Try adjusting your filters</Text>
+            </View>
+          ) : null
+        }
+        ListHeaderComponent={
+          <>
         {/* Primary Filters - Most Important */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -1324,34 +1337,22 @@ export default function SearchScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* Exercise Results List */}
+        {/* Exercise Results header — cards render below as virtualized FlatList items */}
         {!isLoading && !error && resultCount > 0 && (
-          <View style={styles.resultsSection}>
-            <View style={styles.resultsHeader}>
-              <Text style={styles.resultsHeaderText}>
-                {resultCount} exercise{resultCount !== 1 ? 's' : ''} found
-                {exerciseGroups.length > 0 && exercises.length > exerciseGroups.length && (
-                  <Text style={styles.resultsSubtext}>
-                    {' '}({exercises.length} total including variations)
-                  </Text>
-                )}
-              </Text>
-            </View>
-            {renderedExerciseCards}
-          </View>
-        )}
-
-        {!isLoading && !error && resultCount === 0 && activeFilterCount > 0 && (
-          <View style={styles.resultsPreview}>
-            <Text style={styles.resultsPreviewText}>
-              No exercises found
-            </Text>
-            <Text style={styles.resultsPreviewHint}>
-              Try adjusting your filters
+          <View style={[styles.resultsHeader, { marginTop: 24 }]}>
+            <Text style={styles.resultsHeaderText}>
+              {resultCount} exercise{resultCount !== 1 ? 's' : ''} found
+              {exerciseGroups.length > 0 && exercises.length > exerciseGroups.length && (
+                <Text style={styles.resultsSubtext}>
+                  {' '}({exercises.length} total including variations)
+                </Text>
+              )}
             </Text>
           </View>
         )}
-      </ScrollView>
+          </>
+        }
+      />
         </>
       )}
 
