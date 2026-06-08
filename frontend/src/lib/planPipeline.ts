@@ -35,7 +35,10 @@ import {
   exerciseUsesTimeDisplay,
   type ExercisePrescriptionType,
 } from './exercisePrescription';
-import { formatExerciseRepsDisplay } from './formatExerciseRepsDisplay';
+import {
+  formatExerciseRepsDisplay,
+  formatRepRange,
+} from './formatExerciseRepsDisplay';
 import { mesoHintForGenerateSessions, weekProgressionForGenerateSessions } from './planGenerationSummary';
 import {
   exercisesLikeFromPrescription,
@@ -45,7 +48,7 @@ import type { WorkoutPreview } from '../services/workoutService';
 import { shortBodyTagLabel, parseCardioFinisherRow } from './previewExerciseMeta';
 
 export { isTimeHoldExerciseName } from './exercisePrescription';
-export { formatDraftReps, formatExerciseRepsDisplay } from './formatExerciseRepsDisplay';
+export { formatDraftReps, formatExerciseRepsDisplay, formatRepRange } from './formatExerciseRepsDisplay';
 
 const WEEKDAYS: Weekday[] = [
   'Monday',
@@ -140,18 +143,38 @@ export function exerciseDraftFromGenerateResult(
   planInputs: PlanInputs,
 ): ExerciseDraft {
   const rawReps = typeof e.reps === 'number' ? e.reps : NaN;
+  const isTime = exerciseUsesTimeDisplay(
+    e.prescriptionType,
+    e.name ?? '',
+    e.primaryMuscleGroup,
+  );
+  // Prefer the server-stamped range ("8–12") for the display string; only fall
+  // back to deriving a band from a single number on legacy/range-less rows.
+  const repsDisplay = isTime
+    ? formatExerciseRepsDisplay(
+        e.name ?? 'Exercise',
+        e.durationSeconds ?? (Number.isFinite(rawReps) ? rawReps : String(e.reps ?? '')),
+        planInputs.goal,
+        e.prescriptionType,
+        e.primaryMuscleGroup,
+      )
+    : (formatRepRange(e.repsMin, e.repsMax) ??
+      formatExerciseRepsDisplay(
+        e.name ?? 'Exercise',
+        Number.isFinite(rawReps) ? rawReps : String(e.reps ?? ''),
+        planInputs.goal,
+        e.prescriptionType,
+        e.primaryMuscleGroup,
+      ));
   return {
     exerciseId: e.exerciseId ?? null,
     name: e.name ?? 'Exercise',
     sets: typeof e.sets === 'number' ? e.sets : 3,
-    reps: formatExerciseRepsDisplay(
-      e.name ?? 'Exercise',
-      Number.isFinite(rawReps) ? rawReps : String(e.reps ?? ''),
-      planInputs.goal,
-      e.prescriptionType,
-      e.primaryMuscleGroup,
-    ),
+    reps: repsDisplay,
     repsRaw: Number.isFinite(rawReps) ? rawReps : undefined,
+    repsMin: e.repsMin,
+    repsMax: e.repsMax,
+    durationSeconds: e.durationSeconds,
     prescriptionType: e.prescriptionType,
     primaryMuscleGroup: e.primaryMuscleGroup,
     secondaryMuscleGroups: coalesceSecondaryMuscleGroups(e),
@@ -253,12 +276,18 @@ export function mapGroqPreviewExercise(
 
 /** Single-line preview reps from draft: prefer scalar + user's plan goal over a frozen string. */
 function previewRepsLineForGoal(e: ExerciseDraft, goal: PlanInputs['goal'] | undefined): string {
+  const isTime = exerciseUsesTimeDisplay(e.prescriptionType, e.name, e.primaryMuscleGroup);
+  // Stored range wins for non-time rows ("8–12"); no fabricated band.
+  if (!isTime) {
+    const range = formatRepRange(e.repsMin, e.repsMax);
+    if (range) return range;
+  }
   if (!goal) return e.reps;
-  const raw = e.repsRaw;
-  if (raw != null && Number.isFinite(raw) && raw > 0) {
+  const seed = isTime ? (e.durationSeconds ?? e.repsRaw) : e.repsRaw;
+  if (seed != null && Number.isFinite(seed) && seed > 0) {
     return formatExerciseRepsDisplay(
       e.name,
-      Math.round(raw),
+      Math.round(seed),
       goal,
       e.prescriptionType,
       e.primaryMuscleGroup,
@@ -1106,13 +1135,24 @@ export function sessionDraftToPlanSlotExercises(
         ? String(e.exerciseId).trim()
         : `draft_${weekNumber}_${dayOfWeek}_${i}`;
     const hold = exerciseUsesTimeDisplay(e.prescriptionType, e.name, e.primaryMuscleGroup);
+    const durationSeconds =
+      e.durationSeconds != null && Number.isFinite(e.durationSeconds) && e.durationSeconds > 0
+        ? Math.round(e.durationSeconds)
+        : undefined;
+    // Working scalar persisted in `reps`: time rows use the duration; otherwise
+    // prefer the stored range's low end (repsMin) so saved == preview, with the
+    // legacy single-number parse only as a fallback. No more low-end-of-a-
+    // fabricated-band collapse.
     const repsScalar = hold
-      ? e.repsRaw != null && Number.isFinite(e.repsRaw) && e.repsRaw > 0
-        ? Math.round(e.repsRaw)
-        : 45
-      : parseRepScalarForApply(
-          typeof e.reps === 'number' ? String(e.reps) : String(e.reps ?? ''),
-        );
+      ? durationSeconds ??
+        (e.repsRaw != null && Number.isFinite(e.repsRaw) && e.repsRaw > 0
+          ? Math.round(e.repsRaw)
+          : 45)
+      : e.repsMin != null && Number.isFinite(e.repsMin) && e.repsMin > 0
+        ? Math.round(e.repsMin)
+        : parseRepScalarForApply(
+            typeof e.reps === 'number' ? String(e.reps) : String(e.reps ?? ''),
+          );
     const noteParts = [
       e.notes,
       hold ? 'Time-based: hold ~30–60 sec per set (add time before load).' : '',
@@ -1122,6 +1162,13 @@ export function sessionDraftToPlanSlotExercises(
       name: e.name,
       sets,
       reps: repsScalar,
+      ...(!hold && e.repsMin != null && Number.isFinite(e.repsMin)
+        ? { repsMin: Math.round(e.repsMin) }
+        : {}),
+      ...(!hold && e.repsMax != null && Number.isFinite(e.repsMax)
+        ? { repsMax: Math.round(e.repsMax) }
+        : {}),
+      ...(durationSeconds != null ? { durationSeconds } : {}),
       notes: noteParts.length ? noteParts.join(' ') : undefined,
       orderIndex: i,
       ...(e.prescriptionType ? { prescriptionType: e.prescriptionType } : {}),

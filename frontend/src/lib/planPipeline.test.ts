@@ -237,6 +237,61 @@ describe('planPipeline', () => {
       expect(out![0].reps).toBeGreaterThanOrEqual(1);
     });
 
+    it('persists the stored rep range and uses repsMin as the working scalar', () => {
+      const session: SessionDraft = {
+        type: 'strength',
+        title: 'Upper',
+        focusTags: [],
+        durationMin: 45,
+        durationMax: 45,
+        isHardDay: false,
+        exercises: [
+          {
+            exerciseId: 'bench',
+            name: 'Bench Press',
+            sets: 4,
+            reps: '8–12',
+            repsRaw: 8,
+            repsMin: 8,
+            repsMax: 12,
+            prescriptionType: 'reps',
+          },
+        ],
+      };
+      const out = sessionDraftToPlanSlotExercises(session, 1, 'Monday');
+      // reps = repsMin (no collapse to the low end of a fabricated band)
+      expect(out![0].reps).toBe(8);
+      expect(out![0].repsMin).toBe(8);
+      expect(out![0].repsMax).toBe(12);
+    });
+
+    it('sends a duration (no rep range) for a cardio/time row', () => {
+      const session: SessionDraft = {
+        type: 'strength',
+        title: 'Upper',
+        focusTags: [],
+        durationMin: 45,
+        durationMax: 45,
+        isHardDay: false,
+        exercises: [
+          {
+            exerciseId: 'tm',
+            name: 'Treadmill Walk',
+            sets: 1,
+            reps: '10 min',
+            durationSeconds: 600,
+            prescriptionType: 'time',
+            primaryMuscleGroup: 'Cardio',
+          },
+        ],
+      };
+      const out = sessionDraftToPlanSlotExercises(session, 1, 'Monday');
+      expect(out![0].durationSeconds).toBe(600);
+      expect(out![0].reps).toBe(600);
+      expect(out![0].repsMin).toBeUndefined();
+      expect(out![0].repsMax).toBeUndefined();
+    });
+
     it('attaches applyExercises on planDraftToWeekPlans cards', () => {
       const inputs = baseInputs({
         selectedWeekdays: [MON, TUE],

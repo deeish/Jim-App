@@ -119,6 +119,15 @@ export interface ExerciseDraft {
   reps: string;
   /** Raw reps or seconds from generate-sessions (for apply + time-based rows). */
   repsRaw?: number;
+  /**
+   * Target rep range from generate-sessions (goal × difficulty × role). When set,
+   * the UI shows `repsMin–repsMax` directly instead of deriving a band from a
+   * single number. Cardio/time rows leave these undefined.
+   */
+  repsMin?: number;
+  repsMax?: number;
+  /** Duration in seconds for time-based rows (cardio bouts). */
+  durationSeconds?: number;
   /** From generate-sessions when backend attached library metadata. */
   prescriptionType?: ExercisePrescriptionType;
   /** Exercise library primary muscle (e.g. Chest, Cardio) for preview chips. */
