@@ -177,6 +177,10 @@ export class PlansService {
                     name: e.name ?? null,
                     sets: e.sets,
                     reps: e.reps,
+                    repsMin: e.repsMin ?? null,
+                    repsMax: e.repsMax ?? null,
+                    durationSeconds: e.durationSeconds ?? null,
+                    prescriptionType: e.prescriptionType ?? null,
                     weight: e.weight ?? null,
                     notes: e.notes ?? null,
                     orderIndex: e.orderIndex ?? i,
@@ -308,6 +312,10 @@ export class PlansService {
         name: string | null;
         sets: number;
         reps: number;
+        repsMin: number | null;
+        repsMax: number | null;
+        durationSeconds: number | null;
+        prescriptionType: string | null;
         weight: number | null;
         notes: string | null;
         orderIndex: number;
@@ -335,6 +343,10 @@ export class PlansService {
             name: e.name ?? 'Exercise',
             sets: e.sets,
             reps: e.reps,
+            repsMin: e.repsMin ?? undefined,
+            repsMax: e.repsMax ?? undefined,
+            durationSeconds: e.durationSeconds ?? undefined,
+            prescriptionType: e.prescriptionType ?? undefined,
             weight: e.weight ?? undefined,
             notes: e.notes ?? undefined,
             exerciseId:
@@ -536,6 +548,10 @@ export class PlansService {
                     name: e.name ?? null,
                     sets: e.sets,
                     reps: e.reps,
+                    repsMin: e.repsMin ?? null,
+                    repsMax: e.repsMax ?? null,
+                    durationSeconds: e.durationSeconds ?? null,
+                    prescriptionType: e.prescriptionType ?? null,
                     weight: e.weight ?? null,
                     notes: e.notes ?? null,
                     orderIndex: e.orderIndex ?? i,
@@ -612,6 +628,15 @@ export class PlansService {
           // progress via intensity/reps until the multiplier genuinely rounds up.
           sets: Math.max(1, Math.round(ex.sets * prog.volumeMultiplier)),
           reps: Math.max(1, Math.min(100, ex.reps + prog.repModifier)),
+          // Keep the displayed rep range tracking progression alongside the scalar.
+          repsMin:
+            ex.repsMin != null
+              ? Math.max(1, Math.min(100, ex.repsMin + prog.repModifier))
+              : ex.repsMin,
+          repsMax:
+            ex.repsMax != null
+              ? Math.max(1, Math.min(100, ex.repsMax + prog.repModifier))
+              : ex.repsMax,
         })),
       });
     }
@@ -2163,6 +2188,10 @@ export class PlansService {
                 name: e.name ?? null,
                 sets: e.sets,
                 reps: e.reps,
+                repsMin: e.repsMin ?? null,
+                repsMax: e.repsMax ?? null,
+                durationSeconds: e.durationSeconds ?? null,
+                prescriptionType: e.prescriptionType ?? null,
                 weight: e.weight ?? null,
                 notes: e.notes ?? null,
                 orderIndex: e.orderIndex ?? i,

@@ -87,7 +87,11 @@ model PlanExercise {
   exerciseId    String   // library exercise id (e.g. "bench_press_barbell_flat")
   name          String?
   sets          Int
-  reps          Int
+  reps          Int      // working default / legacy scalar (= repsMin when a range is set)
+  repsMin       Int?     // target rep range low end (role-aware prescription)
+  repsMax       Int?     // target rep range high end
+  durationSeconds  Int?  // for time-based rows (cardio bouts); reps/range left null
+  prescriptionType String? // "reps" | "time" | "distance"
   weight        Float?
   notes         String?
   orderIndex    Int      @default(0)
@@ -176,7 +180,11 @@ model WorkoutExercise {
   exerciseId String?  // library exercise id
   name       String
   sets       Int
-  reps       Int
+  reps       Int      // working default / legacy scalar (= repsMin when a range is set)
+  repsMin    Int?     // target rep range low end (role-aware prescription)
+  repsMax    Int?     // target rep range high end
+  durationSeconds  Int? // for time-based rows (cardio bouts); reps/range left null
+  prescriptionType String? // "reps" | "time" | "distance"
   weight     Float?
   notes      String?
   orderIndex Int      @default(0)
