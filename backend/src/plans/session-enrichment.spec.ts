@@ -195,10 +195,12 @@ describe('enrichGeneratedSession cardio row normalization', () => {
     expect(cardio.sets).toBe(1);
     expect(cardio.reps).toBe(600);
     expect(cardio.prescriptionType).toBe('time');
-    // strength row left exactly as the model wrote it
+    // non-cardio row stays a reps prescription with a stamped range (not turned
+    // into a duration). 4 × 8 is the role-aware primary-compound stamp here.
     const bench = out.exercises.find((e) => e.name === 'Bench Press')!;
-    expect(bench.sets).toBe(4);
-    expect(bench.reps).toBe(8);
+    expect(bench.prescriptionType).not.toBe('time');
+    expect(bench.repsMin).toBeDefined();
+    expect(bench.repsMax!).toBeGreaterThanOrEqual(bench.repsMin!);
   });
 
   it('catches a cardio machine by name when its id does not resolve', async () => {
@@ -308,10 +310,85 @@ describe('enrichGeneratedSession cardio row normalization', () => {
     );
 
     const plank = out.exercises.find((e) => e.name === 'Forearm Plank')!;
-    // regression guard: a 3 × 45 sec plank must not become 1 × 10 min
+    // regression guard: a 3 × 45 sec plank must not become 1 × 10 min, and the
+    // rep-range stamp must skip time rows (no repsMin/repsMax invented).
     expect(plank.sets).toBe(3);
     expect(plank.reps).toBe(45);
     expect(plank.prescriptionType).toBe('time');
+    expect(plank.repsMin).toBeUndefined();
+  });
+});
+
+describe('enrichGeneratedSession role-aware sets + rep ranges', () => {
+  const svc = {
+    findOne: (id: string) => {
+      if (id === 'bench')
+        return {
+          id,
+          name: 'Barbell Bench Press',
+          primaryMuscleGroup: 'Chest',
+          movementPatterns: ['Push'],
+          type: 'Compound',
+          prescriptionType: 'reps' as const,
+        };
+      if (id === 'curl')
+        return {
+          id,
+          name: 'Dumbbell Biceps Curl',
+          primaryMuscleGroup: 'Arms',
+          movementPatterns: [],
+          type: 'Isolation',
+          prescriptionType: 'reps' as const,
+        };
+      if (id === 'tm')
+        return { id, name: 'Treadmill Walk', primaryMuscleGroup: 'Cardio' };
+      return undefined;
+    },
+    getCandidatesForGenerator: () => [],
+  };
+
+  it('stamps lower reps on the compound than the isolation, and a duration on cardio', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Barbell Bench Press', sets: 3, reps: 10, exerciseId: 'bench' },
+        { name: 'Dumbbell Biceps Curl', sets: 5, reps: 5, exerciseId: 'curl' },
+        { name: 'Treadmill Walk', sets: 4, reps: 12, exerciseId: 'tm' },
+      ],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Upper' },
+      svc as any,
+      [],
+      [],
+      {
+        goal: 'strength',
+        difficulty: 'intermediate',
+        durationMinutes: 60,
+        detailLevel: 'detailed',
+      },
+    );
+
+    const bench = out.exercises.find((e) => e.name === 'Barbell Bench Press')!;
+    const curl = out.exercises.find((e) => e.name === 'Dumbbell Biceps Curl')!;
+    const tm = out.exercises.find((e) => e.name === 'Treadmill Walk')!;
+
+    // Compound sits in the strength band (low reps); reps = repsMin (working default).
+    expect(bench.repsMin).toBeGreaterThanOrEqual(3);
+    expect(bench.repsMax!).toBeLessThanOrEqual(6);
+    expect(bench.reps).toBe(bench.repsMin);
+    // Isolation runs higher reps with no more sets than the heavy compound.
+    expect(curl.repsMin!).toBeGreaterThan(bench.repsMin!);
+    expect(curl.sets).toBeLessThanOrEqual(bench.sets);
+    expect(curl.repsMax!).toBeGreaterThanOrEqual(10);
+    // Cardio carries an explicit duration, not a rep range.
+    expect(tm.prescriptionType).toBe('time');
+    expect(tm.durationSeconds).toBe(600);
+    expect(tm.repsMin).toBeUndefined();
   });
 });
 

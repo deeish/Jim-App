@@ -11,7 +11,9 @@ import {
 import { getAcceptedAnchorIdsForFocus } from '../data/anchor-exercises';
 import {
   getSetRepGuidelines,
+  getRoleAwareScheme,
   normalizeDifficulty,
+  type ExerciseRole,
 } from '../data/set-rep-schemes';
 
 /** One exercise row as returned by plan / workout generation (before save). */
@@ -36,6 +38,20 @@ export type GeneratedSessionExercise = {
    * user without requiring an LLM round-trip.
    */
   restSeconds?: number;
+  /**
+   * Rep range stamped deterministically by goal × difficulty × exercise role
+   * (see `stampSetsAndReps` + `getRoleAwareScheme`). `reps` holds the working
+   * default (= `repsMin`) for set logging / progression; the range is what the
+   * UI shows ("4 × 8–12"). Undefined on cardio/time rows.
+   */
+  repsMin?: number;
+  repsMax?: number;
+  /**
+   * Duration in seconds for time-based rows (cardio bouts). Set in
+   * `normalizeCardioRowShape` so a cardio row carries an explicit duration
+   * instead of a rep count stuffed into `reps`.
+   */
+  durationSeconds?: number;
 };
 
 export type GeneratedSession = {
@@ -56,7 +72,7 @@ const BIG_FOUR = ['Squat', 'Hinge', 'Push', 'Pull'] as const;
 
 /** Chest/shoulder isolation and small-arm work — deprioritize for ordering + warm-up anchor. */
 const ISOLATION_NAME =
-  /\b(fly|flies|flyes|cable\s+fly|pec\s+deck|curl|curls|\bcable\s+curl|lateral\s+raise|front\s+raise|skull|push[-\s]?down|kickback|crossover|pullover|shrug|wrist|rear\s+delt|triceps\s+extension|overhead\s+extension)\b/i;
+  /\b(fly|flies|flyes|cable\s+fly|pec\s+deck|curl|curls|\bcable\s+curl|lateral\s+raise|front\s+raise|skull|(?:push|press)[-\s]?down|kickback|crossover|pullover|shrug|wrist|rear\s+delt|triceps\s+extension|overhead\s+extension)\b/i;
 
 /** Squat / hinge class movements that belong on lower days, not Upper/Push/Pull focus. */
 export const LOWER_PATTERN_NAME =
@@ -397,6 +413,12 @@ function normalizeCardioRowShape(
     e.sets = 1;
     if (e.reps == null || e.reps < 60) e.reps = 600;
     e.prescriptionType = 'time';
+    // Carry an explicit duration so the row no longer relies on a seconds value
+    // smuggled inside `reps`. The UI renders this as "10 min".
+    e.durationSeconds = e.reps;
+    // Cardio rows have no rep range — clear any stamped band defensively.
+    e.repsMin = undefined;
+    e.repsMax = undefined;
   }
 }
 
@@ -1067,6 +1089,9 @@ export async function enrichGeneratedSession(
   });
   moveCardioExercisesLast(exercises, findMeta);
   normalizeCardioRowShape(exercises, findMeta);
+  // Stamp role-aware sets + rep ranges before clamping so the duration/experience
+  // cap still trims the resulting working-set total to fit the session length.
+  stampSetsAndReps(exercises, findMeta, generationPrefs);
   clampSessionWorkingSets(exercises, findMeta, generationPrefs);
 
   stampRestSeconds(exercises, findMeta, generationPrefs);
@@ -1114,6 +1139,109 @@ function stampRestSeconds(
       ex.restSeconds = firstStrengthSeen ? baseRest : baseRest + 30;
     }
     firstStrengthSeen = true;
+  }
+}
+
+/** Loose shape of the catalog metadata `stampSetsAndReps` reads (subset of `TransformedExercise`). */
+type RoleMeta = {
+  type?: string;
+  movementPatterns?: string[];
+  primaryMuscleGroup?: string;
+  equipment?: string[];
+};
+
+type BaseRole = 'compound' | 'isolation' | 'core';
+
+/**
+ * Classify an exercise into compound / isolation / core from catalog metadata,
+ * falling back to the name. Cardio rows are handled separately (durationSeconds)
+ * and never reach here. Reuses the existing `BIG_FOUR` patterns + `ISOLATION_NAME`.
+ */
+function classifyExerciseBaseRole(
+  meta: RoleMeta | undefined,
+  name: string,
+): BaseRole {
+  if ((meta?.primaryMuscleGroup ?? '').toLowerCase() === 'core') return 'core';
+
+  // Unambiguous isolation names (fly, curl, pushdown, lateral raise, kickback, …)
+  // are very high precision — no compound lift carries them — so they win even
+  // over a catalog `type`/pattern that (mis)labels the row as compound.
+  if (ISOLATION_NAME.test(name)) return 'isolation';
+
+  // Explicit catalog `type` next; it beats the movement pattern (a triceps
+  // pushdown can carry a "Push" pattern yet still be isolation).
+  const typeStr = (meta?.type ?? '').toLowerCase();
+  if (typeStr === 'isolation') return 'isolation';
+  if (typeStr === 'compound') return 'compound';
+
+  const patterns = meta?.movementPatterns ?? [];
+  if (BIG_FOUR.some((p) => patterns.includes(p))) return 'compound';
+
+  // Unknown accessories default to the isolation (higher-rep, fewer-set) scheme.
+  return 'isolation';
+}
+
+/**
+ * Stamp `sets` + `repsMin`/`repsMax` on each non-cardio strength row from
+ * `goal × difficulty × role` (see {@link getRoleAwareScheme}). The first compound
+ * in the (already compound-sorted) list becomes the heavy `primary_compound`
+ * anchor; later compounds are `secondary_compound`. `reps` is set to `repsMin`
+ * as the working default for set logging + progression math.
+ *
+ * Runs before {@link clampSessionWorkingSets} so the duration cap still trims the
+ * total. Cardio + time-hold rows are skipped (they render as a duration).
+ */
+function stampSetsAndReps(
+  exercises: GeneratedSessionExercise[],
+  findMeta: (id: string) => RoleMeta | undefined,
+  prefs: EnrichSessionGenerationPrefs | undefined,
+): void {
+  let primaryCompoundAssigned = false;
+  for (const ex of exercises) {
+    const id = ex.exerciseId?.trim();
+    const meta = id ? findMeta(id) : undefined;
+
+    // Cardio rows carry a duration, not reps.
+    if ((meta?.primaryMuscleGroup ?? '').toLowerCase() === 'cardio') continue;
+    if ((ex.primaryMuscleGroup ?? '').toLowerCase() === 'cardio') continue;
+    // Time-holds (planks / hangs / carries) aren't rep-counted — leave them for
+    // the duration formatter rather than stamping a rep range.
+    if (ex.prescriptionType === 'time') continue;
+
+    const baseRole = classifyExerciseBaseRole(meta, ex.name);
+    let role: ExerciseRole;
+    if (baseRole === 'core') {
+      role = 'core';
+    } else if (baseRole === 'isolation') {
+      role = 'isolation';
+    } else {
+      role = primaryCompoundAssigned
+        ? 'secondary_compound'
+        : 'primary_compound';
+      primaryCompoundAssigned = true;
+    }
+
+    const scheme = getRoleAwareScheme(prefs?.goal, prefs?.difficulty, role);
+    let repsMin = scheme.repsMin;
+    let repsMax = scheme.repsMax;
+
+    // Bodyweight compounds (push-ups, pull-ups, dips) carry light relative load —
+    // bump into a higher rep band so they aren't prescribed like a loaded barbell lift.
+    const equip = (meta?.equipment ?? []).map((e) => e.toLowerCase());
+    const bodyweightOnly =
+      equip.length > 0 && equip.every((e) => e === 'bodyweight');
+    if (
+      bodyweightOnly &&
+      (role === 'primary_compound' || role === 'secondary_compound')
+    ) {
+      repsMin = Math.min(25, repsMin + 4);
+      repsMax = Math.min(25, repsMax + 4);
+    }
+
+    ex.sets = scheme.sets;
+    ex.repsMin = repsMin;
+    ex.repsMax = repsMax;
+    ex.reps = repsMin;
   }
 }
 
