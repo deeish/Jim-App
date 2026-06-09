@@ -108,7 +108,7 @@ export default function SignupScreen() {
       {error ? <AuthNotice>{error}</AuthNotice> : null}
       {success ? (
         <AuthNotice variant="success">
-          Check your email to confirm your account, then sign in.
+          Account created! Signing you in…
         </AuthNotice>
       ) : null}
 
