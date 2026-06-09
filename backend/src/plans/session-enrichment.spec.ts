@@ -1782,3 +1782,127 @@ describe('shouldAppendHybridCardioFinisher', () => {
     ).toBe(true);
   });
 });
+
+describe('enrichGeneratedSession within-session redundancy cap', () => {
+  const LUNGE_RX =
+    /\b(lunge|step[-\s]?up|split\s+squat|bulgarian|reverse\s+lunge|walking\s+lunge|side\s+lunge|cossack)\b/i;
+
+  const meta: Record<string, any> = {
+    sq: {
+      id: 'sq',
+      name: 'Back Squat',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: ['Squat'],
+      type: 'Compound',
+    },
+    wl: {
+      id: 'wl',
+      name: 'Walking Lunge',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: ['Squat'],
+    },
+    rl: {
+      id: 'rl',
+      name: 'Reverse Lunge',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: ['Squat'],
+    },
+    bss: {
+      id: 'bss',
+      name: 'Bulgarian Split Squat',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: ['Squat'],
+    },
+    rdl: {
+      id: 'rdl',
+      name: 'Romanian Deadlift',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: ['Hinge'],
+      type: 'Compound',
+      secondaryMuscleGroups: [],
+    },
+    lc: {
+      id: 'lc',
+      name: 'Lying Leg Curl',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: [],
+      type: 'Isolation',
+      secondaryMuscleGroups: [],
+    },
+  };
+
+  const svc = {
+    findOne: (id: string) => meta[id],
+    // Pool offers non-lunge lower movements to swap in.
+    getCandidatesForGenerator: () => [meta.rdl, meta.lc],
+  };
+
+  it('caps a lower session at 2 of the same dominance (swaps the 3rd lunge)', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Lower',
+      exercises: [
+        { name: 'Back Squat', sets: 4, reps: 6, exerciseId: 'sq' },
+        { name: 'Walking Lunge', sets: 3, reps: 10, exerciseId: 'wl' },
+        { name: 'Reverse Lunge', sets: 3, reps: 10, exerciseId: 'rl' },
+        { name: 'Bulgarian Split Squat', sets: 3, reps: 10, exerciseId: 'bss' },
+      ],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Lower' },
+      svc as any,
+      [],
+      [],
+      {
+        goal: 'strength',
+        difficulty: 'intermediate',
+        durationMinutes: 60,
+        detailLevel: 'detailed',
+      },
+    );
+
+    const lungeCount = out.exercises.filter((e) =>
+      LUNGE_RX.test(e.name),
+    ).length;
+    expect(lungeCount).toBeLessThanOrEqual(2);
+    // A swap happened and is surfaced to the user.
+    expect(
+      out.exercises.some((e) => /movement variety/i.test(e.notes ?? '')),
+    ).toBe(true);
+  });
+
+  it('leaves a balanced lower session unchanged (no over-saturation)', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Lower',
+      exercises: [
+        { name: 'Back Squat', sets: 4, reps: 6, exerciseId: 'sq' },
+        { name: 'Romanian Deadlift', sets: 3, reps: 8, exerciseId: 'rdl' },
+        { name: 'Walking Lunge', sets: 3, reps: 10, exerciseId: 'wl' },
+      ],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Lower' },
+      svc as any,
+      [],
+      [],
+      {
+        goal: 'strength',
+        difficulty: 'intermediate',
+        durationMinutes: 60,
+        detailLevel: 'detailed',
+      },
+    );
+
+    // No swap note — nothing was over-saturated (1 squat, 1 hinge, 1 lunge).
+    expect(
+      out.exercises.some((e) => /movement variety/i.test(e.notes ?? '')),
+    ).toBe(false);
+  });
+});

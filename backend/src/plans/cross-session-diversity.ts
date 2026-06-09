@@ -94,6 +94,25 @@ export function isUnilateralByName(name: string | undefined): boolean {
   return UNILATERAL_RX.test(n);
 }
 
+/** Laterality / stance qualifiers stripped so "Single-Arm X" and "X" share a family. */
+const LATERALITY_RX =
+  /\b(single|one|double|bilateral|alternating|alt\.?|unilateral|half[-\s]?kneeling|tall[-\s]?kneeling|kneeling|b[-\s]?stance|staggered)[-\s]?(arm|leg|side|stance)?\b/gi;
+
+/**
+ * Base-movement family key for within-session redundancy checks. Strips only
+ * laterality / stance qualifiers (NOT angle, grip, or implement) so:
+ *   - "Single-Arm Landmine Press" ≡ "Landmine Press"   (caught as same family)
+ *   - "Flat Bench Press" ≢ "Incline Bench Press"        (angle preserved — legit variety)
+ *   - "Barbell Curl" ≢ "Cable Curl"                     (implement preserved)
+ */
+export function baseMovementFamily(name: string | undefined): string {
+  return NORM_NAME(name)
+    .toLowerCase()
+    .replace(LATERALITY_RX, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /**
  * Find the first non-cardio strength exercise on the session — same definition
  * the slot-1 anchor validator uses. Returns the exercise + its index, or null

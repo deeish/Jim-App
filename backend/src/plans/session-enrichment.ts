@@ -15,6 +15,12 @@ import {
   normalizeDifficulty,
   type ExerciseRole,
 } from '../data/set-rep-schemes';
+import {
+  classifyLowerDominance,
+  classifyPushAngle,
+  classifyPullAngle,
+  baseMovementFamily,
+} from './cross-session-diversity';
 
 /** One exercise row as returned by plan / workout generation (before save). */
 export type GeneratedSessionExercise = {
@@ -817,6 +823,170 @@ function ensureAnchorInSlotOne(args: {
 }
 
 /**
+ * Within-session redundancy guard: stops a session stacking 3+ of the same
+ * movement family. Caps (≤2 each) on lower-body dominance (lunge/squat/hinge),
+ * push angle, pull angle, and base-movement family, swapping the excess (latest,
+ * non-anchor, non-balance-insert rows) for a different movement from the focus
+ * candidate pool. Preserves the swapped row's sets/reps; only the exercise
+ * identity changes. No-ops when the candidate pool is empty (e.g. eval mocks).
+ */
+function capRedundantMovementFamilies(args: {
+  exercises: GeneratedSessionExercise[];
+  spec: { title?: string; type: string };
+  exercisesService: ExercisesService;
+  equipment?: string[];
+  avoidPhrases: string[];
+  chunkExcludeExerciseIds: string[];
+  coachNotes: string[];
+}): void {
+  const {
+    exercises,
+    spec,
+    exercisesService,
+    equipment,
+    avoidPhrases,
+    chunkExcludeExerciseIds,
+    coachNotes,
+  } = args;
+  if (spec.type !== 'strength') return;
+
+  const MAX_PER_FAMILY = 2;
+  const findMeta = (id: string) => exercisesService.findOne(id);
+
+  const isStrengthRow = (e: GeneratedSessionExercise): boolean => {
+    const id = e.exerciseId?.trim();
+    const group =
+      (id ? findMeta(id)?.primaryMuscleGroup : undefined) ??
+      e.primaryMuscleGroup;
+    return (group ?? '').toLowerCase() !== 'cardio';
+  };
+
+  // Never swap the slot-0 anchor or a deterministic balance insert.
+  const protectedIdx = new Set<number>();
+  for (let i = 0; i < exercises.length; i++) {
+    if (isStrengthRow(exercises[i]!)) {
+      protectedIdx.add(i);
+      break;
+    }
+  }
+  exercises.forEach((e, i) => {
+    if (exerciseRowIsBalanceInsert(e)) protectedIdx.add(i);
+  });
+
+  const presentIds = () =>
+    new Set(
+      exercises
+        .map((e) => e.exerciseId?.trim())
+        .filter((x): x is string => !!x),
+    );
+  const presentNames = () =>
+    new Set(exercises.map((e) => (e.name ?? '').trim().toLowerCase()));
+
+  /** Replace exercises[index] with a focus-pool exercise satisfying `accept`. */
+  const trySwap = (
+    index: number,
+    accept: (candidateName: string) => boolean,
+  ): boolean => {
+    const ids = presentIds();
+    const names = presentNames();
+    const pool = exercisesService.getCandidatesForGenerator({
+      focus: spec.title ?? 'full body',
+      equipment: equipment?.length ? equipment : undefined,
+      excludeIds: [...ids, ...chunkExcludeExerciseIds],
+      limit: 90,
+    });
+    const pick = pool.find(
+      (c) =>
+        c.primaryMuscleGroup !== 'Cardio' &&
+        !ids.has(c.id) &&
+        !names.has((c.name ?? '').trim().toLowerCase()) &&
+        !nameMatchesAvoidList(c.name, avoidPhrases) &&
+        accept(c.name ?? ''),
+    );
+    if (!pick) return false;
+    const prev = exercises[index]!;
+    const sec = secondaryMusclesForPreview(
+      pick.secondaryMuscleGroups,
+      pick.primaryMuscleGroup,
+    );
+    exercises[index] = {
+      name: pick.name,
+      exerciseId: pick.id,
+      sets: prev.sets,
+      reps: prev.reps,
+      ...(prev.weight != null ? { weight: prev.weight } : {}),
+      notes: 'Swapped for movement variety (avoid stacking similar lifts).',
+      prescriptionType:
+        pick.prescriptionType ??
+        inferPrescriptionTypeFromExerciseName(pick.name),
+      primaryMuscleGroup: pick.primaryMuscleGroup,
+      ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
+    };
+    return true;
+  };
+
+  let swaps = 0;
+
+  /** Cap any key (skipping `null` keys) at MAX_PER_FAMILY, swapping the excess. */
+  const capByKey = (keyOf: (name: string) => string | null): void => {
+    const groups = new Map<string, number[]>();
+    exercises.forEach((e, i) => {
+      if (!isStrengthRow(e)) return;
+      const k = keyOf(e.name ?? '');
+      if (!k) return;
+      const arr = groups.get(k);
+      if (arr) arr.push(i);
+      else groups.set(k, [i]);
+    });
+    for (const [key, idxs] of groups) {
+      let excess = idxs.length - MAX_PER_FAMILY;
+      if (excess <= 0) continue;
+      // Trim from the end (lowest-priority rows) first.
+      const swappable = idxs
+        .filter((i) => !protectedIdx.has(i))
+        .sort((a, b) => b - a);
+      for (const i of swappable) {
+        if (excess <= 0) break;
+        if (trySwap(i, (name) => keyOf(name) !== key)) {
+          excess--;
+          swaps++;
+        }
+      }
+    }
+  };
+
+  const isLower =
+    sessionTitleIsLowerEmphasis(spec.title) ||
+    sessionTitleNeedsSquatHingeBalance(spec.title, spec.type);
+  if (isLower) {
+    capByKey((n) => {
+      const d = classifyLowerDominance(n);
+      return d === 'other' ? null : `dom:${d}`;
+    });
+  }
+  capByKey((n) => {
+    const a = classifyPushAngle(n);
+    return a === 'other' ? null : `push:${a}`;
+  });
+  capByKey((n) => {
+    const a = classifyPullAngle(n);
+    return a === 'other' ? null : `pull:${a}`;
+  });
+  capByKey((n) => {
+    const f = baseMovementFamily(n);
+    return f ? `base:${f}` : null;
+  });
+
+  if (swaps > 0) {
+    coachNotes.push(
+      swaps === 1
+        ? 'We swapped one lift so this session does not stack several near-identical movements.'
+        : `We swapped ${swaps} lifts so this session does not stack several near-identical movements.`,
+    );
+  }
+}
+
+/**
  * Order compounds before accessories, ensure pull balance when the title calls for it,
  * and tie warm-up copy to the first main lift.
  */
@@ -977,6 +1147,18 @@ export async function enrichGeneratedSession(
     spec,
     exercisesService,
   );
+
+  // Break up too-many-of-one-family stacking (e.g. 4 lunges, 3 landmine presses)
+  // before the soft-cap trim and the role-aware rep stamp run.
+  capRedundantMovementFamilies({
+    exercises,
+    spec,
+    exercisesService,
+    equipment,
+    avoidPhrases,
+    chunkExcludeExerciseIds: generationPrefs?.chunkExcludeExerciseIds ?? [],
+    coachNotes,
+  });
 
   if (generationPrefs) {
     const detailForCap = generationPrefs.detailLevel ?? 'detailed';
