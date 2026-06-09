@@ -40,7 +40,10 @@ export default function NavBar() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.secondary,
+        // Inactive tabs recede into a muted neutral so the active gold reads as
+        // the single accent. (Saturated `secondary` green here made the bar look
+        // like it had two competing active colors.)
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: colors.surface,

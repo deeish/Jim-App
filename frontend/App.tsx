@@ -18,6 +18,7 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { UserPreferencesProvider, useUserPreferences } from './src/contexts/UserPreferencesContext';
 import { DevPreviewProvider, useDevPreview } from './src/contexts/DevPreviewContext';
 import { wrapWithSentry } from './src/lib/sentry';
+import { useOtaUpdates } from './src/lib/useOtaUpdates';
 import type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
 
 export type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
@@ -142,6 +143,7 @@ const styles = StyleSheet.create({
 });
 
 function App() {
+  useOtaUpdates();
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>

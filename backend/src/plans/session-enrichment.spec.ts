@@ -195,10 +195,12 @@ describe('enrichGeneratedSession cardio row normalization', () => {
     expect(cardio.sets).toBe(1);
     expect(cardio.reps).toBe(600);
     expect(cardio.prescriptionType).toBe('time');
-    // strength row left exactly as the model wrote it
+    // non-cardio row stays a reps prescription with a stamped range (not turned
+    // into a duration). 4 × 8 is the role-aware primary-compound stamp here.
     const bench = out.exercises.find((e) => e.name === 'Bench Press')!;
-    expect(bench.sets).toBe(4);
-    expect(bench.reps).toBe(8);
+    expect(bench.prescriptionType).not.toBe('time');
+    expect(bench.repsMin).toBeDefined();
+    expect(bench.repsMax!).toBeGreaterThanOrEqual(bench.repsMin!);
   });
 
   it('catches a cardio machine by name when its id does not resolve', async () => {
@@ -308,10 +310,129 @@ describe('enrichGeneratedSession cardio row normalization', () => {
     );
 
     const plank = out.exercises.find((e) => e.name === 'Forearm Plank')!;
-    // regression guard: a 3 × 45 sec plank must not become 1 × 10 min
+    // regression guard: a 3 × 45 sec plank must not become 1 × 10 min, and the
+    // rep-range stamp must skip time rows (no repsMin/repsMax invented).
     expect(plank.sets).toBe(3);
     expect(plank.reps).toBe(45);
     expect(plank.prescriptionType).toBe('time');
+    expect(plank.repsMin).toBeUndefined();
+  });
+});
+
+describe('enrichGeneratedSession role-aware sets + rep ranges', () => {
+  const svc = {
+    findOne: (id: string) => {
+      if (id === 'bench')
+        return {
+          id,
+          name: 'Barbell Bench Press',
+          primaryMuscleGroup: 'Chest',
+          movementPatterns: ['Push'],
+          type: 'Compound',
+          prescriptionType: 'reps' as const,
+        };
+      if (id === 'curl')
+        return {
+          id,
+          name: 'Dumbbell Biceps Curl',
+          primaryMuscleGroup: 'Arms',
+          movementPatterns: [],
+          type: 'Isolation',
+          prescriptionType: 'reps' as const,
+        };
+      if (id === 'tm')
+        return { id, name: 'Treadmill Walk', primaryMuscleGroup: 'Cardio' };
+      if (id === 'hold')
+        return {
+          id,
+          name: 'Barbell Static Hold',
+          primaryMuscleGroup: 'Back',
+          movementPatterns: [],
+        };
+      return undefined;
+    },
+    getCandidatesForGenerator: () => [],
+  };
+
+  it('treats a "static hold" as time (duration, no rep range) even when the model wrote reps', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Pull',
+      exercises: [
+        {
+          name: 'Barbell Bent-Over Row',
+          sets: 4,
+          reps: 8,
+          exerciseId: 'bench',
+        },
+        { name: 'Barbell Static Hold', sets: 4, reps: 10, exerciseId: 'hold' },
+      ],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Pull' },
+      svc as any,
+      [],
+      [],
+      {
+        goal: 'strength',
+        difficulty: 'intermediate',
+        durationMinutes: 60,
+        detailLevel: 'detailed',
+      },
+    );
+
+    const hold = out.exercises.find((e) => e.name === 'Barbell Static Hold')!;
+    expect(hold.prescriptionType).toBe('time');
+    expect(hold.durationSeconds).toBeGreaterThan(0);
+    expect(hold.repsMin).toBeUndefined();
+    expect(hold.repsMax).toBeUndefined();
+  });
+
+  it('stamps lower reps on the compound than the isolation, and a duration on cardio', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Barbell Bench Press', sets: 3, reps: 10, exerciseId: 'bench' },
+        { name: 'Dumbbell Biceps Curl', sets: 5, reps: 5, exerciseId: 'curl' },
+        { name: 'Treadmill Walk', sets: 4, reps: 12, exerciseId: 'tm' },
+      ],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Upper' },
+      svc as any,
+      [],
+      [],
+      {
+        goal: 'strength',
+        difficulty: 'intermediate',
+        durationMinutes: 60,
+        detailLevel: 'detailed',
+      },
+    );
+
+    const bench = out.exercises.find((e) => e.name === 'Barbell Bench Press')!;
+    const curl = out.exercises.find((e) => e.name === 'Dumbbell Biceps Curl')!;
+    const tm = out.exercises.find((e) => e.name === 'Treadmill Walk')!;
+
+    // Compound sits in the strength band (low reps); reps = repsMin (working default).
+    expect(bench.repsMin).toBeGreaterThanOrEqual(3);
+    expect(bench.repsMax!).toBeLessThanOrEqual(6);
+    expect(bench.reps).toBe(bench.repsMin);
+    // Isolation runs higher reps with no more sets than the heavy compound.
+    expect(curl.repsMin!).toBeGreaterThan(bench.repsMin!);
+    expect(curl.sets).toBeLessThanOrEqual(bench.sets);
+    expect(curl.repsMax!).toBeGreaterThanOrEqual(10);
+    // Cardio carries an explicit duration, not a rep range.
+    expect(tm.prescriptionType).toBe('time');
+    expect(tm.durationSeconds).toBe(600);
+    expect(tm.repsMin).toBeUndefined();
   });
 });
 
@@ -1659,5 +1780,129 @@ describe('shouldAppendHybridCardioFinisher', () => {
         hasFinisherText: false,
       }),
     ).toBe(true);
+  });
+});
+
+describe('enrichGeneratedSession within-session redundancy cap', () => {
+  const LUNGE_RX =
+    /\b(lunge|step[-\s]?up|split\s+squat|bulgarian|reverse\s+lunge|walking\s+lunge|side\s+lunge|cossack)\b/i;
+
+  const meta: Record<string, any> = {
+    sq: {
+      id: 'sq',
+      name: 'Back Squat',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: ['Squat'],
+      type: 'Compound',
+    },
+    wl: {
+      id: 'wl',
+      name: 'Walking Lunge',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: ['Squat'],
+    },
+    rl: {
+      id: 'rl',
+      name: 'Reverse Lunge',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: ['Squat'],
+    },
+    bss: {
+      id: 'bss',
+      name: 'Bulgarian Split Squat',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: ['Squat'],
+    },
+    rdl: {
+      id: 'rdl',
+      name: 'Romanian Deadlift',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: ['Hinge'],
+      type: 'Compound',
+      secondaryMuscleGroups: [],
+    },
+    lc: {
+      id: 'lc',
+      name: 'Lying Leg Curl',
+      primaryMuscleGroup: 'Legs',
+      movementPatterns: [],
+      type: 'Isolation',
+      secondaryMuscleGroups: [],
+    },
+  };
+
+  const svc = {
+    findOne: (id: string) => meta[id],
+    // Pool offers non-lunge lower movements to swap in.
+    getCandidatesForGenerator: () => [meta.rdl, meta.lc],
+  };
+
+  it('caps a lower session at 2 of the same dominance (swaps the 3rd lunge)', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Lower',
+      exercises: [
+        { name: 'Back Squat', sets: 4, reps: 6, exerciseId: 'sq' },
+        { name: 'Walking Lunge', sets: 3, reps: 10, exerciseId: 'wl' },
+        { name: 'Reverse Lunge', sets: 3, reps: 10, exerciseId: 'rl' },
+        { name: 'Bulgarian Split Squat', sets: 3, reps: 10, exerciseId: 'bss' },
+      ],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Lower' },
+      svc as any,
+      [],
+      [],
+      {
+        goal: 'strength',
+        difficulty: 'intermediate',
+        durationMinutes: 60,
+        detailLevel: 'detailed',
+      },
+    );
+
+    const lungeCount = out.exercises.filter((e) =>
+      LUNGE_RX.test(e.name),
+    ).length;
+    expect(lungeCount).toBeLessThanOrEqual(2);
+    // A swap happened and is surfaced to the user.
+    expect(
+      out.exercises.some((e) => /movement variety/i.test(e.notes ?? '')),
+    ).toBe(true);
+  });
+
+  it('leaves a balanced lower session unchanged (no over-saturation)', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Lower',
+      exercises: [
+        { name: 'Back Squat', sets: 4, reps: 6, exerciseId: 'sq' },
+        { name: 'Romanian Deadlift', sets: 3, reps: 8, exerciseId: 'rdl' },
+        { name: 'Walking Lunge', sets: 3, reps: 10, exerciseId: 'wl' },
+      ],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Lower' },
+      svc as any,
+      [],
+      [],
+      {
+        goal: 'strength',
+        difficulty: 'intermediate',
+        durationMinutes: 60,
+        detailLevel: 'detailed',
+      },
+    );
+
+    // No swap note — nothing was over-saturated (1 squat, 1 hinge, 1 lunge).
+    expect(
+      out.exercises.some((e) => /movement variety/i.test(e.notes ?? '')),
+    ).toBe(false);
   });
 });

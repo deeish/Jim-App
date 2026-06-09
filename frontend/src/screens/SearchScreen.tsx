@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   TextInput,
   Animated,
@@ -102,6 +103,9 @@ export default function SearchScreen({ navigation }: Props) {
   });
 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  // Equipment is a set-once preference (usually pre-filled from onboarding), so it
+  // starts collapsed to de-clutter the top of the screen. One tap to expand.
+  const [showEquipment, setShowEquipment] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -485,6 +489,47 @@ export default function SearchScreen({ navigation }: Props) {
     return groups.slice(0, 3).join(' & ');
   }, []);
 
+  // Render a single exercise card for the virtualized results FlatList. The list used to
+  // be a non-virtualized ScrollView that mounted every card (~hundreds) at once, which
+  // caused multi-second jank on broad filters. The FlatList now renders only the cards
+  // near the viewport and recycles the rest.
+  const renderExerciseCard = useCallback(
+    ({ item: group }: { item: ExerciseGroup }) => {
+      const isAnyInGroupSelected = group.exercises.some((e) => selectedIds.has(e.id));
+      const existingIds = addToWorkout?.existingExerciseIds ?? [];
+      const isAlreadyInWorkout =
+        existingIds.length > 0 && group.exercises.some((e) => existingIds.includes(e.id));
+      return (
+        <ExerciseGroupCard
+          group={group}
+          isSelected={addMode ? isAnyInGroupSelected : undefined}
+          isDisabled={isAlreadyInWorkout}
+          saved={savedExerciseIds.includes(group.primaryExercise.id)}
+          onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
+          savingLike={savingLikeId === group.primaryExercise.id}
+          onPress={(exercise) => {
+            if (addMode) toggleSelectForAddToPlan(exercise.id);
+            else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
+          }}
+          onPressVariation={(exercise) => {
+            if (addMode) toggleSelectForAddToPlan(exercise.id);
+            else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
+          }}
+        />
+      );
+    },
+    [
+      selectedIds,
+      addMode,
+      addToWorkout,
+      savedExerciseIds,
+      savingLikeId,
+      handleToggleExerciseLike,
+      toggleSelectForAddToPlan,
+      navigation,
+    ],
+  );
+
   const submitAddToPlan = useCallback(async () => {
     if (!addToPlan || selectedIds.size === 0) return;
     const { day, weekIndex, weekMondayIso: weekMondayParam } = addToPlan;
@@ -698,21 +743,23 @@ export default function SearchScreen({ navigation }: Props) {
     onSelect,
     description,
   }: {
-    title: string;
+    title?: string;
     options: string[];
     selectedValues: string[];
     onSelect: (value: string) => void;
     description?: string;
   }) => (
     <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        {selectedValues.length > 0 && (
-          <View style={styles.sectionBadge}>
-            <Text style={styles.sectionBadgeText}>{selectedValues.length}</Text>
-          </View>
-        )}
-      </View>
+      {title ? (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {selectedValues.length > 0 && (
+            <View style={styles.sectionBadge}>
+              <Text style={styles.sectionBadgeText}>{selectedValues.length}</Text>
+            </View>
+          )}
+        </View>
+      ) : null}
       {description && (
         <Text style={styles.sectionDescription}>{description}</Text>
       )}
@@ -899,7 +946,9 @@ export default function SearchScreen({ navigation }: Props) {
         },
         refineTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
         refineSubtitle: { fontSize: 13, color: colors.textMuted },
-        advancedSection: { marginTop: 32, paddingHorizontal: 16, marginBottom: 24 },
+        // Tight, uniform rhythm for the collapsible rows (Equipment + Advanced Filters).
+        // marginBottom: 0 — the results section's own marginTop spaces it from the list.
+        advancedSection: { marginTop: 12, paddingHorizontal: 16, marginBottom: 0 },
         advancedToggle: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -924,17 +973,17 @@ export default function SearchScreen({ navigation }: Props) {
         },
         advancedBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
         resultsPreview: {
-          marginTop: 24,
+          marginTop: 16,
           marginHorizontal: 16,
-          padding: 20,
+          padding: 14,
           backgroundColor: colors.surface,
           borderRadius: 12,
           borderWidth: 1,
           borderColor: colors.border,
           alignItems: 'center',
         },
-        resultsPreviewText: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 8 },
-        resultsPreviewHint: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
+        resultsPreviewText: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 4 },
+        resultsPreviewHint: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
         bottomBar: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -1119,11 +1168,26 @@ export default function SearchScreen({ navigation }: Props) {
       )}
 
       {/* Content */}
-      <ScrollView
+      <FlatList
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-      >
+        data={exerciseGroups}
+        keyExtractor={(group, index) => `${group.baseName}-${index}`}
+        renderItem={renderExerciseCard}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        ListEmptyComponent={
+          !isLoading && !error && activeFilterCount > 0 ? (
+            <View style={styles.resultsPreview}>
+              <Text style={styles.resultsPreviewText}>No exercises found</Text>
+              <Text style={styles.resultsPreviewHint}>Try adjusting your filters</Text>
+            </View>
+          ) : null
+        }
+        ListHeaderComponent={
+          <>
         {/* Primary Filters - Most Important */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -1185,13 +1249,35 @@ export default function SearchScreen({ navigation }: Props) {
           return null;
         })}
 
-        <FilterSection
-          title="Equipment Available"
-          options={[...EQUIPMENT_OPTIONS]}
-          selectedValues={filters.equipment}
-          onSelect={(value) => toggleFilter('equipment', value)}
-          description="What equipment do you have access to?"
-        />
+        {/* Equipment Available - Collapsed by default (set-once preference) */}
+        <View style={styles.advancedSection}>
+          <TouchableOpacity
+            style={styles.advancedToggle}
+            onPress={() => setShowEquipment(!showEquipment)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+          >
+            <Text style={styles.advancedToggleText}>
+              {showEquipment ? '▼' : '▶'} Equipment Available
+            </Text>
+            <View style={styles.advancedBadge}>
+              <Text style={styles.advancedBadgeText}>
+                {filters.equipment.length === EQUIPMENT_OPTIONS.length
+                  ? 'All'
+                  : `${filters.equipment.length}/${EQUIPMENT_OPTIONS.length}`}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {showEquipment && (
+            <FilterSection
+              options={[...EQUIPMENT_OPTIONS]}
+              selectedValues={filters.equipment}
+              onSelect={(value) => toggleFilter('equipment', value)}
+              description="What equipment do you have access to?"
+            />
+          )}
+        </View>
 
         {/* Advanced Filters - Collapsed by default */}
         <View style={styles.advancedSection}>
@@ -1251,57 +1337,22 @@ export default function SearchScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* Exercise Results List */}
+        {/* Exercise Results header — cards render below as virtualized FlatList items */}
         {!isLoading && !error && resultCount > 0 && (
-          <View style={styles.resultsSection}>
-            <View style={styles.resultsHeader}>
-              <Text style={styles.resultsHeaderText}>
-                {resultCount} exercise{resultCount !== 1 ? 's' : ''} found
-                {exerciseGroups.length > 0 && exercises.length > exerciseGroups.length && (
-                  <Text style={styles.resultsSubtext}>
-                    {' '}({exercises.length} total including variations)
-                  </Text>
-                )}
-              </Text>
-            </View>
-            {exerciseGroups.map((group, index) => {
-              const isAnyInGroupSelected = group.exercises.some(e => selectedIds.has(e.id));
-              const existingIds = addToWorkout?.existingExerciseIds ?? [];
-              const isAlreadyInWorkout = existingIds.length > 0 && group.exercises.some(e => existingIds.includes(e.id));
-              return (
-                <ExerciseGroupCard
-                  key={`${group.baseName}-${index}`}
-                  group={group}
-                  isSelected={addMode ? isAnyInGroupSelected : undefined}
-                  isDisabled={isAlreadyInWorkout}
-                  saved={savedExerciseIds.includes(group.primaryExercise.id)}
-                  onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
-                  savingLike={savingLikeId === group.primaryExercise.id}
-                  onPress={(exercise) => {
-                    if (addMode) toggleSelectForAddToPlan(exercise.id);
-                    else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-                  }}
-                  onPressVariation={(exercise) => {
-                    if (addMode) toggleSelectForAddToPlan(exercise.id);
-                    else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-                  }}
-                />
-              );
-            })}
-          </View>
-        )}
-
-        {!isLoading && !error && resultCount === 0 && activeFilterCount > 0 && (
-          <View style={styles.resultsPreview}>
-            <Text style={styles.resultsPreviewText}>
-              No exercises found
-            </Text>
-            <Text style={styles.resultsPreviewHint}>
-              Try adjusting your filters
+          <View style={[styles.resultsHeader, { marginTop: 24 }]}>
+            <Text style={styles.resultsHeaderText}>
+              {resultCount} exercise{resultCount !== 1 ? 's' : ''} found
+              {exerciseGroups.length > 0 && exercises.length > exerciseGroups.length && (
+                <Text style={styles.resultsSubtext}>
+                  {' '}({exercises.length} total including variations)
+                </Text>
+              )}
             </Text>
           </View>
         )}
-      </ScrollView>
+          </>
+        }
+      />
         </>
       )}
 

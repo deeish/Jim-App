@@ -5,6 +5,15 @@ export interface Exercise {
   name: string;
   sets: number;
   reps: number;
+  /**
+   * Target rep range (goal × difficulty × role). When present, the UI shows
+   * `repsMin–repsMax` on every surface; `reps` is the working default (= repsMin).
+   * Undefined on cardio/time rows and legacy rows saved before this existed.
+   */
+  repsMin?: number;
+  repsMax?: number;
+  /** Duration in seconds for time-based rows (cardio bouts). */
+  durationSeconds?: number;
   weight?: number;
   notes?: string;
   exerciseId?: string; // Link to exercise library

@@ -11,8 +11,16 @@ import {
 import { getAcceptedAnchorIdsForFocus } from '../data/anchor-exercises';
 import {
   getSetRepGuidelines,
+  getRoleAwareScheme,
   normalizeDifficulty,
+  type ExerciseRole,
 } from '../data/set-rep-schemes';
+import {
+  classifyLowerDominance,
+  classifyPushAngle,
+  classifyPullAngle,
+  baseMovementFamily,
+} from './cross-session-diversity';
 
 /** One exercise row as returned by plan / workout generation (before save). */
 export type GeneratedSessionExercise = {
@@ -36,6 +44,20 @@ export type GeneratedSessionExercise = {
    * user without requiring an LLM round-trip.
    */
   restSeconds?: number;
+  /**
+   * Rep range stamped deterministically by goal × difficulty × exercise role
+   * (see `stampSetsAndReps` + `getRoleAwareScheme`). `reps` holds the working
+   * default (= `repsMin`) for set logging / progression; the range is what the
+   * UI shows ("4 × 8–12"). Undefined on cardio/time rows.
+   */
+  repsMin?: number;
+  repsMax?: number;
+  /**
+   * Duration in seconds for time-based rows (cardio bouts). Set in
+   * `normalizeCardioRowShape` so a cardio row carries an explicit duration
+   * instead of a rep count stuffed into `reps`.
+   */
+  durationSeconds?: number;
 };
 
 export type GeneratedSession = {
@@ -56,7 +78,7 @@ const BIG_FOUR = ['Squat', 'Hinge', 'Push', 'Pull'] as const;
 
 /** Chest/shoulder isolation and small-arm work — deprioritize for ordering + warm-up anchor. */
 const ISOLATION_NAME =
-  /\b(fly|flies|flyes|cable\s+fly|pec\s+deck|curl|curls|\bcable\s+curl|lateral\s+raise|front\s+raise|skull|push[-\s]?down|kickback|crossover|pullover|shrug|wrist|rear\s+delt|triceps\s+extension|overhead\s+extension)\b/i;
+  /\b(fly|flies|flyes|cable\s+fly|pec\s+deck|curl|curls|\bcable\s+curl|lateral\s+raise|front\s+raise|skull|(?:push|press)[-\s]?down|kickback|crossover|pullover|shrug|wrist|rear\s+delt|triceps\s+extension|overhead\s+extension)\b/i;
 
 /** Squat / hinge class movements that belong on lower days, not Upper/Push/Pull focus. */
 export const LOWER_PATTERN_NAME =
@@ -397,6 +419,12 @@ function normalizeCardioRowShape(
     e.sets = 1;
     if (e.reps == null || e.reps < 60) e.reps = 600;
     e.prescriptionType = 'time';
+    // Carry an explicit duration so the row no longer relies on a seconds value
+    // smuggled inside `reps`. The UI renders this as "10 min".
+    e.durationSeconds = e.reps;
+    // Cardio rows have no rep range — clear any stamped band defensively.
+    e.repsMin = undefined;
+    e.repsMax = undefined;
   }
 }
 
@@ -795,6 +823,170 @@ function ensureAnchorInSlotOne(args: {
 }
 
 /**
+ * Within-session redundancy guard: stops a session stacking 3+ of the same
+ * movement family. Caps (≤2 each) on lower-body dominance (lunge/squat/hinge),
+ * push angle, pull angle, and base-movement family, swapping the excess (latest,
+ * non-anchor, non-balance-insert rows) for a different movement from the focus
+ * candidate pool. Preserves the swapped row's sets/reps; only the exercise
+ * identity changes. No-ops when the candidate pool is empty (e.g. eval mocks).
+ */
+function capRedundantMovementFamilies(args: {
+  exercises: GeneratedSessionExercise[];
+  spec: { title?: string; type: string };
+  exercisesService: ExercisesService;
+  equipment?: string[];
+  avoidPhrases: string[];
+  chunkExcludeExerciseIds: string[];
+  coachNotes: string[];
+}): void {
+  const {
+    exercises,
+    spec,
+    exercisesService,
+    equipment,
+    avoidPhrases,
+    chunkExcludeExerciseIds,
+    coachNotes,
+  } = args;
+  if (spec.type !== 'strength') return;
+
+  const MAX_PER_FAMILY = 2;
+  const findMeta = (id: string) => exercisesService.findOne(id);
+
+  const isStrengthRow = (e: GeneratedSessionExercise): boolean => {
+    const id = e.exerciseId?.trim();
+    const group =
+      (id ? findMeta(id)?.primaryMuscleGroup : undefined) ??
+      e.primaryMuscleGroup;
+    return (group ?? '').toLowerCase() !== 'cardio';
+  };
+
+  // Never swap the slot-0 anchor or a deterministic balance insert.
+  const protectedIdx = new Set<number>();
+  for (let i = 0; i < exercises.length; i++) {
+    if (isStrengthRow(exercises[i]!)) {
+      protectedIdx.add(i);
+      break;
+    }
+  }
+  exercises.forEach((e, i) => {
+    if (exerciseRowIsBalanceInsert(e)) protectedIdx.add(i);
+  });
+
+  const presentIds = () =>
+    new Set(
+      exercises
+        .map((e) => e.exerciseId?.trim())
+        .filter((x): x is string => !!x),
+    );
+  const presentNames = () =>
+    new Set(exercises.map((e) => (e.name ?? '').trim().toLowerCase()));
+
+  /** Replace exercises[index] with a focus-pool exercise satisfying `accept`. */
+  const trySwap = (
+    index: number,
+    accept: (candidateName: string) => boolean,
+  ): boolean => {
+    const ids = presentIds();
+    const names = presentNames();
+    const pool = exercisesService.getCandidatesForGenerator({
+      focus: spec.title ?? 'full body',
+      equipment: equipment?.length ? equipment : undefined,
+      excludeIds: [...ids, ...chunkExcludeExerciseIds],
+      limit: 90,
+    });
+    const pick = pool.find(
+      (c) =>
+        c.primaryMuscleGroup !== 'Cardio' &&
+        !ids.has(c.id) &&
+        !names.has((c.name ?? '').trim().toLowerCase()) &&
+        !nameMatchesAvoidList(c.name, avoidPhrases) &&
+        accept(c.name ?? ''),
+    );
+    if (!pick) return false;
+    const prev = exercises[index]!;
+    const sec = secondaryMusclesForPreview(
+      pick.secondaryMuscleGroups,
+      pick.primaryMuscleGroup,
+    );
+    exercises[index] = {
+      name: pick.name,
+      exerciseId: pick.id,
+      sets: prev.sets,
+      reps: prev.reps,
+      ...(prev.weight != null ? { weight: prev.weight } : {}),
+      notes: 'Swapped for movement variety (avoid stacking similar lifts).',
+      prescriptionType:
+        pick.prescriptionType ??
+        inferPrescriptionTypeFromExerciseName(pick.name),
+      primaryMuscleGroup: pick.primaryMuscleGroup,
+      ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
+    };
+    return true;
+  };
+
+  let swaps = 0;
+
+  /** Cap any key (skipping `null` keys) at MAX_PER_FAMILY, swapping the excess. */
+  const capByKey = (keyOf: (name: string) => string | null): void => {
+    const groups = new Map<string, number[]>();
+    exercises.forEach((e, i) => {
+      if (!isStrengthRow(e)) return;
+      const k = keyOf(e.name ?? '');
+      if (!k) return;
+      const arr = groups.get(k);
+      if (arr) arr.push(i);
+      else groups.set(k, [i]);
+    });
+    for (const [key, idxs] of groups) {
+      let excess = idxs.length - MAX_PER_FAMILY;
+      if (excess <= 0) continue;
+      // Trim from the end (lowest-priority rows) first.
+      const swappable = idxs
+        .filter((i) => !protectedIdx.has(i))
+        .sort((a, b) => b - a);
+      for (const i of swappable) {
+        if (excess <= 0) break;
+        if (trySwap(i, (name) => keyOf(name) !== key)) {
+          excess--;
+          swaps++;
+        }
+      }
+    }
+  };
+
+  const isLower =
+    sessionTitleIsLowerEmphasis(spec.title) ||
+    sessionTitleNeedsSquatHingeBalance(spec.title, spec.type);
+  if (isLower) {
+    capByKey((n) => {
+      const d = classifyLowerDominance(n);
+      return d === 'other' ? null : `dom:${d}`;
+    });
+  }
+  capByKey((n) => {
+    const a = classifyPushAngle(n);
+    return a === 'other' ? null : `push:${a}`;
+  });
+  capByKey((n) => {
+    const a = classifyPullAngle(n);
+    return a === 'other' ? null : `pull:${a}`;
+  });
+  capByKey((n) => {
+    const f = baseMovementFamily(n);
+    return f ? `base:${f}` : null;
+  });
+
+  if (swaps > 0) {
+    coachNotes.push(
+      swaps === 1
+        ? 'We swapped one lift so this session does not stack several near-identical movements.'
+        : `We swapped ${swaps} lifts so this session does not stack several near-identical movements.`,
+    );
+  }
+}
+
+/**
  * Order compounds before accessories, ensure pull balance when the title calls for it,
  * and tie warm-up copy to the first main lift.
  */
@@ -956,6 +1148,18 @@ export async function enrichGeneratedSession(
     exercisesService,
   );
 
+  // Break up too-many-of-one-family stacking (e.g. 4 lunges, 3 landmine presses)
+  // before the soft-cap trim and the role-aware rep stamp run.
+  capRedundantMovementFamilies({
+    exercises,
+    spec,
+    exercisesService,
+    equipment,
+    avoidPhrases,
+    chunkExcludeExerciseIds: generationPrefs?.chunkExcludeExerciseIds ?? [],
+    coachNotes,
+  });
+
   if (generationPrefs) {
     const detailForCap = generationPrefs.detailLevel ?? 'detailed';
     const rawDur = generationPrefs.durationMinutes;
@@ -1067,6 +1271,9 @@ export async function enrichGeneratedSession(
   });
   moveCardioExercisesLast(exercises, findMeta);
   normalizeCardioRowShape(exercises, findMeta);
+  // Stamp role-aware sets + rep ranges before clamping so the duration/experience
+  // cap still trims the resulting working-set total to fit the session length.
+  stampSetsAndReps(exercises, findMeta, generationPrefs);
   clampSessionWorkingSets(exercises, findMeta, generationPrefs);
 
   stampRestSeconds(exercises, findMeta, generationPrefs);
@@ -1114,6 +1321,120 @@ function stampRestSeconds(
       ex.restSeconds = firstStrengthSeen ? baseRest : baseRest + 30;
     }
     firstStrengthSeen = true;
+  }
+}
+
+/** Loose shape of the catalog metadata `stampSetsAndReps` reads (subset of `TransformedExercise`). */
+type RoleMeta = {
+  type?: string;
+  movementPatterns?: string[];
+  primaryMuscleGroup?: string;
+  equipment?: string[];
+};
+
+type BaseRole = 'compound' | 'isolation' | 'core';
+
+/**
+ * Classify an exercise into compound / isolation / core from catalog metadata,
+ * falling back to the name. Cardio rows are handled separately (durationSeconds)
+ * and never reach here. Reuses the existing `BIG_FOUR` patterns + `ISOLATION_NAME`.
+ */
+function classifyExerciseBaseRole(
+  meta: RoleMeta | undefined,
+  name: string,
+): BaseRole {
+  if ((meta?.primaryMuscleGroup ?? '').toLowerCase() === 'core') return 'core';
+
+  // Unambiguous isolation names (fly, curl, pushdown, lateral raise, kickback, …)
+  // are very high precision — no compound lift carries them — so they win even
+  // over a catalog `type`/pattern that (mis)labels the row as compound.
+  if (ISOLATION_NAME.test(name)) return 'isolation';
+
+  // Explicit catalog `type` next; it beats the movement pattern (a triceps
+  // pushdown can carry a "Push" pattern yet still be isolation).
+  const typeStr = (meta?.type ?? '').toLowerCase();
+  if (typeStr === 'isolation') return 'isolation';
+  if (typeStr === 'compound') return 'compound';
+
+  const patterns = meta?.movementPatterns ?? [];
+  if (BIG_FOUR.some((p) => patterns.includes(p))) return 'compound';
+
+  // Unknown accessories default to the isolation (higher-rep, fewer-set) scheme.
+  return 'isolation';
+}
+
+/**
+ * Stamp `sets` + `repsMin`/`repsMax` on each non-cardio strength row from
+ * `goal × difficulty × role` (see {@link getRoleAwareScheme}). The first compound
+ * in the (already compound-sorted) list becomes the heavy `primary_compound`
+ * anchor; later compounds are `secondary_compound`. `reps` is set to `repsMin`
+ * as the working default for set logging + progression math.
+ *
+ * Runs before {@link clampSessionWorkingSets} so the duration cap still trims the
+ * total. Cardio + time-hold rows are skipped (they render as a duration).
+ */
+function stampSetsAndReps(
+  exercises: GeneratedSessionExercise[],
+  findMeta: (id: string) => RoleMeta | undefined,
+  prefs: EnrichSessionGenerationPrefs | undefined,
+): void {
+  let primaryCompoundAssigned = false;
+  for (const ex of exercises) {
+    const id = ex.exerciseId?.trim();
+    const meta = id ? findMeta(id) : undefined;
+
+    // Cardio rows carry a duration, not reps (already shaped in normalizeCardioRowShape).
+    if ((meta?.primaryMuscleGroup ?? '').toLowerCase() === 'cardio') continue;
+    if ((ex.primaryMuscleGroup ?? '').toLowerCase() === 'cardio') continue;
+    // Time-holds (planks / hangs / static holds) aren't rep-counted. Give them an
+    // explicit duration so the UI shows "~40 sec" instead of the model's leftover
+    // rep count as seconds, and never stamp a rep range on them.
+    if (ex.prescriptionType === 'time') {
+      if (ex.durationSeconds == null) {
+        ex.durationSeconds =
+          ex.reps != null && Number.isFinite(ex.reps) && ex.reps >= 20
+            ? Math.round(ex.reps)
+            : 40;
+      }
+      ex.repsMin = undefined;
+      ex.repsMax = undefined;
+      continue;
+    }
+
+    const baseRole = classifyExerciseBaseRole(meta, ex.name);
+    let role: ExerciseRole;
+    if (baseRole === 'core') {
+      role = 'core';
+    } else if (baseRole === 'isolation') {
+      role = 'isolation';
+    } else {
+      role = primaryCompoundAssigned
+        ? 'secondary_compound'
+        : 'primary_compound';
+      primaryCompoundAssigned = true;
+    }
+
+    const scheme = getRoleAwareScheme(prefs?.goal, prefs?.difficulty, role);
+    let repsMin = scheme.repsMin;
+    let repsMax = scheme.repsMax;
+
+    // Bodyweight compounds (push-ups, pull-ups, dips) carry light relative load —
+    // bump into a higher rep band so they aren't prescribed like a loaded barbell lift.
+    const equip = (meta?.equipment ?? []).map((e) => e.toLowerCase());
+    const bodyweightOnly =
+      equip.length > 0 && equip.every((e) => e === 'bodyweight');
+    if (
+      bodyweightOnly &&
+      (role === 'primary_compound' || role === 'secondary_compound')
+    ) {
+      repsMin = Math.min(25, repsMin + 4);
+      repsMax = Math.min(25, repsMax + 4);
+    }
+
+    ex.sets = scheme.sets;
+    ex.repsMin = repsMin;
+    ex.repsMax = repsMax;
+    ex.reps = repsMin;
   }
 }
 

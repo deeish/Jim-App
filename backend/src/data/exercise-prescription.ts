@@ -4,8 +4,12 @@
  */
 export type ExercisePrescriptionType = 'reps' | 'time' | 'distance';
 
+// `\bhold\b` is a deliberately generic catch: across the full 1,292-exercise
+// catalog every exercise whose name contains the word "hold" is isometric/time
+// (verified — zero rep-counted false positives), so this covers "Deadlift Hold",
+// "Static Hold", "Chin-Up Hold", etc. in one rule instead of an endless list.
 const TIME_NAME =
-  /\b(dead|passive|active)\s+hang\b|\bbar\s+hang\b|\bchin[\-\s]?up\s+hold\b|\b(hollow|arch)\s+hold\b|\bwall\s+sit\b|\bl[\-\s]?sit\b|\bisometric\b|\biso\s+hold\b|\bfront\s+lever\b|\bside\s+plank\b|\bplank\b|\bfront\s+plank\b|\bforearm\s+plank\b/i;
+  /\b(dead|passive|active)\s+hang\b|\bbar\s+hang\b|\bhold\b|\bwall\s+sit\b|\bl[\-\s]?sit\b|\bisometric\b|\bfront\s+lever\b|\bside\s+plank\b|\bplank\b|\bfront\s+plank\b|\bforearm\s+plank\b/i;
 
 /** Pattern ids from raw data that imply duration, not rep counting. */
 const TIME_MOVEMENT_PATTERN_IDS = new Set([

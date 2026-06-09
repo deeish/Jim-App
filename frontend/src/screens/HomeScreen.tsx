@@ -280,6 +280,8 @@ export default function HomeScreen() {
   );
   const metaLine = scheduledWorkout ? buildTodayMetaLine(scheduledWorkout, homeTodayPlanSlot) : '';
   const hasExercises = (scheduledWorkout?.exercises?.length ?? 0) > 0;
+  // Monday-first weekday name for "today" (so the label/marker highlights even on rest days).
+  const todayWeekdayName = PLAN_WEEKDAY_NAMES_MONDAY_FIRST[(new Date().getDay() + 6) % 7];
 
   return (
     <SafeAreaView
@@ -587,28 +589,36 @@ export default function HomeScreen() {
                 <Text style={[styles.sectionLabel, styles.sectionSpaced, themedStyles.sectionLabel]}>This week</Text>
                 <View style={styles.dotsRow}>
                   {PLAN_WEEKDAY_NAMES_MONDAY_FIRST.map((day, i) => {
-                    const { status, name } = weekDots[i] ?? { status: 'rest' as DotStatus, name: null };
-                    const isToday = status === 'today';
+                    const { status } = weekDots[i] ?? { status: 'rest' as DotStatus };
+                    const isToday = day === todayWeekdayName;
+                    const isTraining = status !== 'rest';
                     return (
                       <View key={day} style={styles.dotWrapper}>
                         <Text style={[styles.dotDayLabel, { color: isToday ? colors.primary : colors.textMuted, fontWeight: isToday ? '700' : '500' }]}>
                           {day.slice(0, 2)}
                         </Text>
-                        {status === 'rest' ? (
-                          <View style={[styles.dot, { backgroundColor: colors.textMuted + '30', width: 6, height: 6, borderRadius: 3 }]} />
-                        ) : (
-                          <View
-                            style={[
-                              styles.dot,
-                              status === 'completed' && { backgroundColor: colors.primary },
-                              isToday && { backgroundColor: colors.primary, width: 12, height: 12, borderRadius: 6 },
-                              status === 'scheduled' && { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.textMuted + '80' },
-                            ]}
-                          />
-                        )}
-                        <Text style={[styles.dotSessionName, { color: isToday ? colors.primary : colors.textMuted }]} numberOfLines={1}>
-                          {name ?? '–'}
-                        </Text>
+                        <View style={styles.dotSlot}>
+                          {isTraining ? (
+                            // Training day. Hollow gold ring = planned; fills solid when completed.
+                            <View
+                              style={[
+                                styles.dot,
+                                status === 'scheduled'
+                                  ? { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.primary }
+                                  : { backgroundColor: colors.primary },
+                                isToday && styles.dotToday,
+                              ]}
+                            />
+                          ) : (
+                            // Rest day — an intentional muted dash (gold-tinted if it's today).
+                            <View
+                              style={[
+                                styles.restDash,
+                                { backgroundColor: (isToday ? colors.primary : colors.textMuted) + (isToday ? 'CC' : '55') },
+                              ]}
+                            />
+                          )}
+                        </View>
                       </View>
                     );
                   })}
@@ -901,22 +911,31 @@ const styles = StyleSheet.create({
   },
   dotWrapper: {
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     flex: 1,
+  },
+  dotSlot: {
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dot: {
     width: 10,
     height: 10,
     borderRadius: 5,
   },
+  dotToday: {
+    width: 13,
+    height: 13,
+    borderRadius: 6.5,
+  },
+  restDash: {
+    width: 12,
+    height: 3,
+    borderRadius: 2,
+  },
   dotDayLabel: {
     fontSize: 11,
     textTransform: 'uppercase',
-  },
-  dotSessionName: {
-    fontSize: 10,
-    fontWeight: '500',
-    textAlign: 'center',
-    maxWidth: 40,
   },
 });

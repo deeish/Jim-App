@@ -1,4 +1,5 @@
 import {
+  baseMovementFamily,
   buildSessionDiversitySignature,
   classifyLowerDominance,
   classifyPullAngle,
@@ -6,6 +7,32 @@ import {
   compareSameFocusSessionPair,
   isUnilateralByName,
 } from './cross-session-diversity';
+
+describe('baseMovementFamily', () => {
+  it('merges laterality variations of the same base lift', () => {
+    expect(baseMovementFamily('Single-Arm Landmine Press')).toBe(
+      baseMovementFamily('Landmine Press'),
+    );
+    expect(baseMovementFamily('Half-Kneeling Landmine Press')).toBe(
+      baseMovementFamily('Landmine Press'),
+    );
+  });
+
+  it('keeps angle and implement distinct (legit variety, not redundancy)', () => {
+    expect(baseMovementFamily('Flat Barbell Bench Press')).not.toBe(
+      baseMovementFamily('Incline Barbell Bench Press'),
+    );
+    expect(baseMovementFamily('Barbell Curl')).not.toBe(
+      baseMovementFamily('Cable Curl'),
+    );
+  });
+
+  it('does not merge a press with a row from the same implement', () => {
+    expect(baseMovementFamily('Bilateral Landmine Row')).not.toBe(
+      baseMovementFamily('Landmine Press'),
+    );
+  });
+});
 
 describe('classifyPushAngle', () => {
   it('classifies flat bench variants as flat', () => {

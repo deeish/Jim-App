@@ -3,11 +3,21 @@ import type { Exercise } from '../types/workout';
 import type { WeightUnit } from './weightDisplay';
 import { formatAtWeightFromLb, formatWeightCompactFromLb } from './weightDisplay';
 import { exerciseUsesTimeDisplay } from './exercisePrescription';
-import { formatExerciseRepsDisplay } from './formatExerciseRepsDisplay';
+import {
+  formatExerciseRepsDisplay,
+  formatRepRange,
+} from './formatExerciseRepsDisplay';
 
 export type ExercisePrescriptionLike = Pick<
   Exercise,
-  'name' | 'sets' | 'reps' | 'weight' | 'primaryMuscleGroup'
+  | 'name'
+  | 'sets'
+  | 'reps'
+  | 'repsMin'
+  | 'repsMax'
+  | 'durationSeconds'
+  | 'weight'
+  | 'primaryMuscleGroup'
 > & {
   prescriptionType?: import('./exercisePrescription').ExercisePrescriptionType;
 };
@@ -21,21 +31,25 @@ export function profileGoalToPlanGoal(profileGoal: string): GoalId {
   return 'strength';
 }
 
-/** Materialized workout target reps/duration for live session headers (numeric `reps` only). */
+/** Materialized workout target reps/duration for live session headers. */
 export function formatPlanTargetRepDisplay(exercise: ExercisePrescriptionLike, goal: GoalId): string {
-  return exerciseUsesTimeDisplay(
-    exercise.prescriptionType,
-    exercise.name,
-    exercise.primaryMuscleGroup,
-  )
-    ? formatExerciseRepsDisplay(
-        exercise.name,
-        exercise.reps,
-        goal,
-        exercise.prescriptionType,
-        exercise.primaryMuscleGroup,
-      )
-    : String(exercise.reps);
+  if (
+    exerciseUsesTimeDisplay(
+      exercise.prescriptionType,
+      exercise.name,
+      exercise.primaryMuscleGroup,
+    )
+  ) {
+    return formatExerciseRepsDisplay(
+      exercise.name,
+      exercise.durationSeconds ?? exercise.reps,
+      goal,
+      exercise.prescriptionType,
+      exercise.primaryMuscleGroup,
+    );
+  }
+  // Prefer the stored range ("8–12"); fall back to the single working value.
+  return formatRepRange(exercise.repsMin, exercise.repsMax) ?? String(exercise.reps);
 }
 
 /**
@@ -43,7 +57,16 @@ export function formatPlanTargetRepDisplay(exercise: ExercisePrescriptionLike, g
  * When `reps` is already a formatted string from preview APIs (e.g. `10 min`), pass it through.
  */
 export function formatExercisePrescriptionCompact(
-  exercise: Pick<ExercisePrescriptionLike, 'name' | 'sets' | 'primaryMuscleGroup' | 'prescriptionType'> & {
+  exercise: Pick<
+    ExercisePrescriptionLike,
+    | 'name'
+    | 'sets'
+    | 'primaryMuscleGroup'
+    | 'prescriptionType'
+    | 'repsMin'
+    | 'repsMax'
+    | 'durationSeconds'
+  > & {
     reps: number | string;
   },
   goal: GoalId,
@@ -51,24 +74,34 @@ export function formatExercisePrescriptionCompact(
   const raw = exercise.reps;
   if (typeof raw === 'string') {
     const t = raw.trim();
+    // Already-formatted string from preview APIs (e.g. "10 min", "8–12") — pass through.
     if (t && !/^\d+$/.test(t)) {
       return `${exercise.sets} × ${t}`;
     }
   }
   const repsNum = typeof raw === 'number' ? raw : Number.parseInt(String(raw), 10);
-  const repPart = exerciseUsesTimeDisplay(
-    exercise.prescriptionType,
-    exercise.name,
-    exercise.primaryMuscleGroup,
-  )
-    ? formatExerciseRepsDisplay(
-        exercise.name,
-        Number.isFinite(repsNum) ? repsNum : raw,
-        goal,
-        exercise.prescriptionType,
-        exercise.primaryMuscleGroup,
-      )
-    : String(Number.isFinite(repsNum) ? repsNum : raw);
+  let repPart: string;
+  if (
+    exerciseUsesTimeDisplay(
+      exercise.prescriptionType,
+      exercise.name,
+      exercise.primaryMuscleGroup,
+    )
+  ) {
+    const secs = exercise.durationSeconds ?? (Number.isFinite(repsNum) ? repsNum : raw);
+    repPart = formatExerciseRepsDisplay(
+      exercise.name,
+      secs,
+      goal,
+      exercise.prescriptionType,
+      exercise.primaryMuscleGroup,
+    );
+  } else {
+    // Prefer the stored range ("8–12"); fall back to the single working value.
+    repPart =
+      formatRepRange(exercise.repsMin, exercise.repsMax) ??
+      String(Number.isFinite(repsNum) ? repsNum : raw);
+  }
   return `${exercise.sets} × ${repPart}`;
 }
 
@@ -86,12 +119,12 @@ export function formatExercisePrescriptionBulleted(
   )
     ? formatExerciseRepsDisplay(
         exercise.name,
-        exercise.reps,
+        exercise.durationSeconds ?? exercise.reps,
         goal,
         exercise.prescriptionType,
         exercise.primaryMuscleGroup,
       )
-    : `${exercise.reps} reps`;
+    : `${formatRepRange(exercise.repsMin, exercise.repsMax) ?? exercise.reps} reps`;
   const parts: string[] = [setsLbl, second];
   if (exercise.weight != null && exercise.weight !== 0) {
     parts.push(formatWeightCompactFromLb(exercise.weight, weightUnit));

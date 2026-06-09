@@ -38,6 +38,24 @@ export class PlanSlotExerciseDto {
   @Min(1)
   reps: number;
 
+  /** Target rep range low end (role-aware prescription). Defaults to `reps` when absent. */
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  repsMin?: number;
+
+  /** Target rep range high end. */
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  repsMax?: number;
+
+  /** Duration in seconds for time-based rows (cardio bouts). */
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  durationSeconds?: number;
+
   @IsOptional()
   @IsNumber()
   weight?: number;
@@ -51,7 +69,7 @@ export class PlanSlotExerciseDto {
   @Min(0)
   orderIndex?: number;
 
-  /** Optional hint for UI (not stored on plan_exercises until schema supports it). */
+  /** Prescription type — persisted to plan_exercises / workout_exercises. */
   @IsOptional()
   @IsIn(['reps', 'time', 'distance'])
   prescriptionType?: 'reps' | 'time' | 'distance';

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { currentGenerationSignal } from '../common/generation-abort.context';
 import {
   WorkoutGeneratorService,
   exerciseTargetsForSession,
@@ -177,6 +178,10 @@ export class PlansService {
                     name: e.name ?? null,
                     sets: e.sets,
                     reps: e.reps,
+                    repsMin: e.repsMin ?? null,
+                    repsMax: e.repsMax ?? null,
+                    durationSeconds: e.durationSeconds ?? null,
+                    prescriptionType: e.prescriptionType ?? null,
                     weight: e.weight ?? null,
                     notes: e.notes ?? null,
                     orderIndex: e.orderIndex ?? i,
@@ -308,6 +313,10 @@ export class PlansService {
         name: string | null;
         sets: number;
         reps: number;
+        repsMin: number | null;
+        repsMax: number | null;
+        durationSeconds: number | null;
+        prescriptionType: string | null;
         weight: number | null;
         notes: string | null;
         orderIndex: number;
@@ -335,6 +344,10 @@ export class PlansService {
             name: e.name ?? 'Exercise',
             sets: e.sets,
             reps: e.reps,
+            repsMin: e.repsMin ?? undefined,
+            repsMax: e.repsMax ?? undefined,
+            durationSeconds: e.durationSeconds ?? undefined,
+            prescriptionType: e.prescriptionType ?? undefined,
             weight: e.weight ?? undefined,
             notes: e.notes ?? undefined,
             exerciseId:
@@ -536,6 +549,10 @@ export class PlansService {
                     name: e.name ?? null,
                     sets: e.sets,
                     reps: e.reps,
+                    repsMin: e.repsMin ?? null,
+                    repsMax: e.repsMax ?? null,
+                    durationSeconds: e.durationSeconds ?? null,
+                    prescriptionType: e.prescriptionType ?? null,
                     weight: e.weight ?? null,
                     notes: e.notes ?? null,
                     orderIndex: e.orderIndex ?? i,
@@ -612,6 +629,15 @@ export class PlansService {
           // progress via intensity/reps until the multiplier genuinely rounds up.
           sets: Math.max(1, Math.round(ex.sets * prog.volumeMultiplier)),
           reps: Math.max(1, Math.min(100, ex.reps + prog.repModifier)),
+          // Keep the displayed rep range tracking progression alongside the scalar.
+          repsMin:
+            ex.repsMin != null
+              ? Math.max(1, Math.min(100, ex.repsMin + prog.repModifier))
+              : ex.repsMin,
+          repsMax:
+            ex.repsMax != null
+              ? Math.max(1, Math.min(100, ex.repsMax + prog.repModifier))
+              : ex.repsMax,
         })),
       });
     }
@@ -1571,6 +1597,11 @@ export class PlansService {
     );
 
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      // Client navigated away (e.g. "Edit inputs") — stop before the next chunk's
+      // Groq call so an abandoned generation doesn't keep burning free-tier tokens.
+      if (currentGenerationSignal()?.aborted) {
+        throw new Error('generation aborted by client');
+      }
       const chunk = chunks[chunkIndex]!;
 
       // Weeks 2+: clone week-1 exercise selection and apply progression math — no LLM call.
@@ -2163,6 +2194,10 @@ export class PlansService {
                 name: e.name ?? null,
                 sets: e.sets,
                 reps: e.reps,
+                repsMin: e.repsMin ?? null,
+                repsMax: e.repsMax ?? null,
+                durationSeconds: e.durationSeconds ?? null,
+                prescriptionType: e.prescriptionType ?? null,
                 weight: e.weight ?? null,
                 notes: e.notes ?? null,
                 orderIndex: e.orderIndex ?? i,

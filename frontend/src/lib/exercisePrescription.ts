@@ -4,8 +4,10 @@
  */
 export type ExercisePrescriptionType = 'reps' | 'time' | 'distance';
 
+// `\bhold\b` generic catch — every "… hold" exercise in the catalog is isometric
+// (verified, zero rep false positives). Keep in sync with backend `TIME_NAME`.
 const TIME_HOLD_NAME =
-  /\b(dead|passive|active)\s+hang\b|\bbar\s+hang\b|\bchin[\-\s]?up\s+hold\b|\b(hollow|arch)\s+hold\b|\bwall\s+sit\b|\bl[\-\s]?sit\b|\bisometric\b|\biso\s+hold\b|\bfront\s+lever\b|\bside\s+plank\b|\bplank\b|\bfront\s+plank\b|\bforearm\s+plank\b/i;
+  /\b(dead|passive|active)\s+hang\b|\bbar\s+hang\b|\bhold\b|\bwall\s+sit\b|\bl[\-\s]?sit\b|\bisometric\b|\bfront\s+lever\b|\bside\s+plank\b|\bplank\b|\bfront\s+plank\b|\bforearm\s+plank\b/i;
 
 const CARRY_OR_LOADED_WALK =
   /\b(carry|carries|farmer|pinch|suitcase|yoke|prowler|sled|loaded\s+carry)\b/i;

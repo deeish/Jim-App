@@ -55,6 +55,27 @@ export function formatExerciseRepsDisplay(
   return '8–12';
 }
 
+/**
+ * Format a stored rep range ("8–12"), collapsing to a single number when
+ * `min === max`. Returns `null` when no usable range is present so callers can
+ * fall back to the legacy single-number derivation ({@link formatDraftReps}).
+ *
+ * This is the source of truth once the backend stamps `repsMin`/`repsMax`
+ * (goal × difficulty × role) — no more fabricating a band from one number.
+ */
+export function formatRepRange(
+  repsMin: number | undefined | null,
+  repsMax: number | undefined | null,
+): string | null {
+  if (repsMin == null || !Number.isFinite(repsMin)) return null;
+  const lo = Math.max(1, Math.round(repsMin));
+  const hi =
+    repsMax != null && Number.isFinite(repsMax)
+      ? Math.max(lo, Math.round(repsMax))
+      : lo;
+  return hi > lo ? `${lo}–${hi}` : `${lo}`;
+}
+
 /** Rep range string for draft + preview (API often returns one number). */
 export function formatDraftReps(reps: number, goal: GoalId): string {
   const n = Math.round(Number(reps));

@@ -216,3 +216,97 @@ export function getSetRepGuidelines(
   const d = normalizeDifficulty(difficulty);
   return SCHEMES[g][d];
 }
+
+// ---------------------------------------------------------------------------
+// Role-aware prescription
+//
+// The base scheme above is one band per goal+difficulty. Real programming also
+// varies by the exercise's ROLE: the heavy compound anchor stays low-rep, while
+// isolation/core work runs higher reps with fewer sets. We derive the per-row
+// prescription from the base band (so the user's goal still drives the numbers)
+// shifted by role — rather than hand-tuning 1,000+ catalog rows.
+// ---------------------------------------------------------------------------
+
+export type ExerciseRole =
+  | 'primary_compound'
+  | 'secondary_compound'
+  | 'isolation'
+  | 'core';
+
+export interface RoleAwareScheme {
+  /** Concrete working-set count for the row (not a range). */
+  sets: number;
+  repsMin: number;
+  repsMax: number;
+  restSeconds?: number;
+}
+
+/** Global sanity clamps so no goal+role combination produces absurd numbers. */
+const REP_FLOOR = 3;
+const REP_CEIL = 25;
+const SET_FLOOR = 2;
+const SET_CEIL = 6;
+/**
+ * Keep the displayed band coach-tight. A 5–16 spread reads like indecision; we
+ * pull the top down toward the (goal-anchored) bottom so ranges stay ≤ this wide.
+ */
+const MAX_RANGE_WIDTH = 6;
+
+function clampInt(value: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, Math.round(value)));
+}
+
+/**
+ * Concrete `sets` + `repsMin`/`repsMax` for one exercise, derived from the
+ * goal+difficulty base band ({@link getSetRepGuidelines}) shifted by role:
+ *   - primary_compound  → base band, most sets (the heavy anchor)
+ *   - secondary_compound→ slightly higher reps, mid sets
+ *   - isolation         → higher reps, fewer sets
+ *   - core              → core-appropriate higher-rep band, 3 sets
+ *
+ * Keeping the base as the reference means switching goals still moves every
+ * role together (strength stays low-rep, endurance high-rep).
+ */
+export function getRoleAwareScheme(
+  goal: string | undefined,
+  difficulty: string | undefined,
+  role: ExerciseRole,
+): RoleAwareScheme {
+  const base = getSetRepGuidelines(goal, difficulty);
+  const midSets = Math.round((base.setsMin + base.setsMax) / 2);
+
+  let sets: number;
+  let repsMin: number;
+  let repsMax: number;
+
+  switch (role) {
+    case 'primary_compound':
+      sets = base.setsMax;
+      repsMin = base.repsMin;
+      repsMax = base.repsMax;
+      break;
+    case 'secondary_compound':
+      sets = midSets;
+      repsMin = base.repsMin + 1;
+      repsMax = base.repsMax + 2;
+      break;
+    case 'isolation':
+      sets = Math.min(3, base.setsMin);
+      repsMin = base.repsMin + 4;
+      repsMax = base.repsMax + 4;
+      break;
+    case 'core':
+      sets = 3;
+      repsMin = Math.max(12, base.repsMin + 4);
+      repsMax = Math.max(15, base.repsMax + 4);
+      break;
+  }
+
+  repsMin = clampInt(repsMin, REP_FLOOR, REP_CEIL);
+  repsMax = clampInt(repsMax, REP_FLOOR, REP_CEIL);
+  if (repsMax < repsMin) repsMax = repsMin;
+  if (repsMax - repsMin > MAX_RANGE_WIDTH) repsMax = repsMin + MAX_RANGE_WIDTH;
+  sets = clampInt(sets, SET_FLOOR, SET_CEIL);
+
+  return { sets, repsMin, repsMax, restSeconds: base.restSeconds };
+}

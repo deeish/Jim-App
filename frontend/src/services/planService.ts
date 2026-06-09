@@ -8,6 +8,11 @@ export interface PlanSlotExercise {
   name?: string;
   sets: number;
   reps: number;
+  /** Target rep range (goal × difficulty × role); persisted so saved == preview. */
+  repsMin?: number;
+  repsMax?: number;
+  /** Duration in seconds for time-based rows (cardio bouts). */
+  durationSeconds?: number;
   weight?: number;
   notes?: string;
   orderIndex?: number;
@@ -179,6 +184,15 @@ export interface GenerateSessionResult {
     name: string;
     sets: number;
     reps: number;
+    /**
+     * Target rep range, stamped server-side by goal × difficulty × exercise role.
+     * When present the UI shows `repsMin–repsMax`; `reps` is the working default
+     * (= `repsMin`). Cardio/time rows leave the range undefined.
+     */
+    repsMin?: number;
+    repsMax?: number;
+    /** Duration in seconds for time-based rows (cardio bouts). */
+    durationSeconds?: number;
     weight?: number;
     notes?: string;
     exerciseId?: string;
@@ -240,13 +254,15 @@ export async function repairProgramSessions(
 }
 
 export async function generateSessions(
-  body: GenerateSessionsRequest
+  body: GenerateSessionsRequest,
+  opts?: { signal?: AbortSignal }
 ): Promise<{ sessions: GenerateSessionResult[]; generationNotes?: string[] }> {
   const response = await api.post<{
     sessions: GenerateSessionResult[];
     generationNotes?: string[];
   }>('/plans/generate-sessions', body, {
     timeout: GENERATE_SESSIONS_TIMEOUT_MS,
+    signal: opts?.signal,
   });
   return response.data;
 }
