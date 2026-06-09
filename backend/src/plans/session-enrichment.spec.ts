@@ -342,10 +342,54 @@ describe('enrichGeneratedSession role-aware sets + rep ranges', () => {
         };
       if (id === 'tm')
         return { id, name: 'Treadmill Walk', primaryMuscleGroup: 'Cardio' };
+      if (id === 'hold')
+        return {
+          id,
+          name: 'Barbell Static Hold',
+          primaryMuscleGroup: 'Back',
+          movementPatterns: [],
+        };
       return undefined;
     },
     getCandidatesForGenerator: () => [],
   };
+
+  it('treats a "static hold" as time (duration, no rep range) even when the model wrote reps', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Pull',
+      exercises: [
+        {
+          name: 'Barbell Bent-Over Row',
+          sets: 4,
+          reps: 8,
+          exerciseId: 'bench',
+        },
+        { name: 'Barbell Static Hold', sets: 4, reps: 10, exerciseId: 'hold' },
+      ],
+    };
+
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Pull' },
+      svc as any,
+      [],
+      [],
+      {
+        goal: 'strength',
+        difficulty: 'intermediate',
+        durationMinutes: 60,
+        detailLevel: 'detailed',
+      },
+    );
+
+    const hold = out.exercises.find((e) => e.name === 'Barbell Static Hold')!;
+    expect(hold.prescriptionType).toBe('time');
+    expect(hold.durationSeconds).toBeGreaterThan(0);
+    expect(hold.repsMin).toBeUndefined();
+    expect(hold.repsMax).toBeUndefined();
+  });
 
   it('stamps lower reps on the compound than the isolation, and a duration on cardio', async () => {
     const session: GeneratedSession = {

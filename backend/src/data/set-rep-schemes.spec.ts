@@ -66,6 +66,18 @@ describe('getRoleAwareScheme', () => {
     }
   });
 
+  it('keeps the band coach-tight (no range wider than 6 reps)', () => {
+    const difficulties = ['beginner', 'intermediate', 'advanced'];
+    for (const goal of goals) {
+      for (const d of difficulties) {
+        for (const role of roles) {
+          const s = getRoleAwareScheme(goal, d, role);
+          expect(s.repsMax - s.repsMin).toBeLessThanOrEqual(6);
+        }
+      }
+    }
+  });
+
   it('difficulty still shifts the band (advanced strength is heavier than beginner)', () => {
     const beginner = getRoleAwareScheme(
       'strength',

@@ -49,6 +49,15 @@ describe('inferPrescriptionTypeFromRawExercise (cardio gate)', () => {
       }),
     ).toBe('time');
   });
+
+  it('flags "… static hold" style isometrics as time (no time metadata on the row)', () => {
+    expect(
+      inferPrescriptionTypeFromRawExercise({
+        name: 'Barbell Static Hold',
+        primaryMuscleGroup: 'Back',
+      }),
+    ).toBe('time');
+  });
 });
 
 describe('inferPrescriptionTypeFromExerciseName (name-only fallback)', () => {

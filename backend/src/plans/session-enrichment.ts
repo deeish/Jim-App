@@ -1201,12 +1201,23 @@ function stampSetsAndReps(
     const id = ex.exerciseId?.trim();
     const meta = id ? findMeta(id) : undefined;
 
-    // Cardio rows carry a duration, not reps.
+    // Cardio rows carry a duration, not reps (already shaped in normalizeCardioRowShape).
     if ((meta?.primaryMuscleGroup ?? '').toLowerCase() === 'cardio') continue;
     if ((ex.primaryMuscleGroup ?? '').toLowerCase() === 'cardio') continue;
-    // Time-holds (planks / hangs / carries) aren't rep-counted — leave them for
-    // the duration formatter rather than stamping a rep range.
-    if (ex.prescriptionType === 'time') continue;
+    // Time-holds (planks / hangs / static holds) aren't rep-counted. Give them an
+    // explicit duration so the UI shows "~40 sec" instead of the model's leftover
+    // rep count as seconds, and never stamp a rep range on them.
+    if (ex.prescriptionType === 'time') {
+      if (ex.durationSeconds == null) {
+        ex.durationSeconds =
+          ex.reps != null && Number.isFinite(ex.reps) && ex.reps >= 20
+            ? Math.round(ex.reps)
+            : 40;
+      }
+      ex.repsMin = undefined;
+      ex.repsMax = undefined;
+      continue;
+    }
 
     const baseRole = classifyExerciseBaseRole(meta, ex.name);
     let role: ExerciseRole;

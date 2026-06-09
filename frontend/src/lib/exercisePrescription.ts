@@ -5,7 +5,7 @@
 export type ExercisePrescriptionType = 'reps' | 'time' | 'distance';
 
 const TIME_HOLD_NAME =
-  /\b(dead|passive|active)\s+hang\b|\bbar\s+hang\b|\bchin[\-\s]?up\s+hold\b|\b(hollow|arch)\s+hold\b|\bwall\s+sit\b|\bl[\-\s]?sit\b|\bisometric\b|\biso\s+hold\b|\bfront\s+lever\b|\bside\s+plank\b|\bplank\b|\bfront\s+plank\b|\bforearm\s+plank\b/i;
+  /\b(dead|passive|active)\s+hang\b|\bbar\s+hang\b|\bchin[\-\s]?up\s+hold\b|\b(hollow|arch)\s+hold\b|\b(static|support|overhead|dead|isometric)\s+hold\b|\bwall\s+sit\b|\bl[\-\s]?sit\b|\bisometric\b|\biso\s+hold\b|\bfront\s+lever\b|\bside\s+plank\b|\bplank\b|\bfront\s+plank\b|\bforearm\s+plank\b/i;
 
 const CARRY_OR_LOADED_WALK =
   /\b(carry|carries|farmer|pinch|suitcase|yoke|prowler|sled|loaded\s+carry)\b/i;

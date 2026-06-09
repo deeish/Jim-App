@@ -246,6 +246,11 @@ const REP_FLOOR = 3;
 const REP_CEIL = 25;
 const SET_FLOOR = 2;
 const SET_CEIL = 6;
+/**
+ * Keep the displayed band coach-tight. A 5–16 spread reads like indecision; we
+ * pull the top down toward the (goal-anchored) bottom so ranges stay ≤ this wide.
+ */
+const MAX_RANGE_WIDTH = 6;
 
 function clampInt(value: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, Math.round(value)));
@@ -300,6 +305,7 @@ export function getRoleAwareScheme(
   repsMin = clampInt(repsMin, REP_FLOOR, REP_CEIL);
   repsMax = clampInt(repsMax, REP_FLOOR, REP_CEIL);
   if (repsMax < repsMin) repsMax = repsMin;
+  if (repsMax - repsMin > MAX_RANGE_WIDTH) repsMax = repsMin + MAX_RANGE_WIDTH;
   sets = clampInt(sets, SET_FLOOR, SET_CEIL);
 
   return { sets, repsMin, repsMax, restSeconds: base.restSeconds };
