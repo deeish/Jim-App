@@ -254,13 +254,15 @@ export async function repairProgramSessions(
 }
 
 export async function generateSessions(
-  body: GenerateSessionsRequest
+  body: GenerateSessionsRequest,
+  opts?: { signal?: AbortSignal }
 ): Promise<{ sessions: GenerateSessionResult[]; generationNotes?: string[] }> {
   const response = await api.post<{
     sessions: GenerateSessionResult[];
     generationNotes?: string[];
   }>('/plans/generate-sessions', body, {
     timeout: GENERATE_SESSIONS_TIMEOUT_MS,
+    signal: opts?.signal,
   });
   return response.data;
 }

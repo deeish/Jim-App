@@ -6,11 +6,14 @@ import {
   Patch,
   Body,
   Param,
+  Res,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { PlansService } from './plans.service';
+import { runWithGenerationSignal } from '../common/generation-abort.context';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { RemoveSlotDto } from './dto/remove-slot.dto';
 import { MoveSlotDto } from './dto/move-slot.dto';
@@ -76,8 +79,26 @@ export class PlansController {
   @Post('generate-sessions')
   @UseGuards(AiThrottlerGuard)
   @HttpCode(HttpStatus.OK)
-  generateSessions(@Body() dto: GenerateSessionsDto, @UserId() userId: string) {
-    return this.plansService.generateSessions(dto, userId);
+  async generateSessions(
+    @Body() dto: GenerateSessionsDto,
+    @UserId() userId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Abort the in-flight Groq generation if the client disconnects (e.g. taps
+    // "Edit inputs"), so an abandoned run stops burning free-tier Groq tokens.
+    const ac = new AbortController();
+    res.on('close', () => {
+      if (!res.writableEnded) ac.abort();
+    });
+    try {
+      return await runWithGenerationSignal(ac.signal, () =>
+        this.plansService.generateSessions(dto, userId),
+      );
+    } catch (err) {
+      // We aborted on purpose — the response socket is already gone, so stop quietly.
+      if (ac.signal.aborted) return undefined;
+      throw err;
+    }
   }
 
   @Post('generate-single-session')

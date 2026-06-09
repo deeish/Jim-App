@@ -686,7 +686,7 @@ function normalizeSessionsResponse(
 async function stages5And6FromApi(
   planInputs: PlanInputs,
   weekSpecs: WeekSessionSpecs[],
-  options?: { makeItEasier?: boolean }
+  options?: { makeItEasier?: boolean; signal?: AbortSignal }
 ): Promise<{ weeks: WeekDraft[]; rawGrokResponse: unknown; generationNotes?: string[] }> {
   const request = buildGenerateSessionsRequest(planInputs, weekSpecs, options);
   if (request.sessions.length === 0) {
@@ -696,7 +696,9 @@ async function stages5And6FromApi(
     }));
     return { weeks, rawGrokResponse: null };
   }
-  const { sessions, generationNotes } = await generateSessions(request);
+  const { sessions, generationNotes } = await generateSessions(request, {
+    signal: options?.signal,
+  });
   if (sessions.length !== request.sessions.length) {
     throw new Error(
       `Generate sessions: expected ${request.sessions.length} sessions, got ${sessions.length}`
@@ -858,7 +860,7 @@ export function runPipeline(planInputs: PlanInputs, draftId: string): PlanDraft 
 export async function runPipelineSafe(
   planInputs: PlanInputs,
   draftId: string,
-  options?: { captureDebug?: boolean; repairIfInvalid?: boolean; makeItEasier?: boolean }
+  options?: { captureDebug?: boolean; repairIfInvalid?: boolean; makeItEasier?: boolean; signal?: AbortSignal }
 ): Promise<PipelineRunResult> {
   const captureDebug = options?.captureDebug ?? false;
   const repairIfInvalid = options?.repairIfInvalid ?? true;
@@ -871,7 +873,7 @@ export async function runPipelineSafe(
     const { weeks, rawGrokResponse, generationNotes } = await stages5And6FromApi(
       planInputs,
       stage4,
-      { makeItEasier }
+      { makeItEasier, signal: options?.signal }
     );
     const metrics = stage7Metrics(weeks);
     let draft: PlanDraft = {

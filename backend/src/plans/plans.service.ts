@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { currentGenerationSignal } from '../common/generation-abort.context';
 import {
   WorkoutGeneratorService,
   exerciseTargetsForSession,
@@ -1596,6 +1597,11 @@ export class PlansService {
     );
 
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      // Client navigated away (e.g. "Edit inputs") — stop before the next chunk's
+      // Groq call so an abandoned generation doesn't keep burning free-tier tokens.
+      if (currentGenerationSignal()?.aborted) {
+        throw new Error('generation aborted by client');
+      }
       const chunk = chunks[chunkIndex]!;
 
       // Weeks 2+: clone week-1 exercise selection and apply progression math — no LLM call.

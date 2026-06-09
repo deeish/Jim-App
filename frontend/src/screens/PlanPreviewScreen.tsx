@@ -296,10 +296,12 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     setGenerateError(null);
     setLoadingPreview(true);
     let cancelled = false;
+    const controller = new AbortController();
     const frameId = requestAnimationFrame(async () => {
       try {
         const result = await runPipelineSafe(planInputs, draftId, {
           repairIfInvalid: true,
+          signal: controller.signal,
         });
         if (cancelled) return;
         if (result.ok) {
@@ -315,6 +317,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     return () => {
       cancelled = true;
       cancelAnimationFrame(frameId);
+      // Abort the in-flight Groq generation so leaving (e.g. "Edit inputs")
+      // stops burning free-tier tokens server-side.
+      controller.abort();
     };
   }, [planInputs, draftId]);
 

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExercisesService } from '../exercises/exercises.service';
 import Groq from 'groq-sdk';
+import { currentGenerationSignal } from '../common/generation-abort.context';
 import { GenerateWorkoutDto } from './dto/generate-workout.dto';
 import { CreateWorkoutDto } from './dto/create-workout.dto';
 import {
@@ -1120,16 +1121,19 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     };
     const batchMaxTokens = detailLevel === 'simple' ? 3200 : 4096;
     try {
-      response = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.73,
-        max_tokens: batchMaxTokens,
-      });
+      response = await groq.chat.completions.create(
+        {
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.73,
+          max_tokens: batchMaxTokens,
+        },
+        { signal: currentGenerationSignal() },
+      );
     } catch (err) {
       this.logger.warn(
         `[WorkoutGenerator] generateFullProgram Groq call failed: ${(err as Error)?.message ?? err}`,
@@ -1495,16 +1499,19 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
       choices?: Array<{ message?: { content?: string } }>;
     };
     try {
-      response = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.45,
-        max_tokens: 900,
-      });
+      response = await groq.chat.completions.create(
+        {
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.45,
+          max_tokens: 900,
+        },
+        { signal: currentGenerationSignal() },
+      );
     } catch {
       return null;
     }
@@ -1770,16 +1777,19 @@ Return valid JSON with exerciseId, sets, reps${wantsExerciseNotes ? ', optional 
     const sessionMaxTokens = isSimple ? 2400 : 3072;
 
     const groq = new Groq({ apiKey });
-    const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.62,
-      max_tokens: sessionMaxTokens,
-    });
+    const response = await groq.chat.completions.create(
+      {
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.62,
+        max_tokens: sessionMaxTokens,
+      },
+      { signal: currentGenerationSignal() },
+    );
 
     this.logGroqCompletionMeta('generateWithGroq', response);
     const usage = groqUsageFromResponse(response);
