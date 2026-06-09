@@ -50,13 +50,35 @@ describe('inferPrescriptionTypeFromRawExercise (cardio gate)', () => {
     ).toBe('time');
   });
 
-  it('flags "… static hold" style isometrics as time (no time metadata on the row)', () => {
+  it('flags any "… hold" name as time (closed isometric class), incl. deadlift/static holds', () => {
+    for (const name of [
+      'Barbell Static Hold',
+      'Axle Bar Deadlift Hold',
+      'Chin-Up Hold',
+      'Suitcase Hold',
+    ]) {
+      expect(
+        inferPrescriptionTypeFromRawExercise({
+          name,
+          primaryMuscleGroup: 'Back',
+        }),
+      ).toBe('time');
+    }
+  });
+
+  it('does not flag dynamic rep lifts that merely share a word root (e.g. deadlift, pulldown)', () => {
     expect(
       inferPrescriptionTypeFromRawExercise({
-        name: 'Barbell Static Hold',
+        name: 'Conventional Deadlift',
         primaryMuscleGroup: 'Back',
       }),
-    ).toBe('time');
+    ).toBe('reps');
+    expect(
+      inferPrescriptionTypeFromRawExercise({
+        name: 'Wide-Grip Lat Pulldown',
+        primaryMuscleGroup: 'Back',
+      }),
+    ).toBe('reps');
   });
 });
 
