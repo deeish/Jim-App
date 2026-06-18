@@ -19,3 +19,34 @@ Onboarding selections (goal, experience, equipment, training days, injury tags/n
 **Later:** add a per-user preferences/profile endpoint on the backend, write prefs on change, and load them on login (merging with local). This is the only option that survives reinstall / new device and truly links the data to the account. Until then, preferences are device-local by design.
 
 Caveat to address alongside this: injury notes (free-text health info) currently sit in plaintext AsyncStorage, not SecureStore — fine for in-app cross-account isolation, but readable at rest on a compromised/rooted device.
+
+## Single-workout "Regenerate with AI" should match full plan scope
+
+`regenerateWorkout` (`backend/src/workouts/workouts.service.ts`) only passes `focus`,
+`programDayFocus`, `duration`, and `excludeExerciseIds` to the generator. The focus is now
+derived from the day title (fixed: push days no longer come back as full-body — see
+`regenerate-focus.util.ts`), but regen still **drops every other constraint** the
+generate-plan page sends (`buildGenerateSessionsRequest` in `frontend/src/lib/planPipeline.ts`):
+
+| Constraint | Plan applies | Regen does | Result |
+| --- | --- | --- | --- |
+| Equipment | filters to `equipmentTags` | none → `equipment: []` → no filter | Home/no-barbell user can get barbell & machine lifts |
+| Injuries / limitations | `avoidConstraints` + `restrictions` filter exercises | none | Can reintroduce moves an injury excluded ⚠️ safety |
+| Goal | e.g. `strength` | defaults to `hypertrophy` | Sets/reps drift off goal |
+| Experience | e.g. `beginner` | defaults to `intermediate` | Exercise count + beginner notes differ |
+
+Root constraint: none of these inputs are persisted server-side (`WorkoutPlan` has no
+inputs columns, `User` has no profile row). They live only in frontend
+`UserPreferencesContext` (goal, experience, equipment, `injuryTagIds`, `injuryNotes`).
+
+**Later (two options):**
+1. **Frontend sends current prefs on regen (preferred, no migration).** Extend the regen
+   request body with `equipment`, `goal`, `experience`, and injuries (mapped the same way
+   the plan page does), merge them into the generate DTO backend-side. Touch points: regen
+   DTO/controller, `regenerateWorkoutInPlace` in `frontend/src/services/workoutService.ts`,
+   + a test. Uses *current* prefs (acceptable for a single-workout regen).
+2. **Persist the plan's original inputs** (JSON column captured at plan creation) and have
+   regen read them — most faithful to "the plan as generated," needs a schema migration.
+   Pairs naturally with the [Server-side user preferences] item above.
+
+Do one on-device test covering focus **and** scope together once this lands.
