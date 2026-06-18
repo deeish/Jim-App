@@ -9,6 +9,12 @@ interface ExerciseGroupCardProps {
   group: ExerciseGroup;
   onPress?: (exercise: Exercise) => void;
   onPressVariation?: (exercise: Exercise) => void;
+  /**
+   * Opens exercise details from the footer "more information" button. Always available,
+   * even in select/add mode where the card body tap is wired to selection instead of
+   * navigation — otherwise there is no way to view details while adding to a plan.
+   */
+  onPressInfo?: (exercise: Exercise) => void;
   /** When true, card shows selected state (e.g. for add-to-plan mode). */
   isSelected?: boolean;
   /** When true, card is greyed out and not tappable (e.g. already in workout). */
@@ -19,7 +25,7 @@ interface ExerciseGroupCardProps {
   savingLike?: boolean;
 }
 
-function ExerciseGroupCard({ group, onPress, onPressVariation, isSelected, isDisabled, saved, onLikePress, savingLike }: ExerciseGroupCardProps) {
+function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSelected, isDisabled, saved, onLikePress, savingLike }: ExerciseGroupCardProps) {
   const { colors } = useTheme();
   const [showVariations, setShowVariations] = useState(false);
   const exercise = group.primaryExercise;
@@ -151,6 +157,11 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, isSelected, isDis
           fontSize: 12,
           color: colors.primary,
           fontWeight: '500',
+        },
+        infoButton: {
+          paddingTop: 2,
+          paddingBottom: 2,
+          paddingLeft: 12,
         },
         variationsContainer: {
           marginTop: 8,
@@ -301,6 +312,20 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, isSelected, isDis
         <View style={styles.footer}>
           {isDisabled ? (
             <Text style={[styles.tapHint, { color: colors.textMuted }]}>Already in workout</Text>
+          ) : onPressInfo ? (
+            <TouchableOpacity
+              style={styles.infoButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                onPressInfo(exercise);
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 16, right: 8 }}
+              activeOpacity={0.6}
+              accessibilityRole="button"
+              accessibilityLabel={`View details for ${exercise.name}`}
+            >
+              <Text style={styles.tapHint}>Tap for more information →</Text>
+            </TouchableOpacity>
           ) : (
             <Text style={styles.tapHint}>Tap for more information →</Text>
           )}

@@ -515,6 +515,9 @@ export default function SearchScreen({ navigation }: Props) {
             if (addMode) toggleSelectForAddToPlan(exercise.id);
             else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
           }}
+          onPressInfo={(exercise) =>
+            navigation.navigate('ExerciseDetail', { exerciseId: exercise.id })
+          }
         />
       );
     },
@@ -1128,6 +1131,9 @@ export default function SearchScreen({ navigation }: Props) {
                       if (addMode) toggleSelectForAddToPlan(exercise.id);
                       else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
                     }}
+                    onPressInfo={(exercise) =>
+                      navigation.navigate('ExerciseDetail', { exerciseId: exercise.id })
+                    }
                   />
                 );
               })}
