@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateWorkoutDto } from './dto/create-workout.dto';
 import { GenerateWorkoutDto } from './dto/generate-workout.dto';
 import { WorkoutGeneratorService } from './workout-generator.service';
+import { resolveRegenFocus } from './regenerate-focus.util';
 import { Prisma } from '@prisma/client';
 
 type WorkoutWithExercises = Prisma.WorkoutGetPayload<{
@@ -416,8 +417,10 @@ export class WorkoutsService {
         'Add at least one exercise before regenerating, or use Add from library.',
       );
     }
-    const focusLabel =
-      (existing.focus && existing.focus.trim()) || existing.name;
+    // The `focus` column is a display detail line ("45 min · Strength · 5 exercises")
+    // for plan-linked workouts — the day title carries the real focus (Push/Pull/Legs).
+    // Deriving from the detail line collapsed regeneration to a full-body pool.
+    const focusLabel = resolveRegenFocus(existing.name, existing.focus);
     const excludeIds = existing.exercises
       .map((e) => e.exerciseId)
       .filter(
