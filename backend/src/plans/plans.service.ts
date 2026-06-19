@@ -110,17 +110,44 @@ export class PlansService {
     return this.findActivePlan(userId);
   }
 
+  /**
+   * Active plan + its weekly workouts in a SINGLE query.
+   *
+   * Previously this ran two sequential queries (findActivePlan, then
+   * workout.findMany). On a remote DB the per-query round-trip dominates, which
+   * made this the slowest endpoint. `workouts` is a relation on WorkoutPlan
+   * (FK-indexed), so we fold it into the plan include and pay one round-trip.
+   * See docs/plans/2026-06-17-navigation-performance.md.
+   */
+  private async findActivePlanWithWeekly(userId: string) {
+    // Try isActive first; fall back to most-recently-updated (legacy plans).
+    return (
+      (await this.prisma.workoutPlan.findFirst({
+        where: { userId, isActive: true },
+        include: {
+          planWorkouts: this.planWorkoutsInclude(),
+          workouts: { include: { exercises: true }, orderBy: { day: 'asc' } },
+        },
+      })) ??
+      (await this.prisma.workoutPlan.findFirst({
+        where: { userId },
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          planWorkouts: this.planWorkoutsInclude(),
+          workouts: { include: { exercises: true }, orderBy: { day: 'asc' } },
+        },
+      }))
+    );
+  }
+
   /** Current plan + weekly workouts in one call (faster for Plan screen). */
   async getCurrentWithWeekly(userId: string) {
-    const plan = await this.findActivePlan(userId);
-    const weeklyWorkouts = plan
-      ? await this.prisma.workout.findMany({
-          where: { workoutPlanId: plan.id },
-          include: { exercises: true },
-          orderBy: { day: 'asc' },
-        })
-      : [];
-    return { plan, weeklyWorkouts };
+    const planWithWeekly = await this.findActivePlanWithWeekly(userId);
+    // Split the folded relation back out so the response shape is unchanged:
+    // { plan (with planWorkouts, without `workouts`), weeklyWorkouts }.
+    if (!planWithWeekly) return { plan: null, weeklyWorkouts: [] };
+    const { workouts, ...plan } = planWithWeekly;
+    return { plan, weeklyWorkouts: workouts };
   }
 
   async getById(id: string, userId: string) {
