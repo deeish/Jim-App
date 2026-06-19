@@ -25,6 +25,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-06-19',
+    version: '1.0.0',
+    date: '2026-06-19',
+    title: 'Polish & fixes',
+    changes: [
+      { type: 'improved', text: 'A brand-new app icon and refreshed logo.' },
+      { type: 'fixed', text: 'Regenerating a workout now rebuilds the full session to match that day’s focus.' },
+      { type: 'improved', text: 'Smoother navigation — returning to your Plan no longer flashes a loading screen; it stays put and refreshes in the background.' },
+      { type: 'fixed', text: 'Tapping “More information” on an exercise now opens its details while you’re adding it to a plan.' },
+    ],
+  },
+  {
     id: '2026-06-17',
     version: '1.0.0',
     date: '2026-06-17',
@@ -34,7 +46,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       { type: 'improved', text: 'Smarter sets & reps — rep ranges now adapt to your goal and each exercise’s role.' },
       { type: 'improved', text: 'Higher-quality plans with cleaner workout splits and better-balanced volume.' },
       { type: 'improved', text: 'Faster exercise search with smoother scrolling.' },
-      { type: 'improved', text: 'Refreshed home screen and a brand-new app icon.' },
+      { type: 'improved', text: 'Refreshed home screen.' },
     ],
   },
 ];
