@@ -226,6 +226,10 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const planByWeekRef          = useRef(planByWeek);
   const resolvedProgramWeekRef = useRef<number | null>(null);
   const didScrollToTodayRef    = useRef(false);
+  // Show the full-screen spinner only on the very first load. On later focuses we
+  // keep the previous plan visible and refetch silently (stale-while-revalidate),
+  // matching HomeScreen — otherwise the Plan tab blanks to a spinner every visit.
+  const isFirstPlanLoad        = useRef(true);
 
   useEffect(() => { draggingSlotRef.current = draggingSlot; }, [draggingSlot]);
   useEffect(() => { hoveredDayRef.current = hoveredDay; }, [hoveredDay]);
@@ -237,7 +241,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   }, [detailSheetWorkout?.workout.id]);
 
   const loadPlan = useCallback(async () => {
-    setPlanLoading(true);
+    if (isFirstPlanLoad.current) setPlanLoading(true);
     setPlanError(null);
     try {
       const { plan: apiPlan, weeklyWorkouts: weekly } = await getCurrentPlanWithWeekly();
@@ -261,6 +265,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       setPlanByWeek({});
     } finally {
       setPlanLoading(false);
+      isFirstPlanLoad.current = false;
     }
   }, [colors]);
 
