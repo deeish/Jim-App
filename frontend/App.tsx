@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -17,7 +17,7 @@ import { ThemeProvider, useTheme } from './src/theme';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { UserPreferencesProvider, useUserPreferences } from './src/contexts/UserPreferencesContext';
 import { DevPreviewProvider, useDevPreview } from './src/contexts/DevPreviewContext';
-import { wrapWithSentry } from './src/lib/sentry';
+import { wrapWithSentry, sentryNavigationIntegration } from './src/lib/sentry';
 import { useOtaUpdates } from './src/lib/useOtaUpdates';
 import type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
 
@@ -69,6 +69,7 @@ function AppContent() {
   const { session, loading, passwordRecoveryMode } = useAuth();
   const { hasCompletedOnboarding, hydrated } = useUserPreferences();
   const { previewOnboarding } = useDevPreview();
+  const navigationRef = useNavigationContainerRef();
 
   if (loading || !hydrated) {
     return (
@@ -95,7 +96,13 @@ function AppContent() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <NavigationContainer theme={navTheme}>
+      <NavigationContainer
+        ref={navigationRef}
+        theme={navTheme}
+        onReady={() => {
+          sentryNavigationIntegration?.registerNavigationContainer(navigationRef);
+        }}
+      >
         {__DEV__ && previewOnboarding ? (
           <RootStack.Navigator
             initialRouteName="Onboarding"
