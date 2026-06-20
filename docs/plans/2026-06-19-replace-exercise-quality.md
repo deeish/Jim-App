@@ -2,7 +2,9 @@
 
 **Date:** 2026-06-19
 **Branch context:** `feat/beta-feedback`
-**Status:** **Implemented 2026-06-19.** Backend `ExercisesService.pickReplacement` + `POST /exercises/replace` (catalog-based: same primary muscle, movement-pattern dedup vs the rest of the day, equipment/injury filters, quality-sorted pick). Frontend `handleReplaceExercise` repointed to it and now keeps the slot's prescription (sets/reps/rest), swapping only the exercise identity. **Pending on-device verification** (sit-ups → a core move; no flat-DB-bench when flat-BB-bench is present).
+**Status:** **Implemented + unit-tested 2026-06-19.** Backend `ExercisesService.pickReplacement` + `POST /exercises/replace` (catalog-based: same primary muscle, **exercise-family dedup** — equipment-stripped name — vs the rest of the day, **sub-muscle preference**, equipment/injury filters, quality-sorted pick). Frontend `handleReplaceExercise` repointed to it and keeps the slot's prescription (sets/reps/rest), swapping only the exercise identity. 8 specs in `exercises.service.spec.ts`. **Pending on-device verification** (sit-ups → a core move; no flat-DB-bench when flat-BB-bench is present).
+
+> **Note — why name-family, not movement pattern (the first attempt):** the catalog's movement patterns are only 6 coarse buckets (`Push/Pull/Squat/Hinge/Lunge/Carry` — *every* chest move, even flys, maps to "Push"; see `exercise-mappings.ts` `VALID_MOVEMENT_PATTERNS`). A movement-pattern dedup therefore couldn't tell flat-BB-bench from flat-DB-bench and just relaxed into returning the near-dup. The fix keys on an **equipment-stripped name family** ("Flat Barbell/Dumbbell Bench Press" → "flat bench press") and adds a sub-muscle preference (Arms = biceps + triceps).
 **Related:** the single-exercise swap fix in `PlanPreviewScreen.tsx` (`handleReplaceExercise`) fixed the *"reload changes the whole day"* bug. This doc covers the remaining **quality of the chosen replacement**.
 
 ---
