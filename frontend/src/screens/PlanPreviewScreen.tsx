@@ -804,6 +804,10 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       const dayDraft = week?.days.find((d) => d.weekday === previewCard.day);
       const session = dayDraft?.session;
       if (!session) return;
+      // Only the tapped exercise should change — find it, swap it, keep the rest.
+      const targetIndex = session.exercises.findIndex((e) => e.name === exerciseName);
+      if (targetIndex < 0) return;
+      const target = session.exercises[targetIndex];
       setReplacingExerciseName(exerciseName);
       try {
         const avoidConstraints = [
@@ -816,6 +820,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             : planInputs.goal === 'balanced'
               ? 'hybrid'
               : planInputs.goal;
+        // Generate fresh candidates for THIS day's focus, excluding every exercise
+        // already in the session so we never get a duplicate back. We pick one and
+        // swap only the tapped slot — the rest of the day is untouched.
         const result = await generateSingleSession({
           goal,
           location: planInputs.location,
@@ -828,24 +835,34 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           isHardDay: session.isHardDay,
           weekIndex: selectedWeek,
           weekday: previewCard.day,
-          excludeExerciseNames: [exerciseName],
+          excludeExerciseNames: session.exercises.map((e) => e.name).filter(Boolean),
         });
-        const newSession: import('../types/plan').SessionDraft = {
-          type: session.type,
-          title: result.name,
-          focusTags: session.focusTags,
-          durationMin: session.durationMin,
-          durationMax: session.durationMax,
-          isHardDay: session.isHardDay,
-          warmup: result.warmUp,
-          whyThisWorkout: result.reasoning,
-          cooldown: result.coolDown,
-          cardioFinisher: result.cardioFinisher,
-          exercises: (result.exercises ?? []).map((e) => exerciseDraftFromGenerateResult(e, planInputs)),
-        };
-        if (newSession.exercises.length === 0) {
-          newSession.exercises = [{ exerciseId: null, name: 'Generated', sets: 3, reps: '8–10' }];
+        const currentNames = new Set(
+          session.exercises.map((e) => e.name.trim().toLowerCase()),
+        );
+        const candidates = (result.exercises ?? [])
+          .map((e) => exerciseDraftFromGenerateResult(e, planInputs))
+          .filter((c) => c.name && !currentNames.has(c.name.trim().toLowerCase()));
+        // Prefer a like-for-like swap (same primary muscle) so it fits the day's
+        // focus; fall back to the first fresh candidate the generator returned.
+        const targetMuscle = (target.primaryMuscleGroup ?? '').trim().toLowerCase();
+        const replacement =
+          (targetMuscle
+            ? candidates.find(
+                (c) => (c.primaryMuscleGroup ?? '').trim().toLowerCase() === targetMuscle,
+              )
+            : undefined) ?? candidates[0];
+        if (!replacement) {
+          Alert.alert(
+            'No replacement found',
+            "Couldn't find a different exercise that fits this day. Try again.",
+          );
+          return;
         }
+        const newSession: import('../types/plan').SessionDraft = {
+          ...session,
+          exercises: session.exercises.map((ex, i) => (i === targetIndex ? replacement : ex)),
+        };
         const updated: PlanDraft = {
           ...planDraft,
           weeks: planDraft.weeks.map((w) =>
@@ -864,7 +881,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         setPlanDraft(updated);
         setPlanData(planDraftToWeekPlans(updated) as WeekPlan[]);
         setPreviewData(
-          buildWorkoutPreviewFromSessionDraft(newSession, result.name, {
+          buildWorkoutPreviewFromSessionDraft(newSession, newSession.title, {
             goal: previewFormattingGoal(planInputs, inputs.goal),
           }),
         );
@@ -874,7 +891,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         setReplacingExerciseName(null);
       }
     },
-    [previewCard, planDraft, planInputs, selectedWeek],
+    [previewCard, planDraft, planInputs, selectedWeek, inputs.goal],
   );
 
   const handleReplaceWithType = useCallback((newType: WorkoutType) => {
