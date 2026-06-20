@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-19
 **Branch context:** `feat/beta-feedback`
-**Status:** **Not started** — documented for a later session (ran low on time).
+**Status:** **Implemented 2026-06-19.** Backend `ExercisesService.pickReplacement` + `POST /exercises/replace` (catalog-based: same primary muscle, movement-pattern dedup vs the rest of the day, equipment/injury filters, quality-sorted pick). Frontend `handleReplaceExercise` repointed to it and now keeps the slot's prescription (sets/reps/rest), swapping only the exercise identity. **Pending on-device verification** (sit-ups → a core move; no flat-DB-bench when flat-BB-bench is present).
 **Related:** the single-exercise swap fix in `PlanPreviewScreen.tsx` (`handleReplaceExercise`) fixed the *"reload changes the whole day"* bug. This doc covers the remaining **quality of the chosen replacement**.
 
 ---
