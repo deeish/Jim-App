@@ -21,12 +21,12 @@ import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
 import {
   createPlan,
-  generateSingleSession,
   GENERATE_SESSIONS_TIMEOUT_MESSAGE,
   type PlanSlot,
   type PlanSlotExercise,
 } from '../services/planService';
 import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
+import { replaceExercise } from '../services/exerciseService';
 import {
   runPipelineSafe,
   regeneratePipelineWeek,
@@ -35,7 +35,6 @@ import {
   sessionDraftToPlanSlotExercises,
   buildWorkoutPreviewFromSessionDraft,
   mapGroqPreviewExercise,
-  exerciseDraftFromGenerateResult,
 } from '../lib/planPipeline';
 import {
   linesForPlanGenerationSnapshot,
@@ -55,7 +54,7 @@ import {
   previewSecondaryChipLabels,
   shortBodyTagLabel,
 } from '../lib/previewExerciseMeta';
-import type { PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
+import type { ExerciseDraft, PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
 import { formatLocalYmd, getWeekStartMonday, parseLocalYmd } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import {
@@ -814,52 +813,38 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           ...(planInputs.injuriesAvoid?.bodyAreas ?? []),
           ...(planInputs.injuriesAvoid?.movementsOrEquipment ?? []),
         ];
-        const goal =
-          planInputs.goal === 'fat_loss'
-            ? 'fat loss'
-            : planInputs.goal === 'balanced'
-              ? 'hybrid'
-              : planInputs.goal;
-        // Generate fresh candidates for THIS day's focus, excluding every exercise
-        // already in the session so we never get a duplicate back. We pick one and
-        // swap only the tapped slot — the rest of the day is untouched.
-        const result = await generateSingleSession({
-          goal,
+        // Catalog-based swap: one alternative that matches the target's muscle, isn't
+        // already in the day, and doesn't repeat another exercise's movement pattern
+        // (so flat-barbell-bench isn't "replaced" with flat-dumbbell-bench).
+        const picked = await replaceExercise({
+          targetName: target.name,
+          targetExerciseId: target.exerciseId ?? undefined,
+          dayExerciseNames: session.exercises.map((e) => e.name).filter(Boolean),
+          dayExerciseIds: session.exercises
+            .map((e) => e.exerciseId)
+            .filter((id): id is string => !!id),
           location: planInputs.location,
-          detailLevel: planInputs.detailLevel,
-          avoidConstraints: avoidConstraints.length ? avoidConstraints : undefined,
-          type: session.type,
-          title: session.title,
-          durationMin: session.durationMin,
-          durationMax: session.durationMax,
-          isHardDay: session.isHardDay,
-          weekIndex: selectedWeek,
-          weekday: previewCard.day,
-          excludeExerciseNames: session.exercises.map((e) => e.name).filter(Boolean),
+          avoid: avoidConstraints.length ? avoidConstraints : undefined,
         });
-        const currentNames = new Set(
-          session.exercises.map((e) => e.name.trim().toLowerCase()),
-        );
-        const candidates = (result.exercises ?? [])
-          .map((e) => exerciseDraftFromGenerateResult(e, planInputs))
-          .filter((c) => c.name && !currentNames.has(c.name.trim().toLowerCase()));
-        // Prefer a like-for-like swap (same primary muscle) so it fits the day's
-        // focus; fall back to the first fresh candidate the generator returned.
-        const targetMuscle = (target.primaryMuscleGroup ?? '').trim().toLowerCase();
-        const replacement =
-          (targetMuscle
-            ? candidates.find(
-                (c) => (c.primaryMuscleGroup ?? '').trim().toLowerCase() === targetMuscle,
-              )
-            : undefined) ?? candidates[0];
-        if (!replacement) {
+        if (!picked) {
           Alert.alert(
             'No replacement found',
             "Couldn't find a different exercise that fits this day. Try again.",
           );
           return;
         }
-        const newSession: import('../types/plan').SessionDraft = {
+        // Keep the slot's prescription (sets/reps/rest); only the identity changes.
+        const replacement: ExerciseDraft = {
+          ...target,
+          exerciseId: picked.id,
+          name: picked.name,
+          primaryMuscleGroup: picked.primaryMuscleGroup,
+          secondaryMuscleGroups: picked.secondaryMuscleGroups?.length
+            ? [...picked.secondaryMuscleGroups]
+            : undefined,
+          notes: undefined,
+        };
+        const newSession: SessionDraft = {
           ...session,
           exercises: session.exercises.map((ex, i) => (i === targetIndex ? replacement : ex)),
         };

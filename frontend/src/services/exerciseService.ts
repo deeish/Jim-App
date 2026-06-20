@@ -38,6 +38,26 @@ export interface ExerciseStats {
 }
 
 /**
+ * Ask the backend for one catalog exercise to swap in for `targetName` within a
+ * day: same primary muscle, not already in the day, and not the same movement
+ * pattern as another exercise that day. Returns null when nothing fits.
+ */
+export async function replaceExercise(body: {
+  targetName: string;
+  targetExerciseId?: string;
+  dayExerciseNames?: string[];
+  dayExerciseIds?: string[];
+  location?: 'gym' | 'home';
+  avoid?: string[];
+}): Promise<Exercise | null> {
+  const res = await api.post<{ exercise: Exercise | null }>(
+    '/exercises/replace',
+    body,
+  );
+  return res.data.exercise ?? null;
+}
+
+/**
  * Search exercises with filters
  */
 export const searchExercises = async (
