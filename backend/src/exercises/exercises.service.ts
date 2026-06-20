@@ -37,6 +37,33 @@ const DEFAULT_EQUIPMENT_ORDER = 12;
 /** Home-doable equipment subset (mirrors PlansService.HOME_EQUIPMENT). */
 const HOME_EQUIPMENT = ['Dumbbell', 'Resistance Band', 'Bodyweight'];
 
+/**
+ * Equipment / qualifier words stripped when computing an exercise's "family", so
+ * "Flat Barbell Bench Press" and "Flat Dumbbell Bench Press" collapse to one key.
+ * Only true equipment nouns — movement-style words (hammer, preacher, …) are kept
+ * so a Hammer Curl stays a distinct option from a Barbell Curl.
+ */
+const EQUIPMENT_NAME_TOKENS = new Set([
+  'barbell',
+  'dumbbell',
+  'db',
+  'bb',
+  'cable',
+  'machine',
+  'smith',
+  'kettlebell',
+  'kb',
+  'band',
+  'bands',
+  'resistance',
+  'trx',
+  'ez',
+  'landmine',
+  'suspension',
+  'sled',
+  'lever',
+]);
+
 @Injectable()
 export class ExercisesService implements OnModuleInit {
   private readonly logger = new Logger(ExercisesService.name);
@@ -244,12 +271,28 @@ export class ExercisesService implements OnModuleInit {
   }
 
   /**
+   * Normalised "exercise family": the lowercased name with equipment qualifiers
+   * stripped, so "Flat Barbell Bench Press" and "Flat Dumbbell Bench Press" share
+   * a key. The catalog's movement patterns are too coarse for this (only Push/Pull/
+   * Squat/Hinge/Lunge/Carry — every chest move is "Push"), so we dedupe on the name.
+   */
+  private exerciseFamily(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((t) => t && !EQUIPMENT_NAME_TOKENS.has(t))
+      .join(' ')
+      .trim();
+  }
+
+  /**
    * Pick a single replacement for one exercise in a day, keeping the day coherent:
-   * same primary muscle as the target, never a duplicate (by id/name) of what's
-   * already there, and not the same movement pattern as any OTHER exercise in the
-   * day (so a flat-barbell-bench isn't "replaced" with a flat-dumbbell-bench).
-   * Equipment + injury constraints respected. Returns null when the catalog can't
-   * offer a fitting alternative (caller then keeps the original).
+   * same primary muscle as the target, never a duplicate of what's already there
+   * (by id, name, OR exercise-family — so a flat-barbell-bench isn't "replaced" with
+   * a flat-dumbbell-bench), biased toward the target's sub-muscle so a biceps move
+   * isn't swapped for triceps. Equipment + injury constraints respected. Returns
+   * null when the catalog can't offer a fitting alternative (caller keeps original).
    */
   pickReplacement(dto: ReplaceExerciseDto): TransformedExercise | null {
     const target =
@@ -258,10 +301,11 @@ export class ExercisesService implements OnModuleInit {
         : undefined) ?? this.resolveByName(dto.targetName);
     if (!target) return null;
 
-    // Resolve the day's OTHER exercises -> ids / names / movement patterns to avoid.
+    // Collect ids / names / families already in the day. Includes the target so we
+    // don't hand back an equipment variant of the very exercise being replaced.
     const usedIds = new Set<string>();
     const usedNames = new Set<string>();
-    const usedPatterns = new Set<string>();
+    const usedFamilies = new Set<string>();
     const resolved: TransformedExercise[] = [
       ...(dto.dayExerciseIds ?? [])
         .map((id) => this.exercises.find((e) => e.id === id))
@@ -271,16 +315,16 @@ export class ExercisesService implements OnModuleInit {
         .filter((e): e is TransformedExercise => !!e),
     ];
     for (const e of resolved) {
-      if (e.id === target.id) continue; // target's own pattern is free to reuse
       usedIds.add(e.id);
       usedNames.add(e.name.toLowerCase());
-      for (const p of e.movementPatterns ?? []) usedPatterns.add(p);
+      usedFamilies.add(this.exerciseFamily(e.name));
     }
-    // Block raw names the client sent too (covers names we couldn't resolve).
     for (const name of dto.dayExerciseNames ?? []) {
-      const key = name.trim().toLowerCase();
-      if (key && key !== target.name.toLowerCase()) usedNames.add(key);
+      usedNames.add(name.trim().toLowerCase());
+      usedFamilies.add(this.exerciseFamily(name));
     }
+    usedFamilies.add(this.exerciseFamily(target.name));
+    usedFamilies.delete(''); // an empty family must never exclude everything
 
     const equipment = dto.location === 'home' ? [...HOME_EQUIPMENT] : undefined;
     // search() returns same-muscle candidates already quality-sorted (common first).
@@ -310,19 +354,24 @@ export class ExercisesService implements OnModuleInit {
       !usedNames.has(e.name.toLowerCase()) &&
       !isAvoided(e);
 
-    // Strict: also exclude anything sharing a movement pattern with another day
-    // exercise. Relax just that rule if nothing survives.
+    // Strict: also exclude the same exercise-family (equipment variants) as anything
+    // already in the day. Relax just the family rule if nothing survives.
     let pool = sameMuscle.filter(
-      (e) =>
-        notDuplicate(e) &&
-        (e.movementPatterns ?? []).every((p) => !usedPatterns.has(p)),
+      (e) => notDuplicate(e) && !usedFamilies.has(this.exerciseFamily(e.name)),
     );
     if (pool.length === 0) pool = sameMuscle.filter(notDuplicate);
     if (pool.length === 0) return null;
 
-    // Quality-first (pool already common-sorted) with light randomization so
-    // repeated taps offer variety.
-    const top = pool.slice(0, Math.min(12, pool.length));
+    // Prefer candidates sharing a sub-muscle with the target (keep a biceps move a
+    // biceps move) since the primary muscle can be broad (Arms = biceps + triceps).
+    const targetSubs = new Set(target.subMuscles ?? []);
+    const preferred = targetSubs.size
+      ? pool.filter((e) => (e.subMuscles ?? []).some((s) => targetSubs.has(s)))
+      : [];
+    const finalPool = preferred.length ? preferred : pool;
+
+    // Quality-first (already common-sorted) with light randomization for variety.
+    const top = finalPool.slice(0, Math.min(12, finalPool.length));
     return top[Math.floor(Math.random() * top.length)] ?? null;
   }
 
