@@ -15,6 +15,7 @@ import { getCommonExerciseRank } from '../data/common-exercise-ids';
 import { cardioLibrarySortKey } from '../data/cardio-display-order';
 import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
+import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 
 /** Lower = show first. Used to prefer Barbell/Dumbbell/Bodyweight/Cable/Machine. */
 const EQUIPMENT_ORDER: Record<string, number> = {
@@ -32,6 +33,9 @@ const EQUIPMENT_ORDER: Record<string, number> = {
   'Battle Rope': 11,
 };
 const DEFAULT_EQUIPMENT_ORDER = 12;
+
+/** Home-doable equipment subset (mirrors PlansService.HOME_EQUIPMENT). */
+const HOME_EQUIPMENT = ['Dumbbell', 'Resistance Band', 'Bodyweight'];
 
 @Injectable()
 export class ExercisesService implements OnModuleInit {
@@ -227,6 +231,99 @@ export class ExercisesService implements OnModuleInit {
       .filter((e) => set.has(e.id))
       .map((e) => this.withVideo(e))
       .sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+  }
+
+  private resolveByName(name?: string): TransformedExercise | undefined {
+    const n = name?.trim().toLowerCase();
+    if (!n) return undefined;
+    return this.exercises.find(
+      (e) =>
+        e.name.toLowerCase() === n ||
+        (e.aliases ?? []).some((a) => a.toLowerCase() === n),
+    );
+  }
+
+  /**
+   * Pick a single replacement for one exercise in a day, keeping the day coherent:
+   * same primary muscle as the target, never a duplicate (by id/name) of what's
+   * already there, and not the same movement pattern as any OTHER exercise in the
+   * day (so a flat-barbell-bench isn't "replaced" with a flat-dumbbell-bench).
+   * Equipment + injury constraints respected. Returns null when the catalog can't
+   * offer a fitting alternative (caller then keeps the original).
+   */
+  pickReplacement(dto: ReplaceExerciseDto): TransformedExercise | null {
+    const target =
+      (dto.targetExerciseId
+        ? this.exercises.find((e) => e.id === dto.targetExerciseId)
+        : undefined) ?? this.resolveByName(dto.targetName);
+    if (!target) return null;
+
+    // Resolve the day's OTHER exercises -> ids / names / movement patterns to avoid.
+    const usedIds = new Set<string>();
+    const usedNames = new Set<string>();
+    const usedPatterns = new Set<string>();
+    const resolved: TransformedExercise[] = [
+      ...(dto.dayExerciseIds ?? [])
+        .map((id) => this.exercises.find((e) => e.id === id))
+        .filter((e): e is TransformedExercise => !!e),
+      ...(dto.dayExerciseNames ?? [])
+        .map((name) => this.resolveByName(name))
+        .filter((e): e is TransformedExercise => !!e),
+    ];
+    for (const e of resolved) {
+      if (e.id === target.id) continue; // target's own pattern is free to reuse
+      usedIds.add(e.id);
+      usedNames.add(e.name.toLowerCase());
+      for (const p of e.movementPatterns ?? []) usedPatterns.add(p);
+    }
+    // Block raw names the client sent too (covers names we couldn't resolve).
+    for (const name of dto.dayExerciseNames ?? []) {
+      const key = name.trim().toLowerCase();
+      if (key && key !== target.name.toLowerCase()) usedNames.add(key);
+    }
+
+    const equipment = dto.location === 'home' ? [...HOME_EQUIPMENT] : undefined;
+    // search() returns same-muscle candidates already quality-sorted (common first).
+    const sameMuscle = this.search({
+      muscleGroups: [target.primaryMuscleGroup],
+      equipment,
+    });
+
+    const avoid = (dto.avoid ?? [])
+      .map((a) => a.trim().toLowerCase())
+      .filter((a) => a.length >= 2);
+    const isAvoided = (e: TransformedExercise): boolean => {
+      if (!avoid.length) return false;
+      const hay = [
+        e.name,
+        e.primaryMuscleGroup,
+        ...(e.movementPatterns ?? []),
+        ...(e.equipment ?? []),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return avoid.some((a) => hay.includes(a));
+    };
+    const notDuplicate = (e: TransformedExercise): boolean =>
+      e.id !== target.id &&
+      !usedIds.has(e.id) &&
+      !usedNames.has(e.name.toLowerCase()) &&
+      !isAvoided(e);
+
+    // Strict: also exclude anything sharing a movement pattern with another day
+    // exercise. Relax just that rule if nothing survives.
+    let pool = sameMuscle.filter(
+      (e) =>
+        notDuplicate(e) &&
+        (e.movementPatterns ?? []).every((p) => !usedPatterns.has(p)),
+    );
+    if (pool.length === 0) pool = sameMuscle.filter(notDuplicate);
+    if (pool.length === 0) return null;
+
+    // Quality-first (pool already common-sorted) with light randomization so
+    // repeated taps offer variety.
+    const top = pool.slice(0, Math.min(12, pool.length));
+    return top[Math.floor(Math.random() * top.length)] ?? null;
   }
 
   /**
