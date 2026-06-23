@@ -225,72 +225,53 @@ export default function SearchScreen({ navigation }: Props) {
     }
   }, [savedExerciseIds, savingLikeId]);
 
-  // Toggle a main muscle group (parent)
+  // Toggle a main muscle group (parent). Selecting adds the parent only, which searches the
+  // whole group (the backend ANDs primaryMuscleGroup with any sub-muscle narrowing). Sub-muscles
+  // start unselected and act as optional "narrow to" filters in the Refine section below.
   const toggleMuscleGroup = (group: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setFilters(prev => {
-      const isSelected = prev.muscleGroups.includes(group);
+      const isActive = prev.muscleGroups.includes(group);
       const subMuscles = getSubMuscles(group);
-      
-      if (isSelected) {
-        // Deselecting parent: remove parent and all its children
+
+      if (isActive) {
+        // Deselecting the group: remove the parent and any of its narrowing sub-muscles.
         return {
           ...prev,
           muscleGroups: prev.muscleGroups.filter(g => g !== group),
           subMuscles: prev.subMuscles.filter(m => !subMuscles.includes(m)),
         };
-      } else {
-        // Selecting parent: add parent and all its children
-        return {
-          ...prev,
-          muscleGroups: [...prev.muscleGroups, group],
-          subMuscles: [...prev.subMuscles, ...subMuscles],
-        };
       }
+      // Selecting the group: add the parent only (shows every exercise in the group).
+      return {
+        ...prev,
+        muscleGroups: [...prev.muscleGroups, group],
+      };
     });
   };
 
-  // Toggle a specific sub-muscle
+  // Toggle a specific sub-muscle as a "narrow to" filter within an already-selected group.
+  // The parent stays selected; sub-muscles only narrow the results (the backend ANDs them with
+  // the parent's primaryMuscleGroup). Removing the last sub-muscle reverts to the whole group.
   const toggleSubMuscle = (subMuscle: string, parentGroup: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setFilters(prev => {
       const isSelected = prev.subMuscles.includes(subMuscle);
-      const subMuscles = getSubMuscles(parentGroup);
-      const selectedSubMuscles = prev.subMuscles.filter(m => subMuscles.includes(m));
-      
       if (isSelected) {
-        // Deselecting sub-muscle
-        const newSubMuscles = prev.subMuscles.filter(m => m !== subMuscle);
-        const allSubMusclesSelected = subMuscles.every(m => 
-          m === subMuscle || newSubMuscles.includes(m)
-        );
-        
-        // If not all sub-muscles are selected, remove parent from muscleGroups
-        // If parent was selected, we need to check if we should keep it
-        const shouldKeepParent = prev.muscleGroups.includes(parentGroup) && 
-          newSubMuscles.filter(m => subMuscles.includes(m)).length > 0;
-        
+        // Remove this narrowing sub-muscle; the parent group stays selected.
         return {
           ...prev,
-          subMuscles: newSubMuscles,
-          muscleGroups: shouldKeepParent 
-            ? prev.muscleGroups 
-            : prev.muscleGroups.filter(g => g !== parentGroup),
-        };
-      } else {
-        // Selecting sub-muscle
-        const newSubMuscles = [...prev.subMuscles, subMuscle];
-        const allSubMusclesSelected = subMuscles.every(m => newSubMuscles.includes(m));
-        
-        // If all sub-muscles are now selected, add parent to muscleGroups
-        return {
-          ...prev,
-          subMuscles: newSubMuscles,
-          muscleGroups: allSubMusclesSelected && !prev.muscleGroups.includes(parentGroup)
-            ? [...prev.muscleGroups, parentGroup]
-            : prev.muscleGroups,
+          subMuscles: prev.subMuscles.filter(m => m !== subMuscle),
         };
       }
+      // Add this narrowing sub-muscle; make sure the parent group is selected.
+      return {
+        ...prev,
+        subMuscles: [...prev.subMuscles, subMuscle],
+        muscleGroups: prev.muscleGroups.includes(parentGroup)
+          ? prev.muscleGroups
+          : [...prev.muscleGroups, parentGroup],
+      };
     });
   };
 
@@ -309,17 +290,21 @@ export default function SearchScreen({ navigation }: Props) {
     });
   };
 
-  // Get selection state for a muscle group
+  // Selection state for a parent chip:
+  //  - 'full'    → group selected with no narrowing (showing every exercise in the group)
+  //  - 'partial' → group selected and narrowed to specific sub-muscles
+  //  - 'none'    → not selected
   const getMuscleGroupState = (group: string): 'none' | 'partial' | 'full' => {
     const subMuscles = getSubMuscles(group);
-    const selectedSubMuscles = filters.subMuscles.filter(m => subMuscles.includes(m));
 
     if (subMuscles.length === 0) {
+      // Parent-only group (e.g. Cardio).
       return filters.muscleGroups.includes(group) ? 'full' : 'none';
     }
-    if (selectedSubMuscles.length === 0) return 'none';
-    if (selectedSubMuscles.length === subMuscles.length) return 'full';
-    return 'partial';
+
+    const selectedSubMuscles = filters.subMuscles.filter(m => subMuscles.includes(m));
+    if (selectedSubMuscles.length > 0) return 'partial';
+    return filters.muscleGroups.includes(group) ? 'full' : 'none';
   };
 
   const resetFilters = () => {
@@ -334,13 +319,10 @@ export default function SearchScreen({ navigation }: Props) {
   };
 
   const getActiveFilterCount = () => {
-    // Count unique muscle selections (either parent groups or individual sub-muscles)
-    const muscleCount = filters.muscleGroups.length > 0 
-      ? filters.muscleGroups.length 
-      : filters.subMuscles.length;
-    
+    // Each active group and each narrowing sub-muscle is one chip in the active-filter row.
     return (
-      muscleCount +
+      filters.muscleGroups.length +
+      filters.subMuscles.length +
       filters.equipment.length +
       filters.movementPatterns.length
     );
@@ -423,22 +405,16 @@ export default function SearchScreen({ navigation }: Props) {
   const getActiveFilters = () => {
     const active: Array<{ label: string; category: string; value: string; isParent?: boolean }> = [];
     
-    // Add muscle groups (parents) - show these instead of individual sub-muscles if parent is fully selected
+    // Selected parent groups (each searches the whole group unless narrowed by sub-muscles below).
     filters.muscleGroups.forEach(g => {
       active.push({ label: g, category: 'muscleGroups', value: g, isParent: true });
     });
-    
-    // Add sub-muscles that aren't part of a fully selected parent
+
+    // Narrowing sub-muscles, shown alongside their parent group.
     filters.subMuscles.forEach(m => {
-      const parent = Object.keys(MUSCLE_HIERARCHY).find(p => 
-        MUSCLE_HIERARCHY[p].includes(m)
-      );
-      // Only add if parent is not fully selected
-      if (parent && !filters.muscleGroups.includes(parent)) {
-        active.push({ label: m, category: 'subMuscles', value: m });
-      }
+      active.push({ label: m, category: 'subMuscles', value: m });
     });
-    
+
     filters.equipment.forEach(e => active.push({ label: e, category: 'equipment', value: e }));
     filters.movementPatterns.forEach(p => active.push({ label: p, category: 'movementPatterns', value: p }));
     
@@ -455,14 +431,8 @@ export default function SearchScreen({ navigation }: Props) {
         updated.muscleGroups = prev.muscleGroups.filter(v => v !== value);
         updated.subMuscles = prev.subMuscles.filter(m => !subMuscles.includes(m));
       } else if (category === 'subMuscles') {
-        // Remove sub-muscle and check if parent should be removed
-        const parent = Object.keys(MUSCLE_HIERARCHY).find(p => 
-          MUSCLE_HIERARCHY[p].includes(value)
-        );
+        // Remove just this narrowing sub-muscle; the parent group stays selected.
         updated.subMuscles = prev.subMuscles.filter(v => v !== value);
-        if (parent && prev.muscleGroups.includes(parent)) {
-          updated.muscleGroups = prev.muscleGroups.filter(g => g !== parent);
-        }
       } else if (category === 'equipment') {
         updated.equipment = prev.equipment.filter(v => v !== value);
       } else if (category === 'movementPatterns') {
@@ -803,7 +773,9 @@ export default function SearchScreen({ navigation }: Props) {
         <View style={styles.refineHeader}>
           <Text style={styles.refineTitle}>Refine {parentGroup}</Text>
           <Text style={styles.refineSubtitle}>
-            {selectedCount} of {totalCount} selected
+            {selectedCount === 0
+              ? `All ${parentGroup.toLowerCase()} · tap to narrow`
+              : `Narrowed to ${selectedCount} of ${totalCount}`}
           </Text>
         </View>
         <ScrollView
@@ -1201,9 +1173,7 @@ export default function SearchScreen({ navigation }: Props) {
             {(filters.muscleGroups.length > 0 || filters.subMuscles.length > 0) && (
               <View style={styles.sectionBadge}>
                 <Text style={styles.sectionBadgeText}>
-                  {filters.muscleGroups.length > 0 
-                    ? filters.muscleGroups.length 
-                    : filters.subMuscles.length}
+                  {filters.muscleGroups.length + filters.subMuscles.length}
                 </Text>
               </View>
             )}
