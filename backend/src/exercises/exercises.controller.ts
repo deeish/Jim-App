@@ -15,6 +15,7 @@ import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { ExercisesService } from './exercises.service';
 import { SavedExercisesService } from './saved-exercises.service';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
+import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 
@@ -52,6 +53,13 @@ export class ExercisesController {
       count: results.length,
       exercises: results,
     };
+  }
+
+  /** Pick one catalog exercise to swap in for a single exercise in a day. */
+  @Post('replace')
+  @HttpCode(HttpStatus.OK)
+  replace(@Body() dto: ReplaceExerciseDto) {
+    return { exercise: this.exercisesService.pickReplacement(dto) };
   }
 
   @Get('stats')

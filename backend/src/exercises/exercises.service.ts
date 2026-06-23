@@ -15,6 +15,7 @@ import { getCommonExerciseRank } from '../data/common-exercise-ids';
 import { cardioLibrarySortKey } from '../data/cardio-display-order';
 import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
+import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 
 /** Lower = show first. Used to prefer Barbell/Dumbbell/Bodyweight/Cable/Machine. */
 const EQUIPMENT_ORDER: Record<string, number> = {
@@ -32,6 +33,36 @@ const EQUIPMENT_ORDER: Record<string, number> = {
   'Battle Rope': 11,
 };
 const DEFAULT_EQUIPMENT_ORDER = 12;
+
+/** Home-doable equipment subset (mirrors PlansService.HOME_EQUIPMENT). */
+const HOME_EQUIPMENT = ['Dumbbell', 'Resistance Band', 'Bodyweight'];
+
+/**
+ * Equipment / qualifier words stripped when computing an exercise's "family", so
+ * "Flat Barbell Bench Press" and "Flat Dumbbell Bench Press" collapse to one key.
+ * Only true equipment nouns — movement-style words (hammer, preacher, …) are kept
+ * so a Hammer Curl stays a distinct option from a Barbell Curl.
+ */
+const EQUIPMENT_NAME_TOKENS = new Set([
+  'barbell',
+  'dumbbell',
+  'db',
+  'bb',
+  'cable',
+  'machine',
+  'smith',
+  'kettlebell',
+  'kb',
+  'band',
+  'bands',
+  'resistance',
+  'trx',
+  'ez',
+  'landmine',
+  'suspension',
+  'sled',
+  'lever',
+]);
 
 @Injectable()
 export class ExercisesService implements OnModuleInit {
@@ -227,6 +258,121 @@ export class ExercisesService implements OnModuleInit {
       .filter((e) => set.has(e.id))
       .map((e) => this.withVideo(e))
       .sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+  }
+
+  private resolveByName(name?: string): TransformedExercise | undefined {
+    const n = name?.trim().toLowerCase();
+    if (!n) return undefined;
+    return this.exercises.find(
+      (e) =>
+        e.name.toLowerCase() === n ||
+        (e.aliases ?? []).some((a) => a.toLowerCase() === n),
+    );
+  }
+
+  /**
+   * Normalised "exercise family": the lowercased name with equipment qualifiers
+   * stripped, so "Flat Barbell Bench Press" and "Flat Dumbbell Bench Press" share
+   * a key. The catalog's movement patterns are too coarse for this (only Push/Pull/
+   * Squat/Hinge/Lunge/Carry — every chest move is "Push"), so we dedupe on the name.
+   */
+  private exerciseFamily(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((t) => t && !EQUIPMENT_NAME_TOKENS.has(t))
+      .join(' ')
+      .trim();
+  }
+
+  /**
+   * Pick a single replacement for one exercise in a day, keeping the day coherent:
+   * same primary muscle as the target, never a duplicate of what's already there
+   * (by id, name, OR exercise-family — so a flat-barbell-bench isn't "replaced" with
+   * a flat-dumbbell-bench), biased toward the target's sub-muscle so a biceps move
+   * isn't swapped for triceps. Equipment + injury constraints respected. Returns
+   * null when the catalog can't offer a fitting alternative (caller keeps original).
+   */
+  pickReplacement(dto: ReplaceExerciseDto): TransformedExercise | null {
+    const target =
+      (dto.targetExerciseId
+        ? this.exercises.find((e) => e.id === dto.targetExerciseId)
+        : undefined) ?? this.resolveByName(dto.targetName);
+    if (!target) return null;
+
+    // Collect ids / names / families already in the day. Includes the target so we
+    // don't hand back an equipment variant of the very exercise being replaced.
+    const usedIds = new Set<string>();
+    const usedNames = new Set<string>();
+    const usedFamilies = new Set<string>();
+    const resolved: TransformedExercise[] = [
+      ...(dto.dayExerciseIds ?? [])
+        .map((id) => this.exercises.find((e) => e.id === id))
+        .filter((e): e is TransformedExercise => !!e),
+      ...(dto.dayExerciseNames ?? [])
+        .map((name) => this.resolveByName(name))
+        .filter((e): e is TransformedExercise => !!e),
+    ];
+    for (const e of resolved) {
+      usedIds.add(e.id);
+      usedNames.add(e.name.toLowerCase());
+      usedFamilies.add(this.exerciseFamily(e.name));
+    }
+    for (const name of dto.dayExerciseNames ?? []) {
+      usedNames.add(name.trim().toLowerCase());
+      usedFamilies.add(this.exerciseFamily(name));
+    }
+    usedFamilies.add(this.exerciseFamily(target.name));
+    usedFamilies.delete(''); // an empty family must never exclude everything
+
+    const equipment = dto.location === 'home' ? [...HOME_EQUIPMENT] : undefined;
+    // search() returns same-muscle candidates already quality-sorted (common first).
+    const sameMuscle = this.search({
+      muscleGroups: [target.primaryMuscleGroup],
+      equipment,
+    });
+
+    const avoid = (dto.avoid ?? [])
+      .map((a) => a.trim().toLowerCase())
+      .filter((a) => a.length >= 2);
+    const isAvoided = (e: TransformedExercise): boolean => {
+      if (!avoid.length) return false;
+      const hay = [
+        e.name,
+        e.primaryMuscleGroup,
+        ...(e.movementPatterns ?? []),
+        ...(e.equipment ?? []),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return avoid.some((a) => hay.includes(a));
+    };
+    const notDuplicate = (e: TransformedExercise): boolean =>
+      e.id !== target.id &&
+      !usedIds.has(e.id) &&
+      !usedNames.has(e.name.toLowerCase()) &&
+      !isAvoided(e);
+
+    // Strict: also exclude the same exercise-family (equipment variants) as anything
+    // already in the day. Relax just the family rule if nothing survives.
+    let pool = sameMuscle.filter(
+      (e) => notDuplicate(e) && !usedFamilies.has(this.exerciseFamily(e.name)),
+    );
+    if (pool.length === 0) pool = sameMuscle.filter(notDuplicate);
+    if (pool.length === 0) return null;
+
+    // Prefer candidates sharing a sub-muscle with the target (keep a biceps move a
+    // biceps move) since the primary muscle can be broad (Arms = biceps + triceps).
+    const targetSubs = new Set(target.subMuscles ?? []);
+    const preferred = targetSubs.size
+      ? pool.filter((e) => (e.subMuscles ?? []).some((s) => targetSubs.has(s)))
+      : [];
+    const finalPool = preferred.length ? preferred : pool;
+
+    // Quality-first (already common-sorted) with light randomization for variety.
+    const top = finalPool.slice(0, Math.min(12, finalPool.length));
+    return top[Math.floor(Math.random() * top.length)] ?? null;
   }
 
   /**

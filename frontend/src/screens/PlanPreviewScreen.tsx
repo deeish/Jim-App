@@ -21,12 +21,12 @@ import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
 import {
   createPlan,
-  generateSingleSession,
   GENERATE_SESSIONS_TIMEOUT_MESSAGE,
   type PlanSlot,
   type PlanSlotExercise,
 } from '../services/planService';
 import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
+import { replaceExercise } from '../services/exerciseService';
 import {
   runPipelineSafe,
   regeneratePipelineWeek,
@@ -35,7 +35,6 @@ import {
   sessionDraftToPlanSlotExercises,
   buildWorkoutPreviewFromSessionDraft,
   mapGroqPreviewExercise,
-  exerciseDraftFromGenerateResult,
 } from '../lib/planPipeline';
 import {
   linesForPlanGenerationSnapshot,
@@ -55,7 +54,7 @@ import {
   previewSecondaryChipLabels,
   shortBodyTagLabel,
 } from '../lib/previewExerciseMeta';
-import type { PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
+import type { ExerciseDraft, PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
 import { formatLocalYmd, getWeekStartMonday, parseLocalYmd } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import {
@@ -804,48 +803,51 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       const dayDraft = week?.days.find((d) => d.weekday === previewCard.day);
       const session = dayDraft?.session;
       if (!session) return;
+      // Only the tapped exercise should change — find it, swap it, keep the rest.
+      const targetIndex = session.exercises.findIndex((e) => e.name === exerciseName);
+      if (targetIndex < 0) return;
+      const target = session.exercises[targetIndex];
       setReplacingExerciseName(exerciseName);
       try {
         const avoidConstraints = [
           ...(planInputs.injuriesAvoid?.bodyAreas ?? []),
           ...(planInputs.injuriesAvoid?.movementsOrEquipment ?? []),
         ];
-        const goal =
-          planInputs.goal === 'fat_loss'
-            ? 'fat loss'
-            : planInputs.goal === 'balanced'
-              ? 'hybrid'
-              : planInputs.goal;
-        const result = await generateSingleSession({
-          goal,
+        // Catalog-based swap: one alternative that matches the target's muscle, isn't
+        // already in the day, and doesn't repeat another exercise's movement pattern
+        // (so flat-barbell-bench isn't "replaced" with flat-dumbbell-bench).
+        const picked = await replaceExercise({
+          targetName: target.name,
+          targetExerciseId: target.exerciseId ?? undefined,
+          dayExerciseNames: session.exercises.map((e) => e.name).filter(Boolean),
+          dayExerciseIds: session.exercises
+            .map((e) => e.exerciseId)
+            .filter((id): id is string => !!id),
           location: planInputs.location,
-          detailLevel: planInputs.detailLevel,
-          avoidConstraints: avoidConstraints.length ? avoidConstraints : undefined,
-          type: session.type,
-          title: session.title,
-          durationMin: session.durationMin,
-          durationMax: session.durationMax,
-          isHardDay: session.isHardDay,
-          weekIndex: selectedWeek,
-          weekday: previewCard.day,
-          excludeExerciseNames: [exerciseName],
+          avoid: avoidConstraints.length ? avoidConstraints : undefined,
         });
-        const newSession: import('../types/plan').SessionDraft = {
-          type: session.type,
-          title: result.name,
-          focusTags: session.focusTags,
-          durationMin: session.durationMin,
-          durationMax: session.durationMax,
-          isHardDay: session.isHardDay,
-          warmup: result.warmUp,
-          whyThisWorkout: result.reasoning,
-          cooldown: result.coolDown,
-          cardioFinisher: result.cardioFinisher,
-          exercises: (result.exercises ?? []).map((e) => exerciseDraftFromGenerateResult(e, planInputs)),
-        };
-        if (newSession.exercises.length === 0) {
-          newSession.exercises = [{ exerciseId: null, name: 'Generated', sets: 3, reps: '8–10' }];
+        if (!picked) {
+          Alert.alert(
+            'No replacement found',
+            "Couldn't find a different exercise that fits this day. Try again.",
+          );
+          return;
         }
+        // Keep the slot's prescription (sets/reps/rest); only the identity changes.
+        const replacement: ExerciseDraft = {
+          ...target,
+          exerciseId: picked.id,
+          name: picked.name,
+          primaryMuscleGroup: picked.primaryMuscleGroup,
+          secondaryMuscleGroups: picked.secondaryMuscleGroups?.length
+            ? [...picked.secondaryMuscleGroups]
+            : undefined,
+          notes: undefined,
+        };
+        const newSession: SessionDraft = {
+          ...session,
+          exercises: session.exercises.map((ex, i) => (i === targetIndex ? replacement : ex)),
+        };
         const updated: PlanDraft = {
           ...planDraft,
           weeks: planDraft.weeks.map((w) =>
@@ -864,7 +866,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         setPlanDraft(updated);
         setPlanData(planDraftToWeekPlans(updated) as WeekPlan[]);
         setPreviewData(
-          buildWorkoutPreviewFromSessionDraft(newSession, result.name, {
+          buildWorkoutPreviewFromSessionDraft(newSession, newSession.title, {
             goal: previewFormattingGoal(planInputs, inputs.goal),
           }),
         );
@@ -874,7 +876,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         setReplacingExerciseName(null);
       }
     },
-    [previewCard, planDraft, planInputs, selectedWeek],
+    [previewCard, planDraft, planInputs, selectedWeek, inputs.goal],
   );
 
   const handleReplaceWithType = useCallback((newType: WorkoutType) => {

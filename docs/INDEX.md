@@ -16,9 +16,13 @@ Use this page to find the right doc and keep **last reviewed** dates honest. Whe
 
 Per-initiative plans copied from `PLAN_REVIEW.md` (e.g. `2026-03-24-feature-name.md`). Keeps the root template clean while preserving history.
 
+- [2026-06-17-navigation-performance.md](./plans/2026-06-17-navigation-performance.md) — ~2s tab-switch delay: investigation, ruled-out causes, measure-first plan (Sentry tracing), safe wins, and a gated cache plan.
+- [2026-06-19-liquid-glass-icon.md](./plans/2026-06-19-liquid-glass-icon.md) — Deferred: iOS 26 Liquid Glass app icon (Icon Composer layers + EAS), why it's not a Swift rewrite, and the flat-PNG fallback.
+- [2026-06-19-replace-exercise-quality.md](./plans/2026-06-19-replace-exercise-quality.md) — Not started: per-exercise "replace" picks near-duplicates / wrong muscle; fix = backend catalog-based replacement keyed on the target's muscle + movement-pattern dedup.
+
 ## Maintenance
 
 - **Stale docs** hurt more than missing docs: if code and docs disagree, fix the doc in the same PR as the code when possible.
 - **Single source of truth:** System behavior → `backend/docs/PLAN_GENERATION…`; coaching/prompt quality priorities → `LLM_GENERATION_HONEST_ASSESSMENT.md`; process → `PLAN_REVIEW.md`.
 
-**Last reviewed (this index):** 2026-06-01
+**Last reviewed (this index):** 2026-06-17

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,9 @@ import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
+import WhatsNewModal from '../components/WhatsNewModal';
+import { LATEST_CHANGELOG_ID } from '../constants/changelog';
+import { getSeenChangelogId, setSeenChangelogId } from '../lib/whatsNewStorage';
 import type { RootNavigatorParamList } from '../types/navigation';
 import { RootTabParamList } from '../components/NavBar';
 import { showConfirmDialog } from '../lib/confirmAlert';
@@ -116,6 +119,9 @@ export default function HomeScreen() {
 
   const [menuVisible, setMenuVisible] = useState(false);
   const [pendingSignOutConfirm, setPendingSignOutConfirm] = useState(false);
+  const [whatsNewVisible, setWhatsNewVisible] = useState(false);
+  const [hasUnseenNews, setHasUnseenNews] = useState(false);
+  const whatsNewAutoShown = useRef(false);
   const [homeToday, setHomeToday] = useState<HomeTodayResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [draft, setDraft] = useState<PersistedWorkoutDraft | null>(null);
@@ -127,6 +133,36 @@ export default function HomeScreen() {
 
   const openMenu = () => setMenuVisible(true);
   const closeMenu = () => setMenuVisible(false);
+
+  const openWhatsNew = () => setWhatsNewVisible(true);
+  const closeWhatsNew = useCallback(() => {
+    setWhatsNewVisible(false);
+    setHasUnseenNews(false);
+    if (LATEST_CHANGELOG_ID) void setSeenChangelogId(LATEST_CHANGELOG_ID);
+  }, []);
+
+  // Surface unseen release notes. New / just-onboarded users (no seen record
+  // yet) only get the discreet header badge — never an auto-popup. Returning
+  // users who've opened What's New before get the popup once for a newer
+  // release, and we mark it seen the moment it shows so quitting the app
+  // (without dismissing) won't make it reappear.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!LATEST_CHANGELOG_ID) return;
+      const seen = await getSeenChangelogId();
+      if (!active || seen === LATEST_CHANGELOG_ID) return;
+      setHasUnseenNews(true);
+      if (seen !== null && !whatsNewAutoShown.current) {
+        whatsNewAutoShown.current = true;
+        setWhatsNewVisible(true);
+        void setSeenChangelogId(LATEST_CHANGELOG_ID);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const loadHomeData = useCallback(async (opts?: { pull?: boolean }) => {
     const pull = opts?.pull ?? false;
@@ -293,17 +329,32 @@ export default function HomeScreen() {
         <View style={styles.headerLeft}>
           <Text style={[styles.title, themedStyles.title]}>Jim</Text>
         </View>
-        <TouchableOpacity
-          style={styles.profileButton}
-          onPress={openMenu}
-          activeOpacity={0.7}
-          accessibilityLabel="Profile menu"
-        >
-          <ProfileAvatarDisc avatarId={profileAvatarId} size={34} colors={colors} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.whatsNewButton}
+            onPress={openWhatsNew}
+            activeOpacity={0.7}
+            accessibilityLabel="What's new"
+          >
+            <Ionicons name="gift-outline" size={24} color={colors.text} />
+            {hasUnseenNews ? (
+              <View style={[styles.whatsNewBadge, { backgroundColor: colors.accent, borderColor: colors.background }]} />
+            ) : null}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.profileButton}
+            onPress={openMenu}
+            activeOpacity={0.7}
+            accessibilityLabel="Profile menu"
+          >
+            <ProfileAvatarDisc avatarId={profileAvatarId} size={34} colors={colors} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={[styles.accentBar, themedStyles.accentHairline]} />
+
+      <WhatsNewModal visible={whatsNewVisible} onClose={closeWhatsNew} />
 
       <Modal
         visible={menuVisible}
@@ -685,6 +736,23 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   headerLeft: {},
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  whatsNewButton: {
+    padding: 4,
+  },
+  whatsNewBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 1,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    borderWidth: 2,
+  },
   accentBar: {
     marginHorizontal: 22,
     height: 2,
