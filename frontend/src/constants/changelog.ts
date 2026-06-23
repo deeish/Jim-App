@@ -25,14 +25,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    id: '2026-06-19',
+    id: '2026-06-23',
     version: '1.0.0',
-    date: '2026-06-19',
-    title: 'Polish & fixes',
+    date: '2026-06-23',
+    title: 'Improvements and fixes',
     changes: [
-      { type: 'improved', text: 'A brand-new app icon and refreshed logo.' },
+      { type: 'improved', text: 'A new app icon and refreshed logo.' },
+      { type: 'improved', text: 'Swap a single exercise in your plan for a better one that targets the same muscle, without changing the rest of your day.' },
+      { type: 'improved', text: 'Muscle search now lets you pick a group to see everything in it, then narrow to specific areas like Lats or Traps only when you want.' },
+      { type: 'improved', text: 'Smoother navigation: returning to your Plan keeps its content instead of flashing a loading screen, and refreshes quietly in the background.' },
       { type: 'fixed', text: 'Regenerating a workout now rebuilds the full session to match that day’s focus.' },
-      { type: 'improved', text: 'Smoother navigation — returning to your Plan no longer flashes a loading screen; it stays put and refreshes in the background.' },
       { type: 'fixed', text: 'Tapping “More information” on an exercise now opens its details while you’re adding it to a plan.' },
     ],
   },
@@ -43,7 +45,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Welcome to the Jim beta',
     changes: [
       { type: 'new', text: 'Personalized AI workout plans built around your goal, experience, and equipment.' },
-      { type: 'improved', text: 'Smarter sets & reps — rep ranges now adapt to your goal and each exercise’s role.' },
+      { type: 'improved', text: 'Smarter sets and reps that adapt to your goal and each exercise’s role.' },
       { type: 'improved', text: 'Higher-quality plans with cleaner workout splits and better-balanced volume.' },
       { type: 'improved', text: 'Faster exercise search with smoother scrolling.' },
       { type: 'improved', text: 'Refreshed home screen.' },
