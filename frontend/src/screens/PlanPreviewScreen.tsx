@@ -1064,6 +1064,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         </View>
       )}
 
+      {!loadingPreview && (
       <ScrollView
         style={styles.previewBodyScroll}
         contentContainerStyle={styles.previewBodyScrollContent}
@@ -1333,6 +1334,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         })}
         </View>
       </ScrollView>
+      )}
 
       {/* Workout detail preview modal: exercises + reasoning */}
       <Modal
@@ -1679,13 +1681,16 @@ function createPlanPreviewStyles(colors: ColorPalette) {
     width: 60,
   },
   loadingOverlay: {
+    flex: 1,
     paddingVertical: 32,
+    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
+    textAlign: 'center',
   },
   errorCard: {
     margin: 16,
