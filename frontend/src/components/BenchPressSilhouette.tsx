@@ -55,6 +55,21 @@ const HAND_A_DY = -3;
 const HAND_B_X = 69;
 const HAND_B_DY = -7;
 
+// Derive lighter/darker shades of a hex color by mixing each channel toward white
+// (lighten) or black (darken). Lets the barbell's metal + plates read as one shaded
+// material in any theme (gold on dark, bronze-brown on light) instead of the fixed
+// gold hexes they used to hardcode. Expects a 6-digit "#RRGGBB" (all palette tokens are).
+function mixHex(hex: string, target: number, t: number): string {
+  const h = hex.replace('#', '');
+  const to2 = (n: number) =>
+    Math.round(n + (target - n) * t)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${to2(parseInt(h.slice(0, 2), 16))}${to2(parseInt(h.slice(2, 4), 16))}${to2(parseInt(h.slice(4, 6), 16))}`;
+}
+const lighten = (hex: string, t: number) => mixHex(hex, 255, t);
+const darken = (hex: string, t: number) => mixHex(hex, 0, t);
+
 export default function BenchPressSilhouette({
   size = 220,
   colors,
@@ -107,7 +122,7 @@ export default function BenchPressSilhouette({
     <LinearGradient
       start={vec(0, -20)}
       end={vec(0, 18)}
-      colors={['#FFFFFF', colors.primary, '#E9D6B0']}
+      colors={[colors.onPrimary, colors.primary, lighten(colors.primary, 0.4)]}
     />
   );
 
@@ -118,13 +133,13 @@ export default function BenchPressSilhouette({
   const plate = (cx: number, cy: number, r: number) => (
     <Group>
       {/* Plate edge/thickness peeking behind on the far side. */}
-      <Circle c={vec(cx + 0.29 * r * 0.3, cy - 0.96 * r * 0.3)} r={r} color="#9A7B49" />
+      <Circle c={vec(cx + 0.29 * r * 0.3, cy - 0.96 * r * 0.3)} r={r} color={darken(colors.primary, 0.3)} />
       {/* Front face. */}
       <Circle c={vec(cx, cy)} r={r}>
         <LinearGradient
           start={vec(cx, cy - r)}
           end={vec(cx, cy + r)}
-          colors={[colors.onPrimary, colors.primary, '#9A7B49']}
+          colors={[colors.onPrimary, colors.primary, darken(colors.primary, 0.3)]}
         />
       </Circle>
       {/* Recessed centre hub (the bore). */}
