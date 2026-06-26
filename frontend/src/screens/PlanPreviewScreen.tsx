@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme, planSlotIconColors, type ColorPalette } from '../theme';
+import BenchPressLoader from '../components/BenchPressLoader';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
@@ -1033,7 +1034,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
 
       {loadingPreview && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <BenchPressLoader size={200} colors={colors} />
           <Text style={[styles.loadingText, { color: colors.text }]}>
             {fromOnboarding
               ? 'Building your plan… This may take a minute.'
