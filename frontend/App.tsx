@@ -1,12 +1,20 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  runOnJS,
+  Easing,
+} from 'react-native-reanimated';
 
 import NavBar from './src/components/NavBar';
+import LoadingScreen from './src/components/LoadingScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import LoginScreen from './src/screens/LoginScreen';
@@ -31,6 +39,14 @@ type AuthStackParamList = {
 
 const RootStack = createNativeStackNavigator<RootNavigatorParamList>();
 const AuthStackNav = createNativeStackNavigator<AuthStackParamList>();
+
+/**
+ * Minimum time the branded loader stays up, so the brand-mark intro (and the exit
+ * cross-fade) are seen on a warm start instead of flashing for a few ms. This is a
+ * FLOOR, not a cap: if session restore / preference hydration take longer, the
+ * loader stays until they finish — it never truncates real loading.
+ */
+const LOADING_MIN_DISPLAY_MS = 1500;
 
 function AuthStack() {
   const { colors } = useTheme();
@@ -71,16 +87,38 @@ function AppContent() {
   const { previewOnboarding } = useDevPreview();
   const navigationRef = useNavigationContainerRef();
 
-  if (loading || !hydrated) {
-    return (
-      <View style={[styles.loading, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.textMuted }]}>
-          Loading…
-        </Text>
-      </View>
+  // Hold the branded loader up for at least LOADING_MIN_DISPLAY_MS from launch.
+  const [minDisplayElapsed, setMinDisplayElapsed] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setMinDisplayElapsed(true), LOADING_MIN_DISPLAY_MS);
+    return () => clearTimeout(id);
+  }, []);
+
+  // App is ready to show once auth + preferences have settled and the loader's
+  // minimum display has elapsed.
+  const ready = !loading && hydrated && minDisplayElapsed;
+
+  // Keep the branded loader mounted across the hand-off and cross-fade it out over
+  // the app, so launch ends on a smooth dissolve instead of a hard cut. The loader
+  // is a single persistent overlay (never remounted), so its entrance plays once at
+  // launch and then dissolves; the app mounts underneath while it's still covered.
+  const [loaderMounted, setLoaderMounted] = useState(true);
+  const loaderFade = useSharedValue(1);
+  useEffect(() => {
+    if (!ready) return;
+    loaderFade.value = withTiming(
+      0,
+      { duration: 480, easing: Easing.out(Easing.ease) },
+      (finished) => {
+        if (finished) runOnJS(setLoaderMounted)(false);
+      },
     );
-  }
+  }, [ready, loaderFade]);
+  const loaderOverlayStyle = useAnimatedStyle(() => ({
+    opacity: loaderFade.value,
+    // Gentle lift as it dissolves — the splash easing off to reveal the app.
+    transform: [{ scale: 1 + (1 - loaderFade.value) * 0.06 }],
+  }));
 
   const navTheme = {
     dark: isDark,
@@ -96,6 +134,7 @@ function AppContent() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {ready && (
       <NavigationContainer
         ref={navigationRef}
         theme={navTheme}
@@ -134,7 +173,16 @@ function AppContent() {
           <AuthStack />
         )}
       </NavigationContainer>
+      )}
       <StatusBar style={isDark ? 'light' : 'dark'} />
+      {loaderMounted && (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, loaderOverlayStyle]}
+          pointerEvents={ready ? 'none' : 'auto'}
+        >
+          <LoadingScreen />
+        </Animated.View>
+      )}
     </View>
   );
 }
