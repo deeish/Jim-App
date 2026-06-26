@@ -10,7 +10,6 @@ import {
   Modal,
   Pressable,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,6 +33,7 @@ import {
 } from '../lib/planRecommendation';
 import { buildPlanInputs, planInputsToFormPatch } from '../lib/planInputs';
 import { MonthCalendarPicker } from '../components/MonthCalendarPicker';
+import BenchPressLoader from '../components/BenchPressLoader';
 import {
   WELLNESS_SCOPE_TITLE,
   WELLNESS_SCOPE_BODY,
@@ -978,7 +978,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     return (
       <View style={styles.outerContainer}>
         <SafeAreaView style={[styles.container, styles.autoGenCenter]} edges={['top', 'bottom']}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <BenchPressLoader size={200} colors={colors} />
           <Text style={styles.autoGenTitle}>Building your plan…</Text>
           <Text style={styles.autoGenSub}>Setting things up from your answers.</Text>
         </SafeAreaView>

@@ -1373,7 +1373,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                     {AI_PROGRAMMING_TRANSPARENCY} {NOT_MEDICAL_FOOTNOTE_SHORT}
                   </Text>
                   {previewLoading ? (
-                    <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 24 }} />
+                    <View style={{ marginVertical: 16, alignItems: 'center' }}>
+                      <BenchPressLoader size={140} colors={colors} />
+                    </View>
                   ) : previewData ? (
                     <>
                       {(previewData.warmUp || previewData.reasoning || previewData.coolDown) ? (
