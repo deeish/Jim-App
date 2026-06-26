@@ -210,10 +210,13 @@ export default function OnboardingScreen({ navigation }: Props) {
         colors={[`${colors.primary}22`, colors.background] as const}
         style={StyleSheet.absoluteFill}
       />
+      {/* Full-bleed backdrop behind the safe-area-inset content, so the welcome
+          aurora reaches the very top/bottom edges instead of being boxed into the
+          inset region. */}
+      {showWelcome ? <Aurora colors={colors} /> : null}
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         {showWelcome ? (
           <View style={styles.welcomeContent}>
-            <Aurora colors={colors} />
             <View style={styles.welcomeTop}>
               <Rise delay={60} style={styles.brandWrap}>
                 <JimLogo interactive />
