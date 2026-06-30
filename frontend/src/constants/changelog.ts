@@ -25,6 +25,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-06-29',
+    version: '1.0.0',
+    date: '2026-06-29',
+    title: 'Weight tracking and multiple goals',
+    changes: [
+      { type: 'new', text: 'Track your body weight and see your trend over time.' },
+      { type: 'new', text: 'Pick a second goal and your plan blends both.' },
+    ],
+  },
+  {
     id: '2026-06-23',
     version: '1.0.0',
     date: '2026-06-23',
