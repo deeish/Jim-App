@@ -16,6 +16,13 @@ import { cardioLibrarySortKey } from '../data/cardio-display-order';
 import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
+import {
+  normalizeSearchText,
+  tokenizeQuery,
+  buildHaystackWords,
+  matchesAllTokens,
+  searchRelevance,
+} from './exercise-search.util';
 
 /** Lower = show first. Used to prefer Barbell/Dumbbell/Bodyweight/Cable/Machine. */
 const EQUIPMENT_ORDER: Record<string, number> = {
@@ -146,23 +153,17 @@ export class ExercisesService implements OnModuleInit {
       (e) => !isExcludedFromExerciseCatalog(e.id),
     );
 
-    // Text search
+    // Text search: tokenized, order-independent, equipment/movement-aware match.
+    let queryTokens: string[] = [];
+    let normalizedQuery = '';
     if (searchDto.searchQuery?.trim()) {
-      const query = searchDto.searchQuery.toLowerCase().trim();
-      results = results.filter((exercise) => {
-        const searchableText = [
-          exercise.name,
-          ...(exercise.aliases || []),
-          exercise.description || '',
-          exercise.primaryMuscleGroup,
-          ...exercise.subMuscles,
-          ...exercise.secondaryMuscleGroups,
-        ]
-          .join(' ')
-          .toLowerCase();
-
-        return searchableText.includes(query);
-      });
+      normalizedQuery = normalizeSearchText(searchDto.searchQuery);
+      queryTokens = tokenizeQuery(searchDto.searchQuery);
+      if (queryTokens.length > 0) {
+        results = results.filter((exercise) =>
+          matchesAllTokens(queryTokens, buildHaystackWords(exercise)),
+        );
+      }
     }
 
     // Filter by primary muscle groups
@@ -203,6 +204,15 @@ export class ExercisesService implements OnModuleInit {
 
     // Sort: optional “familiar gym” order for pure Cardio filter; else common-first, etc.
     results.sort((a, b) => {
+      // When the user typed a query, rank by how well the name matches first, so
+      // exact/name hits sit above results that only matched via equipment/muscle/description.
+      if (queryTokens.length > 0) {
+        const rel =
+          searchRelevance(normalizedQuery, queryTokens, a) -
+          searchRelevance(normalizedQuery, queryTokens, b);
+        if (rel !== 0) return rel;
+      }
+
       if (allCardioResults) {
         const cA = cardioLibrarySortKey(a.id);
         const cB = cardioLibrarySortKey(b.id);
@@ -232,6 +242,13 @@ export class ExercisesService implements OnModuleInit {
           : [DEFAULT_EQUIPMENT_ORDER]),
       );
       if (equipA !== equipB) return equipA - equipB;
+
+      // For text searches, prefer the shorter (more canonical) name within a tier,
+      // so "Romanian Deadlift" beats "Barbell B-Stance Romanian Deadlift".
+      if (queryTokens.length > 0) {
+        const lenDiff = (a.name?.length ?? 0) - (b.name?.length ?? 0);
+        if (lenDiff !== 0) return lenDiff;
+      }
 
       return (a.name ?? '').localeCompare(b.name ?? '', undefined, {
         sensitivity: 'base',
