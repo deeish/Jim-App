@@ -110,7 +110,6 @@ export default function SearchScreen({ navigation }: Props) {
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addingToPlan, setAddingToPlan] = useState(false);
   const [savedExerciseIds, setSavedExerciseIds] = useState<string[]>([]);
@@ -373,18 +372,25 @@ export default function SearchScreen({ navigation }: Props) {
     setError(null);
 
     try {
-      const searchParams = {
-        searchQuery: currentFilters.searchQuery.trim() || undefined,
-        muscleGroups: currentFilters.muscleGroups.length > 0 ? currentFilters.muscleGroups : undefined,
-        subMuscles: currentFilters.subMuscles.length > 0 ? currentFilters.subMuscles : undefined,
-        equipment: currentFilters.equipment.length > 0 ? currentFilters.equipment : undefined,
-        movementPatterns: currentFilters.movementPatterns.length > 0 ? currentFilters.movementPatterns : undefined,
-      };
+      // When the user types, search the whole catalog by text alone — chip filters
+      // (especially the profile-seeded equipment) must never silently hide a name
+      // match. Chips only narrow when browsing without a search term.
+      const searchParams = hasSearch
+        ? { searchQuery: currentFilters.searchQuery.trim() }
+        : {
+            muscleGroups: currentFilters.muscleGroups.length > 0 ? currentFilters.muscleGroups : undefined,
+            subMuscles: currentFilters.subMuscles.length > 0 ? currentFilters.subMuscles : undefined,
+            equipment: currentFilters.equipment.length > 0 ? currentFilters.equipment : undefined,
+            movementPatterns: currentFilters.movementPatterns.length > 0 ? currentFilters.movementPatterns : undefined,
+          };
 
       const response = await searchExercises(searchParams);
       setExercises(response.exercises);
-      // Group exercises by base name
-      const grouped = groupExercises(response.exercises);
+      // Flat, relevance-ranked list while searching (so the exact variant you typed
+      // is visible, not buried under "Show variations"); grouped families when browsing.
+      const grouped = hasSearch
+        ? response.exercises.map((e) => ({ baseName: e.name, exercises: [e], primaryExercise: e }))
+        : groupExercises(response.exercises);
       setExerciseGroups(grouped);
     } catch (err: any) {
       console.error('Error searching exercises:', err);
@@ -396,31 +402,15 @@ export default function SearchScreen({ navigation }: Props) {
     }
   }, []);
 
-  // Debounce search query changes
+  // Re-search on ANY filter change (text or chips). Keying on the whole `filters`
+  // object means tapping a chip after typing always refreshes results (the old
+  // split effects dropped that case), and `filters` is always current (no stale
+  // closure). Debounce only while typing.
   useEffect(() => {
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
-    }
-
-    const timeout = setTimeout(() => {
-      performSearch(filters);
-    }, filters.searchQuery.trim().length > 0 ? 500 : 0); // 500ms debounce for text search
-
-    setSearchTimeout(timeout);
-
-    return () => {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-    };
-  }, [filters.searchQuery, performSearch]);
-
-  // Search immediately when non-text filters change
-  useEffect(() => {
-    if (filters.searchQuery.trim().length === 0) {
-      performSearch(filters);
-    }
-  }, [filters.muscleGroups, filters.subMuscles, filters.equipment, filters.movementPatterns, performSearch]);
+    const hasText = filters.searchQuery.trim().length > 0;
+    const timeout = setTimeout(() => performSearch(filters), hasText ? 250 : 0);
+    return () => clearTimeout(timeout);
+  }, [filters, performSearch]);
 
   const resultCount = exerciseGroups.length > 0 ? exerciseGroups.length : exercises.length;
   const activeFilterCount = getActiveFilterCount();
@@ -1178,7 +1168,14 @@ export default function SearchScreen({ navigation }: Props) {
         maxToRenderPerBatch={8}
         windowSize={7}
         ListEmptyComponent={
-          !isLoading && !error && activeFilterCount > 0 ? (
+          !isLoading && !error && filters.searchQuery.trim().length > 0 ? (
+            <View style={styles.resultsPreview}>
+              <Text style={styles.resultsPreviewText}>
+                No matches for “{filters.searchQuery.trim()}”
+              </Text>
+              <Text style={styles.resultsPreviewHint}>Try fewer words or check the spelling</Text>
+            </View>
+          ) : !isLoading && !error && activeFilterCount > 0 ? (
             <View style={styles.resultsPreview}>
               <Text style={styles.resultsPreviewText}>No exercises found</Text>
               <Text style={styles.resultsPreviewHint}>Try adjusting your filters</Text>
