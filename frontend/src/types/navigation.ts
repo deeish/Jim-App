@@ -11,6 +11,7 @@ export type RootNavigatorParamList = {
   Onboarding: undefined;
   Main: NavigatorScreenParams<RootTabParamList> | undefined;
   Profile: undefined;
+  WeightTracker: undefined;
 };
 
 export type RootStackParamList = {

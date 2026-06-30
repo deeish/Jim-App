@@ -20,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import WhatsNewModal from '../components/WhatsNewModal';
+import LogWeightSheet from '../components/LogWeightSheet';
 import { LATEST_CHANGELOG_ID } from '../constants/changelog';
 import { getSeenChangelogId, setSeenChangelogId } from '../lib/whatsNewStorage';
 import type { RootNavigatorParamList } from '../types/navigation';
@@ -119,6 +120,8 @@ export default function HomeScreen() {
 
   const [menuVisible, setMenuVisible] = useState(false);
   const [pendingSignOutConfirm, setPendingSignOutConfirm] = useState(false);
+  const [logWeightOpen, setLogWeightOpen] = useState(false);
+  const [pendingLogWeight, setPendingLogWeight] = useState(false);
   const [whatsNewVisible, setWhatsNewVisible] = useState(false);
   const [hasUnseenNews, setHasUnseenNews] = useState(false);
   const whatsNewAutoShown = useRef(false);
@@ -245,6 +248,18 @@ export default function HomeScreen() {
     }
   };
 
+  const onLogWeight = () => {
+    // Same iOS modal-over-modal constraint as sign-out: defer presenting the
+    // log-weight sheet until the menu has fully dismissed.
+    if (Platform.OS === 'ios') {
+      setPendingLogWeight(true);
+      closeMenu();
+    } else {
+      closeMenu();
+      setLogWeightOpen(true);
+    }
+  };
+
   const themedStyles = useMemo(
     () => ({
       container: { backgroundColor: colors.background },
@@ -356,6 +371,8 @@ export default function HomeScreen() {
 
       <WhatsNewModal visible={whatsNewVisible} onClose={closeWhatsNew} />
 
+      <LogWeightSheet visible={logWeightOpen} onClose={() => setLogWeightOpen(false)} />
+
       <Modal
         visible={menuVisible}
         transparent
@@ -367,6 +384,10 @@ export default function HomeScreen() {
           if (pendingSignOutConfirm) {
             setPendingSignOutConfirm(false);
             confirmSignOut();
+          }
+          if (pendingLogWeight) {
+            setPendingLogWeight(false);
+            setLogWeightOpen(true);
           }
         }}
       >
@@ -386,6 +407,12 @@ export default function HomeScreen() {
             <TouchableOpacity style={styles.menuItem} onPress={goToProfile} activeOpacity={0.7}>
               <Ionicons name="person-outline" size={22} color={colors.text} />
               <Text style={[styles.menuItemLabel, themedStyles.menuItemLabel]}>My profile</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+            <View style={[styles.menuDivider, themedStyles.menuDivider]} />
+            <TouchableOpacity style={styles.menuItem} onPress={onLogWeight} activeOpacity={0.7}>
+              <Ionicons name="scale-outline" size={22} color={colors.text} />
+              <Text style={[styles.menuItemLabel, themedStyles.menuItemLabel]}>Log weight</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </TouchableOpacity>
             <View style={[styles.menuDivider, themedStyles.menuDivider]} />
