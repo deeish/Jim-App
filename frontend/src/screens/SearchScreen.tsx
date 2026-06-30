@@ -333,7 +333,11 @@ export default function SearchScreen({ navigation }: Props) {
       searchQuery: '',
       muscleGroups: [],
       subMuscles: [],
-      equipment: [],
+      // Restore the user's default equipment (seeded from their profile) rather
+      // than clearing it — this matches the page's initial state, so Reset
+      // returns to "my gear" instead of stripping past it to show exercises for
+      // equipment they don't own.
+      equipment: [...profileEquipment],
       movementPatterns: [],
     });
   };
