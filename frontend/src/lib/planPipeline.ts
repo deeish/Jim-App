@@ -585,6 +585,14 @@ function buildGenerateSessionsRequest(
       : planInputs.goal === 'balanced'
         ? 'hybrid'
         : planInputs.goal;
+  const secondaryGoal =
+    planInputs.secondaryGoal == null
+      ? undefined
+      : planInputs.secondaryGoal === 'fat_loss'
+        ? 'fat loss'
+        : planInputs.secondaryGoal === 'balanced'
+          ? 'hybrid'
+          : planInputs.secondaryGoal;
   const avoidConstraints = [
     ...(planInputs.injuriesAvoid?.bodyAreas ?? []),
     ...(planInputs.injuriesAvoid?.movementsOrEquipment ?? []),
@@ -592,6 +600,7 @@ function buildGenerateSessionsRequest(
   const weekIndices = [...new Set(sessions.map((s) => s.weekIndex))].sort((a, b) => a - b);
   return {
     goal,
+    secondaryGoal,
     location: planInputs.location,
     detailLevel: planInputs.detailLevel,
     avoidConstraints: avoidConstraints.length ? avoidConstraints : undefined,

@@ -966,14 +966,41 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             ? 'hybrid'
             : planInputs.goal
         : inputs.goal;
-      const goalLabel = planInputs?.goal === 'fat_loss' ? 'Fat Loss'
-        : planInputs?.goal === 'balanced' ? 'Balanced'
-        : planInputs?.goal === 'endurance' ? 'Endurance'
-        : planInputs?.goal === 'strength' ? 'Strength'
-        : inputs.goal === 'fat loss' ? 'Fat Loss'
-        : inputs.goal === 'hybrid' ? 'Balanced'
-        : inputs.goal === 'endurance' ? 'Endurance'
-        : 'Strength';
+      const secondaryGoalForApi = planInputs?.secondaryGoal
+        ? planInputs.secondaryGoal === 'fat_loss'
+          ? 'fat loss'
+          : planInputs.secondaryGoal === 'balanced'
+            ? 'hybrid'
+            : planInputs.secondaryGoal
+        : undefined;
+      const goalIdToLabel = (g?: string | null): string | null => {
+        switch (g) {
+          case 'fat_loss':
+            return 'Fat Loss';
+          case 'balanced':
+            return 'Balanced';
+          case 'endurance':
+            return 'Endurance';
+          case 'strength':
+            return 'Strength';
+          default:
+            return null;
+        }
+      };
+      const primaryLabel =
+        goalIdToLabel(planInputs?.goal) ??
+        (inputs.goal === 'fat loss'
+          ? 'Fat Loss'
+          : inputs.goal === 'hybrid'
+            ? 'Balanced'
+            : inputs.goal === 'endurance'
+              ? 'Endurance'
+              : 'Strength');
+      const secondaryLabel = goalIdToLabel(planInputs?.secondaryGoal ?? null);
+      // Reflect a chosen secondary emphasis in the plan name (e.g. "Strength + Fat Loss").
+      const goalLabel = secondaryLabel
+        ? `${primaryLabel} + ${secondaryLabel}`
+        : primaryLabel;
       const daysCount = planInputs?.daysPerWeek ?? inputs.trainingDays?.length ?? 4;
       const weeksCount = planInputs?.weeksCount ?? inputs.weeks ?? 1;
       const derivedName = `${goalLabel} · ${daysCount}d/wk · ${weeksCount > 1 ? `${weeksCount} wks` : '1 wk'}`;
@@ -984,6 +1011,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         )),
         slots,
         goal: goalForApi ?? undefined,
+        secondaryGoal: secondaryGoalForApi,
         experience: inputs.experienceLevel ?? undefined,
         equipment: inputs.availableEquipment?.length ? mapEquipmentToBackend(inputs.availableEquipment) : undefined,
         limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,

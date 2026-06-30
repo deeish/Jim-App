@@ -103,6 +103,8 @@ interface PlanStyleOption {
 
 interface GeneratePlanInputs {
   goal: Goal | null;
+  /** Optional secondary emphasis blended into generation. */
+  secondaryGoal: Goal | null;
   programType: ProgramType | null;
   programVariationIndex: number;
   trainingDays: DayOfWeek[];
@@ -447,6 +449,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   const {
     hydrated: prefsHydrated,
     goal: prefGoal,
+    secondaryGoal: prefSecondaryGoal,
     experience: prefExperience,
     equipment: prefEquipment,
     trainingFrequency,
@@ -457,6 +460,12 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   } = useUserPreferences();
   const [inputs, setInputs] = useState<GeneratePlanInputs>(() => ({
     goal: prefGoalToForm(prefGoal),
+    // Two profile goals (e.g. Strength + Hypertrophy) can collapse to the same
+    // form goal — drop the secondary in that case so it never duplicates primary.
+    secondaryGoal: (() => {
+      const mapped = prefSecondaryGoal ? prefGoalToForm(prefSecondaryGoal) : null;
+      return mapped && mapped !== prefGoalToForm(prefGoal) ? mapped : null;
+    })(),
     programType: null,
     programVariationIndex: 0,
     trainingDays: getDefaultTrainingDays(4),
@@ -715,12 +724,21 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     setInputs(prev => ({
       ...prev,
       goal,
+      // Keep the two goals distinct.
+      secondaryGoal: prev.secondaryGoal === goal ? null : prev.secondaryGoal,
       programType: null,
       programVariationIndex: 0,
       strengthSplitPreference: null,
       hybridGoalRatio: null,
       cardioModalityPreference:
         goal === 'hybrid' || goal === 'endurance' ? [...DEFAULT_CARDIO_MODALITY_PREFERENCE] : [],
+    }));
+  };
+
+  const handleSecondaryGoalSelect = (goal: Goal) => {
+    setInputs(prev => ({
+      ...prev,
+      secondaryGoal: prev.secondaryGoal === goal ? null : goal,
     }));
   };
 
@@ -841,6 +859,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     const planInputs = buildPlanInputs({
       form: {
         goal: inputs.goal!,
+        secondaryGoal: inputs.secondaryGoal,
         programType: inputs.programType ?? '',
         trainingDays: inputs.trainingDays,
         startDateISO: inputs.startDateISO,
@@ -1064,6 +1083,31 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               </TouchableOpacity>
             ))}
           </View>
+          {inputs.goal ? (
+            <View style={{ marginTop: 16 }}>
+              <Text style={styles.sectionSubtitle}>Add a second focus (optional)</Text>
+              <View style={styles.goalChipsRow}>
+                {(['fat loss', 'strength', 'endurance', 'hybrid'] as Goal[])
+                  .filter(g => g !== inputs.goal)
+                  .map(goal => (
+                    <TouchableOpacity
+                      key={goal}
+                      style={[styles.goalChip, inputs.secondaryGoal === goal && styles.goalChipSelected]}
+                      onPress={() => handleSecondaryGoalSelect(goal)}
+                    >
+                      <Text
+                        style={[
+                          styles.goalChipTitle,
+                          inputs.secondaryGoal === goal && styles.goalChipTitleSelected,
+                        ]}
+                      >
+                        {GOAL_LABELS[goal]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
+            </View>
+          ) : null}
         </View>
 
         {/* Training days */}

@@ -76,6 +76,8 @@ export type ExperienceLevelId = 'beginner' | 'intermediate' | 'advanced';
  */
 export interface PlanInputs {
   goal: GoalId;
+  /** Optional secondary emphasis blended into generation (primary still drives rep ranges). */
+  secondaryGoal?: GoalId | null;
   selectedWeekdays: Weekday[];
   startWeekday?: Weekday;
   startDateISO?: string;
