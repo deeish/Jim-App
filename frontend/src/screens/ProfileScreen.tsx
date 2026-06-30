@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, type ComponentProps } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef, type ComponentProps } from 'react';
 import {
   View,
   Text,
@@ -387,9 +387,25 @@ export default function ProfileScreen() {
     (Constants as { nativeAppVersion?: string }).nativeAppVersion ??
     '—';
 
+  // Seed the editable draft from the stored name once prefs hydrate. Guarded so a
+  // later re-render / re-hydration (e.g. a Supabase token refresh) can't reset the
+  // field while the user is mid-edit, which looked like "can't change my name".
+  const nameSeeded = useRef(false);
   useEffect(() => {
-    if (prefsHydrated) setNameDraft(profileDisplayName);
+    if (prefsHydrated && !nameSeeded.current) {
+      nameSeeded.current = true;
+      setNameDraft(profileDisplayName);
+    }
   }, [prefsHydrated, profileDisplayName]);
+
+  // Persist the name on blur/submit. Trimming here (not on each keystroke) keeps
+  // spaces typeable, and saving on submit guarantees it sticks even when a
+  // keyboard dismissal doesn't reliably fire onBlur (common on Android).
+  const commitDisplayName = useCallback(() => {
+    const trimmed = nameDraft.trim();
+    if (trimmed !== nameDraft) setNameDraft(trimmed);
+    setProfileDisplayName(trimmed);
+  }, [nameDraft, setProfileDisplayName]);
 
   // Latest weigh-in for the Body weight row; refreshes when returning from the tracker.
   useFocusEffect(
@@ -582,6 +598,7 @@ export default function ProfileScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <SectionHeader title="Account" colors={colors} />
         <View style={[styles.profileCard, themedStyles.profileCard]}>
@@ -600,7 +617,10 @@ export default function ProfileScreen() {
                 ]}
                 value={nameDraft}
                 onChangeText={setNameDraft}
-                onBlur={() => setProfileDisplayName(nameDraft)}
+                onBlur={commitDisplayName}
+                onEndEditing={commitDisplayName}
+                onSubmitEditing={commitDisplayName}
+                returnKeyType="done"
                 placeholder={namePlaceholder}
                 placeholderTextColor={colors.textMuted}
                 maxLength={80}
