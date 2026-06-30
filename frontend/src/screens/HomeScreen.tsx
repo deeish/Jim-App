@@ -124,6 +124,7 @@ export default function HomeScreen() {
   const [pendingLogWeight, setPendingLogWeight] = useState(false);
   const [whatsNewVisible, setWhatsNewVisible] = useState(false);
   const [hasUnseenNews, setHasUnseenNews] = useState(false);
+  const [seenNewsId, setSeenNewsId] = useState<string | null>(null);
   const whatsNewAutoShown = useRef(false);
   const [homeToday, setHomeToday] = useState<HomeTodayResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -141,7 +142,11 @@ export default function HomeScreen() {
   const closeWhatsNew = useCallback(() => {
     setWhatsNewVisible(false);
     setHasUnseenNews(false);
-    if (LATEST_CHANGELOG_ID) void setSeenChangelogId(LATEST_CHANGELOG_ID);
+    if (LATEST_CHANGELOG_ID) {
+      void setSeenChangelogId(LATEST_CHANGELOG_ID);
+      // Now caught up: a reopen should show only the latest expanded.
+      setSeenNewsId(LATEST_CHANGELOG_ID);
+    }
   }, []);
 
   // Surface unseen release notes. New / just-onboarded users (no seen record
@@ -154,7 +159,11 @@ export default function HomeScreen() {
     (async () => {
       if (!LATEST_CHANGELOG_ID) return;
       const seen = await getSeenChangelogId();
-      if (!active || seen === LATEST_CHANGELOG_ID) return;
+      if (!active) return;
+      // Capture what they'd seen before we mark the latest seen below, so the
+      // modal knows which entries to keep expanded.
+      setSeenNewsId(seen);
+      if (seen === LATEST_CHANGELOG_ID) return;
       setHasUnseenNews(true);
       if (seen !== null && !whatsNewAutoShown.current) {
         whatsNewAutoShown.current = true;
@@ -369,7 +378,7 @@ export default function HomeScreen() {
 
       <View style={[styles.accentBar, themedStyles.accentHairline]} />
 
-      <WhatsNewModal visible={whatsNewVisible} onClose={closeWhatsNew} />
+      <WhatsNewModal visible={whatsNewVisible} onClose={closeWhatsNew} seenId={seenNewsId} />
 
       <LogWeightSheet visible={logWeightOpen} onClose={() => setLogWeightOpen(false)} />
 
