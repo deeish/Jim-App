@@ -12,6 +12,11 @@ export class GenerateSingleSessionDto {
   @IsString()
   goal?: string;
 
+  /** Optional secondary emphasis blended into generation. */
+  @IsOptional()
+  @IsString()
+  secondaryGoal?: string;
+
   @IsOptional()
   @IsString()
   @IsIn(['gym', 'home'])

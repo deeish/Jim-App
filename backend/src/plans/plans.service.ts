@@ -399,6 +399,7 @@ export class PlansService {
     userId?: string,
     generatorContext?: {
       goal?: string;
+      secondaryGoal?: string;
       experience?: string;
       equipment?: string[];
       limitations?: string[];
@@ -451,6 +452,7 @@ export class PlansService {
           difficulty,
           equipment: generatorContext?.equipment,
           goal: generatorContext?.goal,
+          secondaryGoal: generatorContext?.secondaryGoal,
           experience: generatorContext?.experience,
           limitations: generatorContext?.limitations,
           programTemplateId: generatorContext?.programTemplateId,
@@ -509,6 +511,7 @@ export class PlansService {
   ): Parameters<PlansService['createWorkoutsForPlan']>[2] {
     return {
       goal: dto.goal,
+      secondaryGoal: dto.secondaryGoal,
       experience: dto.experience,
       equipment: dto.equipment,
       limitations: dto.limitations,
@@ -854,6 +857,7 @@ export class PlansService {
   private async tryHybridSimpleChunk(
     specs: GenerateSessionsDto['sessions'],
     goal: string,
+    secondaryGoal: string | undefined,
     location: 'gym' | 'home',
     limitations: string[],
     equipment: string[] | undefined,
@@ -900,6 +904,7 @@ export class PlansService {
             difficulty,
             experience: experienceLevel,
             goal,
+            secondaryGoal,
             equipment,
             limitations: specLimits,
             programDayFocus: spec.title ?? spec.type,
@@ -1065,6 +1070,7 @@ export class PlansService {
       const hybridResult = await this.tryHybridSimpleChunk(
         specs,
         goal,
+        dto.secondaryGoal,
         location,
         limitations,
         equipment,
@@ -1201,6 +1207,7 @@ export class PlansService {
             isHardDay: s.isHardDay,
           })),
           goal,
+          secondaryGoal: dto.secondaryGoal,
           location,
           detailLevel: effectiveDetailLevel,
           makeItEasier,
@@ -1443,6 +1450,7 @@ export class PlansService {
               difficulty,
               experience: experienceProfile,
               goal,
+              secondaryGoal: dto.secondaryGoal,
               equipment,
               limitations: specLimits,
               programDayFocus: spec.title ?? spec.type,
@@ -1469,6 +1477,7 @@ export class PlansService {
                 difficulty,
                 experience: experienceProfile,
                 goal,
+                secondaryGoal: dto.secondaryGoal,
                 equipment,
                 limitations: specLimits,
                 programDayFocus: spec.title ?? spec.type,
@@ -2040,9 +2049,10 @@ export class PlansService {
           duration,
           difficulty,
           goal,
+          secondaryGoal: dto.secondaryGoal,
+          programDayFocus: dto.title ?? dto.type,
           equipment,
           limitations,
-          programDayFocus: dto.title ?? dto.type,
           detailLevel: dto.detailLevel ?? 'detailed',
           excludeExerciseNames: dto.excludeExerciseNames?.length
             ? dto.excludeExerciseNames

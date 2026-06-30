@@ -68,6 +68,11 @@ export class GenerateSessionsDto {
   @IsString()
   goal?: string;
 
+  /** Optional secondary emphasis blended into generation (primary drives rep ranges). */
+  @IsOptional()
+  @IsString()
+  secondaryGoal?: string;
+
   /** Free-text limitations from onboarding/profile, e.g. "recovering from a knee tweak". */
   @IsOptional()
   @IsString()

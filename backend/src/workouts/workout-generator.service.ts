@@ -304,7 +304,8 @@ export class WorkoutGeneratorService {
       anchorIds,
     );
     if (
-      this.programGoalWantsCardioFinisher(preferences?.goal) &&
+      (this.programGoalWantsCardioFinisher(preferences?.goal) ||
+        this.programGoalWantsCardioFinisher(preferences?.secondaryGoal)) &&
       focusKeyForCardio !== 'cardio' &&
       focusKeyForCardio !== 'recovery'
     ) {
@@ -859,6 +860,8 @@ export class WorkoutGeneratorService {
         isHardDay: boolean;
       }>;
       goal?: string;
+      /** Optional secondary emphasis; biases the prompt + cardio finisher, not rep ranges. */
+      secondaryGoal?: string;
       equipment?: string[];
       limitations?: string[];
       /** Free-text limitations rendered verbatim into the prompt. */
@@ -890,6 +893,7 @@ export class WorkoutGeneratorService {
     const {
       sessions,
       goal = 'hypertrophy',
+      secondaryGoal,
       equipment = [],
       limitations = [],
       restrictions,
@@ -916,6 +920,12 @@ export class WorkoutGeneratorService {
         : 'intermediate';
     const wantsExerciseNotes = experienceLevelOpt === 'beginner';
     const setRep = getSetRepGuidelines(goal, difficulty);
+    // The secondary goal can flip on the cardio finisher (e.g. hypertrophy + fat
+    // loss) but never changes the rep scheme — that stays driven by the primary
+    // `goal` above.
+    const wantsCardioFinisher =
+      this.programGoalWantsCardioFinisher(goal) ||
+      this.programGoalWantsCardioFinisher(secondaryGoal);
 
     let candidates = this.mergeCandidatesForBatchProgram(
       sessions,
@@ -937,7 +947,7 @@ export class WorkoutGeneratorService {
     if (candidates.length < 20) return null;
 
     if (
-      this.programGoalWantsCardioFinisher(goal) &&
+      wantsCardioFinisher &&
       !candidates.some((c) => c.primaryMuscleGroup === 'Cardio')
     ) {
       const cardioExtra = this.exercisesService.getCandidatesForGenerator({
@@ -974,8 +984,7 @@ export class WorkoutGeneratorService {
           goal,
           experienceLevel: difficulty,
           wantsStrengthCardioFinisher:
-            this.programGoalWantsCardioFinisher(goal) &&
-            String(s.type).toLowerCase() === 'strength',
+            wantsCardioFinisher && String(s.type).toLowerCase() === 'strength',
         });
         const intensityLabel = isCardioOrRec
           ? ''
@@ -1051,7 +1060,7 @@ Rep selection: pick rep numbers in the middle of the allowed range; main compoun
 
 ${detailLevel !== 'simple' ? coachCopyToneBlock() : "No hype words in any text field. Keep warmUp and coolDown practical and specific to the day's movements."}`;
 
-    const conditioningBlock = this.programGoalWantsCardioFinisher(goal)
+    const conditioningBlock = wantsCardioFinisher
       ? `\nConditioning (user goal includes strength + conditioning): For each day whose type is **strength**, end that day's "exercises" array with exactly ONE exercise taken from the list rows whose third column (muscle) is **Cardio** (bike, rower, ski erg, treadmill, elliptical, versa climber, assault runner, etc.)—a short machine/modality finisher. Put it **last**. Keep total exercises for that day within each day's range/cap (drop a small accessory if needed to fit; keep main compounds). Do **not** add this extra cardio line on days that are already cardio or recovery.`
       : '';
     const conditioningModalityHint =
@@ -1111,7 +1120,7 @@ ${profileBlock}
 ${dayLines}
 ${conditioningBlock}${conditioningModalityHint}${mesoBlock}${progressionBlock}
 
-Set/rep: ${setRep.description} (${setRep.setsMin}-${setRep.setsMax} sets, ${setRep.repsMin}-${setRep.repsMax} reps).${restHint} Goal: ${goal}. Difficulty: ${difficulty}. Equipment: ${equipmentStr}.${limitationsBlock}${restrictionsBlock}
+Set/rep: ${setRep.description} (${setRep.setsMin}-${setRep.setsMax} sets, ${setRep.repsMin}-${setRep.repsMax} reps).${restHint} Goal: ${goal}.${secondaryGoal ? ` Secondary emphasis: ${secondaryGoal} (blend this in without changing the set/rep scheme above).` : ''} Difficulty: ${difficulty}. Equipment: ${equipmentStr}.${limitationsBlock}${restrictionsBlock}
 
 Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.length} objects). Each day: "name", "reasoning", "warmUp", "coolDown", "exercises" (array of objects with exerciseId, sets, reps${wantsExerciseNotes ? ', optional notes (≤' + String(BEGINNER_EXERCISE_NOTE_MAX_CHARS) + ' chars each)' : '; omit notes on every exercise'}).`;
 
@@ -1295,6 +1304,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       isHardDay: boolean;
     }>;
     goal?: string;
+    secondaryGoal?: string;
     location?: 'gym' | 'home';
     detailLevel?: 'simple' | 'detailed';
     makeItEasier?: boolean;
@@ -1339,6 +1349,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
 
     const baseOpts = {
       goal: dto.goal ?? 'hypertrophy',
+      secondaryGoal: dto.secondaryGoal,
       equipment,
       limitations: dto.avoidConstraints ?? [],
       restrictions: dto.restrictions,
@@ -1598,6 +1609,7 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
       ? preferences.equipment.join(', ')
       : 'general gym equipment';
     const goal = preferences?.goal ?? 'hypertrophy';
+    const secondaryGoal = preferences?.secondaryGoal;
     const experience = preferences?.experience ?? difficulty;
     const wantsExerciseNotes = experience === 'beginner';
     const limitations = preferences?.limitations ?? [];
@@ -1617,7 +1629,9 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
     );
     const exerciseRange = targets.promptRange;
     const strengthPlusConditioning =
-      this.programGoalWantsCardioFinisher(goal) && !isCardioOrRecovery;
+      (this.programGoalWantsCardioFinisher(goal) ||
+        this.programGoalWantsCardioFinisher(secondaryGoal)) &&
+      !isCardioOrRecovery;
     const mixedCardio =
       !strengthPlusConditioning &&
       focusKey === 'full body' &&
@@ -1644,7 +1658,9 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
     const setRepLine = `Set/rep scheme: ${setRep.description} (aim for ${setRep.setsMin}-${setRep.setsMax} sets, ${setRep.repsMin}-${setRep.repsMax} reps per exercise).`;
 
     const userContextParts: string[] = [];
-    userContextParts.push(`User goal: ${goal}. Experience: ${experience}.`);
+    userContextParts.push(
+      `User goal: ${goal}.${secondaryGoal ? ` Secondary emphasis: ${secondaryGoal} (blend in without changing the set/rep scheme).` : ''} Experience: ${experience}.`,
+    );
     if (limitations.length > 0) {
       userContextParts.push(
         `Limitations (respect these): ${limitations.join('; ')}. Avoid exercises that conflict.`,
@@ -2458,7 +2474,8 @@ Return valid JSON with exerciseId, sets, reps${wantsExerciseNotes ? ', optional 
     this.sortExercisesBySlotOrder(exercises, candidates, focusKey);
 
     if (
-      this.programGoalWantsCardioFinisher(preferences?.goal) &&
+      (this.programGoalWantsCardioFinisher(preferences?.goal) ||
+        this.programGoalWantsCardioFinisher(preferences?.secondaryGoal)) &&
       focusKey !== 'cardio' &&
       focusKey !== 'recovery'
     ) {

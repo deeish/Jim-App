@@ -138,6 +138,11 @@ export class CreatePlanDto {
   @IsString()
   goal?: string;
 
+  /** Optional secondary emphasis blended into generation. */
+  @IsOptional()
+  @IsString()
+  secondaryGoal?: string;
+
   /** Experience level (beginner, intermediate, advanced). */
   @IsOptional()
   @IsString()
