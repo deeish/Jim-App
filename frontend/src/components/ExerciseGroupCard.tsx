@@ -22,10 +22,9 @@ interface ExerciseGroupCardProps {
   /** Whether this exercise is saved/liked. When set with onLikePress, shows heart button. */
   saved?: boolean;
   onLikePress?: () => void;
-  savingLike?: boolean;
 }
 
-function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSelected, isDisabled, saved, onLikePress, savingLike }: ExerciseGroupCardProps) {
+function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSelected, isDisabled, saved, onLikePress }: ExerciseGroupCardProps) {
   const { colors } = useTheme();
   const [showVariations, setShowVariations] = useState(false);
   const exercise = group.primaryExercise;
@@ -242,16 +241,13 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             {onLikePress != null && (
-              <View onStartShouldSetResponder={() => true} collapsable={false}>
-                <ExerciseLikeButton
-                  exerciseId={exercise.id}
-                  saved={saved ?? false}
-                  onSave={onLikePress}
-                  onUnsave={onLikePress}
-                  disabled={savingLike}
-                  size={22}
-                />
-              </View>
+              <ExerciseLikeButton
+                exerciseId={exercise.id}
+                saved={saved ?? false}
+                onSave={onLikePress}
+                onUnsave={onLikePress}
+                size={22}
+              />
             )}
             {exercise.difficulty && (
               <View style={styles.difficultyBadge}>

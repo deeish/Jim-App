@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -114,7 +114,9 @@ export default function SearchScreen({ navigation }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addingToPlan, setAddingToPlan] = useState(false);
   const [savedExerciseIds, setSavedExerciseIds] = useState<string[]>([]);
-  const [savingLikeId, setSavingLikeId] = useState<string | null>(null);
+  // Ids with an in-flight save/unsave request. A ref (not state) so guarding
+  // against a double-fire doesn't re-render the row and drop the next tap.
+  const inFlightLikeIds = useRef<Set<string>>(new Set());
   const [showSavedList, setShowSavedList] = useState(false);
   const [savedExercisesList, setSavedExercisesList] = useState<Exercise[]>([]);
   const [loadingSavedList, setLoadingSavedList] = useState(false);
@@ -203,27 +205,45 @@ export default function SearchScreen({ navigation }: Props) {
   }, []);
 
   const handleToggleExerciseLike = useCallback(async (exerciseId: string) => {
-    if (savingLikeId) return;
-    if (__DEV__) console.log('[SearchScreen] handleToggleExerciseLike', exerciseId, 'currently saved:', savedExerciseIds.includes(exerciseId));
-    setSavingLikeId(exerciseId);
+    // Ignore taps while this exercise's request is in flight; the heart has
+    // already flipped optimistically, so there's nothing more to do until it
+    // settles.
+    if (inFlightLikeIds.current.has(exerciseId)) return;
+    inFlightLikeIds.current.add(exerciseId);
+
+    const wasSaved = savedExerciseIds.includes(exerciseId);
+    const removed = wasSaved ? savedExercisesList.find((e) => e.id === exerciseId) : undefined;
+
+    // Optimistic update so the heart responds to the very first tap.
+    setSavedExerciseIds((prev) =>
+      wasSaved
+        ? prev.filter((id) => id !== exerciseId)
+        : prev.includes(exerciseId)
+          ? prev
+          : [...prev, exerciseId],
+    );
+    if (wasSaved) setSavedExercisesList((prev) => prev.filter((e) => e.id !== exerciseId));
+
     try {
-      const isSaved = savedExerciseIds.includes(exerciseId);
-      if (isSaved) {
-        await unsaveExercise(exerciseId);
-        setSavedExerciseIds((prev) => prev.filter((id) => id !== exerciseId));
-        setSavedExercisesList((prev) => prev.filter((e) => e.id !== exerciseId));
-        if (__DEV__) console.log('[SearchScreen] unsaved exercise', exerciseId);
-      } else {
-        await saveExercise(exerciseId);
-        setSavedExerciseIds((prev) => [...prev, exerciseId]);
-        if (__DEV__) console.log('[SearchScreen] saved exercise', exerciseId);
-      }
+      if (wasSaved) await unsaveExercise(exerciseId);
+      else await saveExercise(exerciseId);
     } catch (e) {
       if (__DEV__) console.warn('[SearchScreen] handleToggleExerciseLike failed', exerciseId, e);
+      // Revert the optimistic change so the UI matches the server.
+      setSavedExerciseIds((prev) =>
+        wasSaved
+          ? prev.includes(exerciseId)
+            ? prev
+            : [...prev, exerciseId]
+          : prev.filter((id) => id !== exerciseId),
+      );
+      if (removed) {
+        setSavedExercisesList((prev) => (prev.some((e) => e.id === removed.id) ? prev : [...prev, removed]));
+      }
     } finally {
-      setSavingLikeId(null);
+      inFlightLikeIds.current.delete(exerciseId);
     }
-  }, [savedExerciseIds, savingLikeId]);
+  }, [savedExerciseIds, savedExercisesList]);
 
   // Toggle a main muscle group (parent). Selecting adds the parent only, which searches the
   // whole group (the backend ANDs primaryMuscleGroup with any sub-muscle narrowing). Sub-muscles
@@ -476,7 +496,6 @@ export default function SearchScreen({ navigation }: Props) {
           isDisabled={isAlreadyInWorkout}
           saved={savedExerciseIds.includes(group.primaryExercise.id)}
           onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
-          savingLike={savingLikeId === group.primaryExercise.id}
           onPress={(exercise) => {
             if (addMode) toggleSelectForAddToPlan(exercise.id);
             else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
@@ -496,7 +515,6 @@ export default function SearchScreen({ navigation }: Props) {
       addMode,
       addToWorkout,
       savedExerciseIds,
-      savingLikeId,
       handleToggleExerciseLike,
       toggleSelectForAddToPlan,
       navigation,
@@ -1094,7 +1112,6 @@ export default function SearchScreen({ navigation }: Props) {
                     isDisabled={isAlreadyInWorkout}
                     saved={true}
                     onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
-                    savingLike={savingLikeId === group.primaryExercise.id}
                     onPress={(exercise) => {
                       if (addMode) toggleSelectForAddToPlan(exercise.id);
                       else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });

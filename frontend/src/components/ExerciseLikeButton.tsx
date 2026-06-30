@@ -43,6 +43,7 @@ export default function ExerciseLikeButton({
       onPress={handlePress}
       disabled={disabled}
       style={[styles.button, style]}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       accessibilityLabel={accessibilityLabel ?? (saved ? 'Unsave exercise' : 'Save exercise')}
       accessibilityRole="button"
     >
