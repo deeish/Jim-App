@@ -1,98 +1,42 @@
 import { Exercise } from '../services/exerciseService';
 
 /**
- * Keywords that indicate exercise variations (to be removed when finding base name)
- */
-const VARIATION_KEYWORDS = [
-  'paused', 'pause',
-  'tempo', 'slow', 'fast',
-  'incline', 'decline', 'flat',
-  'wide', 'narrow', 'close',
-  'single', 'one', 'unilateral',
-  'double', 'two', 'bilateral',
-  'alternating', 'alt',
-  'concentric', 'eccentric',
-  'isometric', 'iso',
-  'explosive', 'plyometric',
-  'reverse', 'negative',
-  '45-degree', '45 degree', '45°',
-  '90-degree', '90 degree', '90°',
-  'seated', 'standing', 'lying',
-  'dumbbell', 'barbell', 'cable', 'machine',
-];
-
-/**
- * Extract the base exercise name by removing variation keywords
- */
-export function getBaseExerciseName(exerciseName: string): string {
-  let baseName = exerciseName.toLowerCase();
-  
-  // Remove variation keywords
-  VARIATION_KEYWORDS.forEach(keyword => {
-    const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
-    baseName = baseName.replace(regex, '');
-  });
-  
-  // Clean up extra spaces and trim
-  baseName = baseName.replace(/\s+/g, ' ').trim();
-  
-  // If we removed too much, fall back to original
-  if (baseName.length < 3) {
-    return exerciseName;
-  }
-  
-  // Capitalize first letter of each word
-  return baseName
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-}
-
-/**
- * Group exercises by their base name
+ * One card in the results list: a family of equipment variants of the same lift.
  */
 export interface ExerciseGroup {
   baseName: string;
   exercises: Exercise[];
-  primaryExercise: Exercise; // The "main" exercise (usually the first or most common)
-}
-
-export function groupExercises(exercises: Exercise[]): ExerciseGroup[] {
-  const groupsMap = new Map<string, Exercise[]>();
-  
-  // Group exercises by base name
-  exercises.forEach(exercise => {
-    const baseName = getBaseExerciseName(exercise.name);
-    if (!groupsMap.has(baseName)) {
-      groupsMap.set(baseName, []);
-    }
-    groupsMap.get(baseName)!.push(exercise);
-  });
-  
-  // Convert to array and select primary exercise
-  // Preserve insertion order (Map iteration order) so backend sort is respected:
-  // common exercises first, then Compound, equipment preference, name.
-  const groups: ExerciseGroup[] = Array.from(groupsMap.entries()).map(([baseName, exerciseList]) => {
-    // Primary exercise is the one with the shortest name (usually the base version)
-    const primaryExercise = exerciseList.reduce((prev, current) =>
-      current.name.length < prev.name.length ? current : prev
-    );
-
-    return {
-      baseName,
-      exercises: exerciseList,
-      primaryExercise,
-    };
-  });
-
-  return groups;
+  primaryExercise: Exercise; // The best-ranked variant in the family (headline)
 }
 
 /**
- * Check if an exercise group has variations (more than 1 exercise)
+ * Group exercises into families using the server-computed `groupKey` (the name
+ * minus equipment words, so "Flat Barbell Bench Press" and "Flat Dumbbell Bench
+ * Press" merge while "Incline Bench Press" stays its own family). Rows without a
+ * groupKey fall back to exact-name grouping, which never merges distinct lifts.
+ *
+ * Input order is the backend's quality sort (common first, then compound, then
+ * equipment preference), so the first exercise seen in a family is its best-
+ * ranked variant and becomes the headline — not the shortest-named one, which
+ * used to promote obscure short names over the canonical lift.
  */
-export function hasVariations(group: ExerciseGroup): boolean {
-  return group.exercises.length > 1;
+export function groupExercises(exercises: Exercise[]): ExerciseGroup[] {
+  const groupsMap = new Map<string, Exercise[]>();
+
+  exercises.forEach((exercise) => {
+    const key = exercise.groupKey || exercise.name.trim().toLowerCase();
+    const list = groupsMap.get(key);
+    if (list) list.push(exercise);
+    else groupsMap.set(key, [exercise]);
+  });
+
+  // Map iteration preserves insertion order, so families appear in the same
+  // order the backend ranked their best variant.
+  return Array.from(groupsMap.entries()).map(([baseName, exerciseList]) => ({
+    baseName,
+    exercises: exerciseList,
+    primaryExercise: exerciseList[0],
+  }));
 }
 
 /**
@@ -102,25 +46,25 @@ export function hasVariations(group: ExerciseGroup): boolean {
  */
 export function getVariationNames(group: ExerciseGroup): string[] {
   if (group.exercises.length <= 1) return [];
-  
+
   const primaryName = group.primaryExercise.name.trim().toLowerCase();
-  
+
   // Filter out exercises that match the primary exercise by ID OR by name
   const variations = group.exercises.filter(ex => {
     // Exclude by ID
     if (ex.id === group.primaryExercise.id) return false;
-    
+
     // Exclude if name matches (case-insensitive, trimmed)
     const exName = ex.name.trim().toLowerCase();
     if (exName === primaryName) return false;
-    
+
     return true;
   });
-  
+
   // Get unique variation names (deduplicate by name, case-insensitive)
   const uniqueNames = new Set<string>();
   const uniqueVariations: string[] = [];
-  
+
   variations.forEach(ex => {
     const normalizedName = ex.name.trim().toLowerCase();
     if (!uniqueNames.has(normalizedName)) {
@@ -128,6 +72,6 @@ export function getVariationNames(group: ExerciseGroup): string[] {
       uniqueVariations.push(ex.name); // Keep original casing from first occurrence
     }
   });
-  
+
   return uniqueVariations;
 }
