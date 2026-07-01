@@ -83,6 +83,10 @@ const MOVEMENT_PATTERNS = [
   'Push', 'Pull', 'Squat', 'Hinge', 'Lunge', 'Carry'
 ];
 
+// With no text and no chips the page browses the whole catalog (popular first).
+// Capped so the response stays a reasonable size — the catalog has 5000+ rows.
+const BROWSE_ALL_LIMIT = 300;
+
 
 interface FilterState {
   searchQuery: string;
@@ -311,6 +315,8 @@ export default function SearchScreen({ navigation }: Props) {
   const [showEquipment, setShowEquipment] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([]);
+  // Total matches on the server; exceeds exercises.length when browse mode capped the list.
+  const [totalMatchCount, setTotalMatchCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -569,14 +575,6 @@ export default function SearchScreen({ navigation }: Props) {
       currentFilters.equipment.length +
       currentFilters.movementPatterns.length;
     const hasSearch = currentFilters.searchQuery.trim().length > 0;
-    
-    // Don't search if no filters are active
-    if (activeCount === 0 && !hasSearch) {
-      setExercises([]);
-      setExerciseGroups([]);
-      setIsLoading(false);
-      return;
-    }
 
     setIsLoading(true);
     setError(null);
@@ -584,17 +582,22 @@ export default function SearchScreen({ navigation }: Props) {
     try {
       // When the user types, search the whole catalog by text alone — chip filters
       // (especially the profile-seeded equipment) must never silently hide a name
-      // match. Chips only narrow when browsing without a search term.
+      // match. Chips only narrow when browsing without a search term. With no text
+      // and no chips at all, browse the whole catalog (popular first, capped) so
+      // the page is never blank.
       const searchParams = hasSearch
         ? { searchQuery: currentFilters.searchQuery.trim() }
-        : {
-            muscleGroups: currentFilters.muscleGroups.length > 0 ? currentFilters.muscleGroups : undefined,
-            subMuscles: currentFilters.subMuscles.length > 0 ? currentFilters.subMuscles : undefined,
-            equipment: currentFilters.equipment.length > 0 ? currentFilters.equipment : undefined,
-            movementPatterns: currentFilters.movementPatterns.length > 0 ? currentFilters.movementPatterns : undefined,
-          };
+        : activeCount === 0
+          ? { limit: BROWSE_ALL_LIMIT }
+          : {
+              muscleGroups: currentFilters.muscleGroups.length > 0 ? currentFilters.muscleGroups : undefined,
+              subMuscles: currentFilters.subMuscles.length > 0 ? currentFilters.subMuscles : undefined,
+              equipment: currentFilters.equipment.length > 0 ? currentFilters.equipment : undefined,
+              movementPatterns: currentFilters.movementPatterns.length > 0 ? currentFilters.movementPatterns : undefined,
+            };
 
       const response = await searchExercises(searchParams);
+      setTotalMatchCount(response.count ?? response.exercises.length);
       setExercises(response.exercises);
       // Flat, relevance-ranked list while searching (so the exact variant you typed
       // is visible, not buried under "Show variations"); grouped families when browsing.
@@ -617,13 +620,19 @@ export default function SearchScreen({ navigation }: Props) {
   // split effects dropped that case), and `filters` is always current (no stale
   // closure). Debounce only while typing.
   useEffect(() => {
+    // Wait for preferences so the first fetch runs once with the profile-seeded
+    // equipment (the seed effect rewrites `filters` right after hydration, which
+    // cancels this timeout before an unseeded browse request can fire).
+    if (!prefsHydrated) return;
     const hasText = filters.searchQuery.trim().length > 0;
     const timeout = setTimeout(() => performSearch(filters), hasText ? 250 : 0);
     return () => clearTimeout(timeout);
-  }, [filters, performSearch]);
+  }, [filters, performSearch, prefsHydrated]);
 
   const resultCount = exerciseGroups.length > 0 ? exerciseGroups.length : exercises.length;
   const activeFilterCount = getActiveFilterCount();
+  // No chips and no text: the list is the capped, popularity-sorted whole catalog.
+  const isBrowsingAll = activeFilterCount === 0 && filters.searchQuery.trim().length === 0;
 
   // Get all active filters for display
   const getActiveFilters = () => {
@@ -1437,14 +1446,25 @@ export default function SearchScreen({ navigation }: Props) {
         {/* Exercise Results header — cards render below as virtualized FlatList items */}
         {!isLoading && !error && resultCount > 0 && (
           <View style={[styles.resultsHeader, { marginTop: 24 }]}>
-            <Text style={styles.resultsHeaderText}>
-              {resultCount} exercise{resultCount !== 1 ? 's' : ''} found
-              {exerciseGroups.length > 0 && exercises.length > exerciseGroups.length && (
+            {isBrowsingAll ? (
+              <>
+                <Text style={styles.resultsHeaderText}>Popular exercises</Text>
                 <Text style={styles.resultsSubtext}>
-                  {' '}({exercises.length} total including variations)
+                  {totalMatchCount > exercises.length
+                    ? `Showing the top ${exercises.length} of ${totalMatchCount}. Search or filter to see the rest.`
+                    : 'Search or filter to narrow the list.'}
                 </Text>
-              )}
-            </Text>
+              </>
+            ) : (
+              <Text style={styles.resultsHeaderText}>
+                {resultCount} exercise{resultCount !== 1 ? 's' : ''} found
+                {exerciseGroups.length > 0 && exercises.length > exerciseGroups.length && (
+                  <Text style={styles.resultsSubtext}>
+                    {' '}({exercises.length} total including variations)
+                  </Text>
+                )}
+              </Text>
+            )}
           </View>
         )}
           </>
@@ -1462,7 +1482,7 @@ export default function SearchScreen({ navigation }: Props) {
                 ? 'Searching...'
                 : activeFilterCount > 0 || filters.searchQuery.trim().length > 0
                 ? 'No exercises match your filters'
-                : 'Start filtering to find exercises'}
+                : 'No exercises to show'}
             </Text>
           </View>
           {activeFilterCount > 0 && (
