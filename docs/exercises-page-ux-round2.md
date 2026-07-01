@@ -70,38 +70,71 @@ so today it appears in three places.
 
 **Design:**
 
+- **Normalize first (this is also a perf fix — see below):** at the top of
+  `performSearch`, when `filters.equipment.length === EQUIPMENT_OPTIONS.length`
+  treat equipment as NOT set (don't send it, don't count it). All-selected
+  then falls into the browse branch: capped at 300, "Popular exercises"
+  header. State in `filters.equipment` stays full so the Equipment Available
+  checkboxes and its All badge are unchanged.
 - **Active-filters row** shows ONE summary chip for equipment instead of one
   chip per item:
   - all equipment selected → no chip at all (it isn't narrowing anything)
-  - subset selected → `Equipment · 5`
+  - selection equals the profile set → `My equipment · 8` — the label
+    explains *why* results are filtered, which prevents "where is exercise X"
+    confusion and makes the × decision safer
+  - any other subset → `Equipment · 5`
   - Tapping the chip body expands the Equipment Available section (set
-    `showEquipment(true)`; optionally scroll to it) so it is obvious where to
-    adjust. The chip's × clears the equipment narrowing (select all).
+    `showEquipment(true)`) so it is obvious where to adjust. The chip's ×
+    clears the equipment narrowing (select all).
 - **Header badge** counts equipment as ONE active filter when narrowed, ZERO
   when all selected. Muscle/sub-muscle/movement chips keep counting
   individually. (Update `getActiveFilterCount` and `getActiveFilters`.)
-- **Equipment Available row** stays the single place to toggle individual
-  items; its All / `N/12` badge is unchanged.
+- **Reset disabled-state:** today Reset greys out when the badge count is 0.
+  After this change a subset-profile user (home gym) sits at badge 1 in their
+  *default* state, so Reset would look enabled while doing nothing. Disable
+  Reset when filters equal the default state (empty text, no muscle/movement
+  chips, equipment set-equal to `profileEquipment`), not when the count is 0.
 
-**Bonus correctness fix while in there:** 8 catalog rows have NO equipment at
-all (`"equipmentIds": []` in `backend/data/exercises_5000plus.json`). Because
-the backend matches with `.some(...)`, "all 12 selected" currently *hides*
-those 8 rows, so all-selected is not the same as unfiltered. When
-`filters.equipment.length === EQUIPMENT_OPTIONS.length`, omit `equipment` from
-the request payload entirely (in `performSearch`). That makes the default
-seeded state identical to true browse mode and un-hides those rows.
+**Why the normalization matters beyond looks — two real fixes:**
 
-**Files:** `frontend/src/screens/SearchScreen.tsx` (`getActiveFilters`,
-`getActiveFilterCount`, `performSearch`, active-chips row render),
-`frontend/src/constants/equipment.ts` (EQUIPMENT_OPTIONS length reference).
+1. **The default load is currently uncapped.** Browse-first's `limit` only
+   protects the zero-chip case; an all-gear user's seeded state takes the
+   filtered branch with no limit and pulls essentially the whole 5000-row
+   catalog on every visit, then groups it on the JS thread. Normalizing
+   all-selected into browse mode caps the default load at 300.
+2. **All-selected currently hides gear-less exercises.** Up to 8 catalog rows
+   have `"equipmentIds": []` (`backend/data/exercises_5000plus.json`), and the
+   backend matches with `.some(...)`, so they never match any equipment
+   selection. Omitting the param un-hides them.
+
+**Recommended while in there:** send `limit: 300` on ALL chip-driven searches
+(not just browse-all), and reuse the "top N of total" subtext when
+`count > exercises.length`. Nobody scrolls past 300 popularity-sorted rows,
+and it bounds the payload for subset-equipment users (Dumbbell + Bodyweight
+alone matches thousands). Keep text search uncapped — it is relevance-ranked
+and a capped name match would be confusing.
+
+**Files:** `frontend/src/screens/SearchScreen.tsx` (`performSearch`,
+`getActiveFilters`, `getActiveFilterCount`, `resetFilters`, active-chips row
+render), `frontend/src/constants/equipment.ts` (EQUIPMENT_OPTIONS length
+reference).
 
 **Verify:** fresh load with full profile equipment → NO equipment chips, badge
-absent/0, results identical to browse-all; uncheck 4 items in Equipment
-Available → one `Equipment · 8` chip appears, badge shows 1; tap the chip →
-section expands; tap × → back to all.
+absent, "Popular exercises" header, response capped at 300; uncheck 4 items in
+Equipment Available → one `Equipment · 8` chip appears, badge shows 1; restore
+your profile set → chip reads `My equipment · …`; tap the chip → section
+expands; tap × → back to all; Reset is greyed out on a fresh load for both
+all-gear and home-gym profiles.
 
 ## 4. SMALL — polish items, do opportunistically
 
+- **Merge the two collapsible rows.** "Equipment Available" and "Advanced
+  Filters" are separate ~60px rows for rarely-touched controls; together with
+  margins they push the first result a full card lower. Fold both into ONE
+  "More filters" collapsible row (equipment chips + movement patterns inside).
+  This halves the remaining pre-results furniture without committing to the
+  full bottom-sheet refactor (PR 5), and pairs well with item 3's tap-to-expand
+  target.
 - **Results header vs error:** after item 2, the "Popular exercises / N
   found" header reappears correctly. Consider a "Retry" button on the error
   card (re-run `performSearch(filters)`) instead of requiring a filter change.
@@ -109,13 +142,15 @@ section expands; tap × → back to all.
   line of permanent copy for a control that explains itself after first use.
   Candidate for removal when the filter area slims down — fine to leave until
   then.
-- **PR 5 (filter bottom sheet)** stays deferred. With browse-first live, the
-  filter stack above the fold is the remaining structural weight; decide after
-  using the app with items 1–3 fixed.
+- **PR 5 (filter bottom sheet)** stays deferred. With browse-first live and
+  the two rows merged, the remaining furniture is one chip row + one
+  collapsible row + search — a bottom sheet may no longer be worth its
+  regression risk in the add-to-plan flows. Decide after using the app with
+  items 1–3 fixed.
 
 ---
 
 **Suggested order for tomorrow:** 1 (env/deploy check, no code) → 2 (small,
-prevents confusing states while testing) → 3 (the visible win) → 4 as time
-allows. Items 2 and 3 are frontend-only; nothing here requires a schema or
-API change beyond what round 1 already added.
+prevents confusing states while testing) → 3 (the visible win AND the default-
+load perf fix) → 4 as time allows. Items 2–4 are frontend-only; nothing here
+requires a schema or API change beyond what round 1 already added.
