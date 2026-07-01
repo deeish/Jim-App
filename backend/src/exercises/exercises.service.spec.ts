@@ -268,3 +268,55 @@ describe('ExercisesService.pickReplacement', () => {
     expect(r).toBeNull();
   });
 });
+
+describe('ExercisesService search groupKey', () => {
+  it('gives equipment variants one key but keeps angle variants distinct', () => {
+    const service = withCatalog([
+      ex({
+        id: 'flat-bb',
+        name: 'Flat Barbell Bench Press',
+        primaryMuscleGroup: 'Chest',
+      }),
+      ex({
+        id: 'flat-db',
+        name: 'Flat Dumbbell Bench Press',
+        primaryMuscleGroup: 'Chest',
+        equipment: ['Dumbbell'],
+      }),
+      ex({
+        id: 'incline-bb',
+        name: 'Incline Barbell Bench Press',
+        primaryMuscleGroup: 'Chest',
+      }),
+      ex({
+        id: 'hammer-curl',
+        name: 'Hammer Curl',
+        primaryMuscleGroup: 'Arms',
+        equipment: ['Dumbbell'],
+      }),
+      ex({
+        id: 'bb-curl',
+        name: 'Barbell Curl',
+        primaryMuscleGroup: 'Arms',
+      }),
+    ]);
+
+    const keyById = new Map(service.search({}).map((e) => [e.id, e.groupKey]));
+
+    expect(keyById.get('flat-bb')).toBeTruthy();
+    // Equipment variants of the same lift merge.
+    expect(keyById.get('flat-bb')).toBe(keyById.get('flat-db'));
+    // Angle stays a separate family.
+    expect(keyById.get('incline-bb')).not.toBe(keyById.get('flat-bb'));
+    // Movement-style words are kept: hammer curl is not a barbell curl variant.
+    expect(keyById.get('hammer-curl')).not.toBe(keyById.get('bb-curl'));
+  });
+
+  it('falls back to the lowercased name when stripping empties the key', () => {
+    const service = withCatalog([
+      ex({ id: 'edge', name: 'Barbell', primaryMuscleGroup: 'Arms' }),
+    ]);
+
+    expect(service.search({})[0].groupKey).toBe('barbell');
+  });
+});

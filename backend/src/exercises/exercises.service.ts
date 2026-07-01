@@ -87,7 +87,7 @@ export class ExercisesService implements OnModuleInit {
     this.loadVideoMap();
     this.memoFindAll = this.exercises
       .filter((e) => !isExcludedFromExerciseCatalog(e.id))
-      .map((e) => this.withVideo(e));
+      .map((e) => this.withDerived(e));
     this.memoStats = this.computeStats();
   }
 
@@ -111,9 +111,14 @@ export class ExercisesService implements OnModuleInit {
     }
   }
 
-  private withVideo(exercise: TransformedExercise): TransformedExercise {
+  /** Attach response-only derived fields: demo video id + library grouping key. */
+  private withDerived(exercise: TransformedExercise): TransformedExercise {
     const youtubeId = this.videoMap.get(exercise.id);
-    return youtubeId ? { ...exercise, youtubeId } : exercise;
+    const groupKey =
+      this.exerciseFamily(exercise.name) || exercise.name.trim().toLowerCase();
+    return youtubeId
+      ? { ...exercise, youtubeId, groupKey }
+      : { ...exercise, groupKey };
   }
 
   private async loadExercises() {
@@ -255,7 +260,7 @@ export class ExercisesService implements OnModuleInit {
       });
     });
 
-    return results.map((e) => this.withVideo(e));
+    return results.map((e) => this.withDerived(e));
   }
 
   findOne(id: string): TransformedExercise | undefined {
@@ -265,7 +270,7 @@ export class ExercisesService implements OnModuleInit {
       );
     }
     const ex = this.exercises.find((e) => e.id === id);
-    return ex ? this.withVideo(ex) : undefined;
+    return ex ? this.withDerived(ex) : undefined;
   }
 
   /** Return exercises for the given library ids (for saved-exercises list). */
@@ -273,7 +278,7 @@ export class ExercisesService implements OnModuleInit {
     const set = new Set(ids);
     return this.exercises
       .filter((e) => set.has(e.id))
-      .map((e) => this.withVideo(e))
+      .map((e) => this.withDerived(e))
       .sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
   }
 
