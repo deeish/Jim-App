@@ -11,12 +11,12 @@ interface ExerciseGroupCardProps {
   onPress?: (exercise: Exercise) => void;
   onPressVariation?: (exercise: Exercise) => void;
   /**
-   * Opens exercise details from the footer "more information" button. Always available,
-   * even in select/add mode where the card body tap is wired to selection instead of
-   * navigation — otherwise there is no way to view details while adding to a plan.
+   * Opens exercise details. In select/add mode the row body tap is wired to
+   * selection instead of navigation, so the row shows a dedicated info button —
+   * otherwise there would be no way to view details while adding to a plan.
    */
   onPressInfo?: (exercise: Exercise) => void;
-  /** When true, card shows selected state (e.g. for add-to-plan mode). */
+  /** Defined only in select/add mode; true when any exercise in the group is selected. */
   isSelected?: boolean;
   /** When true, card is greyed out and not tappable (e.g. already in workout). */
   isDisabled?: boolean;
@@ -30,153 +30,77 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
   const [showVariations, setShowVariations] = useState(false);
   const exercise = group.primaryExercise;
   const variationNames = getVariationNames(group);
-  // Only show variations button if there are actual unique variations (different names)
+  // Only show variations toggle if there are actual unique variations (different names)
   const hasVars = variationNames.length > 0;
+  // isSelected is only passed while adding to a plan/workout; its presence switches
+  // the trailing affordance from a navigation chevron to a selection checkmark.
+  const selectMode = isSelected !== undefined;
+
+  const difficulty = exercise.difficulty
+    ? exercise.difficulty.charAt(0).toUpperCase() + exercise.difficulty.slice(1)
+    : undefined;
+  const subtitle = isDisabled
+    ? 'Already in workout'
+    : [exercise.primaryMuscleGroup, exercise.equipment[0], difficulty]
+        .filter(Boolean)
+        .join(' · ');
 
   const styles = useMemo(
     () =>
       StyleSheet.create({
         container: {
-          marginBottom: 12,
+          marginBottom: 8,
           marginHorizontal: 16,
         },
         card: {
+          flexDirection: 'row',
+          alignItems: 'center',
           backgroundColor: colors.surface,
-          padding: 16,
+          paddingVertical: 12,
+          paddingHorizontal: 14,
           borderRadius: 12,
           borderWidth: 1,
           borderColor: colors.border,
-          shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 3.84,
-          elevation: 3,
         },
-        header: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: 8,
-        },
-        titleContainer: {
+        titleCol: {
           flex: 1,
           marginRight: 8,
         },
         exerciseName: {
-          fontSize: 18,
+          fontSize: 16,
           fontWeight: '600',
           color: colors.text,
-          marginBottom: 4,
         },
-        variationsBadge: {
-          alignSelf: 'flex-start',
-          backgroundColor: colors.primary + '30',
-          paddingHorizontal: 8,
-          paddingVertical: 3,
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: colors.primary,
-        },
-        variationsBadgeText: {
-          fontSize: 10,
-          fontWeight: '600',
-          color: colors.primary,
-        },
-        difficultyBadge: {
-          backgroundColor: colors.primary + '20',
-          paddingHorizontal: 8,
-          paddingVertical: 4,
-          borderRadius: 8,
-        },
-        difficultyText: {
-          fontSize: 11,
-          fontWeight: '600',
-          color: colors.primary,
-          textTransform: 'capitalize',
-        },
-        description: {
-          fontSize: 14,
-          color: colors.textMuted,
-          marginBottom: 12,
-          lineHeight: 20,
-        },
-        tagsContainer: {
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          gap: 8,
-        },
-        tag: {
-          backgroundColor: colors.primary + '15',
-          paddingHorizontal: 10,
-          paddingVertical: 6,
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: colors.primary + '30',
-        },
-        equipmentTag: {
-          backgroundColor: colors.background,
-          borderColor: colors.border,
-        },
-        movementTag: {
-          backgroundColor: colors.background,
-          borderColor: colors.border,
-        },
-        tagText: {
-          fontSize: 12,
-          fontWeight: '500',
-          color: colors.textSecondary,
-        },
-        moreEquipment: {
-          fontSize: 12,
-          color: colors.textMuted,
-          marginTop: 8,
-          fontStyle: 'italic',
-        },
-        variationsButton: {
-          marginTop: 12,
-          paddingVertical: 8,
-          paddingHorizontal: 12,
-          backgroundColor: colors.background,
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: colors.border,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 4,
-        },
-        variationsButtonText: {
+        subtitle: {
           fontSize: 13,
+          color: colors.textMuted,
+          marginTop: 2,
+        },
+        variationsToggle: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 3,
+          marginTop: 6,
+          alignSelf: 'flex-start',
+        },
+        variationsToggleText: {
+          fontSize: 12,
           fontWeight: '600',
           color: colors.primary,
         },
-        footer: {
-          marginTop: 12,
-          paddingTop: 12,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        },
-        footerRow: {
+        rowRight: {
           flexDirection: 'row',
           alignItems: 'center',
           gap: 4,
         },
-        tapHint: {
-          fontSize: 12,
-          color: colors.primary,
-          fontWeight: '500',
-        },
-        infoButton: {
-          paddingTop: 2,
-          paddingBottom: 2,
-          paddingLeft: 12,
+        iconButton: {
+          padding: 4,
         },
         variationsContainer: {
-          marginTop: 8,
-          backgroundColor: colors.background,
-          borderRadius: 8,
+          marginTop: 4,
+          marginLeft: 12,
+          backgroundColor: colors.surface,
+          borderRadius: 10,
           borderWidth: 1,
           borderColor: colors.border,
           overflow: 'hidden',
@@ -185,9 +109,13 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: 12,
+          paddingVertical: 10,
+          paddingHorizontal: 12,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
+        },
+        variationItemLast: {
+          borderBottomWidth: 0,
         },
         variationName: {
           fontSize: 14,
@@ -196,15 +124,6 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
         },
         variationArrow: {
           marginLeft: 8,
-        },
-        variationItemLast: {
-          borderBottomWidth: 0,
-        },
-        debugText: {
-          fontSize: 12,
-          color: colors.textMuted,
-          padding: 8,
-          fontStyle: 'italic',
         },
       }),
     [colors]
@@ -217,143 +136,91 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
     }
   };
 
-  const handleVariationPress = (variationName: string) => {
-    if (isDisabled) return;
-    const variationExercise = group.exercises.find(ex => ex.name === variationName);
-    if (variationExercise && onPressVariation) {
-      onPressVariation(variationExercise);
-    }
-  };
-
   return (
     <View style={styles.container}>
       <TouchableOpacity
         style={[
           styles.card,
-          isSelected && { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primary + '12' },
+          isSelected && { borderColor: colors.primary, backgroundColor: colors.primary + '12' },
           isDisabled && { opacity: 0.5 },
         ]}
         onPress={handleCardPress}
         activeOpacity={isDisabled ? 1 : 0.7}
         disabled={isDisabled}
+        accessibilityRole="button"
+        accessibilityLabel={exercise.name}
+        accessibilityState={{ selected: !!isSelected, disabled: !!isDisabled }}
       >
-        <View style={styles.header}>
-          <View style={styles.titleContainer}>
-            <Text style={styles.exerciseName}>{exercise.name}</Text>
-            {hasVars && (
-              <View style={styles.variationsBadge}>
-                <Text style={styles.variationsBadgeText}>
-                  {variationNames.length} variant{variationNames.length !== 1 ? 's' : ''}
-                </Text>
-              </View>
-            )}
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            {onLikePress != null && (
-              <ExerciseLikeButton
-                exerciseId={exercise.id}
-                saved={saved ?? false}
-                onSave={onLikePress}
-                onUnsave={onLikePress}
-                size={22}
-              />
-            )}
-            {exercise.difficulty && (
-              <View style={styles.difficultyBadge}>
-                <Text style={styles.difficultyText}>{exercise.difficulty}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {exercise.description && (
-          <Text style={styles.description} numberOfLines={2}>
-            {exercise.description}
+        <View style={styles.titleCol}>
+          <Text style={styles.exerciseName} numberOfLines={1}>
+            {exercise.name}
           </Text>
-        )}
-
-        <View style={styles.tagsContainer}>
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{exercise.primaryMuscleGroup}</Text>
-          </View>
-          {exercise.subMuscles.length > 0 && (
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>{exercise.subMuscles[0]}</Text>
-            </View>
-          )}
-          {exercise.equipment.length > 0 && (
-            <View style={[styles.tag, styles.equipmentTag]}>
-              <Text style={styles.tagText}>{exercise.equipment[0]}</Text>
-            </View>
-          )}
-          {exercise.movementPatterns.length > 0 && (
-            <View style={[styles.tag, styles.movementTag]}>
-              <Text style={styles.tagText}>{exercise.movementPatterns[0]}</Text>
-            </View>
-          )}
-        </View>
-
-        {exercise.equipment.length > 1 && (
-          <Text style={styles.moreEquipment}>
-            +{exercise.equipment.length - 1} more equipment
-          </Text>
-        )}
-
-        {hasVars && (
-          <TouchableOpacity
-            style={styles.variationsButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              setShowVariations(!showVariations);
-            }}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={showVariations ? 'chevron-down' : 'chevron-forward'}
-              size={14}
-              color={colors.primary}
-            />
-            <Text style={styles.variationsButtonText}>
-              Show {variationNames.length} variation{variationNames.length !== 1 ? 's' : ''}
+          {!!subtitle && (
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {subtitle}
             </Text>
-          </TouchableOpacity>
-        )}
+          )}
+          {hasVars && (
+            <TouchableOpacity
+              style={styles.variationsToggle}
+              onPress={(e) => {
+                e.stopPropagation();
+                setShowVariations(!showVariations);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 16 }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${showVariations ? 'Hide' : 'Show'} ${variationNames.length} variants of ${exercise.name}`}
+            >
+              <Ionicons
+                name={showVariations ? 'chevron-down' : 'chevron-forward'}
+                size={12}
+                color={colors.primary}
+              />
+              <Text style={styles.variationsToggleText}>
+                {variationNames.length} variant{variationNames.length !== 1 ? 's' : ''}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-        <View style={styles.footer}>
-          {isDisabled ? (
-            <Text style={[styles.tapHint, { color: colors.textMuted }]}>Already in workout</Text>
-          ) : (
+        <View style={styles.rowRight}>
+          {onLikePress != null && (
+            <ExerciseLikeButton
+              exerciseId={exercise.id}
+              saved={saved ?? false}
+              onSave={onLikePress}
+              onUnsave={onLikePress}
+              size={20}
+            />
+          )}
+          {selectMode ? (
             <>
-              {isSelected ? (
-                <View style={styles.footerRow}>
-                  <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
-                  <Text style={styles.tapHint}>Selected</Text>
-                </View>
-              ) : (
-                <View />
-              )}
-              {onPressInfo ? (
+              {onPressInfo && !isDisabled && (
                 <TouchableOpacity
-                  style={[styles.infoButton, styles.footerRow]}
+                  style={styles.iconButton}
                   onPress={(e) => {
                     e.stopPropagation();
                     onPressInfo(exercise);
                   }}
-                  hitSlop={{ top: 10, bottom: 10, left: 16, right: 8 }}
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                   activeOpacity={0.6}
                   accessibilityRole="button"
                   accessibilityLabel={`View details for ${exercise.name}`}
                 >
-                  <Text style={styles.tapHint}>{isSelected ? 'Details' : 'Tap for more information'}</Text>
-                  <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                  <Ionicons name="information-circle-outline" size={22} color={colors.textMuted} />
                 </TouchableOpacity>
-              ) : (
-                <View style={styles.footerRow}>
-                  <Text style={styles.tapHint}>Tap for more information</Text>
-                  <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-                </View>
+              )}
+              {!isDisabled && (
+                <Ionicons
+                  name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={24}
+                  color={isSelected ? colors.primary : colors.textMuted}
+                />
               )}
             </>
+          ) : (
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           )}
         </View>
       </TouchableOpacity>
@@ -363,7 +230,7 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
         <View style={styles.variationsContainer}>
           {variationNames.map((variationName, index) => {
             // Find the first exercise with this name (in case of duplicates in dataset)
-            const variationExercise = group.exercises.find(ex => 
+            const variationExercise = group.exercises.find(ex =>
               ex.name.trim().toLowerCase() === variationName.trim().toLowerCase() &&
               ex.id !== group.primaryExercise.id
             );
@@ -380,7 +247,7 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
                     onPressVariation(variationExercise);
                   } else {
                     // Fallback: find any exercise with this name
-                    const fallbackExercise = group.exercises.find(ex => 
+                    const fallbackExercise = group.exercises.find(ex =>
                       ex.name.trim().toLowerCase() === variationName.trim().toLowerCase()
                     );
                     if (fallbackExercise && onPressVariation) {
