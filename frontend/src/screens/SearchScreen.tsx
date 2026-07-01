@@ -117,7 +117,7 @@ export default function SearchScreen({ navigation }: Props) {
   // Ids with an in-flight save/unsave request. A ref (not state) so guarding
   // against a double-fire doesn't re-render the row and drop the next tap.
   const inFlightLikeIds = useRef<Set<string>>(new Set());
-  const [showSavedList, setShowSavedList] = useState(false);
+  const [activeTab, setActiveTab] = useState<'all' | 'saved'>('all');
   const [savedExercisesList, setSavedExercisesList] = useState<Exercise[]>([]);
   const [loadingSavedList, setLoadingSavedList] = useState(false);
 
@@ -168,8 +168,8 @@ export default function SearchScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (showSavedList) {
-          setShowSavedList(false);
+        if (activeTab === 'saved') {
+          setActiveTab('all');
           return true;
         }
         const state = navigation.getState();
@@ -186,12 +186,11 @@ export default function SearchScreen({ navigation }: Props) {
         return false;
       });
       return () => sub.remove();
-    }, [navigation, showSavedList])
+    }, [navigation, activeTab])
   );
 
-  // When opening saved list, fetch full saved exercises
-  const openSavedList = useCallback(async () => {
-    setShowSavedList(true);
+  // Fetch full saved exercises whenever the Saved tab is opened
+  const loadSavedList = useCallback(async () => {
     setLoadingSavedList(true);
     try {
       const list = await getSavedExercises();
@@ -203,6 +202,14 @@ export default function SearchScreen({ navigation }: Props) {
       setLoadingSavedList(false);
     }
   }, []);
+
+  const switchTab = useCallback(
+    (tab: 'all' | 'saved') => {
+      if (tab === 'saved') loadSavedList();
+      setActiveTab(tab);
+    },
+    [loadSavedList],
+  );
 
   const handleToggleExerciseLike = useCallback(async (exerciseId: string) => {
     // Ignore taps while this exercise's request is in flight; the heart has
@@ -473,6 +480,9 @@ export default function SearchScreen({ navigation }: Props) {
     if (groups.length === 1) return groups[0];
     return groups.slice(0, 3).join(' & ');
   }, []);
+
+  // Saved tab data, grouped the same way as search results.
+  const savedGroups = useMemo(() => groupExercises(savedExercisesList), [savedExercisesList]);
 
   // Render a single exercise card for the virtualized results FlatList. The list used to
   // be a non-virtualized ScrollView that mounted every card (~hundreds) at once, which
@@ -999,7 +1009,6 @@ export default function SearchScreen({ navigation }: Props) {
         resultCountText: { fontSize: 16, color: colors.textSecondary, fontWeight: '500' },
         viewResultsButtonContainer: { width: 140 },
         viewResultsButton: { paddingVertical: 14 },
-        resultsSection: { marginTop: 24, paddingBottom: 20 },
         resultsHeader: { paddingHorizontal: 16, paddingBottom: 12 },
         resultsHeaderText: { fontSize: 20, fontWeight: '600', color: colors.text },
         resultsSubtext: { fontSize: 14, fontWeight: '400', color: colors.textMuted },
@@ -1025,21 +1034,29 @@ export default function SearchScreen({ navigation }: Props) {
         },
         addToPlanFooterText: { fontSize: 16, fontWeight: '600', color: colors.text },
         addToPlanFooterButton: { minWidth: 160 },
-        savedListContainer: { paddingHorizontal: 16, paddingBottom: 24 },
-        savedListBack: { paddingVertical: 12, marginBottom: 8 },
-        savedListBackText: { fontSize: 16, fontWeight: '600' },
-        savedListTitle: { fontSize: 22, fontWeight: '700', color: colors.text, marginBottom: 16 },
-        savedExercisesRow: {
-          marginTop: 20,
-          marginHorizontal: 16,
-          padding: 16,
+        segmentContainer: {
+          paddingHorizontal: 16,
+          paddingVertical: 10,
           backgroundColor: colors.surface,
-          borderRadius: 12,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        },
+        segmentRow: {
+          flexDirection: 'row',
+          borderRadius: 10,
           borderWidth: 1,
           borderColor: colors.border,
+          overflow: 'hidden',
         },
-        savedExercisesRowText: { fontSize: 17, fontWeight: '600' },
-        savedExercisesRowHint: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+        segmentBtn: {
+          flex: 1,
+          paddingVertical: 8,
+          alignItems: 'center',
+          backgroundColor: colors.background,
+        },
+        segmentBtnActive: { backgroundColor: colors.primary },
+        segmentBtnText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
+        segmentBtnTextActive: { color: '#FFFFFF' },
       }),
     [colors]
   );
@@ -1072,67 +1089,73 @@ export default function SearchScreen({ navigation }: Props) {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>Exercises</Text>
-          {activeFilterCount > 0 && (
+          {activeTab === 'all' && activeFilterCount > 0 && (
             <View style={styles.filterBadge}>
               <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
             </View>
           )}
         </View>
-        <TouchableOpacity onPress={resetFilters} activeOpacity={0.7}>
-          <Text style={[styles.resetButton, activeFilterCount === 0 && styles.resetButtonDisabled]}>
-            Reset
-          </Text>
-        </TouchableOpacity>
+        {activeTab === 'all' && (
+          <TouchableOpacity onPress={resetFilters} activeOpacity={0.7}>
+            <Text style={[styles.resetButton, activeFilterCount === 0 && styles.resetButtonDisabled]}>
+              Reset
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {showSavedList ? (
-        <View style={styles.savedListContainer}>
+      {/* All | Saved segment */}
+      <View style={styles.segmentContainer}>
+        <View style={styles.segmentRow} accessibilityRole="tablist">
           <TouchableOpacity
-            style={styles.savedListBack}
-            onPress={() => setShowSavedList(false)}
-            activeOpacity={0.7}
+            style={[styles.segmentBtn, activeTab === 'all' && styles.segmentBtnActive]}
+            onPress={() => switchTab('all')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === 'all' }}
           >
-            <Text style={[styles.savedListBackText, { color: colors.primary }]}>← All exercises</Text>
+            <Text style={[styles.segmentBtnText, activeTab === 'all' && styles.segmentBtnTextActive]}>
+              All
+            </Text>
           </TouchableOpacity>
-          <Text style={styles.savedListTitle}>Saved exercises</Text>
-          {loadingSavedList ? (
-            <View style={styles.resultsPreview}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
-          ) : savedExercisesList.length === 0 ? (
-            <View style={styles.resultsPreview}>
-              <Text style={styles.resultsPreviewText}>No saved exercises</Text>
-              <Text style={styles.resultsPreviewHint}>Tap the heart on any exercise to save it here</Text>
-            </View>
-          ) : (
-            <View style={styles.resultsSection}>
-              {groupExercises(savedExercisesList).map((group, index) => {
-                const existingIds = addToWorkout?.existingExerciseIds ?? [];
-                const isAlreadyInWorkout = existingIds.length > 0 && group.exercises.some(e => existingIds.includes(e.id));
-                return (
-                  <ExerciseGroupCard
-                    key={`saved-${group.baseName}-${index}`}
-                    group={group}
-                    isDisabled={isAlreadyInWorkout}
-                    saved={true}
-                    onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
-                    onPress={(exercise) => {
-                      if (addMode) toggleSelectForAddToPlan(exercise.id);
-                      else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-                    }}
-                    onPressVariation={(exercise) => {
-                      if (addMode) toggleSelectForAddToPlan(exercise.id);
-                      else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-                    }}
-                    onPressInfo={(exercise) =>
-                      navigation.navigate('ExerciseDetail', { exerciseId: exercise.id })
-                    }
-                  />
-                );
-              })}
-            </View>
-          )}
+          <TouchableOpacity
+            style={[styles.segmentBtn, activeTab === 'saved' && styles.segmentBtnActive]}
+            onPress={() => switchTab('saved')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === 'saved' }}
+          >
+            <Text style={[styles.segmentBtnText, activeTab === 'saved' && styles.segmentBtnTextActive]}>
+              {savedExerciseIds.length > 0 ? `Saved (${savedExerciseIds.length})` : 'Saved'}
+            </Text>
+          </TouchableOpacity>
         </View>
+      </View>
+
+      {activeTab === 'saved' ? (
+        // Virtualized like the main results list — the saved list can grow unbounded,
+        // and a plain .map would re-introduce the mount-everything jank FlatList fixed.
+        <FlatList
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          data={savedGroups}
+          keyExtractor={(group, index) => `saved-${group.baseName}-${index}`}
+          renderItem={renderExerciseCard}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          ListEmptyComponent={
+            loadingSavedList ? (
+              <View style={styles.resultsPreview}>
+                <ActivityIndicator size="large" color={colors.primary} />
+              </View>
+            ) : (
+              <View style={styles.resultsPreview}>
+                <Text style={styles.resultsPreviewText}>No saved exercises</Text>
+                <Text style={styles.resultsPreviewHint}>Tap the heart on any exercise to save it here</Text>
+              </View>
+            )
+          }
+        />
       ) : (
         <>
       {/* Search Input */}
@@ -1334,19 +1357,6 @@ export default function SearchScreen({ navigation }: Props) {
           )}
         </View>
 
-        {savedExerciseIds.length > 0 && (
-          <TouchableOpacity
-            style={styles.savedExercisesRow}
-            onPress={openSavedList}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.savedExercisesRowText, { color: colors.primary }]}>
-              Saved exercises ({savedExerciseIds.length})
-            </Text>
-            <Text style={styles.savedExercisesRowHint}>Tap to view</Text>
-          </TouchableOpacity>
-        )}
-
         {/* Results Preview Area */}
         {isLoading && (
           <View style={styles.resultsPreview}>
@@ -1384,7 +1394,7 @@ export default function SearchScreen({ navigation }: Props) {
       )}
 
       {/* Sticky Bottom Bar - Only show when no results or loading (and not viewing saved list) */}
-      {(isLoading || resultCount === 0) && !addMode && !showSavedList && (
+      {(isLoading || resultCount === 0) && !addMode && activeTab === 'all' && (
         <View style={styles.bottomBar}>
           <View style={styles.resultCountContainer}>
             <Text style={styles.resultCountText}>
