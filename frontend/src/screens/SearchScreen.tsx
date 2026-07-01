@@ -14,6 +14,9 @@ import {
   ActivityIndicator,
   Alert,
   BackHandler,
+  StyleProp,
+  ViewStyle,
+  TextStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +24,7 @@ import { useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
+import type { ColorPalette } from '../theme/colors';
 import Button from '../components/Button';
 import { searchExercises, Exercise, getSavedExerciseIds, getSavedExercises, saveExercise, unsaveExercise } from '../services/exerciseService';
 import ExerciseGroupCard from '../components/ExerciseGroupCard';
@@ -87,6 +91,204 @@ interface FilterState {
   equipment: string[];
   movementPatterns: string[];
 }
+
+// ——— Filter chip UI, hoisted to module scope ———
+// These were defined inside SearchScreen, so every render created brand-new
+// component types and React fully remounted each chip row (losing horizontal
+// scroll position on every keystroke). Module scope keeps the tree stable;
+// the screen's themed styles come in as props.
+
+type ChipStyles = {
+  chip: StyleProp<ViewStyle>;
+  chipSelected: StyleProp<ViewStyle>;
+  chipPartial: StyleProp<ViewStyle>;
+  chipText: StyleProp<TextStyle>;
+  chipTextSelected: StyleProp<TextStyle>;
+  chipCount: StyleProp<TextStyle>;
+  chipCountSelected: StyleProp<TextStyle>;
+};
+
+type SectionStyles = ChipStyles & {
+  section: StyleProp<ViewStyle>;
+  sectionHeader: StyleProp<ViewStyle>;
+  sectionTitle: StyleProp<TextStyle>;
+  sectionBadge: StyleProp<ViewStyle>;
+  sectionBadgeText: StyleProp<TextStyle>;
+  sectionDescription: StyleProp<TextStyle>;
+  chipsContainer: StyleProp<ViewStyle>;
+};
+
+type RefineStyles = ChipStyles & {
+  refineSection: StyleProp<ViewStyle>;
+  refineHeader: StyleProp<ViewStyle>;
+  refineTitle: StyleProp<TextStyle>;
+  refineSubtitle: StyleProp<TextStyle>;
+  chipsContainer: StyleProp<ViewStyle>;
+};
+
+const Chip = React.memo(function Chip({
+  label,
+  isSelected,
+  onPress,
+  selectionState,
+  count,
+  styles,
+}: {
+  label: string;
+  isSelected: boolean;
+  onPress: () => void;
+  selectionState?: 'none' | 'partial' | 'full';
+  count?: string;
+  styles: ChipStyles;
+}) {
+  const showPartial = selectionState === 'partial';
+  return (
+    <TouchableOpacity
+      style={[
+        styles.chip,
+        isSelected && styles.chipSelected,
+        showPartial && styles.chipPartial,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${label} filter${isSelected ? ', selected' : ''}`}
+      accessibilityState={{ selected: isSelected }}
+    >
+      <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+        {label}
+      </Text>
+      {count && (
+        <Text style={[styles.chipCount, isSelected && styles.chipCountSelected]}>
+          {count}
+        </Text>
+      )}
+      {isSelected && !showPartial && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+      {showPartial && <Ionicons name="remove" size={14} color="#FFFFFF" />}
+    </TouchableOpacity>
+  );
+});
+
+const ActiveFilterChip = React.memo(function ActiveFilterChip({
+  label,
+  onRemove,
+  styles,
+  colors,
+}: {
+  label: string;
+  onRemove: () => void;
+  styles: { activeFilterChip: StyleProp<ViewStyle>; activeFilterText: StyleProp<TextStyle> };
+  colors: ColorPalette;
+}) {
+  return (
+    <View style={styles.activeFilterChip}>
+      <Text style={styles.activeFilterText}>{label}</Text>
+      <TouchableOpacity
+        onPress={onRemove}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        accessibilityRole="button"
+        accessibilityLabel={`Remove ${label} filter`}
+      >
+        <Ionicons name="close-circle" size={16} color={colors.primary} />
+      </TouchableOpacity>
+    </View>
+  );
+});
+
+const FilterSection = React.memo(function FilterSection({
+  title,
+  options,
+  selectedValues,
+  onSelect,
+  description,
+  styles,
+}: {
+  title?: string;
+  options: string[];
+  selectedValues: string[];
+  onSelect: (value: string) => void;
+  description?: string;
+  styles: SectionStyles;
+}) {
+  return (
+    <View style={styles.section}>
+      {title ? (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {selectedValues.length > 0 && (
+            <View style={styles.sectionBadge}>
+              <Text style={styles.sectionBadgeText}>{selectedValues.length}</Text>
+            </View>
+          )}
+        </View>
+      ) : null}
+      {description && (
+        <Text style={styles.sectionDescription}>{description}</Text>
+      )}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsContainer}
+      >
+        {options.map((option) => (
+          <Chip
+            key={option}
+            label={option}
+            isSelected={selectedValues.includes(option)}
+            onPress={() => onSelect(option)}
+            styles={styles}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+});
+
+// Refine section for sub-muscles when a parent is selected
+const RefineSection = React.memo(function RefineSection({
+  parentGroup,
+  subMuscles,
+  selectedSubMuscles,
+  onToggleSubMuscle,
+  styles,
+}: {
+  parentGroup: string;
+  subMuscles: string[];
+  selectedSubMuscles: string[];
+  onToggleSubMuscle: (subMuscle: string) => void;
+  styles: RefineStyles;
+}) {
+  const selectedCount = selectedSubMuscles.length;
+  const totalCount = subMuscles.length;
+
+  return (
+    <View style={styles.refineSection}>
+      <View style={styles.refineHeader}>
+        <Text style={styles.refineTitle}>Refine {parentGroup}</Text>
+        <Text style={styles.refineSubtitle}>
+          {selectedCount === 0
+            ? `All ${parentGroup.toLowerCase()} · tap to narrow`
+            : `Narrowed to ${selectedCount} of ${totalCount}`}
+        </Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsContainer}
+      >
+        {subMuscles.map((subMuscle) => (
+          <Chip
+            key={subMuscle}
+            label={subMuscle}
+            isSelected={selectedSubMuscles.includes(subMuscle)}
+            onPress={() => onToggleSubMuscle(subMuscle)}
+            styles={styles}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+});
 
 export default function SearchScreen({ navigation }: Props) {
   const route = useRoute<SearchScreenRouteProp>();
@@ -676,154 +878,6 @@ export default function SearchScreen({ navigation }: Props) {
     }
   }, [addToWorkout, exercises, selectedIds, navigation]);
 
-  const Chip = ({ 
-    label, 
-    isSelected, 
-    onPress,
-    selectionState,
-    count,
-  }: { 
-    label: string; 
-    isSelected: boolean; 
-    onPress: () => void;
-    selectionState?: 'none' | 'partial' | 'full';
-    count?: string;
-  }) => {
-    const showPartial = selectionState === 'partial';
-    return (
-      <TouchableOpacity
-        style={[
-          styles.chip,
-          isSelected && styles.chipSelected,
-          showPartial && styles.chipPartial,
-        ]}
-        onPress={onPress}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={`${label} filter${isSelected ? ', selected' : ''}`}
-        accessibilityState={{ selected: isSelected }}
-      >
-        <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-          {label}
-        </Text>
-        {count && (
-          <Text style={[styles.chipCount, isSelected && styles.chipCountSelected]}>
-            {count}
-          </Text>
-        )}
-        {isSelected && !showPartial && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-        {showPartial && <Ionicons name="remove" size={14} color="#FFFFFF" />}
-      </TouchableOpacity>
-    );
-  };
-
-  const ActiveFilterChip = ({
-    label,
-    onRemove,
-  }: {
-    label: string;
-    onRemove: () => void;
-  }) => (
-    <View style={styles.activeFilterChip}>
-      <Text style={styles.activeFilterText}>{label}</Text>
-      <TouchableOpacity
-        onPress={onRemove}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        accessibilityRole="button"
-        accessibilityLabel={`Remove ${label} filter`}
-      >
-        <Ionicons name="close-circle" size={16} color={colors.primary} />
-      </TouchableOpacity>
-    </View>
-  );
-
-  const FilterSection = ({
-    title,
-    options,
-    selectedValues,
-    onSelect,
-    description,
-  }: {
-    title?: string;
-    options: string[];
-    selectedValues: string[];
-    onSelect: (value: string) => void;
-    description?: string;
-  }) => (
-    <View style={styles.section}>
-      {title ? (
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{title}</Text>
-          {selectedValues.length > 0 && (
-            <View style={styles.sectionBadge}>
-              <Text style={styles.sectionBadgeText}>{selectedValues.length}</Text>
-            </View>
-          )}
-        </View>
-      ) : null}
-      {description && (
-        <Text style={styles.sectionDescription}>{description}</Text>
-      )}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipsContainer}
-      >
-        {options.map((option) => (
-          <Chip
-            key={option}
-            label={option}
-            isSelected={selectedValues.includes(option)}
-            onPress={() => onSelect(option)}
-          />
-        ))}
-      </ScrollView>
-    </View>
-  );
-
-  // Refine section for sub-muscles when a parent is selected
-  const RefineSection = ({
-    parentGroup,
-    subMuscles,
-    selectedSubMuscles,
-    onToggleSubMuscle,
-  }: {
-    parentGroup: string;
-    subMuscles: string[];
-    selectedSubMuscles: string[];
-    onToggleSubMuscle: (subMuscle: string) => void;
-  }) => {
-    const selectedCount = selectedSubMuscles.length;
-    const totalCount = subMuscles.length;
-    
-    return (
-      <View style={styles.refineSection}>
-        <View style={styles.refineHeader}>
-          <Text style={styles.refineTitle}>Refine {parentGroup}</Text>
-          <Text style={styles.refineSubtitle}>
-            {selectedCount === 0
-              ? `All ${parentGroup.toLowerCase()} · tap to narrow`
-              : `Narrowed to ${selectedCount} of ${totalCount}`}
-          </Text>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsContainer}
-        >
-          {subMuscles.map((subMuscle) => (
-            <Chip
-              key={subMuscle}
-              label={subMuscle}
-              isSelected={selectedSubMuscles.includes(subMuscle)}
-              onPress={() => onToggleSubMuscle(subMuscle)}
-            />
-          ))}
-        </ScrollView>
-      </View>
-    );
-  };
-
   const activeFilters = getActiveFilters();
 
   const styles = useMemo(
@@ -1196,6 +1250,8 @@ export default function SearchScreen({ navigation }: Props) {
                 key={`${filter.category}-${filter.value}-${index}`}
                 label={filter.label}
                 onRemove={() => removeFilter(filter.category, filter.value)}
+                styles={styles}
+                colors={colors}
               />
             ))}
           </ScrollView>
@@ -1262,6 +1318,7 @@ export default function SearchScreen({ navigation }: Props) {
                   selectionState={state}
                   count={state === 'partial' ? `${selectedSubMuscles.length}/${subMuscles.length}` : undefined}
                   onPress={() => toggleMuscleGroup(group)}
+                  styles={styles}
                 />
               );
             })}
@@ -1283,6 +1340,7 @@ export default function SearchScreen({ navigation }: Props) {
                 subMuscles={subMuscles}
                 selectedSubMuscles={selectedSubMuscles}
                 onToggleSubMuscle={(subMuscle) => toggleSubMuscle(subMuscle, group)}
+                styles={styles}
               />
             );
           }
@@ -1320,6 +1378,7 @@ export default function SearchScreen({ navigation }: Props) {
               selectedValues={filters.equipment}
               onSelect={(value) => toggleFilter('equipment', value)}
               description="What equipment do you have access to?"
+              styles={styles}
             />
           )}
         </View>
@@ -1353,6 +1412,7 @@ export default function SearchScreen({ navigation }: Props) {
               selectedValues={filters.movementPatterns}
               onSelect={(value) => toggleFilter('movementPatterns', value)}
               description="Filter by exercise movement type (optional)"
+              styles={styles}
             />
           )}
         </View>
