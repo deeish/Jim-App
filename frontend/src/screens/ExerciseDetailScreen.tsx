@@ -10,6 +10,7 @@ import {
   BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CommonActions, RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
@@ -110,7 +111,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           borderBottomColor: colors.border,
           backgroundColor: colors.surface,
         },
-        backButtonContainer: { alignSelf: 'flex-start' },
+        backButtonContainer: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 2 },
         backButtonText: { fontSize: 16, color: colors.primary, fontWeight: '600' },
         videoSection: {
           padding: 20,
@@ -323,8 +324,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         <TouchableOpacity
           onPress={handleBack}
           style={styles.backButtonContainer}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Ionicons name="chevron-back" size={18} color={colors.primary} />
+          <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
       </View>
 

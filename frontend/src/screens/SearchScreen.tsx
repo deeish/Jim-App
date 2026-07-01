@@ -16,6 +16,7 @@ import {
   BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
@@ -700,8 +701,8 @@ export default function SearchScreen({ navigation }: Props) {
             {count}
           </Text>
         )}
-        {isSelected && !showPartial && <Text style={styles.chipCheckmark}>✓</Text>}
-        {showPartial && <Text style={styles.chipPartialIndicator}>◐</Text>}
+        {isSelected && !showPartial && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+        {showPartial && <Ionicons name="remove" size={14} color="#FFFFFF" />}
       </TouchableOpacity>
     );
   };
@@ -715,8 +716,13 @@ export default function SearchScreen({ navigation }: Props) {
   }) => (
     <View style={styles.activeFilterChip}>
       <Text style={styles.activeFilterText}>{label}</Text>
-      <TouchableOpacity onPress={onRemove} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <Text style={styles.activeFilterRemove}>×</Text>
+      <TouchableOpacity
+        onPress={onRemove}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        accessibilityRole="button"
+        accessibilityLabel={`Remove ${label} filter`}
+      >
+        <Ionicons name="close-circle" size={16} color={colors.primary} />
       </TouchableOpacity>
     </View>
   );
@@ -845,15 +851,21 @@ export default function SearchScreen({ navigation }: Props) {
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
         },
-        searchInput: {
+        searchInputRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
           backgroundColor: colors.background,
           borderRadius: 12,
-          paddingHorizontal: 16,
+          paddingHorizontal: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+        },
+        searchInput: {
+          flex: 1,
           paddingVertical: 12,
           fontSize: 16,
           color: colors.text,
-          borderWidth: 1,
-          borderColor: colors.border,
         },
         activeFiltersContainer: {
           backgroundColor: colors.surface,
@@ -874,7 +886,6 @@ export default function SearchScreen({ navigation }: Props) {
           marginRight: 8,
         },
         activeFilterText: { color: colors.primary, fontSize: 14, fontWeight: '600', marginRight: 6 },
-        activeFilterRemove: { color: colors.primary, fontSize: 18, fontWeight: 'bold', lineHeight: 18 },
         content: { flex: 1 },
         contentContainer: { paddingBottom: 100 },
         section: { marginTop: 24, paddingHorizontal: 16 },
@@ -907,7 +918,6 @@ export default function SearchScreen({ navigation }: Props) {
         chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
         chipText: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
         chipTextSelected: { color: '#FFFFFF', fontWeight: '600' },
-        chipCheckmark: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold' },
         chipCount: { fontSize: 11, color: colors.textMuted, fontWeight: '600', marginLeft: 4 },
         chipCountSelected: { color: '#FFFFFF' },
         chipPartial: {
@@ -915,7 +925,6 @@ export default function SearchScreen({ navigation }: Props) {
           borderColor: colors.primary,
           borderStyle: 'dashed',
         },
-        chipPartialIndicator: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold', marginLeft: 4 },
         refineSection: {
           marginTop: 16,
           marginHorizontal: 16,
@@ -948,6 +957,7 @@ export default function SearchScreen({ navigation }: Props) {
           borderColor: colors.border,
           marginBottom: 16,
         },
+        advancedToggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
         advancedToggleText: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
         advancedBadge: {
           backgroundColor: colors.primary,
@@ -1061,7 +1071,7 @@ export default function SearchScreen({ navigation }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Find Workouts</Text>
+          <Text style={styles.headerTitle}>Exercises</Text>
           {activeFilterCount > 0 && (
             <View style={styles.filterBadge}>
               <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
@@ -1127,14 +1137,27 @@ export default function SearchScreen({ navigation }: Props) {
         <>
       {/* Search Input */}
       <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search name, muscle, or cardio (e.g. treadmill, bike)…"
-          placeholderTextColor={colors.textMuted}
-          value={filters.searchQuery}
-          onChangeText={(text) => setFilters(prev => ({ ...prev, searchQuery: text }))}
-          returnKeyType="search"
-        />
+        <View style={styles.searchInputRow}>
+          <Ionicons name="search" size={18} color={colors.textMuted} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search name, muscle, or cardio (e.g. treadmill, bike)…"
+            placeholderTextColor={colors.textMuted}
+            value={filters.searchQuery}
+            onChangeText={(text) => setFilters(prev => ({ ...prev, searchQuery: text }))}
+            returnKeyType="search"
+          />
+          {filters.searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setFilters(prev => ({ ...prev, searchQuery: '' }))}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
+              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Active Filters */}
@@ -1251,9 +1274,14 @@ export default function SearchScreen({ navigation }: Props) {
             activeOpacity={0.7}
             accessibilityRole="button"
           >
-            <Text style={styles.advancedToggleText}>
-              {showEquipment ? '▼' : '▶'} Equipment Available
-            </Text>
+            <View style={styles.advancedToggleLeft}>
+              <Ionicons
+                name={showEquipment ? 'chevron-down' : 'chevron-forward'}
+                size={16}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.advancedToggleText}>Equipment Available</Text>
+            </View>
             <View style={styles.advancedBadge}>
               <Text style={styles.advancedBadgeText}>
                 {filters.equipment.length === EQUIPMENT_OPTIONS.length
@@ -1280,9 +1308,14 @@ export default function SearchScreen({ navigation }: Props) {
             onPress={() => setShowAdvancedFilters(!showAdvancedFilters)}
             activeOpacity={0.7}
           >
-            <Text style={styles.advancedToggleText}>
-              {showAdvancedFilters ? '▼' : '▶'} Advanced Filters
-            </Text>
+            <View style={styles.advancedToggleLeft}>
+              <Ionicons
+                name={showAdvancedFilters ? 'chevron-down' : 'chevron-forward'}
+                size={16}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.advancedToggleText}>Advanced Filters</Text>
+            </View>
             {filters.movementPatterns.length > 0 && (
               <View style={styles.advancedBadge}>
                 <Text style={styles.advancedBadgeText}>{filters.movementPatterns.length}</Text>

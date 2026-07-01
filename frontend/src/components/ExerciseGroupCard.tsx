@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Exercise } from '../services/exerciseService';
-import { ExerciseGroup, hasVariations, getVariationNames } from '../utils/exerciseGrouping';
+import { ExerciseGroup, getVariationNames } from '../utils/exerciseGrouping';
 import { useTheme } from '../theme/ThemeContext';
 import ExerciseLikeButton from './ExerciseLikeButton';
 
@@ -139,6 +140,9 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           borderRadius: 8,
           borderWidth: 1,
           borderColor: colors.border,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
         },
         variationsButtonText: {
           fontSize: 13,
@@ -150,7 +154,14 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           paddingTop: 12,
           borderTopWidth: 1,
           borderTopColor: colors.border,
-          alignItems: 'flex-end',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        },
+        footerRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
         },
         tapHint: {
           fontSize: 12,
@@ -184,8 +195,6 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           flex: 1,
         },
         variationArrow: {
-          fontSize: 16,
-          color: colors.primary,
           marginLeft: 8,
         },
         variationItemLast: {
@@ -299,8 +308,13 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
             }}
             activeOpacity={0.7}
           >
+            <Ionicons
+              name={showVariations ? 'chevron-down' : 'chevron-forward'}
+              size={14}
+              color={colors.primary}
+            />
             <Text style={styles.variationsButtonText}>
-              {showVariations ? '▼' : '▶'} Show {variationNames.length} variation{variationNames.length !== 1 ? 's' : ''}
+              Show {variationNames.length} variation{variationNames.length !== 1 ? 's' : ''}
             </Text>
           </TouchableOpacity>
         )}
@@ -308,22 +322,38 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
         <View style={styles.footer}>
           {isDisabled ? (
             <Text style={[styles.tapHint, { color: colors.textMuted }]}>Already in workout</Text>
-          ) : onPressInfo ? (
-            <TouchableOpacity
-              style={styles.infoButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                onPressInfo(exercise);
-              }}
-              hitSlop={{ top: 10, bottom: 10, left: 16, right: 8 }}
-              activeOpacity={0.6}
-              accessibilityRole="button"
-              accessibilityLabel={`View details for ${exercise.name}`}
-            >
-              <Text style={styles.tapHint}>Tap for more information →</Text>
-            </TouchableOpacity>
           ) : (
-            <Text style={styles.tapHint}>Tap for more information →</Text>
+            <>
+              {isSelected ? (
+                <View style={styles.footerRow}>
+                  <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                  <Text style={styles.tapHint}>Selected</Text>
+                </View>
+              ) : (
+                <View />
+              )}
+              {onPressInfo ? (
+                <TouchableOpacity
+                  style={[styles.infoButton, styles.footerRow]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onPressInfo(exercise);
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 16, right: 8 }}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View details for ${exercise.name}`}
+                >
+                  <Text style={styles.tapHint}>{isSelected ? 'Details' : 'Tap for more information'}</Text>
+                  <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.footerRow}>
+                  <Text style={styles.tapHint}>Tap for more information</Text>
+                  <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                </View>
+              )}
+            </>
           )}
         </View>
       </TouchableOpacity>
@@ -362,7 +392,7 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
                 disabled={isDisabled}
               >
                 <Text style={styles.variationName}>{variationName}</Text>
-                <Text style={styles.variationArrow}>→</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.primary} style={styles.variationArrow} />
               </TouchableOpacity>
             );
           })}
