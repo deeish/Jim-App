@@ -11,6 +11,8 @@ Use this page to find the right doc and keep **last reviewed** dates honest. Whe
 | [GENERATE_PLAN_UI_TO_AI_COVERAGE.md](./GENERATE_PLAN_UI_TO_AI_COVERAGE.md) | Which Generate Plan fields reach `PlanInputs` / Groq vs UI-only; quality gaps; phased plan | When changing `buildPlanInputs`, `GenerateSessionsDto`, or pipeline stages 1–4 |
 | [ONBOARDING_WELCOME_REVIEW.md](./ONBOARDING_WELCOME_REVIEW.md) | First-run / welcome review: flow gaps, best fix, and impact per idea (auth → onboarding → auto-generate) | When changing auth screens, onboarding, the auto-generate hand-off, or `GenerateSessionsDto` bounds |
 | [../backend/docs/LLM_GENERATION_HONEST_ASSESSMENT.md](../backend/docs/LLM_GENERATION_HONEST_ASSESSMENT.md) | Product/UX gaps in LLM workouts (rest, slots, copy) | After prompt or generator behavior changes that affect coaching quality |
+| [exercises-page-ux-round2.md](./exercises-page-ux-round2.md) | Exercises page round-2 follow-ups: stale-backend 400 + deploy order, search race guard, equipment summary chip, filter-furniture slimming, acceptance walkthrough | When working the round-2 items or changing SearchScreen filters/search behavior |
+| [exercise-visuals-plan.md](./exercise-visuals-plan.md) | Exercise imagery without licensed assets: muscle-group color/icon discs, owned body-highlight diagram (Skia), optional YT-thumb/AI line-art garnish | When adding exercise imagery or changing muscle-group metadata |
 
 ## `docs/plans/`
 
