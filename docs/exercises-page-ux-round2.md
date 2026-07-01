@@ -135,6 +135,20 @@ all-gear and home-gym profiles.
   This halves the remaining pre-results furniture without committing to the
   full bottom-sheet refactor (PR 5), and pairs well with item 3's tap-to-expand
   target.
+- **Slim the Refine card to an inline chip row.** Tapping a muscle chip is the
+  moment the user most wants results, but today it *adds* a ~110px boxed
+  "Refine Chest" card (padding, border, title row) between the filters and the
+  list. Keep the sub-muscle chips, drop the card chrome: render them as a
+  plain second chip row directly under the muscle row, with the existing
+  "All chest · tap to narrow" copy as a small caption or removed entirely.
+  (`RefineSection` + `refineSection` styles in `SearchScreen.tsx`.)
+- **Dim the chips row while a search term is active.** Text search
+  deliberately ignores chips so a typed name is never hidden — but the active
+  chips still render at full strength while typing, and with item 3 a
+  "My equipment" chip would imply gear filtering that is not being applied.
+  When `searchQuery` is non-empty, drop the active-chips row to ~40% opacity
+  (optionally with a "not applied while searching" caption) so the UI stops
+  claiming filters it is not using.
 - **Results header vs error:** after item 2, the "Popular exercises / N
   found" header reappears correctly. Consider a "Retry" button on the error
   card (re-run `performSearch(filters)`) instead of requiring a filter change.
@@ -154,3 +168,33 @@ all-gear and home-gym profiles.
 prevents confusing states while testing) → 3 (the visible win AND the default-
 load perf fix) → 4 as time allows. Items 2–4 are frontend-only; nothing here
 requires a schema or API change beyond what round 1 already added.
+
+---
+
+## Acceptance walkthrough (run after items 1–4, on device, dark + light)
+
+Verify journeys, not just features:
+
+1. **Fresh all-gear user:** open Exercises → results visible without scrolling
+   past more than the chip row + one collapsible row; "Popular exercises"
+   header; no active-filter chips; Reset greyed out. Tap Chest → results
+   narrow, sub-muscle chips appear inline WITHOUT pushing results down a full
+   card; tap Upper Chest → narrows further; badge counts are sane throughout.
+2. **Home-gym user (subset profile):** fresh load shows `My equipment · N`
+   chip and Reset greyed; × the chip → full catalog; Reset → back to profile
+   gear, chip returns, Reset greys out again.
+3. **Search overrides chips:** with Chest + equipment active, type "deadlift"
+   → deadlifts appear (chips visibly dimmed); clear the search (× in the
+   field) → previous chip-filtered results return, chips back to full
+   strength.
+4. **Add-to-plan roundtrip:** Plan → add exercises → select two rows
+   (checkmarks + footer count), open one row's info button and come back
+   (selection intact), confirm add, land on Plan with the slot created.
+   Android hardware back mid-flow must not exit to the wrong tab.
+5. **Failure path:** airplane mode → open tab → error card with Retry;
+   restore network → Retry loads the catalog; no error-and-results shown
+   together at any point.
+
+If all five pass, this page is in a defensible 1.0 state; the only remaining
+structural candidate is PR 5, and it should be re-justified against journey 1
+before being built.
