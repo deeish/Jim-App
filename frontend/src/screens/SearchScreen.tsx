@@ -567,9 +567,17 @@ export default function SearchScreen({ navigation }: Props) {
     );
   };
 
+  // Monotonic id per search request. Overlapping requests can resolve out of
+  // order (a slow failure landing after a later success), so every state write
+  // below checks that no newer request has started since this one — otherwise a
+  // stale error overwrites fresh results, or stale results overwrite newer ones
+  // while typing quickly.
+  const requestSeq = useRef(0);
+
   // Search exercises when filters change
   const performSearch = useCallback(async (currentFilters: FilterState) => {
-    const activeCount = 
+    const seq = ++requestSeq.current;
+    const activeCount =
       currentFilters.muscleGroups.length +
       currentFilters.subMuscles.length +
       currentFilters.equipment.length +
@@ -597,6 +605,7 @@ export default function SearchScreen({ navigation }: Props) {
             };
 
       const response = await searchExercises(searchParams);
+      if (seq !== requestSeq.current) return; // stale response — a newer search is in flight
       setTotalMatchCount(response.count ?? response.exercises.length);
       setExercises(response.exercises);
       // Flat, relevance-ranked list while searching (so the exact variant you typed
@@ -606,12 +615,13 @@ export default function SearchScreen({ navigation }: Props) {
         : groupExercises(response.exercises);
       setExerciseGroups(grouped);
     } catch (err: any) {
+      if (seq !== requestSeq.current) return; // stale failure — a newer search owns the UI state
       console.error('Error searching exercises:', err);
       setError(err.message || 'Failed to search exercises');
       setExercises([]);
       setExerciseGroups([]);
     } finally {
-      setIsLoading(false);
+      if (seq === requestSeq.current) setIsLoading(false);
     }
   }, []);
 
