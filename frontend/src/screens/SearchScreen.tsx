@@ -83,9 +83,16 @@ const MOVEMENT_PATTERNS = [
   'Push', 'Pull', 'Squat', 'Hinge', 'Lunge', 'Carry'
 ];
 
-// With no text and no chips the page browses the whole catalog (popular first).
-// Capped so the response stays a reasonable size — the catalog has 5000+ rows.
-const BROWSE_ALL_LIMIT = 300;
+// Cap for browse-mode responses (no search text — with or without chips). The
+// catalog has 5000+ rows and broad chip selections (e.g. Dumbbell + Bodyweight)
+// match thousands; nobody scrolls past 300 popularity-sorted rows, and `count`
+// still reports total matches for the "top N of M" subtext. Text search stays
+// uncapped: it is relevance-ranked, so a capped name match would be confusing.
+const BROWSE_LIMIT = 300;
+
+/** Order-insensitive equality for equipment selections (both are duplicate-free). */
+const equipmentSetsEqual = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((item) => b.includes(item));
 
 
 interface FilterState {
@@ -176,16 +183,19 @@ const Chip = React.memo(function Chip({
 const ActiveFilterChip = React.memo(function ActiveFilterChip({
   label,
   onRemove,
+  onPress,
   styles,
   colors,
 }: {
   label: string;
   onRemove: () => void;
+  /** Tap on the chip body (not the ×) — e.g. jump to the section this chip summarizes. */
+  onPress?: () => void;
   styles: { activeFilterChip: StyleProp<ViewStyle>; activeFilterText: StyleProp<TextStyle> };
   colors: ColorPalette;
 }) {
-  return (
-    <View style={styles.activeFilterChip}>
+  const inner = (
+    <>
       <Text style={styles.activeFilterText}>{label}</Text>
       <TouchableOpacity
         onPress={onRemove}
@@ -195,8 +205,22 @@ const ActiveFilterChip = React.memo(function ActiveFilterChip({
       >
         <Ionicons name="close-circle" size={16} color={colors.primary} />
       </TouchableOpacity>
-    </View>
+    </>
   );
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        style={styles.activeFilterChip}
+        onPress={onPress}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${label} filter, tap to adjust`}
+      >
+        {inner}
+      </TouchableOpacity>
+    );
+  }
+  return <View style={styles.activeFilterChip}>{inner}</View>;
 });
 
 const FilterSection = React.memo(function FilterSection({
@@ -557,12 +581,28 @@ export default function SearchScreen({ navigation }: Props) {
     });
   };
 
+  // Equipment narrows results only when it's a real subset — all selected (or
+  // none) matches everything, so it isn't an active filter and gets no chip.
+  const equipmentNarrowed =
+    filters.equipment.length > 0 && filters.equipment.length < EQUIPMENT_OPTIONS.length;
+
+  // Reset returns to the page default (profile gear, no chips, no text). Grey it
+  // out when already there — not when the chip count is 0, because a home-gym
+  // user's default state legitimately shows one "My equipment" chip.
+  const isDefaultFilterState =
+    filters.searchQuery.trim().length === 0 &&
+    filters.muscleGroups.length === 0 &&
+    filters.subMuscles.length === 0 &&
+    filters.movementPatterns.length === 0 &&
+    equipmentSetsEqual(filters.equipment, profileEquipment);
+
   const getActiveFilterCount = () => {
-    // Each active group and each narrowing sub-muscle is one chip in the active-filter row.
+    // Each active group and each narrowing sub-muscle is one chip in the
+    // active-filter row; a narrowed equipment selection is one summary chip.
     return (
       filters.muscleGroups.length +
       filters.subMuscles.length +
-      filters.equipment.length +
+      (equipmentNarrowed ? 1 : 0) +
       filters.movementPatterns.length
     );
   };
@@ -577,10 +617,17 @@ export default function SearchScreen({ navigation }: Props) {
   // Search exercises when filters change
   const performSearch = useCallback(async (currentFilters: FilterState) => {
     const seq = ++requestSeq.current;
+    // All equipment selected narrows nothing, so treat it as unset: don't send
+    // the param and don't count it. This keeps the all-gear default on the
+    // capped browse branch (instead of pulling the whole catalog uncapped) and
+    // un-hides the few gear-less catalog rows, which match no equipment list.
+    const equipmentNarrowed =
+      currentFilters.equipment.length > 0 &&
+      currentFilters.equipment.length < EQUIPMENT_OPTIONS.length;
     const activeCount =
       currentFilters.muscleGroups.length +
       currentFilters.subMuscles.length +
-      currentFilters.equipment.length +
+      (equipmentNarrowed ? 1 : 0) +
       currentFilters.movementPatterns.length;
     const hasSearch = currentFilters.searchQuery.trim().length > 0;
 
@@ -591,17 +638,18 @@ export default function SearchScreen({ navigation }: Props) {
       // When the user types, search the whole catalog by text alone — chip filters
       // (especially the profile-seeded equipment) must never silently hide a name
       // match. Chips only narrow when browsing without a search term. With no text
-      // and no chips at all, browse the whole catalog (popular first, capped) so
+      // and no effective chips, browse the whole catalog (popular first, capped) so
       // the page is never blank.
       const searchParams = hasSearch
         ? { searchQuery: currentFilters.searchQuery.trim() }
         : activeCount === 0
-          ? { limit: BROWSE_ALL_LIMIT }
+          ? { limit: BROWSE_LIMIT }
           : {
               muscleGroups: currentFilters.muscleGroups.length > 0 ? currentFilters.muscleGroups : undefined,
               subMuscles: currentFilters.subMuscles.length > 0 ? currentFilters.subMuscles : undefined,
-              equipment: currentFilters.equipment.length > 0 ? currentFilters.equipment : undefined,
+              equipment: equipmentNarrowed ? currentFilters.equipment : undefined,
               movementPatterns: currentFilters.movementPatterns.length > 0 ? currentFilters.movementPatterns : undefined,
+              limit: BROWSE_LIMIT,
             };
 
       const response = await searchExercises(searchParams);
@@ -658,7 +706,19 @@ export default function SearchScreen({ navigation }: Props) {
       active.push({ label: m, category: 'subMuscles', value: m });
     });
 
-    filters.equipment.forEach(e => active.push({ label: e, category: 'equipment', value: e }));
+    // ONE summary chip for equipment instead of a chip per item (a full home-gym
+    // profile used to fill the row with up to 12 chips that narrowed nothing new).
+    // "My equipment" says *why* results are filtered when the selection is the
+    // profile's gear, which makes the × decision safer.
+    if (equipmentNarrowed) {
+      active.push({
+        label: equipmentSetsEqual(filters.equipment, profileEquipment)
+          ? `My equipment · ${filters.equipment.length}`
+          : `Equipment · ${filters.equipment.length}`,
+        category: 'equipmentSummary',
+        value: 'equipment',
+      });
+    }
     filters.movementPatterns.forEach(p => active.push({ label: p, category: 'movementPatterns', value: p }));
     
     return active;
@@ -676,8 +736,11 @@ export default function SearchScreen({ navigation }: Props) {
       } else if (category === 'subMuscles') {
         // Remove just this narrowing sub-muscle; the parent group stays selected.
         updated.subMuscles = prev.subMuscles.filter(v => v !== value);
-      } else if (category === 'equipment') {
-        updated.equipment = prev.equipment.filter(v => v !== value);
+      } else if (category === 'equipmentSummary') {
+        // × on the summary chip clears the equipment narrowing. Select-all (not
+        // empty) so the Equipment Available checkboxes read "everything works",
+        // matching what the search now does with the param omitted.
+        updated.equipment = [...EQUIPMENT_OPTIONS];
       } else if (category === 'movementPatterns') {
         updated.movementPatterns = prev.movementPatterns.filter(v => v !== value);
       }
@@ -1169,8 +1232,8 @@ export default function SearchScreen({ navigation }: Props) {
           )}
         </View>
         {activeTab === 'all' && (
-          <TouchableOpacity onPress={resetFilters} activeOpacity={0.7}>
-            <Text style={[styles.resetButton, activeFilterCount === 0 && styles.resetButtonDisabled]}>
+          <TouchableOpacity onPress={resetFilters} activeOpacity={0.7} disabled={isDefaultFilterState}>
+            <Text style={[styles.resetButton, isDefaultFilterState && styles.resetButtonDisabled]}>
               Reset
             </Text>
           </TouchableOpacity>
@@ -1269,6 +1332,11 @@ export default function SearchScreen({ navigation }: Props) {
                 key={`${filter.category}-${filter.value}-${index}`}
                 label={filter.label}
                 onRemove={() => removeFilter(filter.category, filter.value)}
+                onPress={
+                  filter.category === 'equipmentSummary'
+                    ? () => setShowEquipment(true)
+                    : undefined
+                }
                 styles={styles}
                 colors={colors}
               />
@@ -1466,14 +1534,26 @@ export default function SearchScreen({ navigation }: Props) {
                 </Text>
               </>
             ) : (
-              <Text style={styles.resultsHeaderText}>
-                {resultCount} exercise{resultCount !== 1 ? 's' : ''} found
-                {exerciseGroups.length > 0 && exercises.length > exerciseGroups.length && (
+              <>
+                <Text style={styles.resultsHeaderText}>
+                  {resultCount} exercise{resultCount !== 1 ? 's' : ''} found
+                  {totalMatchCount <= exercises.length &&
+                    exerciseGroups.length > 0 &&
+                    exercises.length > exerciseGroups.length && (
+                      <Text style={styles.resultsSubtext}>
+                        {' '}({exercises.length} total including variations)
+                      </Text>
+                    )}
+                </Text>
+                {/* Chip-driven searches are capped like browse mode; say so instead of
+                    silently truncating. (Text search is uncapped, so this never shows.) */}
+                {totalMatchCount > exercises.length && (
                   <Text style={styles.resultsSubtext}>
-                    {' '}({exercises.length} total including variations)
+                    Showing the top {exercises.length} of {totalMatchCount}. Narrow further or
+                    search to see the rest.
                   </Text>
                 )}
-              </Text>
+              </>
             )}
           </View>
         )}
