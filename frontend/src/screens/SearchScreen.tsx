@@ -131,9 +131,7 @@ type SectionStyles = ChipStyles & {
 
 type RefineStyles = ChipStyles & {
   refineSection: StyleProp<ViewStyle>;
-  refineHeader: StyleProp<ViewStyle>;
-  refineTitle: StyleProp<TextStyle>;
-  refineSubtitle: StyleProp<TextStyle>;
+  refineCaption: StyleProp<TextStyle>;
   chipsContainer: StyleProp<ViewStyle>;
 };
 
@@ -275,7 +273,10 @@ const FilterSection = React.memo(function FilterSection({
   );
 });
 
-// Refine section for sub-muscles when a parent is selected
+// Inline sub-muscle chip row shown under the muscle row when a parent is selected.
+// Deliberately no card chrome: tapping a muscle chip is the moment the user most
+// wants results, and the old boxed "Refine <group>" card pushed them ~110px down.
+// The caption leads with the group name so stacked rows (Chest + Back) stay legible.
 const RefineSection = React.memo(function RefineSection({
   parentGroup,
   subMuscles,
@@ -294,14 +295,11 @@ const RefineSection = React.memo(function RefineSection({
 
   return (
     <View style={styles.refineSection}>
-      <View style={styles.refineHeader}>
-        <Text style={styles.refineTitle}>Refine {parentGroup}</Text>
-        <Text style={styles.refineSubtitle}>
-          {selectedCount === 0
-            ? `All ${parentGroup.toLowerCase()} · tap to narrow`
-            : `Narrowed to ${selectedCount} of ${totalCount}`}
-        </Text>
-      </View>
+      <Text style={styles.refineCaption}>
+        {selectedCount === 0
+          ? `All ${parentGroup.toLowerCase()} · tap to narrow`
+          : `${parentGroup} · narrowed to ${selectedCount} of ${totalCount}`}
+      </Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -1075,23 +1073,8 @@ export default function SearchScreen({ navigation }: Props) {
           borderColor: colors.primary,
           borderStyle: 'dashed',
         },
-        refineSection: {
-          marginTop: 16,
-          marginHorizontal: 16,
-          padding: 16,
-          backgroundColor: colors.surface,
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: colors.border,
-        },
-        refineHeader: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 12,
-        },
-        refineTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
-        refineSubtitle: { fontSize: 13, color: colors.textMuted },
+        refineSection: { marginTop: 12, paddingHorizontal: 16 },
+        refineCaption: { fontSize: 13, color: colors.textMuted, marginBottom: 8 },
         // Tight, uniform rhythm for the collapsible rows (Equipment + Advanced Filters).
         // marginBottom: 0 — the results section's own marginTop spaces it from the list.
         advancedSection: { marginTop: 12, paddingHorizontal: 16, marginBottom: 0 },
