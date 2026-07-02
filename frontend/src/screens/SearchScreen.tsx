@@ -229,6 +229,7 @@ const FilterSection = React.memo(function FilterSection({
   selectedValues,
   onSelect,
   description,
+  badgeText,
   styles,
 }: {
   title?: string;
@@ -236,6 +237,8 @@ const FilterSection = React.memo(function FilterSection({
   selectedValues: string[];
   onSelect: (value: string) => void;
   description?: string;
+  /** Overrides the selected-count badge (e.g. equipment's "All" / "8/12"). */
+  badgeText?: string;
   styles: SectionStyles;
 }) {
   return (
@@ -243,9 +246,9 @@ const FilterSection = React.memo(function FilterSection({
       {title ? (
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{title}</Text>
-          {selectedValues.length > 0 && (
+          {(badgeText != null || selectedValues.length > 0) && (
             <View style={styles.sectionBadge}>
-              <Text style={styles.sectionBadgeText}>{selectedValues.length}</Text>
+              <Text style={styles.sectionBadgeText}>{badgeText ?? selectedValues.length}</Text>
             </View>
           )}
         </View>
@@ -333,10 +336,11 @@ export default function SearchScreen({ navigation }: Props) {
     movementPatterns: [],
   });
 
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  // Equipment is a set-once preference (usually pre-filled from onboarding), so it
-  // starts collapsed to de-clutter the top of the screen. One tap to expand.
-  const [showEquipment, setShowEquipment] = useState(false);
+  // Equipment + movement patterns live behind ONE collapsed row: equipment is a
+  // set-once preference (usually pre-filled from onboarding) and movement
+  // patterns are rarely touched, so two separate ~60px rows just pushed the
+  // first result a full card lower. One tap to expand both.
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([]);
   // Total matches on the server; exceeds exercises.length when browse mode capped the list.
@@ -1334,7 +1338,7 @@ export default function SearchScreen({ navigation }: Props) {
                 onRemove={() => removeFilter(filter.category, filter.value)}
                 onPress={
                   filter.category === 'equipmentSummary'
-                    ? () => setShowEquipment(true)
+                    ? () => setShowMoreFilters(true)
                     : undefined
                 }
                 styles={styles}
@@ -1434,73 +1438,55 @@ export default function SearchScreen({ navigation }: Props) {
           return null;
         })}
 
-        {/* Equipment Available - Collapsed by default (set-once preference) */}
+        {/* More filters — equipment + movement patterns behind one collapsed row */}
         <View style={styles.advancedSection}>
           <TouchableOpacity
             style={styles.advancedToggle}
-            onPress={() => setShowEquipment(!showEquipment)}
+            onPress={() => setShowMoreFilters(!showMoreFilters)}
             activeOpacity={0.7}
             accessibilityRole="button"
           >
             <View style={styles.advancedToggleLeft}>
               <Ionicons
-                name={showEquipment ? 'chevron-down' : 'chevron-forward'}
+                name={showMoreFilters ? 'chevron-down' : 'chevron-forward'}
                 size={16}
                 color={colors.textSecondary}
               />
-              <Text style={styles.advancedToggleText}>Equipment Available</Text>
+              <Text style={styles.advancedToggleText}>More filters</Text>
             </View>
-            <View style={styles.advancedBadge}>
-              <Text style={styles.advancedBadgeText}>
-                {filters.equipment.length === EQUIPMENT_OPTIONS.length
-                  ? 'All'
-                  : `${filters.equipment.length}/${EQUIPMENT_OPTIONS.length}`}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {showEquipment && (
-            <FilterSection
-              options={[...EQUIPMENT_OPTIONS]}
-              selectedValues={filters.equipment}
-              onSelect={(value) => toggleFilter('equipment', value)}
-              description="What equipment do you have access to?"
-              styles={styles}
-            />
-          )}
-        </View>
-
-        {/* Advanced Filters - Collapsed by default */}
-        <View style={styles.advancedSection}>
-          <TouchableOpacity
-            style={styles.advancedToggle}
-            onPress={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.advancedToggleLeft}>
-              <Ionicons
-                name={showAdvancedFilters ? 'chevron-down' : 'chevron-forward'}
-                size={16}
-                color={colors.textSecondary}
-              />
-              <Text style={styles.advancedToggleText}>Advanced Filters</Text>
-            </View>
-            {filters.movementPatterns.length > 0 && (
+            {(equipmentNarrowed || filters.movementPatterns.length > 0) && (
               <View style={styles.advancedBadge}>
-                <Text style={styles.advancedBadgeText}>{filters.movementPatterns.length}</Text>
+                <Text style={styles.advancedBadgeText}>
+                  {(equipmentNarrowed ? 1 : 0) + filters.movementPatterns.length}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
 
-          {showAdvancedFilters && (
-            <FilterSection
-              title="Movement Pattern"
-              options={MOVEMENT_PATTERNS}
-              selectedValues={filters.movementPatterns}
-              onSelect={(value) => toggleFilter('movementPatterns', value)}
-              description="Filter by exercise movement type (optional)"
-              styles={styles}
-            />
+          {showMoreFilters && (
+            <>
+              <FilterSection
+                title="Equipment Available"
+                badgeText={
+                  filters.equipment.length === EQUIPMENT_OPTIONS.length
+                    ? 'All'
+                    : `${filters.equipment.length}/${EQUIPMENT_OPTIONS.length}`
+                }
+                options={[...EQUIPMENT_OPTIONS]}
+                selectedValues={filters.equipment}
+                onSelect={(value) => toggleFilter('equipment', value)}
+                description="What equipment do you have access to?"
+                styles={styles}
+              />
+              <FilterSection
+                title="Movement Pattern"
+                options={MOVEMENT_PATTERNS}
+                selectedValues={filters.movementPatterns}
+                onSelect={(value) => toggleFilter('movementPatterns', value)}
+                description="Filter by exercise movement type (optional)"
+                styles={styles}
+              />
+            </>
           )}
         </View>
 
