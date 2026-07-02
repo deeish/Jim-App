@@ -94,6 +94,14 @@ const BROWSE_LIMIT = 300;
 const equipmentSetsEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((item) => b.includes(item));
 
+/**
+ * Equipment narrows results only when it's a real subset — all selected (or
+ * none) matches everything, so it isn't an active filter and gets no chip.
+ * Single definition so the search request and the chip/badge UI can't desync.
+ */
+const isEquipmentNarrowed = (equipment: string[]) =>
+  equipment.length > 0 && equipment.length < EQUIPMENT_OPTIONS.length;
+
 
 interface FilterState {
   searchQuery: string;
@@ -583,10 +591,7 @@ export default function SearchScreen({ navigation }: Props) {
     });
   };
 
-  // Equipment narrows results only when it's a real subset — all selected (or
-  // none) matches everything, so it isn't an active filter and gets no chip.
-  const equipmentNarrowed =
-    filters.equipment.length > 0 && filters.equipment.length < EQUIPMENT_OPTIONS.length;
+  const equipmentNarrowed = isEquipmentNarrowed(filters.equipment);
 
   // Reset returns to the page default (profile gear, no chips, no text). Grey it
   // out when already there — not when the chip count is 0, because a home-gym
@@ -598,15 +603,37 @@ export default function SearchScreen({ navigation }: Props) {
     filters.movementPatterns.length === 0 &&
     equipmentSetsEqual(filters.equipment, profileEquipment);
 
-  const getActiveFilterCount = () => {
-    // Each active group and each narrowing sub-muscle is one chip in the
-    // active-filter row; a narrowed equipment selection is one summary chip.
-    return (
-      filters.muscleGroups.length +
-      filters.subMuscles.length +
-      (equipmentNarrowed ? 1 : 0) +
-      filters.movementPatterns.length
-    );
+  // Chips for the active-filter row. The header badge is this list's length —
+  // one source of truth, so the badge can never disagree with the rendered chips.
+  const getActiveFilters = () => {
+    const active: Array<{ label: string; category: string; value: string; isParent?: boolean }> = [];
+
+    // Selected parent groups (each searches the whole group unless narrowed by sub-muscles below).
+    filters.muscleGroups.forEach(g => {
+      active.push({ label: g, category: 'muscleGroups', value: g, isParent: true });
+    });
+
+    // Narrowing sub-muscles, shown alongside their parent group.
+    filters.subMuscles.forEach(m => {
+      active.push({ label: m, category: 'subMuscles', value: m });
+    });
+
+    // ONE summary chip for equipment instead of a chip per item (a full home-gym
+    // profile used to fill the row with up to 12 chips that narrowed nothing new).
+    // "My equipment" says *why* results are filtered when the selection is the
+    // profile's gear, which makes the × decision safer.
+    if (equipmentNarrowed) {
+      active.push({
+        label: equipmentSetsEqual(filters.equipment, profileEquipment)
+          ? `My equipment · ${filters.equipment.length}`
+          : `Equipment · ${filters.equipment.length}`,
+        category: 'equipmentSummary',
+        value: 'equipment',
+      });
+    }
+    filters.movementPatterns.forEach(p => active.push({ label: p, category: 'movementPatterns', value: p }));
+
+    return active;
   };
 
   // Monotonic id per search request. Overlapping requests can resolve out of
@@ -623,9 +650,7 @@ export default function SearchScreen({ navigation }: Props) {
     // the param and don't count it. This keeps the all-gear default on the
     // capped browse branch (instead of pulling the whole catalog uncapped) and
     // un-hides the few gear-less catalog rows, which match no equipment list.
-    const equipmentNarrowed =
-      currentFilters.equipment.length > 0 &&
-      currentFilters.equipment.length < EQUIPMENT_OPTIONS.length;
+    const equipmentNarrowed = isEquipmentNarrowed(currentFilters.equipment);
     const activeCount =
       currentFilters.muscleGroups.length +
       currentFilters.subMuscles.length +
@@ -690,42 +715,16 @@ export default function SearchScreen({ navigation }: Props) {
   }, [filters, performSearch, prefsHydrated]);
 
   const resultCount = exerciseGroups.length > 0 ? exerciseGroups.length : exercises.length;
-  const activeFilterCount = getActiveFilterCount();
+  // Server capped the response (browse/chip mode): `exercises` is the top slice.
+  const resultsCapped = totalMatchCount > exercises.length;
+  // When capped, the grouped-row count would contradict the "top N of M" subtext
+  // (fewer family cards than N), so "found" reports the server's total matches.
+  const foundCount = resultsCapped ? totalMatchCount : resultCount;
+  const activeFilters = getActiveFilters();
+  const activeFilterCount = activeFilters.length;
   const searchActive = filters.searchQuery.trim().length > 0;
   // No chips and no text: the list is the capped, popularity-sorted whole catalog.
   const isBrowsingAll = activeFilterCount === 0 && !searchActive;
-
-  // Get all active filters for display
-  const getActiveFilters = () => {
-    const active: Array<{ label: string; category: string; value: string; isParent?: boolean }> = [];
-    
-    // Selected parent groups (each searches the whole group unless narrowed by sub-muscles below).
-    filters.muscleGroups.forEach(g => {
-      active.push({ label: g, category: 'muscleGroups', value: g, isParent: true });
-    });
-
-    // Narrowing sub-muscles, shown alongside their parent group.
-    filters.subMuscles.forEach(m => {
-      active.push({ label: m, category: 'subMuscles', value: m });
-    });
-
-    // ONE summary chip for equipment instead of a chip per item (a full home-gym
-    // profile used to fill the row with up to 12 chips that narrowed nothing new).
-    // "My equipment" says *why* results are filtered when the selection is the
-    // profile's gear, which makes the × decision safer.
-    if (equipmentNarrowed) {
-      active.push({
-        label: equipmentSetsEqual(filters.equipment, profileEquipment)
-          ? `My equipment · ${filters.equipment.length}`
-          : `Equipment · ${filters.equipment.length}`,
-        category: 'equipmentSummary',
-        value: 'equipment',
-      });
-    }
-    filters.movementPatterns.forEach(p => active.push({ label: p, category: 'movementPatterns', value: p }));
-    
-    return active;
-  };
 
   const removeFilter = (category: string, value: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -751,13 +750,30 @@ export default function SearchScreen({ navigation }: Props) {
     });
   };
 
-  const toggleSelectForAddToPlan = useCallback((exerciseId: string) => {
+  // Selected exercise objects for add-mode, keyed by id, alongside selectedIds.
+  // Chip-driven searches are capped (BROWSE_LIMIT), so a selected row can drop
+  // out of the current results array on a re-search; the submit handlers must
+  // still be able to build its payload. Set/delete are idempotent, so mutating
+  // the ref inside the state updater is safe even if React replays it.
+  const selectedExercisesById = useRef<Map<string, Exercise>>(new Map());
+
+  const toggleSelectForAddToPlan = useCallback((exercise: Exercise) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(exerciseId)) next.delete(exerciseId);
-      else next.add(exerciseId);
+      if (next.has(exercise.id)) {
+        next.delete(exercise.id);
+        selectedExercisesById.current.delete(exercise.id);
+      } else {
+        next.add(exercise.id);
+        selectedExercisesById.current.set(exercise.id, exercise);
+      }
       return next;
     });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    selectedExercisesById.current.clear();
+    setSelectedIds(new Set());
   }, []);
 
   /** Derive a short workout title from selected exercises' primary muscle groups (e.g. "Chest & Triceps"). */
@@ -789,11 +805,11 @@ export default function SearchScreen({ navigation }: Props) {
           saved={savedExerciseIds.includes(group.primaryExercise.id)}
           onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
           onPress={(exercise) => {
-            if (addMode) toggleSelectForAddToPlan(exercise.id);
+            if (addMode) toggleSelectForAddToPlan(exercise);
             else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
           }}
           onPressVariation={(exercise) => {
-            if (addMode) toggleSelectForAddToPlan(exercise.id);
+            if (addMode) toggleSelectForAddToPlan(exercise);
             else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
           }}
           onPressInfo={(exercise) =>
@@ -819,7 +835,11 @@ export default function SearchScreen({ navigation }: Props) {
     const weekMondayIso =
       weekMondayParam ?? formatLocalYmd(getCalendarWeekRange(weekIndex).start);
 
-    const selectedExercises = exercises.filter(e => selectedIds.has(e.id));
+    // Read from the selection map, not the current results array — a re-search
+    // (capped or refiltered) may no longer contain a still-selected exercise.
+    const selectedExercises = [...selectedIds]
+      .map((id) => selectedExercisesById.current.get(id))
+      .filter((e): e is Exercise => e != null);
     if (selectedExercises.length === 0) {
       Alert.alert('No exercises', 'Selected exercises could not be found. Try searching again and reselect.');
       return;
@@ -882,7 +902,7 @@ export default function SearchScreen({ navigation }: Props) {
         }
       }
 
-      setSelectedIds(new Set());
+      clearSelection();
       const tabNav = (navigation as any)?.getParent?.();
       if (tabNav) tabNav.navigate('Plan');
       const successMsg =
@@ -905,11 +925,13 @@ export default function SearchScreen({ navigation }: Props) {
     } finally {
       setAddingToPlan(false);
     }
-  }, [addToPlan, exercises, selectedIds, navigation, deriveWorkoutTitle]);
+  }, [addToPlan, selectedIds, navigation, deriveWorkoutTitle, clearSelection]);
 
   const submitAddToWorkout = useCallback(async () => {
     if (!addToWorkout || selectedIds.size === 0) return;
-    const selectedExercises = exercises.filter(e => selectedIds.has(e.id));
+    const selectedExercises = [...selectedIds]
+      .map((id) => selectedExercisesById.current.get(id))
+      .filter((e): e is Exercise => e != null);
     if (selectedExercises.length === 0) {
       Alert.alert('No exercises', 'Selected exercises could not be found. Try searching again and reselect.');
       return;
@@ -941,7 +963,7 @@ export default function SearchScreen({ navigation }: Props) {
       ];
       await updateWorkout(addToWorkout.workoutId, { exercises: merged });
 
-      setSelectedIds(new Set());
+      clearSelection();
       navigation.setParams({ addToWorkout: undefined });
       const tabNav = (navigation as any)?.getParent?.();
       if (tabNav) tabNav.navigate('Workout', { workoutId: addToWorkout.workoutId });
@@ -961,9 +983,7 @@ export default function SearchScreen({ navigation }: Props) {
     } finally {
       setAddingToPlan(false);
     }
-  }, [addToWorkout, exercises, selectedIds, navigation]);
-
-  const activeFilters = getActiveFilters();
+  }, [addToWorkout, selectedIds, navigation, clearSelection]);
 
   const styles = useMemo(
     () =>
@@ -1215,7 +1235,7 @@ export default function SearchScreen({ navigation }: Props) {
           </Text>
           <TouchableOpacity
             onPress={() => {
-              setSelectedIds(new Set());
+              clearSelection();
               navigation.setParams({ addToPlan: undefined, addToWorkout: undefined });
             }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -1525,7 +1545,7 @@ export default function SearchScreen({ navigation }: Props) {
               <>
                 <Text style={styles.resultsHeaderText}>Popular exercises</Text>
                 <Text style={styles.resultsSubtext}>
-                  {totalMatchCount > exercises.length
+                  {resultsCapped
                     ? `Showing the top ${exercises.length} of ${totalMatchCount}. Search or filter to see the rest.`
                     : 'Search or filter to narrow the list.'}
                 </Text>
@@ -1533,8 +1553,8 @@ export default function SearchScreen({ navigation }: Props) {
             ) : (
               <>
                 <Text style={styles.resultsHeaderText}>
-                  {resultCount} exercise{resultCount !== 1 ? 's' : ''} found
-                  {totalMatchCount <= exercises.length &&
+                  {foundCount} exercise{foundCount !== 1 ? 's' : ''} found
+                  {!resultsCapped &&
                     exerciseGroups.length > 0 &&
                     exercises.length > exerciseGroups.length && (
                       <Text style={styles.resultsSubtext}>
@@ -1544,10 +1564,9 @@ export default function SearchScreen({ navigation }: Props) {
                 </Text>
                 {/* Chip-driven searches are capped like browse mode; say so instead of
                     silently truncating. (Text search is uncapped, so this never shows.) */}
-                {totalMatchCount > exercises.length && (
+                {resultsCapped && (
                   <Text style={styles.resultsSubtext}>
-                    Showing the top {exercises.length} of {totalMatchCount}. Narrow further or
-                    search to see the rest.
+                    Showing the top {exercises.length}. Narrow further or search to see the rest.
                   </Text>
                 )}
               </>
