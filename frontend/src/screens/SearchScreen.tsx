@@ -691,8 +691,9 @@ export default function SearchScreen({ navigation }: Props) {
 
   const resultCount = exerciseGroups.length > 0 ? exerciseGroups.length : exercises.length;
   const activeFilterCount = getActiveFilterCount();
+  const searchActive = filters.searchQuery.trim().length > 0;
   // No chips and no text: the list is the capped, popularity-sorted whole catalog.
-  const isBrowsingAll = activeFilterCount === 0 && filters.searchQuery.trim().length === 0;
+  const isBrowsingAll = activeFilterCount === 0 && !searchActive;
 
   // Get all active filters for display
   const getActiveFilters = () => {
@@ -1034,6 +1035,13 @@ export default function SearchScreen({ navigation }: Props) {
           marginRight: 8,
         },
         activeFilterText: { color: colors.primary, fontSize: 14, fontWeight: '600', marginRight: 6 },
+        activeFiltersDimmed: { opacity: 0.4 },
+        activeFiltersPausedNote: {
+          fontSize: 12,
+          color: colors.textMuted,
+          paddingHorizontal: 16,
+          marginBottom: 6,
+        },
         content: { flex: 1 },
         contentContainer: { paddingBottom: 100 },
         section: { marginTop: 24, paddingHorizontal: 16 },
@@ -1114,6 +1122,15 @@ export default function SearchScreen({ navigation }: Props) {
         },
         resultsPreviewText: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 4 },
         resultsPreviewHint: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
+        retryButton: {
+          marginTop: 12,
+          paddingHorizontal: 24,
+          paddingVertical: 8,
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: colors.primary,
+        },
+        retryButtonText: { color: colors.primary, fontSize: 14, fontWeight: '600' },
         bottomBar: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -1306,9 +1323,14 @@ export default function SearchScreen({ navigation }: Props) {
         </View>
       </View>
 
-      {/* Active Filters */}
+      {/* Active Filters — dimmed while a search term is active: text search
+          deliberately ignores chips (a typed name must never be hidden), so the
+          row must not claim filters it is not applying. */}
       {activeFilters.length > 0 && (
-        <View style={styles.activeFiltersContainer}>
+        <View style={[styles.activeFiltersContainer, searchActive && styles.activeFiltersDimmed]}>
+          {searchActive && (
+            <Text style={styles.activeFiltersPausedNote}>Not applied while searching</Text>
+          )}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1372,9 +1394,6 @@ export default function SearchScreen({ navigation }: Props) {
               </View>
             )}
           </View>
-          <Text style={styles.sectionDescription}>
-            Pick a group, or tap Cardio for treadmills, bikes, rowing, circuits, and conditioning.
-          </Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1487,6 +1506,15 @@ export default function SearchScreen({ navigation }: Props) {
               Error
             </Text>
             <Text style={styles.resultsPreviewHint}>{error}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => performSearch(filters)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Retry search"
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
           </View>
         )}
 
