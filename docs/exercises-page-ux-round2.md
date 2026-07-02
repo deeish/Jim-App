@@ -1,5 +1,13 @@
 # Exercises Page — UX Round 2 (follow-ups from 2026-07-01 screenshot review)
 
+> **Status (2026-07-02):** items 2–4 implemented on `feat/exercises-ux`
+> (commits `e36a357`…`9ae7ad9`), tsc + 139 tests green. Item 1 is a
+> process rule, not code — remember it when testing/shipping. A
+> self-review pass also fixed two issues the cap introduced (add-mode
+> selections surviving capped re-searches; consistent capped header
+> counts). Remaining: on-device acceptance walkthrough below, then the
+> PR 5 decision.
+
 Round 1 (branch `feat/exercises-ux`) shipped compact rows, browse-first, the
 All | Saved segment, server-side grouping, and the icon/polish pass. A device
 screenshot review on 2026-07-01 confirmed the layout works and surfaced the
