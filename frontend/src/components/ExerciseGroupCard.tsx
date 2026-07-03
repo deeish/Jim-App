@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { Exercise } from '../services/exerciseService';
 import { ExerciseGroup, getVariationNames } from '../utils/exerciseGrouping';
 import { useTheme } from '../theme/ThemeContext';
-import { getMuscleGroupVisual } from '../constants/muscleGroupMeta';
+import MuscleGroupDisc from './MuscleGroupDisc';
 import ExerciseLikeButton from './ExerciseLikeButton';
 
 interface ExerciseGroupCardProps {
@@ -27,12 +27,9 @@ interface ExerciseGroupCardProps {
 }
 
 function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSelected, isDisabled, saved, onLikePress }: ExerciseGroupCardProps) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const [showVariations, setShowVariations] = useState(false);
   const exercise = group.primaryExercise;
-  // Muscle-group color disc: makes a 300-row list scannable by hue (all chest
-  // work reads red before you read a word). Derived from catalog metadata.
-  const muscleVisual = getMuscleGroupVisual(exercise.primaryMuscleGroup, isDark);
   const variationNames = getVariationNames(group);
   // Only show variations toggle if there are actual unique variations (different names)
   const hasVars = variationNames.length > 0;
@@ -67,11 +64,6 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           borderColor: colors.border,
         },
         muscleDisc: {
-          width: 36,
-          height: 36,
-          borderRadius: 18,
-          alignItems: 'center',
-          justifyContent: 'center',
           marginRight: 11,
         },
         titleCol: {
@@ -163,9 +155,13 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
         accessibilityLabel={exercise.name}
         accessibilityState={{ selected: !!isSelected, disabled: !!isDisabled }}
       >
-        <View style={[styles.muscleDisc, { backgroundColor: muscleVisual.softColor }]}>
-          <MaterialCommunityIcons name={muscleVisual.icon} size={20} color={muscleVisual.color} />
-        </View>
+        {/* Muscle-group color disc: makes a 300-row list scannable by hue (all
+            chest work reads red before you read a word). */}
+        <MuscleGroupDisc
+          group={exercise.primaryMuscleGroup}
+          size={40}
+          style={styles.muscleDisc}
+        />
         <View style={styles.titleCol}>
           <Text style={styles.exerciseName} numberOfLines={1}>
             {exercise.name}

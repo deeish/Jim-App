@@ -10,13 +10,14 @@ import {
   BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CommonActions, RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { getExerciseById, Exercise, getSavedExerciseIds, saveExercise, unsaveExercise } from '../services/exerciseService';
 import { useTheme } from '../theme/ThemeContext';
 import { getMuscleGroupVisual } from '../constants/muscleGroupMeta';
+import MuscleGroupDisc from '../components/MuscleGroupDisc';
 import ExerciseLikeButton from '../components/ExerciseLikeButton';
 
 const YOUTUBE_SEARCH_BASE = 'https://www.youtube.com/results?search_query=';
@@ -145,15 +146,6 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         },
         exerciseName: { fontSize: 28, fontWeight: 'bold', color: colors.text, flex: 1, marginRight: 12 },
         titleLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-        // Same muscle-group disc as the list rows, at hero size — the color the
-        // user tapped on carries through to the screen they land on.
-        muscleDisc: {
-          width: 48,
-          height: 48,
-          borderRadius: 24,
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
         difficultyBadge: {
           backgroundColor: colors.primary + '20',
           paddingHorizontal: 12,
@@ -349,9 +341,9 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         {/* Exercise Name + Like + Difficulty */}
         <View style={styles.titleSection}>
           <View style={styles.titleLeft}>
-            <View style={[styles.muscleDisc, { backgroundColor: muscleVisual.softColor }]}>
-              <MaterialCommunityIcons name={muscleVisual.icon} size={26} color={muscleVisual.color} />
-            </View>
+            {/* Same disc as the list rows, at hero size — the color the user
+                tapped carries through to the screen they land on. */}
+            <MuscleGroupDisc group={exercise.primaryMuscleGroup} size={48} />
             <Text style={styles.exerciseName}>{exercise.name}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
