@@ -8,6 +8,9 @@ import {
   ActivityIndicator,
   Linking,
   BackHandler,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +24,11 @@ import MuscleGroupDisc from '../components/MuscleGroupDisc';
 import MuscleBodyMap from '../components/bodymap/MuscleBodyMap';
 import { exerciseToHighlights } from '../lib/exerciseToHighlights';
 import ExerciseLikeButton from '../components/ExerciseLikeButton';
+
+// Enable LayoutAnimation on Android (same guard as SearchScreen)
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const YOUTUBE_SEARCH_BASE = 'https://www.youtube.com/results?search_query=';
 
@@ -89,6 +97,9 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [savingLike, setSavingLike] = useState(false);
+  // Collapsed by default: most users go straight to the video, and the step
+  // list is the longest block on the page.
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
 
   const styles = useMemo(
     () =>
@@ -184,6 +195,15 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         equipmentTag: { backgroundColor: colors.background, borderColor: colors.border },
         movementTag: { backgroundColor: colors.background, borderColor: colors.border },
         tagText: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
+        collapseHeader: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        },
+        collapseTitle: { marginBottom: 0 },
+        collapseMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+        collapseCount: { fontSize: 13, color: colors.textSecondary },
+        instructionsList: { marginTop: 16 },
         instructionItem: { flexDirection: 'row', marginBottom: 16, alignItems: 'flex-start' },
         instructionNumber: {
           width: 28,
@@ -463,18 +483,43 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Instructions */}
+        {/* Instructions — collapsed by default; the video below covers most users */}
         {exercise.instructions && exercise.instructions.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>How to Perform</Text>
-            {exercise.instructions.map((instruction, index) => (
-              <View key={index} style={styles.instructionItem}>
-                <View style={styles.instructionNumber}>
-                  <Text style={styles.instructionNumberText}>{index + 1}</Text>
-                </View>
-                <Text style={styles.instructionText}>{instruction}</Text>
+            <TouchableOpacity
+              style={styles.collapseHeader}
+              onPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setInstructionsOpen((open) => !open);
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: instructionsOpen }}
+              accessibilityLabel="How to Perform"
+            >
+              <Text style={[styles.sectionTitle, styles.collapseTitle]}>How to Perform</Text>
+              <View style={styles.collapseMeta}>
+                <Text style={styles.collapseCount}>
+                  {exercise.instructions.length} steps
+                </Text>
+                <Ionicons
+                  name={instructionsOpen ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={colors.textSecondary}
+                />
               </View>
-            ))}
+            </TouchableOpacity>
+            {instructionsOpen && (
+              <View style={styles.instructionsList}>
+                {exercise.instructions.map((instruction, index) => (
+                  <View key={index} style={styles.instructionItem}>
+                    <View style={styles.instructionNumber}>
+                      <Text style={styles.instructionNumberText}>{index + 1}</Text>
+                    </View>
+                    <Text style={styles.instructionText}>{instruction}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         )}
 
