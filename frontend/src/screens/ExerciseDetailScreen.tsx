@@ -18,6 +18,8 @@ import { getExerciseById, Exercise, getSavedExerciseIds, saveExercise, unsaveExe
 import { useTheme } from '../theme/ThemeContext';
 import { getMuscleGroupVisual } from '../constants/muscleGroupMeta';
 import MuscleGroupDisc from '../components/MuscleGroupDisc';
+import MuscleBodyMap from '../components/bodymap/MuscleBodyMap';
+import { exerciseToHighlights } from '../lib/exerciseToHighlights';
 import ExerciseLikeButton from '../components/ExerciseLikeButton';
 
 const YOUTUBE_SEARCH_BASE = 'https://www.youtube.com/results?search_query=';
@@ -162,6 +164,13 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         sectionTitle: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 12 },
         description: { fontSize: 16, color: colors.textSecondary, lineHeight: 24 },
         tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+        bodyMapRow: {
+          flexDirection: 'row',
+          justifyContent: 'center',
+          gap: 32,
+          marginTop: 4,
+          marginBottom: 18,
+        },
         tag: {
           backgroundColor: colors.primary + '15',
           paddingHorizontal: 12,
@@ -321,6 +330,9 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   }
 
   const muscleVisual = getMuscleGroupVisual(exercise.primaryMuscleGroup, isDark);
+  // Body-map hero: null for cardio/unknown metadata, in which case the section
+  // keeps its tags-only layout (the disc stays the fallback mark).
+  const bodyMap = exerciseToHighlights(exercise);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -373,6 +385,21 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         {/* Primary Muscle Group */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Target Muscles</Text>
+          {bodyMap && (
+            <View style={styles.bodyMapRow}>
+              {/* Lead with the view holding the primary work so the lit figure is read first. */}
+              {(bodyMap.view === 'back' ? (['back', 'front'] as const) : (['front', 'back'] as const)).map(
+                (mapView) => (
+                  <MuscleBodyMap
+                    key={mapView}
+                    highlights={bodyMap.highlights}
+                    view={mapView}
+                    size={180}
+                  />
+                ),
+              )}
+            </View>
+          )}
           <View style={styles.tagsContainer}>
             <View
               style={[
