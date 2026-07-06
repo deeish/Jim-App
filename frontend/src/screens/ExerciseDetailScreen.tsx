@@ -395,6 +395,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                     highlights={bodyMap.highlights}
                     view={mapView}
                     size={180}
+                    frame="focus"
                   />
                 ),
               )}

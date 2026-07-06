@@ -1,10 +1,20 @@
 import React from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
-import { Canvas, Group, Path, Skia, SkPath } from '@shopify/react-native-skia';
+import {
+  Canvas,
+  Group,
+  LinearGradient,
+  Mask,
+  Path,
+  Rect,
+  Skia,
+  SkPath,
+  vec,
+} from '@shopify/react-native-skia';
 import { useTheme } from '../../theme/ThemeContext';
 import { BodyMapHighlight } from '../../lib/exerciseToHighlights';
 import { BodyMapView } from './bodyMapPaths';
-import { buildBodyMapFigure } from './bodyMapFigure';
+import { buildBodyMapFigure, WINDOW_FADE_UNITS } from './bodyMapFigure';
 
 /**
  * Human silhouette with the target muscles glowing in their group hue —
@@ -14,6 +24,9 @@ import { buildBodyMapFigure } from './bodyMapFigure';
  * CanvasKit isn't loaded on web and a static Skia import white-screens the
  * screen. Callers decide the fallback: when exerciseToHighlights returns
  * null (cardio/unknown), keep rendering MuscleGroupDisc instead.
+ *
+ * The focus-frame camera is a translate+scale of the shared window; mid-body
+ * cuts get a soft vertical alpha mask so the crop reads as framing.
  */
 
 // Path strings are parsed once per key on first use and cached for the app's
@@ -36,32 +49,67 @@ function MuscleBodyMap({
   highlights,
   view,
   size,
+  frame,
   style,
 }: {
   highlights: BodyMapHighlight[];
   /** 'auto' picks the view holding the strongest highlights. */
   view: BodyMapView | 'auto';
-  /** Rendered height; width follows the 200x440 viewbox ratio. */
+  /** Rendered height; width follows the camera window's aspect ratio. */
   size: number;
+  /** 'focus' frames the highlighted anatomy; default shows the whole body. */
+  frame?: 'body' | 'focus';
   style?: StyleProp<ViewStyle>;
 }) {
   const { isDark } = useTheme();
-  const figure = buildBodyMapFigure({ highlights, view, size, isDark });
+  const figure = buildBodyMapFigure({ highlights, view, size, isDark, frame });
+  const { window: win, scale } = figure;
   const outline = getSkPath('outline', figure.outlinePath);
+  const needsFade = win.fadeTop || win.fadeBottom;
+  const fadePx = WINDOW_FADE_UNITS * scale;
+
+  const content = (
+    <Group
+      transform={[{ translateX: -win.x * scale }, { translateY: -win.y * scale }, { scale }]}
+    >
+      {outline && <Path path={outline} style="fill" color={figure.bodyColor} />}
+      {figure.regions.map((region) => {
+        const path = getSkPath(`${figure.view}:${region.key}`, region.path);
+        if (!path) return null;
+        return <Path key={region.key} path={path} style="fill" color={region.color} />;
+      })}
+      {outline && (
+        <Path path={outline} style="stroke" strokeWidth={1.5} color={figure.outlineColor} />
+      )}
+    </Group>
+  );
 
   return (
     <Canvas style={[{ width: figure.width, height: figure.height }, style]}>
-      <Group transform={[{ scale: figure.scale }]}>
-        {outline && <Path path={outline} style="fill" color={figure.bodyColor} />}
-        {figure.regions.map((region) => {
-          const path = getSkPath(`${figure.view}:${region.key}`, region.path);
-          if (!path) return null;
-          return <Path key={region.key} path={path} style="fill" color={region.color} />;
-        })}
-        {outline && (
-          <Path path={outline} style="stroke" strokeWidth={1.5} color={figure.outlineColor} />
-        )}
-      </Group>
+      {needsFade ? (
+        <Mask
+          mode="alpha"
+          mask={
+            <Rect x={0} y={0} width={figure.width} height={figure.height}>
+              <LinearGradient
+                start={vec(0, 0)}
+                end={vec(0, figure.height)}
+                colors={[
+                  win.fadeTop ? 'transparent' : 'white',
+                  'white',
+                  'white',
+                  win.fadeBottom ? 'transparent' : 'white',
+                ]}
+                positions={[0, fadePx / figure.height, 1 - fadePx / figure.height, 1]}
+              />
+            </Rect>
+          }
+        >
+          {content}
+        </Mask>
+      ) : (
+        content
+      )}
     </Canvas>
   );
 }

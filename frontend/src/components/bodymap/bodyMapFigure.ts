@@ -1,6 +1,6 @@
 import { getMuscleGroupVisual } from '../../constants/muscleGroupMeta';
 import { BodyMapHighlight, pickBodyMapView } from '../../lib/exerciseToHighlights';
-import { BODY_MAP_REGIONS, BODY_MAP_VIEWBOX, BODY_OUTLINE_PATH, BodyMapView } from './bodyMapPaths';
+import { BODY_MAP_REGIONS, BODY_OUTLINE_PATH, BodyMapView } from './bodyMapPaths';
 
 /**
  * Pure render model for the body map, shared by the platform renderers:
@@ -19,12 +19,24 @@ export type BodyMapFigureRegion = {
   color: string;
 };
 
+export type BodyMapWindow = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** True when the window cuts the body mid-figure — renderers fade that edge. */
+  fadeTop: boolean;
+  fadeBottom: boolean;
+};
+
 export type BodyMapFigure = {
   view: BodyMapView;
   width: number;
   height: number;
-  /** Scale from the 200x440 viewbox space to the rendered size. */
+  /** Scale from window units to rendered pixels. */
   scale: number;
+  /** Camera window in viewbox units (full viewbox unless frame is 'focus'). */
+  window: BodyMapWindow;
   outlinePath: string;
   /** Silhouette fill — a step off `surface` so the figure reads on cards. */
   bodyColor: string;
@@ -32,6 +44,69 @@ export type BodyMapFigure = {
   outlineColor: string;
   regions: BodyMapFigureRegion[];
 };
+
+// Focus-frame guardrails, all in viewbox units. Min window height caps zoom at
+// ~1.75x so a single small region never becomes an unrecognizable close-up;
+// snap thresholds pull the window to include the whole head/feet instead of
+// slicing through them; the fade band softens unavoidable mid-body cuts.
+const MIN_WINDOW_H = 250;
+const MIN_WINDOW_W = 130;
+const WINDOW_PAD = 14;
+const HEAD_SNAP_Y = 80;
+const FEET_SNAP_Y = 388;
+export const WINDOW_FADE_UNITS = 20;
+
+/**
+ * Camera window fitted to the highlighted regions across BOTH views, so the
+ * front/back pair in a hero shares one framing. Falls back to the full body
+ * when there is nothing to frame or the fit would show most of it anyway.
+ */
+export function focusWindow(highlights: BodyMapHighlight[]): BodyMapWindow {
+  const full: BodyMapWindow = { x: 0, y: 0, w: 200, h: 440, fadeTop: false, fadeBottom: false };
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const h of highlights) {
+    for (const view of ['front', 'back'] as const) {
+      const region = BODY_MAP_REGIONS[view][h.region];
+      if (!region) continue;
+      x0 = Math.min(x0, region.bounds.x0);
+      y0 = Math.min(y0, region.bounds.y0);
+      x1 = Math.max(x1, region.bounds.x1);
+      y1 = Math.max(y1, region.bounds.y1);
+    }
+  }
+  if (!Number.isFinite(x0)) return full;
+
+  const winH = Math.max(y1 - y0 + 2 * WINDOW_PAD, MIN_WINDOW_H);
+  // A near-full window isn't worth the crop (and head + feet snaps would fight).
+  if (winH >= 360) return full;
+  let winY = (y0 + y1) / 2 - winH / 2;
+  // Snap rather than slice through the head or feet.
+  if (winY < HEAD_SNAP_Y) winY = 0;
+  if (winY + winH > FEET_SNAP_Y) winY = 440 - winH;
+  winY = Math.max(0, Math.min(440 - winH, winY));
+  // A snap must never push highlighted anatomy out of frame.
+  if (y0 < winY || y1 > winY + winH) return full;
+
+  let winW = Math.max(x1 - x0 + 2 * WINDOW_PAD, MIN_WINDOW_W);
+  let winX = (x0 + x1) / 2 - winW / 2;
+  if (winW >= 190) {
+    winW = 200;
+    winX = 0;
+  }
+  winX = Math.max(0, Math.min(200 - winW, winX));
+
+  return {
+    x: Math.round(winX),
+    y: Math.round(winY),
+    w: Math.round(winW),
+    h: Math.round(winH),
+    fadeTop: winY > 0,
+    fadeBottom: winY + winH < 440,
+  };
+}
 
 /** #RRGGBB + intensity -> #RRGGBBAA (hues in muscleGroupMeta are 6-digit hex). */
 function withIntensity(hex: string, intensity: number): string {
@@ -44,12 +119,18 @@ function withIntensity(hex: string, intensity: number): string {
 export function buildBodyMapFigure(opts: {
   highlights: BodyMapHighlight[];
   view: BodyMapView | 'auto';
-  /** Rendered height; width follows the 200x440 viewbox ratio. */
+  /** Rendered height; width follows the camera window's aspect ratio. */
   size: number;
   isDark: boolean;
+  /** 'focus' frames the highlighted anatomy; 'body' (default) shows it all. */
+  frame?: 'body' | 'focus';
 }): BodyMapFigure {
   const { highlights, size, isDark } = opts;
   const view = opts.view === 'auto' ? pickBodyMapView(highlights) : opts.view;
+  const window =
+    opts.frame === 'focus'
+      ? focusWindow(highlights)
+      : { x: 0, y: 0, w: 200, h: 440, fadeTop: false, fadeBottom: false };
 
   const quietColor = isDark ? 'rgba(255,255,255,0.075)' : 'rgba(0,0,0,0.07)';
   const intensityByRegion = new Map(highlights.map((h) => [h.region, h.intensity]));
@@ -69,9 +150,10 @@ export function buildBodyMapFigure(opts: {
 
   return {
     view,
-    width: Math.round((size * BODY_MAP_VIEWBOX.width) / BODY_MAP_VIEWBOX.height),
+    width: Math.round((size * window.w) / window.h),
     height: size,
-    scale: size / BODY_MAP_VIEWBOX.height,
+    scale: size / window.h,
+    window,
     outlinePath: BODY_OUTLINE_PATH,
     bodyColor: isDark ? '#242B27' : '#DCD8CE',
     outlineColor: isDark ? '#323833' : '#C8C4B8',
