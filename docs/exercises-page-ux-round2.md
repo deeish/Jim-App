@@ -8,6 +8,16 @@
 > (`muscleGroupMeta.ts`, `MuscleGroupDisc.tsx`, commits `48660a5`…`bb4957f`).
 > The old round-2 text lives in git history if ever needed.
 
+## Status (2026-07-06)
+
+Steps 1–5 IMPLEMENTED on `feat/exercises-ux` (commits `ce36f38`, `39e568d`,
+`520d56e`): asset generated + iterated in the harness (checked in as
+`frontend/tools/bodymap/gen.js` — edit points there, re-run, never hand-edit
+`bodyMapPaths.ts`), sanity + mapping tests green (156 frontend tests),
+detail-screen hero live. Step 6 (row swap) remains gated on Android scroll
+profiling. On-device look of the hero still pending (fold into the round-2
+walkthrough below).
+
 ## Carry-over items (still open, do not lose)
 
 1. **Release-order rule:** deploy the backend BEFORE any frontend build / OTA
