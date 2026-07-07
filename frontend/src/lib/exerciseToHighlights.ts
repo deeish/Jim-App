@@ -67,6 +67,19 @@ export function pickBodyMapView(highlights: BodyMapHighlight[]): BodyMapView {
   return back > front ? 'back' : 'front';
 }
 
+/**
+ * Group-level highlights for the mini list tiles: the whole group's regions at
+ * full intensity. Only seven groups exist, so every exercise row renders one
+ * of a handful of figures. Null for cardio/unknown groups — callers keep the
+ * MuscleGroupDisc as the mark.
+ */
+export function muscleGroupToHighlights(group: string | undefined | null): ExerciseBodyMap | null {
+  const regions = GROUP_DEFAULT_REGIONS[(group ?? '').trim().toLowerCase()];
+  if (!regions) return null;
+  const highlights = regions.map((region) => ({ region, intensity: PRIMARY_INTENSITY }));
+  return { highlights, view: pickBodyMapView(highlights) };
+}
+
 export function exerciseToHighlights(exercise: BodyMappableExercise): ExerciseBodyMap | null {
   const group = (exercise.primaryMuscleGroup ?? '').trim().toLowerCase();
   const namedRegions = (exercise.subMuscles ?? []).filter((m) => KNOWN_REGIONS.has(m));

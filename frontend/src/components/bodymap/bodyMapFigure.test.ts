@@ -1,5 +1,6 @@
-import { buildBodyMapFigure, focusWindow } from './bodyMapFigure';
+import { buildBodyMapFigure, focusWindow, tileWindow } from './bodyMapFigure';
 import { BODY_MAP_REGIONS } from './bodyMapPaths';
+import { muscleGroupToHighlights } from '../../lib/exerciseToHighlights';
 
 describe('buildBodyMapFigure', () => {
   it('sizes from the rendered height with the viewbox ratio', () => {
@@ -97,6 +98,19 @@ describe('focusWindow', () => {
     expect(win).toEqual(FULL);
   });
 
+  it('gives the tile frame a square window that fills a square tile', () => {
+    const figure = buildBodyMapFigure({
+      highlights: muscleGroupToHighlights('Chest')!.highlights,
+      view: 'front',
+      size: 44,
+      isDark: true,
+      frame: 'tile',
+    });
+    expect(figure.window.w).toBe(figure.window.h);
+    expect(figure.width).toBe(44);
+    expect(figure.height).toBe(44);
+  });
+
   it('drives figure sizing through the window aspect ratio', () => {
     const highlights = [{ region: 'Upper Chest', intensity: 1 }];
     const focused = buildBodyMapFigure({
@@ -110,5 +124,50 @@ describe('focusWindow', () => {
     expect(focused.height).toBe(180);
     expect(focused.width).toBeGreaterThan(body.width); // zoomed => wider at same height
     expect(focused.scale).toBeGreaterThan(body.scale);
+  });
+});
+
+describe('tileWindow', () => {
+  const groupHighlights = (group: string) => muscleGroupToHighlights(group)!.highlights;
+
+  it('returns the full body when there is nothing to frame', () => {
+    expect(tileWindow([])).toEqual({ x: 0, y: 0, w: 200, h: 440, fadeTop: false, fadeBottom: false });
+    expect(tileWindow([{ region: 'Unknown', intensity: 1 }]).h).toBe(440);
+  });
+
+  it('is always square and horizontally centered on the figure', () => {
+    for (const group of ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core']) {
+      const win = tileWindow(groupHighlights(group));
+      expect(win.w).toBe(win.h);
+      expect(win.x + win.w / 2).toBeCloseTo(100, 0);
+    }
+  });
+
+  it('snaps compact upper-body groups to include the whole head', () => {
+    for (const group of ['Chest', 'Shoulders']) {
+      const win = tileWindow(groupHighlights(group));
+      expect(win.y).toBe(0);
+      expect(win.fadeTop).toBe(false);
+      expect(win.fadeBottom).toBe(true);
+    }
+  });
+
+  it('keeps every group fully inside its window, fading mid-body cuts', () => {
+    for (const group of ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core']) {
+      const highlights = groupHighlights(group);
+      const win = tileWindow(highlights);
+      for (const h of highlights) {
+        for (const view of ['front', 'back'] as const) {
+          const region = BODY_MAP_REGIONS[view][h.region];
+          if (!region) continue;
+          expect(win.y).toBeLessThanOrEqual(region.bounds.y0);
+          expect(win.y + win.h).toBeGreaterThanOrEqual(region.bounds.y1);
+          expect(win.x).toBeLessThanOrEqual(region.bounds.x0);
+          expect(win.x + win.w).toBeGreaterThanOrEqual(region.bounds.x1);
+        }
+      }
+      expect(win.fadeTop).toBe(win.y > 0);
+      expect(win.fadeBottom).toBe(win.y + win.h < 440);
+    }
   });
 });

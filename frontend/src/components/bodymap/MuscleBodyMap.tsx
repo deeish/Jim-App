@@ -57,8 +57,8 @@ function MuscleBodyMap({
   view: BodyMapView | 'auto';
   /** Rendered height; width follows the camera window's aspect ratio. */
   size: number;
-  /** 'focus' frames the highlighted anatomy; default shows the whole body. */
-  frame?: 'body' | 'focus';
+  /** 'focus' frames the highlighted anatomy, 'tile' is the square mini-tile crop; default shows the whole body. */
+  frame?: 'body' | 'focus' | 'tile';
   style?: StyleProp<ViewStyle>;
 }) {
   const { isDark } = useTheme();

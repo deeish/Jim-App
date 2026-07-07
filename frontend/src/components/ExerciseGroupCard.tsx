@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Exercise } from '../services/exerciseService';
 import { ExerciseGroup, getVariationNames } from '../utils/exerciseGrouping';
 import { useTheme } from '../theme/ThemeContext';
-import MuscleGroupDisc from './MuscleGroupDisc';
+import MuscleGroupBodyTile from './MuscleGroupBodyTile';
 import ExerciseLikeButton from './ExerciseLikeButton';
 
 interface ExerciseGroupCardProps {
@@ -155,11 +155,11 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
         accessibilityLabel={exercise.name}
         accessibilityState={{ selected: !!isSelected, disabled: !!isDisabled }}
       >
-        {/* Muscle-group color disc: makes a 300-row list scannable by hue (all
-            chest work reads red before you read a word). */}
-        <MuscleGroupDisc
+        {/* Mini body map: the group's muscles lit on a silhouette — all chest
+            work reads as a red-chested figure before you read a word. */}
+        <MuscleGroupBodyTile
           group={exercise.primaryMuscleGroup}
-          size={40}
+          size={44}
           style={styles.muscleDisc}
         />
         <View style={styles.titleCol}>

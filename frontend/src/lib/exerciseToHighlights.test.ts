@@ -1,4 +1,8 @@
-import { exerciseToHighlights, pickBodyMapView } from './exerciseToHighlights';
+import {
+  exerciseToHighlights,
+  muscleGroupToHighlights,
+  pickBodyMapView,
+} from './exerciseToHighlights';
 
 const intensityOf = (
   result: ReturnType<typeof exerciseToHighlights>,
@@ -94,6 +98,29 @@ describe('exerciseToHighlights', () => {
       subMuscles: ['Calves'],
     });
     expect(result!.view).toBe('back');
+  });
+});
+
+describe('muscleGroupToHighlights', () => {
+  it('lights the whole group at full intensity (case-insensitive)', () => {
+    const result = muscleGroupToHighlights('chest');
+    expect(result!.view).toBe('front');
+    expect(result!.highlights).toEqual([
+      { region: 'Upper Chest', intensity: 1 },
+      { region: 'Mid Chest', intensity: 1 },
+      { region: 'Lower Chest', intensity: 1 },
+    ]);
+  });
+
+  it('picks the back view for back-dominant groups', () => {
+    expect(muscleGroupToHighlights('Back')!.view).toBe('back');
+  });
+
+  it('returns null for cardio and unknown groups (caller keeps the disc)', () => {
+    expect(muscleGroupToHighlights('Cardio')).toBeNull();
+    expect(muscleGroupToHighlights('Mystery')).toBeNull();
+    expect(muscleGroupToHighlights(undefined)).toBeNull();
+    expect(muscleGroupToHighlights(null)).toBeNull();
   });
 });
 
