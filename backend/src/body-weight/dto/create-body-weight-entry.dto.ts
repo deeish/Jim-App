@@ -3,6 +3,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -15,10 +16,18 @@ export class CreateBodyWeightEntryDto {
   @Max(1500)
   weightLb: number;
 
-  /** Weigh-in date (ISO). Defaults to now when omitted. */
+  /** Weigh-in instant (ISO). Defaults to now when omitted. */
   @IsOptional()
   @IsDateString()
   loggedAt?: string;
+
+  /**
+   * The user's local calendar day (YYYY-MM-DD) for the weigh-in — one entry
+   * per day. Falls back to loggedAt's UTC day when omitted.
+   */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  dayKey?: string;
 
   @IsOptional()
   @IsString()

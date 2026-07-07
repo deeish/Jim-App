@@ -1,48 +1,38 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBodyWeightEntryDto } from './dto/create-body-weight-entry.dto';
 
 @Injectable()
 export class BodyWeightService {
-  private readonly logger = new Logger(BodyWeightService.name);
-
   constructor(private readonly prisma: PrismaService) {}
 
   /** Record a weigh-in. The AuthGuard upserts the user, so the FK is always satisfied. */
   async create(userId: string, dto: CreateBodyWeightEntryDto) {
     const loggedAt = dto.loggedAt ? new Date(dto.loggedAt) : new Date();
-    // One weigh-in per calendar day: a new entry on the same day replaces the
-    // earlier one, so the trend stays one point per day.
-    const dayStart = new Date(
-      Date.UTC(
-        loggedAt.getUTCFullYear(),
-        loggedAt.getUTCMonth(),
-        loggedAt.getUTCDate(),
-      ),
-    );
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    // Clear the day then insert atomically, so a mid-operation failure can never
-    // leave the day with its old entry deleted and no replacement.
-    const [, created] = await this.prisma.$transaction([
-      this.prisma.bodyWeightEntry.deleteMany({
-        where: { userId, loggedAt: { gte: dayStart, lt: dayEnd } },
-      }),
-      this.prisma.bodyWeightEntry.create({
-        data: {
-          userId,
-          weightLb: dto.weightLb,
-          loggedAt,
-          note: dto.note?.trim() || null,
-        },
-      }),
-    ]);
-    return created;
+    // One weigh-in per calendar day, keyed by the *user's* local day (sent by
+    // the client) — bucketing by UTC day made a US evening entry replace the
+    // previous local day's. UTC-day fallback covers clients that omit it.
+    const dayKey = dto.dayKey ?? loggedAt.toISOString().slice(0, 10);
+    const data = {
+      weightLb: dto.weightLb,
+      loggedAt,
+      note: dto.note?.trim() || null,
+    };
+    return this.prisma.bodyWeightEntry.upsert({
+      where: { userId_dayKey: { userId, dayKey } },
+      create: { userId, dayKey, ...data },
+      update: data,
+    });
   }
 
-  /** Weigh-ins newest first; pass a positive limit to cap the result set. */
+  /**
+   * Weigh-ins newest first; pass a positive limit to cap the result set.
+   * Uncapped requests default to a year so the payload stays bounded as
+   * history grows.
+   */
   async findAll(userId: string, opts?: { limit?: number }) {
     const take =
-      opts?.limit && opts.limit > 0 ? Math.min(opts.limit, 1000) : undefined;
+      opts?.limit && opts.limit > 0 ? Math.min(opts.limit, 1000) : 365;
     return this.prisma.bodyWeightEntry.findMany({
       where: { userId },
       orderBy: { loggedAt: 'desc' },

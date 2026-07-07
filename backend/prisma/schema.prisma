@@ -272,12 +272,14 @@ model BodyWeightEntry {
   id        String   @id @default(uuid())
   userId    String
   weightLb  Float                  // canonical unit is pounds (see weightDisplay.ts)
-  loggedAt  DateTime               // weigh-in date (client-supplied; defaults to now on create)
+  loggedAt  DateTime               // weigh-in instant (client-supplied; defaults to now on create)
+  dayKey    String                 // user-local calendar day YYYY-MM-DD; one weigh-in per day
   note      String?
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("body_weight_entries")
+  @@unique([userId, dayKey])
   @@index([userId, loggedAt])
 }
