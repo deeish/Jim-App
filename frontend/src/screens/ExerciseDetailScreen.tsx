@@ -20,7 +20,7 @@ import type { RootStackParamList } from '../types/navigation';
 import { getExerciseById, Exercise, getSavedExerciseIds, saveExercise, unsaveExercise } from '../services/exerciseService';
 import { useTheme } from '../theme/ThemeContext';
 import { getMuscleGroupVisual } from '../constants/muscleGroupMeta';
-import MuscleGroupBodyTile from '../components/MuscleGroupBodyTile';
+import MuscleBodyTile from '../components/MuscleBodyTile';
 import MuscleBodyMap from '../components/bodymap/MuscleBodyMap';
 import { exerciseToHighlights } from '../lib/exerciseToHighlights';
 import ExerciseLikeButton from '../components/ExerciseLikeButton';
@@ -375,7 +375,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           <View style={styles.titleLeft}>
             {/* Same mini body-map tile as the list rows, at hero size — the
                 mark the user tapped carries through to the screen they land on. */}
-            <MuscleGroupBodyTile group={exercise.primaryMuscleGroup} size={48} />
+            <MuscleBodyTile exercise={exercise} size={48} />
             <Text style={styles.exerciseName}>{exercise.name}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

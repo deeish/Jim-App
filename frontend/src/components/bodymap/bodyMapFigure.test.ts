@@ -1,6 +1,6 @@
 import { buildBodyMapFigure, focusWindow, tileWindow } from './bodyMapFigure';
 import { BODY_MAP_REGIONS } from './bodyMapPaths';
-import { muscleGroupToHighlights } from '../../lib/exerciseToHighlights';
+import { exerciseToTileHighlights } from '../../lib/exerciseToHighlights';
 
 describe('buildBodyMapFigure', () => {
   it('sizes from the rendered height with the viewbox ratio', () => {
@@ -100,7 +100,7 @@ describe('focusWindow', () => {
 
   it('gives the tile frame a square window that fills a square tile', () => {
     const figure = buildBodyMapFigure({
-      highlights: muscleGroupToHighlights('Chest')!.highlights,
+      highlights: exerciseToTileHighlights({ primaryMuscleGroup: 'Chest' })!.highlights,
       view: 'front',
       size: 44,
       isDark: true,
@@ -128,7 +128,8 @@ describe('focusWindow', () => {
 });
 
 describe('tileWindow', () => {
-  const groupHighlights = (group: string) => muscleGroupToHighlights(group)!.highlights;
+  const groupHighlights = (group: string) =>
+    exerciseToTileHighlights({ primaryMuscleGroup: group })!.highlights;
 
   it('returns the full body when there is nothing to frame', () => {
     expect(tileWindow([])).toEqual({ x: 0, y: 0, w: 200, h: 440, fadeTop: false, fadeBottom: false });
@@ -149,6 +150,18 @@ describe('tileWindow', () => {
       expect(win.y).toBe(0);
       expect(win.fadeTop).toBe(false);
       expect(win.fadeBottom).toBe(true);
+    }
+  });
+
+  it('keeps any single region fully in frame (per-exercise tiles)', () => {
+    for (const view of ['front', 'back'] as const) {
+      for (const [key, region] of Object.entries(BODY_MAP_REGIONS[view])) {
+        const win = tileWindow([{ region: key, intensity: 1 }]);
+        expect(win.y).toBeLessThanOrEqual(region.bounds.y0);
+        expect(win.y + win.h).toBeGreaterThanOrEqual(region.bounds.y1);
+        expect(win.x).toBeLessThanOrEqual(region.bounds.x0);
+        expect(win.x + win.w).toBeGreaterThanOrEqual(region.bounds.x1);
+      }
     }
   });
 

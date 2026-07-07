@@ -1,6 +1,6 @@
 import {
   exerciseToHighlights,
-  muscleGroupToHighlights,
+  exerciseToTileHighlights,
   pickBodyMapView,
 } from './exerciseToHighlights';
 
@@ -101,10 +101,30 @@ describe('exerciseToHighlights', () => {
   });
 });
 
-describe('muscleGroupToHighlights', () => {
-  it('lights the whole group at full intensity (case-insensitive)', () => {
-    const result = muscleGroupToHighlights('chest');
-    expect(result!.view).toBe('front');
+describe('exerciseToTileHighlights', () => {
+  it('keeps primaries and drops the secondary washes', () => {
+    const result = exerciseToTileHighlights({
+      primaryMuscleGroup: 'Chest',
+      subMuscles: ['Upper Chest'],
+      secondaryMuscleGroups: ['Shoulders', 'Arms'],
+    });
+    expect(result!.highlights).toEqual([{ region: 'Upper Chest', intensity: 1 }]);
+  });
+
+  it('picks the view from primaries alone', () => {
+    // The hero view for this would be front (six 0.4 core/chest regions outweigh
+    // one calf); the tile must stay on the muscle the exercise is named for.
+    const result = exerciseToTileHighlights({
+      primaryMuscleGroup: 'Legs',
+      subMuscles: ['Calves'],
+      secondaryMuscleGroups: ['Core', 'Chest'],
+    });
+    expect(result!.view).toBe('back');
+    expect(result!.highlights).toEqual([{ region: 'Calves', intensity: 1 }]);
+  });
+
+  it('still glows the whole group when sub-muscle data is missing', () => {
+    const result = exerciseToTileHighlights({ primaryMuscleGroup: 'Chest' });
     expect(result!.highlights).toEqual([
       { region: 'Upper Chest', intensity: 1 },
       { region: 'Mid Chest', intensity: 1 },
@@ -112,15 +132,9 @@ describe('muscleGroupToHighlights', () => {
     ]);
   });
 
-  it('picks the back view for back-dominant groups', () => {
-    expect(muscleGroupToHighlights('Back')!.view).toBe('back');
-  });
-
-  it('returns null for cardio and unknown groups (caller keeps the disc)', () => {
-    expect(muscleGroupToHighlights('Cardio')).toBeNull();
-    expect(muscleGroupToHighlights('Mystery')).toBeNull();
-    expect(muscleGroupToHighlights(undefined)).toBeNull();
-    expect(muscleGroupToHighlights(null)).toBeNull();
+  it('returns null for cardio/unknown (caller keeps the disc)', () => {
+    expect(exerciseToTileHighlights({ primaryMuscleGroup: 'Cardio' })).toBeNull();
+    expect(exerciseToTileHighlights({})).toBeNull();
   });
 });
 
