@@ -89,6 +89,63 @@ describe('resolveHomeToday', () => {
     expect(r.status).toBe('scheduled');
     if (r.status === 'scheduled') expect(r.workout.id).toBe('w1');
   });
+
+  it('repeats the last program week after the program ends instead of going out_of_program', () => {
+    // 1-week plan anchored to LAST Monday — the "my plan disappeared" repro.
+    const plan: ApiPlan = {
+      id: 'p1',
+      name: 'Test',
+      userId: 'u1',
+      createdAt: '',
+      updatedAt: '',
+      weekAnchorMonday: '2026-03-30',
+      planWorkouts: [
+        {
+          id: 'slot1',
+          workoutPlanId: 'p1',
+          weekNumber: 1,
+          dayOfWeek: 'Monday',
+          title: 'Push',
+          detailLine: null,
+          type: 'strength',
+          durationMinutes: 45,
+          intensity: null,
+          orderInDay: 0,
+        },
+      ],
+    };
+    const r = resolveHomeToday(plan, []);
+    expect(r.status).toBe('planned_pending');
+    expect(r.repeatingWeek).toBe(1);
+  });
+
+  it('stays out_of_program when the anchor is in the future (no backward roll)', () => {
+    const plan: ApiPlan = {
+      id: 'p1',
+      name: 'Test',
+      userId: 'u1',
+      createdAt: '',
+      updatedAt: '',
+      weekAnchorMonday: '2026-04-13',
+      planWorkouts: [
+        {
+          id: 'slot1',
+          workoutPlanId: 'p1',
+          weekNumber: 1,
+          dayOfWeek: 'Monday',
+          title: 'Push',
+          detailLine: null,
+          type: 'strength',
+          durationMinutes: 45,
+          intensity: null,
+          orderInDay: 0,
+        },
+      ],
+    };
+    const r = resolveHomeToday(plan, []);
+    expect(r.status).toBe('out_of_program');
+    expect(r.repeatingWeek).toBeUndefined();
+  });
 });
 
 describe('buildHomeWeekDots', () => {

@@ -39,7 +39,7 @@ import {
   type HomeWeekDotStatus,
 } from '../lib/homeToday';
 import {
-  programWeekForCalendarOffset,
+  resolveProgramWeekForCalendarOffset,
   normalizeProgramWeekNumber,
   getCalendarWeekRange,
   formatLocalYmd,
@@ -319,17 +319,15 @@ export default function HomeScreen() {
   const programWeekInfo = useMemo(() => {
     if (!plan?.planWorkouts?.length) return null;
     const maxWeek = Math.max(...plan.planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)));
-    const current = programWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek);
-    if (current == null) return null;
-    return { current, total: maxWeek };
+    const r = resolveProgramWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek);
+    if (r.status !== 'in_program') return null;
+    return { current: r.week, total: maxWeek, repeating: r.repeatingLastWeek };
   }, [plan]);
 
-  const weekDots = useMemo(() => {
-    if (!plan?.planWorkouts?.length) return [];
-    const maxWeek = Math.max(...plan.planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)));
-    const currentWeek = programWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek);
-    return buildHomeWeekDots(plan, weeklyWorkouts, weekCompletedLogs, currentWeek);
-  }, [plan, weeklyWorkouts, weekCompletedLogs]);
+  const weekDots = useMemo(
+    () => buildHomeWeekDots(plan, weeklyWorkouts, weekCompletedLogs, programWeekInfo?.current ?? null),
+    [plan, weeklyWorkouts, weekCompletedLogs, programWeekInfo],
+  );
 
   const scheduledWorkout = homeToday?.status === 'scheduled' ? homeToday.workout : null;
   const homeTodayPlanSlot = useMemo(
@@ -448,7 +446,12 @@ export default function HomeScreen() {
       >
         <Text style={[styles.greeting, { color: colors.text }]}>{getGreeting(displayName || undefined)}</Text>
         <Text style={[styles.dateLine, { color: colors.textMuted }]}>
-          {formatTodayDateLine()}{programWeekInfo ? ` · Week ${programWeekInfo.current} of ${programWeekInfo.total}` : ''}
+          {formatTodayDateLine()}
+          {programWeekInfo
+            ? programWeekInfo.repeating
+              ? ` · Repeating week ${programWeekInfo.current}`
+              : ` · Week ${programWeekInfo.current} of ${programWeekInfo.total}`
+            : ''}
         </Text>
 
         {loading ? (
@@ -668,6 +671,23 @@ export default function HomeScreen() {
                   <Ionicons name="chevron-forward" size={18} color={colors.primary} />
                 </TouchableOpacity>
               </View>
+            ) : null}
+
+            {!loadError && homeToday?.repeatingWeek != null ? (
+              <TouchableOpacity
+                style={[styles.card, styles.repeatBanner, themedStyles.secondaryCard]}
+                onPress={goToGeneratePlan}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityHint="Opens AI plan generator"
+              >
+                <Ionicons name="repeat" size={18} color={colors.primary} />
+                <Text style={[styles.repeatBannerText, { color: colors.textSecondary }]}>
+                  Your plan ended, so you're repeating week {homeToday.repeatingWeek}. Generate a
+                  fresh block to keep progressing.
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+              </TouchableOpacity>
             ) : null}
 
             {!loadError && weekDots.length > 0 && (
@@ -1004,6 +1024,19 @@ const styles = StyleSheet.create({
   menuDivider: {
     height: 1,
     marginLeft: 16,
+  },
+  repeatBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  repeatBannerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
   },
   weekDotsSection: {},
   dotsRow: {

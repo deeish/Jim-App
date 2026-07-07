@@ -3,6 +3,8 @@ import {
   PLAN_CALENDAR_LOOKBACK_WEEKS,
   getPlanCalendarWeekNavigationBounds,
   normalizePlanDayOfWeek,
+  programWeekForCalendarOffset,
+  resolveProgramWeekForCalendarOffset,
 } from './planCalendar';
 
 describe('normalizePlanDayOfWeek', () => {
@@ -62,5 +64,88 @@ describe('getPlanCalendarWeekNavigationBounds', () => {
       min: 0,
       max: PLAN_CALENDAR_LOOKAHEAD_WEEKS,
     });
+  });
+});
+
+describe('resolveProgramWeekForCalendarOffset', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    // Monday Apr 6, 2026 (local)
+    jest.setSystemTime(new Date(2026, 3, 6, 12, 0, 0));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('maps calendar weeks inside an anchored program normally', () => {
+    // Anchor last Monday, 4-week program → this week is program week 2.
+    expect(resolveProgramWeekForCalendarOffset(0, '2026-03-30', 4)).toEqual({
+      status: 'in_program',
+      week: 2,
+      repeatingLastWeek: false,
+    });
+    expect(resolveProgramWeekForCalendarOffset(-1, '2026-03-30', 4)).toEqual({
+      status: 'in_program',
+      week: 1,
+      repeatingLastWeek: false,
+    });
+  });
+
+  it('repeats the last program week once the program window has passed (the P0 cliff)', () => {
+    // 1-week plan anchored last Monday: this calendar week used to resolve to null
+    // and blank Home/Plan/Workout. Now it clamps to week 1 and flags the repeat.
+    expect(resolveProgramWeekForCalendarOffset(0, '2026-03-30', 1)).toEqual({
+      status: 'in_program',
+      week: 1,
+      repeatingLastWeek: true,
+    });
+    // Multi-week plans clamp (repeat week N), not cycle back to week 1.
+    expect(resolveProgramWeekForCalendarOffset(5, '2026-03-30', 4)).toEqual({
+      status: 'in_program',
+      week: 4,
+      repeatingLastWeek: true,
+    });
+  });
+
+  it('never rolls a future-anchored program backward', () => {
+    expect(resolveProgramWeekForCalendarOffset(0, '2026-04-13', 4)).toEqual({
+      status: 'before_program',
+    });
+  });
+
+  it('keeps legacy (anchorless) offset+1 mapping without clamping', () => {
+    expect(resolveProgramWeekForCalendarOffset(0, null, 2)).toEqual({
+      status: 'in_program',
+      week: 1,
+      repeatingLastWeek: false,
+    });
+    expect(resolveProgramWeekForCalendarOffset(2, null, 2)).toEqual({ status: 'out_of_program' });
+    expect(resolveProgramWeekForCalendarOffset(-1, null, 2)).toEqual({ status: 'out_of_program' });
+  });
+
+  it('treats an empty program as out of program', () => {
+    expect(resolveProgramWeekForCalendarOffset(0, '2026-03-30', 0)).toEqual({
+      status: 'out_of_program',
+    });
+  });
+});
+
+describe('programWeekForCalendarOffset (strict)', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 3, 6, 12, 0, 0));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('still returns null outside the native program window (no clamping)', () => {
+    expect(programWeekForCalendarOffset(0, '2026-03-30', 1)).toBeNull();
+    expect(programWeekForCalendarOffset(0, '2026-04-13', 4)).toBeNull();
+    expect(programWeekForCalendarOffset(0, '2026-03-30', 4)).toBe(2);
+    expect(programWeekForCalendarOffset(0, null, 2)).toBe(1);
+    expect(programWeekForCalendarOffset(3, null, 2)).toBeNull();
   });
 });
