@@ -231,8 +231,11 @@ export default function HomeScreen() {
     (parent as { navigate?: (name: keyof RootNavigatorParamList) => void })?.navigate?.('Profile');
   };
 
+  // initial: false keeps PlanList as the stack's first route even when the Plan
+  // tab hasn't been mounted yet, so Back on these screens pops to the plan page
+  // instead of having nothing beneath.
   const goToHistory = () => {
-    navigation.navigate('Plan', { screen: 'History' });
+    navigation.navigate('Plan', { screen: 'History', initial: false });
   };
 
   const goToPlan = () => {
@@ -240,7 +243,7 @@ export default function HomeScreen() {
   };
 
   const goToGeneratePlan = () => {
-    navigation.navigate('Plan', { screen: 'GeneratePlan' });
+    navigation.navigate('Plan', { screen: 'GeneratePlan', initial: false });
   };
 
   const goToWorkout = () => {

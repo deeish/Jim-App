@@ -571,6 +571,13 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     setResumeDraft(null);
     void clearPlanPreviewDraft();
   }, []);
+
+  // From Home/onboarding the Plan stack can mount with this screen as its only
+  // route — nothing to pop, so fall back to the plan list (same pattern as History).
+  const handleBack = useCallback(() => {
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('PlanList');
+  }, [navigation]);
   const [showRecommendationDetails, setShowRecommendationDetails] = useState(false);
   const [showCustomSplitSheet, setShowCustomSplitSheet] = useState(false);
   const [customSplitDraft, setCustomSplitDraft] = useState<CustomSplitData>({ templates: [], rotationRule: 'repeat_weekly', abs: 'none', cardio: 'none' });
@@ -1060,7 +1067,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     <View style={styles.outerContainer}>
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backButtonText}>← Back</Text>
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
