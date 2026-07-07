@@ -17,12 +17,16 @@ Steps 1–5 IMPLEMENTED on `feat/exercises-ux` (commits `ce36f38`, `39e568d`,
 detail-screen hero live. On-device look of the hero still pending (fold into
 the round-2 walkthrough below).
 
-Step 6 (row swap) DONE at group granularity: `MuscleGroupBodyTile` replaces
-the glyph disc on rows and the detail title with a square-cropped mini body
-map (`tileWindow` frame in `bodyMapFigure.ts`). Group-level means only seven
-figure variants exist across the whole list, which sidesteps most of the
-Android scroll-profiling concern — still worth a scroll check on a real
-Android device during the walkthrough. Cardio keeps the heart-pulse disc.
+Step 6 (row swap) DONE, exercise-accurate: `MuscleBodyTile` replaces the
+glyph disc on rows and the detail title with a square-cropped mini body map
+(`tileWindow` frame in `bodyMapFigure.ts`) lighting the exercise's own
+primary regions (`exerciseToTileHighlights` — primaries only at tile size,
+secondaries stay on the hero; whole-group fallback when the catalog has no
+sub-muscle data). A leg curl reads hamstrings, a calf raise reads calves.
+Region-path parsing is cached per region app-wide, so per-exercise variants
+cost the same as repeated identical ones — still worth a scroll check on a
+real Android device during the walkthrough. Cardio keeps the heart-pulse
+disc.
 
 ## Carry-over items (still open, do not lose)
 
