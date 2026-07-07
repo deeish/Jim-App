@@ -28,14 +28,21 @@ import { RootTabParamList } from '../components/NavBar';
 import { showConfirmDialog } from '../lib/confirmAlert';
 import { getCurrentPlanWithWeekly, planSlotForWorkout } from '../services/planService';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
+import { getWorkoutLogs } from '../services/workoutService';
 import { loadWorkoutDraft } from '../lib/workoutDraftStorage';
-import type { Workout } from '../types/workout';
+import type { Workout, WorkoutLog } from '../types/workout';
 import type { PersistedWorkoutDraft } from '../lib/workoutDraftStorage';
-import { resolveHomeToday, buildPlanByWeek, planSlotLinksWeeklyWorkout, type HomeTodayResult } from '../lib/homeToday';
+import {
+  resolveHomeToday,
+  buildHomeWeekDots,
+  type HomeTodayResult,
+  type HomeWeekDotStatus,
+} from '../lib/homeToday';
 import {
   programWeekForCalendarOffset,
   normalizeProgramWeekNumber,
-  isRestPlanSlotTitle,
+  getCalendarWeekRange,
+  formatLocalYmd,
   PLAN_WEEKDAY_NAMES_MONDAY_FIRST,
 } from '../lib/planCalendar';
 import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
@@ -52,8 +59,6 @@ function getGreeting(firstName?: string): string {
   const time = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
   return firstName ? `Good ${time}, ${firstName}!` : `Good ${time}`;
 }
-
-type DotStatus = 'completed' | 'today' | 'scheduled' | 'rest';
 
 function formatTodayDateLine(): string {
   return new Date().toLocaleDateString('en-US', {
@@ -131,6 +136,8 @@ export default function HomeScreen() {
   const [draft, setDraft] = useState<PersistedWorkoutDraft | null>(null);
   const [plan, setPlan] = useState<ApiPlan | null>(null);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
+  /** Completed logs for the current calendar week — the only valid "done" signal for week dots. */
+  const [weekCompletedLogs, setWeekCompletedLogs] = useState<WorkoutLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isFirstLoad = useRef(true);
@@ -188,9 +195,17 @@ export default function HomeScreen() {
         setDraft(null);
       }
 
-      const { plan: fetchedPlan, weeklyWorkouts: fetchedWeekly } = await getCurrentPlanWithWeekly();
+      const { start, end } = getCalendarWeekRange(0);
+      const [{ plan: fetchedPlan, weeklyWorkouts: fetchedWeekly }, logs] = await Promise.all([
+        getCurrentPlanWithWeekly(),
+        // Graceful degradation: on error the dots simply show no completion.
+        getWorkoutLogs({ from: formatLocalYmd(start), to: formatLocalYmd(end) }).catch(
+          (): WorkoutLog[] => [],
+        ),
+      ]);
       setPlan(fetchedPlan ?? null);
       setWeeklyWorkouts(fetchedWeekly ?? []);
+      setWeekCompletedLogs(logs.filter((l) => l.completedAt != null));
       setHomeToday(resolveHomeToday(fetchedPlan, fetchedWeekly ?? []));
       setLoadError(null);
     } catch (err) {
@@ -309,28 +324,12 @@ export default function HomeScreen() {
     return { current, total: maxWeek };
   }, [plan]);
 
-  const weekDots = useMemo((): { status: DotStatus; name: string | null }[] => {
+  const weekDots = useMemo(() => {
     if (!plan?.planWorkouts?.length) return [];
     const maxWeek = Math.max(...plan.planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)));
     const currentWeek = programWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek);
-    if (currentWeek == null) return [];
-    const byWeek = buildPlanByWeek(plan.planWorkouts);
-    const thisWeek = byWeek[currentWeek] ?? {};
-    const todayIdx = new Date().getDay();
-    const todayName = PLAN_WEEKDAY_NAMES_MONDAY_FIRST[todayIdx === 0 ? 6 : todayIdx - 1];
-    return PLAN_WEEKDAY_NAMES_MONDAY_FIRST.map((day) => {
-      const slots = thisWeek[day] ?? [];
-      const nonRest = slots.filter((s) => !isRestPlanSlotTitle(s.title));
-      if (!nonRest.length) return { status: 'rest', name: null };
-      const name = nonRest[0].title ?? null;
-      const completed = nonRest.some((s) =>
-        weeklyWorkouts.some((w) => planSlotLinksWeeklyWorkout(s.id, w.planWorkoutId))
-      );
-      if (completed) return { status: 'completed', name };
-      if (day === todayName) return { status: 'today', name };
-      return { status: 'scheduled', name };
-    });
-  }, [plan, weeklyWorkouts]);
+    return buildHomeWeekDots(plan, weeklyWorkouts, weekCompletedLogs, currentWeek);
+  }, [plan, weeklyWorkouts, weekCompletedLogs]);
 
   const scheduledWorkout = homeToday?.status === 'scheduled' ? homeToday.workout : null;
   const homeTodayPlanSlot = useMemo(
@@ -676,7 +675,7 @@ export default function HomeScreen() {
                 <Text style={[styles.sectionLabel, styles.sectionSpaced, themedStyles.sectionLabel]}>This week</Text>
                 <View style={styles.dotsRow}>
                   {PLAN_WEEKDAY_NAMES_MONDAY_FIRST.map((day, i) => {
-                    const { status } = weekDots[i] ?? { status: 'rest' as DotStatus };
+                    const { status } = weekDots[i] ?? { status: 'rest' as HomeWeekDotStatus };
                     const isToday = day === todayWeekdayName;
                     const isTraining = status !== 'rest';
                     return (

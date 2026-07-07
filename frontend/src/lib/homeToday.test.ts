@@ -1,6 +1,6 @@
-import type { ApiPlan } from '../services/planService';
+import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import type { Workout } from '../types/workout';
-import { planSlotLinksWeeklyWorkout, resolveHomeToday } from './homeToday';
+import { buildHomeWeekDots, planSlotLinksWeeklyWorkout, resolveHomeToday } from './homeToday';
 
 describe('planSlotLinksWeeklyWorkout', () => {
   it('returns true when string ids match', () => {
@@ -88,5 +88,92 @@ describe('resolveHomeToday', () => {
     const r = resolveHomeToday(plan, weekly);
     expect(r.status).toBe('scheduled');
     if (r.status === 'scheduled') expect(r.workout.id).toBe('w1');
+  });
+});
+
+describe('buildHomeWeekDots', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    // Monday Apr 6, 2026 (local) — matches planCalendar tests
+    jest.setSystemTime(new Date(2026, 3, 6, 12, 0, 0));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  const slot = (id: string, dayOfWeek: string, title = 'Push'): ApiPlanWorkout => ({
+    id,
+    workoutPlanId: 'p1',
+    weekNumber: 1,
+    dayOfWeek,
+    title,
+    detailLine: null,
+    type: 'strength',
+    durationMinutes: 45,
+    intensity: null,
+    orderInDay: 0,
+  });
+
+  const planWith = (slots: ApiPlanWorkout[]): ApiPlan => ({
+    id: 'p1',
+    name: 'Test',
+    userId: 'u1',
+    createdAt: '',
+    updatedAt: '',
+    planWorkouts: slots,
+  });
+
+  const linked = (workoutId: string, slotId: string): Workout => ({
+    id: workoutId,
+    name: 'Push',
+    exercises: [],
+    planWorkoutId: slotId,
+  });
+
+  it('does not mark a day completed just because its workout row was materialized', () => {
+    // Applying an AI plan materializes Workout rows for every slot upfront —
+    // with no completed log, today must stay "today", not flip to "completed".
+    const plan = planWith([slot('slot-mon', 'Monday'), slot('slot-wed', 'Wednesday')]);
+    const weekly = [linked('w-mon', 'slot-mon'), linked('w-wed', 'slot-wed')];
+    const dots = buildHomeWeekDots(plan, weekly, [], 1);
+    expect(dots[0]).toEqual({ status: 'today', name: 'Push' });
+    expect(dots[2]).toEqual({ status: 'scheduled', name: 'Push' });
+  });
+
+  it('marks a day completed only from a completed log for its linked workout', () => {
+    const plan = planWith([slot('slot-mon', 'Monday'), slot('slot-wed', 'Wednesday')]);
+    const weekly = [linked('w-mon', 'slot-mon'), linked('w-wed', 'slot-wed')];
+    const dots = buildHomeWeekDots(
+      plan,
+      weekly,
+      [{ workoutId: 'w-mon', completedAt: '2026-04-06T10:00:00.000Z' }],
+      1,
+    );
+    expect(dots[0]).toEqual({ status: 'completed', name: 'Push' });
+    expect(dots[2]).toEqual({ status: 'scheduled', name: 'Push' });
+  });
+
+  it('ignores logs without completedAt and logs for unrelated workouts', () => {
+    const plan = planWith([slot('slot-mon', 'Monday')]);
+    const weekly = [linked('w-mon', 'slot-mon')];
+    const dots = buildHomeWeekDots(
+      plan,
+      weekly,
+      [
+        { workoutId: 'w-mon', completedAt: null },
+        { workoutId: 'w-other', completedAt: '2026-04-06T10:00:00.000Z' },
+      ],
+      1,
+    );
+    expect(dots[0].status).toBe('today');
+  });
+
+  it('renders rest for days without slots and returns [] outside the program', () => {
+    const plan = planWith([slot('slot-mon', 'Monday')]);
+    const dots = buildHomeWeekDots(plan, [], [], 1);
+    expect(dots[1]).toEqual({ status: 'rest', name: null });
+    expect(buildHomeWeekDots(plan, [], [], null)).toEqual([]);
+    expect(buildHomeWeekDots(null, [], [], 1)).toEqual([]);
   });
 });

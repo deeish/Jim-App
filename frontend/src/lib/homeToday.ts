@@ -3,7 +3,7 @@
  * (calendar week 0 + program week mapping + day slots + linked weekly workouts).
  */
 
-import type { Workout } from '../types/workout';
+import type { Workout, WorkoutLog } from '../types/workout';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import {
   isRestPlanSlotTitle,
@@ -54,6 +54,42 @@ export function buildPlanByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, 
       byWeek[wn][day].push(pw);
     });
   return byWeek;
+}
+
+export type HomeWeekDotStatus = 'completed' | 'today' | 'scheduled' | 'rest';
+export type HomeWeekDot = { status: HomeWeekDotStatus; name: string | null };
+
+/**
+ * Week-strip dots for Home (Monday-first). A day is "completed" only when a
+ * completed WorkoutLog from the current calendar week points at a workout
+ * linked to one of its slots. Applying a plan materializes Workout rows for
+ * every slot upfront, so row existence must never be used as a done signal
+ * (that made every dot render solid the moment a generated plan was applied).
+ */
+export function buildHomeWeekDots(
+  plan: ApiPlan | null | undefined,
+  weeklyWorkouts: Workout[],
+  completedLogs: Pick<WorkoutLog, 'workoutId' | 'completedAt'>[],
+  currentProgramWeek: number | null,
+): HomeWeekDot[] {
+  const list = plan?.planWorkouts;
+  if (!list?.length || currentProgramWeek == null) return [];
+  const thisWeek = buildPlanByWeek(list)[currentProgramWeek] ?? {};
+  const todayName = planWeekdayNameLocal();
+  return DAYS.map((day) => {
+    const slots = thisWeek[day] ?? [];
+    const nonRest = slots.filter((s) => !isRestPlanSlotTitle(s.title));
+    if (!nonRest.length) return { status: 'rest', name: null };
+    const name = nonRest[0].title ?? null;
+    const completed = nonRest.some((s) => {
+      const linked = weeklyWorkouts.find((w) => planSlotLinksWeeklyWorkout(s.id, w.planWorkoutId));
+      if (!linked?.id) return false;
+      return completedLogs.some((l) => l.completedAt != null && l.workoutId === linked.id);
+    });
+    if (completed) return { status: 'completed', name };
+    if (day === todayName) return { status: 'today', name };
+    return { status: 'scheduled', name };
+  });
 }
 
 export type HomeTodayResult =
