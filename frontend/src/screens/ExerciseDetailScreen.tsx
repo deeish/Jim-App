@@ -275,12 +275,6 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   }, [exerciseId, loadExercise]);
 
   const handleBack = useCallback(() => {
-    if (returnToPlanExerciseContext === 'workoutDetail') {
-      resetSearchStackToSearchList(navigation);
-      const tabNav = getBottomTabNavigator(navigation);
-      tabNav?.navigate('Plan');
-      return;
-    }
     if (returnToPlanExerciseContext === 'workout') {
       resetSearchStackToSearchList(navigation);
       const tabNav = getBottomTabNavigator(navigation);
@@ -288,9 +282,12 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
       return;
     }
     if (leaveExerciseForPlanFlow) {
+      // 'preview' | 'calendar' | 'workoutDetail': the originating screen is still
+      // on the Plan stack, so focusing the Plan tab is a true "back" (landing on
+      // the Exercises list here stranded users outside their plan flow).
       resetSearchStackToSearchList(navigation);
       const tabNav = getBottomTabNavigator(navigation);
-      tabNav?.navigate('Search', { screen: 'SearchList' });
+      tabNav?.navigate('Plan');
       return;
     }
     navigation.goBack();
