@@ -145,9 +145,14 @@ export function calendarMondayForOffsetFromToday(weekOffset: number): Date {
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Whole calendar weeks from `from` to `to` (both local-midnight week Mondays). */
-function wholeWeeksBetween(from: Date, to: Date): number {
-  return Math.floor((to.getTime() - from.getTime()) / WEEK_MS);
+/**
+ * Whole calendar weeks from `from` to `to` (both local-midnight week Mondays).
+ * Monday-to-Monday spans are only ever a whole number of weeks ± the DST hour,
+ * so round: with floor, a spring-forward week (7d − 1h) mapped to the previous
+ * program week for its entire duration.
+ */
+export function wholeWeeksBetween(from: Date, to: Date): number {
+  return Math.round((to.getTime() - from.getTime()) / WEEK_MS);
 }
 
 export function getCalendarWeekRange(weekOffsetFromThisWeek: number): { start: Date; end: Date } {
@@ -185,8 +190,7 @@ export function getPlanCalendarWeekNavigationBounds(anchorYmdRaw: string | null 
   const anchorMonday = parseLocalYmd(anchorYmd);
   todayMonday.setHours(0, 0, 0, 0);
   anchorMonday.setHours(0, 0, 0, 0);
-  const diffMs = anchorMonday.getTime() - todayMonday.getTime();
-  const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+  const diffWeeks = wholeWeeksBetween(todayMonday, anchorMonday);
   // When the anchor is in the future, diffWeeks > 0: still allow offset 0 (this week) and earlier
   // offsets are not meaningful for "program start", so min stays 0 like legacy.
   // When anchor is this week or in the past, diffWeeks <= 0: min is the strip offset of program week 1’s Monday, capped at -12.
@@ -271,6 +275,5 @@ export function programWeekNumberForSlotWeek(
   if (Number.isNaN(anchor.getTime())) return 1;
   anchor.setHours(0, 0, 0, 0);
   slotMon.setHours(0, 0, 0, 0);
-  const diffWeeks = Math.floor((slotMon.getTime() - anchor.getTime()) / (7 * 24 * 60 * 60 * 1000));
-  return diffWeeks + 1;
+  return wholeWeeksBetween(anchor, slotMon) + 1;
 }

@@ -5,7 +5,32 @@ import {
   normalizePlanDayOfWeek,
   programWeekForCalendarOffset,
   resolveProgramWeekForCalendarOffset,
+  wholeWeeksBetween,
 } from './planCalendar';
+
+describe('wholeWeeksBetween', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const HOUR_MS = 60 * 60 * 1000;
+  const at = (ms: number) => new Date(ms);
+
+  it('counts exact Monday-to-Monday spans', () => {
+    expect(wholeWeeksBetween(at(0), at(0))).toBe(0);
+    expect(wholeWeeksBetween(at(0), at(7 * DAY_MS))).toBe(1);
+    expect(wholeWeeksBetween(at(0), at(21 * DAY_MS))).toBe(3);
+    expect(wholeWeeksBetween(at(7 * DAY_MS), at(0))).toBe(-1);
+  });
+
+  it('absorbs the DST hour in both directions (floor mapped a whole spring-forward week wrong)', () => {
+    // Spring forward: local Monday-midnight to next Monday-midnight is 7d − 1h.
+    expect(wholeWeeksBetween(at(0), at(7 * DAY_MS - HOUR_MS))).toBe(1);
+    // Fall back: 7d + 1h.
+    expect(wholeWeeksBetween(at(0), at(7 * DAY_MS + HOUR_MS))).toBe(1);
+    // Same, looking backward across fall-back (floor gave -2 here).
+    expect(wholeWeeksBetween(at(7 * DAY_MS + HOUR_MS), at(0))).toBe(-1);
+    // Multi-week span crossing one transition.
+    expect(wholeWeeksBetween(at(0), at(28 * DAY_MS - HOUR_MS))).toBe(4);
+  });
+});
 
 describe('normalizePlanDayOfWeek', () => {
   it('normalizes full names case-insensitively', () => {
