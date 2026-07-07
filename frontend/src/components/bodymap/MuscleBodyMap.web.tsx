@@ -84,7 +84,17 @@ function MuscleBodyMap({
                 <SvgStop offset={1 - fadeFraction} stopColor="#fff" stopOpacity={1} />
                 <SvgStop offset="1" stopColor="#fff" stopOpacity={win.fadeBottom ? 0 : 1} />
               </SvgLinearGradient>
-              <SvgMask id={maskId} maskUnits="userSpaceOnUse">
+              {/* Explicit mask region: the default (-10%..120% of the viewport)
+                  does not pan with the viewBox, so low camera windows (legs)
+                  would fall outside it and clip to nothing. */}
+              <SvgMask
+                id={maskId}
+                maskUnits="userSpaceOnUse"
+                x={win.x}
+                y={win.y}
+                width={win.w}
+                height={win.h}
+              >
                 <SvgRect
                   x={win.x}
                   y={win.y}
