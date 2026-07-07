@@ -25,6 +25,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-07-07',
+    version: '1.0.0',
+    date: '2026-07-07',
+    title: 'Your plan sticks around',
+    changes: [
+      { type: 'fixed', text: 'Plans now repeat their final week when the program ends instead of going blank.' },
+      { type: 'fixed', text: 'Generated previews are saved, so you can resume one if the app closes before you apply it.' },
+      { type: 'fixed', text: 'Home only marks a day complete after you finish that workout.' },
+      { type: 'improved', text: 'A clearer message when you reach the daily AI generation limit.' },
+    ],
+  },
+  {
     id: '2026-06-29',
     version: '1.0.0',
     date: '2026-06-29',
