@@ -717,9 +717,22 @@ async function stages5And6FromApi(
   return { weeks, rawGrokResponse: sessions, generationNotes };
 }
 
-function pipelineStage5CatchMessage(error: unknown): string {
+/** Shown when the backend rate-limits generation (burst and daily limits share one 429). */
+export const GENERATE_SESSIONS_RATE_LIMIT_MESSAGE =
+  "You've hit the AI generation limit. Wait a minute and try again; if you've generated a lot today, it resets tomorrow.";
+
+/** True when the backend rejected the request with HTTP 429 (AI rate limit). */
+function isRateLimitError(error: unknown): boolean {
+  const status = (error as { response?: { status?: number } } | null)?.response?.status;
+  return status === 429;
+}
+
+export function pipelineStage5CatchMessage(error: unknown): string {
   if (isGenerateSessionsTimeoutError(error)) {
     return GENERATE_SESSIONS_TIMEOUT_MESSAGE;
+  }
+  if (isRateLimitError(error)) {
+    return GENERATE_SESSIONS_RATE_LIMIT_MESSAGE;
   }
   return error instanceof Error ? error.message : String(error);
 }
