@@ -57,6 +57,11 @@ import {
 } from '../lib/previewExerciseMeta';
 import type { ExerciseDraft, PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
 import { formatLocalYmd, getWeekStartMonday, parseLocalYmd } from '../lib/planCalendar';
+import {
+  savePlanPreviewDraft,
+  loadPlanPreviewDraft,
+  clearPlanPreviewDraft,
+} from '../lib/planPreviewDraftStorage';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import {
   exercisesLikeFromPrescription,
@@ -299,6 +304,15 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     const controller = new AbortController();
     const frameId = requestAnimationFrame(async () => {
       try {
+        // Same draft already persisted (resume after app kill, or remount of the
+        // same preview) — hydrate instead of burning another generation slot.
+        const persisted = await loadPlanPreviewDraft();
+        if (cancelled) return;
+        if (persisted?.draftId === draftId) {
+          setPlanDraft(persisted.planDraft);
+          setPlanData(planDraftToWeekPlans(persisted.planDraft) as WeekPlan[]);
+          return;
+        }
         const result = await runPipelineSafe(planInputs, draftId, {
           repairIfInvalid: true,
           signal: controller.signal,
@@ -322,6 +336,17 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       controller.abort();
     };
   }, [planInputs, draftId]);
+
+  // Back up the generated preview (and any edits to it) so an app kill or crash
+  // during preview can be resumed from the Generate screen instead of lost.
+  useEffect(() => {
+    if (!planDraft || !planInputs) return;
+    void savePlanPreviewDraft({
+      draftId,
+      params: { planInputs, inputs, draftId, fromOnboarding },
+      planDraft,
+    });
+  }, [planDraft, planInputs, inputs, draftId, fromOnboarding]);
 
   useEffect(() => {
     setExpandedReasoning({});
@@ -1017,6 +1042,8 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
         programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
       });
+      // Applied — the persisted backup is no longer needed.
+      void clearPlanPreviewDraft();
       // First plan from onboarding → drop the user on Home (greeting + today's session).
       // Otherwise reset the Plan stack to PlanList so Preview/Generate aren't left on the stack.
       if (fromOnboarding) {
