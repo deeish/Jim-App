@@ -66,19 +66,21 @@ a banner: "Repeating week N — generate a fresh block to keep progressing."
 A 1-week plan then behaves as the recurring weekly routine users expect.
 Optionally also raise the default `weeks`, but that only delays the cliff.
 
-**Edge cases the fix must handle:**
+**Edge cases the fix must handle** (audited 2026-07-06 against the schema —
+`Workout` rows carry **no calendar date**, only a weekday string, and are
+unique per slot via `@@unique([planWorkoutId, userId])`; they are reusable
+templates, with all history in date-stamped `WorkoutLog` rows):
 
-- **Stale workout linkage.** `resolveHomeToday` links a slot to *any* weekly
-  workout whose `planWorkoutId` matches (`homeToday.ts:96`). A repeated week
-  reuses the same slot ids, so last week's completed workout would make today
-  show "scheduled/completed". Linkage must be scoped to the current calendar
-  week (workout `day` date range), not just slot id.
-- **Completion badges.** `weekLogs` on Plan are already date-ranged
-  (`getCalendarWeekRange`) — verify repeated weeks show fresh, un-badged days.
-- **Materialization.** Starting a repeated slot calls
-  `materializePlanSlotWorkout(slotId)`; the backend must date the new workout
-  in the *current* week, not the program week's original dates
-  (`createWorkoutsForPlan` context).
+- **Workout reuse is native.** Repeating a week reuses the slot's existing
+  Workout row (`materializeFromPlanSlot` returns the existing one,
+  `workouts.service.ts:164`), and starting it again just adds a new dated
+  WorkoutLog. No re-materialization or dating work is needed — saved
+  weights/notes even carry over, which is desirable.
+- **Completion display is the real hazard — and it's already broken** (see
+  the week-dots issue below). Any "done" indicator must come from
+  date-ranged completed WorkoutLogs, never from "a workout row exists for
+  this slot". Plan-tab badges already do this correctly via `weekLogs`
+  (`getCalendarWeekRange`); Home's week dots do not.
 - **Multi-week plans: clamp vs cycle.** Clamping repeats the last week
   forever (simple, predictable). Cycling modulo restarts week 1 after week N
   (matches "program" mental model, worse for progression math). Recommend
@@ -132,6 +134,30 @@ each new rule.
 
 ---
 
+## P1 — Home week dots show days as "completed" that were never done
+
+Found during the 2026-07-06 audit. `HomeScreen.tsx:326` marks a day's dot
+"completed" when *any materialized workout exists* for one of its slots:
+
+```ts
+const completed = nonRest.some((s) =>
+  weeklyWorkouts.some((w) => planSlotLinksWeeklyWorkout(s.id, w.planWorkoutId)));
+```
+
+That proxy ("workout row exists ≈ user started it") broke when applying an AI
+preview began materializing workouts for **every slot with exercises, all
+weeks, upfront** (`plans.service.ts:424`, `ensureWorkoutFromPlanSlotExercises`
+has no week gate). Net effect: the moment a generated plan is applied, every
+training day's dot can render solid ("completed") for the whole week.
+
+**Fix:** derive dot completion from completed WorkoutLogs in the current
+calendar week — the exact pattern Plan-tab badges already use (`weekLogs`,
+date-ranged, `completedAt != null`). Must land with (or before) the P0
+roll-forward fix, since repeated weeks make an existence-based proxy
+permanently wrong.
+
+---
+
 ## P1 — Reliability / UX
 
 - **Preview persistence.** The generated sessions exist only in navigation
@@ -144,14 +170,19 @@ each new rule.
   user out (`api/client.ts:64-81`). Verify supabase-js dedupes concurrent
   `refreshSession()` calls; consider only signing out on a *definitive*
   invalid-refresh-token error rather than any refresh failure.
-- **Rate-limit UX (verify).** Generation endpoints sit behind
-  `AiThrottlerGuard` (burst + daily). What does the user see on 429 — a
-  friendly "you've hit today's limit" or a raw error? Audit and add copy if
-  needed.
-- **Apply atomicity (verify).** `create()` writes the plan, then
-  `createWorkoutsForPlan` materializes workouts outside that transaction
-  (`plans.service.ts:226`). If materialization fails, is the user left with a
-  plan whose days won't start? Confirm behavior and wrap or retry.
+- **Rate-limit UX (confirmed bad).** `AiThrottlerGuard` throws the default
+  `ThrottlerException`, and the preview's error path surfaces raw
+  `error.message` (`planPipeline.ts:720`, `pipelineStage5CatchMessage`), so a
+  throttled user sees **"Request failed with status code 429"**. Fix: map 429
+  to friendly copy ("You've hit today's generation limit — try again
+  tomorrow") in `pipelineStage5CatchMessage`.
+- **Apply atomicity (confirmed, mild).** `create()` commits the plan row,
+  then materializes workouts outside any transaction
+  (`plans.service.ts:226`). If materialization throws, the client gets a 500
+  *after* the plan exists; the natural retry (apply again) creates a second
+  plan (the first is auto-deactivated, so no user-visible dupe — just orphan
+  rows). Acceptable short-term; wrap in a transaction or make `create`
+  idempotent when convenient.
 - **Timeout copy.** Client waits 150s in prod (`planService.ts:219`); the
   timeout message suggests a one-week preview. Multi-week is now ~2 Groq calls
   so timeouts should be rare — confirm with capture logs before spending here.
@@ -198,6 +229,19 @@ each new rule.
   `plans.service.ts:167`) but compared against the device-local Monday —
   users crossing many timezones near a week boundary can see the week flip a
   day early/late. Acceptable for now; document, don't chase.
+- **Server materializes by UTC week, client maps by local week.** Auto-
+  materialization at apply time only covers today-or-future slots of the
+  current **UTC** week (`utcWeekRangeContaining`, `plans.service.ts:298`),
+  while every screen maps weeks in device-local time. A user west of UTC
+  applying on Sunday evening can straddle the boundary; harmless today (the
+  Start button materializes on demand), but keep in mind for the roll-forward
+  work.
+- **Inconsistent "current plan" resolution.** `findWeekly` picks the plan by
+  `updatedAt` only (`workouts.service.ts:218`), while plans endpoints prefer
+  `isActive` (`plans.service.ts:93`). They agree today because creating a plan
+  both deactivates and out-dates the old one — but any future feature that
+  touches an inactive plan's `updatedAt` desyncs the Workout tab. Align
+  `findWeekly` on the `isActive`-first query.
 - **Mid-week start.** Week 1 is anchored to Monday even when the user starts
   Wednesday, so Mon/Tue of week 1 are already in the past at creation. Slots
   placed there look "missed" on day one. Consider auto-scheduling week-1 slots
@@ -213,11 +257,14 @@ each new rule.
 
 ## Recommended order
 
-1. P0 roll-forward fix (with the linkage/materialization edge cases above) —
-   this is the active user-facing bug.
-2. Preview persistence (cheap, kills the second "disappeared" cause).
-3. DST `floor` → `round` (one-line class of bug, easy while in the file).
-4. Quality items 1–2 (pattern cap, pull ratio) as one backend PR with
+1. **Week-dots completion fix** (small, self-contained, and a prerequisite:
+   roll-forward makes the existence-based proxy permanently wrong).
+2. **P0 roll-forward fix** (with the reuse/completion edge cases above) —
+   the active user-facing bug.
+3. **Preview persistence** (cheap, kills the second "disappeared" cause).
+4. **DST `floor` → `round`** (one line, do it while in `planCalendar.ts`).
+5. **429 friendly copy** in `pipelineStage5CatchMessage` (one function).
+6. Quality items 1–2 (pattern cap, pull ratio) as one backend PR with
    invariants.
-5. Rate-limit UX + apply-atomicity verification pass.
-6. Catalog re-tagging (deadlifts, subMuscles backfill).
+7. Catalog re-tagging (deadlifts, subMuscles backfill) + `findWeekly`
+   `isActive` alignment.
