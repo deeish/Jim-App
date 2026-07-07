@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -13,6 +15,7 @@ import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { kgToLb, lbToKg } from '../lib/weightDisplay';
 import { haptics } from '../lib/haptics';
 import {
+  listWeighIns,
   logWeighIn,
   type BodyWeightEntry,
 } from '../services/bodyWeightService';
@@ -22,7 +25,11 @@ interface LogWeightSheetProps {
   onClose: () => void;
   /** Called with the saved entry after a successful POST. */
   onLogged?: (entry: BodyWeightEntry) => void;
-  /** Last known weight (lb) used to prefill the field. */
+  /**
+   * Last known weight (lb) used to prefill the field. Pass null for "none";
+   * leave undefined when unknown and the sheet fetches the latest weigh-in
+   * itself (e.g. Home's quick log).
+   */
   defaultWeightLb?: number | null;
 }
 
@@ -45,13 +52,26 @@ export default function LogWeightSheet({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset the field each time the sheet opens.
+  // Reset the field each time the sheet opens. When the caller doesn't know
+  // the last weigh-in, fetch it for the prefill — but never overwrite
+  // something the user has already typed.
   useEffect(() => {
-    if (visible) {
-      setValue(lbToInput(defaultWeightLb, weightUnit));
-      setError(null);
-      setSubmitting(false);
-    }
+    if (!visible) return;
+    setValue(lbToInput(defaultWeightLb ?? null, weightUnit));
+    setError(null);
+    setSubmitting(false);
+    if (defaultWeightLb !== undefined) return;
+    let active = true;
+    listWeighIns(1)
+      .then((rows) => {
+        const lb = rows[0]?.weightLb;
+        if (!active || lb == null) return;
+        setValue((v) => (v === '' ? lbToInput(lb, weightUnit) : v));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [visible, defaultWeightLb, weightUnit]);
 
   const styles = useMemo(
@@ -144,7 +164,10 @@ export default function LogWeightSheet({
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <TouchableOpacity
           style={StyleSheet.absoluteFill}
           activeOpacity={1}
@@ -184,7 +207,7 @@ export default function LogWeightSheet({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

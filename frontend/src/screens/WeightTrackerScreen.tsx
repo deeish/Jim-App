@@ -50,7 +50,9 @@ export default function WeightTrackerScreen() {
 
   const load = useCallback(async () => {
     try {
-      const rows = await listWeighIns();
+      // A year is plenty for the trend + history list; keeps the payload
+      // bounded once daily logging accumulates.
+      const rows = await listWeighIns(365);
       setEntries(rows);
     } catch (e) {
       console.warn('[WeightTracker] load failed:', e);
@@ -71,8 +73,13 @@ export default function WeightTrackerScreen() {
   const sinceStartLb =
     latest && oldest ? latest.weightLb - oldest.weightLb : null;
 
-  // Oldest -> newest for the left-to-right trend.
-  const trend = useMemo(() => [...entries].reverse(), [entries]);
+  // Oldest -> newest for the left-to-right trend. Only the most recent
+  // weigh-ins fit as readable bars; beyond that they shrink to slivers.
+  const TREND_BARS = 30;
+  const trend = useMemo(
+    () => entries.slice(0, TREND_BARS).reverse(),
+    [entries],
+  );
   const { min, max } = useMemo(() => {
     if (!trend.length) return { min: 0, max: 0 };
     const ws = trend.map((e) => e.weightLb);
@@ -204,7 +211,7 @@ export default function WeightTrackerScreen() {
         <Text style={styles.latestValue}>
           {latest ? formatWeightFromLb(latest.weightLb, weightUnit) : '—'}
         </Text>
-        {sinceStartLb != null && entries.length > 1 ? (
+        {sinceStartLb != null && oldest && entries.length > 1 ? (
           <View style={styles.deltaRow}>
             <MaterialCommunityIcons
               name={sinceStartLb < 0 ? 'arrow-down' : sinceStartLb > 0 ? 'arrow-up' : 'minus'}
@@ -212,7 +219,8 @@ export default function WeightTrackerScreen() {
               color={deltaColor(sinceStartLb)}
             />
             <Text style={[styles.deltaText, { color: deltaColor(sinceStartLb) }]}>
-              {formatDeltaLb(sinceStartLb, weightUnit)} since start
+              {formatDeltaLb(sinceStartLb, weightUnit)} since{' '}
+              {formatDate(oldest.loggedAt)}
             </Text>
           </View>
         ) : null}
