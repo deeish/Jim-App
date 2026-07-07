@@ -40,6 +40,7 @@ import {
 } from '../lib/homeToday';
 import {
   resolveProgramWeekForCalendarOffset,
+  lastContiguousProgramWeek,
   normalizeProgramWeekNumber,
   getCalendarWeekRange,
   formatLocalYmd,
@@ -319,7 +320,8 @@ export default function HomeScreen() {
   const programWeekInfo = useMemo(() => {
     if (!plan?.planWorkouts?.length) return null;
     const maxWeek = Math.max(...plan.planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)));
-    const r = resolveProgramWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek);
+    const repeatWeek = lastContiguousProgramWeek(plan.planWorkouts.map((pw) => pw.weekNumber));
+    const r = resolveProgramWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek, repeatWeek);
     if (r.status !== 'in_program') return null;
     return { current: r.week, total: maxWeek, repeating: r.repeatingLastWeek };
   }, [plan]);

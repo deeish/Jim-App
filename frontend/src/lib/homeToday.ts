@@ -7,6 +7,7 @@ import type { Workout, WorkoutLog } from '../types/workout';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import {
   isRestPlanSlotTitle,
+  lastContiguousProgramWeek,
   normalizePlanAnchorYmd,
   normalizePlanDayOfWeek,
   normalizeProgramWeekNumber,
@@ -113,7 +114,8 @@ export function resolveHomeToday(plan: ApiPlan | null | undefined, weeklyWorkout
 
   const maxPlanWeek = Math.max(...list.map((p) => normalizeProgramWeekNumber(p.weekNumber)), 1);
   const anchorYmd = normalizePlanAnchorYmd(plan.weekAnchorMonday);
-  const resolution = resolveProgramWeekForCalendarOffset(0, anchorYmd, maxPlanWeek);
+  const repeatWeek = lastContiguousProgramWeek(list.map((p) => p.weekNumber));
+  const resolution = resolveProgramWeekForCalendarOffset(0, anchorYmd, maxPlanWeek, repeatWeek);
 
   if (resolution.status !== 'in_program') {
     return { status: 'out_of_program' };

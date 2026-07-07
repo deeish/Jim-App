@@ -33,6 +33,7 @@ import {
   formatLocalYmd,
   getCalendarWeekRange,
   getPlanCalendarWeekNavigationBounds,
+  lastContiguousProgramWeek,
   normalizePlanAnchorYmd,
   normalizePlanDayOfWeek,
   normalizeProgramWeekNumber,
@@ -320,10 +321,16 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   }, [weekNavBounds.min, weekNavBounds.max]);
 
   // Clamp past the program end so a finished plan keeps showing (and editing)
-  // its last week as a recurring routine instead of rendering seven empty days.
+  // a recurring weekly routine instead of rendering seven empty days. The repeat
+  // target is the last contiguous week so a one-off workout added far in the
+  // future doesn't become the routine.
+  const repeatWeek = useMemo(
+    () => lastContiguousProgramWeek((currentPlan?.planWorkouts ?? []).map((pw) => pw.weekNumber)),
+    [currentPlan?.planWorkouts],
+  );
   const programWeekResolution = useMemo(
-    () => resolveProgramWeekForCalendarOffset(selectedWeek, anchorYmd, maxPlanWeek),
-    [selectedWeek, anchorYmd, maxPlanWeek],
+    () => resolveProgramWeekForCalendarOffset(selectedWeek, anchorYmd, maxPlanWeek, repeatWeek),
+    [selectedWeek, anchorYmd, maxPlanWeek, repeatWeek],
   );
   const resolvedProgramWeek =
     programWeekResolution.status === 'in_program' ? programWeekResolution.week : null;

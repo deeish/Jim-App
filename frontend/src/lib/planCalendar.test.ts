@@ -2,6 +2,7 @@ import {
   PLAN_CALENDAR_LOOKAHEAD_WEEKS,
   PLAN_CALENDAR_LOOKBACK_WEEKS,
   getPlanCalendarWeekNavigationBounds,
+  lastContiguousProgramWeek,
   normalizePlanDayOfWeek,
   programWeekForCalendarOffset,
   resolveProgramWeekForCalendarOffset,
@@ -153,6 +154,51 @@ describe('resolveProgramWeekForCalendarOffset', () => {
     expect(resolveProgramWeekForCalendarOffset(0, '2026-03-30', 0)).toEqual({
       status: 'out_of_program',
     });
+  });
+
+  it('repeats the given repeatWeek, not the max week, past the program end', () => {
+    // Weeks {1, 5}: one workout added far in the future made maxProgramWeek 5,
+    // but the routine to repeat is week 1.
+    expect(resolveProgramWeekForCalendarOffset(6, '2026-03-30', 5, 1)).toEqual({
+      status: 'in_program',
+      week: 1,
+      repeatingLastWeek: true,
+    });
+    // Inside the window repeatWeek is ignored: week 5 still shows its own schedule.
+    expect(resolveProgramWeekForCalendarOffset(3, '2026-03-30', 5, 1)).toEqual({
+      status: 'in_program',
+      week: 5,
+      repeatingLastWeek: false,
+    });
+    // Out-of-range repeatWeek clamps into the program window.
+    expect(resolveProgramWeekForCalendarOffset(6, '2026-03-30', 5, 9)).toEqual({
+      status: 'in_program',
+      week: 5,
+      repeatingLastWeek: true,
+    });
+  });
+});
+
+describe('lastContiguousProgramWeek', () => {
+  it('returns the last week of the run starting at week 1', () => {
+    expect(lastContiguousProgramWeek([1])).toBe(1);
+    expect(lastContiguousProgramWeek([1, 2, 3])).toBe(3);
+    expect(lastContiguousProgramWeek([3, 1, 2, 2])).toBe(3);
+  });
+
+  it('ignores isolated week numbers past a gap', () => {
+    expect(lastContiguousProgramWeek([1, 5])).toBe(1);
+    expect(lastContiguousProgramWeek([1, 2, 6, 9])).toBe(2);
+  });
+
+  it('falls back to the max week when week 1 is missing, and 1 when empty', () => {
+    expect(lastContiguousProgramWeek([3, 5])).toBe(5);
+    expect(lastContiguousProgramWeek([])).toBe(1);
+  });
+
+  it('normalizes bad week numbers like the rest of the calendar math', () => {
+    expect(lastContiguousProgramWeek([0, -2, 2])).toBe(2); // <1 → 1
+    expect(lastContiguousProgramWeek([NaN, 2])).toBe(2);
   });
 });
 

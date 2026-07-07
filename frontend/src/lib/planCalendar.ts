@@ -199,6 +199,28 @@ export function getPlanCalendarWeekNavigationBounds(anchorYmdRaw: string | null 
   return { min, max };
 }
 
+/**
+ * Last program week reachable from week 1 without a gap (a week counts as
+ * present when at least one slot row carries its number). A one-off workout
+ * added to a far-future calendar week creates an isolated week number
+ * ({1, 5} → 1), and repeating that sparse tail week forever after the program
+ * ends would look broken. Falls back to the max present week when week 1
+ * itself is missing, and 1 for empty input.
+ */
+export function lastContiguousProgramWeek(weekNumbers: Iterable<number>): number {
+  const present = new Set<number>();
+  let max = 0;
+  for (const n of weekNumbers) {
+    const w = normalizeProgramWeekNumber(n);
+    present.add(w);
+    if (w > max) max = w;
+  }
+  if (max === 0) return 1;
+  let k = 0;
+  while (present.has(k + 1)) k += 1;
+  return k >= 1 ? k : max;
+}
+
 /** How a calendar week relates to the program window. */
 export type ProgramWeekResolution =
   | {
@@ -206,8 +228,8 @@ export type ProgramWeekResolution =
       /** 1-based program week whose schedule applies to this calendar week. */
       week: number;
       /**
-       * True when the calendar week falls past the last program week and we clamp
-       * to it: the plan keeps repeating its final week instead of going blank.
+       * True when the calendar week falls past the program window and `week` is
+       * the repeat target: the plan keeps repeating that week instead of going blank.
        */
       repeatingLastWeek: boolean;
     }
@@ -221,14 +243,18 @@ export type ProgramWeekResolution =
  *
  * Anchored plans clamp past the program end (`repeatingLastWeek: true`) so a
  * finished 1-week plan behaves as a recurring weekly routine rather than every
- * surface going blank the next calendar week. Legacy plans (no anchor) keep the
- * historical offset+1 mapping and never expire at offset 0, so they are left
- * untouched. Weeks before an anchored start stay unresolved (`before_program`).
+ * surface going blank the next calendar week. Callers pass `repeatWeek`
+ * (typically {@link lastContiguousProgramWeek}) so an isolated far-future week
+ * number doesn't become the routine; omitted, the clamp targets `maxProgramWeek`.
+ * Legacy plans (no anchor) keep the historical offset+1 mapping and never expire
+ * at offset 0, so they are left untouched. Weeks before an anchored start stay
+ * unresolved (`before_program`).
  */
 export function resolveProgramWeekForCalendarOffset(
   selectedWeekOffset: number,
   anchorYmdRaw: string | null | undefined,
   maxProgramWeek: number,
+  repeatWeek?: number,
 ): ProgramWeekResolution {
   if (maxProgramWeek < 1) return { status: 'out_of_program' };
   const anchorYmd = normalizePlanAnchorYmd(anchorYmdRaw);
@@ -244,7 +270,11 @@ export function resolveProgramWeekForCalendarOffset(
   const planWeek = wholeWeeksBetween(anchor, calMonday) + 1;
   if (planWeek < 1) return { status: 'before_program' };
   if (planWeek > maxProgramWeek) {
-    return { status: 'in_program', week: maxProgramWeek, repeatingLastWeek: true };
+    const target = Math.min(
+      Math.max(normalizeProgramWeekNumber(repeatWeek ?? maxProgramWeek), 1),
+      maxProgramWeek,
+    );
+    return { status: 'in_program', week: target, repeatingLastWeek: true };
   }
   return { status: 'in_program', week: planWeek, repeatingLastWeek: false };
 }

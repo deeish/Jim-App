@@ -119,6 +119,37 @@ describe('resolveHomeToday', () => {
     expect(r.repeatingWeek).toBe(1);
   });
 
+  it('repeats the last contiguous week, not an isolated far-future week', () => {
+    // Week 1 is the real routine; a single workout was added to week 5
+    // (maxProgramWeek 5). Past the program end, repeat week 1, not the sparse week 5.
+    const slot = (id: string, weekNumber: number, title: string): ApiPlanWorkout => ({
+      id,
+      workoutPlanId: 'p1',
+      weekNumber,
+      dayOfWeek: 'Monday',
+      title,
+      detailLine: null,
+      type: 'strength',
+      durationMinutes: 45,
+      intensity: null,
+      orderInDay: 0,
+    });
+    const plan: ApiPlan = {
+      id: 'p1',
+      name: 'Test',
+      userId: 'u1',
+      createdAt: '',
+      updatedAt: '',
+      // 6+ weeks before Apr 6, 2026 → today is past both week 1 and week 5.
+      weekAnchorMonday: '2026-02-16',
+      planWorkouts: [slot('slot1', 1, 'Push'), slot('slot5', 5, 'Legs')],
+    };
+    const r = resolveHomeToday(plan, []);
+    expect(r.status).toBe('planned_pending');
+    expect(r.repeatingWeek).toBe(1);
+    if (r.status === 'planned_pending') expect(r.slot.title).toBe('Push');
+  });
+
   it('stays out_of_program when the anchor is in the future (no backward roll)', () => {
     const plan: ApiPlan = {
       id: 'p1',
