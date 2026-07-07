@@ -14,9 +14,15 @@ Steps 1–5 IMPLEMENTED on `feat/exercises-ux` (commits `ce36f38`, `39e568d`,
 `520d56e`): asset generated + iterated in the harness (checked in as
 `frontend/tools/bodymap/gen.js` — edit points there, re-run, never hand-edit
 `bodyMapPaths.ts`), sanity + mapping tests green (156 frontend tests),
-detail-screen hero live. Step 6 (row swap) remains gated on Android scroll
-profiling. On-device look of the hero still pending (fold into the round-2
-walkthrough below).
+detail-screen hero live. On-device look of the hero still pending (fold into
+the round-2 walkthrough below).
+
+Step 6 (row swap) DONE at group granularity: `MuscleGroupBodyTile` replaces
+the glyph disc on rows and the detail title with a square-cropped mini body
+map (`tileWindow` frame in `bodyMapFigure.ts`). Group-level means only seven
+figure variants exist across the whole list, which sidesteps most of the
+Android scroll-profiling concern — still worth a scroll check on a real
+Android device during the walkthrough. Cardio keeps the heart-pulse disc.
 
 ## Carry-over items (still open, do not lose)
 

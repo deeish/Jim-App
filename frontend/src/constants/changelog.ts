@@ -33,7 +33,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       { type: 'new', text: 'Track your body weight and see your trend over time.' },
       { type: 'new', text: 'Pick a second goal and your plan blends both.' },
       { type: 'new', text: 'Exercise pages now show the muscles you are working on a body map, zoomed to the target area.' },
-      { type: 'improved', text: 'A rebuilt Exercises tab: browse the full catalog right away, with simpler filters and quick access to your saved exercises.' },
+      { type: 'improved', text: 'A rebuilt Exercises tab: browse the full catalog right away, with simpler filters, quick access to your saved exercises, and a mini muscle map on every exercise.' },
       { type: 'improved', text: 'Cleaner exercise pages: color-coded muscle groups, and how-to steps tucked behind a tap so the demo video stays front and center.' },
     ],
   },
