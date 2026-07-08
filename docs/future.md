@@ -1,5 +1,57 @@
 # Future ideas
 
+## Plan-generation follow-ups (from the retired issues doc)
+
+The full audit lived in `docs/plan-generation-issues.md` (removed 2026-07-08 once
+the P0 + frontend work shipped in PR #6; full write-up in git history at
+`ccbe90d`). Still open, in priority order:
+
+### Workout-quality passes (ship as one backend PR)
+
+1. **Per-session movement-pattern cap.** Dedup only catches identical exercise
+   ids, so a session can carry 3–4 hinge variants. Cap ≤2 exercises per
+   movement pattern per session as a deterministic post-pass — the
+   replace-exercise endpoint already does pattern-aware dedup; reuse its logic.
+2. **Intra-session push/pull balance.** Only "≥1 pull" is guaranteed; upper
+   days can come out 5-press : 1-row. Add a pull-ratio pass alongside the
+   purity pass (`generation-chunk-repair.ts`).
+3. **Intra-plan volume undulation.** Sessions sharing a duration all get the
+   same working-set cap → no heavy/light variation across a week. Vary
+   `workingSetCap` by `isHardDay`.
+4. **Ordering without a tier-0 anchor.** Days with no true Squat/Hinge/Push
+   anchor sort accessories first. Fall back to the highest-tier available
+   movement as the anchor.
+
+Constraints: deterministic server-side passes only (zero new Groq calls), keep
+`backend npm test` + `plans/eval/` green, add an eval invariant per new rule.
+
+### Reliability
+
+- **401 refresh race → sign-out.** Home and Plan fire concurrent requests on
+  app open; if both 401 and refresh coordination fails, the client signs the
+  user out (`api/client.ts`). Verify supabase-js dedupes concurrent
+  `refreshSession()` calls; only sign out on a *definitive* invalid-refresh-token
+  error.
+- **Apply atomicity (mild).** `create()` commits the plan row, then
+  materializes workouts outside any transaction (`plans.service.ts`); a failure
+  mid-materialization leaves orphan rows and a 500 after the plan exists. Wrap
+  in a transaction or make `create` idempotent when convenient.
+- **`findWeekly` / `isActive` alignment.** `findWeekly` picks the plan by
+  `updatedAt` only (`workouts.service.ts`), while plans endpoints prefer
+  `isActive`. They agree today, but any feature touching an inactive plan's
+  `updatedAt` desyncs the Workout tab. Align `findWeekly` on `isActive`-first.
+- **Timeout copy.** Confirm with capture logs whether 150s preview timeouts
+  still happen before spending here.
+
+### Catalog data
+
+- **Deadlift muscle-group home.** Conventional Deadlift is filed under Legs,
+  Sumo under Back — labels, colors, body-map tiles, and filters all surface the
+  inconsistency. Pick one home (recommend Legs) and re-tag.
+- **`subMuscles` backfill.** Exercises without sub-muscle data fall back to
+  whole-group body-map highlights and are invisible to sub-muscle filter chips.
+  Audit popular exercises and backfill.
+
 ## Optional logging without full workout flow
 
 Some users may want planned workouts **visible** (Plan / Workout preview) without running the live session (sets, finish screen, `saveWorkoutLog`). Today, **History** only reflects in-app completed sessions.
