@@ -107,6 +107,8 @@ export interface CreatePlanBody {
   slots: PlanSlot[];
   /** User goal for workout generation (e.g. strength, hypertrophy, endurance). */
   goal?: string;
+  /** Optional secondary emphasis blended into generation. */
+  secondaryGoal?: string;
   /** Experience level (beginner, intermediate, advanced). */
   experience?: string;
   /** Available equipment for generated workouts (e.g. Barbell, Dumbbell). */
@@ -139,6 +141,8 @@ export interface WeekProgressionEntry {
 /** Request body for POST /plans/generate-sessions (LLM-generated session content). */
 export interface GenerateSessionsRequest {
   goal?: string;
+  /** Optional secondary emphasis blended into generation. */
+  secondaryGoal?: string;
   location?: 'gym' | 'home';
   detailLevel?: 'simple' | 'detailed';
   avoidConstraints?: string[];
@@ -270,6 +274,7 @@ export async function generateSessions(
 /** Request for POST /plans/generate-single-session (regenerate one session, e.g. to replace an exercise). */
 export interface GenerateSingleSessionRequest {
   goal?: string;
+  secondaryGoal?: string;
   location?: 'gym' | 'home';
   detailLevel?: 'simple' | 'detailed';
   avoidConstraints?: string[];

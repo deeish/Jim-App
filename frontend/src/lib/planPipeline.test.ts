@@ -17,6 +17,9 @@ jest.mock('../services/planService', () => ({
       })),
     })
   ),
+  GENERATE_SESSIONS_TIMEOUT_MESSAGE: 'timeout-message-for-tests',
+  isGenerateSessionsTimeoutError: (error: unknown) =>
+    (error as { code?: string } | null)?.code === 'ECONNABORTED',
 }));
 
 import {
@@ -31,6 +34,8 @@ import {
   sessionHasCoachPreviewFields,
   buildWorkoutPreviewFromSessionDraft,
   deriveSessionIntensity,
+  pipelineStage5CatchMessage,
+  GENERATE_SESSIONS_RATE_LIMIT_MESSAGE,
   type PipelineDebugInfo,
 } from './planPipeline';
 import { isTimeHoldExerciseName } from './exercisePrescription';
@@ -724,5 +729,22 @@ describe('planPipeline', () => {
       ]);
       expect(deriveSessionIntensity(s, 0)).toBe('Medium');
     });
+  });
+});
+
+describe('pipelineStage5CatchMessage', () => {
+  it('maps HTTP 429 to the friendly rate-limit copy', () => {
+    const axios429 = Object.assign(new Error('Request failed with status code 429'), {
+      response: { status: 429 },
+    });
+    expect(pipelineStage5CatchMessage(axios429)).toBe(GENERATE_SESSIONS_RATE_LIMIT_MESSAGE);
+  });
+
+  it('passes other errors through unchanged', () => {
+    expect(pipelineStage5CatchMessage(new Error('boom'))).toBe('boom');
+    const axios500 = Object.assign(new Error('Request failed with status code 500'), {
+      response: { status: 500 },
+    });
+    expect(pipelineStage5CatchMessage(axios500)).toBe('Request failed with status code 500');
   });
 });

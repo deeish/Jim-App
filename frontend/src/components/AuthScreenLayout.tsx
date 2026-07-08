@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   type StyleProp,
   type ViewStyle,
@@ -56,6 +57,24 @@ export default function AuthScreenLayout({
 }: Props) {
   const { colors } = useTheme();
 
+  // Hide the bottom footer (e.g. the "Sign in" / "Sign up" link) while the
+  // keyboard is open: the keyboard pushes the pinned footer up toward the
+  // primary button, where it's easy to tap by accident. It reappears once the
+  // keyboard is dismissed.
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent =
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardOpen(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardOpen(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   return (
     <View style={styles.root}>
       <LinearGradient
@@ -98,7 +117,9 @@ export default function AuthScreenLayout({
               <View style={styles.body}>{children}</View>
             </View>
 
-            {footer ? <View style={styles.footer}>{footer}</View> : null}
+            {footer && !keyboardOpen ? (
+              <View style={styles.footer}>{footer}</View>
+            ) : null}
           </Animated.View>
         </KeyboardAvoidingView>
       </SafeAreaView>

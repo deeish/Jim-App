@@ -33,11 +33,12 @@ import {
   formatLocalYmd,
   getCalendarWeekRange,
   getPlanCalendarWeekNavigationBounds,
+  lastContiguousProgramWeek,
   normalizePlanAnchorYmd,
   normalizePlanDayOfWeek,
   normalizeProgramWeekNumber,
   isRestPlanSlotTitle,
-  programWeekForCalendarOffset,
+  resolveProgramWeekForCalendarOffset,
   shiftWeekWorkouts,
 } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
@@ -319,10 +320,20 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     setSelectedWeek((w) => Math.max(weekNavBounds.min, Math.min(weekNavBounds.max, w)));
   }, [weekNavBounds.min, weekNavBounds.max]);
 
-  const resolvedProgramWeek = useMemo(
-    () => programWeekForCalendarOffset(selectedWeek, anchorYmd, maxPlanWeek),
-    [selectedWeek, anchorYmd, maxPlanWeek],
+  // Clamp past the program end so a finished plan keeps showing (and editing)
+  // a recurring weekly routine instead of rendering seven empty days. The repeat
+  // target is the last contiguous week so a one-off workout added far in the
+  // future doesn't become the routine.
+  const repeatWeek = useMemo(
+    () => lastContiguousProgramWeek((currentPlan?.planWorkouts ?? []).map((pw) => pw.weekNumber)),
+    [currentPlan?.planWorkouts],
   );
+  const programWeekResolution = useMemo(
+    () => resolveProgramWeekForCalendarOffset(selectedWeek, anchorYmd, maxPlanWeek, repeatWeek),
+    [selectedWeek, anchorYmd, maxPlanWeek, repeatWeek],
+  );
+  const resolvedProgramWeek =
+    programWeekResolution.status === 'in_program' ? programWeekResolution.week : null;
   useEffect(() => { resolvedProgramWeekRef.current = resolvedProgramWeek; }, [resolvedProgramWeek]);
 
   const plan = useMemo(() => {
@@ -475,6 +486,18 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           borderBottomColor: colors.border,
         },
         outOfProgramWeekText: { fontSize: 12, color: colors.textSecondary, textAlign: 'center' },
+        repeatingWeekBanner: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          paddingVertical: 8,
+          paddingHorizontal: 12,
+          backgroundColor: colors.primary + '12',
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        },
+        repeatingWeekBannerText: { fontSize: 12, color: colors.textSecondary, textAlign: 'center', flexShrink: 1 },
         content: { flex: 1 },
         contentContainer: { padding: 12, paddingBottom: 32, gap: 8 },
         dayGroup: {
@@ -1261,11 +1284,27 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         </View>
       ) : null}
 
+      {programWeekResolution.status === 'in_program' && programWeekResolution.repeatingLastWeek ? (
+        <TouchableOpacity
+          style={styles.repeatingWeekBanner}
+          onPress={handleAIGenerate}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityHint="Opens AI plan generator"
+        >
+          <Ionicons name="repeat" size={14} color={colors.primary} />
+          <Text style={styles.repeatingWeekBannerText}>
+            Repeating week {programWeekResolution.week} of your plan. Generate a fresh block to
+            keep progressing.
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+
       {resolvedProgramWeek === null && maxPlanWeek > 0 ? (
         <View style={styles.outOfProgramWeekBanner}>
           <Text style={styles.outOfProgramWeekText}>
-            {anchorYmd
-              ? 'No workouts for this calendar week — it is before your program start or after the last program week.'
+            {programWeekResolution.status === 'before_program'
+              ? 'No workouts for this calendar week — it is before your program starts.'
               : 'No workouts mapped to this week for your plan.'}
           </Text>
         </View>

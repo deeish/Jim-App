@@ -11,6 +11,7 @@ import { WorkoutLogsModule } from './workout-logs/workout-logs.module';
 import { PlansModule } from './plans/plans.module';
 import { HealthModule } from './health/health.module';
 import { UsersModule } from './users/users.module';
+import { BodyWeightModule } from './body-weight/body-weight.module';
 import { AiThrottlerGuard } from './common/ai-throttler.guard';
 import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
 
@@ -108,6 +109,7 @@ import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
     PlansModule,
     HealthModule,
     UsersModule,
+    BodyWeightModule,
   ],
   providers: [
     AiThrottlerGuard,

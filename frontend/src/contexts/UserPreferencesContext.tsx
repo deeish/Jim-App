@@ -83,6 +83,8 @@ export const MAX_INJURY_NOTES = 280;
 export type UserPreferencesState = {
   weightUnit: WeightUnit;
   goal: GoalOption;
+  /** Optional second focus blended into generation (null = single goal). */
+  secondaryGoal: GoalOption | null;
   experience: ExperienceOption;
   /** Equipment available — same labels as exercise search */
   equipment: EquipmentOption[];
@@ -105,6 +107,7 @@ const DEFAULTS: UserPreferencesState = {
   /** US default; existing installs keep whatever is in AsyncStorage. */
   weightUnit: 'lb',
   goal: 'Strength',
+  secondaryGoal: null,
   experience: 'Intermediate',
   equipment: [],
   profileDisplayName: '',
@@ -123,6 +126,8 @@ type UserPreferencesContextValue = {
   setWeightUnit: (u: WeightUnit) => void;
   goal: GoalOption;
   setGoal: (g: GoalOption) => void;
+  secondaryGoal: GoalOption | null;
+  setSecondaryGoal: (g: GoalOption | null) => void;
   experience: ExperienceOption;
   setExperience: (e: ExperienceOption) => void;
   equipment: EquipmentOption[];
@@ -164,6 +169,11 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
   const goal = GOAL_OPTIONS.includes(p.goal as GoalOption)
     ? (p.goal as GoalOption)
     : DEFAULTS.goal;
+  const secondaryGoal =
+    GOAL_OPTIONS.includes(p.secondaryGoal as GoalOption) &&
+    p.secondaryGoal !== goal
+      ? (p.secondaryGoal as GoalOption)
+      : DEFAULTS.secondaryGoal;
   const experience = EXPERIENCE_OPTIONS.includes(p.experience as ExperienceOption)
     ? (p.experience as ExperienceOption)
     : DEFAULTS.experience;
@@ -210,6 +220,7 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
   return {
     weightUnit,
     goal,
+    secondaryGoal,
     experience,
     equipment,
     profileDisplayName,
@@ -290,7 +301,23 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
   const setGoal = useCallback(
     (goal: GoalOption) => {
       setState((s) => {
-        const next = { ...s, goal };
+        // Keep the two goals distinct: a primary that matches the secondary
+        // clears the secondary.
+        const secondaryGoal = s.secondaryGoal === goal ? null : s.secondaryGoal;
+        const next = { ...s, goal, secondaryGoal };
+        persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
+
+  const setSecondaryGoal = useCallback(
+    (secondary: GoalOption | null) => {
+      setState((s) => {
+        // Never let the secondary duplicate the primary goal.
+        const secondaryGoal = secondary === s.goal ? null : secondary;
+        const next = { ...s, secondaryGoal };
         persist(next);
         return next;
       });
@@ -413,6 +440,8 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setWeightUnit,
       goal: state.goal,
       setGoal,
+      secondaryGoal: state.secondaryGoal,
+      setSecondaryGoal,
       experience: state.experience,
       setExperience,
       equipment: state.equipment,
@@ -438,6 +467,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       hydrated,
       state.weightUnit,
       state.goal,
+      state.secondaryGoal,
       state.experience,
       state.equipment,
       state.profileDisplayName,
@@ -450,6 +480,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       state.injuryNotes,
       setWeightUnit,
       setGoal,
+      setSecondaryGoal,
       setExperience,
       setEquipment,
       setProfileDisplayName,

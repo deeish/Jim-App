@@ -39,19 +39,26 @@ export class ExercisesController {
 
   @Post('search')
   search(@Body() searchDto: SearchExercisesDto) {
-    const results = this.exercisesService.search(searchDto);
-    return {
-      count: results.length,
-      exercises: results,
-    };
+    return this.capSearchResults(searchDto);
   }
 
   @Get('search')
   searchGet(@Query() query: SearchExercisesDto) {
-    const results = this.exercisesService.search(query);
+    return this.capSearchResults(query);
+  }
+
+  /**
+   * `limit` caps the exercises array (browse mode) but `count` stays the total
+   * number of matches so clients can show "top N of count". Capping here keeps
+   * internal ExercisesService.search callers (generator, replacement) uncapped.
+   */
+  private capSearchResults(searchDto: SearchExercisesDto) {
+    const results = this.exercisesService.search(searchDto);
+    const exercises =
+      searchDto.limit != null ? results.slice(0, searchDto.limit) : results;
     return {
       count: results.length,
-      exercises: results,
+      exercises,
     };
   }
 

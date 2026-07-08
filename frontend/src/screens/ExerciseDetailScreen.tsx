@@ -8,14 +8,27 @@ import {
   ActivityIndicator,
   Linking,
   BackHandler,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CommonActions, RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { getExerciseById, Exercise, getSavedExerciseIds, saveExercise, unsaveExercise } from '../services/exerciseService';
 import { useTheme } from '../theme/ThemeContext';
+import { getMuscleGroupVisual } from '../constants/muscleGroupMeta';
+import MuscleBodyTile from '../components/MuscleBodyTile';
+import MuscleBodyMap from '../components/bodymap/MuscleBodyMap';
+import { exerciseToHighlights } from '../lib/exerciseToHighlights';
 import ExerciseLikeButton from '../components/ExerciseLikeButton';
+
+// Enable LayoutAnimation on Android (same guard as SearchScreen)
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const YOUTUBE_SEARCH_BASE = 'https://www.youtube.com/results?search_query=';
 
@@ -79,11 +92,14 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     route.params?.returnToPlanExerciseContext ??
     (returnToPlanPreview ? ('preview' as const) : undefined);
   const leaveExerciseForPlanFlow = returnToPlanExerciseContext != null;
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [savingLike, setSavingLike] = useState(false);
+  // Collapsed by default: most users go straight to the video, and the step
+  // list is the longest block on the page.
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
 
   const styles = useMemo(
     () =>
@@ -110,7 +126,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           borderBottomColor: colors.border,
           backgroundColor: colors.surface,
         },
-        backButtonContainer: { alignSelf: 'flex-start' },
+        backButtonContainer: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 2 },
         backButtonText: { fontSize: 16, color: colors.primary, fontWeight: '600' },
         videoSection: {
           padding: 20,
@@ -142,6 +158,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           alignItems: 'flex-start',
         },
         exerciseName: { fontSize: 28, fontWeight: 'bold', color: colors.text, flex: 1, marginRight: 12 },
+        titleLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
         difficultyBadge: {
           backgroundColor: colors.primary + '20',
           paddingHorizontal: 12,
@@ -158,6 +175,13 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         sectionTitle: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 12 },
         description: { fontSize: 16, color: colors.textSecondary, lineHeight: 24 },
         tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+        bodyMapRow: {
+          flexDirection: 'row',
+          justifyContent: 'center',
+          gap: 32,
+          marginTop: 4,
+          marginBottom: 18,
+        },
         tag: {
           backgroundColor: colors.primary + '15',
           paddingHorizontal: 12,
@@ -171,6 +195,15 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         equipmentTag: { backgroundColor: colors.background, borderColor: colors.border },
         movementTag: { backgroundColor: colors.background, borderColor: colors.border },
         tagText: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
+        collapseHeader: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        },
+        collapseTitle: { marginBottom: 0 },
+        collapseMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+        collapseCount: { fontSize: 13, color: colors.textSecondary },
+        instructionsList: { marginTop: 16 },
         instructionItem: { flexDirection: 'row', marginBottom: 16, alignItems: 'flex-start' },
         instructionNumber: {
           width: 28,
@@ -242,12 +275,6 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   }, [exerciseId, loadExercise]);
 
   const handleBack = useCallback(() => {
-    if (returnToPlanExerciseContext === 'workoutDetail') {
-      resetSearchStackToSearchList(navigation);
-      const tabNav = getBottomTabNavigator(navigation);
-      tabNav?.navigate('Plan');
-      return;
-    }
     if (returnToPlanExerciseContext === 'workout') {
       resetSearchStackToSearchList(navigation);
       const tabNav = getBottomTabNavigator(navigation);
@@ -255,9 +282,12 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
       return;
     }
     if (leaveExerciseForPlanFlow) {
+      // 'preview' | 'calendar' | 'workoutDetail': the originating screen is still
+      // on the Plan stack, so focusing the Plan tab is a true "back" (landing on
+      // the Exercises list here stranded users outside their plan flow).
       resetSearchStackToSearchList(navigation);
       const tabNav = getBottomTabNavigator(navigation);
-      tabNav?.navigate('Search', { screen: 'SearchList' });
+      tabNav?.navigate('Plan');
       return;
     }
     navigation.goBack();
@@ -316,6 +346,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     );
   }
 
+  const muscleVisual = getMuscleGroupVisual(exercise.primaryMuscleGroup, isDark);
+  // Body-map hero: null for cardio/unknown metadata, in which case the section
+  // keeps its tags-only layout (the disc stays the fallback mark).
+  const bodyMap = exerciseToHighlights(exercise);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -323,15 +358,23 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         <TouchableOpacity
           onPress={handleBack}
           style={styles.backButtonContainer}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Ionicons name="chevron-back" size={18} color={colors.primary} />
+          <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Exercise Name + Like + Difficulty */}
         <View style={styles.titleSection}>
-          <Text style={styles.exerciseName}>{exercise.name}</Text>
+          <View style={styles.titleLeft}>
+            {/* Same mini body-map tile as the list rows, at hero size — the
+                mark the user tapped carries through to the screen they land on. */}
+            <MuscleBodyTile exercise={exercise} size={48} />
+            <Text style={styles.exerciseName}>{exercise.name}</Text>
+          </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <ExerciseLikeButton
               exerciseId={exercise.id}
@@ -359,9 +402,33 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         {/* Primary Muscle Group */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Target Muscles</Text>
+          {bodyMap && (
+            <View style={styles.bodyMapRow}>
+              {/* Lead with the view holding the primary work so the lit figure is read first. */}
+              {(bodyMap.view === 'back' ? (['back', 'front'] as const) : (['front', 'back'] as const)).map(
+                (mapView) => (
+                  <MuscleBodyMap
+                    key={mapView}
+                    highlights={bodyMap.highlights}
+                    view={mapView}
+                    size={180}
+                    frame="focus"
+                  />
+                ),
+              )}
+            </View>
+          )}
           <View style={styles.tagsContainer}>
-            <View style={[styles.tag, styles.primaryTag]}>
-              <Text style={styles.tagText}>{exercise.primaryMuscleGroup}</Text>
+            <View
+              style={[
+                styles.tag,
+                styles.primaryTag,
+                { backgroundColor: muscleVisual.softColor, borderColor: muscleVisual.color },
+              ]}
+            >
+              <Text style={[styles.tagText, { color: muscleVisual.color, fontWeight: '600' }]}>
+                {exercise.primaryMuscleGroup}
+              </Text>
             </View>
             {exercise.subMuscles.map((muscle, index) => (
               <View key={index} style={styles.tag}>
@@ -413,18 +480,43 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Instructions */}
+        {/* Instructions — collapsed by default; the video below covers most users */}
         {exercise.instructions && exercise.instructions.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>How to Perform</Text>
-            {exercise.instructions.map((instruction, index) => (
-              <View key={index} style={styles.instructionItem}>
-                <View style={styles.instructionNumber}>
-                  <Text style={styles.instructionNumberText}>{index + 1}</Text>
-                </View>
-                <Text style={styles.instructionText}>{instruction}</Text>
+            <TouchableOpacity
+              style={styles.collapseHeader}
+              onPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setInstructionsOpen((open) => !open);
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: instructionsOpen }}
+              accessibilityLabel="How to Perform"
+            >
+              <Text style={[styles.sectionTitle, styles.collapseTitle]}>How to Perform</Text>
+              <View style={styles.collapseMeta}>
+                <Text style={styles.collapseCount}>
+                  {exercise.instructions.length} steps
+                </Text>
+                <Ionicons
+                  name={instructionsOpen ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={colors.textSecondary}
+                />
               </View>
-            ))}
+            </TouchableOpacity>
+            {instructionsOpen && (
+              <View style={styles.instructionsList}>
+                {exercise.instructions.map((instruction, index) => (
+                  <View key={index} style={styles.instructionItem}>
+                    <View style={styles.instructionNumber}>
+                      <Text style={styles.instructionNumberText}>{index + 1}</Text>
+                    </View>
+                    <Text style={styles.instructionText}>{instruction}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         )}
 

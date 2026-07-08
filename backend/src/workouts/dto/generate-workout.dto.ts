@@ -19,6 +19,8 @@ export class GenerateWorkoutDto {
     equipment?: string[]; // available equipment
     /** User goal: strength, hypertrophy/muscle, endurance, fat loss, hybrid */
     goal?: string;
+    /** Optional secondary emphasis; biases the prompt + cardio finisher, not rep ranges. */
+    secondaryGoal?: string;
     /** Experience level (can align with difficulty) */
     experience?: string;
     /** Limitations to respect: e.g. "bad knee", "no barbell", "home only" */

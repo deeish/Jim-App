@@ -450,6 +450,13 @@ export interface TransformedExercise {
   prescriptionType: ExercisePrescriptionType;
   /** YouTube video ID (from exercise-videos.json) for demo video on detail screen. */
   youtubeId?: string;
+  /**
+   * Grouping key for the exercise library UI: the name minus equipment words,
+   * so equipment variants of one lift share a key while angle/stance variants
+   * (incline, close-grip, …) stay distinct. Derived per response by
+   * ExercisesService, not present in the raw data.
+   */
+  groupKey?: string;
   [key: string]: any; // Preserve other fields
 }
 

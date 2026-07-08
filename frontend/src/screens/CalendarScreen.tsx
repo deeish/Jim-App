@@ -260,7 +260,21 @@ export default function CalendarScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => {
+            // Reached from the Plan page (pushed onto the stack) → pop back to it.
+            // Reached from Home via navigate('Plan', { screen: 'History' }) the stack
+            // can be just [History] with nothing to pop, so fall back to the plan page.
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('PlanList');
+            }
+          }}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Back to plan"
+        >
           <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>History</Text>

@@ -10,7 +10,6 @@ import {
   Modal,
   Pressable,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,7 +32,13 @@ import {
   DAY_TYPE_LABELS,
 } from '../lib/planRecommendation';
 import { buildPlanInputs, planInputsToFormPatch } from '../lib/planInputs';
+import {
+  loadPlanPreviewDraft,
+  clearPlanPreviewDraft,
+  type PersistedPlanPreviewDraft,
+} from '../lib/planPreviewDraftStorage';
 import { MonthCalendarPicker } from '../components/MonthCalendarPicker';
+import BenchPressLoader from '../components/BenchPressLoader';
 import {
   WELLNESS_SCOPE_TITLE,
   WELLNESS_SCOPE_BODY,
@@ -103,6 +108,8 @@ interface PlanStyleOption {
 
 interface GeneratePlanInputs {
   goal: Goal | null;
+  /** Optional secondary emphasis blended into generation. */
+  secondaryGoal: Goal | null;
   programType: ProgramType | null;
   programVariationIndex: number;
   trainingDays: DayOfWeek[];
@@ -441,12 +448,28 @@ function getProgressionTargetOptions(goal: Goal | null): ProgressionTarget[] {
   }
 }
 
+/** One-line summary for the "resume your generated plan" card. */
+function resumePreviewSummary(d: PersistedPlanPreviewDraft): string {
+  const pi = d.params.planInputs;
+  const parts: string[] = [];
+  if (pi?.weeksCount) parts.push(`${pi.weeksCount}-week plan`);
+  if (pi?.daysPerWeek) parts.push(`${pi.daysPerWeek} days/week`);
+  const saved = new Date(d.savedAtIso);
+  if (!Number.isNaN(saved.getTime())) {
+    parts.push(
+      `generated ${saved.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`,
+    );
+  }
+  return parts.length ? parts.join(' · ') : 'Your last generated preview was never applied.';
+}
+
 export default function GeneratePlanScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createGeneratePlanStyles(colors), [colors]);
   const {
     hydrated: prefsHydrated,
     goal: prefGoal,
+    secondaryGoal: prefSecondaryGoal,
     experience: prefExperience,
     equipment: prefEquipment,
     trainingFrequency,
@@ -457,6 +480,12 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   } = useUserPreferences();
   const [inputs, setInputs] = useState<GeneratePlanInputs>(() => ({
     goal: prefGoalToForm(prefGoal),
+    // Two profile goals (e.g. Strength + Hypertrophy) can collapse to the same
+    // form goal — drop the secondary in that case so it never duplicates primary.
+    secondaryGoal: (() => {
+      const mapped = prefSecondaryGoal ? prefGoalToForm(prefSecondaryGoal) : null;
+      return mapped && mapped !== prefGoalToForm(prefGoal) ? mapped : null;
+    })(),
     programType: null,
     programVariationIndex: 0,
     trainingDays: getDefaultTrainingDays(4),
@@ -513,6 +542,42 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   const [currentStep, setCurrentStep] = useState<0 | 1 | 2>(0);
   const showAdvanced = currentStep === 1;
   const scrollViewRef = useRef<ScrollView>(null);
+
+  /**
+   * A generated preview that was never applied (e.g. the app was killed on the
+   * preview screen). Offering to resume reopens it from storage without another
+   * generation call. Skipped for auto/onboarding and edit-inputs entries.
+   */
+  const [resumeDraft, setResumeDraft] = useState<PersistedPlanPreviewDraft | null>(null);
+  useEffect(() => {
+    if (route.params?.autoGenerate || route.params?.editFromSnapshot) return;
+    let cancelled = false;
+    loadPlanPreviewDraft().then((d) => {
+      if (!cancelled) setResumeDraft(d);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [route.params?.autoGenerate, route.params?.editFromSnapshot]);
+
+  const handleResumePreview = useCallback(() => {
+    if (!resumeDraft) return;
+    setResumeDraft(null);
+    // Draft stays in storage until applied or discarded, so it survives another kill.
+    navigation.navigate('PlanPreview', resumeDraft.params);
+  }, [resumeDraft, navigation]);
+
+  const handleDiscardResumeDraft = useCallback(() => {
+    setResumeDraft(null);
+    void clearPlanPreviewDraft();
+  }, []);
+
+  // From Home/onboarding the Plan stack can mount with this screen as its only
+  // route — nothing to pop, so fall back to the plan list (same pattern as History).
+  const handleBack = useCallback(() => {
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('PlanList');
+  }, [navigation]);
   const [showRecommendationDetails, setShowRecommendationDetails] = useState(false);
   const [showCustomSplitSheet, setShowCustomSplitSheet] = useState(false);
   const [customSplitDraft, setCustomSplitDraft] = useState<CustomSplitData>({ templates: [], rotationRule: 'repeat_weekly', abs: 'none', cardio: 'none' });
@@ -715,12 +780,21 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     setInputs(prev => ({
       ...prev,
       goal,
+      // Keep the two goals distinct.
+      secondaryGoal: prev.secondaryGoal === goal ? null : prev.secondaryGoal,
       programType: null,
       programVariationIndex: 0,
       strengthSplitPreference: null,
       hybridGoalRatio: null,
       cardioModalityPreference:
         goal === 'hybrid' || goal === 'endurance' ? [...DEFAULT_CARDIO_MODALITY_PREFERENCE] : [],
+    }));
+  };
+
+  const handleSecondaryGoalSelect = (goal: Goal) => {
+    setInputs(prev => ({
+      ...prev,
+      secondaryGoal: prev.secondaryGoal === goal ? null : goal,
     }));
   };
 
@@ -841,6 +915,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     const planInputs = buildPlanInputs({
       form: {
         goal: inputs.goal!,
+        secondaryGoal: inputs.secondaryGoal,
         programType: inputs.programType ?? '',
         trainingDays: inputs.trainingDays,
         startDateISO: inputs.startDateISO,
@@ -912,6 +987,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
       draftId: `draft-${Date.now()}`,
       fromOnboarding: opts?.fromOnboarding,
     };
+    // A fresh generation supersedes any resumable preview backup.
+    setResumeDraft(null);
     if (opts?.replace) navigation.replace('PlanPreview', previewParams);
     else navigation.navigate('PlanPreview', previewParams);
   };
@@ -978,7 +1055,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     return (
       <View style={styles.outerContainer}>
         <SafeAreaView style={[styles.container, styles.autoGenCenter]} edges={['top', 'bottom']}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <BenchPressLoader size={200} colors={colors} />
           <Text style={styles.autoGenTitle}>Building your plan…</Text>
           <Text style={styles.autoGenSub}>Setting things up from your answers.</Text>
         </SafeAreaView>
@@ -990,7 +1067,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     <View style={styles.outerContainer}>
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backButtonText}>← Back</Text>
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
@@ -1039,6 +1116,34 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
         >
 
+        {currentStep === 0 && resumeDraft ? (
+          <View style={styles.resumeCard}>
+            <View style={styles.resumeCardHeader}>
+              <Ionicons name="sparkles" size={18} color={colors.primary} />
+              <Text style={styles.resumeCardTitle}>Resume your generated plan?</Text>
+            </View>
+            <Text style={styles.resumeCardMeta}>{resumePreviewSummary(resumeDraft)}</Text>
+            <View style={styles.resumeCardActions}>
+              <TouchableOpacity
+                style={styles.resumeBtn}
+                onPress={handleResumePreview}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+              >
+                <Text style={styles.resumeBtnText}>Resume preview</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.resumeDiscardBtn}
+                onPress={handleDiscardResumeDraft}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+              >
+                <Text style={styles.resumeDiscardBtnText}>Discard</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+
         {/* Step 1: Plan basics — goal, training days, weeks, start date */}
         {currentStep === 0 && (
         <View style={styles.essentialsPanel}>
@@ -1064,6 +1169,31 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               </TouchableOpacity>
             ))}
           </View>
+          {inputs.goal ? (
+            <View style={{ marginTop: 16 }}>
+              <Text style={styles.sectionSubtitle}>Add a second focus (optional)</Text>
+              <View style={styles.goalChipsRow}>
+                {(['fat loss', 'strength', 'endurance', 'hybrid'] as Goal[])
+                  .filter(g => g !== inputs.goal)
+                  .map(goal => (
+                    <TouchableOpacity
+                      key={goal}
+                      style={[styles.goalChip, inputs.secondaryGoal === goal && styles.goalChipSelected]}
+                      onPress={() => handleSecondaryGoalSelect(goal)}
+                    >
+                      <Text
+                        style={[
+                          styles.goalChipTitle,
+                          inputs.secondaryGoal === goal && styles.goalChipTitleSelected,
+                        ]}
+                      >
+                        {GOAL_LABELS[goal]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
+            </View>
+          ) : null}
         </View>
 
         {/* Training days */}
@@ -2719,6 +2849,42 @@ function createGeneratePlanStyles(c: ColorPalette) {
     paddingBottom: 8,
     marginBottom: 8,
   },
+  resumeCard: {
+    backgroundColor: c.primary + '14',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: c.primary + '44',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  resumeCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  resumeCardTitle: { fontSize: 15, fontWeight: '800', color: c.text, flexShrink: 1 },
+  resumeCardMeta: { fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 18 },
+  resumeCardActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  resumeBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: c.primary,
+    alignItems: 'center',
+  },
+  resumeBtnText: { fontSize: 14, fontWeight: '800', color: c.onPrimary },
+  resumeDiscardBtn: {
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resumeDiscardBtnText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
   wizardProgressRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

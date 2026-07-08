@@ -11,6 +11,7 @@ export type RootNavigatorParamList = {
   Onboarding: undefined;
   Main: NavigatorScreenParams<RootTabParamList> | undefined;
   Profile: undefined;
+  WeightTracker: undefined;
 };
 
 export type RootStackParamList = {
@@ -40,8 +41,9 @@ export type RootStackParamList = {
   ExerciseDetail: {
     exerciseId: string;
     /**
-     * Opened from Plan Preview or Plan calendar workout sheet; Back resets Exercises stack to SearchList
-     * and focuses the Exercises tab.
+     * Set when opened cross-tab from a plan/workout flow. Back resets the Exercises
+     * stack to SearchList and refocuses the originating tab: Plan for
+     * 'preview' | 'calendar' | 'workoutDetail', Workout for 'workout'.
      */
     returnToPlanExerciseContext?: 'preview' | 'calendar' | 'workoutDetail' | 'workout';
     /** @deprecated use returnToPlanExerciseContext === 'preview' */

@@ -39,6 +39,8 @@ import Button from '../components/Button';
 import Aurora from '../components/Aurora';
 import JimLogo from '../components/JimLogo';
 import { haptics } from '../lib/haptics';
+import { kgToLb, type WeightUnit } from '../lib/weightDisplay';
+import { logWeighIn } from '../services/bodyWeightService';
 import type { RootNavigatorParamList } from '../types/navigation';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -72,6 +74,7 @@ const STEP_HEADINGS: { title: string; subtitle: string }[] = [
   { title: 'How often do you train?', subtitle: "We'll shape your weekly split around this" },
   { title: 'What equipment do you have?', subtitle: 'Select all that apply — change it anytime in Profile' },
   { title: 'Anything to work around?', subtitle: 'Optional — most people skip this. Not medical advice.' },
+  { title: "What's your current weight?", subtitle: 'Optional — sets your first weigh-in so you can track progress.' },
   { title: 'Looks good?', subtitle: 'Review your setup — you can change anything later in Profile.' },
 ];
 
@@ -86,6 +89,8 @@ export default function OnboardingScreen({ navigation }: Props) {
   const styles = makeStyles(colors);
   const {
     setGoal,
+    setSecondaryGoal,
+    setWeightUnit,
     setExperience,
     setEquipment,
     setTrainingFrequency,
@@ -100,6 +105,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   const [step, setStep] = useState(0);
   const [showWelcome, setShowWelcome] = useState(true);
   const [selectedGoal, setSelectedGoal] = useState<GoalOption | null>(null);
+  const [selectedSecondaryGoal, setSelectedSecondaryGoal] = useState<GoalOption | null>(null);
   const [selectedExperience, setSelectedExperience] = useState<ExperienceOption | null>(null);
   const [selectedFrequency, setSelectedFrequency] = useState<TrainingFrequencyOption>(4);
   const [flexibleDays, setFlexibleDays] = useState(true);
@@ -107,6 +113,8 @@ export default function OnboardingScreen({ navigation }: Props) {
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentOption[]>([]);
   const [injuryTags, setInjuryTags] = useState<StoredInjuryTagId[]>([]);
   const [injuryNotes, setInjuryNotesDraft] = useState('');
+  const [weightInput, setWeightInput] = useState('');
+  const [weightEntryUnit, setWeightEntryUnit] = useState<WeightUnit>('lb');
   const [displayName, setDisplayName] = useState('');
 
   const progress = useSharedValue((1) / TOTAL_STEPS);
@@ -126,6 +134,18 @@ export default function OnboardingScreen({ navigation }: Props) {
           : step === 3
             ? selectedEquipment.length > 0
             : true;
+
+  function handleSelectGoal(g: GoalOption) {
+    haptics.select();
+    setSelectedGoal(g);
+    // Keep the two goals distinct.
+    setSelectedSecondaryGoal((prev) => (prev === g ? null : prev));
+  }
+
+  function handleSelectSecondary(g: GoalOption) {
+    haptics.select();
+    setSelectedSecondaryGoal((prev) => (prev === g ? null : g));
+  }
 
   function toggleEquipment(item: EquipmentOption) {
     haptics.select();
@@ -169,6 +189,7 @@ export default function OnboardingScreen({ navigation }: Props) {
     }
     haptics.success();
     if (selectedGoal) setGoal(selectedGoal);
+    setSecondaryGoal(selectedSecondaryGoal);
     if (selectedExperience) setExperience(selectedExperience);
     setTrainingFrequency(selectedFrequency);
     setTrainingDaysFlexible(flexibleDays);
@@ -177,6 +198,16 @@ export default function OnboardingScreen({ navigation }: Props) {
     setInjuryTagIds(injuryTags);
     setInjuryNotes(injuryNotes.trim());
     if (displayName.trim()) setProfileDisplayName(displayName.trim());
+    // Optional starting weigh-in. The user is already authenticated here, so this
+    // is a best-effort POST that must never block finishing onboarding.
+    const parsedWeight = Number.parseFloat(weightInput.replace(',', '.'));
+    if (Number.isFinite(parsedWeight) && parsedWeight > 0) {
+      setWeightUnit(weightEntryUnit);
+      const weightLb = weightEntryUnit === 'kg' ? kgToLb(parsedWeight) : parsedWeight;
+      if (weightLb >= 1 && weightLb <= 1500) {
+        void logWeighIn({ weightLb: Math.round(weightLb * 10) / 10 }).catch(() => {});
+      }
+    }
     completeOnboarding();
     navigation.replace('Main', {
       screen: 'Plan',
@@ -210,10 +241,13 @@ export default function OnboardingScreen({ navigation }: Props) {
         colors={[`${colors.primary}22`, colors.background] as const}
         style={StyleSheet.absoluteFill}
       />
+      {/* Full-bleed backdrop behind the safe-area-inset content, so the welcome
+          aurora reaches the very top/bottom edges instead of being boxed into the
+          inset region. */}
+      {showWelcome ? <Aurora colors={colors} /> : null}
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         {showWelcome ? (
           <View style={styles.welcomeContent}>
-            <Aurora colors={colors} />
             <View style={styles.welcomeTop}>
               <Rise delay={60} style={styles.brandWrap}>
                 <JimLogo interactive />
@@ -290,12 +324,25 @@ export default function OnboardingScreen({ navigation }: Props) {
                   selected={selectedGoal === g}
                   title={GOAL_LABELS[g]}
                   subtitle={GOAL_META[g].desc}
-                  onPress={() => {
-                    haptics.select();
-                    setSelectedGoal(g);
-                  }}
+                  onPress={() => handleSelectGoal(g)}
                 />
               ))}
+              {selectedGoal ? (
+                <>
+                  <Text style={styles.sectionLabel}>Add a second focus (optional)</Text>
+                  <View style={styles.chipGrid}>
+                    {GOAL_OPTIONS.filter((g) => g !== selectedGoal).map((g) => (
+                      <Chip
+                        key={g}
+                        colors={colors}
+                        selected={selectedSecondaryGoal === g}
+                        label={GOAL_LABELS[g]}
+                        onPress={() => handleSelectSecondary(g)}
+                      />
+                    ))}
+                  </View>
+                </>
+              ) : null}
               <Text style={styles.helperText}>You can change this anytime in Profile.</Text>
             </>
           )}
@@ -468,6 +515,48 @@ export default function OnboardingScreen({ navigation }: Props) {
 
           {step === 5 && (
             <>
+              <Text style={styles.sectionLabel}>Current weight</Text>
+              <View style={styles.weightEntryRow}>
+                <TextInput
+                  style={[styles.nameInput, styles.weightInput]}
+                  value={weightInput}
+                  onChangeText={setWeightInput}
+                  placeholder="Optional"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="decimal-pad"
+                  returnKeyType="done"
+                  maxLength={6}
+                />
+                <View style={styles.weightUnitToggle}>
+                  {(['lb', 'kg'] as WeightUnit[]).map((u) => {
+                    const active = weightEntryUnit === u;
+                    return (
+                      <PressableScale
+                        key={u}
+                        style={[styles.segment, active ? styles.segmentActive : null]}
+                        onPress={() => {
+                          haptics.select();
+                          setWeightEntryUnit(u);
+                        }}
+                      >
+                        <Text
+                          style={[styles.segmentText, active ? styles.segmentTextActive : null]}
+                        >
+                          {u}
+                        </Text>
+                      </PressableScale>
+                    );
+                  })}
+                </View>
+              </View>
+              <Text style={styles.helperText}>
+                We'll save this as your first weigh-in. Skip if you'd rather not.
+              </Text>
+            </>
+          )}
+
+          {step === 6 && (
+            <>
               <Text style={styles.sectionLabel}>What should we call you?</Text>
               <TextInput
                 style={styles.nameInput}
@@ -484,7 +573,13 @@ export default function OnboardingScreen({ navigation }: Props) {
                 colors={colors}
                 icon={selectedGoal ? GOAL_META[selectedGoal].icon : 'help-outline'}
                 label="Goal"
-                value={selectedGoal ? GOAL_LABELS[selectedGoal] : '—'}
+                value={
+                  selectedGoal
+                    ? `${GOAL_LABELS[selectedGoal]}${
+                        selectedSecondaryGoal ? ` + ${GOAL_LABELS[selectedSecondaryGoal]}` : ''
+                      }`
+                    : '—'
+                }
               />
               <SummaryRow
                 colors={colors}
@@ -495,6 +590,12 @@ export default function OnboardingScreen({ navigation }: Props) {
               <SummaryRow colors={colors} icon="calendar-outline" label="Schedule" value={scheduleValue} />
               <SummaryRow colors={colors} icon="barbell-outline" label="Equipment" value={equipmentValue} />
               <SummaryRow colors={colors} icon="medkit-outline" label="Working around" value={injuryValue} />
+              <SummaryRow
+                colors={colors}
+                icon="scale-outline"
+                label="Starting weight"
+                value={weightInput.trim() ? `${weightInput.trim()} ${weightEntryUnit}` : 'Skipped'}
+              />
               </View>
             </>
           )}
@@ -852,6 +953,18 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: 8,
       color: colors.text,
       backgroundColor: colors.surface,
+    },
+    weightEntryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+    weightInput: { flex: 1, marginBottom: 0 },
+    weightUnitToggle: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 4,
+      gap: 4,
+      width: 112,
     },
     summaryWrap: { gap: 12 },
     summaryRow: {

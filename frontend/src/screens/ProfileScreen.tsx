@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, type ComponentProps } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef, type ComponentProps } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ProfileIcon } from '../components/TabIcons';
@@ -34,6 +35,9 @@ import {
   TERMS_OF_SERVICE_URL,
 } from '../constants/legalUrls';
 import { exportMyData, deleteMyAccount } from '../services/userService';
+import { listWeighIns } from '../services/bodyWeightService';
+import { formatWeightFromLb } from '../lib/weightDisplay';
+import type { RootNavigatorParamList } from '../types/navigation';
 import { shareJsonExport } from '../lib/shareDataExport';
 import { PROFILE_AVATARS, type ProfileAvatarId } from '../constants/profileAvatars';
 
@@ -348,7 +352,7 @@ const layoutStyles = StyleSheet.create({
 const styles = { ...staticStyles, ...layoutStyles };
 
 export default function ProfileScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootNavigatorParamList>>();
   const { colors, isDark, setTheme } = useTheme();
   const { user, signOut } = useAuth();
   const {
@@ -357,6 +361,8 @@ export default function ProfileScreen() {
     setWeightUnit,
     goal,
     setGoal,
+    secondaryGoal,
+    setSecondaryGoal,
     experience,
     setExperience,
     equipment,
@@ -369,18 +375,56 @@ export default function ProfileScreen() {
   const [nameDraft, setNameDraft] = useState('');
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false);
   const [equipmentDraft, setEquipmentDraft] = useState<EquipmentOption[]>([]);
-  const [listPicker, setListPicker] = useState<'goal' | 'experience' | null>(null);
+  const [listPicker, setListPicker] = useState<
+    'goal' | 'secondaryGoal' | 'experience' | null
+  >(null);
   const [dataExporting, setDataExporting] = useState(false);
   const [accountDeleting, setAccountDeleting] = useState(false);
+  const [latestWeightLb, setLatestWeightLb] = useState<number | null>(null);
 
   const appVersion =
     Constants.expoConfig?.version ??
     (Constants as { nativeAppVersion?: string }).nativeAppVersion ??
     '—';
 
+  // Seed the editable draft from the stored name once prefs hydrate. Guarded so a
+  // later re-render / re-hydration (e.g. a Supabase token refresh) can't reset the
+  // field while the user is mid-edit, which looked like "can't change my name".
+  const nameSeeded = useRef(false);
   useEffect(() => {
-    if (prefsHydrated) setNameDraft(profileDisplayName);
+    if (prefsHydrated && !nameSeeded.current) {
+      nameSeeded.current = true;
+      setNameDraft(profileDisplayName);
+    }
   }, [prefsHydrated, profileDisplayName]);
+
+  // Persist the name on blur/submit. Trimming here (not on each keystroke) keeps
+  // spaces typeable, and saving on submit guarantees it sticks even when a
+  // keyboard dismissal doesn't reliably fire onBlur (common on Android).
+  const commitDisplayName = useCallback(() => {
+    const trimmed = nameDraft.trim();
+    if (trimmed !== nameDraft) setNameDraft(trimmed);
+    setProfileDisplayName(trimmed);
+  }, [nameDraft, setProfileDisplayName]);
+
+  // Latest weigh-in for the Body weight row; refreshes when returning from the tracker.
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) {
+        setLatestWeightLb(null);
+        return;
+      }
+      let active = true;
+      listWeighIns(1)
+        .then((rows) => {
+          if (active) setLatestWeightLb(rows[0]?.weightLb ?? null);
+        })
+        .catch(() => {});
+      return () => {
+        active = false;
+      };
+    }, [user]),
+  );
 
   const themedStyles = useMemo(
     () => ({
@@ -449,6 +493,7 @@ export default function ProfileScreen() {
   }, []);
 
   const pickGoal = useCallback(() => setListPicker('goal'), []);
+  const pickSecondaryGoal = useCallback(() => setListPicker('secondaryGoal'), []);
   const pickExperience = useCallback(() => setListPicker('experience'), []);
 
   const handleExportMyData = useCallback(async () => {
@@ -553,6 +598,7 @@ export default function ProfileScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <SectionHeader title="Account" colors={colors} />
         <View style={[styles.profileCard, themedStyles.profileCard]}>
@@ -571,7 +617,10 @@ export default function ProfileScreen() {
                 ]}
                 value={nameDraft}
                 onChangeText={setNameDraft}
-                onBlur={() => setProfileDisplayName(nameDraft)}
+                onBlur={commitDisplayName}
+                onEndEditing={commitDisplayName}
+                onSubmitEditing={commitDisplayName}
+                returnKeyType="done"
                 placeholder={namePlaceholder}
                 placeholderTextColor={colors.textMuted}
                 maxLength={80}
@@ -718,6 +767,18 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+          <Row
+            label="Body weight"
+            value={
+              latestWeightLb != null
+                ? formatWeightFromLb(latestWeightLb, weightUnit)
+                : 'Not set'
+            }
+            onPress={() => navigation.navigate('WeightTracker')}
+            colors={colors}
+            showChevron
+          />
         </View>
 
         <SectionHeader title="Preferences" colors={colors} />
@@ -726,6 +787,14 @@ export default function ProfileScreen() {
             label="Goal"
             value={GOAL_LABELS[goal]}
             onPress={pickGoal}
+            colors={colors}
+            showChevron
+          />
+          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+          <Row
+            label="Secondary goal"
+            value={secondaryGoal ? GOAL_LABELS[secondaryGoal] : 'None'}
+            onPress={pickSecondaryGoal}
             colors={colors}
             showChevron
           />
@@ -830,22 +899,44 @@ export default function ProfileScreen() {
             ]}
           >
             <Text style={[styles.modalTitle, themedStyles.modalTitle]}>
-              {listPicker === 'goal' ? 'Training goal' : 'Experience level'}
+              {listPicker === 'goal'
+                ? 'Training goal'
+                : listPicker === 'secondaryGoal'
+                  ? 'Secondary goal'
+                  : 'Experience level'}
             </Text>
             <ScrollView keyboardShouldPersistTaps="handled">
-              {(listPicker === 'goal' ? GOAL_OPTIONS : EXPERIENCE_OPTIONS).map((opt) => (
+              {(listPicker === 'experience'
+                ? [...EXPERIENCE_OPTIONS]
+                : listPicker === 'secondaryGoal'
+                  ? ['__none__', ...GOAL_OPTIONS.filter((g) => g !== goal)]
+                  : [...GOAL_OPTIONS]
+              ).map((opt) => (
                 <TouchableOpacity
                   key={opt}
                   style={styles.equipRow}
                   onPress={() => {
-                    if (listPicker === 'goal') setGoal(opt as (typeof GOAL_OPTIONS)[number]);
-                    else setExperience(opt as (typeof EXPERIENCE_OPTIONS)[number]);
+                    if (listPicker === 'goal') {
+                      setGoal(opt as (typeof GOAL_OPTIONS)[number]);
+                    } else if (listPicker === 'secondaryGoal') {
+                      setSecondaryGoal(
+                        opt === '__none__'
+                          ? null
+                          : (opt as (typeof GOAL_OPTIONS)[number]),
+                      );
+                    } else {
+                      setExperience(opt as (typeof EXPERIENCE_OPTIONS)[number]);
+                    }
                     setListPicker(null);
                   }}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.equipLabel, themedStyles.equipLabel]}>
-                    {listPicker === 'goal' ? GOAL_LABELS[opt as keyof typeof GOAL_LABELS] : opt}
+                    {opt === '__none__'
+                      ? 'None'
+                      : listPicker === 'experience'
+                        ? opt
+                        : GOAL_LABELS[opt as keyof typeof GOAL_LABELS]}
                   </Text>
                 </TouchableOpacity>
               ))}

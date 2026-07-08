@@ -59,6 +59,7 @@ export class UsersService {
           },
         },
         savedExercises: { orderBy: { createdAt: 'desc' } },
+        bodyWeightEntries: { orderBy: { loggedAt: 'desc' } },
       },
     });
 

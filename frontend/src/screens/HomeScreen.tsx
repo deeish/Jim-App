@@ -20,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import WhatsNewModal from '../components/WhatsNewModal';
+import LogWeightSheet from '../components/LogWeightSheet';
 import { LATEST_CHANGELOG_ID } from '../constants/changelog';
 import { getSeenChangelogId, setSeenChangelogId } from '../lib/whatsNewStorage';
 import type { RootNavigatorParamList } from '../types/navigation';
@@ -27,14 +28,22 @@ import { RootTabParamList } from '../components/NavBar';
 import { showConfirmDialog } from '../lib/confirmAlert';
 import { getCurrentPlanWithWeekly, planSlotForWorkout } from '../services/planService';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
+import { getWorkoutLogs } from '../services/workoutService';
 import { loadWorkoutDraft } from '../lib/workoutDraftStorage';
-import type { Workout } from '../types/workout';
+import type { Workout, WorkoutLog } from '../types/workout';
 import type { PersistedWorkoutDraft } from '../lib/workoutDraftStorage';
-import { resolveHomeToday, buildPlanByWeek, planSlotLinksWeeklyWorkout, type HomeTodayResult } from '../lib/homeToday';
 import {
-  programWeekForCalendarOffset,
+  resolveHomeToday,
+  buildHomeWeekDots,
+  type HomeTodayResult,
+  type HomeWeekDotStatus,
+} from '../lib/homeToday';
+import {
+  resolveProgramWeekForCalendarOffset,
+  lastContiguousProgramWeek,
   normalizeProgramWeekNumber,
-  isRestPlanSlotTitle,
+  getCalendarWeekRange,
+  formatLocalYmd,
   PLAN_WEEKDAY_NAMES_MONDAY_FIRST,
 } from '../lib/planCalendar';
 import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
@@ -51,8 +60,6 @@ function getGreeting(firstName?: string): string {
   const time = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
   return firstName ? `Good ${time}, ${firstName}!` : `Good ${time}`;
 }
-
-type DotStatus = 'completed' | 'today' | 'scheduled' | 'rest';
 
 function formatTodayDateLine(): string {
   return new Date().toLocaleDateString('en-US', {
@@ -119,14 +126,19 @@ export default function HomeScreen() {
 
   const [menuVisible, setMenuVisible] = useState(false);
   const [pendingSignOutConfirm, setPendingSignOutConfirm] = useState(false);
+  const [logWeightOpen, setLogWeightOpen] = useState(false);
+  const [pendingLogWeight, setPendingLogWeight] = useState(false);
   const [whatsNewVisible, setWhatsNewVisible] = useState(false);
   const [hasUnseenNews, setHasUnseenNews] = useState(false);
+  const [seenNewsId, setSeenNewsId] = useState<string | null>(null);
   const whatsNewAutoShown = useRef(false);
   const [homeToday, setHomeToday] = useState<HomeTodayResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [draft, setDraft] = useState<PersistedWorkoutDraft | null>(null);
   const [plan, setPlan] = useState<ApiPlan | null>(null);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
+  /** Completed logs for the current calendar week — the only valid "done" signal for week dots. */
+  const [weekCompletedLogs, setWeekCompletedLogs] = useState<WorkoutLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isFirstLoad = useRef(true);
@@ -138,7 +150,11 @@ export default function HomeScreen() {
   const closeWhatsNew = useCallback(() => {
     setWhatsNewVisible(false);
     setHasUnseenNews(false);
-    if (LATEST_CHANGELOG_ID) void setSeenChangelogId(LATEST_CHANGELOG_ID);
+    if (LATEST_CHANGELOG_ID) {
+      void setSeenChangelogId(LATEST_CHANGELOG_ID);
+      // Now caught up: a reopen should show only the latest expanded.
+      setSeenNewsId(LATEST_CHANGELOG_ID);
+    }
   }, []);
 
   // Surface unseen release notes. New / just-onboarded users (no seen record
@@ -151,7 +167,11 @@ export default function HomeScreen() {
     (async () => {
       if (!LATEST_CHANGELOG_ID) return;
       const seen = await getSeenChangelogId();
-      if (!active || seen === LATEST_CHANGELOG_ID) return;
+      if (!active) return;
+      // Capture what they'd seen before we mark the latest seen below, so the
+      // modal knows which entries to keep expanded.
+      setSeenNewsId(seen);
+      if (seen === LATEST_CHANGELOG_ID) return;
       setHasUnseenNews(true);
       if (seen !== null && !whatsNewAutoShown.current) {
         whatsNewAutoShown.current = true;
@@ -176,9 +196,17 @@ export default function HomeScreen() {
         setDraft(null);
       }
 
-      const { plan: fetchedPlan, weeklyWorkouts: fetchedWeekly } = await getCurrentPlanWithWeekly();
+      const { start, end } = getCalendarWeekRange(0);
+      const [{ plan: fetchedPlan, weeklyWorkouts: fetchedWeekly }, logs] = await Promise.all([
+        getCurrentPlanWithWeekly(),
+        // Graceful degradation: on error the dots simply show no completion.
+        getWorkoutLogs({ from: formatLocalYmd(start), to: formatLocalYmd(end) }).catch(
+          (): WorkoutLog[] => [],
+        ),
+      ]);
       setPlan(fetchedPlan ?? null);
       setWeeklyWorkouts(fetchedWeekly ?? []);
+      setWeekCompletedLogs(logs.filter((l) => l.completedAt != null));
       setHomeToday(resolveHomeToday(fetchedPlan, fetchedWeekly ?? []));
       setLoadError(null);
     } catch (err) {
@@ -203,8 +231,11 @@ export default function HomeScreen() {
     (parent as { navigate?: (name: keyof RootNavigatorParamList) => void })?.navigate?.('Profile');
   };
 
+  // initial: false keeps PlanList as the stack's first route even when the Plan
+  // tab hasn't been mounted yet, so Back on these screens pops to the plan page
+  // instead of having nothing beneath.
   const goToHistory = () => {
-    navigation.navigate('Plan', { screen: 'History' });
+    navigation.navigate('Plan', { screen: 'History', initial: false });
   };
 
   const goToPlan = () => {
@@ -212,7 +243,7 @@ export default function HomeScreen() {
   };
 
   const goToGeneratePlan = () => {
-    navigation.navigate('Plan', { screen: 'GeneratePlan' });
+    navigation.navigate('Plan', { screen: 'GeneratePlan', initial: false });
   };
 
   const goToWorkout = () => {
@@ -242,6 +273,18 @@ export default function HomeScreen() {
     } else {
       closeMenu();
       confirmSignOut();
+    }
+  };
+
+  const onLogWeight = () => {
+    // Same iOS modal-over-modal constraint as sign-out: defer presenting the
+    // log-weight sheet until the menu has fully dismissed.
+    if (Platform.OS === 'ios') {
+      setPendingLogWeight(true);
+      closeMenu();
+    } else {
+      closeMenu();
+      setLogWeightOpen(true);
     }
   };
 
@@ -280,33 +323,16 @@ export default function HomeScreen() {
   const programWeekInfo = useMemo(() => {
     if (!plan?.planWorkouts?.length) return null;
     const maxWeek = Math.max(...plan.planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)));
-    const current = programWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek);
-    if (current == null) return null;
-    return { current, total: maxWeek };
+    const repeatWeek = lastContiguousProgramWeek(plan.planWorkouts.map((pw) => pw.weekNumber));
+    const r = resolveProgramWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek, repeatWeek);
+    if (r.status !== 'in_program') return null;
+    return { current: r.week, total: maxWeek, repeating: r.repeatingLastWeek };
   }, [plan]);
 
-  const weekDots = useMemo((): { status: DotStatus; name: string | null }[] => {
-    if (!plan?.planWorkouts?.length) return [];
-    const maxWeek = Math.max(...plan.planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)));
-    const currentWeek = programWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek);
-    if (currentWeek == null) return [];
-    const byWeek = buildPlanByWeek(plan.planWorkouts);
-    const thisWeek = byWeek[currentWeek] ?? {};
-    const todayIdx = new Date().getDay();
-    const todayName = PLAN_WEEKDAY_NAMES_MONDAY_FIRST[todayIdx === 0 ? 6 : todayIdx - 1];
-    return PLAN_WEEKDAY_NAMES_MONDAY_FIRST.map((day) => {
-      const slots = thisWeek[day] ?? [];
-      const nonRest = slots.filter((s) => !isRestPlanSlotTitle(s.title));
-      if (!nonRest.length) return { status: 'rest', name: null };
-      const name = nonRest[0].title ?? null;
-      const completed = nonRest.some((s) =>
-        weeklyWorkouts.some((w) => planSlotLinksWeeklyWorkout(s.id, w.planWorkoutId))
-      );
-      if (completed) return { status: 'completed', name };
-      if (day === todayName) return { status: 'today', name };
-      return { status: 'scheduled', name };
-    });
-  }, [plan, weeklyWorkouts]);
+  const weekDots = useMemo(
+    () => buildHomeWeekDots(plan, weeklyWorkouts, weekCompletedLogs, programWeekInfo?.current ?? null),
+    [plan, weeklyWorkouts, weekCompletedLogs, programWeekInfo],
+  );
 
   const scheduledWorkout = homeToday?.status === 'scheduled' ? homeToday.workout : null;
   const homeTodayPlanSlot = useMemo(
@@ -354,7 +380,9 @@ export default function HomeScreen() {
 
       <View style={[styles.accentBar, themedStyles.accentHairline]} />
 
-      <WhatsNewModal visible={whatsNewVisible} onClose={closeWhatsNew} />
+      <WhatsNewModal visible={whatsNewVisible} onClose={closeWhatsNew} seenId={seenNewsId} />
+
+      <LogWeightSheet visible={logWeightOpen} onClose={() => setLogWeightOpen(false)} />
 
       <Modal
         visible={menuVisible}
@@ -367,6 +395,10 @@ export default function HomeScreen() {
           if (pendingSignOutConfirm) {
             setPendingSignOutConfirm(false);
             confirmSignOut();
+          }
+          if (pendingLogWeight) {
+            setPendingLogWeight(false);
+            setLogWeightOpen(true);
           }
         }}
       >
@@ -386,6 +418,12 @@ export default function HomeScreen() {
             <TouchableOpacity style={styles.menuItem} onPress={goToProfile} activeOpacity={0.7}>
               <Ionicons name="person-outline" size={22} color={colors.text} />
               <Text style={[styles.menuItemLabel, themedStyles.menuItemLabel]}>My profile</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+            <View style={[styles.menuDivider, themedStyles.menuDivider]} />
+            <TouchableOpacity style={styles.menuItem} onPress={onLogWeight} activeOpacity={0.7}>
+              <Ionicons name="scale-outline" size={22} color={colors.text} />
+              <Text style={[styles.menuItemLabel, themedStyles.menuItemLabel]}>Log weight</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </TouchableOpacity>
             <View style={[styles.menuDivider, themedStyles.menuDivider]} />
@@ -413,7 +451,12 @@ export default function HomeScreen() {
       >
         <Text style={[styles.greeting, { color: colors.text }]}>{getGreeting(displayName || undefined)}</Text>
         <Text style={[styles.dateLine, { color: colors.textMuted }]}>
-          {formatTodayDateLine()}{programWeekInfo ? ` · Week ${programWeekInfo.current} of ${programWeekInfo.total}` : ''}
+          {formatTodayDateLine()}
+          {programWeekInfo
+            ? programWeekInfo.repeating
+              ? ` · Repeating week ${programWeekInfo.current}`
+              : ` · Week ${programWeekInfo.current} of ${programWeekInfo.total}`
+            : ''}
         </Text>
 
         {loading ? (
@@ -635,12 +678,29 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
+            {!loadError && homeToday?.repeatingWeek != null ? (
+              <TouchableOpacity
+                style={[styles.card, styles.repeatBanner, themedStyles.secondaryCard]}
+                onPress={goToGeneratePlan}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityHint="Opens AI plan generator"
+              >
+                <Ionicons name="repeat" size={18} color={colors.primary} />
+                <Text style={[styles.repeatBannerText, { color: colors.textSecondary }]}>
+                  Your plan ended, so you're repeating week {homeToday.repeatingWeek}. Generate a
+                  fresh block to keep progressing.
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
+
             {!loadError && weekDots.length > 0 && (
               <View style={styles.weekDotsSection}>
                 <Text style={[styles.sectionLabel, styles.sectionSpaced, themedStyles.sectionLabel]}>This week</Text>
                 <View style={styles.dotsRow}>
                   {PLAN_WEEKDAY_NAMES_MONDAY_FIRST.map((day, i) => {
-                    const { status } = weekDots[i] ?? { status: 'rest' as DotStatus };
+                    const { status } = weekDots[i] ?? { status: 'rest' as HomeWeekDotStatus };
                     const isToday = day === todayWeekdayName;
                     const isTraining = status !== 'rest';
                     return (
@@ -969,6 +1029,19 @@ const styles = StyleSheet.create({
   menuDivider: {
     height: 1,
     marginLeft: 16,
+  },
+  repeatBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  repeatBannerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
   },
   weekDotsSection: {},
   dotsRow: {

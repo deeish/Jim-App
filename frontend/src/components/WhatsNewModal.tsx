@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -14,6 +14,12 @@ interface WhatsNewModalProps {
   onClose: () => void;
   /** Defaults to the full CHANGELOG (newest first). */
   entries?: ChangelogEntry[];
+  /**
+   * Id of the most recent entry the user has already seen. Entries newer than
+   * this stay expanded; the rest collapse behind a "Show earlier updates"
+   * toggle. When omitted/unknown, only the newest entry expands by default.
+   */
+  seenId?: string | null;
 }
 
 const TYPE_META: Record<ChangelogChangeType, { icon: keyof typeof Ionicons.glyphMap; label: string }> = {
@@ -35,10 +41,94 @@ function formatEntryDate(iso: string): string {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }: WhatsNewModalProps) {
+export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG, seenId = null }: WhatsNewModalProps) {
   const { colors } = useTheme();
 
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  // Entries before the seen one are unseen -> keep them expanded. Fall back to
+  // just the newest entry when nothing is newer (brand-new user, or already
+  // caught up).
+  const expandedCount = useMemo(() => {
+    const seenIndex = seenId ? entries.findIndex((e) => e.id === seenId) : -1;
+    return seenIndex > 0 ? seenIndex : 1;
+  }, [entries, seenId]);
+
+  const recent = entries.slice(0, expandedCount);
+  const older = entries.slice(expandedCount);
+
+  // Older entries collapse to a single row each; track which the user opened.
+  const [openOlderIds, setOpenOlderIds] = useState<string[]>([]);
+  // Collapse the history again whenever the modal is dismissed, so the next
+  // open starts focused on what's new.
+  useEffect(() => {
+    if (!visible) setOpenOlderIds([]);
+  }, [visible]);
+
+  const toggleOlder = (id: string) =>
+    setOpenOlderIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+
+  const renderChanges = (entry: ChangelogEntry) =>
+    entry.changes.map((change, i) => {
+      const meta = TYPE_META[change.type];
+      const color = typeColor(change.type, colors);
+      return (
+        <View key={i} style={styles.changeRow}>
+          <View style={[styles.changeIcon, { backgroundColor: color + '22' }]}>
+            <Ionicons name={meta.icon} size={15} color={color} />
+          </View>
+          <View style={styles.changeTextWrap}>
+            <Text style={[styles.changeTag, { color }]}>{meta.label}</Text>
+            <Text style={styles.changeText}>{change.text}</Text>
+          </View>
+        </View>
+      );
+    });
+
+  // Newest / unseen releases: shown in full.
+  const renderEntry = (entry: ChangelogEntry) => (
+    <View key={entry.id} style={styles.entry}>
+      <View style={styles.entryHeader}>
+        <Text style={styles.entryVersion}>Version {entry.version}</Text>
+        <Text style={styles.entryDate}>{formatEntryDate(entry.date)}</Text>
+      </View>
+      {entry.title ? <Text style={styles.entryTitle}>{entry.title}</Text> : null}
+      {renderChanges(entry)}
+    </View>
+  );
+
+  // Older releases: one compact row that expands its changes inline on tap.
+  const renderOlderRow = (entry: ChangelogEntry) => {
+    const open = openOlderIds.includes(entry.id);
+    return (
+      <View key={entry.id} style={styles.olderEntry}>
+        <TouchableOpacity
+          style={styles.olderRow}
+          onPress={() => toggleOlder(entry.id)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={`${entry.title ?? `Version ${entry.version}`}, ${entry.changes.length} updates`}
+        >
+          <Ionicons
+            name={open ? 'chevron-down' : 'chevron-forward'}
+            size={16}
+            color={colors.textMuted}
+          />
+          <Text style={styles.olderDate}>{formatEntryDate(entry.date)}</Text>
+          {entry.title ? (
+            <Text style={styles.olderTitle} numberOfLines={1}>
+              {`· ${entry.title}`}
+            </Text>
+          ) : (
+            <View style={styles.olderTitle} />
+          )}
+          <Text style={styles.olderCount}>{entry.changes.length}</Text>
+        </TouchableOpacity>
+        {open ? <View style={styles.olderBody}>{renderChanges(entry)}</View> : null}
+      </View>
+    );
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -65,31 +155,18 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }:
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {entries.map((entry) => (
-              <View key={entry.id} style={styles.entry}>
-                <View style={styles.entryHeader}>
-                  <Text style={styles.entryVersion}>Version {entry.version}</Text>
-                  <Text style={styles.entryDate}>{formatEntryDate(entry.date)}</Text>
-                </View>
-                {entry.title ? <Text style={styles.entryTitle}>{entry.title}</Text> : null}
+            {recent.map(renderEntry)}
 
-                {entry.changes.map((change, i) => {
-                  const meta = TYPE_META[change.type];
-                  const color = typeColor(change.type, colors);
-                  return (
-                    <View key={i} style={styles.changeRow}>
-                      <View style={[styles.changeIcon, { backgroundColor: color + '22' }]}>
-                        <Ionicons name={meta.icon} size={15} color={color} />
-                      </View>
-                      <View style={styles.changeTextWrap}>
-                        <Text style={[styles.changeTag, { color }]}>{meta.label}</Text>
-                        <Text style={styles.changeText}>{change.text}</Text>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            ))}
+            {older.length > 0 ? (
+              <>
+                <View style={styles.olderDivider}>
+                  <View style={styles.olderDividerLine} />
+                  <Text style={styles.olderDividerLabel}>Earlier updates</Text>
+                  <View style={styles.olderDividerLine} />
+                </View>
+                {older.map(renderOlderRow)}
+              </>
+            ) : null}
           </ScrollView>
 
           <View style={styles.footer}>
@@ -217,6 +294,62 @@ function createStyles(colors: ColorPalette) {
       lineHeight: 20,
       fontWeight: '500',
       color: colors.textSecondary,
+    },
+    olderDivider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginTop: 2,
+      marginBottom: 8,
+    },
+    olderDividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    olderDividerLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      color: colors.textMuted,
+    },
+    olderEntry: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    olderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 13,
+    },
+    olderDate: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    olderTitle: {
+      flex: 1,
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.textMuted,
+    },
+    olderCount: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textMuted,
+      minWidth: 22,
+      textAlign: 'center',
+      overflow: 'hidden',
+      borderRadius: 9,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      backgroundColor: colors.primary + '18',
+    },
+    olderBody: {
+      paddingTop: 2,
+      paddingBottom: 6,
     },
     footer: {
       padding: 16,

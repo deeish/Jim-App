@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,12 +14,17 @@ import {
   ActivityIndicator,
   Alert,
   BackHandler,
+  StyleProp,
+  ViewStyle,
+  TextStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
+import type { ColorPalette } from '../theme/colors';
 import Button from '../components/Button';
 import { searchExercises, Exercise, getSavedExerciseIds, getSavedExercises, saveExercise, unsaveExercise } from '../services/exerciseService';
 import ExerciseGroupCard from '../components/ExerciseGroupCard';
@@ -78,6 +83,25 @@ const MOVEMENT_PATTERNS = [
   'Push', 'Pull', 'Squat', 'Hinge', 'Lunge', 'Carry'
 ];
 
+// Cap for browse-mode responses (no search text — with or without chips). The
+// catalog has 5000+ rows and broad chip selections (e.g. Dumbbell + Bodyweight)
+// match thousands; nobody scrolls past 300 popularity-sorted rows, and `count`
+// still reports total matches for the "top N of M" subtext. Text search stays
+// uncapped: it is relevance-ranked, so a capped name match would be confusing.
+const BROWSE_LIMIT = 300;
+
+/** Order-insensitive equality for equipment selections (both are duplicate-free). */
+const equipmentSetsEqual = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((item) => b.includes(item));
+
+/**
+ * Equipment narrows results only when it's a real subset — all selected (or
+ * none) matches everything, so it isn't an active filter and gets no chip.
+ * Single definition so the search request and the chip/badge UI can't desync.
+ */
+const isEquipmentNarrowed = (equipment: string[]) =>
+  equipment.length > 0 && equipment.length < EQUIPMENT_OPTIONS.length;
+
 
 interface FilterState {
   searchQuery: string;
@@ -86,6 +110,222 @@ interface FilterState {
   equipment: string[];
   movementPatterns: string[];
 }
+
+// ——— Filter chip UI, hoisted to module scope ———
+// These were defined inside SearchScreen, so every render created brand-new
+// component types and React fully remounted each chip row (losing horizontal
+// scroll position on every keystroke). Module scope keeps the tree stable;
+// the screen's themed styles come in as props.
+
+type ChipStyles = {
+  chip: StyleProp<ViewStyle>;
+  chipSelected: StyleProp<ViewStyle>;
+  chipPartial: StyleProp<ViewStyle>;
+  chipText: StyleProp<TextStyle>;
+  chipTextSelected: StyleProp<TextStyle>;
+  chipCount: StyleProp<TextStyle>;
+  chipCountSelected: StyleProp<TextStyle>;
+};
+
+type SectionStyles = ChipStyles & {
+  section: StyleProp<ViewStyle>;
+  sectionHeader: StyleProp<ViewStyle>;
+  sectionTitle: StyleProp<TextStyle>;
+  sectionBadge: StyleProp<ViewStyle>;
+  sectionBadgeText: StyleProp<TextStyle>;
+  sectionDescription: StyleProp<TextStyle>;
+  chipsContainer: StyleProp<ViewStyle>;
+};
+
+type RefineStyles = ChipStyles & {
+  refineSection: StyleProp<ViewStyle>;
+  refineCaption: StyleProp<TextStyle>;
+  chipsContainer: StyleProp<ViewStyle>;
+};
+
+const Chip = React.memo(function Chip({
+  label,
+  isSelected,
+  onPress,
+  selectionState,
+  count,
+  styles,
+}: {
+  label: string;
+  isSelected: boolean;
+  onPress: () => void;
+  selectionState?: 'none' | 'partial' | 'full';
+  count?: string;
+  styles: ChipStyles;
+}) {
+  const showPartial = selectionState === 'partial';
+  return (
+    <TouchableOpacity
+      style={[
+        styles.chip,
+        isSelected && styles.chipSelected,
+        showPartial && styles.chipPartial,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${label} filter${isSelected ? ', selected' : ''}`}
+      accessibilityState={{ selected: isSelected }}
+    >
+      <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+        {label}
+      </Text>
+      {count && (
+        <Text style={[styles.chipCount, isSelected && styles.chipCountSelected]}>
+          {count}
+        </Text>
+      )}
+      {isSelected && !showPartial && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+      {showPartial && <Ionicons name="remove" size={14} color="#FFFFFF" />}
+    </TouchableOpacity>
+  );
+});
+
+const ActiveFilterChip = React.memo(function ActiveFilterChip({
+  label,
+  onRemove,
+  onPress,
+  styles,
+  colors,
+}: {
+  label: string;
+  onRemove: () => void;
+  /** Tap on the chip body (not the ×) — e.g. jump to the section this chip summarizes. */
+  onPress?: () => void;
+  styles: { activeFilterChip: StyleProp<ViewStyle>; activeFilterText: StyleProp<TextStyle> };
+  colors: ColorPalette;
+}) {
+  const inner = (
+    <>
+      <Text style={styles.activeFilterText}>{label}</Text>
+      <TouchableOpacity
+        onPress={onRemove}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        accessibilityRole="button"
+        accessibilityLabel={`Remove ${label} filter`}
+      >
+        <Ionicons name="close-circle" size={16} color={colors.primary} />
+      </TouchableOpacity>
+    </>
+  );
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        style={styles.activeFilterChip}
+        onPress={onPress}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${label} filter, tap to adjust`}
+      >
+        {inner}
+      </TouchableOpacity>
+    );
+  }
+  return <View style={styles.activeFilterChip}>{inner}</View>;
+});
+
+const FilterSection = React.memo(function FilterSection({
+  title,
+  options,
+  selectedValues,
+  onSelect,
+  description,
+  badgeText,
+  styles,
+}: {
+  title?: string;
+  options: string[];
+  selectedValues: string[];
+  onSelect: (value: string) => void;
+  description?: string;
+  /** Overrides the selected-count badge (e.g. equipment's "All" / "8/12"). */
+  badgeText?: string;
+  styles: SectionStyles;
+}) {
+  return (
+    <View style={styles.section}>
+      {title ? (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {(badgeText != null || selectedValues.length > 0) && (
+            <View style={styles.sectionBadge}>
+              <Text style={styles.sectionBadgeText}>{badgeText ?? selectedValues.length}</Text>
+            </View>
+          )}
+        </View>
+      ) : null}
+      {description && (
+        <Text style={styles.sectionDescription}>{description}</Text>
+      )}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsContainer}
+      >
+        {options.map((option) => (
+          <Chip
+            key={option}
+            label={option}
+            isSelected={selectedValues.includes(option)}
+            onPress={() => onSelect(option)}
+            styles={styles}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+});
+
+// Inline sub-muscle chip row shown under the muscle row when a parent is selected.
+// Deliberately no card chrome: tapping a muscle chip is the moment the user most
+// wants results, and the old boxed "Refine <group>" card pushed them ~110px down.
+// The caption leads with the group name so stacked rows (Chest + Back) stay legible.
+const RefineSection = React.memo(function RefineSection({
+  parentGroup,
+  subMuscles,
+  selectedSubMuscles,
+  onToggleSubMuscle,
+  styles,
+}: {
+  parentGroup: string;
+  subMuscles: string[];
+  selectedSubMuscles: string[];
+  onToggleSubMuscle: (subMuscle: string) => void;
+  styles: RefineStyles;
+}) {
+  const selectedCount = selectedSubMuscles.length;
+  const totalCount = subMuscles.length;
+
+  return (
+    <View style={styles.refineSection}>
+      <Text style={styles.refineCaption}>
+        {selectedCount === 0
+          ? `All ${parentGroup.toLowerCase()} · tap to narrow`
+          : `${parentGroup} · narrowed to ${selectedCount} of ${totalCount}`}
+      </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsContainer}
+      >
+        {subMuscles.map((subMuscle) => (
+          <Chip
+            key={subMuscle}
+            label={subMuscle}
+            isSelected={selectedSubMuscles.includes(subMuscle)}
+            onPress={() => onToggleSubMuscle(subMuscle)}
+            styles={styles}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+});
 
 export default function SearchScreen({ navigation }: Props) {
   const route = useRoute<SearchScreenRouteProp>();
@@ -102,20 +342,24 @@ export default function SearchScreen({ navigation }: Props) {
     movementPatterns: [],
   });
 
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  // Equipment is a set-once preference (usually pre-filled from onboarding), so it
-  // starts collapsed to de-clutter the top of the screen. One tap to expand.
-  const [showEquipment, setShowEquipment] = useState(false);
+  // Equipment + movement patterns live behind ONE collapsed row: equipment is a
+  // set-once preference (usually pre-filled from onboarding) and movement
+  // patterns are rarely touched, so two separate ~60px rows just pushed the
+  // first result a full card lower. One tap to expand both.
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([]);
+  // Total matches on the server; exceeds exercises.length when browse mode capped the list.
+  const [totalMatchCount, setTotalMatchCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addingToPlan, setAddingToPlan] = useState(false);
   const [savedExerciseIds, setSavedExerciseIds] = useState<string[]>([]);
-  const [savingLikeId, setSavingLikeId] = useState<string | null>(null);
-  const [showSavedList, setShowSavedList] = useState(false);
+  // Ids with an in-flight save/unsave request. A ref (not state) so guarding
+  // against a double-fire doesn't re-render the row and drop the next tap.
+  const inFlightLikeIds = useRef<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'all' | 'saved'>('all');
   const [savedExercisesList, setSavedExercisesList] = useState<Exercise[]>([]);
   const [loadingSavedList, setLoadingSavedList] = useState(false);
 
@@ -166,8 +410,8 @@ export default function SearchScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (showSavedList) {
-          setShowSavedList(false);
+        if (activeTab === 'saved') {
+          setActiveTab('all');
           return true;
         }
         const state = navigation.getState();
@@ -184,12 +428,11 @@ export default function SearchScreen({ navigation }: Props) {
         return false;
       });
       return () => sub.remove();
-    }, [navigation, showSavedList])
+    }, [navigation, activeTab])
   );
 
-  // When opening saved list, fetch full saved exercises
-  const openSavedList = useCallback(async () => {
-    setShowSavedList(true);
+  // Fetch full saved exercises whenever the Saved tab is opened
+  const loadSavedList = useCallback(async () => {
     setLoadingSavedList(true);
     try {
       const list = await getSavedExercises();
@@ -202,28 +445,54 @@ export default function SearchScreen({ navigation }: Props) {
     }
   }, []);
 
+  const switchTab = useCallback(
+    (tab: 'all' | 'saved') => {
+      if (tab === 'saved') loadSavedList();
+      setActiveTab(tab);
+    },
+    [loadSavedList],
+  );
+
   const handleToggleExerciseLike = useCallback(async (exerciseId: string) => {
-    if (savingLikeId) return;
-    if (__DEV__) console.log('[SearchScreen] handleToggleExerciseLike', exerciseId, 'currently saved:', savedExerciseIds.includes(exerciseId));
-    setSavingLikeId(exerciseId);
+    // Ignore taps while this exercise's request is in flight; the heart has
+    // already flipped optimistically, so there's nothing more to do until it
+    // settles.
+    if (inFlightLikeIds.current.has(exerciseId)) return;
+    inFlightLikeIds.current.add(exerciseId);
+
+    const wasSaved = savedExerciseIds.includes(exerciseId);
+    const removed = wasSaved ? savedExercisesList.find((e) => e.id === exerciseId) : undefined;
+
+    // Optimistic update so the heart responds to the very first tap.
+    setSavedExerciseIds((prev) =>
+      wasSaved
+        ? prev.filter((id) => id !== exerciseId)
+        : prev.includes(exerciseId)
+          ? prev
+          : [...prev, exerciseId],
+    );
+    if (wasSaved) setSavedExercisesList((prev) => prev.filter((e) => e.id !== exerciseId));
+
     try {
-      const isSaved = savedExerciseIds.includes(exerciseId);
-      if (isSaved) {
-        await unsaveExercise(exerciseId);
-        setSavedExerciseIds((prev) => prev.filter((id) => id !== exerciseId));
-        setSavedExercisesList((prev) => prev.filter((e) => e.id !== exerciseId));
-        if (__DEV__) console.log('[SearchScreen] unsaved exercise', exerciseId);
-      } else {
-        await saveExercise(exerciseId);
-        setSavedExerciseIds((prev) => [...prev, exerciseId]);
-        if (__DEV__) console.log('[SearchScreen] saved exercise', exerciseId);
-      }
+      if (wasSaved) await unsaveExercise(exerciseId);
+      else await saveExercise(exerciseId);
     } catch (e) {
       if (__DEV__) console.warn('[SearchScreen] handleToggleExerciseLike failed', exerciseId, e);
+      // Revert the optimistic change so the UI matches the server.
+      setSavedExerciseIds((prev) =>
+        wasSaved
+          ? prev.includes(exerciseId)
+            ? prev
+            : [...prev, exerciseId]
+          : prev.filter((id) => id !== exerciseId),
+      );
+      if (removed) {
+        setSavedExercisesList((prev) => (prev.some((e) => e.id === removed.id) ? prev : [...prev, removed]));
+      }
     } finally {
-      setSavingLikeId(null);
+      inFlightLikeIds.current.delete(exerciseId);
     }
-  }, [savedExerciseIds, savingLikeId]);
+  }, [savedExerciseIds, savedExercisesList]);
 
   // Toggle a main muscle group (parent). Selecting adds the parent only, which searches the
   // whole group (the backend ANDs primaryMuscleGroup with any sub-muscle narrowing). Sub-muscles
@@ -313,98 +582,32 @@ export default function SearchScreen({ navigation }: Props) {
       searchQuery: '',
       muscleGroups: [],
       subMuscles: [],
-      equipment: [],
+      // Restore the user's default equipment (seeded from their profile) rather
+      // than clearing it — this matches the page's initial state, so Reset
+      // returns to "my gear" instead of stripping past it to show exercises for
+      // equipment they don't own.
+      equipment: [...profileEquipment],
       movementPatterns: [],
     });
   };
 
-  const getActiveFilterCount = () => {
-    // Each active group and each narrowing sub-muscle is one chip in the active-filter row.
-    return (
-      filters.muscleGroups.length +
-      filters.subMuscles.length +
-      filters.equipment.length +
-      filters.movementPatterns.length
-    );
-  };
+  const equipmentNarrowed = isEquipmentNarrowed(filters.equipment);
 
-  // Search exercises when filters change
-  const performSearch = useCallback(async (currentFilters: FilterState) => {
-    const activeCount = 
-      currentFilters.muscleGroups.length +
-      currentFilters.subMuscles.length +
-      currentFilters.equipment.length +
-      currentFilters.movementPatterns.length;
-    const hasSearch = currentFilters.searchQuery.trim().length > 0;
-    
-    // Don't search if no filters are active
-    if (activeCount === 0 && !hasSearch) {
-      setExercises([]);
-      setExerciseGroups([]);
-      setIsLoading(false);
-      return;
-    }
+  // Reset returns to the page default (profile gear, no chips, no text). Grey it
+  // out when already there — not when the chip count is 0, because a home-gym
+  // user's default state legitimately shows one "My equipment" chip.
+  const isDefaultFilterState =
+    filters.searchQuery.trim().length === 0 &&
+    filters.muscleGroups.length === 0 &&
+    filters.subMuscles.length === 0 &&
+    filters.movementPatterns.length === 0 &&
+    equipmentSetsEqual(filters.equipment, profileEquipment);
 
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const searchParams = {
-        searchQuery: currentFilters.searchQuery.trim() || undefined,
-        muscleGroups: currentFilters.muscleGroups.length > 0 ? currentFilters.muscleGroups : undefined,
-        subMuscles: currentFilters.subMuscles.length > 0 ? currentFilters.subMuscles : undefined,
-        equipment: currentFilters.equipment.length > 0 ? currentFilters.equipment : undefined,
-        movementPatterns: currentFilters.movementPatterns.length > 0 ? currentFilters.movementPatterns : undefined,
-      };
-
-      const response = await searchExercises(searchParams);
-      setExercises(response.exercises);
-      // Group exercises by base name
-      const grouped = groupExercises(response.exercises);
-      setExerciseGroups(grouped);
-    } catch (err: any) {
-      console.error('Error searching exercises:', err);
-      setError(err.message || 'Failed to search exercises');
-      setExercises([]);
-      setExerciseGroups([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // Debounce search query changes
-  useEffect(() => {
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
-    }
-
-    const timeout = setTimeout(() => {
-      performSearch(filters);
-    }, filters.searchQuery.trim().length > 0 ? 500 : 0); // 500ms debounce for text search
-
-    setSearchTimeout(timeout);
-
-    return () => {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-    };
-  }, [filters.searchQuery, performSearch]);
-
-  // Search immediately when non-text filters change
-  useEffect(() => {
-    if (filters.searchQuery.trim().length === 0) {
-      performSearch(filters);
-    }
-  }, [filters.muscleGroups, filters.subMuscles, filters.equipment, filters.movementPatterns, performSearch]);
-
-  const resultCount = exerciseGroups.length > 0 ? exerciseGroups.length : exercises.length;
-  const activeFilterCount = getActiveFilterCount();
-
-  // Get all active filters for display
+  // Chips for the active-filter row. The header badge is this list's length —
+  // one source of truth, so the badge can never disagree with the rendered chips.
   const getActiveFilters = () => {
     const active: Array<{ label: string; category: string; value: string; isParent?: boolean }> = [];
-    
+
     // Selected parent groups (each searches the whole group unless narrowed by sub-muscles below).
     filters.muscleGroups.forEach(g => {
       active.push({ label: g, category: 'muscleGroups', value: g, isParent: true });
@@ -415,11 +618,113 @@ export default function SearchScreen({ navigation }: Props) {
       active.push({ label: m, category: 'subMuscles', value: m });
     });
 
-    filters.equipment.forEach(e => active.push({ label: e, category: 'equipment', value: e }));
+    // ONE summary chip for equipment instead of a chip per item (a full home-gym
+    // profile used to fill the row with up to 12 chips that narrowed nothing new).
+    // "My equipment" says *why* results are filtered when the selection is the
+    // profile's gear, which makes the × decision safer.
+    if (equipmentNarrowed) {
+      active.push({
+        label: equipmentSetsEqual(filters.equipment, profileEquipment)
+          ? `My equipment · ${filters.equipment.length}`
+          : `Equipment · ${filters.equipment.length}`,
+        category: 'equipmentSummary',
+        value: 'equipment',
+      });
+    }
     filters.movementPatterns.forEach(p => active.push({ label: p, category: 'movementPatterns', value: p }));
-    
+
     return active;
   };
+
+  // Monotonic id per search request. Overlapping requests can resolve out of
+  // order (a slow failure landing after a later success), so every state write
+  // below checks that no newer request has started since this one — otherwise a
+  // stale error overwrites fresh results, or stale results overwrite newer ones
+  // while typing quickly.
+  const requestSeq = useRef(0);
+
+  // Search exercises when filters change
+  const performSearch = useCallback(async (currentFilters: FilterState) => {
+    const seq = ++requestSeq.current;
+    // All equipment selected narrows nothing, so treat it as unset: don't send
+    // the param and don't count it. This keeps the all-gear default on the
+    // capped browse branch (instead of pulling the whole catalog uncapped) and
+    // un-hides the few gear-less catalog rows, which match no equipment list.
+    const equipmentNarrowed = isEquipmentNarrowed(currentFilters.equipment);
+    const activeCount =
+      currentFilters.muscleGroups.length +
+      currentFilters.subMuscles.length +
+      (equipmentNarrowed ? 1 : 0) +
+      currentFilters.movementPatterns.length;
+    const hasSearch = currentFilters.searchQuery.trim().length > 0;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // When the user types, search the whole catalog by text alone — chip filters
+      // (especially the profile-seeded equipment) must never silently hide a name
+      // match. Chips only narrow when browsing without a search term. With no text
+      // and no effective chips, browse the whole catalog (popular first, capped) so
+      // the page is never blank.
+      const searchParams = hasSearch
+        ? { searchQuery: currentFilters.searchQuery.trim() }
+        : activeCount === 0
+          ? { limit: BROWSE_LIMIT }
+          : {
+              muscleGroups: currentFilters.muscleGroups.length > 0 ? currentFilters.muscleGroups : undefined,
+              subMuscles: currentFilters.subMuscles.length > 0 ? currentFilters.subMuscles : undefined,
+              equipment: equipmentNarrowed ? currentFilters.equipment : undefined,
+              movementPatterns: currentFilters.movementPatterns.length > 0 ? currentFilters.movementPatterns : undefined,
+              limit: BROWSE_LIMIT,
+            };
+
+      const response = await searchExercises(searchParams);
+      if (seq !== requestSeq.current) return; // stale response — a newer search is in flight
+      setTotalMatchCount(response.count ?? response.exercises.length);
+      setExercises(response.exercises);
+      // Flat, relevance-ranked list while searching (so the exact variant you typed
+      // is visible, not buried under "Show variations"); grouped families when browsing.
+      const grouped = hasSearch
+        ? response.exercises.map((e) => ({ baseName: e.name, exercises: [e], primaryExercise: e }))
+        : groupExercises(response.exercises);
+      setExerciseGroups(grouped);
+    } catch (err: any) {
+      if (seq !== requestSeq.current) return; // stale failure — a newer search owns the UI state
+      console.error('Error searching exercises:', err);
+      setError(err.message || 'Failed to search exercises');
+      setExercises([]);
+      setExerciseGroups([]);
+    } finally {
+      if (seq === requestSeq.current) setIsLoading(false);
+    }
+  }, []);
+
+  // Re-search on ANY filter change (text or chips). Keying on the whole `filters`
+  // object means tapping a chip after typing always refreshes results (the old
+  // split effects dropped that case), and `filters` is always current (no stale
+  // closure). Debounce only while typing.
+  useEffect(() => {
+    // Wait for preferences so the first fetch runs once with the profile-seeded
+    // equipment (the seed effect rewrites `filters` right after hydration, which
+    // cancels this timeout before an unseeded browse request can fire).
+    if (!prefsHydrated) return;
+    const hasText = filters.searchQuery.trim().length > 0;
+    const timeout = setTimeout(() => performSearch(filters), hasText ? 250 : 0);
+    return () => clearTimeout(timeout);
+  }, [filters, performSearch, prefsHydrated]);
+
+  const resultCount = exerciseGroups.length > 0 ? exerciseGroups.length : exercises.length;
+  // Server capped the response (browse/chip mode): `exercises` is the top slice.
+  const resultsCapped = totalMatchCount > exercises.length;
+  // When capped, the grouped-row count would contradict the "top N of M" subtext
+  // (fewer family cards than N), so "found" reports the server's total matches.
+  const foundCount = resultsCapped ? totalMatchCount : resultCount;
+  const activeFilters = getActiveFilters();
+  const activeFilterCount = activeFilters.length;
+  const searchActive = filters.searchQuery.trim().length > 0;
+  // No chips and no text: the list is the capped, popularity-sorted whole catalog.
+  const isBrowsingAll = activeFilterCount === 0 && !searchActive;
 
   const removeFilter = (category: string, value: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -433,8 +738,11 @@ export default function SearchScreen({ navigation }: Props) {
       } else if (category === 'subMuscles') {
         // Remove just this narrowing sub-muscle; the parent group stays selected.
         updated.subMuscles = prev.subMuscles.filter(v => v !== value);
-      } else if (category === 'equipment') {
-        updated.equipment = prev.equipment.filter(v => v !== value);
+      } else if (category === 'equipmentSummary') {
+        // × on the summary chip clears the equipment narrowing. Select-all (not
+        // empty) so the Equipment Available checkboxes read "everything works",
+        // matching what the search now does with the param omitted.
+        updated.equipment = [...EQUIPMENT_OPTIONS];
       } else if (category === 'movementPatterns') {
         updated.movementPatterns = prev.movementPatterns.filter(v => v !== value);
       }
@@ -442,13 +750,30 @@ export default function SearchScreen({ navigation }: Props) {
     });
   };
 
-  const toggleSelectForAddToPlan = useCallback((exerciseId: string) => {
+  // Selected exercise objects for add-mode, keyed by id, alongside selectedIds.
+  // Chip-driven searches are capped (BROWSE_LIMIT), so a selected row can drop
+  // out of the current results array on a re-search; the submit handlers must
+  // still be able to build its payload. Set/delete are idempotent, so mutating
+  // the ref inside the state updater is safe even if React replays it.
+  const selectedExercisesById = useRef<Map<string, Exercise>>(new Map());
+
+  const toggleSelectForAddToPlan = useCallback((exercise: Exercise) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(exerciseId)) next.delete(exerciseId);
-      else next.add(exerciseId);
+      if (next.has(exercise.id)) {
+        next.delete(exercise.id);
+        selectedExercisesById.current.delete(exercise.id);
+      } else {
+        next.add(exercise.id);
+        selectedExercisesById.current.set(exercise.id, exercise);
+      }
       return next;
     });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    selectedExercisesById.current.clear();
+    setSelectedIds(new Set());
   }, []);
 
   /** Derive a short workout title from selected exercises' primary muscle groups (e.g. "Chest & Triceps"). */
@@ -458,6 +783,9 @@ export default function SearchScreen({ navigation }: Props) {
     if (groups.length === 1) return groups[0];
     return groups.slice(0, 3).join(' & ');
   }, []);
+
+  // Saved tab data, grouped the same way as search results.
+  const savedGroups = useMemo(() => groupExercises(savedExercisesList), [savedExercisesList]);
 
   // Render a single exercise card for the virtualized results FlatList. The list used to
   // be a non-virtualized ScrollView that mounted every card (~hundreds) at once, which
@@ -476,13 +804,12 @@ export default function SearchScreen({ navigation }: Props) {
           isDisabled={isAlreadyInWorkout}
           saved={savedExerciseIds.includes(group.primaryExercise.id)}
           onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
-          savingLike={savingLikeId === group.primaryExercise.id}
           onPress={(exercise) => {
-            if (addMode) toggleSelectForAddToPlan(exercise.id);
+            if (addMode) toggleSelectForAddToPlan(exercise);
             else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
           }}
           onPressVariation={(exercise) => {
-            if (addMode) toggleSelectForAddToPlan(exercise.id);
+            if (addMode) toggleSelectForAddToPlan(exercise);
             else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
           }}
           onPressInfo={(exercise) =>
@@ -496,7 +823,6 @@ export default function SearchScreen({ navigation }: Props) {
       addMode,
       addToWorkout,
       savedExerciseIds,
-      savingLikeId,
       handleToggleExerciseLike,
       toggleSelectForAddToPlan,
       navigation,
@@ -509,7 +835,11 @@ export default function SearchScreen({ navigation }: Props) {
     const weekMondayIso =
       weekMondayParam ?? formatLocalYmd(getCalendarWeekRange(weekIndex).start);
 
-    const selectedExercises = exercises.filter(e => selectedIds.has(e.id));
+    // Read from the selection map, not the current results array — a re-search
+    // (capped or refiltered) may no longer contain a still-selected exercise.
+    const selectedExercises = [...selectedIds]
+      .map((id) => selectedExercisesById.current.get(id))
+      .filter((e): e is Exercise => e != null);
     if (selectedExercises.length === 0) {
       Alert.alert('No exercises', 'Selected exercises could not be found. Try searching again and reselect.');
       return;
@@ -572,7 +902,7 @@ export default function SearchScreen({ navigation }: Props) {
         }
       }
 
-      setSelectedIds(new Set());
+      clearSelection();
       const tabNav = (navigation as any)?.getParent?.();
       if (tabNav) tabNav.navigate('Plan');
       const successMsg =
@@ -595,11 +925,13 @@ export default function SearchScreen({ navigation }: Props) {
     } finally {
       setAddingToPlan(false);
     }
-  }, [addToPlan, exercises, selectedIds, navigation, deriveWorkoutTitle]);
+  }, [addToPlan, selectedIds, navigation, deriveWorkoutTitle, clearSelection]);
 
   const submitAddToWorkout = useCallback(async () => {
     if (!addToWorkout || selectedIds.size === 0) return;
-    const selectedExercises = exercises.filter(e => selectedIds.has(e.id));
+    const selectedExercises = [...selectedIds]
+      .map((id) => selectedExercisesById.current.get(id))
+      .filter((e): e is Exercise => e != null);
     if (selectedExercises.length === 0) {
       Alert.alert('No exercises', 'Selected exercises could not be found. Try searching again and reselect.');
       return;
@@ -631,7 +963,7 @@ export default function SearchScreen({ navigation }: Props) {
       ];
       await updateWorkout(addToWorkout.workoutId, { exercises: merged });
 
-      setSelectedIds(new Set());
+      clearSelection();
       navigation.setParams({ addToWorkout: undefined });
       const tabNav = (navigation as any)?.getParent?.();
       if (tabNav) tabNav.navigate('Workout', { workoutId: addToWorkout.workoutId });
@@ -651,152 +983,7 @@ export default function SearchScreen({ navigation }: Props) {
     } finally {
       setAddingToPlan(false);
     }
-  }, [addToWorkout, exercises, selectedIds, navigation]);
-
-  const Chip = ({ 
-    label, 
-    isSelected, 
-    onPress,
-    selectionState,
-    count,
-  }: { 
-    label: string; 
-    isSelected: boolean; 
-    onPress: () => void;
-    selectionState?: 'none' | 'partial' | 'full';
-    count?: string;
-  }) => {
-    const showPartial = selectionState === 'partial';
-    return (
-      <TouchableOpacity
-        style={[
-          styles.chip,
-          isSelected && styles.chipSelected,
-          showPartial && styles.chipPartial,
-        ]}
-        onPress={onPress}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={`${label} filter${isSelected ? ', selected' : ''}`}
-        accessibilityState={{ selected: isSelected }}
-      >
-        <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-          {label}
-        </Text>
-        {count && (
-          <Text style={[styles.chipCount, isSelected && styles.chipCountSelected]}>
-            {count}
-          </Text>
-        )}
-        {isSelected && !showPartial && <Text style={styles.chipCheckmark}>✓</Text>}
-        {showPartial && <Text style={styles.chipPartialIndicator}>◐</Text>}
-      </TouchableOpacity>
-    );
-  };
-
-  const ActiveFilterChip = ({
-    label,
-    onRemove,
-  }: {
-    label: string;
-    onRemove: () => void;
-  }) => (
-    <View style={styles.activeFilterChip}>
-      <Text style={styles.activeFilterText}>{label}</Text>
-      <TouchableOpacity onPress={onRemove} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <Text style={styles.activeFilterRemove}>×</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const FilterSection = ({
-    title,
-    options,
-    selectedValues,
-    onSelect,
-    description,
-  }: {
-    title?: string;
-    options: string[];
-    selectedValues: string[];
-    onSelect: (value: string) => void;
-    description?: string;
-  }) => (
-    <View style={styles.section}>
-      {title ? (
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{title}</Text>
-          {selectedValues.length > 0 && (
-            <View style={styles.sectionBadge}>
-              <Text style={styles.sectionBadgeText}>{selectedValues.length}</Text>
-            </View>
-          )}
-        </View>
-      ) : null}
-      {description && (
-        <Text style={styles.sectionDescription}>{description}</Text>
-      )}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipsContainer}
-      >
-        {options.map((option) => (
-          <Chip
-            key={option}
-            label={option}
-            isSelected={selectedValues.includes(option)}
-            onPress={() => onSelect(option)}
-          />
-        ))}
-      </ScrollView>
-    </View>
-  );
-
-  // Refine section for sub-muscles when a parent is selected
-  const RefineSection = ({
-    parentGroup,
-    subMuscles,
-    selectedSubMuscles,
-    onToggleSubMuscle,
-  }: {
-    parentGroup: string;
-    subMuscles: string[];
-    selectedSubMuscles: string[];
-    onToggleSubMuscle: (subMuscle: string) => void;
-  }) => {
-    const selectedCount = selectedSubMuscles.length;
-    const totalCount = subMuscles.length;
-    
-    return (
-      <View style={styles.refineSection}>
-        <View style={styles.refineHeader}>
-          <Text style={styles.refineTitle}>Refine {parentGroup}</Text>
-          <Text style={styles.refineSubtitle}>
-            {selectedCount === 0
-              ? `All ${parentGroup.toLowerCase()} · tap to narrow`
-              : `Narrowed to ${selectedCount} of ${totalCount}`}
-          </Text>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsContainer}
-        >
-          {subMuscles.map((subMuscle) => (
-            <Chip
-              key={subMuscle}
-              label={subMuscle}
-              isSelected={selectedSubMuscles.includes(subMuscle)}
-              onPress={() => onToggleSubMuscle(subMuscle)}
-            />
-          ))}
-        </ScrollView>
-      </View>
-    );
-  };
-
-  const activeFilters = getActiveFilters();
+  }, [addToWorkout, selectedIds, navigation, clearSelection]);
 
   const styles = useMemo(
     () =>
@@ -833,15 +1020,21 @@ export default function SearchScreen({ navigation }: Props) {
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
         },
-        searchInput: {
+        searchInputRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
           backgroundColor: colors.background,
           borderRadius: 12,
-          paddingHorizontal: 16,
+          paddingHorizontal: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+        },
+        searchInput: {
+          flex: 1,
           paddingVertical: 12,
           fontSize: 16,
           color: colors.text,
-          borderWidth: 1,
-          borderColor: colors.border,
         },
         activeFiltersContainer: {
           backgroundColor: colors.surface,
@@ -862,7 +1055,13 @@ export default function SearchScreen({ navigation }: Props) {
           marginRight: 8,
         },
         activeFilterText: { color: colors.primary, fontSize: 14, fontWeight: '600', marginRight: 6 },
-        activeFilterRemove: { color: colors.primary, fontSize: 18, fontWeight: 'bold', lineHeight: 18 },
+        activeFiltersDimmed: { opacity: 0.4 },
+        activeFiltersPausedNote: {
+          fontSize: 12,
+          color: colors.textMuted,
+          paddingHorizontal: 16,
+          marginBottom: 6,
+        },
         content: { flex: 1 },
         contentContainer: { paddingBottom: 100 },
         section: { marginTop: 24, paddingHorizontal: 16 },
@@ -895,7 +1094,6 @@ export default function SearchScreen({ navigation }: Props) {
         chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
         chipText: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
         chipTextSelected: { color: '#FFFFFF', fontWeight: '600' },
-        chipCheckmark: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold' },
         chipCount: { fontSize: 11, color: colors.textMuted, fontWeight: '600', marginLeft: 4 },
         chipCountSelected: { color: '#FFFFFF' },
         chipPartial: {
@@ -903,24 +1101,8 @@ export default function SearchScreen({ navigation }: Props) {
           borderColor: colors.primary,
           borderStyle: 'dashed',
         },
-        chipPartialIndicator: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold', marginLeft: 4 },
-        refineSection: {
-          marginTop: 16,
-          marginHorizontal: 16,
-          padding: 16,
-          backgroundColor: colors.surface,
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: colors.border,
-        },
-        refineHeader: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 12,
-        },
-        refineTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
-        refineSubtitle: { fontSize: 13, color: colors.textMuted },
+        refineSection: { marginTop: 12, paddingHorizontal: 16 },
+        refineCaption: { fontSize: 13, color: colors.textMuted, marginBottom: 8 },
         // Tight, uniform rhythm for the collapsible rows (Equipment + Advanced Filters).
         // marginBottom: 0 — the results section's own marginTop spaces it from the list.
         advancedSection: { marginTop: 12, paddingHorizontal: 16, marginBottom: 0 },
@@ -936,6 +1118,7 @@ export default function SearchScreen({ navigation }: Props) {
           borderColor: colors.border,
           marginBottom: 16,
         },
+        advancedToggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
         advancedToggleText: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
         advancedBadge: {
           backgroundColor: colors.primary,
@@ -959,6 +1142,15 @@ export default function SearchScreen({ navigation }: Props) {
         },
         resultsPreviewText: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 4 },
         resultsPreviewHint: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
+        retryButton: {
+          marginTop: 12,
+          paddingHorizontal: 24,
+          paddingVertical: 8,
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: colors.primary,
+        },
+        retryButtonText: { color: colors.primary, fontSize: 14, fontWeight: '600' },
         bottomBar: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -977,7 +1169,6 @@ export default function SearchScreen({ navigation }: Props) {
         resultCountText: { fontSize: 16, color: colors.textSecondary, fontWeight: '500' },
         viewResultsButtonContainer: { width: 140 },
         viewResultsButton: { paddingVertical: 14 },
-        resultsSection: { marginTop: 24, paddingBottom: 20 },
         resultsHeader: { paddingHorizontal: 16, paddingBottom: 12 },
         resultsHeaderText: { fontSize: 20, fontWeight: '600', color: colors.text },
         resultsSubtext: { fontSize: 14, fontWeight: '400', color: colors.textMuted },
@@ -1003,21 +1194,29 @@ export default function SearchScreen({ navigation }: Props) {
         },
         addToPlanFooterText: { fontSize: 16, fontWeight: '600', color: colors.text },
         addToPlanFooterButton: { minWidth: 160 },
-        savedListContainer: { paddingHorizontal: 16, paddingBottom: 24 },
-        savedListBack: { paddingVertical: 12, marginBottom: 8 },
-        savedListBackText: { fontSize: 16, fontWeight: '600' },
-        savedListTitle: { fontSize: 22, fontWeight: '700', color: colors.text, marginBottom: 16 },
-        savedExercisesRow: {
-          marginTop: 20,
-          marginHorizontal: 16,
-          padding: 16,
+        segmentContainer: {
+          paddingHorizontal: 16,
+          paddingVertical: 10,
           backgroundColor: colors.surface,
-          borderRadius: 12,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        },
+        segmentRow: {
+          flexDirection: 'row',
+          borderRadius: 10,
           borderWidth: 1,
           borderColor: colors.border,
+          overflow: 'hidden',
         },
-        savedExercisesRowText: { fontSize: 17, fontWeight: '600' },
-        savedExercisesRowHint: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+        segmentBtn: {
+          flex: 1,
+          paddingVertical: 8,
+          alignItems: 'center',
+          backgroundColor: colors.background,
+        },
+        segmentBtnActive: { backgroundColor: colors.primary },
+        segmentBtnText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
+        segmentBtnTextActive: { color: '#FFFFFF' },
       }),
     [colors]
   );
@@ -1036,7 +1235,7 @@ export default function SearchScreen({ navigation }: Props) {
           </Text>
           <TouchableOpacity
             onPress={() => {
-              setSelectedIds(new Set());
+              clearSelection();
               navigation.setParams({ addToPlan: undefined, addToWorkout: undefined });
             }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -1049,86 +1248,109 @@ export default function SearchScreen({ navigation }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Find Workouts</Text>
-          {activeFilterCount > 0 && (
+          <Text style={styles.headerTitle}>Exercises</Text>
+          {activeTab === 'all' && activeFilterCount > 0 && (
             <View style={styles.filterBadge}>
               <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
             </View>
           )}
         </View>
-        <TouchableOpacity onPress={resetFilters} activeOpacity={0.7}>
-          <Text style={[styles.resetButton, activeFilterCount === 0 && styles.resetButtonDisabled]}>
-            Reset
-          </Text>
-        </TouchableOpacity>
+        {activeTab === 'all' && (
+          <TouchableOpacity onPress={resetFilters} activeOpacity={0.7} disabled={isDefaultFilterState}>
+            <Text style={[styles.resetButton, isDefaultFilterState && styles.resetButtonDisabled]}>
+              Reset
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {showSavedList ? (
-        <View style={styles.savedListContainer}>
+      {/* All | Saved segment */}
+      <View style={styles.segmentContainer}>
+        <View style={styles.segmentRow} accessibilityRole="tablist">
           <TouchableOpacity
-            style={styles.savedListBack}
-            onPress={() => setShowSavedList(false)}
-            activeOpacity={0.7}
+            style={[styles.segmentBtn, activeTab === 'all' && styles.segmentBtnActive]}
+            onPress={() => switchTab('all')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === 'all' }}
           >
-            <Text style={[styles.savedListBackText, { color: colors.primary }]}>← All exercises</Text>
+            <Text style={[styles.segmentBtnText, activeTab === 'all' && styles.segmentBtnTextActive]}>
+              All
+            </Text>
           </TouchableOpacity>
-          <Text style={styles.savedListTitle}>Saved exercises</Text>
-          {loadingSavedList ? (
-            <View style={styles.resultsPreview}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
-          ) : savedExercisesList.length === 0 ? (
-            <View style={styles.resultsPreview}>
-              <Text style={styles.resultsPreviewText}>No saved exercises</Text>
-              <Text style={styles.resultsPreviewHint}>Tap the heart on any exercise to save it here</Text>
-            </View>
-          ) : (
-            <View style={styles.resultsSection}>
-              {groupExercises(savedExercisesList).map((group, index) => {
-                const existingIds = addToWorkout?.existingExerciseIds ?? [];
-                const isAlreadyInWorkout = existingIds.length > 0 && group.exercises.some(e => existingIds.includes(e.id));
-                return (
-                  <ExerciseGroupCard
-                    key={`saved-${group.baseName}-${index}`}
-                    group={group}
-                    isDisabled={isAlreadyInWorkout}
-                    saved={true}
-                    onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
-                    savingLike={savingLikeId === group.primaryExercise.id}
-                    onPress={(exercise) => {
-                      if (addMode) toggleSelectForAddToPlan(exercise.id);
-                      else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-                    }}
-                    onPressVariation={(exercise) => {
-                      if (addMode) toggleSelectForAddToPlan(exercise.id);
-                      else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-                    }}
-                    onPressInfo={(exercise) =>
-                      navigation.navigate('ExerciseDetail', { exerciseId: exercise.id })
-                    }
-                  />
-                );
-              })}
-            </View>
-          )}
+          <TouchableOpacity
+            style={[styles.segmentBtn, activeTab === 'saved' && styles.segmentBtnActive]}
+            onPress={() => switchTab('saved')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === 'saved' }}
+          >
+            <Text style={[styles.segmentBtnText, activeTab === 'saved' && styles.segmentBtnTextActive]}>
+              {savedExerciseIds.length > 0 ? `Saved (${savedExerciseIds.length})` : 'Saved'}
+            </Text>
+          </TouchableOpacity>
         </View>
+      </View>
+
+      {activeTab === 'saved' ? (
+        // Virtualized like the main results list — the saved list can grow unbounded,
+        // and a plain .map would re-introduce the mount-everything jank FlatList fixed.
+        <FlatList
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          data={savedGroups}
+          keyExtractor={(group, index) => `saved-${group.baseName}-${index}`}
+          renderItem={renderExerciseCard}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          ListEmptyComponent={
+            loadingSavedList ? (
+              <View style={styles.resultsPreview}>
+                <ActivityIndicator size="large" color={colors.primary} />
+              </View>
+            ) : (
+              <View style={styles.resultsPreview}>
+                <Text style={styles.resultsPreviewText}>No saved exercises</Text>
+                <Text style={styles.resultsPreviewHint}>Tap the heart on any exercise to save it here</Text>
+              </View>
+            )
+          }
+        />
       ) : (
         <>
       {/* Search Input */}
       <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search name, muscle, or cardio (e.g. treadmill, bike)…"
-          placeholderTextColor={colors.textMuted}
-          value={filters.searchQuery}
-          onChangeText={(text) => setFilters(prev => ({ ...prev, searchQuery: text }))}
-          returnKeyType="search"
-        />
+        <View style={styles.searchInputRow}>
+          <Ionicons name="search" size={18} color={colors.textMuted} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search name, muscle, or cardio (e.g. treadmill, bike)…"
+            placeholderTextColor={colors.textMuted}
+            value={filters.searchQuery}
+            onChangeText={(text) => setFilters(prev => ({ ...prev, searchQuery: text }))}
+            returnKeyType="search"
+          />
+          {filters.searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setFilters(prev => ({ ...prev, searchQuery: '' }))}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
+              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
-      {/* Active Filters */}
+      {/* Active Filters — dimmed while a search term is active: text search
+          deliberately ignores chips (a typed name must never be hidden), so the
+          row must not claim filters it is not applying. */}
       {activeFilters.length > 0 && (
-        <View style={styles.activeFiltersContainer}>
+        <View style={[styles.activeFiltersContainer, searchActive && styles.activeFiltersDimmed]}>
+          {searchActive && (
+            <Text style={styles.activeFiltersPausedNote}>Not applied while searching</Text>
+          )}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1139,6 +1361,13 @@ export default function SearchScreen({ navigation }: Props) {
                 key={`${filter.category}-${filter.value}-${index}`}
                 label={filter.label}
                 onRemove={() => removeFilter(filter.category, filter.value)}
+                onPress={
+                  filter.category === 'equipmentSummary'
+                    ? () => setShowMoreFilters(true)
+                    : undefined
+                }
+                styles={styles}
+                colors={colors}
               />
             ))}
           </ScrollView>
@@ -1157,7 +1386,14 @@ export default function SearchScreen({ navigation }: Props) {
         maxToRenderPerBatch={8}
         windowSize={7}
         ListEmptyComponent={
-          !isLoading && !error && activeFilterCount > 0 ? (
+          !isLoading && !error && filters.searchQuery.trim().length > 0 ? (
+            <View style={styles.resultsPreview}>
+              <Text style={styles.resultsPreviewText}>
+                No matches for “{filters.searchQuery.trim()}”
+              </Text>
+              <Text style={styles.resultsPreviewHint}>Try fewer words or check the spelling</Text>
+            </View>
+          ) : !isLoading && !error && activeFilterCount > 0 ? (
             <View style={styles.resultsPreview}>
               <Text style={styles.resultsPreviewText}>No exercises found</Text>
               <Text style={styles.resultsPreviewHint}>Try adjusting your filters</Text>
@@ -1178,9 +1414,6 @@ export default function SearchScreen({ navigation }: Props) {
               </View>
             )}
           </View>
-          <Text style={styles.sectionDescription}>
-            Pick a group, or tap Cardio for treadmills, bikes, rowing, circuits, and conditioning.
-          </Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1198,6 +1431,7 @@ export default function SearchScreen({ navigation }: Props) {
                   selectionState={state}
                   count={state === 'partial' ? `${selectedSubMuscles.length}/${subMuscles.length}` : undefined}
                   onPress={() => toggleMuscleGroup(group)}
+                  styles={styles}
                 />
               );
             })}
@@ -1219,82 +1453,64 @@ export default function SearchScreen({ navigation }: Props) {
                 subMuscles={subMuscles}
                 selectedSubMuscles={selectedSubMuscles}
                 onToggleSubMuscle={(subMuscle) => toggleSubMuscle(subMuscle, group)}
+                styles={styles}
               />
             );
           }
           return null;
         })}
 
-        {/* Equipment Available - Collapsed by default (set-once preference) */}
+        {/* More filters — equipment + movement patterns behind one collapsed row */}
         <View style={styles.advancedSection}>
           <TouchableOpacity
             style={styles.advancedToggle}
-            onPress={() => setShowEquipment(!showEquipment)}
+            onPress={() => setShowMoreFilters(!showMoreFilters)}
             activeOpacity={0.7}
             accessibilityRole="button"
           >
-            <Text style={styles.advancedToggleText}>
-              {showEquipment ? '▼' : '▶'} Equipment Available
-            </Text>
-            <View style={styles.advancedBadge}>
-              <Text style={styles.advancedBadgeText}>
-                {filters.equipment.length === EQUIPMENT_OPTIONS.length
-                  ? 'All'
-                  : `${filters.equipment.length}/${EQUIPMENT_OPTIONS.length}`}
-              </Text>
+            <View style={styles.advancedToggleLeft}>
+              <Ionicons
+                name={showMoreFilters ? 'chevron-down' : 'chevron-forward'}
+                size={16}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.advancedToggleText}>More filters</Text>
             </View>
-          </TouchableOpacity>
-
-          {showEquipment && (
-            <FilterSection
-              options={[...EQUIPMENT_OPTIONS]}
-              selectedValues={filters.equipment}
-              onSelect={(value) => toggleFilter('equipment', value)}
-              description="What equipment do you have access to?"
-            />
-          )}
-        </View>
-
-        {/* Advanced Filters - Collapsed by default */}
-        <View style={styles.advancedSection}>
-          <TouchableOpacity
-            style={styles.advancedToggle}
-            onPress={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.advancedToggleText}>
-              {showAdvancedFilters ? '▼' : '▶'} Advanced Filters
-            </Text>
-            {filters.movementPatterns.length > 0 && (
+            {(equipmentNarrowed || filters.movementPatterns.length > 0) && (
               <View style={styles.advancedBadge}>
-                <Text style={styles.advancedBadgeText}>{filters.movementPatterns.length}</Text>
+                <Text style={styles.advancedBadgeText}>
+                  {(equipmentNarrowed ? 1 : 0) + filters.movementPatterns.length}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
 
-          {showAdvancedFilters && (
-            <FilterSection
-              title="Movement Pattern"
-              options={MOVEMENT_PATTERNS}
-              selectedValues={filters.movementPatterns}
-              onSelect={(value) => toggleFilter('movementPatterns', value)}
-              description="Filter by exercise movement type (optional)"
-            />
+          {showMoreFilters && (
+            <>
+              <FilterSection
+                title="Equipment Available"
+                badgeText={
+                  filters.equipment.length === EQUIPMENT_OPTIONS.length
+                    ? 'All'
+                    : `${filters.equipment.length}/${EQUIPMENT_OPTIONS.length}`
+                }
+                options={[...EQUIPMENT_OPTIONS]}
+                selectedValues={filters.equipment}
+                onSelect={(value) => toggleFilter('equipment', value)}
+                description="What equipment do you have access to?"
+                styles={styles}
+              />
+              <FilterSection
+                title="Movement Pattern"
+                options={MOVEMENT_PATTERNS}
+                selectedValues={filters.movementPatterns}
+                onSelect={(value) => toggleFilter('movementPatterns', value)}
+                description="Filter by exercise movement type (optional)"
+                styles={styles}
+              />
+            </>
           )}
         </View>
-
-        {savedExerciseIds.length > 0 && (
-          <TouchableOpacity
-            style={styles.savedExercisesRow}
-            onPress={openSavedList}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.savedExercisesRowText, { color: colors.primary }]}>
-              Saved exercises ({savedExerciseIds.length})
-            </Text>
-            <Text style={styles.savedExercisesRowHint}>Tap to view</Text>
-          </TouchableOpacity>
-        )}
 
         {/* Results Preview Area */}
         {isLoading && (
@@ -1310,20 +1526,51 @@ export default function SearchScreen({ navigation }: Props) {
               Error
             </Text>
             <Text style={styles.resultsPreviewHint}>{error}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => performSearch(filters)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Retry search"
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
           </View>
         )}
 
         {/* Exercise Results header — cards render below as virtualized FlatList items */}
         {!isLoading && !error && resultCount > 0 && (
           <View style={[styles.resultsHeader, { marginTop: 24 }]}>
-            <Text style={styles.resultsHeaderText}>
-              {resultCount} exercise{resultCount !== 1 ? 's' : ''} found
-              {exerciseGroups.length > 0 && exercises.length > exerciseGroups.length && (
+            {isBrowsingAll ? (
+              <>
+                <Text style={styles.resultsHeaderText}>Popular exercises</Text>
                 <Text style={styles.resultsSubtext}>
-                  {' '}({exercises.length} total including variations)
+                  {resultsCapped
+                    ? `Showing the top ${exercises.length} of ${totalMatchCount}. Search or filter to see the rest.`
+                    : 'Search or filter to narrow the list.'}
                 </Text>
-              )}
-            </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.resultsHeaderText}>
+                  {foundCount} exercise{foundCount !== 1 ? 's' : ''} found
+                  {!resultsCapped &&
+                    exerciseGroups.length > 0 &&
+                    exercises.length > exerciseGroups.length && (
+                      <Text style={styles.resultsSubtext}>
+                        {' '}({exercises.length} total including variations)
+                      </Text>
+                    )}
+                </Text>
+                {/* Chip-driven searches are capped like browse mode; say so instead of
+                    silently truncating. (Text search is uncapped, so this never shows.) */}
+                {resultsCapped && (
+                  <Text style={styles.resultsSubtext}>
+                    Showing the top {exercises.length}. Narrow further or search to see the rest.
+                  </Text>
+                )}
+              </>
+            )}
           </View>
         )}
           </>
@@ -1333,7 +1580,7 @@ export default function SearchScreen({ navigation }: Props) {
       )}
 
       {/* Sticky Bottom Bar - Only show when no results or loading (and not viewing saved list) */}
-      {(isLoading || resultCount === 0) && !addMode && !showSavedList && (
+      {(isLoading || resultCount === 0) && !addMode && activeTab === 'all' && (
         <View style={styles.bottomBar}>
           <View style={styles.resultCountContainer}>
             <Text style={styles.resultCountText}>
@@ -1341,7 +1588,7 @@ export default function SearchScreen({ navigation }: Props) {
                 ? 'Searching...'
                 : activeFilterCount > 0 || filters.searchQuery.trim().length > 0
                 ? 'No exercises match your filters'
-                : 'Start filtering to find exercises'}
+                : 'No exercises to show'}
             </Text>
           </View>
           {activeFilterCount > 0 && (

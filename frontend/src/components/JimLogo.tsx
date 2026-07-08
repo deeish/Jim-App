@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
@@ -26,9 +26,16 @@ import JGlyph from './JGlyph';
 export default function JimLogo({
   showTagline = false,
   interactive = false,
+  entrance = false,
 }: {
   showTagline?: boolean;
   interactive?: boolean;
+  /**
+   * Play a one-time staggered reveal (chip fades/scales in, then the wordmark and
+   * tagline rise in just after). Off by default so existing callers render exactly
+   * as before; the cold-start loader opts in.
+   */
+  entrance?: boolean;
 }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -39,6 +46,19 @@ export default function JimLogo({
   const shimmer = useSharedValue(0);
   const flex = useSharedValue(0);
   const pop = useSharedValue(0);
+
+  // One-time entrance progress (1 = fully shown). Initialised to 1 when `entrance`
+  // is off so non-entrance callers skip the reveal and render at rest immediately.
+  const enterTile = useSharedValue(entrance ? 0 : 1);
+  const enterWord = useSharedValue(entrance ? 0 : 1);
+  const enterTag = useSharedValue(entrance ? 0 : 1);
+
+  useEffect(() => {
+    if (!entrance) return;
+    enterTile.value = withTiming(1, { duration: 460, easing: Easing.out(Easing.ease) });
+    enterWord.value = withDelay(150, withTiming(1, { duration: 420, easing: Easing.out(Easing.ease) }));
+    enterTag.value = withDelay(280, withTiming(1, { duration: 420, easing: Easing.out(Easing.ease) }));
+  }, [entrance, enterTile, enterWord, enterTag]);
 
   useEffect(() => {
     breath.value = withRepeat(
@@ -70,7 +90,10 @@ export default function JimLogo({
   };
 
   const tileStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 + breath.value * 0.05 + pop.value * 0.12 }],
+    opacity: enterTile.value,
+    transform: [
+      { scale: (0.9 + enterTile.value * 0.1) * (1 + breath.value * 0.05 + pop.value * 0.12) },
+    ],
   }));
   const haloStyle = useAnimatedStyle(() => ({
     opacity: 0.5 + breath.value * 0.3,
@@ -86,6 +109,14 @@ export default function JimLogo({
   }));
   const sheenStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: -38 + shimmer.value * 150 }, { rotate: '18deg' }],
+  }));
+  const wordStyle = useAnimatedStyle(() => ({
+    opacity: enterWord.value,
+    transform: [{ translateY: (1 - enterWord.value) * 10 }],
+  }));
+  const tagStyle = useAnimatedStyle(() => ({
+    opacity: enterTag.value,
+    transform: [{ translateY: (1 - enterTag.value) * 8 }],
   }));
 
   const badge = (
@@ -143,8 +174,12 @@ export default function JimLogo({
       ) : (
         <View style={styles.pulseBox}>{badge}</View>
       )}
-      <Text style={styles.wordmark}>Jim</Text>
-      {showTagline ? <Text style={styles.tagline}>Workout plans, built around you</Text> : null}
+      <Animated.Text style={[styles.wordmark, wordStyle]}>Jim</Animated.Text>
+      {showTagline ? (
+        <Animated.Text style={[styles.tagline, tagStyle]}>
+          Workout plans, built around you
+        </Animated.Text>
+      ) : null}
     </View>
   );
 }

@@ -1,4 +1,12 @@
-import { IsOptional, IsString, IsArray } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsArray,
+  IsInt,
+  Min,
+  Max,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class SearchExercisesDto {
   @IsOptional()
@@ -24,4 +32,15 @@ export class SearchExercisesDto {
   @IsArray()
   @IsString({ each: true })
   movementPatterns?: string[]; // Push, Pull, Squat, etc.
+
+  /**
+   * Cap how many exercises come back (browse mode keeps the payload small).
+   * The response `count` still reports the total number of matches.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  limit?: number;
 }

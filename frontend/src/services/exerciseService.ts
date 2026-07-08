@@ -14,6 +14,11 @@ export interface Exercise {
   instructions?: string[];
   /** YouTube video ID for demo video on detail screen (from backend exercise-videos.json). */
   youtubeId?: string;
+  /**
+   * Server-computed grouping key (name minus equipment words). Equipment variants
+   * of one lift share it; angle/stance variants get their own.
+   */
+  groupKey?: string;
   [key: string]: any; // Allow other fields
 }
 
@@ -23,9 +28,12 @@ export interface SearchExercisesParams {
   subMuscles?: string[];
   equipment?: string[];
   movementPatterns?: string[];
+  /** Cap the exercises array (browse mode). `count` still reports total matches. */
+  limit?: number;
 }
 
 export interface SearchExercisesResponse {
+  /** Total matches, which can exceed exercises.length when `limit` capped the list. */
   count: number;
   exercises: Exercise[];
 }

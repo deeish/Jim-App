@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme, planSlotIconColors, type ColorPalette } from '../theme';
+import BenchPressLoader from '../components/BenchPressLoader';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
@@ -56,6 +57,11 @@ import {
 } from '../lib/previewExerciseMeta';
 import type { ExerciseDraft, PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
 import { formatLocalYmd, getWeekStartMonday, parseLocalYmd } from '../lib/planCalendar';
+import {
+  savePlanPreviewDraft,
+  loadPlanPreviewDraft,
+  clearPlanPreviewDraft,
+} from '../lib/planPreviewDraftStorage';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import {
   exercisesLikeFromPrescription,
@@ -298,6 +304,15 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     const controller = new AbortController();
     const frameId = requestAnimationFrame(async () => {
       try {
+        // Same draft already persisted (resume after app kill, or remount of the
+        // same preview) — hydrate instead of burning another generation slot.
+        const persisted = await loadPlanPreviewDraft();
+        if (cancelled) return;
+        if (persisted?.draftId === draftId) {
+          setPlanDraft(persisted.planDraft);
+          setPlanData(planDraftToWeekPlans(persisted.planDraft) as WeekPlan[]);
+          return;
+        }
         const result = await runPipelineSafe(planInputs, draftId, {
           repairIfInvalid: true,
           signal: controller.signal,
@@ -321,6 +336,17 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       controller.abort();
     };
   }, [planInputs, draftId]);
+
+  // Back up the generated preview (and any edits to it) so an app kill or crash
+  // during preview can be resumed from the Generate screen instead of lost.
+  useEffect(() => {
+    if (!planDraft || !planInputs) return;
+    void savePlanPreviewDraft({
+      draftId,
+      params: { planInputs, inputs, draftId, fromOnboarding },
+      planDraft,
+    });
+  }, [planDraft, planInputs, inputs, draftId, fromOnboarding]);
 
   useEffect(() => {
     setExpandedReasoning({});
@@ -965,14 +991,41 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             ? 'hybrid'
             : planInputs.goal
         : inputs.goal;
-      const goalLabel = planInputs?.goal === 'fat_loss' ? 'Fat Loss'
-        : planInputs?.goal === 'balanced' ? 'Balanced'
-        : planInputs?.goal === 'endurance' ? 'Endurance'
-        : planInputs?.goal === 'strength' ? 'Strength'
-        : inputs.goal === 'fat loss' ? 'Fat Loss'
-        : inputs.goal === 'hybrid' ? 'Balanced'
-        : inputs.goal === 'endurance' ? 'Endurance'
-        : 'Strength';
+      const secondaryGoalForApi = planInputs?.secondaryGoal
+        ? planInputs.secondaryGoal === 'fat_loss'
+          ? 'fat loss'
+          : planInputs.secondaryGoal === 'balanced'
+            ? 'hybrid'
+            : planInputs.secondaryGoal
+        : undefined;
+      const goalIdToLabel = (g?: string | null): string | null => {
+        switch (g) {
+          case 'fat_loss':
+            return 'Fat Loss';
+          case 'balanced':
+            return 'Balanced';
+          case 'endurance':
+            return 'Endurance';
+          case 'strength':
+            return 'Strength';
+          default:
+            return null;
+        }
+      };
+      const primaryLabel =
+        goalIdToLabel(planInputs?.goal) ??
+        (inputs.goal === 'fat loss'
+          ? 'Fat Loss'
+          : inputs.goal === 'hybrid'
+            ? 'Balanced'
+            : inputs.goal === 'endurance'
+              ? 'Endurance'
+              : 'Strength');
+      const secondaryLabel = goalIdToLabel(planInputs?.secondaryGoal ?? null);
+      // Reflect a chosen secondary emphasis in the plan name (e.g. "Strength + Fat Loss").
+      const goalLabel = secondaryLabel
+        ? `${primaryLabel} + ${secondaryLabel}`
+        : primaryLabel;
       const daysCount = planInputs?.daysPerWeek ?? inputs.trainingDays?.length ?? 4;
       const weeksCount = planInputs?.weeksCount ?? inputs.weeks ?? 1;
       const derivedName = `${goalLabel} · ${daysCount}d/wk · ${weeksCount > 1 ? `${weeksCount} wks` : '1 wk'}`;
@@ -983,11 +1036,14 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         )),
         slots,
         goal: goalForApi ?? undefined,
+        secondaryGoal: secondaryGoalForApi,
         experience: inputs.experienceLevel ?? undefined,
         equipment: inputs.availableEquipment?.length ? mapEquipmentToBackend(inputs.availableEquipment) : undefined,
         limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
         programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
       });
+      // Applied — the persisted backup is no longer needed.
+      void clearPlanPreviewDraft();
       // First plan from onboarding → drop the user on Home (greeting + today's session).
       // Otherwise reset the Plan stack to PlanList so Preview/Generate aren't left on the stack.
       if (fromOnboarding) {
@@ -1033,7 +1089,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
 
       {loadingPreview && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <BenchPressLoader size={200} colors={colors} />
           <Text style={[styles.loadingText, { color: colors.text }]}>
             {fromOnboarding
               ? 'Building your plan… This may take a minute.'
@@ -1063,6 +1119,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         </View>
       )}
 
+      {!loadingPreview && (
       <ScrollView
         style={styles.previewBodyScroll}
         contentContainerStyle={styles.previewBodyScrollContent}
@@ -1332,6 +1389,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         })}
         </View>
       </ScrollView>
+      )}
 
       {/* Workout detail preview modal: exercises + reasoning */}
       <Modal
@@ -1372,7 +1430,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                     {AI_PROGRAMMING_TRANSPARENCY} {NOT_MEDICAL_FOOTNOTE_SHORT}
                   </Text>
                   {previewLoading ? (
-                    <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 24 }} />
+                    <View style={{ marginVertical: 16, alignItems: 'center' }}>
+                      <BenchPressLoader size={140} colors={colors} />
+                    </View>
                   ) : previewData ? (
                     <>
                       {(previewData.warmUp || previewData.reasoning || previewData.coolDown) ? (
@@ -1676,13 +1736,16 @@ function createPlanPreviewStyles(colors: ColorPalette) {
     width: 60,
   },
   loadingOverlay: {
+    flex: 1,
     paddingVertical: 32,
+    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
+    textAlign: 'center',
   },
   errorCard: {
     margin: 16,
