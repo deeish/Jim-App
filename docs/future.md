@@ -17,13 +17,60 @@ the P0 + frontend work shipped in PR #6; full write-up in git history at
    purity pass (`generation-chunk-repair.ts`).
 3. **Intra-plan volume undulation.** Sessions sharing a duration all get the
    same working-set cap → no heavy/light variation across a week. Vary
-   `workingSetCap` by `isHardDay`.
+   `workingSetCap` by `isHardDay`. *Decision 2026-07-08: skipped on purpose —
+   periodization polish beta users won't perceive; revisit post-launch if ever.*
 4. **Ordering without a tier-0 anchor.** Days with no true Squat/Hinge/Push
    anchor sort accessories first. Fall back to the highest-tier available
    movement as the anchor.
 
 Constraints: deterministic server-side passes only (zero new Groq calls), keep
 `backend npm test` + `plans/eval/` green, add an eval invariant per new rule.
+
+### Generation quality — good enough for now, keep fine-tuning (2026-07-08)
+
+Two rounds of deterministic fixes landed today (cardio-repeat validator
+exemption, base-movement near-dup repair, post-enrichment dedupe, fully
+templated cardio days, finisher modality conformance). Live-drive results:
+hybrid-gym and fat-loss test scenarios both score 122–123/124 with clean
+validation and a positive enrichment delta. **This is fine for the beta — no
+further work needed right now — but we want to keep fine-tuning over time.**
+Watch list for the next tuning pass:
+
+- **Slot-1 anchor misses.** One live run opened an Upper day with a cable
+  pushdown; `ensureAnchorInSlotOne` didn't catch it. Reproduce and tighten.
+- **Position-variant redundancy.** `baseMovementKey` deliberately keeps
+  position words, so seated + standing OHP can share a session. Decide whether
+  press variants deserve a stricter rule.
+- **Conditioning coverage.** Weakest eval dimension (~72% of ceiling across
+  historical captures): not every strength day gets a finisher on hybrid/fat
+  loss goals. Check whether `shouldAppendHybridCardioFinisher` is too shy.
+- **Recovery days** still pass through enrichment untouched (cardio days are
+  templated now; recovery could get the same treatment).
+- Re-score periodically with `npm run eval:captures:report` (backend) after
+  generating with `GENERATION_CAPTURE=1` — validator-ok rate and mean total
+  are the regression signals.
+
+### Home / beginner plan quality (deferred 2026-07-08, live-drive findings)
+
+A beginner · home · fat-loss test generation exposed gaps that don't block the
+gym-focused beta but need fixing before promoting home plans:
+
+1. **Experience/skill gating.** No filter stops beginner plans from getting
+   pull-ups, jump-rope double-unders, or plyo box jumps. Tag high-skill /
+   high-impact catalog rows and gate or substitute by `experienceLevel` — in
+   generator candidates AND enrichment swap pools (enrichment swapped
+   `goblet_squat` → `back_squat` for a home beginner).
+2. **Week-level pattern floor.** Balance checks only fire on Upper/Lower
+   titles, so a "Full Body" day with zero lower-body work passes validators
+   (observed live). Require ≥1 lower-body movement on full-body days and ≥1
+   Squat + ≥1 Hinge somewhere in each week.
+3. **Home equipment realism.** Barbell movements surfaced for a home user with
+   no equipment tags; audit `HOME_EQUIPMENT` against the catalog's equipment
+   labels and prefer dumbbell/bodyweight variants at home.
+4. **Single-session regen modalities.** `GenerateSingleSessionDto` has no
+   `cardioModalities`, so a regenerated cardio day falls back to the generic
+   zone-2 template instead of the user's preferred modality. Plumb it through
+   like the plan flow.
 
 ### Reliability
 
