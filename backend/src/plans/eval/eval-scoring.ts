@@ -47,6 +47,24 @@ export type EvalScoreBreakdown = {
 /** Sum of structural..fatigueStacking when every dimension is at its ceiling (used for fail caps). */
 export const EVAL_SCORE_MAX_TOTAL = 124;
 
+/** Per-dimension ceilings (must stay in sync with the score functions below; spec asserts the sum). */
+export const EVAL_SCORE_DIMENSION_MAX: Record<
+  Exclude<keyof EvalScoreBreakdown, 'total'>,
+  number
+> = {
+  structural: 28,
+  balance: 18,
+  volumeFit: 12,
+  movementDiversity: 8,
+  conditioning: 10,
+  coachingSurface: 10,
+  libraryMetadata: 8,
+  workoutOrder: 8,
+  coachingProDepth: 8,
+  prescriptionHygiene: 8,
+  fatigueStacking: 6,
+};
+
 export type EvalScoreResult = {
   breakdown: EvalScoreBreakdown;
   findings: string[];
@@ -487,7 +505,11 @@ function scorePrescriptionHygiene(
         if (!isTimeCardio) {
           if (reps > 40 || reps < 2) rowOk = false;
           if (sets * reps > 200) rowOk = false;
-        } else if (reps > 50) rowOk = false;
+        } else if (reps > 3600) {
+          // Time rows carry seconds in `reps` post-enrichment (600 = 10-min
+          // finisher); anything beyond an hour per bout is a junk prescription.
+          rowOk = false;
+        }
       }
       if (!rowOk) {
         bad++;
