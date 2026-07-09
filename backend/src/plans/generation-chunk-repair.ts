@@ -8,6 +8,7 @@ import {
   type GeneratedSessionExercise,
 } from './session-enrichment';
 import { exerciseTargetsForSession } from '../workouts/workout-generator.service';
+import { baseMovementKey } from './base-movement-key';
 
 export type ChunkRepairExerciseMeta = {
   id: string;
@@ -47,6 +48,8 @@ export type RepairChunkGeneratedSessionsResult = {
   upperLowerPatternRepairs: number;
   /** Library rows appended to meet `exerciseTargetsForSession` minimums. */
   belowMinRepairs: number;
+  /** Equipment variants of a movement already in the same session, swapped out (see `base-movement-key.ts`). */
+  nearDuplicateRepairs: number;
 };
 
 function patternsIncludeSquatHinge(
@@ -164,6 +167,36 @@ function duplicateReplacementPredicate(
   return (c) => c.primaryMuscleGroup !== 'Cardio';
 }
 
+/**
+ * Cardio rows are exempt from cross-session dedupe: repeating a conditioning
+ * modality across days is normal (a "run"-only hybrid week must reuse the few
+ * run-type ids). Mirrors the exemption in `generated-chunk-validators.ts`.
+ */
+function isCardioRow(
+  library: ChunkRepairExerciseLibrary,
+  id: string,
+  row: GeneratedSessionExercise,
+): boolean {
+  const meta = library.findOne(id);
+  if (meta?.primaryMuscleGroup) return meta.primaryMuscleGroup === 'Cardio';
+  return row.primaryMuscleGroup?.trim() === 'Cardio';
+}
+
+/** Base movement keys already present in a session (optionally skipping one slot). */
+function sessionBaseKeys(
+  session: GeneratedSession,
+  skipExerciseIndex?: number,
+): Set<string> {
+  const keys = new Set<string>();
+  const exercises = session.exercises ?? [];
+  for (let ei = 0; ei < exercises.length; ei++) {
+    if (ei === skipExerciseIndex) continue;
+    const id = exercises[ei]?.exerciseId?.trim();
+    if (id) keys.add(baseMovementKey(id));
+  }
+  return keys;
+}
+
 function applyLibraryExerciseToSlot(
   slot: GeneratedSessionExercise,
   pick: ChunkRepairExerciseMeta,
@@ -203,19 +236,86 @@ function avoidPhrasesForSpec(
     .filter((x) => x.length >= 2);
 }
 
-function chunkHasDuplicateLibraryIds(sessions: GeneratedSession[]): boolean {
+function chunkHasDuplicateLibraryIds(
+  sessions: GeneratedSession[],
+  library: ChunkRepairExerciseLibrary,
+): boolean {
   const totals = new Map<string, number>();
-  for (const s of sessions) {
-    for (const e of s.exercises ?? []) {
+  for (let si = 0; si < sessions.length; si++) {
+    for (const e of sessions[si]!.exercises ?? []) {
       const id = e.exerciseId?.trim();
       if (!id) continue;
-      totals.set(id, (totals.get(id) ?? 0) + 1);
+      // Cardio counts per session (cross-day repeats are fine); the rest chunk-wide.
+      const key = isCardioRow(library, id, e) ? `${si}:${id}` : id;
+      totals.set(key, (totals.get(key) ?? 0) + 1);
     }
   }
   for (const n of totals.values()) {
     if (n > 1) return true;
   }
   return false;
+}
+
+/**
+ * Swap equipment variants of a movement already present in the same session
+ * (`barbell_upright_row` + `ez_bar_upright_row`, two cable-pushdown bars, …).
+ * Exact-id duplicates are the duplicate passes' job; this pass only fires when
+ * the ids differ but collapse to the same {@link baseMovementKey}. Cardio rows
+ * are exempt (a warm-up walk and a finisher walk can share a base movement).
+ */
+function runNearDuplicatePass(
+  sessions: GeneratedSession[],
+  specs: GenerateSessionsDto['sessions'],
+  library: ChunkRepairExerciseLibrary,
+  equipment: string[] | undefined,
+  tierFlags: ChunkRepairTierFlags,
+  avoidConstraintsGlobal: string[] | undefined,
+): number {
+  let repairs = 0;
+
+  for (let si = 0; si < sessions.length; si++) {
+    const session = sessions[si]!;
+    const spec = specs[si]!;
+    const exercises = session.exercises ?? [];
+    const seenKeyByFirstId = new Map<string, string>();
+
+    for (let ei = 0; ei < exercises.length; ei++) {
+      const row = exercises[ei]!;
+      const id = row.exerciseId?.trim();
+      if (!id) continue;
+      if (isCardioRow(library, id, row)) continue;
+      const key = baseMovementKey(id);
+      const firstId = seenKeyByFirstId.get(key);
+      if (firstId === undefined || firstId === id) {
+        seenKeyByFirstId.set(key, id);
+        continue;
+      }
+
+      const excludeIds = collectExerciseIdsExcept(sessions, si, ei);
+      const origMeta = library.findOne(id);
+      const avoidPhrases = avoidPhrasesForSpec(avoidConstraintsGlobal, spec);
+      const usedBaseKeys = sessionBaseKeys(session, ei);
+      const pick = pickWithEquipmentTiers(
+        library,
+        focusTriesForSpec(spec),
+        equipment,
+        excludeIds,
+        origMeta,
+        (c) =>
+          c.primaryMuscleGroup !== 'Cardio' &&
+          !usedBaseKeys.has(baseMovementKey(c.id)),
+        tierFlags,
+        avoidPhrases,
+      );
+      if (pick) {
+        applyLibraryExerciseToSlot(row, pick);
+        seenKeyByFirstId.set(baseMovementKey(pick.id), pick.id);
+        repairs += 1;
+      }
+    }
+  }
+
+  return repairs;
 }
 
 function pickWithEquipmentTiers(
@@ -268,33 +368,43 @@ function runDuplicatePass(
     const session = sessions[si]!;
     const spec = specs[si]!;
     const exercises = session.exercises ?? [];
+    // Cardio may repeat across days (finishers), but not within one session.
+    const seenCardioThisSession = new Set<string>();
 
     for (let ei = 0; ei < exercises.length; ei++) {
       const row = exercises[ei]!;
       const id = row.exerciseId?.trim();
       if (!id) continue;
+      const cardio = isCardioRow(library, id, row);
+      const seen = cardio ? seenCardioThisSession : seenChunkIds;
 
-      if (seenChunkIds.has(id)) {
+      if (seen.has(id)) {
         const excludeIds = collectExerciseIdsExcept(sessions, si, ei);
         const origMeta = library.findOne(id);
         const avoidPhrases = avoidPhrasesForSpec(avoidConstraintsGlobal, spec);
+        const usedBaseKeys = sessionBaseKeys(session, ei);
+        const basePredicate = duplicateReplacementPredicate(origMeta);
         const pick = pickWithEquipmentTiers(
           library,
           focusTriesForSpec(spec),
           equipment,
           excludeIds,
           origMeta,
-          duplicateReplacementPredicate(origMeta),
+          (c) => basePredicate(c) && !usedBaseKeys.has(baseMovementKey(c.id)),
           tierFlags,
           avoidPhrases,
         );
         if (pick) {
           applyLibraryExerciseToSlot(row, pick);
-          seenChunkIds.add(pick.id);
+          const pickSeen =
+            pick.primaryMuscleGroup === 'Cardio'
+              ? seenCardioThisSession
+              : seenChunkIds;
+          pickSeen.add(pick.id);
           repairs += 1;
         }
       } else {
-        seenChunkIds.add(id);
+        seen.add(id);
       }
     }
   }
@@ -318,33 +428,43 @@ function runDuplicatePassReverse(
     const session = sessions[si]!;
     const spec = specs[si]!;
     const exercises = session.exercises ?? [];
+    // Cardio may repeat across days (finishers), but not within one session.
+    const seenCardioThisSession = new Set<string>();
 
     for (let ei = exercises.length - 1; ei >= 0; ei--) {
       const row = exercises[ei]!;
       const id = row.exerciseId?.trim();
       if (!id) continue;
+      const cardio = isCardioRow(library, id, row);
+      const seen = cardio ? seenCardioThisSession : seenChunkIds;
 
-      if (seenChunkIds.has(id)) {
+      if (seen.has(id)) {
         const excludeIds = collectExerciseIdsExcept(sessions, si, ei);
         const origMeta = library.findOne(id);
         const avoidPhrases = avoidPhrasesForSpec(avoidConstraintsGlobal, spec);
+        const usedBaseKeys = sessionBaseKeys(session, ei);
+        const basePredicate = duplicateReplacementPredicate(origMeta);
         const pick = pickWithEquipmentTiers(
           library,
           focusTriesForSpec(spec),
           equipment,
           excludeIds,
           origMeta,
-          duplicateReplacementPredicate(origMeta),
+          (c) => basePredicate(c) && !usedBaseKeys.has(baseMovementKey(c.id)),
           tierFlags,
           avoidPhrases,
         );
         if (pick) {
           applyLibraryExerciseToSlot(row, pick);
-          seenChunkIds.add(pick.id);
+          const pickSeen =
+            pick.primaryMuscleGroup === 'Cardio'
+              ? seenCardioThisSession
+              : seenChunkIds;
+          pickSeen.add(pick.id);
           repairs += 1;
         }
       } else {
-        seenChunkIds.add(id);
+        seen.add(id);
       }
     }
   }
@@ -431,13 +551,15 @@ function runBelowMinimumPass(
       guard++;
       const excludeIds = collectAllChunkExerciseIds(sessions);
       const avoidPhrases = avoidPhrasesForSpec(avoidConstraintsGlobal, spec);
+      const usedBaseKeys = sessionBaseKeys(session);
+      const specPredicate = appendPredicateForSpec(spec);
       const pick = pickWithEquipmentTiers(
         library,
         focusTriesForSpec(spec),
         equipment,
         excludeIds,
         undefined,
-        appendPredicateForSpec(spec),
+        (c) => specPredicate(c) && !usedBaseKeys.has(baseMovementKey(c.id)),
         tierFlags,
         avoidPhrases,
       );
@@ -580,9 +702,11 @@ function runFocusPurityPass(
 }
 
 /**
- * Deterministic post-pass on a generated chunk: dedupe library ids across the chunk (in session order),
- * enforce upper/lower split purity (swap movements that fight the day's title, in either direction),
- * then backfill rows when the model returned fewer exercises than {@link exerciseTargetsForSession} requires.
+ * Deterministic post-pass on a generated chunk: dedupe non-cardio library ids across the chunk
+ * (in session order; cardio modalities may repeat across days by design), enforce upper/lower
+ * split purity (swap movements that fight the day's title, in either direction), swap same-session
+ * equipment variants of one base movement, then backfill rows when the model returned fewer
+ * exercises than {@link exerciseTargetsForSession} requires.
  */
 export function repairChunkGeneratedSessions(args: {
   sessions: GeneratedSession[];
@@ -604,6 +728,7 @@ export function repairChunkGeneratedSessions(args: {
       duplicateRepairs: 0,
       upperLowerPatternRepairs: 0,
       belowMinRepairs: 0,
+      nearDuplicateRepairs: 0,
     };
   }
 
@@ -639,7 +764,7 @@ export function repairChunkGeneratedSessions(args: {
     avoidConstraintsGlobal,
   );
 
-  if (chunkHasDuplicateLibraryIds(sessions)) {
+  if (chunkHasDuplicateLibraryIds(sessions, library)) {
     duplicateRepairs += runDuplicatePass(
       sessions,
       specs,
@@ -659,7 +784,7 @@ export function repairChunkGeneratedSessions(args: {
     avoidConstraintsGlobal,
   );
 
-  if (chunkHasDuplicateLibraryIds(sessions)) {
+  if (chunkHasDuplicateLibraryIds(sessions, library)) {
     duplicateRepairs += runDuplicatePass(
       sessions,
       specs,
@@ -669,6 +794,15 @@ export function repairChunkGeneratedSessions(args: {
       avoidConstraintsGlobal,
     );
   }
+
+  const nearDuplicateRepairs = runNearDuplicatePass(
+    sessions,
+    specs,
+    library,
+    equipment,
+    tierFlags,
+    avoidConstraintsGlobal,
+  );
 
   const belowMinRepairs = runBelowMinimumPass(
     sessions,
@@ -680,7 +814,7 @@ export function repairChunkGeneratedSessions(args: {
     avoidConstraintsGlobal,
   );
 
-  if (chunkHasDuplicateLibraryIds(sessions)) {
+  if (chunkHasDuplicateLibraryIds(sessions, library)) {
     duplicateRepairs += runDuplicatePass(
       sessions,
       specs,
@@ -699,6 +833,11 @@ export function repairChunkGeneratedSessions(args: {
   if (upperLowerPatternRepairs > 0) {
     notes.push(
       'Swapped exercises that did not match the day’s upper/lower focus so each session matches its title.',
+    );
+  }
+  if (nearDuplicateRepairs > 0) {
+    notes.push(
+      'Swapped equipment variants of a movement already in the session so each slot trains something distinct.',
     );
   }
   if (belowMinRepairs > 0) {
@@ -722,5 +861,81 @@ export function repairChunkGeneratedSessions(args: {
     duplicateRepairs,
     upperLowerPatternRepairs,
     belowMinRepairs,
+    nearDuplicateRepairs,
   };
+}
+
+/**
+ * Post-enrichment safety net: enrichment's per-session swaps (anchor slot-1,
+ * equipment compatibility, pull balance) run AFTER the chunk validators and can
+ * reintroduce the exact defects repair removed — the same accessory on two days,
+ * or a second equipment variant of a movement already in the session. This pass
+ * re-runs the duplicate + near-duplicate swaps on the enriched program.
+ *
+ * Dedupe is scoped per `weekIndex` group: repeating a lift in week 2 that week 1
+ * used is normal programming; repeating it twice in the same week is not.
+ * Replacements keep the row's stamped sets/reps/rest (same-role, like-for-like
+ * swap), so prescriptions stay coherent. No purity/backfill passes here — those
+ * already ran pre-enrichment and enrichment owns min-count decisions.
+ */
+export function dedupeEnrichedProgramSessions(args: {
+  sessions: GeneratedSession[];
+  specs: GenerateSessionsDto['sessions'];
+  library: ChunkRepairExerciseLibrary;
+  equipment: string[] | undefined;
+  avoidConstraintsGlobal?: string[];
+}): { sessions: GeneratedSession[]; repairs: number } {
+  const { specs, library, equipment, avoidConstraintsGlobal } = args;
+  if (args.sessions.length !== specs.length) {
+    return { sessions: cloneSessions(args.sessions), repairs: 0 };
+  }
+  const sessions = cloneSessions(args.sessions);
+  const tierFlags: ChunkRepairTierFlags = {
+    usedWiderEquipment: false,
+    usedScavenge: false,
+  };
+
+  const weekGroups = new Map<number, number[]>();
+  for (let i = 0; i < specs.length; i++) {
+    const week = specs[i]!.weekIndex;
+    const group = weekGroups.get(week) ?? [];
+    group.push(i);
+    weekGroups.set(week, group);
+  }
+
+  let repairs = 0;
+  for (const indices of weekGroups.values()) {
+    // Slices share session object references, so pass mutations land in `sessions`.
+    const weekSessions = indices.map((i) => sessions[i]!);
+    const weekSpecs = indices.map((i) => specs[i]!);
+    repairs += runDuplicatePass(
+      weekSessions,
+      weekSpecs,
+      library,
+      equipment,
+      tierFlags,
+      avoidConstraintsGlobal,
+    );
+    if (chunkHasDuplicateLibraryIds(weekSessions, library)) {
+      repairs += runDuplicatePassReverse(
+        weekSessions,
+        weekSpecs,
+        library,
+        equipment,
+        tierFlags,
+        avoidConstraintsGlobal,
+      );
+    }
+  }
+
+  repairs += runNearDuplicatePass(
+    sessions,
+    specs,
+    library,
+    equipment,
+    tierFlags,
+    avoidConstraintsGlobal,
+  );
+
+  return { sessions, repairs };
 }

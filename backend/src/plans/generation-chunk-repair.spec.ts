@@ -1,6 +1,7 @@
 import type { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import type { GeneratedSession } from './session-enrichment';
 import {
+  dedupeEnrichedProgramSessions,
   repairChunkGeneratedSessions,
   type ChunkRepairExerciseLibrary,
 } from './generation-chunk-repair';
@@ -62,6 +63,337 @@ function mockLibrary(): ChunkRepairExerciseLibrary {
     },
   };
 }
+
+function strengthSpec(
+  weekday: string,
+  title: string,
+): GenerateSessionsDto['sessions'][number] {
+  return {
+    weekIndex: 0,
+    weekday,
+    type: 'strength',
+    title,
+    durationMin: 45,
+    durationMax: 60,
+    isHardDay: false,
+  };
+}
+
+describe('repairChunkGeneratedSessions cardio + near-duplicate handling', () => {
+  function cardioAwareLibrary(): ChunkRepairExerciseLibrary {
+    const byId = new Map(
+      [
+        {
+          id: 'treadmill_run',
+          name: 'Treadmill Run',
+          movementPatterns: [],
+          primaryMuscleGroup: 'Cardio',
+        },
+        {
+          id: 'bike_steady',
+          name: 'Stationary Bike',
+          movementPatterns: [],
+          primaryMuscleGroup: 'Cardio',
+        },
+        {
+          id: 'barbell_upright_row',
+          name: 'Barbell Upright Row',
+          movementPatterns: ['Pull'],
+          primaryMuscleGroup: 'Shoulders',
+        },
+        {
+          id: 'ez_bar_upright_row',
+          name: 'EZ-Bar Upright Row',
+          movementPatterns: ['Pull'],
+          primaryMuscleGroup: 'Shoulders',
+        },
+        {
+          id: 'lateral_raise',
+          name: 'Dumbbell Lateral Raise',
+          movementPatterns: ['Pull'],
+          primaryMuscleGroup: 'Shoulders',
+        },
+        {
+          id: 'flat_barbell_bench_press',
+          name: 'Flat Barbell Bench Press',
+          movementPatterns: ['Push'],
+          primaryMuscleGroup: 'Chest',
+        },
+      ].map((e) => [e.id, e]),
+    );
+    return {
+      findOne: (id: string) => byId.get(id),
+      getCandidatesForGenerator: ({ excludeIds }) => {
+        const ex = new Set(excludeIds ?? []);
+        return [...byId.values()].filter((e) => !ex.has(e.id));
+      },
+    };
+  }
+
+  it('leaves a repeated Cardio finisher untouched across sessions', () => {
+    const specs = [
+      strengthSpec('Monday', 'Push'),
+      strengthSpec('Tuesday', 'Pull'),
+    ];
+    const finisher = () => ({
+      name: 'Treadmill Run',
+      sets: 1,
+      reps: 600,
+      exerciseId: 'treadmill_run',
+    });
+    const sessions: GeneratedSession[] = [
+      {
+        weekIndex: 0,
+        weekday: 'Monday',
+        name: 'Push',
+        exercises: [
+          {
+            name: 'Flat Barbell Bench Press',
+            sets: 4,
+            reps: 6,
+            exerciseId: 'flat_barbell_bench_press',
+          },
+          finisher(),
+        ],
+      },
+      {
+        weekIndex: 0,
+        weekday: 'Tuesday',
+        name: 'Pull',
+        exercises: [
+          {
+            name: 'Barbell Upright Row',
+            sets: 3,
+            reps: 8,
+            exerciseId: 'barbell_upright_row',
+          },
+          finisher(),
+        ],
+      },
+    ];
+
+    const { sessions: out, duplicateRepairs } = repairChunkGeneratedSessions({
+      sessions,
+      specs,
+      library: cardioAwareLibrary(),
+      equipment: undefined,
+    });
+
+    expect(duplicateRepairs).toBe(0);
+    expect(out[0]!.exercises![1]!.exerciseId).toBe('treadmill_run');
+    expect(out[1]!.exercises![1]!.exerciseId).toBe('treadmill_run');
+  });
+
+  it('swaps an equipment variant of a movement already in the session', () => {
+    const specs = [strengthSpec('Monday', 'Upper')];
+    const sessions: GeneratedSession[] = [
+      {
+        weekIndex: 0,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          {
+            name: 'Barbell Upright Row',
+            sets: 3,
+            reps: 8,
+            exerciseId: 'barbell_upright_row',
+          },
+          {
+            name: 'EZ-Bar Upright Row',
+            sets: 3,
+            reps: 8,
+            exerciseId: 'ez_bar_upright_row',
+          },
+        ],
+      },
+    ];
+
+    const {
+      sessions: out,
+      nearDuplicateRepairs,
+      notes,
+    } = repairChunkGeneratedSessions({
+      sessions,
+      specs,
+      library: cardioAwareLibrary(),
+      equipment: undefined,
+    });
+
+    expect(nearDuplicateRepairs).toBe(1);
+    expect(out[0]!.exercises![0]!.exerciseId).toBe('barbell_upright_row');
+    // Replacement must not be another upright-row variant or a cardio row.
+    expect(out[0]!.exercises![1]!.exerciseId).toBe('lateral_raise');
+    expect(notes.some((n) => /equipment variants/i.test(n))).toBe(true);
+  });
+
+  it('keeps distinct base movements in one session untouched', () => {
+    const specs = [strengthSpec('Monday', 'Upper')];
+    const sessions: GeneratedSession[] = [
+      {
+        weekIndex: 0,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          {
+            name: 'Flat Barbell Bench Press',
+            sets: 4,
+            reps: 6,
+            exerciseId: 'flat_barbell_bench_press',
+          },
+          {
+            name: 'Barbell Upright Row',
+            sets: 3,
+            reps: 8,
+            exerciseId: 'barbell_upright_row',
+          },
+        ],
+      },
+    ];
+
+    const { sessions: out, nearDuplicateRepairs } =
+      repairChunkGeneratedSessions({
+        sessions,
+        specs,
+        library: cardioAwareLibrary(),
+        equipment: undefined,
+      });
+
+    expect(nearDuplicateRepairs).toBe(0);
+    const ids = out[0]!.exercises!.map((e) => e.exerciseId);
+    expect(ids.slice(0, 2)).toEqual([
+      'flat_barbell_bench_press',
+      'barbell_upright_row',
+    ]);
+    // Below-minimum backfill may append rows, but never an equipment variant
+    // of a movement already in the session.
+    expect(ids).not.toContain('ez_bar_upright_row');
+  });
+});
+
+describe('dedupeEnrichedProgramSessions', () => {
+  function dedupeLibrary(): ChunkRepairExerciseLibrary {
+    const byId = new Map(
+      [
+        {
+          id: 'standing_dumbbell_curl',
+          name: 'Standing Dumbbell Curl',
+          movementPatterns: ['Push'],
+          primaryMuscleGroup: 'Arms',
+        },
+        {
+          id: 'rope_cable_pushdown',
+          name: 'Rope Cable Pushdown',
+          movementPatterns: ['Push'],
+          primaryMuscleGroup: 'Arms',
+        },
+        {
+          id: 'back_squat',
+          name: 'Back Squat',
+          movementPatterns: ['Squat'],
+          primaryMuscleGroup: 'Legs',
+        },
+        {
+          id: 'goblet_squat',
+          name: 'Goblet Squat',
+          movementPatterns: ['Squat'],
+          primaryMuscleGroup: 'Legs',
+        },
+      ].map((e) => [e.id, e]),
+    );
+    return {
+      findOne: (id: string) => byId.get(id),
+      getCandidatesForGenerator: ({ excludeIds }) => {
+        const ex = new Set(excludeIds ?? []);
+        return [...byId.values()].filter((e) => !ex.has(e.id));
+      },
+    };
+  }
+
+  function enrichedRow(id: string, name: string) {
+    return {
+      name,
+      sets: 3,
+      reps: 12,
+      exerciseId: id,
+      repsMin: 12,
+      repsMax: 16,
+      restSeconds: 60,
+    };
+  }
+
+  it('swaps a same-week duplicate that enrichment introduced, keeping the stamp', () => {
+    const specs = [
+      strengthSpec('Monday', 'Full Body'),
+      strengthSpec('Friday', 'Full Body 2'),
+    ];
+    const sessions: GeneratedSession[] = [
+      {
+        weekIndex: 0,
+        weekday: 'Monday',
+        name: 'Full Body',
+        exercises: [
+          enrichedRow('standing_dumbbell_curl', 'Standing Dumbbell Curl'),
+        ],
+      },
+      {
+        weekIndex: 0,
+        weekday: 'Friday',
+        name: 'Full Body 2',
+        exercises: [
+          enrichedRow('standing_dumbbell_curl', 'Standing Dumbbell Curl'),
+        ],
+      },
+    ];
+
+    const { sessions: out, repairs } = dedupeEnrichedProgramSessions({
+      sessions,
+      specs,
+      library: dedupeLibrary(),
+      equipment: undefined,
+    });
+
+    expect(repairs).toBe(1);
+    expect(out[0]!.exercises![0]!.exerciseId).toBe('standing_dumbbell_curl');
+    const swapped = out[1]!.exercises![0]!;
+    expect(swapped.exerciseId).not.toBe('standing_dumbbell_curl');
+    // Role-stamped prescription survives the like-for-like swap.
+    expect(swapped.sets).toBe(3);
+    expect(swapped.repsMin).toBe(12);
+    expect(swapped.restSeconds).toBe(60);
+  });
+
+  it('leaves cross-week repeats alone', () => {
+    const specs = [
+      { ...strengthSpec('Monday', 'Lower'), weekIndex: 1 },
+      { ...strengthSpec('Monday', 'Lower'), weekIndex: 2 },
+    ];
+    const sessions: GeneratedSession[] = [
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Lower',
+        exercises: [enrichedRow('back_squat', 'Back Squat')],
+      },
+      {
+        weekIndex: 2,
+        weekday: 'Monday',
+        name: 'Lower',
+        exercises: [enrichedRow('back_squat', 'Back Squat')],
+      },
+    ];
+
+    const { sessions: out, repairs } = dedupeEnrichedProgramSessions({
+      sessions,
+      specs,
+      library: dedupeLibrary(),
+      equipment: undefined,
+    });
+
+    expect(repairs).toBe(0);
+    expect(out[0]!.exercises![0]!.exerciseId).toBe('back_squat');
+    expect(out[1]!.exercises![0]!.exerciseId).toBe('back_squat');
+  });
+});
 
 describe('repairChunkGeneratedSessions', () => {
   it('replaces second occurrence of duplicate exerciseId across chunk', () => {

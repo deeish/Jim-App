@@ -16,6 +16,7 @@ export const BATCH_PRIOR_EXERCISE_IDS_TAIL = 48;
 
 export type ChunkValidatorIssue =
   | 'duplicate_exercise_id_in_session'
+  /** Non-cardio id reused across sessions. Cardio rows are exempt (finishers repeat by design). */
   | 'duplicate_exercise_id_across_chunk'
   | 'below_min_exercises'
   /** Strength day with upper-style title but library metadata shows primary lower pattern (Squat/Hinge). */
@@ -333,6 +334,39 @@ function countIdsPerSession(
 }
 
 /**
+ * Cardio ids are exempt from the *cross-chunk* duplicate check: repeating a
+ * conditioning modality across days is normal programming (a hybrid week with
+ * cardioModalities ["run"] has no way to avoid reusing the few run-type ids).
+ * Sourced from the metadata map when provided (production), else from the
+ * `primaryMuscleGroup` the rows themselves carry (enriched sessions / eval).
+ */
+function buildCardioIdLookup(
+  sessions: ReadonlyArray<{
+    exercises?: ReadonlyArray<{
+      exerciseId?: string;
+      primaryMuscleGroup?: string;
+    }>;
+  }>,
+  primaryMuscleGroupByExerciseId?: ChunkValidationPrimaryMuscleMeta,
+): (id: string) => boolean {
+  const rowPrimaryById = new Map<string, string>();
+  for (const s of sessions) {
+    for (const ex of s.exercises ?? []) {
+      const id = ex.exerciseId?.trim();
+      if (!id || rowPrimaryById.has(id)) continue;
+      const pm =
+        typeof ex.primaryMuscleGroup === 'string'
+          ? ex.primaryMuscleGroup.trim()
+          : '';
+      if (pm) rowPrimaryById.set(id, pm);
+    }
+  }
+  return (id: string) =>
+    (primaryMuscleGroupByExerciseId?.get(id)?.trim() ??
+      rowPrimaryById.get(id)) === 'Cardio';
+}
+
+/**
  * Deterministic checks on a generated chunk (one batch / hybrid slice, usually one program week).
  * Used to trigger a single batch retry or fall back to per-session generation.
  */
@@ -385,6 +419,10 @@ export function validateGeneratedProgramChunk(
   }
 
   const { perSession, totals } = countIdsPerSession(sessions);
+  const isCardioLibraryId = buildCardioIdLookup(
+    sessions,
+    primaryMuscleGroupByExerciseId,
+  );
 
   for (const ids of perSession) {
     const seen = new Set<string>();
@@ -398,7 +436,7 @@ export function validateGeneratedProgramChunk(
   }
 
   for (const [id, n] of totals) {
-    if (n > 1) {
+    if (n > 1 && !isCardioLibraryId(id)) {
       issues.push('duplicate_exercise_id_across_chunk');
       duplicateExerciseIds.add(id);
     }
