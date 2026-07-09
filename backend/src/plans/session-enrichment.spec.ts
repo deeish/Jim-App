@@ -10,6 +10,162 @@ import {
   type GeneratedSession,
 } from './session-enrichment';
 
+describe('cardio-day template routing', () => {
+  it('replaces cardio-day LLM rows with the deterministic template', async () => {
+    const exercisesService = {
+      findOne: (id: string) =>
+        id === 'treadmill_jog_steady'
+          ? {
+              id,
+              name: 'Treadmill Jog (Steady State)',
+              primaryMuscleGroup: 'Cardio',
+            }
+          : undefined,
+      getCandidatesForGenerator: () => [],
+    };
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Wednesday',
+        name: 'Cardio',
+        exercises: [
+          { name: 'Trail Hiking (Brisk)', sets: 2, reps: 15, exerciseId: 'x' },
+        ],
+      },
+      { type: 'cardio', title: 'Cardio' },
+      exercisesService as any,
+      undefined,
+      [],
+      { cardioModalities: ['run'], durationMinutes: 25, cardioDayIndex: 0 },
+    );
+    expect(out.exercises[0]?.exerciseId).toBe('treadmill_jog_steady');
+    expect(out.exercises[0]?.prescriptionType).toBe('time');
+    expect(out.warmUp).toBeTruthy();
+    expect(out.coolDown).toBeTruthy();
+  });
+});
+
+describe('strength-day cardio finisher conformance', () => {
+  const compound = {
+    id: 'bench',
+    name: 'Barbell Bench Press',
+    prescriptionType: 'reps' as const,
+    movementPatterns: ['Push'],
+    primaryMuscleGroup: 'Chest',
+  };
+  const rower = {
+    id: 'rowing_machine_steady',
+    name: 'Rowing Machine (Steady State)',
+    prescriptionType: 'time' as const,
+    primaryMuscleGroup: 'Cardio',
+  };
+  const treadmill = {
+    id: 'treadmill_jog_steady',
+    name: 'Treadmill Jog (Steady State)',
+    prescriptionType: 'time' as const,
+    primaryMuscleGroup: 'Cardio',
+  };
+  const byId = new Map<
+    string,
+    { id: string; name: string; primaryMuscleGroup: string }
+  >([
+    [compound.id, compound],
+    [rower.id, rower],
+    [treadmill.id, treadmill],
+  ]);
+  const exercisesService = {
+    findOne: (id: string) => byId.get(id),
+    getCandidatesForGenerator: ({ excludeIds }: { excludeIds?: string[] }) => {
+      const ex = new Set(excludeIds ?? []);
+      return [...byId.values()].filter((r) => !ex.has(r.id));
+    },
+  };
+
+  it('keeps only one cardio row and prefers the modality match', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          { name: compound.name, sets: 4, reps: 6, exerciseId: compound.id },
+          { name: rower.name, sets: 1, reps: 600, exerciseId: rower.id },
+          {
+            name: treadmill.name,
+            sets: 1,
+            reps: 600,
+            exerciseId: treadmill.id,
+          },
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      exercisesService as any,
+      undefined,
+      [],
+      { goal: 'hybrid', cardioModalities: ['run'], durationMinutes: 45 },
+    );
+    const cardioRows = out.exercises.filter(
+      (e) => e.primaryMuscleGroup === 'Cardio',
+    );
+    expect(cardioRows).toHaveLength(1);
+    expect(cardioRows[0]!.exerciseId).toBe('treadmill_jog_steady');
+  });
+
+  it('swaps an off-modality finisher to the preferred modality', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          { name: compound.name, sets: 4, reps: 6, exerciseId: compound.id },
+          { name: rower.name, sets: 1, reps: 600, exerciseId: rower.id },
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      exercisesService as any,
+      undefined,
+      [],
+      { goal: 'hybrid', cardioModalities: ['run'], durationMinutes: 45 },
+    );
+    const cardioRows = out.exercises.filter(
+      (e) => e.primaryMuscleGroup === 'Cardio',
+    );
+    expect(cardioRows).toHaveLength(1);
+    expect(cardioRows[0]!.exerciseId).toBe('treadmill_jog_steady');
+    expect(cardioRows[0]!.prescriptionType).toBe('time');
+  });
+
+  it('leaves a modality-matching single finisher untouched', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          { name: compound.name, sets: 4, reps: 6, exerciseId: compound.id },
+          {
+            name: treadmill.name,
+            sets: 1,
+            reps: 600,
+            exerciseId: treadmill.id,
+          },
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      exercisesService as any,
+      undefined,
+      [],
+      { goal: 'hybrid', cardioModalities: ['run'], durationMinutes: 45 },
+    );
+    const cardioRows = out.exercises.filter(
+      (e) => e.primaryMuscleGroup === 'Cardio',
+    );
+    expect(cardioRows).toHaveLength(1);
+    expect(cardioRows[0]!.exerciseId).toBe('treadmill_jog_steady');
+  });
+});
+
 describe('workingSetCap', () => {
   it('caps by experience when the session is long enough to fit it', () => {
     expect(

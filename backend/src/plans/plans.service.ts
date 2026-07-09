@@ -40,7 +40,10 @@ import {
   type ChunkGenerationTrace,
   writeGenerationCapture,
 } from './generation-capture';
-import { repairChunkGeneratedSessions } from './generation-chunk-repair';
+import {
+  dedupeEnrichedProgramSessions,
+  repairChunkGeneratedSessions,
+} from './generation-chunk-repair';
 
 @Injectable()
 export class PlansService {
@@ -1988,7 +1991,7 @@ export class PlansService {
         : mappedGym.length
           ? mappedGym
           : undefined;
-    return enrichGeneratedSessionsInChunkOrder(sessions, {
+    const enriched = await enrichGeneratedSessionsInChunkOrder(sessions, {
       getSpec: (i) => dto.sessions[i],
       getAvoidPhrases: (i) => {
         const spec = dto.sessions[i];
@@ -2011,11 +2014,34 @@ export class PlansService {
           ),
           detailLevel: dto.detailLevel ?? 'detailed',
           difficulty: dto.experienceLevel,
+          cardioDayIndex: dto.sessions
+            .slice(0, i)
+            .filter((s) => s.type === 'cardio').length,
         };
       },
       exercisesService: this.exercises,
       equipment,
     });
+
+    // Enrichment swaps are per-session; re-run week-scoped dedupe so an anchor
+    // or equipment swap cannot reintroduce a duplicate the validators removed.
+    const deduped = dedupeEnrichedProgramSessions({
+      sessions: enriched,
+      specs: dto.sessions,
+      library: this.exercises,
+      equipment,
+      avoidConstraintsGlobal: dto.avoidConstraints,
+    });
+    if (deduped.repairs > 0) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'post_enrichment_dedupe',
+          repairs: deduped.repairs,
+          sessionCount: dto.sessions.length,
+        }),
+      );
+    }
+    return deduped.sessions;
   }
 
   async generateSingleSession(dto: GenerateSingleSessionDto, userId: string) {

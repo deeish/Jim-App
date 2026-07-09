@@ -21,6 +21,10 @@ import {
   classifyPullAngle,
   baseMovementFamily,
 } from './cross-session-diversity';
+import {
+  buildCardioDaySession,
+  cardioNameMatchesModality,
+} from './cardio-day-template';
 
 /** One exercise row as returned by plan / workout generation (before save). */
 export type GeneratedSessionExercise = {
@@ -345,20 +349,8 @@ export function nameMatchesAvoidList(name: string, phrases: string[]): boolean {
   });
 }
 
-/** Aligns with `WorkoutGeneratorService.cardioExerciseMatchesModality` for enrichment picks. */
-function cardioNameMatchesModality(name: string, modality: string): boolean {
-  const n = (name ?? '').toLowerCase();
-  const m = modality.toLowerCase().trim();
-  if (!m) return false;
-  if (m === 'run' || m === 'running') return /\b(run|jog|treadmill)\b/i.test(n);
-  if (m === 'bike' || m === 'cycle')
-    return /\b(bike|bicycle|cycle|assault bike|air bike)\b/i.test(n);
-  if (m === 'row' || m === 'rowing') return /\b(row|rowing)\b/i.test(n);
-  if (m === 'swim' || m === 'swimming') return /\b(swim)\b/i.test(n);
-  if (m === 'elliptical')
-    return /\b(elliptical|arc trainer|cross trainer)\b/i.test(n);
-  return n.includes(m);
-}
+// Modality matcher lives in cardio-day-template.ts (shared with the cardio-day
+// builder; that module only imports types from here, so no runtime cycle).
 
 function moveCardioExercisesLast(
   exercises: GeneratedSessionExercise[],
@@ -524,6 +516,86 @@ function pickLibraryCardioFinisherExercise(
     }
   }
   return cardioRows[0];
+}
+
+/**
+ * A strength day keeps at most ONE cardio row (the finisher), and that row
+ * should match the user's preferred modality when one is set. The model
+ * sometimes places two conditioning tails (20 min of cardio inside a strength
+ * slot) or picks a rower when the user asked for "run" — both deterministic
+ * fixes, no retry needed. Runs after `moveCardioExercisesLast` +
+ * `normalizeCardioRowShape`, so cardio rows sit at the tail in time shape.
+ */
+function conformStrengthDayCardioFinisher(args: {
+  exercises: GeneratedSessionExercise[];
+  findMeta: (id: string) => { primaryMuscleGroup?: string } | undefined;
+  exercisesService: ExercisesService;
+  equipment: string[] | undefined;
+  avoidPhrases: string[];
+  modalities: string[] | undefined;
+  coachNotes: string[];
+}): void {
+  const { exercises, findMeta, modalities } = args;
+  const cardioEntries = exercises
+    .map((e, i) => ({ row: e, index: i }))
+    .filter(({ row }) => isCardioRow(row, findMeta));
+  if (!cardioEntries.length) return;
+
+  let keeper: { row: GeneratedSessionExercise; index: number } | undefined;
+  for (const m of modalities ?? []) {
+    keeper = cardioEntries.find(({ row }) =>
+      cardioNameMatchesModality(row.name ?? '', m),
+    );
+    if (keeper) break;
+  }
+  keeper ??= cardioEntries[cardioEntries.length - 1]!;
+
+  if (cardioEntries.length > 1) {
+    for (const entry of [...cardioEntries].reverse()) {
+      if (entry.index === keeper.index) continue;
+      exercises.splice(entry.index, 1);
+    }
+    args.coachNotes.push(
+      'Kept one short cardio finisher and removed extra conditioning so the strength work stays the focus.',
+    );
+  }
+
+  const row = keeper.row;
+  const matchesPreference =
+    !modalities?.length ||
+    modalities.some((m) => cardioNameMatchesModality(row.name ?? '', m));
+  if (matchesPreference) return;
+
+  const excludeIds = exercises
+    .map((e) => e.exerciseId?.trim())
+    .filter((id): id is string => !!id);
+  const pick = pickLibraryCardioFinisherExercise(
+    args.exercisesService,
+    args.equipment,
+    excludeIds,
+    modalities,
+    args.avoidPhrases,
+  );
+  if (
+    !pick ||
+    !modalities!.some((m) => cardioNameMatchesModality(pick.name, m))
+  ) {
+    return;
+  }
+  const sec = secondaryMusclesForPreview(
+    pick.secondaryMuscleGroups,
+    pick.primaryMuscleGroup,
+  );
+  row.name = pick.name;
+  row.exerciseId = pick.id;
+  row.primaryMuscleGroup = pick.primaryMuscleGroup;
+  if (sec.length) row.secondaryMuscleGroups = sec;
+  else delete row.secondaryMuscleGroups;
+  // Time shape (sets 1 / seconds in reps / durationSeconds) was already
+  // normalized on this row and carries over to the swapped-in modality.
+  args.coachNotes.push(
+    'Swapped the cardio finisher to match your preferred cardio style.',
+  );
 }
 
 /**
@@ -726,8 +798,17 @@ export type EnrichSessionGenerationPrefs = {
    * Library `exerciseId`s already present on other sessions in this generated chunk.
    * Hybrid cardio finisher picks merge these into `excludeIds` so we do not append the
    * same catalog id twice across the chunk (`duplicate_exercise_id_across_chunk`).
+   * Note: repeating a cardio modality across days is allowed by design — the
+   * finisher conformance pass may still swap back to a modality match that
+   * another day already uses.
    */
   chunkExcludeExerciseIds?: string[];
+  /**
+   * 0-based position of this session among the request's `type: 'cardio'` specs.
+   * Drives the deterministic cardio-day template (steady vs intervals alternation
+   * and modality rotation). Ignored on strength sessions.
+   */
+  cardioDayIndex?: number;
 };
 
 /**
@@ -999,6 +1080,22 @@ export async function enrichGeneratedSession(
   generationPrefs?: EnrichSessionGenerationPrefs,
 ): Promise<GeneratedSession> {
   if (spec.type !== 'strength') {
+    // Cardio days are built deterministically — the model's cardio rows ship
+    // with strength-style sets/reps and no metadata, so we replace them with a
+    // clear modality plan (see cardio-day-template.ts). Recovery days pass
+    // through untouched for now.
+    if (spec.type === 'cardio') {
+      return buildCardioDaySession({
+        session,
+        library: exercisesService,
+        equipment,
+        avoidPhrases,
+        modalities: generationPrefs?.cardioModalities,
+        durationMinutes: generationPrefs?.durationMinutes,
+        cardioDayIndex: generationPrefs?.cardioDayIndex,
+        chunkExcludeExerciseIds: generationPrefs?.chunkExcludeExerciseIds,
+      });
+    }
     return session;
   }
 
@@ -1271,6 +1368,15 @@ export async function enrichGeneratedSession(
   });
   moveCardioExercisesLast(exercises, findMeta);
   normalizeCardioRowShape(exercises, findMeta);
+  conformStrengthDayCardioFinisher({
+    exercises,
+    findMeta,
+    exercisesService,
+    equipment,
+    avoidPhrases,
+    modalities: generationPrefs?.cardioModalities,
+    coachNotes,
+  });
   // Stamp role-aware sets + rep ranges before clamping so the duration/experience
   // cap still trims the resulting working-set total to fit the session length.
   stampSetsAndReps(exercises, findMeta, generationPrefs);
