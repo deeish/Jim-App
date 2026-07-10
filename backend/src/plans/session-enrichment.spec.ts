@@ -1,4 +1,5 @@
 import {
+  buildStrengthReasoning,
   enrichGeneratedSession,
   enrichGeneratedSessionsInChunkOrder,
   humanizeExerciseIdsInCopy,
@@ -167,6 +168,46 @@ describe('strength-day cardio finisher conformance', () => {
   });
 });
 
+describe('buildStrengthReasoning', () => {
+  const meta = new Map([
+    ['fs', { primaryMuscleGroup: 'Legs' }],
+    ['rdl', { primaryMuscleGroup: 'Legs' }],
+    ['row', { primaryMuscleGroup: 'Back' }],
+    ['jog', { primaryMuscleGroup: 'Cardio' }],
+  ]);
+  const findMeta = (id: string) => meta.get(id);
+
+  it('describes the final list: opener, supporting count, muscles, cardio close', () => {
+    const text = buildStrengthReasoning(
+      [
+        { name: 'Front Squat', sets: 4, reps: 5, exerciseId: 'fs' },
+        { name: 'Romanian Deadlift', sets: 3, reps: 8, exerciseId: 'rdl' },
+        {
+          name: 'Single-Arm Dumbbell Row',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'row',
+        },
+        { name: 'Treadmill Jog', sets: 1, reps: 600, exerciseId: 'jog' },
+      ],
+      findMeta,
+    );
+    expect(text).toMatch(/^Front Squat leads the session/);
+    expect(text).toMatch(/2 supporting moves/);
+    expect(text).toMatch(/legs and back/);
+    expect(text).toMatch(/cardio block closes the day/);
+  });
+
+  it('returns undefined when there are no strength rows to describe', () => {
+    expect(
+      buildStrengthReasoning(
+        [{ name: 'Treadmill Jog', sets: 1, reps: 600, exerciseId: 'jog' }],
+        findMeta,
+      ),
+    ).toBeUndefined();
+  });
+});
+
 describe('post-LLM equipment gate', () => {
   const mkService = (rows: Array<Record<string, unknown>>) => {
     const byId = new Map(rows.map((r) => [r.id as string, r]));
@@ -293,6 +334,26 @@ describe('post-LLM equipment gate', () => {
     );
     const ids = out.exercises.map((e) => e.exerciseId);
     expect(ids).toContain('pinch_block_carry');
+  });
+
+  it('replaces garbled model reasoning with list-grounded copy', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        reasoning:
+          'The arnold press is replaced with a different vertical press, the waiter carry is not a press so we use the Farmer Handle Carry is not a press either.',
+        exercises: [rowOf(dbRow, 4, 6), rowOf(dbBench)],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([dbRow, dbBench]),
+      homeEquipment,
+      [],
+      {},
+    );
+    expect(out.reasoning).not.toMatch(/arnold press|waiter carry/i);
+    expect(out.reasoning).toMatch(/leads the session while you are freshest/);
   });
 
   it('is inert without an equipment list (eval mocks, legacy calls)', async () => {

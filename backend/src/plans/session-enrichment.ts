@@ -239,6 +239,57 @@ function appendDeterministicCoachNotes(
   return `${r} Note: ${block}`;
 }
 
+function listToProse(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
+
+/**
+ * Deterministic, list-grounded session reasoning for strength days. The
+ * model's free-text reasoning routinely contradicts the final exercise list —
+ * live captures showed garbled chain-of-thought fragments ("the waiter carry
+ * is not a press so we use the Farmer Handle Carry is not a press either")
+ * and references to lifts the enrichment passes had already swapped out — so
+ * the user-facing copy is rebuilt from the rows the user will actually
+ * perform. Deterministic coach notes are appended afterwards by the caller,
+ * unchanged. Returns undefined (keep the model text) when the session has no
+ * strength rows to describe.
+ */
+export function buildStrengthReasoning(
+  exercises: GeneratedSessionExercise[],
+  findMeta: (id: string) => { primaryMuscleGroup?: string } | undefined,
+): string | undefined {
+  const groupOf = (e: GeneratedSessionExercise): string | undefined =>
+    (e.exerciseId
+      ? findMeta(e.exerciseId.trim())?.primaryMuscleGroup
+      : undefined) ?? e.primaryMuscleGroup;
+  const named = exercises.filter((e) => (e.name ?? '').trim());
+  const strength = named.filter(
+    (e) => (groupOf(e) ?? '').toLowerCase() !== 'cardio',
+  );
+  if (!strength.length) return undefined;
+  const hasCardio = strength.length < named.length;
+  const muscles: string[] = [];
+  for (const e of strength) {
+    const g = groupOf(e);
+    if (g && !muscles.includes(g.toLowerCase())) muscles.push(g.toLowerCase());
+  }
+  const opener = strength[0]!.name.trim();
+  const supporting = strength.length - 1;
+  let text = `${opener} leads the session while you are freshest`;
+  if (supporting > 0) {
+    text += `, then ${supporting} supporting ${
+      supporting === 1 ? 'move rounds' : 'moves round'
+    } out ${listToProse(muscles)}`;
+  }
+  text += '.';
+  if (hasCardio) {
+    text += ' A short, easy cardio block closes the day.';
+  }
+  return text;
+}
+
 /**
  * The lift the warm-up ramp line points at: slot 1 after the ordering and
  * anchor passes have run (those already guarantee a sensible opener). A scoring
@@ -1566,7 +1617,10 @@ export async function enrichGeneratedSession(
     findMeta,
   );
   const reasoning = humanizeExerciseIdsInCopy(
-    appendDeterministicCoachNotes(session.reasoning, coachNotes),
+    appendDeterministicCoachNotes(
+      buildStrengthReasoning(exercises, findMeta) ?? session.reasoning,
+      coachNotes,
+    ),
     findMeta,
   );
   const coolDown =
