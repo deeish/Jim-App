@@ -7,6 +7,7 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+  equipmentSatisfies,
   transformExercise,
   RawExercise,
   TransformedExercise,
@@ -436,8 +437,16 @@ export class ExercisesService implements OnModuleInit {
     const muscleGroups = this.focusToMuscleGroups(focusNorm);
     let results = this.search({
       muscleGroups: muscleGroups.length ? muscleGroups : undefined,
-      equipment: equipment.length ? equipment : undefined,
     });
+    // Generation filters on *required* equipment: a cable exercise with a band
+    // alternative must not reach a home plan under its cable name (the merged
+    // `equipment` list that library search uses would let it through). Empty
+    // primary equipment means the row is doable anywhere (push-up).
+    if (equipment.length) {
+      results = results.filter((e) =>
+        equipmentSatisfies(e.primaryEquipment ?? e.equipment, equipment),
+      );
+    }
     if (excludeIds.length) {
       const excludeSet = new Set(excludeIds);
       results = results.filter((e) => !excludeSet.has(e.id));

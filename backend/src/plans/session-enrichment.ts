@@ -9,6 +9,7 @@ import {
   goalWantsStrengthCardioFinisher,
 } from '../workouts/workout-generator.service';
 import { getAcceptedAnchorIdsForFocus } from '../data/anchor-exercises';
+import { equipmentSatisfies } from '../data/exercise-mappings';
 import {
   getSetRepGuidelines,
   getRoleAwareScheme,
@@ -911,11 +912,13 @@ function ensureAnchorInSlotOne(args: {
     if (anchorMeta.primaryMuscleGroup === 'Cardio') continue;
     if (nameMatchesAvoidList(anchorMeta.name, args.avoidPhrases)) continue;
     // Respect the user's equipment (home users must not get barbell anchors).
-    // Empty exercise equipment means bodyweight-doable anywhere.
+    // Required-only equipment; empty means bodyweight-doable anywhere.
     if (
       args.equipment?.length &&
-      anchorMeta.equipment?.length &&
-      !anchorMeta.equipment.some((eq) => args.equipment!.includes(eq))
+      !equipmentSatisfies(
+        anchorMeta.primaryEquipment ?? anchorMeta.equipment,
+        args.equipment,
+      )
     ) {
       continue;
     }

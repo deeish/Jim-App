@@ -4,13 +4,15 @@ import type { EvalCatalogExercise } from './eval-types';
 
 function toTransformed(r: EvalCatalogExercise): TransformedExercise {
   const prescriptionType = r.prescriptionType ?? 'reps';
+  const equipment = r.equipment?.length ? r.equipment : ['Barbell'];
   return {
     id: r.id,
     name: r.name,
     primaryMuscleGroup: r.primaryMuscleGroup ?? 'Chest',
     subMuscles: r.subMuscles ?? [],
     secondaryMuscleGroups: r.secondaryMuscleGroups ?? [],
-    equipment: r.equipment?.length ? r.equipment : ['Barbell'],
+    equipment,
+    primaryEquipment: equipment,
     movementPatterns: r.movementPatterns?.length ? [...r.movementPatterns] : [],
     prescriptionType,
     type: 'compound',
