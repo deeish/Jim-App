@@ -240,45 +240,42 @@ function appendDeterministicCoachNotes(
 }
 
 /**
- * Best lift to anchor warm-up copy: prefers compounds, avoids fly/curl-class isolation first,
- * and on upper-emphasis titles avoids deadlift/squat-class patterns when metadata or names allow.
+ * The lift the warm-up ramp line points at: slot 1 after the ordering and
+ * anchor passes have run (those already guarantee a sensible opener). A scoring
+ * heuristic here used to out-guess the ordered list and told users to take ramp
+ * sets on a pull-flavored accessory (live: "Axle Bar Deadlift Hold" on a lower
+ * day whose opener was Front Squat).
+ *
+ * Returns null — no ramp line — when the opener is time-based (carries/holds
+ * have no working sets to ramp toward) or needs no external load ("toward
+ * working weight" reads as nonsense on a push-up).
  */
 export function inferMainLiftName(
   exercises: GeneratedSessionExercise[],
   options?: {
-    sessionTitle?: string;
-    findMeta?: (id: string) => { movementPatterns?: string[] } | undefined;
+    findMeta?: (id: string) =>
+      | {
+          primaryMuscleGroup?: string;
+          primaryEquipment?: string[];
+          equipment?: string[];
+        }
+      | undefined;
   },
 ): string | null {
-  const title = options?.sessionTitle;
   const findMeta = options?.findMeta;
-  const candidates = exercises.filter(
-    (e) =>
-      (e.sets ?? 0) >= 3 && !/warm|stretch|cool|mobility|foam/i.test(e.name),
-  );
-  if (!candidates.length) {
-    const fallback = exercises.find((e) => (e.sets ?? 0) > 0);
-    return fallback?.name ?? null;
+  for (const e of exercises) {
+    const name = e.name?.trim();
+    if (!name || /warm|stretch|cool|mobility|foam/i.test(name)) continue;
+    if ((e.sets ?? 0) < 1) continue;
+    const meta = e.exerciseId ? findMeta?.(e.exerciseId.trim()) : undefined;
+    const muscle = meta?.primaryMuscleGroup ?? e.primaryMuscleGroup;
+    if (muscle === 'Cardio') continue;
+    if (e.prescriptionType === 'time') return null;
+    const eq = meta?.primaryEquipment ?? meta?.equipment;
+    if (eq && eq.every((x) => /bodyweight/i.test(x))) return null;
+    return name;
   }
-  const scoreLift = (e: GeneratedSessionExercise): number => {
-    let s = 0;
-    const name = (e.name ?? '').toLowerCase();
-    if (ISOLATION_NAME.test(name)) s -= 65;
-    if (sessionTitleIsUpperEmphasis(title) && LOWER_PATTERN_NAME.test(name)) {
-      s -= 85;
-    }
-    if (findMeta && e.exerciseId) {
-      const p = findMeta(e.exerciseId)?.movementPatterns ?? [];
-      if (p.includes('Push') || p.includes('Pull')) s += 15;
-      if (p.includes('Hinge') || p.includes('Squat')) {
-        s += sessionTitleIsUpperEmphasis(title) ? -55 : 10;
-      }
-    }
-    s += Math.min(24, (e.sets ?? 0) * 2);
-    return s;
-  };
-  const sorted = [...candidates].sort((a, b) => scoreLift(b) - scoreLift(a));
-  return sorted[0]?.name ?? candidates[0]?.name ?? null;
+  return null;
 }
 
 export function tieWarmupToMainLift(
@@ -1447,10 +1444,7 @@ export async function enrichGeneratedSession(
 
   stampRestSeconds(exercises, findMeta, generationPrefs);
 
-  const mainName = inferMainLiftName(exercises, {
-    sessionTitle: spec.title,
-    findMeta,
-  });
+  const mainName = inferMainLiftName(exercises, { findMeta });
   const warmUp = humanizeExerciseIdsInCopy(
     tieWarmupToMainLift(session.warmUp, mainName),
     findMeta,

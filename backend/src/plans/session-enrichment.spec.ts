@@ -238,40 +238,69 @@ describe('sessionTitleIsLowerEmphasis', () => {
 });
 
 describe('inferMainLiftName', () => {
-  it('prefers a compound press over fly for warm-up anchor on Upper', () => {
+  it('returns the slot-1 exercise after ordering (never out-guesses the opener)', () => {
     const main = inferMainLiftName(
       [
-        { name: 'Flat Dumbbell Fly', sets: 5, reps: 10, exerciseId: 'fly1' },
+        { name: 'Front Squat', sets: 4, reps: 5, exerciseId: 'fs1' },
         {
-          name: 'Incline Barbell Bench Press',
+          name: 'Axle Bar Deadlift Hold',
           sets: 4,
-          reps: 8,
-          exerciseId: 'bench1',
+          reps: 9,
+          exerciseId: 'axle1',
+          prescriptionType: 'time',
         },
       ],
       {
-        sessionTitle: 'Upper',
-        findMeta: () => ({ movementPatterns: ['Push'] }),
+        findMeta: (id) =>
+          id === 'fs1'
+            ? { primaryEquipment: ['Barbell'] }
+            : { primaryEquipment: ['Axle Bar'] },
       },
     );
-    expect(main).toMatch(/Bench/i);
+    expect(main).toBe('Front Squat');
   });
 
-  it('deprioritizes sumo deadlift vs upper-body press on Upper', () => {
+  it('skips a leading cardio row when locating the main lift', () => {
+    const main = inferMainLiftName([
+      {
+        name: 'Treadmill Jog (Steady State)',
+        sets: 1,
+        reps: 600,
+        prescriptionType: 'time',
+        primaryMuscleGroup: 'Cardio',
+      },
+      { name: 'Barbell Overhead Press', sets: 4, reps: 5, exerciseId: 'ohp1' },
+    ]);
+    expect(main).toBe('Barbell Overhead Press');
+  });
+
+  it('returns null (no ramp line) when the opener is a timed hold or carry', () => {
+    const main = inferMainLiftName([
+      {
+        name: 'Waiter Carry',
+        sets: 3,
+        reps: 40,
+        exerciseId: 'wc1',
+        prescriptionType: 'time',
+      },
+      { name: 'Flat Dumbbell Bench Press', sets: 4, reps: 5 },
+    ]);
+    expect(main).toBeNull();
+  });
+
+  it('returns null when the opener needs no external load (no "working weight" on a push-up)', () => {
     const main = inferMainLiftName(
       [
-        { name: 'Sumo Deadlift', sets: 4, reps: 5, exerciseId: 'dl1' },
-        { name: 'Chest Dip', sets: 4, reps: 8, exerciseId: 'dip1' },
+        {
+          name: 'Band-Resisted Close-Grip Push-Up',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'pu1',
+        },
       ],
-      {
-        sessionTitle: 'Upper 2',
-        findMeta: (id) =>
-          id === 'dl1'
-            ? { movementPatterns: ['Hinge', 'Pull'] }
-            : { movementPatterns: ['Push'] },
-      },
+      { findMeta: () => ({ primaryEquipment: [] }) },
     );
-    expect(main).toMatch(/Dip/i);
+    expect(main).toBeNull();
   });
 });
 
