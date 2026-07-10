@@ -257,6 +257,44 @@ function clampInt(value: number, lo: number, hi: number): number {
 }
 
 /**
+ * Canonical coach rep bands. The role arithmetic below can land on odd ranges
+ * (11–17, 14–19) that read as machine output; every final prescription snaps
+ * to the nearest of these instead. The bottom of the band is weighted double
+ * because it anchors intensity (a coach cares more that a heavy lift starts
+ * at 5 than exactly where the back-off top sits). Ties go to the earlier
+ * (heavier) band. All widths stay ≤ MAX_RANGE_WIDTH.
+ */
+export const COACH_REP_BANDS: ReadonlyArray<readonly [number, number]> = [
+  [3, 5],
+  [4, 6],
+  [5, 8],
+  [6, 10],
+  [8, 10],
+  [8, 12],
+  [10, 12],
+  [10, 15],
+  [12, 15],
+  [15, 20],
+  [20, 25],
+];
+
+function snapToCoachBand(
+  repsMin: number,
+  repsMax: number,
+): readonly [number, number] {
+  let best = COACH_REP_BANDS[0]!;
+  let bestCost = Number.POSITIVE_INFINITY;
+  for (const band of COACH_REP_BANDS) {
+    const cost = 2 * Math.abs(band[0] - repsMin) + Math.abs(band[1] - repsMax);
+    if (cost < bestCost) {
+      best = band;
+      bestCost = cost;
+    }
+  }
+  return best;
+}
+
+/**
  * Concrete `sets` + `repsMin`/`repsMax` for one exercise, derived from the
  * goal+difficulty base band ({@link getSetRepGuidelines}) shifted by role:
  *   - primary_compound  → base band, most sets (the heavy anchor)
@@ -307,6 +345,8 @@ export function getRoleAwareScheme(
   if (repsMax < repsMin) repsMax = repsMin;
   if (repsMax - repsMin > MAX_RANGE_WIDTH) repsMax = repsMin + MAX_RANGE_WIDTH;
   sets = clampInt(sets, SET_FLOOR, SET_CEIL);
+
+  [repsMin, repsMax] = snapToCoachBand(repsMin, repsMax);
 
   return { sets, repsMin, repsMax, restSeconds: base.restSeconds };
 }
