@@ -6853,7 +6853,9 @@
     "id": "straight_bar_cable_pushdown",
     "name": "Straight-Bar Cable Pushdown",
     "aliases": [
-      "Bar Pushdown"
+      "Bar Pushdown",
+      "Triceps Pushdown",
+      "Cable Pushdown"
     ],
     "description": "A classic cable pushdown using a straight bar for a fixed bilateral path.",
     "primaryMuscleGroupId": "arms",
@@ -8222,7 +8224,8 @@
     "id": "lying_barbell_triceps_extension",
     "name": "Lying Barbell Triceps Extension",
     "aliases": [
-      "Barbell Skull Crusher"
+      "Barbell Skull Crusher",
+      "Skullcrusher"
     ],
     "description": "A classic lying triceps extension performed with a straight bar.",
     "primaryMuscleGroupId": "arms",
@@ -8259,7 +8262,8 @@
     "id": "lying_ez_bar_triceps_extension",
     "name": "Lying EZ-Bar Triceps Extension",
     "aliases": [
-      "EZ-Bar Skull Crusher"
+      "EZ-Bar Skull Crusher",
+      "Skullcrushers"
     ],
     "description": "A lying triceps extension with an EZ bar that is easier on many wrists and elbows.",
     "primaryMuscleGroupId": "arms",
@@ -9006,7 +9010,9 @@
   {
     "id": "dumbbell_kickback",
     "name": "Dumbbell Kickback",
-    "aliases": [],
+    "aliases": [
+      "Triceps Kickback"
+    ],
     "description": "A classic dumbbell kickback that trains elbow extension with the upper arm held behind the torso.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
@@ -25762,7 +25768,8 @@
     "name": "Barbell Overhead Press",
     "aliases": [
       "Standing Overhead Press",
-      "Military Press"
+      "Military Press",
+      "OHP"
     ],
     "description": "A controlled overhead press that builds the delts through a strong vertical path.",
     "primaryMuscleGroupId": "shoulders",
@@ -36076,6 +36083,187 @@
       "Sit down into the squat while keeping your chest up.",
       "Drive your knees forward and keep your feet planted.",
       "Stand back up until your hips and knees lock out."
+    ]
+  },
+  {
+    "id": "box_squat",
+    "name": "Box Squat",
+    "aliases": [
+      "Barbell Box Squat",
+      "Squat to Box"
+    ],
+    "description": "A back squat performed to a box, teaching depth control and building explosive hip drive out of the hole.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core",
+      "back",
+      "glutes"
+    ],
+    "equipmentIds": [
+      "barbell",
+      "flat_bench"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Set a box or bench at or just below parallel depth behind you.",
+      "Sit back onto the box under control, keeping your shins vertical.",
+      "Pause briefly without relaxing your trunk.",
+      "Drive up explosively through your whole foot."
+    ]
+  },
+  {
+    "id": "pause_back_squat",
+    "name": "Pause Back Squat",
+    "aliases": [
+      "Pause Squat",
+      "Paused Barbell Squat"
+    ],
+    "description": "A back squat with a deliberate pause in the bottom position to build positional strength and control.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core",
+      "back",
+      "glutes"
+    ],
+    "equipmentIds": [
+      "barbell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Squat to full depth and hold a strict 2-3 second pause.",
+      "Stay braced and keep the bar over mid-foot during the pause.",
+      "Drive up without bouncing or relaxing at the bottom.",
+      "Use less weight than your regular squat."
+    ]
+  },
+  {
+    "id": "overhead_squat",
+    "name": "Overhead Squat",
+    "aliases": [
+      "Barbell Overhead Squat",
+      "OHS"
+    ],
+    "description": "A full squat performed while holding the bar locked out overhead, demanding exceptional mobility and trunk stability.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "core",
+      "back"
+    ],
+    "equipmentIds": [
+      "barbell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Hold the bar overhead with a wide snatch grip and locked elbows.",
+      "Squat down while keeping the bar stacked over your mid-foot.",
+      "Push up against the bar the entire time.",
+      "Stand tall without letting the bar drift forward."
+    ]
+  },
+  {
+    "id": "barbell_thruster",
+    "name": "Barbell Thruster",
+    "aliases": [
+      "Thruster",
+      "Squat to Press"
+    ],
+    "description": "A front squat flowing directly into an overhead press, taxing the legs, shoulders, and conditioning in one movement.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "core",
+      "arms"
+    ],
+    "equipmentIds": [
+      "barbell"
+    ],
+    "equipmentAlternativeIds": [
+      "dumbbell",
+      "kettlebell"
+    ],
+    "movementPatternIds": [
+      "squat",
+      "overhead_press"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Front squat to full depth with the bar in the rack position.",
+      "Drive up hard and use the momentum to press the bar overhead.",
+      "Lock out overhead, then lower back to the rack position.",
+      "Keep your heels down and trunk braced throughout."
+    ]
+  },
+  {
+    "id": "clean_and_jerk",
+    "name": "Clean and Jerk",
+    "aliases": [
+      "Barbell Clean and Jerk",
+      "C&J"
+    ],
+    "description": "The Olympic lift: clean the bar to the shoulders, then jerk it overhead. Demands power, mobility, and practiced technique.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads"
+    ],
+    "secondaryMuscleGroupIds": [
+      "back",
+      "shoulders",
+      "core"
+    ],
+    "equipmentIds": [
+      "barbell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "hinge",
+      "explosive"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Clean the bar explosively from the floor to the front rack.",
+      "Stand tall, reset your breath, and dip with a vertical torso.",
+      "Drive the bar overhead and lock out in a split or power stance.",
+      "Learn this lift with a coach before loading it heavy."
     ]
   },
   {
