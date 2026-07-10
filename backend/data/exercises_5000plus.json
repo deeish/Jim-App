@@ -42546,6 +42546,68 @@
     ]
   },
   {
+    "id": "outdoor_jog_steady",
+    "name": "Outdoor Jog (Steady State)",
+    "aliases": [
+      "Easy Outdoor Run",
+      "Neighborhood Jog"
+    ],
+    "description": "Comfortably-paced outdoor jogging to build aerobic fitness with no equipment needed.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Start with a few minutes of brisk walking before easing into a jog.",
+      "Keep the pace conversational; slow to a walk any time you need to.",
+      "Pick a flat, familiar route and stay aware of traffic.",
+      "Finish with a few minutes of walking to bring heart rate down."
+    ]
+  },
+  {
+    "id": "outdoor_run_intervals",
+    "name": "Outdoor Run Intervals",
+    "aliases": [
+      "Outdoor Running Intervals",
+      "Park Run Intervals"
+    ],
+    "description": "Alternates brisk outdoor running with easy recovery jogging or walking to build speed and capacity anywhere.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Warm up with several minutes of easy jogging first.",
+      "Run brisk for the work interval at an effort you could repeat, then walk or jog easy to recover.",
+      "Choose flat, open ground with sure footing.",
+      "Cool down with easy walking until breathing returns to normal."
+    ]
+  },
+  {
     "id": "stationary_bike_steady",
     "name": "Stationary Bike (Steady / Zone 2)",
     "aliases": [
@@ -43590,7 +43652,7 @@
       "legs"
     ],
     "equipmentIds": [
-      "machine"
+      "bicycle"
     ],
     "equipmentAlternativeIds": [],
     "movementPatternIds": [
@@ -43888,10 +43950,10 @@
       "legs"
     ],
     "equipmentIds": [
-      "machine"
+      "bodyweight"
     ],
     "equipmentAlternativeIds": [
-      "bodyweight"
+      "machine"
     ],
     "movementPatternIds": [
       "cardio"

@@ -3,6 +3,7 @@ import type {
   GeneratedSessionExercise,
 } from './session-enrichment';
 import { baseMovementKey } from './base-movement-key';
+import { equipmentSatisfies } from '../data/exercise-mappings';
 
 /**
  * Deterministic cardio-day builder. `type: 'cardio'` sessions previously passed
@@ -37,6 +38,9 @@ type CardioTemplateExerciseMeta = {
   primaryMuscleGroup?: string;
   secondaryMuscleGroups?: string[];
   prescriptionType?: GeneratedSessionExercise['prescriptionType'];
+  /** Required equipment labels; empty/omitted = doable anywhere. */
+  primaryEquipment?: string[];
+  equipment?: string[];
 };
 
 export type CardioTemplateLibrary = {
@@ -50,30 +54,34 @@ export type CardioTemplateLibrary = {
 };
 
 /**
- * Canonical library ids per whitelisted modality (see
- * `PlansService.CARDIO_MODALITY_WHITELIST`). Steady is the default style;
+ * Candidate library ids per whitelisted modality (see
+ * `PlansService.CARDIO_MODALITY_WHITELIST`), in preference order — the first
+ * candidate whose required equipment the user actually has wins (a home run
+ * day gets the outdoor jog, not a treadmill). Steady is the default style;
  * intervals alternate in on every second cardio day.
  */
-const MODALITY_MAIN_IDS: Record<string, { steady: string; intervals: string }> =
-  {
-    run: {
-      steady: 'treadmill_jog_steady',
-      intervals: 'treadmill_run_intervals',
-    },
-    bike: {
-      steady: 'stationary_bike_steady',
-      intervals: 'stationary_bike_intervals',
-    },
-    row: {
-      steady: 'rowing_machine_steady',
-      intervals: 'rowing_machine_intervals',
-    },
-    elliptical: {
-      steady: 'elliptical_steady',
-      intervals: 'elliptical_intervals',
-    },
-    swim: { steady: 'swimming_laps_easy', intervals: 'swimming_laps_easy' },
-  };
+const MODALITY_MAIN_IDS: Record<
+  string,
+  { steady: string[]; intervals: string[] }
+> = {
+  run: {
+    steady: ['treadmill_jog_steady', 'outdoor_jog_steady'],
+    intervals: ['treadmill_run_intervals', 'outdoor_run_intervals'],
+  },
+  bike: {
+    steady: ['stationary_bike_steady'],
+    intervals: ['stationary_bike_intervals'],
+  },
+  row: {
+    steady: ['rowing_machine_steady'],
+    intervals: ['rowing_machine_intervals'],
+  },
+  elliptical: {
+    steady: ['elliptical_steady'],
+    intervals: ['elliptical_intervals'],
+  },
+  swim: { steady: ['swimming_laps_easy'], intervals: ['swimming_laps_easy'] },
+};
 
 /** Modality-neutral fallback when no listed modality resolves in the catalog. */
 const FALLBACK_MAIN_ID = 'zone_2_training_session';
@@ -136,7 +144,16 @@ function resolveMainExercise(
   style: 'steady' | 'intervals',
   cardioDayIndex: number,
   avoidPhrases: string[],
+  equipment: string[] | undefined,
 ): CardioTemplateExerciseMeta | undefined {
+  // The modality map bypasses the generation pools, so it must apply the same
+  // required-equipment rule itself — a home run day must resolve to the
+  // outdoor jog, and swim without a pool must fall through entirely.
+  const usable = (meta: CardioTemplateExerciseMeta | undefined) =>
+    !!meta &&
+    !nameMatchesAvoid(meta.name, avoidPhrases) &&
+    (!equipment?.length ||
+      equipmentSatisfies(meta.primaryEquipment ?? meta.equipment, equipment));
   const listed = (modalities ?? [])
     .map((m) => m.toLowerCase().trim())
     .filter((m) => m in MODALITY_MAIN_IDS);
@@ -145,21 +162,21 @@ function resolveMainExercise(
     ? [...listed.slice(cardioDayIndex % listed.length), ...listed]
     : [];
   for (const m of ordered) {
-    const meta = library.findOne(MODALITY_MAIN_IDS[m]![style]);
-    if (meta && !nameMatchesAvoid(meta.name, avoidPhrases)) return meta;
+    for (const id of MODALITY_MAIN_IDS[m]![style]) {
+      const meta = library.findOne(id);
+      if (usable(meta)) return meta;
+    }
   }
   const fallback = library.findOne(FALLBACK_MAIN_ID);
-  if (fallback && !nameMatchesAvoid(fallback.name, avoidPhrases)) {
-    return fallback;
-  }
-  // Last resort: any catalog Cardio row.
+  if (usable(fallback)) return fallback;
+  // Last resort: any catalog Cardio row the user's equipment supports.
   return library
-    .getCandidatesForGenerator({ focus: 'cardio', limit: 30 })
-    .find(
-      (c) =>
-        c.primaryMuscleGroup === 'Cardio' &&
-        !nameMatchesAvoid(c.name, avoidPhrases),
-    );
+    .getCandidatesForGenerator({
+      focus: 'cardio',
+      equipment: equipment?.length ? equipment : undefined,
+      limit: 30,
+    })
+    .find((c) => c.primaryMuscleGroup === 'Cardio' && usable(c));
 }
 
 function pickCoreRows(
@@ -223,6 +240,7 @@ export function buildCardioDaySession(
     style,
     cardioDayIndex,
     avoidPhrases,
+    args.equipment,
   );
   if (!main) return args.session;
 

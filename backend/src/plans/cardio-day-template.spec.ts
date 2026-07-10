@@ -11,26 +11,49 @@ function mockLibrary(): CardioTemplateLibrary {
       id: 'treadmill_jog_steady',
       name: 'Treadmill Jog (Steady State)',
       primaryMuscleGroup: 'Cardio',
+      primaryEquipment: ['Machine'],
     },
     {
       id: 'treadmill_run_intervals',
       name: 'Treadmill Run Intervals',
       primaryMuscleGroup: 'Cardio',
+      primaryEquipment: ['Machine'],
+    },
+    {
+      id: 'outdoor_jog_steady',
+      name: 'Outdoor Jog (Steady State)',
+      primaryMuscleGroup: 'Cardio',
+      primaryEquipment: [],
+    },
+    {
+      id: 'outdoor_run_intervals',
+      name: 'Outdoor Run Intervals',
+      primaryMuscleGroup: 'Cardio',
+      primaryEquipment: [],
     },
     {
       id: 'stationary_bike_steady',
       name: 'Stationary Bike (Steady / Zone 2)',
       primaryMuscleGroup: 'Cardio',
+      primaryEquipment: ['Machine'],
     },
     {
       id: 'stationary_bike_intervals',
       name: 'Stationary Bike Intervals',
       primaryMuscleGroup: 'Cardio',
+      primaryEquipment: ['Machine'],
+    },
+    {
+      id: 'swimming_laps_easy',
+      name: 'Swimming (Easy Laps)',
+      primaryMuscleGroup: 'Cardio',
+      primaryEquipment: ['Unmodeled'],
     },
     {
       id: 'zone_2_training_session',
       name: 'Zone 2 Cardio Session',
       primaryMuscleGroup: 'Cardio',
+      primaryEquipment: [],
     },
     {
       id: 'plank',
@@ -157,6 +180,42 @@ describe('buildCardioDaySession', () => {
     // plank and weighted_plank share a base movement — only one may appear.
     const ids = out.exercises.map((e) => e.exerciseId);
     expect(ids.includes('plank') && ids.includes('weighted_plank')).toBe(false);
+  });
+
+  it('resolves run to the outdoor jog when the user has no machine', () => {
+    const out = buildCardioDaySession({
+      session: cardioSession(),
+      library: mockLibrary(),
+      modalities: ['run'],
+      equipment: ['Dumbbell', 'Resistance Band', 'Bodyweight'],
+      durationMinutes: 30,
+      cardioDayIndex: 0,
+    });
+    expect(out.exercises[0]!.exerciseId).toBe('outdoor_jog_steady');
+  });
+
+  it('keeps the treadmill for run when the user has machines', () => {
+    const out = buildCardioDaySession({
+      session: cardioSession(),
+      library: mockLibrary(),
+      modalities: ['run'],
+      equipment: ['Machine', 'Barbell'],
+      durationMinutes: 30,
+      cardioDayIndex: 0,
+    });
+    expect(out.exercises[0]!.exerciseId).toBe('treadmill_jog_steady');
+  });
+
+  it('never prescribes swimming without a pool: swim preference falls back to zone 2', () => {
+    const out = buildCardioDaySession({
+      session: cardioSession(),
+      library: mockLibrary(),
+      modalities: ['swim'],
+      equipment: ['Dumbbell', 'Resistance Band'],
+      durationMinutes: 30,
+      cardioDayIndex: 0,
+    });
+    expect(out.exercises[0]!.exerciseId).toBe('zone_2_training_session');
   });
 
   it('rotates modalities across cardio days when several are listed', () => {
