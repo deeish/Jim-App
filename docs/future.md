@@ -42,19 +42,46 @@ cable moves into home plans; swimming needs a pool), and the scorer gained
 equipmentConformance + copySanity dimensions (ceiling 124 → 140 — re-baseline
 mean totals when comparing to older reports).
 
+A fourth round landed 2026-07-10 after a live re-verify (fresh captures scored
+136-140/140, one perfect score): the warm-up ramp line now targets the actual
+slot-1 lift (and is omitted for bodyweight/timed openers), the cardio-day
+template checks equipment (home run days resolve to new outdoor jog/run
+catalog rows; swim without a pool falls back to zone 2), a post-LLM equipment
+gate swaps or drops any generated row whose required gear the user lacks
+(pinch_block unmapped from 'Bodyweight'), and strength-session reasoning is
+rebuilt deterministically from the final exercise list, ending garbled or
+contradictory model copy.
+
 Watch list for the next tuning pass:
 
+- **Stale interval notes on re-timed cardio rows.** The scrub only matches "N
+  seconds/minutes of work"; live rows still shipped "30 seconds brisk pace" on
+  a 10-minute block. Widen the contradiction check (any note claiming a
+  duration that disagrees with `durationSeconds`).
+- **Nonsense short time prescriptions.** Timed carries/holds ship with
+  rep-style numbers (3×8 = 8 seconds). Enforce a sane floor (~20 s) or convert
+  to reps; prescriptionHygiene has a max cap but no minimum.
 - **Position-variant redundancy.** `baseMovementKey` deliberately keeps
   position words, so seated + standing OHP can share a session. Decide whether
-  press variants deserve a stricter rule.
+  press variants deserve a stricter rule (live: Overhead Carry + Overhead Hold
+  as the two core rows of one cardio day).
+- **Leg-day muscle stacking + ordering.** The remaining eval findings are
+  pairwise order inversions (leg press ranked ahead of front squat) and
+  "stacks 4-5 consecutive Legs lifts" on lower days — partly scorer
+  over-strictness on single-region days, partly real ordering polish.
+- **Bench not modeled as equipment.** Home plans can prescribe Flat Dumbbell
+  Bench Press (floor press is the coach-true substitute). `SETUP_EQUIPMENT_IDS`
+  deliberately never gates benches; decide whether home should.
 - **Conditioning coverage.** Weakest eval dimension (~72% of ceiling across
   historical captures): not every strength day gets a finisher on hybrid/fat
   loss goals. Check whether `shouldAppendHybridCardioFinisher` is too shy.
 - **Recovery days** still pass through enrichment untouched (cardio days are
   templated now; recovery could get the same treatment).
-- **LLM reasoning coherence.** Ids are now humanized, but the model's
-  reasoning can still ramble or reference exercises that enrichment swapped
-  out; consider templating reasoning from the final exercise list.
+- **Catalog cleaning over bulk adds** (1292 rows, 150 equipment ids): ~12
+  grip-sport specialty rows (axle bar, blobs, grippers) still reach plans via
+  "map to available" equipment entries (axle_bar → Barbell); tag or unmap
+  them, and standardize display-name qualifiers on parentheses (catalog still
+  has em-dash names like "Swimming — Easy Laps").
 - Re-score periodically with `npm run eval:captures:report` (backend) after
   generating with `GENERATION_CAPTURE=1` — validator-ok rate and mean total
   are the regression signals.
