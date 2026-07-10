@@ -1140,8 +1140,13 @@ export async function enrichGeneratedSession(
       excludeIds,
       limit: 45,
     });
+    // The 'pull' pool is muscle-group based (Back + Arms), so it also holds
+    // triceps/biceps isolation. Only insert a movement that satisfies the same
+    // PULL_NAME predicate that flagged the session — otherwise a live run can
+    // add a cable pushdown "for pull balance" (observed in capture logs).
     const pick = pullPool.find(
       (c) =>
+        PULL_NAME.test(c.name) &&
         !exercises.some((e) => e.exerciseId === c.id || e.name === c.name) &&
         !nameMatchesAvoidList(c.name, avoidPhrases),
     );

@@ -1577,6 +1577,77 @@ describe('enrichGeneratedSession prescriptionType', () => {
     expect(ids).not.toContain('conventional_deadlift');
   });
 
+  it('pull-balance insert skips non-pull arm moves offered by the pull pool', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        {
+          name: 'Flat Barbell Bench Press',
+          sets: 4,
+          reps: 8,
+          exerciseId: 'flat_barbell_bench_press',
+        },
+        {
+          name: 'Incline Dumbbell Bench Press',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'incline_dumbbell_bench_press',
+        },
+      ],
+    };
+    const exercisesService = {
+      findOne: (id: string) => ({
+        id,
+        name: id,
+        movementPatterns: ['Push'],
+        primaryMuscleGroup: 'Chest',
+        secondaryMuscleGroups: [],
+      }),
+      // The 'pull' focus pool is muscle-group based (Back + Arms) so it leads
+      // with triceps/biceps isolation here — the insert must skip to the row.
+      getCandidatesForGenerator: ({ focus }: { focus: string }) =>
+        focus === 'pull'
+          ? [
+              {
+                id: 'straight_bar_cable_pushdown',
+                name: 'Straight-Bar Cable Pushdown',
+                primaryMuscleGroup: 'Arms',
+                secondaryMuscleGroups: ['Shoulders'],
+                movementPatterns: ['Push'],
+              },
+              {
+                id: 'standing_dumbbell_curl',
+                name: 'Standing Dumbbell Curl',
+                primaryMuscleGroup: 'Arms',
+                secondaryMuscleGroups: [],
+                movementPatterns: ['Pull'],
+              },
+              {
+                id: 'barbell_bent_over_row',
+                name: 'Barbell Bent-Over Row',
+                primaryMuscleGroup: 'Back',
+                secondaryMuscleGroups: ['Arms'],
+                movementPatterns: ['Pull'],
+              },
+            ]
+          : [],
+    };
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Upper' },
+      exercisesService as any,
+      [],
+      [],
+      { goal: 'hypertrophy', durationMinutes: 45, detailLevel: 'detailed' },
+    );
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).toContain('barbell_bent_over_row');
+    expect(ids).not.toContain('straight_bar_cable_pushdown');
+    expect(ids).not.toContain('standing_dumbbell_curl');
+  });
+
   it('skips the swap when no candidate anchor shares a movement pattern with slot 1', async () => {
     // Slot 1 is a Pull move; there is no Pull-pattern anchor available because
     // every candidate the helper inspects is exclude-listed via the chunk set.
