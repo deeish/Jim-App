@@ -77,7 +77,7 @@ Watch list for the next tuning pass:
   loss goals. Check whether `shouldAppendHybridCardioFinisher` is too shy.
 - **Recovery days** still pass through enrichment untouched (cardio days are
   templated now; recovery could get the same treatment).
-- **Catalog cleaning over bulk adds** (1292 rows, 150 equipment ids): ~12
+- **Catalog cleaning over bulk adds** (1294 rows, 151 equipment ids): ~12
   grip-sport specialty rows (axle bar, blobs, grippers) still reach plans via
   "map to available" equipment entries (axle_bar → Barbell); tag or unmap
   them, and standardize display-name qualifiers on parentheses (catalog still
