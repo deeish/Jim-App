@@ -221,7 +221,10 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   wrist_curl_machine: 'Machine',
   wrist_extension_machine: 'Machine',
   wrist_cuff: 'Cable',
-  pinch_block: 'Bodyweight',
+  // pinch_block deliberately unmapped: a pinch block is specialty grip gear,
+  // not bodyweight-free — unmapped required ids read as Unmodeled and never
+  // satisfy an equipment filter (a live plan prescribed a Pinch Block Carry
+  // to a dumbbell/band user because this mapped to 'Bodyweight').
   fat_grip_sleeves: 'Bodyweight',
   thick_bar: 'Barbell',
   rolling_handle: 'Cable',

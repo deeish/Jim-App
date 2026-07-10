@@ -167,6 +167,153 @@ describe('strength-day cardio finisher conformance', () => {
   });
 });
 
+describe('post-LLM equipment gate', () => {
+  const mkService = (rows: Array<Record<string, unknown>>) => {
+    const byId = new Map(rows.map((r) => [r.id as string, r]));
+    return {
+      findOne: (id: string) => byId.get(id),
+      getCandidatesForGenerator: ({
+        excludeIds,
+      }: {
+        excludeIds?: string[];
+      }) => {
+        const ex = new Set(excludeIds ?? []);
+        return rows.filter((r) => !ex.has(r.id as string));
+      },
+    } as any;
+  };
+  const dbRow = {
+    id: 'single_arm_dumbbell_row',
+    name: 'Single-Arm Dumbbell Row',
+    primaryMuscleGroup: 'Back',
+    movementPatterns: ['Pull'],
+    primaryEquipment: ['Dumbbell'],
+    prescriptionType: 'reps' as const,
+  };
+  const dbBench = {
+    id: 'flat_dumbbell_bench_press',
+    name: 'Flat Dumbbell Bench Press',
+    primaryMuscleGroup: 'Chest',
+    movementPatterns: ['Push'],
+    primaryEquipment: ['Dumbbell'],
+    prescriptionType: 'reps' as const,
+  };
+  const cablePushdown = {
+    id: 'cable_pushdown',
+    name: 'Cable Pushdown',
+    primaryMuscleGroup: 'Arms',
+    movementPatterns: ['Push'],
+    primaryEquipment: ['Cable'],
+    prescriptionType: 'reps' as const,
+  };
+  const bandPushdown = {
+    id: 'band_pushdown',
+    name: 'Band Pushdown',
+    primaryMuscleGroup: 'Arms',
+    movementPatterns: ['Push'],
+    primaryEquipment: ['Resistance Band'],
+    prescriptionType: 'reps' as const,
+  };
+  const pinchCarry = {
+    id: 'pinch_block_carry',
+    name: 'Pinch Block Carry',
+    primaryMuscleGroup: 'Arms',
+    movementPatterns: ['Carry'],
+    primaryEquipment: ['Unmodeled'],
+    prescriptionType: 'time' as const,
+  };
+  const homeEquipment = ['Dumbbell', 'Resistance Band', 'Bodyweight'];
+  const rowOf = (r: { id: string; name: string }, sets = 3, reps = 10) => ({
+    name: r.name,
+    sets,
+    reps,
+    exerciseId: r.id,
+  });
+
+  it('swaps a row needing unavailable equipment for a same-pattern candidate', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [rowOf(dbRow, 4, 6), rowOf(dbBench), rowOf(cablePushdown)],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([dbRow, dbBench, cablePushdown, bandPushdown]),
+      homeEquipment,
+      [],
+      {},
+    );
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).not.toContain('cable_pushdown');
+    expect(ids).toContain('band_pushdown');
+    const swapped = out.exercises.find(
+      (e) => e.exerciseId === 'band_pushdown',
+    )!;
+    expect(swapped.notes).toMatch(/equipment you have available/i);
+    expect(out.reasoning).toMatch(/equipment you have available/i);
+  });
+
+  it('drops an unmodeled-gear row when no candidate fits and enough lifts remain', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          rowOf(dbRow, 4, 6),
+          rowOf(dbBench),
+          rowOf(bandPushdown),
+          rowOf(pinchCarry),
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([dbRow, dbBench, bandPushdown, pinchCarry]),
+      homeEquipment,
+      [],
+      {},
+    );
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).not.toContain('pinch_block_carry');
+  });
+
+  it('keeps an offending row rather than hollow out a short session', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [rowOf(dbRow, 4, 6), rowOf(pinchCarry)],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([dbRow, pinchCarry]),
+      homeEquipment,
+      [],
+      {},
+    );
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).toContain('pinch_block_carry');
+  });
+
+  it('is inert without an equipment list (eval mocks, legacy calls)', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [rowOf(dbRow, 4, 6), rowOf(cablePushdown)],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([dbRow, cablePushdown]),
+      undefined,
+      [],
+      {},
+    );
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).toContain('cable_pushdown');
+  });
+});
+
 describe('workingSetCap', () => {
   it('caps by experience when the session is long enough to fit it', () => {
     expect(

@@ -951,6 +951,112 @@ function ensureAnchorInSlotOne(args: {
 }
 
 /**
+ * Post-LLM equipment gate. Generation candidate pools filter on required
+ * equipment, but the model can emit any exercise it knows and chunk repair
+ * happily maps the name to a library id — live captures showed a Pinch Block
+ * Carry on a dumbbell/band pull day and a pool-only swim row at home. Swap
+ * every row whose required equipment the user lacks for a same-pattern
+ * candidate from the equipment-filtered focus pool; when nothing fits, drop
+ * the row rather than prescribe gear the user does not own (but never below
+ * three strength rows — an imperfect pick beats a hollow session).
+ * Runs before the balance/ordering passes so they evaluate the final rows.
+ */
+function conformExercisesToEquipment(args: {
+  exercises: GeneratedSessionExercise[];
+  spec: { title?: string; type: string };
+  exercisesService: ExercisesService;
+  equipment?: string[];
+  avoidPhrases: string[];
+  chunkExcludeExerciseIds: string[];
+  coachNotes: string[];
+}): void {
+  const { exercises, spec, exercisesService, equipment } = args;
+  if (spec.type !== 'strength') return;
+  if (!equipment?.length) return;
+  const findMeta = (id: string) => exercisesService.findOne(id);
+
+  const rowIsCardio = (e: GeneratedSessionExercise): boolean => {
+    const id = e.exerciseId?.trim();
+    const group =
+      (id ? findMeta(id)?.primaryMuscleGroup : undefined) ??
+      e.primaryMuscleGroup;
+    return (group ?? '').toLowerCase() === 'cardio';
+  };
+
+  let adjusted = false;
+  for (let i = exercises.length - 1; i >= 0; i--) {
+    const row = exercises[i]!;
+    const id = row.exerciseId?.trim();
+    if (!id) continue;
+    const meta = findMeta(id);
+    if (!meta) continue;
+    if (equipmentSatisfies(meta.primaryEquipment ?? meta.equipment, equipment))
+      continue;
+
+    const isCardio = rowIsCardio(row);
+    const rowPatterns = new Set(meta.movementPatterns ?? []);
+    const ids = new Set(
+      exercises
+        .map((e) => e.exerciseId?.trim())
+        .filter((x): x is string => !!x),
+    );
+    const names = new Set(
+      exercises.map((e) => (e.name ?? '').trim().toLowerCase()),
+    );
+    const pool = exercisesService.getCandidatesForGenerator({
+      focus: isCardio ? 'cardio' : (spec.title ?? 'full body'),
+      equipment,
+      excludeIds: [...ids, ...args.chunkExcludeExerciseIds],
+      limit: 90,
+    });
+    const pick = pool.find(
+      (c) =>
+        !ids.has(c.id) &&
+        !names.has((c.name ?? '').trim().toLowerCase()) &&
+        !nameMatchesAvoidList(c.name, args.avoidPhrases) &&
+        (isCardio
+          ? c.primaryMuscleGroup === 'Cardio'
+          : c.primaryMuscleGroup !== 'Cardio' &&
+            (!rowPatterns.size ||
+              (c.movementPatterns ?? []).some((p) => rowPatterns.has(p)))),
+    );
+    if (pick) {
+      const sec = secondaryMusclesForPreview(
+        pick.secondaryMuscleGroups,
+        pick.primaryMuscleGroup,
+      );
+      exercises.splice(i, 1, {
+        name: pick.name,
+        exerciseId: pick.id,
+        sets: row.sets,
+        reps: row.reps,
+        ...(row.weight != null ? { weight: row.weight } : {}),
+        notes: 'Swapped in to match the equipment you have available.',
+        prescriptionType:
+          pick.prescriptionType ??
+          inferPrescriptionTypeFromExerciseName(pick.name),
+        primaryMuscleGroup: pick.primaryMuscleGroup,
+        ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
+      });
+      adjusted = true;
+    } else {
+      const strengthRowsLeft = exercises.filter(
+        (e, j) => j !== i && !rowIsCardio(e),
+      ).length;
+      if (isCardio || strengthRowsLeft >= 3) {
+        exercises.splice(i, 1);
+        adjusted = true;
+      }
+    }
+  }
+  if (adjusted) {
+    args.coachNotes.push(
+      'We adjusted this session to stick to the equipment you have available.',
+    );
+  }
+}
+
+/**
  * Within-session redundancy guard: stops a session stacking 3+ of the same
  * movement family. Caps (≤2 each) on lower-body dominance (lunge/squat/hinge),
  * push angle, pull angle, and base-movement family, swapping the excess (latest,
@@ -1168,6 +1274,16 @@ export async function enrichGeneratedSession(
       );
     }
   }
+
+  conformExercisesToEquipment({
+    exercises,
+    spec,
+    exercisesService,
+    equipment,
+    avoidPhrases,
+    chunkExcludeExerciseIds: generationPrefs?.chunkExcludeExerciseIds ?? [],
+    coachNotes,
+  });
 
   if (
     sessionTitleNeedsPullBalance(spec.title, spec.type) &&
