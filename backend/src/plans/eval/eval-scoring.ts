@@ -12,6 +12,7 @@ import {
   exerciseTargetsForSession,
   goalWantsStrengthCardioFinisher,
 } from '../../workouts/workout-generator.service';
+import { equipmentSatisfies } from '../../data/exercise-mappings';
 
 export type EvalScoringOptions = {
   skipBalance?: boolean;
@@ -23,6 +24,8 @@ export type EvalScoringOptions = {
   skipWorkoutOrder?: boolean;
   skipPrescription?: boolean;
   skipFatigueStacking?: boolean;
+  skipEquipmentConformance?: boolean;
+  skipCopySanity?: boolean;
 };
 
 export type EvalScoreBreakdown = {
@@ -41,11 +44,15 @@ export type EvalScoreBreakdown = {
   prescriptionHygiene: number;
   /** Avoids long unbroken runs on the same primary muscle (local fatigue / joint stress). */
   fatigueStacking: number;
+  /** Every exercise doable with the equipment the generator resolved (home ≠ barbell). */
+  equipmentConformance: number;
+  /** User-facing copy free of machine ids, pipeline jargon, and stale duration notes. */
+  copySanity: number;
   total: number;
 };
 
-/** Sum of structural..fatigueStacking when every dimension is at its ceiling (used for fail caps). */
-export const EVAL_SCORE_MAX_TOTAL = 124;
+/** Sum of structural..copySanity when every dimension is at its ceiling (used for fail caps). */
+export const EVAL_SCORE_MAX_TOTAL = 140;
 
 /** Per-dimension ceilings (must stay in sync with the score functions below; spec asserts the sum). */
 export const EVAL_SCORE_DIMENSION_MAX: Record<
@@ -63,6 +70,8 @@ export const EVAL_SCORE_DIMENSION_MAX: Record<
   coachingProDepth: 8,
   prescriptionHygiene: 8,
   fatigueStacking: 6,
+  equipmentConformance: 10,
+  copySanity: 6,
 };
 
 export type EvalScoreResult = {
@@ -651,6 +660,110 @@ function scoreConditioning(
   return score;
 }
 
+/**
+ * Every exercise must be doable with the equipment the generator resolved for
+ * the user — the dimension that catches a barbell squat in a home
+ * dumbbell/band plan. Only rows whose catalog entry carries
+ * `primaryEquipment` are evaluable (toy eval catalogs score a free 10).
+ */
+function scoreEquipmentConformance(
+  sessions: GeneratedSession[],
+  byId: Map<string, EvalCatalogExercise>,
+  generatorEquipment: string[] | undefined,
+  findings: string[],
+  skip: boolean,
+): number {
+  if (skip) return 10;
+  if (!generatorEquipment?.length) return 10;
+  let evaluable = 0;
+  let ok = 0;
+  const offenders = new Set<string>();
+  for (const s of sessions) {
+    for (const e of s.exercises ?? []) {
+      const id = e.exerciseId?.trim();
+      if (!id) continue;
+      const meta = byId.get(id);
+      if (!meta?.primaryEquipment) continue;
+      evaluable++;
+      if (equipmentSatisfies(meta.primaryEquipment, generatorEquipment)) {
+        ok++;
+      } else {
+        offenders.add(meta.name || id);
+      }
+    }
+  }
+  if (!evaluable) return 10;
+  if (offenders.size) {
+    findings.push(
+      `Equipment conformance: ${offenders.size} exercise(s) need gear outside [${generatorEquipment.join(', ')}]: ${[...offenders].slice(0, 6).join('; ')}.`,
+    );
+  }
+  return Math.round((ok / evaluable) * 10);
+}
+
+const COPY_SNAKE_CASE = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/;
+const COPY_JARGON =
+  /(anchor enforcement|vs session focus|\bslot 1\b|\bslot-1\b|\bvalidator\b|from the library)/i;
+const COPY_STALE_WORK_NOTE =
+  /^\s*(\d+)\s*(seconds?|secs?|minutes?|mins?)\s+of work\.?\s*$/i;
+
+/**
+ * User-facing copy quality: no raw snake_case ids in reasoning/warm-up/
+ * cool-down, no pipeline jargon in notes, and no "30 seconds of work" note on
+ * a row whose stamped duration says otherwise. Each defect class costs 2.
+ */
+function scoreCopySanity(
+  sessions: GeneratedSession[],
+  findings: string[],
+  skip: boolean,
+): number {
+  if (skip) return 6;
+  let snakeCase = false;
+  let jargon = false;
+  let staleDuration = false;
+  for (const s of sessions) {
+    const prose = [s.reasoning, s.warmUp, s.coolDown]
+      .filter((t): t is string => !!t)
+      .join(' ');
+    if (COPY_SNAKE_CASE.test(prose)) snakeCase = true;
+    if (COPY_JARGON.test(prose)) jargon = true;
+    for (const e of s.exercises ?? []) {
+      if (e.notes && COPY_JARGON.test(e.notes)) jargon = true;
+      if (
+        e.notes &&
+        e.prescriptionType === 'time' &&
+        typeof e.durationSeconds === 'number'
+      ) {
+        const m = COPY_STALE_WORK_NOTE.exec(e.notes);
+        if (m) {
+          const claimed = parseInt(m[1]!, 10) * (/^min/i.test(m[2]!) ? 60 : 1);
+          if (claimed !== e.durationSeconds) staleDuration = true;
+        }
+      }
+    }
+  }
+  let score = 6;
+  if (snakeCase) {
+    score -= 2;
+    findings.push(
+      'Copy sanity: raw snake_case exercise ids appear in user-facing reasoning/warm-up text.',
+    );
+  }
+  if (jargon) {
+    score -= 2;
+    findings.push(
+      'Copy sanity: internal pipeline jargon (anchor/slot/validator wording) leaks into user-facing copy.',
+    );
+  }
+  if (staleDuration) {
+    score -= 2;
+    findings.push(
+      'Copy sanity: an exercise note claims a work duration that contradicts the stamped durationSeconds.',
+    );
+  }
+  return clamp(score, 0, 6);
+}
+
 function scoreStructural(v: ChunkValidationResult, findings: string[]): number {
   let structural = 28;
   structural -= issueCount(v, 'duplicate_exercise_id_in_session') * 25;
@@ -673,6 +786,8 @@ export function scoreGeneratedChunk(args: {
   effectiveDetailLevel: 'simple' | 'detailed';
   enrichGoal?: string;
   evalScoring?: EvalScoringOptions;
+  /** Equipment the generator resolved for the user; drives equipmentConformance. */
+  generatorEquipment?: string[];
 }): EvalScoreResult {
   const findings: string[] = [];
   const opt = args.evalScoring ?? {};
@@ -747,6 +862,18 @@ export function scoreGeneratedChunk(args: {
     findings,
     !!opt.skipFatigueStacking,
   );
+  const equipmentConformance = scoreEquipmentConformance(
+    args.sessions,
+    byId,
+    args.generatorEquipment,
+    findings,
+    !!opt.skipEquipmentConformance,
+  );
+  const copySanity = scoreCopySanity(
+    args.sessions,
+    findings,
+    !!opt.skipCopySanity,
+  );
   checkStrengthStimulusAdequacy(args.specs, args.sessions, byId, findings);
   if (coachingProDepth < 6) {
     findings.push(
@@ -765,7 +892,9 @@ export function scoreGeneratedChunk(args: {
     workoutOrder +
     coachingProDepth +
     prescriptionHygiene +
-    fatigueStacking;
+    fatigueStacking +
+    equipmentConformance +
+    copySanity;
 
   if (!args.validation.ok) {
     const cap = Math.round(EVAL_SCORE_MAX_TOTAL * 0.45);
@@ -790,6 +919,8 @@ export function scoreGeneratedChunk(args: {
       coachingProDepth,
       prescriptionHygiene,
       fatigueStacking,
+      equipmentConformance,
+      copySanity,
       total,
     },
     findings,

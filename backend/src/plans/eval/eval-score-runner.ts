@@ -38,6 +38,7 @@ export async function scoreEvalScenario(
       effectiveDetailLevel: s.effectiveDetailLevel,
       enrichGoal: s.enrichPrefs.goal,
       evalScoring: s.evalScoring,
+      generatorEquipment: s.equipment,
     });
     return {
       id: s.id,
@@ -65,6 +66,7 @@ export async function scoreEvalScenario(
     effectiveDetailLevel: s.effectiveDetailLevel,
     enrichGoal: s.enrichPrefs?.goal,
     evalScoring: s.evalScoring,
+    generatorEquipment: s.equipment,
   });
   return {
     id: s.id,

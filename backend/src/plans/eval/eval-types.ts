@@ -24,6 +24,8 @@ export type EvalCatalogExercise = {
   subMuscles?: string[];
   prescriptionType?: ExercisePrescriptionType;
   equipment?: string[];
+  /** Required-only equipment labels (see TransformedExercise.primaryEquipment). */
+  primaryEquipment?: string[];
 };
 
 /**
