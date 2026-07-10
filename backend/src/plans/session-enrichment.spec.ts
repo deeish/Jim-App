@@ -1482,6 +1482,101 @@ describe('enrichGeneratedSession prescriptionType', () => {
     expect(out.exercises[0]?.exerciseId).toBe('flat_barbell_bench_press');
   });
 
+  it('swaps in a home-capable anchor when equipment excludes barbells', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Friday',
+      name: 'Lower',
+      exercises: [
+        {
+          name: 'B-Stance Hip Thrust',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'b_stance_hip_thrust',
+        },
+        {
+          name: 'Bodyweight Calf Raise',
+          sets: 3,
+          reps: 15,
+          exerciseId: 'bodyweight_calf_raise',
+        },
+      ],
+    };
+    const metaById: Record<
+      string,
+      { patterns: string[]; muscle: string; equipment: string[] }
+    > = {
+      b_stance_hip_thrust: {
+        patterns: ['Hinge'],
+        muscle: 'Legs',
+        equipment: ['Dumbbell'],
+      },
+      back_squat: {
+        patterns: ['Squat'],
+        muscle: 'Legs',
+        equipment: ['Barbell'],
+      },
+      front_squat: {
+        patterns: ['Squat'],
+        muscle: 'Legs',
+        equipment: ['Barbell'],
+      },
+      forty_five_degree_leg_press: {
+        patterns: ['Squat'],
+        muscle: 'Legs',
+        equipment: ['Machine'],
+      },
+      conventional_deadlift: {
+        patterns: ['Hinge'],
+        muscle: 'Legs',
+        equipment: ['Barbell'],
+      },
+      sumo_deadlift: {
+        patterns: ['Hinge'],
+        muscle: 'Legs',
+        equipment: ['Barbell'],
+      },
+      goblet_squat: {
+        patterns: ['Squat'],
+        muscle: 'Legs',
+        equipment: ['Dumbbell'],
+      },
+      dumbbell_romanian_deadlift: {
+        patterns: ['Hinge'],
+        muscle: 'Legs',
+        equipment: ['Dumbbell'],
+      },
+    };
+    const exercisesService = {
+      findOne: (id: string) => {
+        const m = metaById[id];
+        return {
+          id,
+          name: id,
+          movementPatterns: m?.patterns ?? [],
+          primaryMuscleGroup: m?.muscle ?? 'Legs',
+          secondaryMuscleGroups: [],
+          equipment: m?.equipment ?? [],
+        };
+      },
+      getCandidatesForGenerator: () => [],
+    };
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Lower' },
+      exercisesService as any,
+      ['Dumbbell', 'Resistance Band', 'Bodyweight'],
+      [],
+      { goal: 'hypertrophy', durationMinutes: 45, detailLevel: 'detailed' },
+    );
+    // Barbell/machine anchors are filtered by equipment; the hinge-pattern
+    // dumbbell RDL is the first anchor the home list can actually perform.
+    expect(out.exercises[0]?.exerciseId).toBe('dumbbell_romanian_deadlift');
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).not.toContain('back_squat');
+    expect(ids).not.toContain('conventional_deadlift');
+  });
+
   it('skips the swap when no candidate anchor shares a movement pattern with slot 1', async () => {
     // Slot 1 is a Pull move; there is no Pull-pattern anchor available because
     // every candidate the helper inspects is exclude-listed via the chunk set.
@@ -1539,9 +1634,8 @@ describe('enrichGeneratedSession prescriptionType', () => {
           'forty_five_degree_leg_press',
           'conventional_deadlift',
           'sumo_deadlift',
-          'lying_leg_curl',
-          'seated_leg_extension',
-          'standing_calf_raise_machine',
+          'goblet_squat',
+          'dumbbell_romanian_deadlift',
         ],
       },
     );

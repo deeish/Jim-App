@@ -826,6 +826,8 @@ export type EnrichSessionGenerationPrefs = {
  * - Skips cardio rows when locating slot 1 (cardio finishers live at the tail).
  * - Refuses to swap if no candidate anchor shares a tracked movement pattern
  *   with slot 1 — prevents replacing a chest move with a row.
+ * - Skips anchors the user's equipment can't support (a home dumbbell/band
+ *   list never gets a barbell swapped in).
  * - Preserves the original sets/reps/weight scheme; only the exercise identity
  *   changes. Adds a coach note so the swap is visible in the reasoning copy.
  */
@@ -833,6 +835,7 @@ function ensureAnchorInSlotOne(args: {
   exercises: GeneratedSessionExercise[];
   spec: { title?: string; type: string };
   exercisesService: ExercisesService;
+  equipment?: string[];
   avoidPhrases: string[];
   chunkExcludeExerciseIds: string[];
   coachNotes: string[];
@@ -872,6 +875,15 @@ function ensureAnchorInSlotOne(args: {
     if (!anchorMeta) continue;
     if (anchorMeta.primaryMuscleGroup === 'Cardio') continue;
     if (nameMatchesAvoidList(anchorMeta.name, args.avoidPhrases)) continue;
+    // Respect the user's equipment (home users must not get barbell anchors).
+    // Empty exercise equipment means bodyweight-doable anywhere.
+    if (
+      args.equipment?.length &&
+      anchorMeta.equipment?.length &&
+      !anchorMeta.equipment.some((eq) => args.equipment!.includes(eq))
+    ) {
+      continue;
+    }
     const anchorPatterns = anchorMeta.movementPatterns ?? [];
     if (
       slotOnePatterns.size &&
@@ -1362,6 +1374,7 @@ export async function enrichGeneratedSession(
     exercises,
     spec,
     exercisesService,
+    equipment,
     avoidPhrases,
     chunkExcludeExerciseIds: generationPrefs?.chunkExcludeExerciseIds ?? [],
     coachNotes,
