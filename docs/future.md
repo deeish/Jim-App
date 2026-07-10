@@ -28,16 +28,22 @@ Constraints: deterministic server-side passes only (zero new Groq calls), keep
 
 ### Generation quality — good enough for now, keep fine-tuning (2026-07-08)
 
-Two rounds of deterministic fixes landed today (cardio-repeat validator
+Two rounds of deterministic fixes landed 2026-07-08 (cardio-repeat validator
 exemption, base-movement near-dup repair, post-enrichment dedupe, fully
-templated cardio days, finisher modality conformance). Live-drive results:
-hybrid-gym and fat-loss test scenarios both score 122–123/124 with clean
-validation and a positive enrichment delta. **This is fine for the beta — no
-further work needed right now — but we want to keep fine-tuning over time.**
+templated cardio days, finisher modality conformance). A third round landed
+2026-07-09 after a coach-level review of the newest captures: core/cardio
+movement patterns no longer masquerade as 'Push' (fixes warm-up tie-in picking
+sit-ups as the main lift), anchor lists are compounds-only with home-capable
+options and the slot-1 swap respects equipment, the pull-balance insert must
+be an actual pull, deterministic notes use coach language (no snake_case ids
+or pipeline jargon in user copy), rep ranges snap to canonical coach bands,
+generation pools filter on required equipment (alternatives no longer smuggle
+cable moves into home plans; swimming needs a pool), and the scorer gained
+equipmentConformance + copySanity dimensions (ceiling 124 → 140 — re-baseline
+mean totals when comparing to older reports).
+
 Watch list for the next tuning pass:
 
-- **Slot-1 anchor misses.** One live run opened an Upper day with a cable
-  pushdown; `ensureAnchorInSlotOne` didn't catch it. Reproduce and tighten.
 - **Position-variant redundancy.** `baseMovementKey` deliberately keeps
   position words, so seated + standing OHP can share a session. Decide whether
   press variants deserve a stricter rule.
@@ -46,6 +52,9 @@ Watch list for the next tuning pass:
   loss goals. Check whether `shouldAppendHybridCardioFinisher` is too shy.
 - **Recovery days** still pass through enrichment untouched (cardio days are
   templated now; recovery could get the same treatment).
+- **LLM reasoning coherence.** Ids are now humanized, but the model's
+  reasoning can still ramble or reference exercises that enrichment swapped
+  out; consider templating reasoning from the final exercise list.
 - Re-score periodically with `npm run eval:captures:report` (backend) after
   generating with `GENERATION_CAPTURE=1` — validator-ok rate and mean total
   are the regression signals.
@@ -64,9 +73,12 @@ gym-focused beta but need fixing before promoting home plans:
    titles, so a "Full Body" day with zero lower-body work passes validators
    (observed live). Require ≥1 lower-body movement on full-body days and ≥1
    Squat + ≥1 Hinge somewhere in each week.
-3. **Home equipment realism.** Barbell movements surfaced for a home user with
-   no equipment tags; audit `HOME_EQUIPMENT` against the catalog's equipment
-   labels and prefer dumbbell/bodyweight variants at home.
+3. **Home equipment realism.** *Largely fixed 2026-07-09:* generation pools
+   and the slot-1 anchor swap now filter on required-only equipment
+   (`primaryEquipment`), so barbell/cable moves no longer reach home plans via
+   equipment alternatives. Remaining: the LLM itself can still propose
+   off-equipment moves that enrichment keeps when no repair pass touches the
+   row — the new `equipmentConformance` eval dimension surfaces these.
 4. **Single-session regen modalities.** `GenerateSingleSessionDto` has no
    `cardioModalities`, so a regenerated cardio day falls back to the generic
    zone-2 template instead of the user's preferred modality. Plumb it through
