@@ -715,9 +715,11 @@ function sessionLooksLikeFinisherConditioning(
  * coach-language rewrite).
  */
 const BALANCE_INSERT_NOTES =
-  /Added (so pressing and pulling|to round out the day|for (pull balance|squat\/knee|hip hinge|pattern balance))/i;
+  /Added (so pressing and pulling|so your week trains|to round out the day|for (pull balance|squat\/knee|hip hinge|pattern balance))/i;
 
-function exerciseRowIsBalanceInsert(e: GeneratedSessionExercise): boolean {
+export function exerciseRowIsBalanceInsert(
+  e: GeneratedSessionExercise,
+): boolean {
   return BALANCE_INSERT_NOTES.test(e.notes ?? '');
 }
 

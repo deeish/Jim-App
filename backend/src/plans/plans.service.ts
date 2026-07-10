@@ -40,6 +40,7 @@ import {
   type ChunkGenerationTrace,
   writeGenerationCapture,
 } from './generation-capture';
+import { enforceWeekPatternFloors } from './week-pattern-floors';
 import {
   dedupeEnrichedProgramSessions,
   repairChunkGeneratedSessions,
@@ -2041,7 +2042,26 @@ export class PlansService {
         }),
       );
     }
-    return deduped.sessions;
+
+    // Last pass: the week as a whole must train the fundamental patterns
+    // (live gap: a 4-day upper/lower week with zero vertical pressing).
+    const floored = enforceWeekPatternFloors({
+      sessions: deduped.sessions,
+      specs: dto.sessions,
+      library: this.exercises,
+      equipment,
+      avoidConstraintsGlobal: dto.avoidConstraints,
+    });
+    if (floored.repairs > 0) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'week_pattern_floor',
+          repairs: floored.repairs,
+          sessionCount: dto.sessions.length,
+        }),
+      );
+    }
+    return floored.sessions;
   }
 
   async generateSingleSession(dto: GenerateSingleSessionDto, userId: string) {
