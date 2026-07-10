@@ -170,7 +170,14 @@ export function inferMovementPatternsForCaptureExercise(ex: {
     p.add('Pull');
   }
   if (
-    /\b(press|bench|push-up|pushup|dip|fly|curl|pushdown|extension|skull|overhead march|rotation|sit-?up)\b/.test(
+    /\b(sit-?up|crunch|plank|rollout|dead bug|bird dog|pallof|leg raise|knee raise|russian twist|wood ?chop|rotation|hollow|v-?up)\b/.test(
+      blob,
+    )
+  ) {
+    p.add('Core');
+  }
+  if (
+    /\b(press|bench|push-up|pushup|dip|fly|curl|pushdown|extension|skull|overhead march)\b/.test(
       blob,
     )
   ) {
@@ -183,7 +190,7 @@ export function inferMovementPatternsForCaptureExercise(ex: {
     else if (pm === 'chest' || pm === 'shoulders' || pm === 'arms')
       p.add('Push');
     else if (pm === 'legs' || pm === 'glutes') p.add('Squat');
-    else if (pm === 'core') p.add('Push');
+    else if (pm === 'core') p.add('Core');
   }
   return [...p];
 }
