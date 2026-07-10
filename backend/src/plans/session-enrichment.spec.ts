@@ -1,6 +1,7 @@
 import {
   enrichGeneratedSession,
   enrichGeneratedSessionsInChunkOrder,
+  humanizeExerciseIdsInCopy,
   inferMainLiftName,
   sessionTitleIsLowerEmphasis,
   sessionTitleIsUpperEmphasis,
@@ -2225,5 +2226,82 @@ describe('enrichGeneratedSession within-session redundancy cap', () => {
     expect(
       out.exercises.some((e) => /movement variety/i.test(e.notes ?? '')),
     ).toBe(false);
+  });
+});
+
+describe('humanizeExerciseIdsInCopy', () => {
+  const findMeta = (id: string) =>
+    id === 'front_squat' ? { name: 'Front Squat' } : undefined;
+
+  it('maps known catalog ids to display names', () => {
+    expect(
+      humanizeExerciseIdsInCopy(
+        'This day starts with the front_squat.',
+        findMeta,
+      ),
+    ).toBe('This day starts with the Front Squat.');
+  });
+
+  it('de-underscores unknown snake_case tokens', () => {
+    expect(
+      humanizeExerciseIdsInCopy(
+        'then the barbell_b_stance_rdl block',
+        findMeta,
+      ),
+    ).toBe('then the barbell b stance rdl block');
+  });
+
+  it('leaves plain prose untouched', () => {
+    const text = 'Balance push and pull; finish with easy cardio.';
+    expect(humanizeExerciseIdsInCopy(text, findMeta)).toBe(text);
+  });
+});
+
+describe('cardio row stale-note cleanup', () => {
+  it('drops a seconds-of-work note that contradicts the stamped duration', async () => {
+    const exercisesService = {
+      findOne: (id: string) =>
+        id === 'jumping_jack'
+          ? {
+              id,
+              name: 'Jumping Jack',
+              primaryMuscleGroup: 'Cardio',
+              movementPatterns: ['Cardio'],
+              secondaryMuscleGroups: [],
+            }
+          : {
+              id,
+              name: id,
+              primaryMuscleGroup: 'Legs',
+              movementPatterns: ['Squat'],
+              secondaryMuscleGroups: [],
+            },
+      getCandidatesForGenerator: () => [],
+    };
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Full Body',
+        exercises: [
+          { name: 'Back Squat', sets: 3, reps: 10, exerciseId: 'back_squat' },
+          {
+            name: 'Jumping Jack',
+            sets: 2,
+            reps: 15,
+            notes: '30 seconds of work',
+            exerciseId: 'jumping_jack',
+          },
+        ],
+      },
+      { type: 'strength', title: 'Full Body' },
+      exercisesService as any,
+      [],
+      [],
+      { goal: 'fat loss', durationMinutes: 45, detailLevel: 'simple' },
+    );
+    const jack = out.exercises.find((e) => e.exerciseId === 'jumping_jack')!;
+    expect(jack.durationSeconds).toBe(600);
+    expect(jack.notes).toBeUndefined();
   });
 });

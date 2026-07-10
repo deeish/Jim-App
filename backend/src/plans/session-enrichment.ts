@@ -207,6 +207,24 @@ function unionPatternsFromSession(
   return { union, withMetaCount };
 }
 
+/**
+ * The model sometimes cites raw catalog ids in user-facing copy ("starts with
+ * the front_squat"). Map known ids to display names; unknown snake_case tokens
+ * are de-underscored so no machine identifier reaches the app.
+ */
+const SNAKE_CASE_TOKEN = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g;
+
+export function humanizeExerciseIdsInCopy(
+  text: string | undefined,
+  findMeta: (id: string) => { name?: string } | undefined,
+): string | undefined {
+  if (!text) return text;
+  return text.replace(
+    SNAKE_CASE_TOKEN,
+    (token) => findMeta(token)?.name ?? token.replace(/_/g, ' '),
+  );
+}
+
 function appendDeterministicCoachNotes(
   reasoning: string | undefined,
   notes: string[],
@@ -417,6 +435,18 @@ function normalizeCardioRowShape(
     // Cardio rows have no rep range — clear any stamped band defensively.
     e.repsMin = undefined;
     e.repsMax = undefined;
+    // The model often wrote a "30 seconds of work" note for a row we just
+    // re-timed to a longer block. Drop the note when it contradicts the
+    // stamped duration — the UI already renders the real duration.
+    const claim =
+      /^\s*(\d+)\s*(seconds?|secs?|minutes?|mins?)\s+of work\.?\s*$/i.exec(
+        e.notes ?? '',
+      );
+    if (claim) {
+      const claimedSeconds =
+        parseInt(claim[1]!, 10) * (/^min/i.test(claim[2]!) ? 60 : 1);
+      if (claimedSeconds !== e.durationSeconds) e.notes = undefined;
+    }
   }
 }
 
@@ -629,9 +659,14 @@ function sessionLooksLikeFinisherConditioning(
   return METABOLIC_CONDITIONING.test(blob);
 }
 
-/** Enrichment-added rows we should not drop when trimming to a time cap. */
+/**
+ * Enrichment-added rows we should not drop when trimming to a time cap.
+ * Must match every note text the balance inserts below actually write
+ * (legacy "Added for …" phrasing kept for sessions persisted before the
+ * coach-language rewrite).
+ */
 const BALANCE_INSERT_NOTES =
-  /Added for (pull balance|squat\/knee|hip hinge|pattern balance)/i;
+  /Added (so pressing and pulling|to round out the day|for (pull balance|squat\/knee|hip hinge|pattern balance))/i;
 
 function exerciseRowIsBalanceInsert(e: GeneratedSessionExercise): boolean {
   return BALANCE_INSERT_NOTES.test(e.notes ?? '');
@@ -901,7 +936,7 @@ function ensureAnchorInSlotOne(args: {
       sets: slotOne.sets,
       reps: slotOne.reps,
       ...(slotOne.weight != null ? { weight: slotOne.weight } : {}),
-      notes: 'Swapped in a staple compound for slot 1 (anchor enforcement).',
+      notes: 'Your main lift today: start here while you are freshest.',
       prescriptionType:
         anchorMeta.prescriptionType ??
         inferPrescriptionTypeFromExerciseName(anchorMeta.name),
@@ -1008,7 +1043,8 @@ function capRedundantMovementFamilies(args: {
       sets: prev.sets,
       reps: prev.reps,
       ...(prev.weight != null ? { weight: prev.weight } : {}),
-      notes: 'Swapped for movement variety (avoid stacking similar lifts).',
+      notes:
+        'Swapped in for movement variety since a similar lift is already in this session.',
       prescriptionType:
         pick.prescriptionType ??
         inferPrescriptionTypeFromExerciseName(pick.name),
@@ -1108,7 +1144,13 @@ export async function enrichGeneratedSession(
         chunkExcludeExerciseIds: generationPrefs?.chunkExcludeExerciseIds,
       });
     }
-    return session;
+    const findName = (id: string) => exercisesService.findOne(id);
+    return {
+      ...session,
+      reasoning: humanizeExerciseIdsInCopy(session.reasoning, findName),
+      warmUp: humanizeExerciseIdsInCopy(session.warmUp, findName),
+      coolDown: humanizeExerciseIdsInCopy(session.coolDown, findName),
+    };
   }
 
   let exercises = await sortExercisesByCompoundOrder(
@@ -1161,7 +1203,7 @@ export async function enrichGeneratedSession(
         exerciseId: pick.id,
         sets: 3,
         reps: 10,
-        notes: 'Added for pull balance vs session focus',
+        notes: 'Added so pressing and pulling stay balanced.',
         prescriptionType:
           pick.prescriptionType ??
           inferPrescriptionTypeFromExerciseName(pick.name),
@@ -1171,7 +1213,7 @@ export async function enrichGeneratedSession(
           : {}),
       });
       coachNotes.push(
-        'Added a pull movement from the library so this upper/pull day includes a clear pull pattern.',
+        'Added a pulling movement so pressing and pulling stay balanced.',
       );
     }
   }
@@ -1208,7 +1250,7 @@ export async function enrichGeneratedSession(
             exerciseId: pick.id,
             sets: 3,
             reps: 8,
-            notes: 'Added for squat/knee pattern coverage on lower day',
+            notes: 'Added to round out the day with a squat pattern.',
             prescriptionType:
               pick.prescriptionType ??
               inferPrescriptionTypeFromExerciseName(pick.name),
@@ -1216,7 +1258,7 @@ export async function enrichGeneratedSession(
             ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
           });
           coachNotes.push(
-            'Added a knee-dominant (squat) lift from the library for lower-day pattern balance.',
+            'Added a squat-pattern lift so the day trains both squatting and hinging.',
           );
           cover = unionPatternsFromSession(exercises, findMeta);
         }
@@ -1241,7 +1283,7 @@ export async function enrichGeneratedSession(
             exerciseId: pick.id,
             sets: 3,
             reps: 6,
-            notes: 'Added for hip hinge coverage on lower day',
+            notes: 'Added to round out the day with a hip hinge.',
             prescriptionType:
               pick.prescriptionType ??
               inferPrescriptionTypeFromExerciseName(pick.name),
@@ -1249,7 +1291,7 @@ export async function enrichGeneratedSession(
             ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
           });
           coachNotes.push(
-            'Added a hip hinge lift from the library for lower-day pattern balance.',
+            'Added a hip-hinge lift so the day trains both squatting and hinging.',
           );
         }
       }
@@ -1364,7 +1406,7 @@ export async function enrichGeneratedSession(
           ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
         });
         coachNotes.push(
-          'We added a short easy machine finisher at the end for your hybrid-style goal—you can skip it when you are short on time.',
+          'We added a short, easy cardio finisher for your hybrid-style goal. Skip it when you are short on time.',
         );
       }
     }
@@ -1406,13 +1448,16 @@ export async function enrichGeneratedSession(
     sessionTitle: spec.title,
     findMeta,
   });
-  const warmUp = tieWarmupToMainLift(session.warmUp, mainName);
-  const reasoning = appendDeterministicCoachNotes(
-    session.reasoning,
-    coachNotes,
+  const warmUp = humanizeExerciseIdsInCopy(
+    tieWarmupToMainLift(session.warmUp, mainName),
+    findMeta,
+  );
+  const reasoning = humanizeExerciseIdsInCopy(
+    appendDeterministicCoachNotes(session.reasoning, coachNotes),
+    findMeta,
   );
   const coolDown =
-    session.coolDown?.trim() ||
+    humanizeExerciseIdsInCopy(session.coolDown, findMeta)?.trim() ||
     '2–5 minutes of easy walking or light cycling, then brief static stretching for the muscles you trained.';
 
   return { ...session, warmUp, exercises, reasoning, coolDown };
