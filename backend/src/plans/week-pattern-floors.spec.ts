@@ -62,13 +62,14 @@ const CATALOG = [
   },
 ] as const;
 
-function mockLibrary(): WeekFloorLibrary {
+function mockLibrary(seenFocuses: string[] = []): WeekFloorLibrary {
   const byId = new Map<string, (typeof CATALOG)[number]>(
     CATALOG.map((r) => [r.id, r]),
   );
   return {
     findOne: (id) => byId.get(id) as any,
-    getCandidatesForGenerator: ({ excludeIds }) => {
+    getCandidatesForGenerator: ({ focus, excludeIds }) => {
+      seenFocuses.push(focus);
       const ex = new Set(excludeIds ?? []);
       return CATALOG.filter((r) => !ex.has(r.id)) as any;
     },
@@ -141,13 +142,16 @@ describe('enforceWeekPatternFloors', () => {
       { type: 'strength', title: 'Upper', weekIndex: 1 },
       { type: 'strength', title: 'Upper 2', weekIndex: 1 },
     ];
+    const seenFocuses: string[] = [];
     const out = enforceWeekPatternFloors({
       sessions: sessions as any,
       specs,
-      library: mockLibrary(),
+      library: mockLibrary(seenFocuses),
       equipment: undefined,
     });
     expect(out.repairs).toBe(1);
+    // Pools target the missing pattern, not the (broad) session title.
+    expect(seenFocuses).toContain('push');
     const ids = out.sessions[0]!.exercises.map((e) => e.exerciseId);
     expect(ids).toEqual([
       'flat_barbell_bench_press',

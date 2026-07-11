@@ -42,6 +42,8 @@ describe('isNicheExercise', () => {
       'Waiter Carry',
       'Floor Pike Lat Pullover',
       'Bottoms-Up Kettlebell Press',
+      'Dumbbell Static Hold',
+      'Hex Dumbbell Head Hold',
     ]) {
       expect(isNicheExercise(name)).toBe(true);
     }

@@ -151,6 +151,8 @@ const NICHE_NAME = new RegExp(
     '\\baxle\\b',
     'pike lat pullover',
     'guillotine',
+    'static hold',
+    'head hold',
   ].join('|'),
   'i',
 );

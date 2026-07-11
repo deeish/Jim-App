@@ -121,6 +121,27 @@ function sessionAcceptsKey(
   }
 }
 
+/**
+ * Candidate pool focus for a missing floor. Pools must target the missing
+ * pattern, not the host session's title: a "Full Body" title yields the whole
+ * catalog, and with staple-first ordering plus the pool size cap, the only
+ * equipment-viable vertical pull for a home user can fall outside the cap
+ * (observed live: a home week kept missing its vertical pull).
+ */
+function focusForKey(key: WeekFloorKey): string {
+  switch (key) {
+    case 'knee':
+    case 'hinge':
+      return 'lower';
+    case 'push_h':
+    case 'push_v':
+      return 'push';
+    case 'pull_h':
+    case 'pull_v':
+      return 'pull';
+  }
+}
+
 function rowIsCardio(
   e: GeneratedSessionExercise,
   findMeta: (id: string) => FloorExerciseMeta | undefined,
@@ -247,7 +268,7 @@ export function enforceWeekPatternFloors(args: {
           const ids = weekIds();
           const names = weekNames();
           const pool = library.getCandidatesForGenerator({
-            focus: specs[i]!.title ?? 'full body',
+            focus: focusForKey(key),
             equipment: equipment?.length ? equipment : undefined,
             excludeIds: [...ids],
             limit: 90,
