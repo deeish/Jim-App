@@ -52,8 +52,27 @@ gate swaps or drops any generated row whose required gear the user lacks
 rebuilt deterministically from the final exercise list, ending garbled or
 contradictory model copy.
 
+A fifth round landed 2026-07-10 evening: week-level pattern floors (every
+week's strength sessions must cover knee, hinge, horizontal + vertical push,
+horizontal + vertical pull — `week-pattern-floors.ts`, floor pools target the
+missing pattern), the common-exercise list grew 36 → ~90 staples with a new
+niche tier sorted last (the alphabetical tiebreak was why Bear Row-class picks
+kept appearing), gym-speak search aliases (Skullcrusher, OHP, Triceps
+Pushdown) plus five missing barbell staples (box/pause/overhead squat,
+thruster, clean & jerk), and tire unmapped from 'Bodyweight' (live Tire Flip
+in a dumbbell/band gym).
+
 Watch list for the next tuning pass:
 
+- **Rule-based fallback day purity.** When Groq is rate-limited the fallback
+  generator can open a Pull day with a bench dip (a push); enrichment fixes
+  balance but not the mismatched opener. Give the fallback the same
+  title-pattern filter the pools use.
+- **Advanced gym users should not get a bodyweight opener.** A live hybrid
+  plan led an upper day with 4×5 Push-Ups; slot-1/anchor logic could prefer a
+  loaded staple when experience is advanced and equipment allows.
+- **Repetitive finishers.** Three of four gym days closed with the same
+  Treadmill Walk; rotate within the modality family.
 - **Stale interval notes on re-timed cardio rows.** The scrub only matches "N
   seconds/minutes of work"; live rows still shipped "30 seconds brisk pace" on
   a 10-minute block. Widen the contradiction check (any note claiming a
