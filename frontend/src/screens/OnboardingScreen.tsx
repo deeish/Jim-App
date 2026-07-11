@@ -135,16 +135,26 @@ export default function OnboardingScreen({ navigation }: Props) {
             ? selectedEquipment.length > 0
             : true;
 
+  // One list, up to two picks: first tap sets the main goal, the next tap
+  // sets (or replaces) the second focus. Tapping a selected card deselects
+  // it; deselecting the main goal promotes the second focus so the primary
+  // slot is never empty while anything is selected.
   function handleSelectGoal(g: GoalOption) {
     haptics.select();
-    setSelectedGoal(g);
-    // Keep the two goals distinct.
-    setSelectedSecondaryGoal((prev) => (prev === g ? null : prev));
-  }
-
-  function handleSelectSecondary(g: GoalOption) {
-    haptics.select();
-    setSelectedSecondaryGoal((prev) => (prev === g ? null : g));
+    if (selectedGoal === g) {
+      setSelectedGoal(selectedSecondaryGoal);
+      setSelectedSecondaryGoal(null);
+      return;
+    }
+    if (selectedSecondaryGoal === g) {
+      setSelectedSecondaryGoal(null);
+      return;
+    }
+    if (!selectedGoal) {
+      setSelectedGoal(g);
+      return;
+    }
+    setSelectedSecondaryGoal(g);
   }
 
   function toggleEquipment(item: EquipmentOption) {
@@ -321,29 +331,23 @@ export default function OnboardingScreen({ navigation }: Props) {
                   key={g}
                   colors={colors}
                   icon={GOAL_META[g].icon}
-                  selected={selectedGoal === g}
+                  selected={selectedGoal === g || selectedSecondaryGoal === g}
+                  badge={
+                    selectedGoal === g
+                      ? 'Main goal'
+                      : selectedSecondaryGoal === g
+                        ? '2nd focus'
+                        : undefined
+                  }
                   title={GOAL_LABELS[g]}
                   subtitle={GOAL_META[g].desc}
                   onPress={() => handleSelectGoal(g)}
                 />
               ))}
-              {selectedGoal ? (
-                <>
-                  <Text style={styles.sectionLabel}>Add a second focus (optional)</Text>
-                  <View style={styles.chipGrid}>
-                    {GOAL_OPTIONS.filter((g) => g !== selectedGoal).map((g) => (
-                      <Chip
-                        key={g}
-                        colors={colors}
-                        selected={selectedSecondaryGoal === g}
-                        label={GOAL_LABELS[g]}
-                        onPress={() => handleSelectSecondary(g)}
-                      />
-                    ))}
-                  </View>
-                </>
-              ) : null}
-              <Text style={styles.helperText}>You can change this anytime in Profile.</Text>
+              <Text style={styles.helperText}>
+                Pick up to two — your first pick is the main goal. You can change this anytime in
+                Profile.
+              </Text>
             </>
           )}
 
@@ -656,6 +660,7 @@ function SelectableCard({
   colors,
   icon,
   selected,
+  badge,
   title,
   subtitle,
   onPress,
@@ -663,6 +668,8 @@ function SelectableCard({
   colors: ColorPalette;
   icon: IconName;
   selected: boolean;
+  /** Small pill shown instead of the checkmark (e.g. "Main goal"). */
+  badge?: string;
   title: string;
   subtitle?: string;
   onPress: () => void;
@@ -694,7 +701,14 @@ function SelectableCard({
           <Text style={[styles.cardSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>
         ) : null}
       </View>
-      {selected ? (
+      {selected && badge ? (
+        <Animated.View
+          entering={ZoomIn.duration(180)}
+          style={[styles.badgePill, { backgroundColor: colors.primary }]}
+        >
+          <Text style={[styles.badgePillText, { color: colors.onPrimary }]}>{badge}</Text>
+        </Animated.View>
+      ) : selected ? (
         <Animated.View
           entering={ZoomIn.duration(180)}
           style={[styles.check, { backgroundColor: colors.primary, borderColor: colors.primary }]}
@@ -891,6 +905,15 @@ function makeStyles(colors: ColorPalette) {
       borderWidth: 2,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    badgePill: {
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    badgePillText: {
+      fontSize: 11,
+      fontWeight: '700',
     },
     sectionLabel: {
       fontSize: 13,
