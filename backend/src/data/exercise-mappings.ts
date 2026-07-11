@@ -237,7 +237,9 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   // Other
   partner_assist: 'Bodyweight',
   towel: 'Bodyweight',
-  tire: 'Bodyweight',
+  // tire deliberately unmapped: flipping requires an actual tire — mapping it
+  // to 'Bodyweight' made Tire Flip always-available (a live dumbbell/band
+  // plan prescribed it). Unmapped required ids read as Unmodeled.
   sled: 'Machine',
   heavy_bag: 'Bodyweight',
   climbing_rope: 'Pull-up Bar',
