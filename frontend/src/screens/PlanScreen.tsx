@@ -458,6 +458,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         weekNavLabel: { fontSize: 13, color: colors.text, fontWeight: '600' },
         shiftRow: {
           flexDirection: 'row',
+          flexWrap: 'wrap',
           justifyContent: 'center',
           gap: 12,
           backgroundColor: colors.surface,
