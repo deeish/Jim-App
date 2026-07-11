@@ -1534,6 +1534,21 @@ export class PlansService {
       });
     }
 
+    // The batch/LLM path repairs its chunk before validation, but per-session
+    // results skipped repair entirely (and the merge-level repair only runs
+    // for multi-chunk requests) — live fallback weeks shipped a Sumo Deadlift
+    // on an Upper day and a 4-row Pull day. Run the same passes here.
+    const perSessionRepaired = repairChunkGeneratedSessions({
+      sessions: results,
+      specs,
+      library: this.exercises,
+      equipment,
+      effectiveDetailLevel,
+      avoidConstraintsGlobal: limitations,
+    });
+    chunkWarnings.push(...perSessionRepaired.notes);
+    const repairedResults = perSessionRepaired.sessions;
+
     this.logGenerateSessionsChunkEvent({
       path: 'per_session',
       sessionCount: specs.length,
@@ -1561,7 +1576,7 @@ export class PlansService {
       groq: traceGroq(),
     };
     return {
-      sessions: results,
+      sessions: repairedResults,
       chunkGroqUsages,
       trace: traceMerged,
       warnings: chunkWarnings.slice(),
