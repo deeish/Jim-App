@@ -418,11 +418,21 @@ export function validateGeneratedProgramChunk(
     };
   }
 
-  const { perSession, totals } = countIdsPerSession(sessions);
+  const { perSession } = countIdsPerSession(sessions);
   const isCardioLibraryId = buildCardioIdLookup(
     sessions,
     primaryMuscleGroupByExerciseId,
   );
+
+  // Chunk-wide checks group by weekIndex: weeks 2+ intentionally repeat week 1's
+  // selections (clone-and-progress), so only a repeat inside one week is a defect.
+  const sessionIndicesByWeek = new Map<number, number[]>();
+  for (let i = 0; i < specs.length; i++) {
+    const week = specs[i]!.weekIndex;
+    const group = sessionIndicesByWeek.get(week) ?? [];
+    group.push(i);
+    sessionIndicesByWeek.set(week, group);
+  }
 
   for (const ids of perSession) {
     const seen = new Set<string>();
@@ -435,10 +445,18 @@ export function validateGeneratedProgramChunk(
     }
   }
 
-  for (const [id, n] of totals) {
-    if (n > 1 && !isCardioLibraryId(id)) {
-      issues.push('duplicate_exercise_id_across_chunk');
-      duplicateExerciseIds.add(id);
+  for (const indices of sessionIndicesByWeek.values()) {
+    const weekTotals = new Map<string, number>();
+    for (const i of indices) {
+      for (const id of perSession[i] ?? []) {
+        weekTotals.set(id, (weekTotals.get(id) ?? 0) + 1);
+      }
+    }
+    for (const [id, n] of weekTotals) {
+      if (n > 1 && !isCardioLibraryId(id)) {
+        issues.push('duplicate_exercise_id_across_chunk');
+        duplicateExerciseIds.add(id);
+      }
     }
   }
 
@@ -523,53 +541,56 @@ export function validateGeneratedProgramChunk(
     }
   }
 
-  // Phase 7 — cross-session diversity. Group strength sessions in this chunk
-  // by focus (Upper / Lower); when 2+ sessions share a focus, compare slot-1
-  // openers and flag the second on overlap (same id / same push angle / same
-  // lower dominance). Skipped when we have no primary-muscle map (synthetic
+  // Phase 7 — cross-session diversity. Group strength sessions by focus
+  // (Upper / Lower) within each week; when 2+ sessions share a focus, compare
+  // slot-1 openers and flag the second on overlap (same id / same push angle /
+  // same lower dominance). Week-scoped because weeks 2+ legitimately repeat
+  // week 1's openers. Skipped when we have no primary-muscle map (synthetic
   // tests / cardio-only chunks).
   if (primaryMuscleGroupByExerciseId) {
-    const focusGroups = new Map<
-      CrossSessionFocus,
-      Array<{
-        session: GeneratedSession;
-        spec: GenerateSessionsDto['sessions'][number];
-      }>
-    >();
-    for (let i = 0; i < specs.length; i++) {
-      const spec = specs[i]!;
-      const session = sessions[i]!;
-      if (spec.type !== 'strength') continue;
-      const focus = classifySessionFocus(spec.type, spec.title);
-      if (focus !== 'upper' && focus !== 'lower') continue;
-      let bucket = focusGroups.get(focus);
-      if (!bucket) {
-        bucket = [];
-        focusGroups.set(focus, bucket);
+    for (const indices of sessionIndicesByWeek.values()) {
+      const focusGroups = new Map<
+        CrossSessionFocus,
+        Array<{
+          session: GeneratedSession;
+          spec: GenerateSessionsDto['sessions'][number];
+        }>
+      >();
+      for (const i of indices) {
+        const spec = specs[i]!;
+        const session = sessions[i]!;
+        if (spec.type !== 'strength') continue;
+        const focus = classifySessionFocus(spec.type, spec.title);
+        if (focus !== 'upper' && focus !== 'lower') continue;
+        let bucket = focusGroups.get(focus);
+        if (!bucket) {
+          bucket = [];
+          focusGroups.set(focus, bucket);
+        }
+        bucket.push({ session, spec });
       }
-      bucket.push({ session, spec });
-    }
-    for (const [focus, bucket] of focusGroups) {
-      if (bucket.length < 2) continue;
-      const signatures = bucket.map((entry) =>
-        buildSessionDiversitySignature(
-          entry.session.exercises ?? [],
-          primaryMuscleGroupByExerciseId,
-        ),
-      );
-      // Compare each later session against the first occurrence of the focus.
-      // Trainers tolerate one repeat across 3 same-focus days (rare anyway),
-      // but flag the second day for the most common 2-day case.
-      const first = signatures[0]!;
-      for (let j = 1; j < signatures.length; j++) {
-        const violation = compareSameFocusSessionPair(
-          focus,
-          first,
-          signatures[j]!,
+      for (const [focus, bucket] of focusGroups) {
+        if (bucket.length < 2) continue;
+        const signatures = bucket.map((entry) =>
+          buildSessionDiversitySignature(
+            entry.session.exercises ?? [],
+            primaryMuscleGroupByExerciseId,
+          ),
         );
-        if (violation) {
-          issues.push('under_diversified_across_focus');
-          crossSessionOverlapExerciseIds.add(violation.exerciseId);
+        // Compare each later session against the first occurrence of the focus.
+        // Trainers tolerate one repeat across 3 same-focus days (rare anyway),
+        // but flag the second day for the most common 2-day case.
+        const first = signatures[0]!;
+        for (let j = 1; j < signatures.length; j++) {
+          const violation = compareSameFocusSessionPair(
+            focus,
+            first,
+            signatures[j]!,
+          );
+          if (violation) {
+            issues.push('under_diversified_across_focus');
+            crossSessionOverlapExerciseIds.add(violation.exerciseId);
+          }
         }
       }
     }

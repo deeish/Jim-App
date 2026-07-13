@@ -701,9 +701,24 @@ function runFocusPurityPass(
   return repairs;
 }
 
+/** Session indices grouped by `weekIndex`, in first-seen week order. */
+function groupSessionIndicesByWeek(
+  specs: GenerateSessionsDto['sessions'],
+): number[][] {
+  const byWeek = new Map<number, number[]>();
+  for (let i = 0; i < specs.length; i++) {
+    const week = specs[i]!.weekIndex;
+    const group = byWeek.get(week) ?? [];
+    group.push(i);
+    byWeek.set(week, group);
+  }
+  return [...byWeek.values()];
+}
+
 /**
- * Deterministic post-pass on a generated chunk: dedupe non-cardio library ids across the chunk
- * (in session order; cardio modalities may repeat across days by design), enforce upper/lower
+ * Deterministic post-pass on a generated chunk: dedupe non-cardio library ids within each
+ * program week (in session order; cardio modalities may repeat across days by design, and
+ * weeks 2+ intentionally repeat week 1's selections via clone-and-progress), enforce upper/lower
  * split purity (swap movements that fight the day's title, in either direction), swap same-session
  * equipment variants of one base movement, then backfill rows when the model returned fewer
  * exercises than {@link exerciseTargetsForSession} requires.
@@ -739,14 +754,34 @@ export function repairChunkGeneratedSessions(args: {
     usedScavenge: false,
   };
 
-  let duplicateRepairs = runDuplicatePass(
-    sessions,
-    specs,
-    library,
-    equipment,
-    tierFlags,
-    avoidConstraintsGlobal,
-  );
+  // Duplicate passes are scoped per weekIndex group: repeating week 1's lift in
+  // week 2 is normal programming (weeks 2+ clone week 1 on purpose), while a
+  // repeat inside one week is a defect. Slices share session object references,
+  // so pass mutations land in `sessions`.
+  const weekGroups = groupSessionIndicesByWeek(specs);
+  const runDuplicatePassPerWeek = (pass: typeof runDuplicatePass): number => {
+    let repairs = 0;
+    for (const indices of weekGroups) {
+      repairs += pass(
+        indices.map((i) => sessions[i]!),
+        indices.map((i) => specs[i]!),
+        library,
+        equipment,
+        tierFlags,
+        avoidConstraintsGlobal,
+      );
+    }
+    return repairs;
+  };
+  const anyWeekHasDuplicateLibraryIds = (): boolean =>
+    weekGroups.some((indices) =>
+      chunkHasDuplicateLibraryIds(
+        indices.map((i) => sessions[i]!),
+        library,
+      ),
+    );
+
+  let duplicateRepairs = runDuplicatePassPerWeek(runDuplicatePass);
   const upperLowerPatternRepairs = runFocusPurityPass(
     sessions,
     specs,
@@ -755,44 +790,16 @@ export function repairChunkGeneratedSessions(args: {
     tierFlags,
     avoidConstraintsGlobal,
   );
-  duplicateRepairs += runDuplicatePass(
-    sessions,
-    specs,
-    library,
-    equipment,
-    tierFlags,
-    avoidConstraintsGlobal,
-  );
+  duplicateRepairs += runDuplicatePassPerWeek(runDuplicatePass);
 
-  if (chunkHasDuplicateLibraryIds(sessions, library)) {
-    duplicateRepairs += runDuplicatePass(
-      sessions,
-      specs,
-      library,
-      equipment,
-      tierFlags,
-      avoidConstraintsGlobal,
-    );
+  if (anyWeekHasDuplicateLibraryIds()) {
+    duplicateRepairs += runDuplicatePassPerWeek(runDuplicatePass);
   }
 
-  duplicateRepairs += runDuplicatePassReverse(
-    sessions,
-    specs,
-    library,
-    equipment,
-    tierFlags,
-    avoidConstraintsGlobal,
-  );
+  duplicateRepairs += runDuplicatePassPerWeek(runDuplicatePassReverse);
 
-  if (chunkHasDuplicateLibraryIds(sessions, library)) {
-    duplicateRepairs += runDuplicatePass(
-      sessions,
-      specs,
-      library,
-      equipment,
-      tierFlags,
-      avoidConstraintsGlobal,
-    );
+  if (anyWeekHasDuplicateLibraryIds()) {
+    duplicateRepairs += runDuplicatePassPerWeek(runDuplicatePass);
   }
 
   const nearDuplicateRepairs = runNearDuplicatePass(
@@ -814,15 +821,8 @@ export function repairChunkGeneratedSessions(args: {
     avoidConstraintsGlobal,
   );
 
-  if (chunkHasDuplicateLibraryIds(sessions, library)) {
-    duplicateRepairs += runDuplicatePass(
-      sessions,
-      specs,
-      library,
-      equipment,
-      tierFlags,
-      avoidConstraintsGlobal,
-    );
+  if (anyWeekHasDuplicateLibraryIds()) {
+    duplicateRepairs += runDuplicatePassPerWeek(runDuplicatePass);
   }
 
   if (duplicateRepairs > 0) {
@@ -895,16 +895,10 @@ export function dedupeEnrichedProgramSessions(args: {
     usedScavenge: false,
   };
 
-  const weekGroups = new Map<number, number[]>();
-  for (let i = 0; i < specs.length; i++) {
-    const week = specs[i]!.weekIndex;
-    const group = weekGroups.get(week) ?? [];
-    group.push(i);
-    weekGroups.set(week, group);
-  }
+  const weekGroups = groupSessionIndicesByWeek(specs);
 
   let repairs = 0;
-  for (const indices of weekGroups.values()) {
+  for (const indices of weekGroups) {
     // Slices share session object references, so pass mutations land in `sessions`.
     const weekSessions = indices.map((i) => sessions[i]!);
     const weekSpecs = indices.map((i) => specs[i]!);

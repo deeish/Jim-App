@@ -69,6 +69,54 @@ describe('validateGeneratedProgramChunk', () => {
     expect(r.duplicateExerciseIds).toContain(dup);
   });
 
+  it('allows the same id in different weeks (weeks 2+ clone week 1 by design)', () => {
+    const specs = [
+      spec({ weekday: 'Mon', weekIndex: 1 }),
+      spec({ weekday: 'Mon', weekIndex: 2 }),
+    ];
+    const dup = 'shared-across-weeks';
+    const fill = (prefix: string, dupId: string | null, start: number) =>
+      Array.from({ length: 6 }, (_, i) => ({
+        name: `${prefix}${i}`,
+        sets: 3,
+        reps: 8,
+        exerciseId: i === 0 && dupId ? dupId : `${prefix}-id-${start + i}`,
+      }));
+    const sessions = [
+      session(fill('A', dup, 1)),
+      session(fill('B', dup, 20), { weekIndex: 2 }),
+    ];
+    const r = validateGeneratedProgramChunk(specs, sessions, 'detailed');
+    expect(r.ok).toBe(true);
+    expect(r.issues).not.toContain('duplicate_exercise_id_across_chunk');
+    expect(r.duplicateExerciseIds).not.toContain(dup);
+  });
+
+  it('still flags a same-week duplicate in a multi-week program', () => {
+    const specs = [
+      spec({ weekday: 'Mon', weekIndex: 1 }),
+      spec({ weekday: 'Tue', weekIndex: 1 }),
+      spec({ weekday: 'Mon', weekIndex: 2 }),
+    ];
+    const dup = 'same-week-dup';
+    const fill = (prefix: string, dupId: string | null, start: number) =>
+      Array.from({ length: 6 }, (_, i) => ({
+        name: `${prefix}${i}`,
+        sets: 3,
+        reps: 8,
+        exerciseId: i === 0 && dupId ? dupId : `${prefix}-id-${start + i}`,
+      }));
+    const sessions = [
+      session(fill('A', dup, 1)),
+      session(fill('B', dup, 20), { weekday: 'Tuesday' }),
+      session(fill('C', null, 40), { weekIndex: 2 }),
+    ];
+    const r = validateGeneratedProgramChunk(specs, sessions, 'detailed');
+    expect(r.ok).toBe(false);
+    expect(r.issues).toContain('duplicate_exercise_id_across_chunk');
+    expect(r.duplicateExerciseIds).toContain(dup);
+  });
+
   it('allows a Cardio id to repeat across sessions (metadata map)', () => {
     const specs = [spec({ weekday: 'Mon' }), spec({ weekday: 'Tue' })];
     const fill = (prefix: string, start: number) =>
