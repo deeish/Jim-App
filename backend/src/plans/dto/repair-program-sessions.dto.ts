@@ -9,12 +9,12 @@ import {
   MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { SessionSpecDto } from './generate-sessions.dto';
+import { SessionSpecDto, WeekProgressionDto } from './generate-sessions.dto';
 
 /**
  * Deterministic library repair on an already-generated program (same ordering as
  * `GenerateSessionsDto.sessions`). Used after partial week regen to re-dedupe
- * exercise ids across the full merged list.
+ * exercise ids within each week of the merged list.
  */
 export class RepairProgramSessionsDto {
   @IsOptional()
@@ -53,6 +53,14 @@ export class RepairProgramSessionsDto {
   @ArrayMaxSize(12)
   @MaxLength(32, { each: true })
   equipmentTags?: string[];
+
+  /** Per-week intensity and volume targets; re-applied after enrichment re-bands prescriptions. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @ValidateNested({ each: true })
+  @Type(() => WeekProgressionDto)
+  weekProgression?: WeekProgressionDto[];
 
   @IsArray()
   @ValidateNested({ each: true })
