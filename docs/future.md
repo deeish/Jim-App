@@ -62,7 +62,34 @@ Pushdown) plus five missing barbell staples (box/pause/overhead squat,
 thruster, clean & jerk), and tire unmapped from 'Bodyweight' (live Tire Flip
 in a dumbbell/band gym).
 
+A sixth round landed 2026-07-13: multi-week programs work end to end. The
+design (week 1 via Groq, weeks 2+ cloned with `weekProgression` applied) was
+being destroyed by two program-wide passes — the merged chunk repair treated
+intentional week clones as duplicates and swapped them into niche picks, and
+enrichment's rep-band stamping erased the progression math, so a 4-week plan
+shipped as drifting exercises at flat intensity with no deload. Duplicate
+checks (repair + validator + same-focus opener diversity) are now scoped per
+`weekIndex` group, the clone copies rows verbatim, and week targets land in a
+final post-enrichment pass (`week-progression.ts`) that also stamps a deload
+note on deload sessions. Live 4-week drives: cloned weeks with 4x5 → 5x4 →
+5x3 → 3x7 openers and all-week deload notes, scored 139/140.
+
 Watch list for the next tuning pass:
+
+- **Below-min backfill counts cardio rows.** Groq returned lower days with 4
+  lifts + 2 cardio rows; the chunk backfill saw 6 rows (no fire), enrichment
+  collapsed the extra cardio, and 5-row sessions shipped — cloned to every
+  week in a multi-week plan (one live 4-week drive capped at 63/140 for this
+  alone). Count only non-cardio rows toward `minExercises`, or backfill after
+  enrichment.
+- **Cross-week opener drift via near-duplicate replacements.** The
+  near-duplicate pass detects per session but excludes replacement candidates
+  program-wide, so identical cloned weeks can resolve one slot differently
+  (live: Lower B opener Conventional → Sumo → Hip Thrust across weeks).
+  Coach-plausible variation, but decide whether it should be deterministic.
+- **Multi-week scorer findings repeat per cloned week.** Session-level
+  findings (ordering inversions etc.) now print once per week for the same
+  cloned session; dedupe or group them by week in the report.
 
 - **Rule-based fallback day purity.** When Groq is rate-limited the fallback
   generator can open a Pull day with a bench dip (a push); enrichment fixes
