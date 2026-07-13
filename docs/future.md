@@ -76,6 +76,17 @@ note on deload sessions. Live 4-week drives: cloned weeks with 4x5 → 5x4 →
 
 Watch list for the next tuning pass:
 
+- **Peak weeks can bust the session time budget.** Week progression applies
+  volumeMultiplier after enrichment's duration clamp, so a x1.25 peak week on
+  an already-full session lands ~67 min against a 60-min max (live 4-week gym
+  drive; beginner home peak hit ~52 vs 45). Either cap progressed sets so the
+  estimated time stays under `durationMax`, or trim lowest-priority rows on
+  overflow.
+- **Cardio-day core picks across cloned weeks.** Cardio days are re-templated
+  per week (variety — good) but the core pair can come out as near-duplicates
+  or beginner-inappropriate (live: Ab Wheel Rollout + Kneeling Ab Wheel
+  Rollout on one week's cardio day of a beginner home plan; Overhead Carry +
+  Overhead March another). Same class as the position-variant item below.
 - **Below-min backfill counts cardio rows.** Groq returned lower days with 4
   lifts + 2 cardio rows; the chunk backfill saw 6 rows (no fire), enrichment
   collapsed the extra cardio, and 5-row sessions shipped — cloned to every
