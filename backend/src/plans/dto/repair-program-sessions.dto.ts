@@ -21,10 +21,52 @@ export class RepairProgramSessionsDto {
   @IsString()
   goal?: string;
 
+  /** Accepted because the client spreads its generate request into this call; unused by repair. */
+  @IsOptional()
+  @IsString()
+  secondaryGoal?: string;
+
+  /** Accepted for the same reason; unused by repair. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(280)
+  restrictions?: string;
+
   @IsOptional()
   @IsString()
   @IsIn(['gym', 'home'])
   location?: 'gym' | 'home';
+
+  /**
+   * Drives enrichment rep bands and working-set caps. The client has always
+   * sent this (it spreads `buildGenerateSessionsRequest` into the repair
+   * body), but the field was missing here — with `forbidNonWhitelisted` the
+   * whole request 400'd and the client silently skipped repair.
+   */
+  @IsOptional()
+  @IsString()
+  @IsIn(['beginner', 'intermediate', 'advanced'])
+  experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
+
+  /** Accepted because the client sends it; batch-prompt-only, unused by repair. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  mesoHint?: string;
+
+  /** Accepted because the client sends it; unused by repair. */
+  @IsOptional()
+  @IsString()
+  @IsIn(['0', '1-2', '3-4', '5+'])
+  currentActivityLevel?: string;
+
+  /** Accepted because the client sends it; unused by repair. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @MaxLength(40, { each: true })
+  preferredExercises?: string[];
 
   @IsOptional()
   @IsString()

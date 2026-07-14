@@ -1911,6 +1911,7 @@ export class PlansService {
         dto.cardioModalities,
       ),
       equipmentTags: dto.equipmentTags,
+      experienceLevel: dto.experienceLevel,
       weekProgression: dto.weekProgression,
       sessions: dto.sessions,
     };
