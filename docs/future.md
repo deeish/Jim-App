@@ -87,24 +87,28 @@ skip bodyweight/unilateral/isolation rows (a beginner peak week shipped 4x4
 Bulgarian split squats and 3x4 bodyweight glute bridges).
 
 Watch list for the next tuning pass:
-- **Cardio-day core picks across cloned weeks.** Cardio days are re-templated
-  per week (variety — good) but the core pair can come out as near-duplicates
-  or beginner-inappropriate (live: Ab Wheel Rollout + Kneeling Ab Wheel
-  Rollout on one week's cardio day of a beginner home plan; Overhead Carry +
-  Overhead March another). Same class as the position-variant item below.
+- **Cardio-day core picks across cloned weeks.** *Resolved 2026-07-14 by the
+  week-scoped enrichment exclude list:* cardio days now resolve identically
+  across cloned weeks (live: Front Plank + Side Plank every Saturday of a
+  4-week plan), so the escalating near-dup pairs (Ab Wheel → Kneeling →
+  Standing across weeks) no longer occur. A bad week-1 pick now repeats
+  weekly — covered by the skill-gating item below.
 - **Below-min backfill counts cardio rows.** Groq returned lower days with 4
   lifts + 2 cardio rows; the chunk backfill saw 6 rows (no fire), enrichment
   collapsed the extra cardio, and 5-row sessions shipped — cloned to every
   week in a multi-week plan (one live 4-week drive capped at 63/140 for this
   alone). Count only non-cardio rows toward `minExercises`, or backfill after
   enrichment.
-- **Cross-week opener drift via near-duplicate replacements.** The
-  near-duplicate pass detects per session but excludes replacement candidates
-  program-wide, so identical cloned weeks can resolve one slot differently
-  (live: Lower B opener Conventional → Sumo → Hip Thrust across weeks; worse
-  2026-07-14: Upper B opener OHP → Seated OHP → Machine Chest Press 5x3 as
-  the PEAK week's heaviest slot → Chest Dip). Pin slot 1 across cloned weeks
-  and vary accessories instead.
+- **Cross-week opener drift.** *Fixed 2026-07-14:* the root cause was
+  `enrichGeneratedSessionsInChunkOrder` building its cross-session exclude
+  list program-wide, which depleted the anchor/swap pools week by week (live
+  worst case: week 3's peak Lower day opened with Hanging Knee Raise 4x10
+  after the anchor swap found nothing left). The exclude list is now scoped
+  per `weekIndex`; three fresh 4-week drives kept every weekday's opener
+  stable across all four weeks. The program-wide `runNearDuplicatePass`
+  replacement excludes (generation-chunk-repair.ts) could in principle still
+  drift an accessory when a within-session near-dup survives to the clone —
+  not observed since; check captures before spending here.
 - **Isolation guard misses odd names.** The week-progression rep-band guard
   keys on `ISOLATION_NAME` + catalog `type: 'Isolation'`; a live Pull day
   still shipped Tate Press at 2x4 in a beginner peak week (name unmatched,
