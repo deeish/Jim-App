@@ -2045,6 +2045,107 @@ describe('enrichGeneratedSessionsInChunkOrder', () => {
     expect(lastB).toBe('bike1');
   });
 
+  it('scopes the cross-session exclude list per week — cloned weeks resolve identically', async () => {
+    const mkSession = (weekIndex: number): GeneratedSession => ({
+      weekIndex,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Bench', sets: 3, reps: 8, exerciseId: 'a_bp' },
+        { name: 'Row', sets: 3, reps: 8, exerciseId: 'a_row' },
+      ],
+    });
+    const exercisesService = {
+      findOne: (exId: string) => {
+        if (exId === 'a_bp')
+          return {
+            id: 'a_bp',
+            name: 'Bench',
+            movementPatterns: ['Push'],
+            primaryMuscleGroup: 'Chest',
+          };
+        if (exId === 'a_row')
+          return {
+            id: 'a_row',
+            name: 'Row',
+            movementPatterns: ['Pull'],
+            primaryMuscleGroup: 'Back',
+          };
+        if (exId === 'tread1')
+          return {
+            id: 'tread1',
+            name: 'Treadmill Walk Easy',
+            primaryMuscleGroup: 'Cardio',
+            prescriptionType: 'time' as const,
+          };
+        if (exId === 'bike1')
+          return {
+            id: 'bike1',
+            name: 'Stationary Bike Easy',
+            primaryMuscleGroup: 'Cardio',
+            prescriptionType: 'time' as const,
+          };
+        return undefined;
+      },
+      getCandidatesForGenerator: (opts: {
+        focus?: string;
+        excludeIds?: string[];
+      }) => {
+        if (opts?.focus !== 'cardio') return [];
+        const all = [
+          {
+            id: 'tread1',
+            name: 'Treadmill Walk Easy',
+            primaryMuscleGroup: 'Cardio',
+            prescriptionType: 'time',
+          },
+          {
+            id: 'bike1',
+            name: 'Stationary Bike Easy',
+            primaryMuscleGroup: 'Cardio',
+            prescriptionType: 'time',
+          },
+        ];
+        const ex = new Set(
+          (opts.excludeIds ?? []).map((x) => String(x).trim()),
+        );
+        return all.filter((c) => !ex.has(c.id));
+      },
+    };
+    const enrich = (weekIndices: [number, number]) =>
+      enrichGeneratedSessionsInChunkOrder(
+        [mkSession(weekIndices[0]), mkSession(weekIndices[1])],
+        {
+          getSpec: (i) => ({
+            type: 'strength',
+            title: 'Upper',
+            weekIndex: weekIndices[i]!,
+          }),
+          getAvoidPhrases: () => [],
+          getGenerationPrefs: () => ({
+            goal: 'hybrid',
+            durationMinutes: 45,
+            detailLevel: 'simple',
+          }),
+          exercisesService: exercisesService as any,
+          equipment: ['Machine'],
+        },
+      );
+
+    // Week-2 clone of a week-1 session must resolve to the SAME finisher —
+    // a program-wide exclude list re-anchored cloned weeks into worse picks.
+    const cloned = await enrich([1, 2]);
+    const lastOf = (s: GeneratedSession) =>
+      s.exercises[s.exercises.length - 1]!.exerciseId;
+    expect(lastOf(cloned[0]!)).toBe('tread1');
+    expect(lastOf(cloned[1]!)).toBe('tread1');
+
+    // Two sessions in the SAME week still get distinct picks.
+    const sameWeek = await enrich([1, 1]);
+    expect(lastOf(sameWeek[0]!)).toBe('tread1');
+    expect(lastOf(sameWeek[1]!)).toBe('bike1');
+  });
+
   it('stamps the cardio finisher row as time-based with reps=600 (10 min)', async () => {
     const session: GeneratedSession = {
       weekIndex: 1,

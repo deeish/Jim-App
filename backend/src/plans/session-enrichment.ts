@@ -1828,11 +1828,22 @@ function collectDistinctExerciseIds(session: GeneratedSession): string[] {
   return out;
 }
 
-export type EnrichChunkSessionSpec = { type: string; title?: string };
+export type EnrichChunkSessionSpec = {
+  type: string;
+  title?: string;
+  /** Week this session belongs to — scopes the cross-session exclude list. */
+  weekIndex?: number;
+};
 
 /**
  * Enrich strength sessions in chunk order so hybrid cardio finishers avoid library ids
  * already used on sibling sessions (pre/post enrichment ids from other slots).
+ *
+ * The exclude list is scoped per `weekIndex`: cloned weeks in a multi-week
+ * program are intentional repeats, and a program-wide list depletes the
+ * anchor/swap pools week by week — live, week 3's clone of a bench-led Upper
+ * day re-anchored to Push-Up because week 1 had "used up" the bench. Sessions
+ * without a weekIndex keep the old program-wide behavior.
  */
 export async function enrichGeneratedSessionsInChunkOrder(
   sessions: GeneratedSession[],
@@ -1857,6 +1868,14 @@ export async function enrichGeneratedSessionsInChunkOrder(
     const seenChunk = new Set<string>();
     for (let j = 0; j < sessions.length; j++) {
       if (j === i) continue;
+      const otherSpec = opts.getSpec(j);
+      if (
+        spec.weekIndex != null &&
+        otherSpec?.weekIndex != null &&
+        otherSpec.weekIndex !== spec.weekIndex
+      ) {
+        continue;
+      }
       const sess = j < i ? out[j]! : sessions[j]!;
       for (const id of collectDistinctExerciseIds(sess)) {
         if (seenChunk.has(id)) continue;
