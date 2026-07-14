@@ -1301,7 +1301,17 @@ function capRedundantMovementFamilies(args: {
     capByKey(
       (n) => (classifyPushAngle(n) === 'other' ? null : 'press:total'),
       pressMax,
-      (n) => classifyPullAngle(n) !== 'other',
+      // Prefer a pull whose angle is still under the per-angle cap — this
+      // runs after the pull-angle cap, so an unchecked insert could stack a
+      // third row of the same angle. Falls back to any non-press otherwise.
+      (n) => {
+        const angle = classifyPullAngle(n);
+        if (angle === 'other') return false;
+        const sameAngle = exercises.filter(
+          (e) => isStrengthRow(e) && classifyPullAngle(e.name) === angle,
+        ).length;
+        return sameAngle < MAX_PER_FAMILY;
+      },
     );
   }
 

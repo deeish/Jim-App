@@ -2775,6 +2775,56 @@ describe('per-session press-total cap', () => {
     expect(countBy(out, PRESS_RX)).toBe(4);
   });
 
+  it('press-cap swap-ins prefer a pull angle still under the per-angle cap', async () => {
+    // 4 presses + 2 horizontal rows: the excess press must not become a third
+    // horizontal row just because one is next in the pool — the pull-angle cap
+    // already ran and will not re-check inserts.
+    const chestRow = lift(
+      'chest_supported_row',
+      'Chest-Supported Row',
+      'Back',
+      ['Pull'],
+    );
+    const cableRow = lift('seated_cable_row', 'Seated Cable Row', 'Back', [
+      'Pull',
+    ]);
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          rowOf(flatBench, 4, 5),
+          rowOf(inclineBench),
+          rowOf(declineBench),
+          rowOf(ohp),
+          rowOf(bentRow, 3, 8),
+          rowOf(chestRow, 3, 8),
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([
+        flatBench,
+        inclineBench,
+        declineBench,
+        ohp,
+        bentRow,
+        chestRow,
+        cableRow, // horizontal candidate first in pool order — must be skipped
+        pulldown, // vertical candidate — the correct pick
+      ]),
+      undefined,
+      [],
+      undefined,
+    );
+    const horizontals = out.exercises.filter((e) =>
+      /row\b/i.test(e.name),
+    ).length;
+    expect(countBy(out, PRESS_RX)).toBe(3);
+    expect(horizontals).toBeLessThanOrEqual(2);
+    expect(out.exercises.map((e) => e.exerciseId)).toContain('lat_pulldown');
+  });
+
   it('never swaps a capped family into a sibling family already at cap', async () => {
     // Live case: 3 squats on a Lower day; the excess squat must not become a
     // third hinge just because a deadlift is the next candidate in the pool.
