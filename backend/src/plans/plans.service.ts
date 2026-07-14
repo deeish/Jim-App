@@ -2080,6 +2080,8 @@ export class PlansService {
       sessions: floored.sessions,
       specs: dto.sessions,
       weekProgression: dto.weekProgression,
+      findMeta: (id) => this.exercises.findOne(id),
+      prefs: { goal: dto.goal, difficulty: dto.experienceLevel },
     });
     if (progressed.adjustedSessionCount > 0) {
       this.logger.log(
