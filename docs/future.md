@@ -8,13 +8,16 @@ the P0 + frontend work shipped in PR #6; full write-up in git history at
 
 ### Workout-quality passes (ship as one backend PR)
 
-1. **Per-session movement-pattern cap.** Dedup only catches identical exercise
-   ids, so a session can carry 3–4 hinge variants. Cap ≤2 exercises per
-   movement pattern per session as a deterministic post-pass — the
-   replace-exercise endpoint already does pattern-aware dedup; reuse its logic.
-2. **Intra-session push/pull balance.** Only "≥1 pull" is guaranteed; upper
-   days can come out 5-press : 1-row. Add a pull-ratio pass alongside the
-   purity pass (`generation-chunk-repair.ts`).
+1. **Per-session movement-pattern cap.** *Done 2026-07-14 (round 7):*
+   `capRedundantMovementFamilies` now caps total presses per session (3 on
+   upper days, 2 elsewhere; press-focused titles exempt), runs the
+   squat/hinge/lunge dominance caps on every strength day, and a replacement
+   can no longer land in a sibling family already at cap. Machine/floor
+   chest presses now count as presses.
+2. **Intra-session push/pull balance.** Partially covered by round 7: the
+   press-total cap prefers a pull as the swap-in, so 4-press upper days now
+   ship 3-press : 2-pull. A true ratio pass (insert pulls when under-pulled,
+   not just cap presses) is still open (`generation-chunk-repair.ts`).
 3. **Intra-plan volume undulation.** Sessions sharing a duration all get the
    same working-set cap → no heavy/light variation across a week. Vary
    `workingSetCap` by `isHardDay`. *Decision 2026-07-08: skipped on purpose —
@@ -74,14 +77,16 @@ final post-enrichment pass (`week-progression.ts`) that also stamps a deload
 note on deload sessions. Live 4-week drives: cloned weeks with 4x5 → 5x4 →
 5x3 → 3x7 openers and all-week deload notes, scored 139/140.
 
-Watch list for the next tuning pass:
+A seventh round landed 2026-07-14 after a gym-only review pass (fresh drives
+scored 134-136/140): per-session press-total cap + everywhere dominance caps
+(item 1 above), and three week-progression guardrails — volume weeks re-clamp
+to the duration-derived working-set cap (peak weeks now land ~21 sets inside a
+60-min slot instead of ~65 min), progressed sets floor at 2 (a x0.7 deload on
+a 2-set accessory shipped a single working set), and negative rep modifiers
+skip bodyweight/unilateral/isolation rows (a beginner peak week shipped 4x4
+Bulgarian split squats and 3x4 bodyweight glute bridges).
 
-- **Peak weeks can bust the session time budget.** Week progression applies
-  volumeMultiplier after enrichment's duration clamp, so a x1.25 peak week on
-  an already-full session lands ~67 min against a 60-min max (live 4-week gym
-  drive; beginner home peak hit ~52 vs 45). Either cap progressed sets so the
-  estimated time stays under `durationMax`, or trim lowest-priority rows on
-  overflow.
+Watch list for the next tuning pass:
 - **Cardio-day core picks across cloned weeks.** Cardio days are re-templated
   per week (variety — good) but the core pair can come out as near-duplicates
   or beginner-inappropriate (live: Ab Wheel Rollout + Kneeling Ab Wheel
@@ -96,8 +101,17 @@ Watch list for the next tuning pass:
 - **Cross-week opener drift via near-duplicate replacements.** The
   near-duplicate pass detects per session but excludes replacement candidates
   program-wide, so identical cloned weeks can resolve one slot differently
-  (live: Lower B opener Conventional → Sumo → Hip Thrust across weeks).
-  Coach-plausible variation, but decide whether it should be deterministic.
+  (live: Lower B opener Conventional → Sumo → Hip Thrust across weeks; worse
+  2026-07-14: Upper B opener OHP → Seated OHP → Machine Chest Press 5x3 as
+  the PEAK week's heaviest slot → Chest Dip). Pin slot 1 across cloned weeks
+  and vary accessories instead.
+- **Isolation guard misses odd names.** The week-progression rep-band guard
+  keys on `ISOLATION_NAME` + catalog `type: 'Isolation'`; a live Pull day
+  still shipped Tate Press at 2x4 in a beginner peak week (name unmatched,
+  catalog type not Isolation). Extend the regex or fix the catalog row.
+- **Beginner anchor skill gate (new example).** A live beginner Push day
+  opened with Single-Arm Dumbbell Push Press 5x5 — same class as the Kroc
+  Row opener; the skill-gating item below now has three live examples.
 - **Multi-week scorer findings repeat per cloned week.** Session-level
   findings (ordering inversions etc.) now print once per week for the same
   cloned session; dedupe or group them by week in the report.
