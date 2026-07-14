@@ -2542,3 +2542,204 @@ describe('cardio row stale-note cleanup', () => {
     expect(jack.notes).toBeUndefined();
   });
 });
+
+describe('per-session press-total cap', () => {
+  const mkService = (rows: Array<Record<string, unknown>>) => {
+    const byId = new Map(rows.map((r) => [r.id as string, r]));
+    return {
+      findOne: (id: string) => byId.get(id),
+      getCandidatesForGenerator: ({
+        excludeIds,
+      }: {
+        excludeIds?: string[];
+      }) => {
+        const ex = new Set(excludeIds ?? []);
+        return rows.filter((r) => !ex.has(r.id as string));
+      },
+    } as any;
+  };
+  const lift = (
+    id: string,
+    name: string,
+    primaryMuscleGroup: string,
+    movementPatterns: string[],
+  ) => ({
+    id,
+    name,
+    primaryMuscleGroup,
+    movementPatterns,
+    primaryEquipment: ['Dumbbell'],
+    prescriptionType: 'reps' as const,
+  });
+  const flatBench = lift(
+    'flat_db_bench',
+    'Flat Dumbbell Bench Press',
+    'Chest',
+    ['Push'],
+  );
+  const inclineBench = lift(
+    'incline_db_bench',
+    'Incline Dumbbell Bench Press',
+    'Chest',
+    ['Push'],
+  );
+  const declineBench = lift(
+    'decline_db_bench',
+    'Decline Dumbbell Bench Press',
+    'Chest',
+    ['Push'],
+  );
+  const ohp = lift('db_ohp', 'Dumbbell Overhead Press', 'Shoulders', ['Push']);
+  const pulldown = lift('lat_pulldown', 'Wide-Grip Lat Pulldown', 'Back', [
+    'Pull',
+  ]);
+  const bentRow = lift('bent_over_row', 'Barbell Bent-Over Row', 'Back', [
+    'Pull',
+  ]);
+  const rdl = lift('barbell_rdl', 'Barbell Romanian Deadlift', 'Legs', [
+    'Hinge',
+  ]);
+  const convDl = lift(
+    'conventional_deadlift',
+    'Conventional Deadlift',
+    'Legs',
+    ['Hinge'],
+  );
+  const goodMorning = lift('good_morning', 'Barbell Good Morning', 'Legs', [
+    'Hinge',
+  ]);
+  const backSquat = lift('back_squat', 'Barbell Back Squat', 'Legs', ['Squat']);
+  const rowOf = (r: { id: string; name: string }, sets = 4, reps = 6) => ({
+    name: r.name,
+    sets,
+    reps,
+    exerciseId: r.id,
+  });
+  const countBy = (out: { exercises: Array<{ name: string }> }, rx: RegExp) =>
+    out.exercises.filter((e) => rx.test(e.name)).length;
+  const PRESS_RX = /bench press|overhead press|push-up|dip/i;
+  const PULL_RX = /row|pulldown/i;
+
+  it('caps an Upper day at 3 total presses, swapping the excess for a pull', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          rowOf(flatBench, 4, 5),
+          rowOf(inclineBench),
+          rowOf(declineBench),
+          rowOf(ohp),
+          rowOf(pulldown, 3, 10),
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([
+        flatBench,
+        inclineBench,
+        declineBench,
+        ohp,
+        pulldown,
+        bentRow,
+      ]),
+      undefined,
+      [],
+      undefined,
+    );
+    expect(countBy(out, PRESS_RX)).toBe(3);
+    expect(countBy(out, PULL_RX)).toBe(2);
+    expect(out.exercises.map((e) => e.exerciseId)).toContain('bent_over_row');
+  });
+
+  it('leaves a press-focused day (Push) alone', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Push',
+        exercises: [
+          rowOf(flatBench, 4, 5),
+          rowOf(inclineBench),
+          rowOf(declineBench),
+          rowOf(ohp),
+        ],
+      },
+      { type: 'strength', title: 'Push' },
+      mkService([flatBench, inclineBench, declineBench, ohp, bentRow]),
+      undefined,
+      [],
+      undefined,
+    );
+    expect(countBy(out, PRESS_RX)).toBe(4);
+  });
+
+  it('never swaps a capped family into a sibling family already at cap', async () => {
+    // Live case: 3 squats on a Lower day; the excess squat must not become a
+    // third hinge just because a deadlift is the next candidate in the pool.
+    const frontSquat = lift('front_squat', 'Front Squat', 'Legs', ['Squat']);
+    const hackSquat = lift('hack_squat', 'Machine Hack Squat', 'Legs', [
+      'Squat',
+    ]);
+    const gobletSquat = lift('goblet_squat', 'Goblet Squat', 'Legs', ['Squat']);
+    const lunge = lift('walking_lunge', 'Walking Lunge', 'Legs', ['Lunge']);
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Tuesday',
+        name: 'Lower',
+        exercises: [
+          rowOf(frontSquat, 4, 5),
+          rowOf(hackSquat),
+          rowOf(gobletSquat),
+          rowOf(rdl),
+          rowOf(convDl),
+        ],
+      },
+      { type: 'strength', title: 'Lower' },
+      mkService([
+        frontSquat,
+        hackSquat,
+        gobletSquat,
+        rdl,
+        convDl,
+        goodMorning, // hinge candidate first in pool order — must be skipped
+        lunge,
+      ]),
+      undefined,
+      [],
+      undefined,
+    );
+    const hinges = out.exercises.filter((e) =>
+      /deadlift|good morning/i.test(e.name),
+    ).length;
+    const squats = out.exercises.filter((e) => /squat/i.test(e.name)).length;
+    expect(squats).toBeLessThanOrEqual(2);
+    expect(hinges).toBeLessThanOrEqual(2);
+  });
+
+  it('caps hinge variants on a Full Body day now that dominance caps run everywhere', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Full Body',
+        exercises: [
+          rowOf(rdl, 4, 5),
+          rowOf(convDl),
+          rowOf(goodMorning),
+          rowOf(pulldown, 3, 10),
+        ],
+      },
+      { type: 'strength', title: 'Full Body' },
+      mkService([rdl, convDl, goodMorning, pulldown, backSquat, bentRow]),
+      undefined,
+      [],
+      undefined,
+    );
+    const hinges = out.exercises.filter((e) =>
+      /deadlift|good morning/i.test(e.name),
+    ).length;
+    expect(hinges).toBeLessThanOrEqual(2);
+  });
+});

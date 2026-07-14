@@ -41,6 +41,9 @@ describe('classifyPushAngle', () => {
     expect(classifyPushAngle('Bench Press')).toBe('flat');
     expect(classifyPushAngle('Push-Up')).toBe('flat');
     expect(classifyPushAngle('Dip')).toBe('flat');
+    expect(classifyPushAngle('Machine Chest Press')).toBe('flat');
+    expect(classifyPushAngle('Standing Cable Chest Press')).toBe('flat');
+    expect(classifyPushAngle('Close-Grip Floor Press')).toBe('flat');
   });
 
   it('classifies incline variants as incline', () => {

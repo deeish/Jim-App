@@ -82,7 +82,7 @@ const PULL_NAME =
 const BIG_FOUR = ['Squat', 'Hinge', 'Push', 'Pull'] as const;
 
 /** Chest/shoulder isolation and small-arm work — deprioritize for ordering + warm-up anchor. */
-const ISOLATION_NAME =
+export const ISOLATION_NAME =
   /\b(fly|flies|flyes|cable\s+fly|pec\s+deck|curl|curls|\bcable\s+curl|lateral\s+raise|front\s+raise|skull|(?:push|press)[-\s]?down|kickback|crossover|pullover|shrug|wrist|rear\s+delt|triceps\s+extension|overhead\s+extension)\b/i;
 
 /** Squat / hinge class movements that belong on lower days, not Upper/Push/Pull focus. */
@@ -540,7 +540,7 @@ export function workingSetCap(
  * highest-set accessory (never the slot-0 anchor, never below 2, never cardio).
  * Only ever removes sets, so it can't inflate a reasonable session.
  */
-function clampSessionWorkingSets(
+export function clampSessionWorkingSets(
   exercises: GeneratedSessionExercise[],
   findOne: (id: string) => { primaryMuscleGroup?: string } | undefined,
   prefs: EnrichSessionGenerationPrefs | undefined,
@@ -1215,8 +1215,16 @@ function capRedundantMovementFamilies(args: {
 
   let swaps = 0;
 
-  /** Cap any key (skipping `null` keys) at MAX_PER_FAMILY, swapping the excess. */
-  const capByKey = (keyOf: (name: string) => string | null): void => {
+  /**
+   * Cap any key (skipping `null` keys) at `max`, swapping the excess. When
+   * `preferSwapTo` is given, candidates matching it are tried before any other
+   * out-of-family candidate (e.g. cap presses by swapping in a pull).
+   */
+  const capByKey = (
+    keyOf: (name: string) => string | null,
+    max: number = MAX_PER_FAMILY,
+    preferSwapTo?: (name: string) => boolean,
+  ): void => {
     const groups = new Map<string, number[]>();
     exercises.forEach((e, i) => {
       if (!isStrengthRow(e)) return;
@@ -1226,8 +1234,13 @@ function capRedundantMovementFamilies(args: {
       if (arr) arr.push(i);
       else groups.set(k, [i]);
     });
+    // Live counts per key: a replacement must not push a *sibling* family over
+    // the cap (observed: capping 3 squats swapped in a deadlift that made a
+    // third hinge — the groups snapshot alone can't see that).
+    const counts = new Map<string, number>();
+    for (const [k, idxs] of groups) counts.set(k, idxs.length);
     for (const [key, idxs] of groups) {
-      let excess = idxs.length - MAX_PER_FAMILY;
+      let excess = (counts.get(key) ?? 0) - max;
       if (excess <= 0) continue;
       // Trim from the end (lowest-priority rows) first.
       const swappable = idxs
@@ -1235,7 +1248,19 @@ function capRedundantMovementFamilies(args: {
         .sort((a, b) => b - a);
       for (const i of swappable) {
         if (excess <= 0) break;
-        if (trySwap(i, (name) => keyOf(name) !== key)) {
+        const acceptable = (name: string): boolean => {
+          const k = keyOf(name);
+          if (k === key) return false;
+          return !k || (counts.get(k) ?? 0) < max;
+        };
+        const swapped =
+          (preferSwapTo != null &&
+            trySwap(i, (name) => acceptable(name) && preferSwapTo(name))) ||
+          trySwap(i, acceptable);
+        if (swapped) {
+          const newKey = keyOf(exercises[i]!.name ?? '');
+          if (newKey) counts.set(newKey, (counts.get(newKey) ?? 0) + 1);
+          counts.set(key, (counts.get(key) ?? 0) - 1);
           excess--;
           swaps++;
         }
@@ -1243,15 +1268,12 @@ function capRedundantMovementFamilies(args: {
     }
   };
 
-  const isLower =
-    sessionTitleIsLowerEmphasis(spec.title) ||
-    sessionTitleNeedsSquatHingeBalance(spec.title, spec.type);
-  if (isLower) {
-    capByKey((n) => {
-      const d = classifyLowerDominance(n);
-      return d === 'other' ? null : `dom:${d}`;
-    });
-  }
+  // Dominance caps used to run only on lower-emphasis days, but a full-body
+  // day can stack 3 hinge variants just as easily — run them everywhere.
+  capByKey((n) => {
+    const d = classifyLowerDominance(n);
+    return d === 'other' ? null : `dom:${d}`;
+  });
   capByKey((n) => {
     const a = classifyPushAngle(n);
     return a === 'other' ? null : `push:${a}`;
@@ -1264,6 +1286,24 @@ function capRedundantMovementFamilies(args: {
     const f = baseMovementFamily(n);
     return f ? `base:${f}` : null;
   });
+
+  // Total-press cap: the per-angle caps still allow flat + incline + decline +
+  // overhead on one day (live: 4 presses vs 1 pull on an Upper day). Days whose
+  // title IS press work keep their presses; an upper/mixed day caps at 3, any
+  // other strength day at 2. Excess rows swap to a pull first, so the day's
+  // push:pull balance improves with the same pass.
+  const titleLower = (spec.title ?? '').toLowerCase();
+  const isPressFocusDay =
+    /\b(push|chest|shoulders?|press)\b/.test(titleLower) &&
+    !/\b(pull|back|legs?)\b/.test(titleLower);
+  if (!isPressFocusDay) {
+    const pressMax = /\bupper\b/.test(titleLower) ? 3 : 2;
+    capByKey(
+      (n) => (classifyPushAngle(n) === 'other' ? null : 'press:total'),
+      pressMax,
+      (n) => classifyPullAngle(n) !== 'other',
+    );
+  }
 
   if (swaps > 0) {
     coachNotes.push(
