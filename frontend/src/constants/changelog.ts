@@ -25,6 +25,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-07-14',
+    version: '1.0.0',
+    date: '2026-07-14',
+    title: 'Smarter workout generation',
+    changes: [
+      { type: 'improved', text: 'Generated workouts now balance pushing and pulling and avoid stacking similar movements.' },
+      { type: 'improved', text: 'Every session fits the time you picked, including your hardest weeks.' },
+      { type: 'improved', text: 'Plans covering several weeks now build up, peak, and finish with a lighter recovery week, keeping the same core lifts throughout.' },
+      { type: 'improved', text: 'A simpler goal step when setting up your profile.' },
+      { type: 'new', text: 'Clear an entire week from your plan, with a quick confirmation before a repeated week starts.' },
+      { type: 'fixed', text: 'Plan controls display correctly on smaller screens.' },
+    ],
+  },
+  {
     id: '2026-07-07',
     version: '1.0.0',
     date: '2026-07-07',
