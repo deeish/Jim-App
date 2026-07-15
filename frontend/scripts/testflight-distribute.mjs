@@ -143,7 +143,7 @@ const fetchBuilds = (token, appId, { buildNumber, limit = 8 } = {}) =>
     `/builds?filter[app]=${appId}` +
       (buildNumber ? `&filter[version]=${encodeURIComponent(buildNumber)}` : '') +
       `&sort=-uploadedDate&limit=${limit}` +
-      '&fields[builds]=version,processingState,uploadedDate,expired' +
+      '&fields[builds]=version,processingState,uploadedDate,expired,preReleaseVersion' +
       '&include=preReleaseVersion&fields[preReleaseVersions]=version',
   );
 
