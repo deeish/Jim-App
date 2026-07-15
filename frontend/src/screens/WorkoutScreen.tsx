@@ -124,7 +124,6 @@ export default function WorkoutScreen() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<WorkoutSessionState | null>(null);
   const [savedWorkoutIds, setSavedWorkoutIds] = useState<string[]>([]);
-  const [savingLike, setSavingLike] = useState(false);
   /** Latest server workout while a session is active (for merging exercises added from Search). */
   const [liveServerWorkout, setLiveServerWorkout] = useState<Workout | null>(null);
   const [removingIndex, setRemovingIndex] = useState<number | null>(null);
@@ -464,14 +463,16 @@ export default function WorkoutScreen() {
       (async () => {
         try {
           if (workoutIdParam) {
-            const [w, plan] = await Promise.all([
+            const [w, plan, ids] = await Promise.all([
               getWorkoutById(workoutIdParam),
               getCurrentPlan(),
+              getSavedWorkoutIds().catch(() => []),
             ]);
             if (!cancelled) {
               setPlanToday(null);
               setPlanForEta(plan ?? null);
               setTodayWorkout(w);
+              setSavedWorkoutIds(ids);
             }
           } else {
             try {
@@ -521,12 +522,14 @@ export default function WorkoutScreen() {
     try {
       setLoading(true);
       setPlanToday(null);
-      const [workout, plan] = await Promise.all([
+      const [workout, plan, ids] = await Promise.all([
         getWorkoutById(id),
         getCurrentPlan(),
+        getSavedWorkoutIds().catch(() => []),
       ]);
       setPlanForEta(plan ?? null);
       setTodayWorkout(workout);
+      setSavedWorkoutIds(ids);
     } catch (error) {
       console.error('Error loading workout:', error);
       setTodayWorkout(null);
@@ -559,21 +562,22 @@ export default function WorkoutScreen() {
   };
 
   const handleToggleLike = async () => {
-    if (!todayWorkout?.id || savingLike) return;
-    setSavingLike(true);
+    if (!todayWorkout?.id) return;
+    const id = todayWorkout.id;
+    const wasSaved = savedWorkoutIds.includes(id);
+    // Optimistic like the exercise hearts: flip immediately, then sync with the server.
+    setSavedWorkoutIds((prev) => (wasSaved ? prev.filter((x) => x !== id) : [...prev, id]));
     try {
-      const isSaved = savedWorkoutIds.includes(todayWorkout.id);
-      if (isSaved) {
-        await unsaveWorkout(todayWorkout.id);
-        setSavedWorkoutIds((prev) => prev.filter((id) => id !== todayWorkout.id));
-      } else {
-        await saveWorkout(todayWorkout.id);
-        setSavedWorkoutIds((prev) => [...prev, todayWorkout.id]);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setSavingLike(false);
+      if (wasSaved) await unsaveWorkout(id);
+      else await saveWorkout(id);
+    } catch (e) {
+      if (__DEV__) console.warn('[Workout] toggle like failed', id, e);
+      // Revert the optimistic change so the UI matches the server.
+      setSavedWorkoutIds((prev) =>
+        wasSaved
+          ? prev.includes(id) ? prev : [...prev, id]
+          : prev.filter((x) => x !== id),
+      );
     }
   };
 
@@ -723,7 +727,6 @@ export default function WorkoutScreen() {
               saved={savedWorkoutIds.includes(todayWorkout.id)}
               onSave={handleToggleLike}
               onUnsave={handleToggleLike}
-              disabled={savingLike}
               size={26}
             />
           )}

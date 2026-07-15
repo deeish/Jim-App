@@ -43,7 +43,6 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [savingLike, setSavingLike] = useState(false);
   /** Collapsed by default — exercises stay “above the fold”; expand when you want the long AI copy. */
   const [guideExpanded, setGuideExpanded] = useState(false);
   /** Current plan snapshot to resolve slot duration when this workout is tied to Plan. */
@@ -261,20 +260,17 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   };
 
   const handleToggleSave = async () => {
-    if (!workout?.id || savingLike) return;
-    setSavingLike(true);
+    if (!workout?.id) return;
+    const wasSaved = saved;
+    // Optimistic like the exercise hearts: flip immediately, then sync with the server.
+    setSaved(!wasSaved);
     try {
-      if (saved) {
-        await unsaveWorkout(workout.id);
-        setSaved(false);
-      } else {
-        await saveWorkout(workout.id);
-        setSaved(true);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setSavingLike(false);
+      if (wasSaved) await unsaveWorkout(workout.id);
+      else await saveWorkout(workout.id);
+    } catch (e) {
+      if (__DEV__) console.warn('[WorkoutDetail] toggle save failed', workout.id, e);
+      // Revert the optimistic change so the UI matches the server.
+      setSaved(wasSaved);
     }
   };
 
@@ -369,7 +365,6 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
           saved={saved}
           onSave={handleToggleSave}
           onUnsave={handleToggleSave}
-          disabled={savingLike}
           size={26}
           style={styles.saveButton}
         />
