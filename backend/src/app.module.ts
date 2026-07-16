@@ -12,6 +12,7 @@ import { PlansModule } from './plans/plans.module';
 import { HealthModule } from './health/health.module';
 import { UsersModule } from './users/users.module';
 import { BodyWeightModule } from './body-weight/body-weight.module';
+import { SharesModule } from './shares/shares.module';
 import { AiThrottlerGuard } from './common/ai-throttler.guard';
 import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
 
@@ -110,6 +111,7 @@ import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
     HealthModule,
     UsersModule,
     BodyWeightModule,
+    SharesModule,
   ],
   providers: [
     AiThrottlerGuard,
