@@ -88,6 +88,41 @@ export function tokenizeQuery(query: string): string[] {
 }
 
 /**
+ * Adjacent-word joins of one source string ("Pull-Up" → ["pullup"]), so the
+ * compound spellings users actually type match the catalog's spaced/hyphenated
+ * names. Joins never cross field boundaries — the name and each alias
+ * contribute their own pairs.
+ */
+function adjacentJoins(source: string): string[] {
+  const ws = normalizeSearchText(source)
+    .split(' ')
+    .filter(Boolean)
+    .map(singularizeToken);
+  const joins: string[] = [];
+  for (let i = 0; i + 1 < ws.length; i++) joins.push(ws[i] + ws[i + 1]);
+  return joins;
+}
+
+/**
+ * Query-token variants with one adjacent pair joined ("dead lift" →
+ * ["deadlift"]), covering the reverse direction of adjacentJoins: the catalog
+ * writes one word where the user typed two. Long queries are skipped — they
+ * are sentences, not compound-name spellings.
+ */
+export function adjacentJoinVariants(tokens: string[]): string[][] {
+  if (tokens.length < 2 || tokens.length > 6) return [];
+  const variants: string[][] = [];
+  for (let i = 0; i + 1 < tokens.length; i++) {
+    variants.push([
+      ...tokens.slice(0, i),
+      tokens[i] + tokens[i + 1],
+      ...tokens.slice(i + 2),
+    ]);
+  }
+  return variants;
+}
+
+/**
  * The set of words an exercise is searchable by. Unlike the old matcher this
  * includes `equipment` and `movementPatterns`, so typing "barbell" or "machine"
  * matches even when that word lives only in those fields.
@@ -107,7 +142,14 @@ export function buildHaystackWords(ex: SearchableExercise): string[] {
     ...ex.equipment,
     ...ex.movementPatterns,
   ].join(' ');
-  return toWords(normalizeSearchText(joined));
+  const words = new Set(toWords(normalizeSearchText(joined)));
+  // Compound forms of the name and aliases ("pullup" for Pull-Up) so joined
+  // spellings match. Only name-ish fields — a muscle+equipment join would
+  // invent words nobody searches.
+  for (const source of [ex.name, ...(ex.aliases || [])]) {
+    for (const j of adjacentJoins(source)) words.add(j);
+  }
+  return [...words];
 }
 
 /**
@@ -135,14 +177,27 @@ export function searchRelevance(
 ): number {
   const name = normalizeSearchText(ex.name);
   const aliases = (ex.aliases || []).map(normalizeSearchText);
+  // Space-stripped forms so compound spellings rank like their spaced
+  // originals ("pullup" is an exact-name match for Pull-Up, not a tier-3
+  // cross-field hit).
+  const compactQuery = normalizedQuery.replace(/ /g, '');
+  const compactName = name.replace(/ /g, '');
 
-  if (name === normalizedQuery || aliases.includes(normalizedQuery)) return 0;
-  if (name.startsWith(normalizedQuery)) return 1;
+  if (
+    name === normalizedQuery ||
+    aliases.includes(normalizedQuery) ||
+    (compactQuery.length > 0 &&
+      (compactName === compactQuery ||
+        aliases.some((a) => a.replace(/ /g, '') === compactQuery)))
+  )
+    return 0;
+  if (name.startsWith(normalizedQuery) || compactName.startsWith(compactQuery))
+    return 1;
 
   // Rank on the "content" words (equipment qualifiers stripped), so e.g. a search
   // for "machine leg extension" ranks the actual Leg Extension above a Back
   // Extension that only matched via its Legs secondary muscle + Machine equipment.
-  const nameWords = toWords(name);
+  const nameWords = [...toWords(name), ...adjacentJoins(ex.name)];
   const contentTokens = queryTokens.filter((t) => !EQUIPMENT_TOKENS.has(t));
   const tokensForName = contentTokens.length > 0 ? contentTokens : queryTokens;
   if (tokensForName.every((t) => nameWords.some((w) => w.startsWith(t))))

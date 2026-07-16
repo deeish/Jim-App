@@ -22,6 +22,7 @@ import {
   buildHaystackWords,
   matchesAllTokens,
   searchRelevance,
+  adjacentJoinVariants,
 } from './exercise-search.util';
 
 /** Lower = show first. Used to prefer Barbell/Dumbbell/Bodyweight/Cable/Machine. */
@@ -81,6 +82,8 @@ export class ExercisesService implements OnModuleInit {
   /** Built once at startup; avoids remapping thousands of rows on every list request. */
   private memoFindAll: TransformedExercise[] = [];
   private memoStats: ReturnType<ExercisesService['computeStats']> | null = null;
+  /** exerciseId → search haystack (memoized — was rebuilt 1299× per keystroke). */
+  private haystackCache = new Map<string, string[]>();
 
   async onModuleInit() {
     await this.loadExercises();
@@ -153,21 +156,85 @@ export class ExercisesService implements OnModuleInit {
     return this.memoFindAll;
   }
 
+  private haystackFor(ex: TransformedExercise): string[] {
+    let words = this.haystackCache.get(ex.id);
+    if (!words) {
+      words = buildHaystackWords(ex);
+      this.haystackCache.set(ex.id, words);
+    }
+    return words;
+  }
+
+  /**
+   * Match the query against the candidates, trying forgiving rewrites only when
+   * they STRICTLY improve the best relevance tier. The literal tokens run first
+   * and win ties, so queries that already work keep their exact results.
+   * Rewrites: adjacent-token joins ("dead lift" → "deadlift", "lat pull down" →
+   * "lat pulldown"). Returns the matched rows plus the tokens/normalized query
+   * the relevance sort should rank with.
+   */
+  private bestTextMatch(
+    normalizedQuery: string,
+    queryTokens: string[],
+    candidates: TransformedExercise[],
+  ): {
+    results: TransformedExercise[];
+    tokens: string[];
+    normalizedQuery: string;
+  } {
+    const variants = [
+      { tokens: queryTokens, normalizedQuery },
+      ...adjacentJoinVariants(queryTokens).map((tokens) => ({
+        tokens,
+        normalizedQuery: tokens.join(' '),
+      })),
+    ];
+
+    let best: {
+      results: TransformedExercise[];
+      tokens: string[];
+      normalizedQuery: string;
+    } | null = null;
+    let bestTier = Infinity;
+    for (const variant of variants) {
+      const results = candidates.filter((ex) =>
+        matchesAllTokens(variant.tokens, this.haystackFor(ex)),
+      );
+      if (results.length === 0) continue;
+      let tier = 3;
+      for (const ex of results) {
+        tier = Math.min(
+          tier,
+          searchRelevance(variant.normalizedQuery, variant.tokens, ex),
+        );
+        if (tier === 0) break;
+      }
+      if (tier < bestTier) {
+        bestTier = tier;
+        best = { results, ...variant };
+      }
+    }
+    return best ?? { results: [], tokens: queryTokens, normalizedQuery };
+  }
+
   search(searchDto: SearchExercisesDto): TransformedExercise[] {
     let results = this.exercises.filter(
       (e) => !isExcludedFromExerciseCatalog(e.id),
     );
 
-    // Text search: tokenized, order-independent, equipment/movement-aware match.
+    // Text search: tokenized, order-independent, equipment/movement-aware match,
+    // with forgiving rewrites (compound joins) when they strictly beat the
+    // literal query. The chosen variant's tokens drive the relevance sort below.
     let queryTokens: string[] = [];
     let normalizedQuery = '';
     if (searchDto.searchQuery?.trim()) {
       normalizedQuery = normalizeSearchText(searchDto.searchQuery);
       queryTokens = tokenizeQuery(searchDto.searchQuery);
       if (queryTokens.length > 0) {
-        results = results.filter((exercise) =>
-          matchesAllTokens(queryTokens, buildHaystackWords(exercise)),
-        );
+        const best = this.bestTextMatch(normalizedQuery, queryTokens, results);
+        results = best.results;
+        queryTokens = best.tokens;
+        normalizedQuery = best.normalizedQuery;
       }
     }
 

@@ -5,6 +5,7 @@ import {
   buildHaystackWords,
   matchesAllTokens,
   searchRelevance,
+  adjacentJoinVariants,
   SearchableExercise,
 } from './exercise-search.util';
 
@@ -155,6 +156,52 @@ describe('matchesAllTokens (the reported failures)', () => {
     expect(
       matchesAllTokens(tokenizeQuery('row'), buildHaystackWords(narrowGrip)),
     ).toBe(false);
+  });
+});
+
+describe('compound spellings', () => {
+  const pullUp = makeExercise({
+    name: 'Pull-Up',
+    aliases: ['Chin-Up Grip Pull'],
+    primaryMuscleGroup: 'Back',
+  });
+
+  it('haystack includes joined name words so "pullup" matches Pull-Up', () => {
+    const hay = buildHaystackWords(pullUp);
+    expect(hay).toContain('pullup');
+    expect(matchesAllTokens(tokenizeQuery('pullup'), hay)).toBe(true);
+    // plural compound folds first, then joins: "pullups" → "pullup"
+    expect(matchesAllTokens(tokenizeQuery('pullups'), hay)).toBe(true);
+  });
+
+  it('haystack joins aliases too, but never across field boundaries', () => {
+    const hay = buildHaystackWords(pullUp);
+    expect(hay).toContain('chinup');
+    // last name word + first alias word must NOT fuse ("up" + "chin")
+    expect(hay).not.toContain('upchin');
+    // muscle words never join with name words
+    expect(hay).not.toContain('backpull');
+  });
+
+  it('adjacentJoinVariants covers split spellings of one-word names', () => {
+    expect(adjacentJoinVariants(['dead', 'lift'])).toEqual([['deadlift']]);
+    expect(adjacentJoinVariants(['lat', 'pull', 'down'])).toEqual([
+      ['latpull', 'down'],
+      ['lat', 'pulldown'],
+    ]);
+    expect(adjacentJoinVariants(['single'])).toEqual([]);
+    expect(adjacentJoinVariants(['a', 'b', 'c', 'd', 'e', 'f', 'g'])).toEqual(
+      [],
+    );
+  });
+
+  it('ranks a compound spelling as an exact-name match', () => {
+    expect(searchRelevance('pullup', tokenizeQuery('pullup'), pullUp)).toBe(0);
+    // and prefix-tier for compact prefixes of longer names
+    const pushUpPlus = makeExercise({ name: 'Push-Up Plus' });
+    expect(searchRelevance('pushup', tokenizeQuery('pushup'), pushUpPlus)).toBe(
+      1,
+    );
   });
 });
 
