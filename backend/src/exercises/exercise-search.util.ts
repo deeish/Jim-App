@@ -61,10 +61,11 @@ export function normalizeSearchText(s: string): string {
 /**
  * Naive singular fold so "extensions" matches "extension". Applied to BOTH the
  * query tokens and the haystack words, so consistency matters more than linguistic
- * correctness. Leaves short words and "ss" endings alone ("press", "abs").
+ * correctness. Folds short plurals too ("ups" → "up", so "step ups" finds
+ * Step-Up); only "ss" endings ("press") and 1-2 letter words are left alone.
  */
 export function singularizeToken(w: string): string {
-  if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) {
+  if (w.length > 2 && w.endsWith('s') && !w.endsWith('ss')) {
     return w.slice(0, -1);
   }
   return w;
@@ -87,6 +88,145 @@ export function tokenizeQuery(query: string): string[] {
 }
 
 /**
+ * Adjacent-word joins of one source string ("Pull-Up" → ["pullup"]), so the
+ * compound spellings users actually type match the catalog's spaced/hyphenated
+ * names. Joins never cross field boundaries — the name and each alias
+ * contribute their own pairs.
+ */
+function adjacentJoins(source: string): string[] {
+  const ws = normalizeSearchText(source)
+    .split(' ')
+    .filter(Boolean)
+    .map(singularizeToken);
+  const joins: string[] = [];
+  for (let i = 0; i + 1 < ws.length; i++) joins.push(ws[i] + ws[i + 1]);
+  return joins;
+}
+
+/**
+ * Query-token variants with one adjacent pair joined ("dead lift" →
+ * ["deadlift"]), covering the reverse direction of adjacentJoins: the catalog
+ * writes one word where the user typed two. Long queries are skipped — they
+ * are sentences, not compound-name spellings.
+ */
+export function adjacentJoinVariants(tokens: string[]): string[][] {
+  if (tokens.length < 2 || tokens.length > 6) return [];
+  const variants: string[][] = [];
+  for (let i = 0; i + 1 < tokens.length; i++) {
+    variants.push([
+      ...tokens.slice(0, i),
+      tokens[i] + tokens[i + 1],
+      ...tokens.slice(i + 2),
+    ]);
+  }
+  return variants;
+}
+
+/**
+ * Gym slang → the word the catalog actually uses. Keys are post-singularization
+ * tokens ("hammies" arrives as "hammie"). Deliberately tiny and evidence-driven:
+ * most slang already works through catalog aliases ("Military Press" is an
+ * alias of Barbell Overhead Press), so an entry is added only when the golden
+ * query suite proves it dead without one. Applied as an EXTRA query variant,
+ * never a replacement, so a synonym can't shadow a real name or alias match.
+ */
+const QUERY_SYNONYMS: Record<string, string> = {
+  bb: 'barbell',
+  db: 'dumbbell',
+  kb: 'kettlebell',
+  pressdown: 'pushdown',
+  hammie: 'hamstring',
+  // "ohp" has no catalog alias yet; without this it typo-corrects to "hop"
+  // (Jumping Jack). Multi-word so the press family outranks tier-1 names
+  // like Overhead Squat.
+  ohp: 'overhead press',
+};
+
+/** Synonym-mapped copy of the tokens, or null when no synonym applies. */
+export function applyQuerySynonyms(tokens: string[]): string[] | null {
+  let changed = false;
+  const mapped = tokens.flatMap((token) => {
+    const synonym = QUERY_SYNONYMS[token];
+    if (synonym) {
+      changed = true;
+      return synonym.split(' ');
+    }
+    return [token];
+  });
+  return changed ? mapped : null;
+}
+
+/**
+ * True when a can be turned into b with at most one edit (insert, delete,
+ * substitute, or adjacent transposition — Damerau-Levenshtein). Transpositions
+ * matter: "sqaut" and "deadlfit" are the most common real typo shape.
+ */
+export function withinOneEdit(a: string, b: string): boolean {
+  if (a === b) return true;
+  const m = a.length;
+  const n = b.length;
+  if (Math.abs(m - n) > 1) return false;
+  const d: number[][] = Array.from({ length: m + 1 }, (_, i) => {
+    const row = new Array<number>(n + 1).fill(0);
+    row[0] = i;
+    return row;
+  });
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(
+        d[i - 1][j] + 1,
+        d[i][j - 1] + 1,
+        d[i - 1][j - 1] + cost,
+      );
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return d[m][n] <= 1;
+}
+
+/**
+ * Typo fallback: rewrite tokens that prefix-match NOTHING in the vocabulary to
+ * their closest vocab word (one edit away). Tokens that reach anything are left
+ * alone — this only fires where the query is otherwise a guaranteed dead end
+ * ("dumbell", "flyes", "extention"). Ties break on frequency then alphabet so
+ * results are deterministic. Returns null when nothing was corrected.
+ */
+export function correctQueryTokens(
+  tokens: string[],
+  vocab: Map<string, number>,
+): string[] | null {
+  let changed = false;
+  const corrected = tokens.map((token) => {
+    if (token.length < 3) return token; // too short to guess intent
+    for (const word of vocab.keys()) {
+      if (word.startsWith(token)) return token; // reaches something somewhere
+    }
+    let best: string | null = null;
+    let bestFreq = -1;
+    for (const [word, freq] of vocab) {
+      if (!withinOneEdit(token, word)) continue;
+      if (
+        freq > bestFreq ||
+        (freq === bestFreq && best !== null && word < best)
+      ) {
+        best = word;
+        bestFreq = freq;
+      }
+    }
+    if (best !== null) {
+      changed = true;
+      return best;
+    }
+    return token;
+  });
+  return changed ? corrected : null;
+}
+
+/**
  * The set of words an exercise is searchable by. Unlike the old matcher this
  * includes `equipment` and `movementPatterns`, so typing "barbell" or "machine"
  * matches even when that word lives only in those fields.
@@ -106,7 +246,14 @@ export function buildHaystackWords(ex: SearchableExercise): string[] {
     ...ex.equipment,
     ...ex.movementPatterns,
   ].join(' ');
-  return toWords(normalizeSearchText(joined));
+  const words = new Set(toWords(normalizeSearchText(joined)));
+  // Compound forms of the name and aliases ("pullup" for Pull-Up) so joined
+  // spellings match. Only name-ish fields — a muscle+equipment join would
+  // invent words nobody searches.
+  for (const source of [ex.name, ...(ex.aliases || [])]) {
+    for (const j of adjacentJoins(source)) words.add(j);
+  }
+  return [...words];
 }
 
 /**
@@ -134,14 +281,27 @@ export function searchRelevance(
 ): number {
   const name = normalizeSearchText(ex.name);
   const aliases = (ex.aliases || []).map(normalizeSearchText);
+  // Space-stripped forms so compound spellings rank like their spaced
+  // originals ("pullup" is an exact-name match for Pull-Up, not a tier-3
+  // cross-field hit).
+  const compactQuery = normalizedQuery.replace(/ /g, '');
+  const compactName = name.replace(/ /g, '');
 
-  if (name === normalizedQuery || aliases.includes(normalizedQuery)) return 0;
-  if (name.startsWith(normalizedQuery)) return 1;
+  if (
+    name === normalizedQuery ||
+    aliases.includes(normalizedQuery) ||
+    (compactQuery.length > 0 &&
+      (compactName === compactQuery ||
+        aliases.some((a) => a.replace(/ /g, '') === compactQuery)))
+  )
+    return 0;
+  if (name.startsWith(normalizedQuery) || compactName.startsWith(compactQuery))
+    return 1;
 
   // Rank on the "content" words (equipment qualifiers stripped), so e.g. a search
   // for "machine leg extension" ranks the actual Leg Extension above a Back
   // Extension that only matched via its Legs secondary muscle + Machine equipment.
-  const nameWords = toWords(name);
+  const nameWords = [...toWords(name), ...adjacentJoins(ex.name)];
   const contentTokens = queryTokens.filter((t) => !EQUIPMENT_TOKENS.has(t));
   const tokensForName = contentTokens.length > 0 ? contentTokens : queryTokens;
   if (tokensForName.every((t) => nameWords.some((w) => w.startsWith(t))))

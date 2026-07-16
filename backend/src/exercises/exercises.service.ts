@@ -22,6 +22,9 @@ import {
   buildHaystackWords,
   matchesAllTokens,
   searchRelevance,
+  adjacentJoinVariants,
+  correctQueryTokens,
+  applyQuerySynonyms,
 } from './exercise-search.util';
 
 /** Lower = show first. Used to prefer Barbell/Dumbbell/Bodyweight/Cable/Machine. */
@@ -81,6 +84,10 @@ export class ExercisesService implements OnModuleInit {
   /** Built once at startup; avoids remapping thousands of rows on every list request. */
   private memoFindAll: TransformedExercise[] = [];
   private memoStats: ReturnType<ExercisesService['computeStats']> | null = null;
+  /** exerciseId → search haystack (memoized — was rebuilt 1299× per keystroke). */
+  private haystackCache = new Map<string, string[]>();
+  /** word → frequency across all haystacks; built on first typo correction. */
+  private vocabCache: Map<string, number> | null = null;
 
   async onModuleInit() {
     await this.loadExercises();
@@ -153,21 +160,117 @@ export class ExercisesService implements OnModuleInit {
     return this.memoFindAll;
   }
 
+  private haystackFor(ex: TransformedExercise): string[] {
+    let words = this.haystackCache.get(ex.id);
+    if (!words) {
+      words = buildHaystackWords(ex);
+      this.haystackCache.set(ex.id, words);
+    }
+    return words;
+  }
+
+  /** Every searchable word (incl. compound joins) with its catalog frequency. */
+  private searchVocab(): Map<string, number> {
+    if (!this.vocabCache) {
+      const vocab = new Map<string, number>();
+      for (const ex of this.exercises) {
+        for (const word of this.haystackFor(ex)) {
+          vocab.set(word, (vocab.get(word) ?? 0) + 1);
+        }
+      }
+      this.vocabCache = vocab;
+    }
+    return this.vocabCache;
+  }
+
+  /**
+   * Match the query against the candidates, trying forgiving rewrites only when
+   * they STRICTLY improve the best relevance tier. The literal tokens run first
+   * and win ties, so queries that already work keep their exact results.
+   * Rewrites: adjacent-token joins ("dead lift" → "deadlift", "lat pull down" →
+   * "lat pulldown"). Returns the matched rows plus the tokens/normalized query
+   * the relevance sort should rank with.
+   */
+  private bestTextMatch(
+    normalizedQuery: string,
+    queryTokens: string[],
+    candidates: TransformedExercise[],
+  ): {
+    results: TransformedExercise[];
+    tokens: string[];
+    normalizedQuery: string;
+  } {
+    const variants = [
+      { tokens: queryTokens, normalizedQuery },
+      ...adjacentJoinVariants(queryTokens).map((tokens) => ({
+        tokens,
+        normalizedQuery: tokens.join(' '),
+      })),
+    ];
+    // Slang variant ("bb row" → "barbell row") — extra attempt, so a synonym
+    // can never shadow an exercise literally named with the slang word.
+    const synonyms = applyQuerySynonyms(queryTokens);
+    if (synonyms) {
+      variants.push({
+        tokens: synonyms,
+        normalizedQuery: synonyms.join(' '),
+      });
+    }
+    // Typo fallback: only rewrites tokens that reach nothing anywhere in the
+    // catalog, so it cannot hijack a query that already works.
+    const corrected = correctQueryTokens(queryTokens, this.searchVocab());
+    if (corrected) {
+      variants.push({
+        tokens: corrected,
+        normalizedQuery: corrected.join(' '),
+      });
+    }
+
+    let best: {
+      results: TransformedExercise[];
+      tokens: string[];
+      normalizedQuery: string;
+    } | null = null;
+    let bestTier = Infinity;
+    for (const variant of variants) {
+      const results = candidates.filter((ex) =>
+        matchesAllTokens(variant.tokens, this.haystackFor(ex)),
+      );
+      if (results.length === 0) continue;
+      let tier = 3;
+      for (const ex of results) {
+        tier = Math.min(
+          tier,
+          searchRelevance(variant.normalizedQuery, variant.tokens, ex),
+        );
+        if (tier === 0) break;
+      }
+      if (tier < bestTier) {
+        bestTier = tier;
+        best = { results, ...variant };
+      }
+    }
+    return best ?? { results: [], tokens: queryTokens, normalizedQuery };
+  }
+
   search(searchDto: SearchExercisesDto): TransformedExercise[] {
     let results = this.exercises.filter(
       (e) => !isExcludedFromExerciseCatalog(e.id),
     );
 
-    // Text search: tokenized, order-independent, equipment/movement-aware match.
+    // Text search: tokenized, order-independent, equipment/movement-aware match,
+    // with forgiving rewrites (compound joins) when they strictly beat the
+    // literal query. The chosen variant's tokens drive the relevance sort below.
     let queryTokens: string[] = [];
     let normalizedQuery = '';
     if (searchDto.searchQuery?.trim()) {
       normalizedQuery = normalizeSearchText(searchDto.searchQuery);
       queryTokens = tokenizeQuery(searchDto.searchQuery);
       if (queryTokens.length > 0) {
-        results = results.filter((exercise) =>
-          matchesAllTokens(queryTokens, buildHaystackWords(exercise)),
-        );
+        const best = this.bestTextMatch(normalizedQuery, queryTokens, results);
+        results = best.results;
+        queryTokens = best.tokens;
+        normalizedQuery = best.normalizedQuery;
       }
     }
 

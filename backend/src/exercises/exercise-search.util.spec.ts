@@ -5,6 +5,10 @@ import {
   buildHaystackWords,
   matchesAllTokens,
   searchRelevance,
+  adjacentJoinVariants,
+  withinOneEdit,
+  correctQueryTokens,
+  applyQuerySynonyms,
   SearchableExercise,
 } from './exercise-search.util';
 
@@ -67,9 +71,14 @@ describe('singularizeToken', () => {
     expect(singularizeToken('curls')).toBe('curl');
   });
 
-  it('leaves short words and ss endings alone', () => {
-    expect(singularizeToken('abs')).toBe('abs');
+  it('folds short plurals so "step ups" can find Step-Up', () => {
+    expect(singularizeToken('ups')).toBe('up');
+    expect(singularizeToken('abs')).toBe('ab');
+  });
+
+  it('leaves ss endings and 1-2 letter words alone', () => {
     expect(singularizeToken('press')).toBe('press');
+    expect(singularizeToken('as')).toBe('as');
   });
 });
 
@@ -150,6 +159,125 @@ describe('matchesAllTokens (the reported failures)', () => {
     expect(
       matchesAllTokens(tokenizeQuery('row'), buildHaystackWords(narrowGrip)),
     ).toBe(false);
+  });
+});
+
+describe('compound spellings', () => {
+  const pullUp = makeExercise({
+    name: 'Pull-Up',
+    aliases: ['Chin-Up Grip Pull'],
+    primaryMuscleGroup: 'Back',
+  });
+
+  it('haystack includes joined name words so "pullup" matches Pull-Up', () => {
+    const hay = buildHaystackWords(pullUp);
+    expect(hay).toContain('pullup');
+    expect(matchesAllTokens(tokenizeQuery('pullup'), hay)).toBe(true);
+    // plural compound folds first, then joins: "pullups" → "pullup"
+    expect(matchesAllTokens(tokenizeQuery('pullups'), hay)).toBe(true);
+  });
+
+  it('haystack joins aliases too, but never across field boundaries', () => {
+    const hay = buildHaystackWords(pullUp);
+    expect(hay).toContain('chinup');
+    // last name word + first alias word must NOT fuse ("up" + "chin")
+    expect(hay).not.toContain('upchin');
+    // muscle words never join with name words
+    expect(hay).not.toContain('backpull');
+  });
+
+  it('adjacentJoinVariants covers split spellings of one-word names', () => {
+    expect(adjacentJoinVariants(['dead', 'lift'])).toEqual([['deadlift']]);
+    expect(adjacentJoinVariants(['lat', 'pull', 'down'])).toEqual([
+      ['latpull', 'down'],
+      ['lat', 'pulldown'],
+    ]);
+    expect(adjacentJoinVariants(['single'])).toEqual([]);
+    expect(adjacentJoinVariants(['a', 'b', 'c', 'd', 'e', 'f', 'g'])).toEqual(
+      [],
+    );
+  });
+
+  it('ranks a compound spelling as an exact-name match', () => {
+    expect(searchRelevance('pullup', tokenizeQuery('pullup'), pullUp)).toBe(0);
+    // and prefix-tier for compact prefixes of longer names
+    const pushUpPlus = makeExercise({ name: 'Push-Up Plus' });
+    expect(searchRelevance('pushup', tokenizeQuery('pushup'), pushUpPlus)).toBe(
+      1,
+    );
+  });
+});
+
+describe('typo fallback', () => {
+  it('withinOneEdit covers substitution, insert/delete, and transposition', () => {
+    expect(withinOneEdit('dumbell', 'dumbbell')).toBe(true); // missing letter
+    expect(withinOneEdit('extention', 'extension')).toBe(true); // substitution
+    expect(withinOneEdit('sqaut', 'squat')).toBe(true); // transposition
+    expect(withinOneEdit('flye', 'fly')).toBe(true); // trailing extra letter
+    expect(withinOneEdit('bench', 'squat')).toBe(false);
+    expect(withinOneEdit('dumbell', 'dumbells')).toBe(true);
+  });
+
+  const vocab = new Map<string, number>([
+    ['dumbbell', 120],
+    ['barbell', 110],
+    ['squat', 40],
+    ['press', 90],
+    ['pullup', 8],
+  ]);
+
+  it('corrects only tokens that reach nothing in the vocabulary', () => {
+    expect(correctQueryTokens(['dumbell', 'press'], vocab)).toEqual([
+      'dumbbell',
+      'press',
+    ]);
+    expect(correctQueryTokens(['sqaut'], vocab)).toEqual(['squat']);
+    // misspelled compound corrects via the joined form
+    expect(correctQueryTokens(['pulup'], vocab)).toEqual(['pullup']);
+  });
+
+  it('leaves working queries and short tokens untouched', () => {
+    // "pres" prefix-matches "press" — no correction, returns null
+    expect(correctQueryTokens(['pres'], vocab)).toBeNull();
+    expect(correctQueryTokens(['squat'], vocab)).toBeNull();
+    // 2-letter tokens are never corrected (synonyms own "bb"/"db")
+    expect(correctQueryTokens(['bb'], vocab)).toBeNull();
+  });
+
+  it('breaks ties deterministically: frequency first, then alphabet', () => {
+    const tie = new Map<string, number>([
+      ['cat', 5],
+      ['bat', 5],
+      ['hat', 9],
+    ]);
+    // all three are one edit from "aat"; "hat" wins on frequency
+    expect(correctQueryTokens(['aat'], tie)).toEqual(['hat']);
+    const equalFreq = new Map<string, number>([
+      ['cat', 5],
+      ['bat', 5],
+    ]);
+    // equal frequency → alphabetical
+    expect(correctQueryTokens(['aat'], equalFreq)).toEqual(['bat']);
+  });
+});
+
+describe('applyQuerySynonyms', () => {
+  it('maps slang tokens (post-singularization keys)', () => {
+    expect(applyQuerySynonyms(tokenizeQuery('bb row'))).toEqual([
+      'barbell',
+      'row',
+    ]);
+    // "hammies" tokenizes to "hammie" before the synonym lookup
+    expect(applyQuerySynonyms(tokenizeQuery('hammies'))).toEqual(['hamstring']);
+    // multi-word synonyms expand into separate tokens
+    expect(applyQuerySynonyms(tokenizeQuery('ohp'))).toEqual([
+      'overhead',
+      'press',
+    ]);
+  });
+
+  it('returns null when no synonym applies, so no extra variant is tried', () => {
+    expect(applyQuerySynonyms(tokenizeQuery('bench press'))).toBeNull();
   });
 });
 
