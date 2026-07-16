@@ -67,9 +67,14 @@ describe('singularizeToken', () => {
     expect(singularizeToken('curls')).toBe('curl');
   });
 
-  it('leaves short words and ss endings alone', () => {
-    expect(singularizeToken('abs')).toBe('abs');
+  it('folds short plurals so "step ups" can find Step-Up', () => {
+    expect(singularizeToken('ups')).toBe('up');
+    expect(singularizeToken('abs')).toBe('ab');
+  });
+
+  it('leaves ss endings and 1-2 letter words alone', () => {
     expect(singularizeToken('press')).toBe('press');
+    expect(singularizeToken('as')).toBe('as');
   });
 });
 

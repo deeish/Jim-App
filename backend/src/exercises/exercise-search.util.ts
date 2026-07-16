@@ -61,10 +61,11 @@ export function normalizeSearchText(s: string): string {
 /**
  * Naive singular fold so "extensions" matches "extension". Applied to BOTH the
  * query tokens and the haystack words, so consistency matters more than linguistic
- * correctness. Leaves short words and "ss" endings alone ("press", "abs").
+ * correctness. Folds short plurals too ("ups" → "up", so "step ups" finds
+ * Step-Up); only "ss" endings ("press") and 1-2 letter words are left alone.
  */
 export function singularizeToken(w: string): string {
-  if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) {
+  if (w.length > 2 && w.endsWith('s') && !w.endsWith('ss')) {
     return w.slice(0, -1);
   }
   return w;
