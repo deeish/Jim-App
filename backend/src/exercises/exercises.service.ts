@@ -23,6 +23,7 @@ import {
   matchesAllTokens,
   searchRelevance,
   adjacentJoinVariants,
+  correctQueryTokens,
 } from './exercise-search.util';
 
 /** Lower = show first. Used to prefer Barbell/Dumbbell/Bodyweight/Cable/Machine. */
@@ -84,6 +85,8 @@ export class ExercisesService implements OnModuleInit {
   private memoStats: ReturnType<ExercisesService['computeStats']> | null = null;
   /** exerciseId → search haystack (memoized — was rebuilt 1299× per keystroke). */
   private haystackCache = new Map<string, string[]>();
+  /** word → frequency across all haystacks; built on first typo correction. */
+  private vocabCache: Map<string, number> | null = null;
 
   async onModuleInit() {
     await this.loadExercises();
@@ -165,6 +168,20 @@ export class ExercisesService implements OnModuleInit {
     return words;
   }
 
+  /** Every searchable word (incl. compound joins) with its catalog frequency. */
+  private searchVocab(): Map<string, number> {
+    if (!this.vocabCache) {
+      const vocab = new Map<string, number>();
+      for (const ex of this.exercises) {
+        for (const word of this.haystackFor(ex)) {
+          vocab.set(word, (vocab.get(word) ?? 0) + 1);
+        }
+      }
+      this.vocabCache = vocab;
+    }
+    return this.vocabCache;
+  }
+
   /**
    * Match the query against the candidates, trying forgiving rewrites only when
    * they STRICTLY improve the best relevance tier. The literal tokens run first
@@ -189,6 +206,15 @@ export class ExercisesService implements OnModuleInit {
         normalizedQuery: tokens.join(' '),
       })),
     ];
+    // Typo fallback: only rewrites tokens that reach nothing anywhere in the
+    // catalog, so it cannot hijack a query that already works.
+    const corrected = correctQueryTokens(queryTokens, this.searchVocab());
+    if (corrected) {
+      variants.push({
+        tokens: corrected,
+        normalizedQuery: corrected.join(' '),
+      });
+    }
 
     let best: {
       results: TransformedExercise[];

@@ -6,6 +6,8 @@ import {
   matchesAllTokens,
   searchRelevance,
   adjacentJoinVariants,
+  withinOneEdit,
+  correctQueryTokens,
   SearchableExercise,
 } from './exercise-search.util';
 
@@ -202,6 +204,59 @@ describe('compound spellings', () => {
     expect(searchRelevance('pushup', tokenizeQuery('pushup'), pushUpPlus)).toBe(
       1,
     );
+  });
+});
+
+describe('typo fallback', () => {
+  it('withinOneEdit covers substitution, insert/delete, and transposition', () => {
+    expect(withinOneEdit('dumbell', 'dumbbell')).toBe(true); // missing letter
+    expect(withinOneEdit('extention', 'extension')).toBe(true); // substitution
+    expect(withinOneEdit('sqaut', 'squat')).toBe(true); // transposition
+    expect(withinOneEdit('flye', 'fly')).toBe(true); // trailing extra letter
+    expect(withinOneEdit('bench', 'squat')).toBe(false);
+    expect(withinOneEdit('dumbell', 'dumbells')).toBe(true);
+  });
+
+  const vocab = new Map<string, number>([
+    ['dumbbell', 120],
+    ['barbell', 110],
+    ['squat', 40],
+    ['press', 90],
+    ['pullup', 8],
+  ]);
+
+  it('corrects only tokens that reach nothing in the vocabulary', () => {
+    expect(correctQueryTokens(['dumbell', 'press'], vocab)).toEqual([
+      'dumbbell',
+      'press',
+    ]);
+    expect(correctQueryTokens(['sqaut'], vocab)).toEqual(['squat']);
+    // misspelled compound corrects via the joined form
+    expect(correctQueryTokens(['pulup'], vocab)).toEqual(['pullup']);
+  });
+
+  it('leaves working queries and short tokens untouched', () => {
+    // "pres" prefix-matches "press" — no correction, returns null
+    expect(correctQueryTokens(['pres'], vocab)).toBeNull();
+    expect(correctQueryTokens(['squat'], vocab)).toBeNull();
+    // 2-letter tokens are never corrected (synonyms own "bb"/"db")
+    expect(correctQueryTokens(['bb'], vocab)).toBeNull();
+  });
+
+  it('breaks ties deterministically: frequency first, then alphabet', () => {
+    const tie = new Map<string, number>([
+      ['cat', 5],
+      ['bat', 5],
+      ['hat', 9],
+    ]);
+    // all three are one edit from "aat"; "hat" wins on frequency
+    expect(correctQueryTokens(['aat'], tie)).toEqual(['hat']);
+    const equalFreq = new Map<string, number>([
+      ['cat', 5],
+      ['bat', 5],
+    ]);
+    // equal frequency → alphabetical
+    expect(correctQueryTokens(['aat'], equalFreq)).toEqual(['bat']);
   });
 });
 

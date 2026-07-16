@@ -123,6 +123,76 @@ export function adjacentJoinVariants(tokens: string[]): string[][] {
 }
 
 /**
+ * True when a can be turned into b with at most one edit (insert, delete,
+ * substitute, or adjacent transposition — Damerau-Levenshtein). Transpositions
+ * matter: "sqaut" and "deadlfit" are the most common real typo shape.
+ */
+export function withinOneEdit(a: string, b: string): boolean {
+  if (a === b) return true;
+  const m = a.length;
+  const n = b.length;
+  if (Math.abs(m - n) > 1) return false;
+  const d: number[][] = Array.from({ length: m + 1 }, (_, i) => {
+    const row = new Array<number>(n + 1).fill(0);
+    row[0] = i;
+    return row;
+  });
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(
+        d[i - 1][j] + 1,
+        d[i][j - 1] + 1,
+        d[i - 1][j - 1] + cost,
+      );
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return d[m][n] <= 1;
+}
+
+/**
+ * Typo fallback: rewrite tokens that prefix-match NOTHING in the vocabulary to
+ * their closest vocab word (one edit away). Tokens that reach anything are left
+ * alone — this only fires where the query is otherwise a guaranteed dead end
+ * ("dumbell", "flyes", "extention"). Ties break on frequency then alphabet so
+ * results are deterministic. Returns null when nothing was corrected.
+ */
+export function correctQueryTokens(
+  tokens: string[],
+  vocab: Map<string, number>,
+): string[] | null {
+  let changed = false;
+  const corrected = tokens.map((token) => {
+    if (token.length < 3) return token; // too short to guess intent
+    for (const word of vocab.keys()) {
+      if (word.startsWith(token)) return token; // reaches something somewhere
+    }
+    let best: string | null = null;
+    let bestFreq = -1;
+    for (const [word, freq] of vocab) {
+      if (!withinOneEdit(token, word)) continue;
+      if (
+        freq > bestFreq ||
+        (freq === bestFreq && best !== null && word < best)
+      ) {
+        best = word;
+        bestFreq = freq;
+      }
+    }
+    if (best !== null) {
+      changed = true;
+      return best;
+    }
+    return token;
+  });
+  return changed ? corrected : null;
+}
+
+/**
  * The set of words an exercise is searchable by. Unlike the old matcher this
  * includes `equipment` and `movementPatterns`, so typing "barbell" or "machine"
  * matches even when that word lives only in those fields.
