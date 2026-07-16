@@ -136,18 +136,22 @@ const QUERY_SYNONYMS: Record<string, string> = {
   kb: 'kettlebell',
   pressdown: 'pushdown',
   hammie: 'hamstring',
+  // "ohp" has no catalog alias yet; without this it typo-corrects to "hop"
+  // (Jumping Jack). Multi-word so the press family outranks tier-1 names
+  // like Overhead Squat.
+  ohp: 'overhead press',
 };
 
 /** Synonym-mapped copy of the tokens, or null when no synonym applies. */
 export function applyQuerySynonyms(tokens: string[]): string[] | null {
   let changed = false;
-  const mapped = tokens.map((token) => {
+  const mapped = tokens.flatMap((token) => {
     const synonym = QUERY_SYNONYMS[token];
     if (synonym) {
       changed = true;
-      return synonym;
+      return synonym.split(' ');
     }
-    return token;
+    return [token];
   });
   return changed ? mapped : null;
 }

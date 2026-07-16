@@ -269,6 +269,11 @@ describe('applyQuerySynonyms', () => {
     ]);
     // "hammies" tokenizes to "hammie" before the synonym lookup
     expect(applyQuerySynonyms(tokenizeQuery('hammies'))).toEqual(['hamstring']);
+    // multi-word synonyms expand into separate tokens
+    expect(applyQuerySynonyms(tokenizeQuery('ohp'))).toEqual([
+      'overhead',
+      'press',
+    ]);
   });
 
   it('returns null when no synonym applies, so no extra variant is tried', () => {
