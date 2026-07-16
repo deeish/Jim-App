@@ -50,11 +50,14 @@ needs App Store Connect clicking:
 cd frontend
 npm run tf:status                                   # recent builds + processing state
 npm run tf:groups                                   # tester groups (internal/external)
-npm run tf:distribute -- --group "Friends" --wait   # add the latest build to a group
-npm run tf:distribute -- --group "Friends" --build 12
+npm run tf:distribute -- --group "Friends" --wait   # wait for the just-submitted build
+npm run tf:distribute -- --group "Friends" --build 12 [--wait]
 ```
 
-`--wait` polls until Apple finishes processing the upload (up to 30 min).
+`--wait` polls (up to 30 min) until the just-submitted build registers in
+App Store Connect **and** finishes processing — new uploads take a few
+minutes to appear, and without `--wait` "latest" would still be the previous
+release. Without any flags the latest already-processed build is used.
 Adding a build to an **external** group triggers Beta App Review
 automatically (the demo review account is already configured in ASC).
 Internal groups get the build immediately.
