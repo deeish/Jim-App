@@ -41,6 +41,44 @@ npx eas-cli@latest submit --profile production --platform android
 
 Follow EAS prompts for App Store Connect / Play Console API keys or uploads.
 
+## TestFlight tester distribution (automated)
+
+After `eas submit` uploads a build, assigning it to tester groups no longer
+needs App Store Connect clicking:
+
+```bash
+cd frontend
+npm run tf:status                                   # recent builds + processing state
+npm run tf:groups                                   # tester groups (internal/external)
+npm run tf:distribute -- --group "Friends" --wait   # add the latest build to a group
+npm run tf:distribute -- --group "Friends" --build 12
+```
+
+`--wait` polls until Apple finishes processing the upload (up to 30 min).
+Adding a build to an **external** group triggers Beta App Review
+automatically (the demo review account is already configured in ASC).
+Internal groups get the build immediately.
+
+**One-time setup:** App Store Connect → Users and Access → Integrations →
+Team Keys → **Generate API Key** with role **App Manager**. Download the
+`.p8` (offered exactly once), drop it in `frontend/` (gitignored via `*.p8`),
+and set in `frontend/.env`:
+
+```
+ASC_API_KEY_ID=XXXXXXXXXX
+ASC_API_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ASC_API_KEY_PATH=./AuthKey_XXXXXXXXXX.p8
+```
+
+The script (`frontend/scripts/testflight-distribute.mjs`) has no dependencies;
+it signs the ASC JWT with Node's built-in crypto. Full release sequence:
+
+```bash
+npm run eas:build:production -- --platform ios
+npm run eas:submit
+npm run tf:distribute -- --group "Friends" --wait
+```
+
 ## EAS Update (JavaScript-only fixes)
 
 Channels are defined in **`eas.json`** (`preview` / `production`). To ship OTA updates:

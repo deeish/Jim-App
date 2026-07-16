@@ -25,16 +25,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    id: '2026-07-14',
+    id: '2026-07-15',
     version: '1.0.0',
-    date: '2026-07-14',
-    title: 'Smarter workout generation',
+    date: '2026-07-15',
+    title: 'Smarter workout generation and search',
     changes: [
       { type: 'improved', text: 'Generated workouts now balance pushing and pulling and avoid stacking similar movements.' },
       { type: 'improved', text: 'Every session fits the time you picked, including your hardest weeks.' },
       { type: 'improved', text: 'Plans covering several weeks now build up, peak, and finish with a lighter recovery week, keeping the same core lifts throughout.' },
+      { type: 'improved', text: 'Exercise search now understands everyday spellings, typos, and gym slang. Searches like "pullup", "dumbell press", or "ohp" find the right exercise instead of coming up empty.' },
       { type: 'improved', text: 'A simpler goal step when setting up your profile.' },
       { type: 'new', text: 'Clear an entire week from your plan, with a quick confirmation before a repeated week starts.' },
+      { type: 'fixed', text: 'Saving a workout with the heart now responds instantly and reliably adds it to your saved list.' },
       { type: 'fixed', text: 'Plan controls display correctly on smaller screens.' },
     ],
   },
