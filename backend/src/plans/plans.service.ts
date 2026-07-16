@@ -40,7 +40,12 @@ import {
   type ChunkGenerationTrace,
   writeGenerationCapture,
 } from './generation-capture';
-import { repairChunkGeneratedSessions } from './generation-chunk-repair';
+import { enforceWeekPatternFloors } from './week-pattern-floors';
+import { applyWeekProgressionToEnrichedSessions } from './week-progression';
+import {
+  dedupeEnrichedProgramSessions,
+  repairChunkGeneratedSessions,
+} from './generation-chunk-repair';
 
 @Injectable()
 export class PlansService {
@@ -628,7 +633,15 @@ export class PlansService {
   /** Unique ids passed to prompts / exclude lists; oldest→newest so `.slice(-N)` = freshest. */
   private static readonly PRIOR_CONTEXT_MAX_UNIQUE = 120;
 
-  private static tryCloneAndProgress(
+  /**
+   * Clone week-1 sessions for a later week's specs (matched by title). Returns
+   * null when any title has no week-1 source or the week has no progression
+   * entry, so the caller falls back to real generation. Exercise rows are
+   * copied as-is: enrichment re-stamps every prescription from role bands, and
+   * the week's volume/rep targets land afterwards in
+   * {@link applyWeekProgressionToEnrichedSessions}.
+   */
+  private static tryCloneFirstWeekSessions(
     specs: GenerateSessionsDto['sessions'],
     week1ByFocus: Map<string, GeneratedSession>,
     weekProgression: WeekProgressionDto[],
@@ -652,23 +665,7 @@ export class PlansService {
         ...source,
         weekIndex: spec.weekIndex,
         weekday: spec.weekday,
-        exercises: source.exercises.map((ex) => ({
-          ...ex,
-          // `round` (not `ceil`) so a +8% week doesn't add a whole set to every
-          // exercise (ceil(4×1.08)=5 was a silent +25%). Short programs then
-          // progress via intensity/reps until the multiplier genuinely rounds up.
-          sets: Math.max(1, Math.round(ex.sets * prog.volumeMultiplier)),
-          reps: Math.max(1, Math.min(100, ex.reps + prog.repModifier)),
-          // Keep the displayed rep range tracking progression alongside the scalar.
-          repsMin:
-            ex.repsMin != null
-              ? Math.max(1, Math.min(100, ex.repsMin + prog.repModifier))
-              : ex.repsMin,
-          repsMax:
-            ex.repsMax != null
-              ? Math.max(1, Math.min(100, ex.repsMax + prog.repModifier))
-              : ex.repsMax,
-        })),
+        exercises: source.exercises.map((ex) => ({ ...ex })),
       });
     }
     return cloned;
@@ -1530,6 +1527,21 @@ export class PlansService {
       });
     }
 
+    // The batch/LLM path repairs its chunk before validation, but per-session
+    // results skipped repair entirely (and the merge-level repair only runs
+    // for multi-chunk requests) — live fallback weeks shipped a Sumo Deadlift
+    // on an Upper day and a 4-row Pull day. Run the same passes here.
+    const perSessionRepaired = repairChunkGeneratedSessions({
+      sessions: results,
+      specs,
+      library: this.exercises,
+      equipment,
+      effectiveDetailLevel,
+      avoidConstraintsGlobal: limitations,
+    });
+    chunkWarnings.push(...perSessionRepaired.notes);
+    const repairedResults = perSessionRepaired.sessions;
+
     this.logGenerateSessionsChunkEvent({
       path: 'per_session',
       sessionCount: specs.length,
@@ -1557,7 +1569,7 @@ export class PlansService {
       groq: traceGroq(),
     };
     return {
-      sessions: results,
+      sessions: repairedResults,
       chunkGroqUsages,
       trace: traceMerged,
       warnings: chunkWarnings.slice(),
@@ -1640,7 +1652,8 @@ export class PlansService {
       }
       const chunk = chunks[chunkIndex]!;
 
-      // Weeks 2+: clone week-1 exercise selection and apply progression math — no LLM call.
+      // Weeks 2+: clone week-1 exercise selection — no LLM call. The week's
+      // volume/rep targets are applied post-enrichment (see applySessionEnrichment).
       const chunkWeekIndex = chunk.specs[0]?.weekIndex;
       if (
         firstWeekIndex !== null &&
@@ -1648,7 +1661,7 @@ export class PlansService {
         firstWeekSessionsByFocus.size > 0 &&
         dto.weekProgression?.length
       ) {
-        const cloned = PlansService.tryCloneAndProgress(
+        const cloned = PlansService.tryCloneFirstWeekSessions(
           chunk.specs,
           firstWeekSessionsByFocus,
           dto.weekProgression,
@@ -1898,6 +1911,8 @@ export class PlansService {
         dto.cardioModalities,
       ),
       equipmentTags: dto.equipmentTags,
+      experienceLevel: dto.experienceLevel,
+      weekProgression: dto.weekProgression,
       sessions: dto.sessions,
     };
 
@@ -1988,7 +2003,7 @@ export class PlansService {
         : mappedGym.length
           ? mappedGym
           : undefined;
-    return enrichGeneratedSessionsInChunkOrder(sessions, {
+    const enriched = await enrichGeneratedSessionsInChunkOrder(sessions, {
       getSpec: (i) => dto.sessions[i],
       getAvoidPhrases: (i) => {
         const spec = dto.sessions[i];
@@ -2011,11 +2026,74 @@ export class PlansService {
           ),
           detailLevel: dto.detailLevel ?? 'detailed',
           difficulty: dto.experienceLevel,
+          cardioDayIndex: dto.sessions
+            .slice(0, i)
+            .filter((s) => s.type === 'cardio').length,
         };
       },
       exercisesService: this.exercises,
       equipment,
     });
+
+    // Enrichment swaps are per-session; re-run week-scoped dedupe so an anchor
+    // or equipment swap cannot reintroduce a duplicate the validators removed.
+    const deduped = dedupeEnrichedProgramSessions({
+      sessions: enriched,
+      specs: dto.sessions,
+      library: this.exercises,
+      equipment,
+      avoidConstraintsGlobal: dto.avoidConstraints,
+    });
+    if (deduped.repairs > 0) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'post_enrichment_dedupe',
+          repairs: deduped.repairs,
+          sessionCount: dto.sessions.length,
+        }),
+      );
+    }
+
+    // The week as a whole must train the fundamental patterns
+    // (live gap: a 4-day upper/lower week with zero vertical pressing).
+    const floored = enforceWeekPatternFloors({
+      sessions: deduped.sessions,
+      specs: dto.sessions,
+      library: this.exercises,
+      equipment,
+      avoidConstraintsGlobal: dto.avoidConstraints,
+    });
+    if (floored.repairs > 0) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'week_pattern_floor',
+          repairs: floored.repairs,
+          sessionCount: dto.sessions.length,
+        }),
+      );
+    }
+
+    // Last pass: land each week's volume/rep targets. Must run after
+    // stampSetsAndReps (enrichment) re-banded every strength row, or the
+    // progression math would be erased — a deload week would silently
+    // train at full intensity.
+    const progressed = applyWeekProgressionToEnrichedSessions({
+      sessions: floored.sessions,
+      specs: dto.sessions,
+      weekProgression: dto.weekProgression,
+      findMeta: (id) => this.exercises.findOne(id),
+      prefs: { goal: dto.goal, difficulty: dto.experienceLevel },
+    });
+    if (progressed.adjustedSessionCount > 0) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'week_progression_applied',
+          adjustedSessions: progressed.adjustedSessionCount,
+          sessionCount: dto.sessions.length,
+        }),
+      );
+    }
+    return progressed.sessions;
   }
 
   async generateSingleSession(dto: GenerateSingleSessionDto, userId: string) {

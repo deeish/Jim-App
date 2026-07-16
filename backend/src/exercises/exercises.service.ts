@@ -7,11 +7,15 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+  equipmentSatisfies,
   transformExercise,
   RawExercise,
   TransformedExercise,
 } from '../data/exercise-mappings';
-import { getCommonExerciseRank } from '../data/common-exercise-ids';
+import {
+  getCommonExerciseRank,
+  isNicheExercise,
+} from '../data/common-exercise-ids';
 import { cardioLibrarySortKey } from '../data/cardio-display-order';
 import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
@@ -331,6 +335,13 @@ export class ExercisesService implements OnModuleInit {
       const rankB = getCommonExerciseRank(b.id);
       if (rankA !== rankB) return rankA - rankB;
 
+      // Niche movements (grip specialty, circus variants) sort behind
+      // everything mainstream — the generator pools inherit this order, and
+      // the old alphabetical tiebreak kept surfacing "Bear Row"-class picks.
+      const nicheA = isNicheExercise(a.name) ? 1 : 0;
+      const nicheB = isNicheExercise(b.name) ? 1 : 0;
+      if (nicheA !== nicheB) return nicheA - nicheB;
+
       const compoundA = (a.type ?? '').toLowerCase() === 'compound' ? 0 : 1;
       const compoundB = (b.type ?? '').toLowerCase() === 'compound' ? 0 : 1;
       if (compoundA !== compoundB) return compoundA - compoundB;
@@ -539,8 +550,16 @@ export class ExercisesService implements OnModuleInit {
     const muscleGroups = this.focusToMuscleGroups(focusNorm);
     let results = this.search({
       muscleGroups: muscleGroups.length ? muscleGroups : undefined,
-      equipment: equipment.length ? equipment : undefined,
     });
+    // Generation filters on *required* equipment: a cable exercise with a band
+    // alternative must not reach a home plan under its cable name (the merged
+    // `equipment` list that library search uses would let it through). Empty
+    // primary equipment means the row is doable anywhere (push-up).
+    if (equipment.length) {
+      results = results.filter((e) =>
+        equipmentSatisfies(e.primaryEquipment ?? e.equipment, equipment),
+      );
+    }
     if (excludeIds.length) {
       const excludeSet = new Set(excludeIds);
       results = results.filter((e) => !excludeSet.has(e.id));
@@ -563,6 +582,7 @@ export class ExercisesService implements OnModuleInit {
       if (Number.isFinite(commonRank)) {
         score += Math.max(0, 10_000 - commonRank);
       }
+      if (isNicheExercise(e.name)) score -= 5_000;
       // Prefer richer metadata and compounds when names collide.
       score += (e.subMuscles?.length ?? 0) * 50;
       score += (e.movementPatterns?.length ?? 0) * 35;

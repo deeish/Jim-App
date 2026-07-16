@@ -9,6 +9,7 @@ import {
   goalWantsStrengthCardioFinisher,
 } from '../workouts/workout-generator.service';
 import { getAcceptedAnchorIdsForFocus } from '../data/anchor-exercises';
+import { equipmentSatisfies } from '../data/exercise-mappings';
 import {
   getSetRepGuidelines,
   getRoleAwareScheme,
@@ -21,6 +22,10 @@ import {
   classifyPullAngle,
   baseMovementFamily,
 } from './cross-session-diversity';
+import {
+  buildCardioDaySession,
+  cardioNameMatchesModality,
+} from './cardio-day-template';
 
 /** One exercise row as returned by plan / workout generation (before save). */
 export type GeneratedSessionExercise = {
@@ -77,7 +82,7 @@ const PULL_NAME =
 const BIG_FOUR = ['Squat', 'Hinge', 'Push', 'Pull'] as const;
 
 /** Chest/shoulder isolation and small-arm work — deprioritize for ordering + warm-up anchor. */
-const ISOLATION_NAME =
+export const ISOLATION_NAME =
   /\b(fly|flies|flyes|cable\s+fly|pec\s+deck|curl|curls|\bcable\s+curl|lateral\s+raise|front\s+raise|skull|(?:push|press)[-\s]?down|kickback|crossover|pullover|shrug|wrist|rear\s+delt|triceps\s+extension|overhead\s+extension)\b/i;
 
 /** Squat / hinge class movements that belong on lower days, not Upper/Push/Pull focus. */
@@ -203,6 +208,24 @@ function unionPatternsFromSession(
   return { union, withMetaCount };
 }
 
+/**
+ * The model sometimes cites raw catalog ids in user-facing copy ("starts with
+ * the front_squat"). Map known ids to display names; unknown snake_case tokens
+ * are de-underscored so no machine identifier reaches the app.
+ */
+const SNAKE_CASE_TOKEN = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g;
+
+export function humanizeExerciseIdsInCopy(
+  text: string | undefined,
+  findMeta: (id: string) => { name?: string } | undefined,
+): string | undefined {
+  if (!text) return text;
+  return text.replace(
+    SNAKE_CASE_TOKEN,
+    (token) => findMeta(token)?.name ?? token.replace(/_/g, ' '),
+  );
+}
+
 function appendDeterministicCoachNotes(
   reasoning: string | undefined,
   notes: string[],
@@ -216,46 +239,94 @@ function appendDeterministicCoachNotes(
   return `${r} Note: ${block}`;
 }
 
+function listToProse(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
+
 /**
- * Best lift to anchor warm-up copy: prefers compounds, avoids fly/curl-class isolation first,
- * and on upper-emphasis titles avoids deadlift/squat-class patterns when metadata or names allow.
+ * Deterministic, list-grounded session reasoning for strength days. The
+ * model's free-text reasoning routinely contradicts the final exercise list —
+ * live captures showed garbled chain-of-thought fragments ("the waiter carry
+ * is not a press so we use the Farmer Handle Carry is not a press either")
+ * and references to lifts the enrichment passes had already swapped out — so
+ * the user-facing copy is rebuilt from the rows the user will actually
+ * perform. Deterministic coach notes are appended afterwards by the caller,
+ * unchanged. Returns undefined (keep the model text) when the session has no
+ * strength rows to describe.
+ */
+export function buildStrengthReasoning(
+  exercises: GeneratedSessionExercise[],
+  findMeta: (id: string) => { primaryMuscleGroup?: string } | undefined,
+): string | undefined {
+  const groupOf = (e: GeneratedSessionExercise): string | undefined =>
+    (e.exerciseId
+      ? findMeta(e.exerciseId.trim())?.primaryMuscleGroup
+      : undefined) ?? e.primaryMuscleGroup;
+  const named = exercises.filter((e) => (e.name ?? '').trim());
+  const strength = named.filter(
+    (e) => (groupOf(e) ?? '').toLowerCase() !== 'cardio',
+  );
+  if (!strength.length) return undefined;
+  const hasCardio = strength.length < named.length;
+  const muscles: string[] = [];
+  for (const e of strength) {
+    const g = groupOf(e);
+    if (g && !muscles.includes(g.toLowerCase())) muscles.push(g.toLowerCase());
+  }
+  const opener = strength[0]!.name.trim();
+  const supporting = strength.length - 1;
+  let text = `${opener} leads the session while you are freshest`;
+  if (supporting > 0) {
+    text += `, then ${supporting} supporting ${
+      supporting === 1 ? 'move rounds' : 'moves round'
+    } out ${listToProse(muscles)}`;
+  }
+  text += '.';
+  if (hasCardio) {
+    text += ' A short, easy cardio block closes the day.';
+  }
+  return text;
+}
+
+/**
+ * The lift the warm-up ramp line points at: slot 1 after the ordering and
+ * anchor passes have run (those already guarantee a sensible opener). A scoring
+ * heuristic here used to out-guess the ordered list and told users to take ramp
+ * sets on a pull-flavored accessory (live: "Axle Bar Deadlift Hold" on a lower
+ * day whose opener was Front Squat).
+ *
+ * Returns null — no ramp line — when the opener is time-based (carries/holds
+ * have no working sets to ramp toward) or needs no external load ("toward
+ * working weight" reads as nonsense on a push-up).
  */
 export function inferMainLiftName(
   exercises: GeneratedSessionExercise[],
   options?: {
-    sessionTitle?: string;
-    findMeta?: (id: string) => { movementPatterns?: string[] } | undefined;
+    findMeta?: (id: string) =>
+      | {
+          primaryMuscleGroup?: string;
+          primaryEquipment?: string[];
+          equipment?: string[];
+        }
+      | undefined;
   },
 ): string | null {
-  const title = options?.sessionTitle;
   const findMeta = options?.findMeta;
-  const candidates = exercises.filter(
-    (e) =>
-      (e.sets ?? 0) >= 3 && !/warm|stretch|cool|mobility|foam/i.test(e.name),
-  );
-  if (!candidates.length) {
-    const fallback = exercises.find((e) => (e.sets ?? 0) > 0);
-    return fallback?.name ?? null;
+  for (const e of exercises) {
+    const name = e.name?.trim();
+    if (!name || /warm|stretch|cool|mobility|foam/i.test(name)) continue;
+    if ((e.sets ?? 0) < 1) continue;
+    const meta = e.exerciseId ? findMeta?.(e.exerciseId.trim()) : undefined;
+    const muscle = meta?.primaryMuscleGroup ?? e.primaryMuscleGroup;
+    if (muscle === 'Cardio') continue;
+    if (e.prescriptionType === 'time') return null;
+    const eq = meta?.primaryEquipment ?? meta?.equipment;
+    if (eq && eq.every((x) => /bodyweight/i.test(x))) return null;
+    return name;
   }
-  const scoreLift = (e: GeneratedSessionExercise): number => {
-    let s = 0;
-    const name = (e.name ?? '').toLowerCase();
-    if (ISOLATION_NAME.test(name)) s -= 65;
-    if (sessionTitleIsUpperEmphasis(title) && LOWER_PATTERN_NAME.test(name)) {
-      s -= 85;
-    }
-    if (findMeta && e.exerciseId) {
-      const p = findMeta(e.exerciseId)?.movementPatterns ?? [];
-      if (p.includes('Push') || p.includes('Pull')) s += 15;
-      if (p.includes('Hinge') || p.includes('Squat')) {
-        s += sessionTitleIsUpperEmphasis(title) ? -55 : 10;
-      }
-    }
-    s += Math.min(24, (e.sets ?? 0) * 2);
-    return s;
-  };
-  const sorted = [...candidates].sort((a, b) => scoreLift(b) - scoreLift(a));
-  return sorted[0]?.name ?? candidates[0]?.name ?? null;
+  return null;
 }
 
 export function tieWarmupToMainLift(
@@ -345,20 +416,8 @@ export function nameMatchesAvoidList(name: string, phrases: string[]): boolean {
   });
 }
 
-/** Aligns with `WorkoutGeneratorService.cardioExerciseMatchesModality` for enrichment picks. */
-function cardioNameMatchesModality(name: string, modality: string): boolean {
-  const n = (name ?? '').toLowerCase();
-  const m = modality.toLowerCase().trim();
-  if (!m) return false;
-  if (m === 'run' || m === 'running') return /\b(run|jog|treadmill)\b/i.test(n);
-  if (m === 'bike' || m === 'cycle')
-    return /\b(bike|bicycle|cycle|assault bike|air bike)\b/i.test(n);
-  if (m === 'row' || m === 'rowing') return /\b(row|rowing)\b/i.test(n);
-  if (m === 'swim' || m === 'swimming') return /\b(swim)\b/i.test(n);
-  if (m === 'elliptical')
-    return /\b(elliptical|arc trainer|cross trainer)\b/i.test(n);
-  return n.includes(m);
-}
+// Modality matcher lives in cardio-day-template.ts (shared with the cardio-day
+// builder; that module only imports types from here, so no runtime cycle).
 
 function moveCardioExercisesLast(
   exercises: GeneratedSessionExercise[],
@@ -425,6 +484,18 @@ function normalizeCardioRowShape(
     // Cardio rows have no rep range — clear any stamped band defensively.
     e.repsMin = undefined;
     e.repsMax = undefined;
+    // The model often wrote a "30 seconds of work" note for a row we just
+    // re-timed to a longer block. Drop the note when it contradicts the
+    // stamped duration — the UI already renders the real duration.
+    const claim =
+      /^\s*(\d+)\s*(seconds?|secs?|minutes?|mins?)\s+of work\.?\s*$/i.exec(
+        e.notes ?? '',
+      );
+    if (claim) {
+      const claimedSeconds =
+        parseInt(claim[1]!, 10) * (/^min/i.test(claim[2]!) ? 60 : 1);
+      if (claimedSeconds !== e.durationSeconds) e.notes = undefined;
+    }
   }
 }
 
@@ -469,7 +540,7 @@ export function workingSetCap(
  * highest-set accessory (never the slot-0 anchor, never below 2, never cardio).
  * Only ever removes sets, so it can't inflate a reasonable session.
  */
-function clampSessionWorkingSets(
+export function clampSessionWorkingSets(
   exercises: GeneratedSessionExercise[],
   findOne: (id: string) => { primaryMuscleGroup?: string } | undefined,
   prefs: EnrichSessionGenerationPrefs | undefined,
@@ -527,6 +598,86 @@ function pickLibraryCardioFinisherExercise(
 }
 
 /**
+ * A strength day keeps at most ONE cardio row (the finisher), and that row
+ * should match the user's preferred modality when one is set. The model
+ * sometimes places two conditioning tails (20 min of cardio inside a strength
+ * slot) or picks a rower when the user asked for "run" — both deterministic
+ * fixes, no retry needed. Runs after `moveCardioExercisesLast` +
+ * `normalizeCardioRowShape`, so cardio rows sit at the tail in time shape.
+ */
+function conformStrengthDayCardioFinisher(args: {
+  exercises: GeneratedSessionExercise[];
+  findMeta: (id: string) => { primaryMuscleGroup?: string } | undefined;
+  exercisesService: ExercisesService;
+  equipment: string[] | undefined;
+  avoidPhrases: string[];
+  modalities: string[] | undefined;
+  coachNotes: string[];
+}): void {
+  const { exercises, findMeta, modalities } = args;
+  const cardioEntries = exercises
+    .map((e, i) => ({ row: e, index: i }))
+    .filter(({ row }) => isCardioRow(row, findMeta));
+  if (!cardioEntries.length) return;
+
+  let keeper: { row: GeneratedSessionExercise; index: number } | undefined;
+  for (const m of modalities ?? []) {
+    keeper = cardioEntries.find(({ row }) =>
+      cardioNameMatchesModality(row.name ?? '', m),
+    );
+    if (keeper) break;
+  }
+  keeper ??= cardioEntries[cardioEntries.length - 1]!;
+
+  if (cardioEntries.length > 1) {
+    for (const entry of [...cardioEntries].reverse()) {
+      if (entry.index === keeper.index) continue;
+      exercises.splice(entry.index, 1);
+    }
+    args.coachNotes.push(
+      'Kept one short cardio finisher and removed extra conditioning so the strength work stays the focus.',
+    );
+  }
+
+  const row = keeper.row;
+  const matchesPreference =
+    !modalities?.length ||
+    modalities.some((m) => cardioNameMatchesModality(row.name ?? '', m));
+  if (matchesPreference) return;
+
+  const excludeIds = exercises
+    .map((e) => e.exerciseId?.trim())
+    .filter((id): id is string => !!id);
+  const pick = pickLibraryCardioFinisherExercise(
+    args.exercisesService,
+    args.equipment,
+    excludeIds,
+    modalities,
+    args.avoidPhrases,
+  );
+  if (
+    !pick ||
+    !modalities!.some((m) => cardioNameMatchesModality(pick.name, m))
+  ) {
+    return;
+  }
+  const sec = secondaryMusclesForPreview(
+    pick.secondaryMuscleGroups,
+    pick.primaryMuscleGroup,
+  );
+  row.name = pick.name;
+  row.exerciseId = pick.id;
+  row.primaryMuscleGroup = pick.primaryMuscleGroup;
+  if (sec.length) row.secondaryMuscleGroups = sec;
+  else delete row.secondaryMuscleGroups;
+  // Time shape (sets 1 / seconds in reps / durationSeconds) was already
+  // normalized on this row and carries over to the swapped-in modality.
+  args.coachNotes.push(
+    'Swapped the cardio finisher to match your preferred cardio style.',
+  );
+}
+
+/**
  * Metabolic / finisher-style work — skip adding a second conditioning tail.
  * Do not treat loaded carries as metcon: names like "Farmer Handle Carry" or
  * "Waiter Carry" matched bare `farmer`/`carry` and wrongly blocked hybrid finishers.
@@ -557,11 +708,18 @@ function sessionLooksLikeFinisherConditioning(
   return METABOLIC_CONDITIONING.test(blob);
 }
 
-/** Enrichment-added rows we should not drop when trimming to a time cap. */
+/**
+ * Enrichment-added rows we should not drop when trimming to a time cap.
+ * Must match every note text the balance inserts below actually write
+ * (legacy "Added for …" phrasing kept for sessions persisted before the
+ * coach-language rewrite).
+ */
 const BALANCE_INSERT_NOTES =
-  /Added for (pull balance|squat\/knee|hip hinge|pattern balance)/i;
+  /Added (so pressing and pulling|so your week trains|to round out the day|for (pull balance|squat\/knee|hip hinge|pattern balance))/i;
 
-function exerciseRowIsBalanceInsert(e: GeneratedSessionExercise): boolean {
+export function exerciseRowIsBalanceInsert(
+  e: GeneratedSessionExercise,
+): boolean {
   return BALANCE_INSERT_NOTES.test(e.notes ?? '');
 }
 
@@ -726,8 +884,17 @@ export type EnrichSessionGenerationPrefs = {
    * Library `exerciseId`s already present on other sessions in this generated chunk.
    * Hybrid cardio finisher picks merge these into `excludeIds` so we do not append the
    * same catalog id twice across the chunk (`duplicate_exercise_id_across_chunk`).
+   * Note: repeating a cardio modality across days is allowed by design — the
+   * finisher conformance pass may still swap back to a modality match that
+   * another day already uses.
    */
   chunkExcludeExerciseIds?: string[];
+  /**
+   * 0-based position of this session among the request's `type: 'cardio'` specs.
+   * Drives the deterministic cardio-day template (steady vs intervals alternation
+   * and modality rotation). Ignored on strength sessions.
+   */
+  cardioDayIndex?: number;
 };
 
 /**
@@ -745,6 +912,8 @@ export type EnrichSessionGenerationPrefs = {
  * - Skips cardio rows when locating slot 1 (cardio finishers live at the tail).
  * - Refuses to swap if no candidate anchor shares a tracked movement pattern
  *   with slot 1 — prevents replacing a chest move with a row.
+ * - Skips anchors the user's equipment can't support (a home dumbbell/band
+ *   list never gets a barbell swapped in).
  * - Preserves the original sets/reps/weight scheme; only the exercise identity
  *   changes. Adds a coach note so the swap is visible in the reasoning copy.
  */
@@ -752,6 +921,7 @@ function ensureAnchorInSlotOne(args: {
   exercises: GeneratedSessionExercise[];
   spec: { title?: string; type: string };
   exercisesService: ExercisesService;
+  equipment?: string[];
   avoidPhrases: string[];
   chunkExcludeExerciseIds: string[];
   coachNotes: string[];
@@ -791,6 +961,17 @@ function ensureAnchorInSlotOne(args: {
     if (!anchorMeta) continue;
     if (anchorMeta.primaryMuscleGroup === 'Cardio') continue;
     if (nameMatchesAvoidList(anchorMeta.name, args.avoidPhrases)) continue;
+    // Respect the user's equipment (home users must not get barbell anchors).
+    // Required-only equipment; empty means bodyweight-doable anywhere.
+    if (
+      args.equipment?.length &&
+      !equipmentSatisfies(
+        anchorMeta.primaryEquipment ?? anchorMeta.equipment,
+        args.equipment,
+      )
+    ) {
+      continue;
+    }
     const anchorPatterns = anchorMeta.movementPatterns ?? [];
     if (
       slotOnePatterns.size &&
@@ -808,7 +989,7 @@ function ensureAnchorInSlotOne(args: {
       sets: slotOne.sets,
       reps: slotOne.reps,
       ...(slotOne.weight != null ? { weight: slotOne.weight } : {}),
-      notes: 'Swapped in a staple compound for slot 1 (anchor enforcement).',
+      notes: 'Your main lift today: start here while you are freshest.',
       prescriptionType:
         anchorMeta.prescriptionType ??
         inferPrescriptionTypeFromExerciseName(anchorMeta.name),
@@ -819,6 +1000,112 @@ function ensureAnchorInSlotOne(args: {
       'We led off this session with a staple compound so your heaviest work happens on a proven main lift.',
     );
     return;
+  }
+}
+
+/**
+ * Post-LLM equipment gate. Generation candidate pools filter on required
+ * equipment, but the model can emit any exercise it knows and chunk repair
+ * happily maps the name to a library id — live captures showed a Pinch Block
+ * Carry on a dumbbell/band pull day and a pool-only swim row at home. Swap
+ * every row whose required equipment the user lacks for a same-pattern
+ * candidate from the equipment-filtered focus pool; when nothing fits, drop
+ * the row rather than prescribe gear the user does not own (but never below
+ * three strength rows — an imperfect pick beats a hollow session).
+ * Runs before the balance/ordering passes so they evaluate the final rows.
+ */
+function conformExercisesToEquipment(args: {
+  exercises: GeneratedSessionExercise[];
+  spec: { title?: string; type: string };
+  exercisesService: ExercisesService;
+  equipment?: string[];
+  avoidPhrases: string[];
+  chunkExcludeExerciseIds: string[];
+  coachNotes: string[];
+}): void {
+  const { exercises, spec, exercisesService, equipment } = args;
+  if (spec.type !== 'strength') return;
+  if (!equipment?.length) return;
+  const findMeta = (id: string) => exercisesService.findOne(id);
+
+  const rowIsCardio = (e: GeneratedSessionExercise): boolean => {
+    const id = e.exerciseId?.trim();
+    const group =
+      (id ? findMeta(id)?.primaryMuscleGroup : undefined) ??
+      e.primaryMuscleGroup;
+    return (group ?? '').toLowerCase() === 'cardio';
+  };
+
+  let adjusted = false;
+  for (let i = exercises.length - 1; i >= 0; i--) {
+    const row = exercises[i]!;
+    const id = row.exerciseId?.trim();
+    if (!id) continue;
+    const meta = findMeta(id);
+    if (!meta) continue;
+    if (equipmentSatisfies(meta.primaryEquipment ?? meta.equipment, equipment))
+      continue;
+
+    const isCardio = rowIsCardio(row);
+    const rowPatterns = new Set(meta.movementPatterns ?? []);
+    const ids = new Set(
+      exercises
+        .map((e) => e.exerciseId?.trim())
+        .filter((x): x is string => !!x),
+    );
+    const names = new Set(
+      exercises.map((e) => (e.name ?? '').trim().toLowerCase()),
+    );
+    const pool = exercisesService.getCandidatesForGenerator({
+      focus: isCardio ? 'cardio' : (spec.title ?? 'full body'),
+      equipment,
+      excludeIds: [...ids, ...args.chunkExcludeExerciseIds],
+      limit: 90,
+    });
+    const pick = pool.find(
+      (c) =>
+        !ids.has(c.id) &&
+        !names.has((c.name ?? '').trim().toLowerCase()) &&
+        !nameMatchesAvoidList(c.name, args.avoidPhrases) &&
+        (isCardio
+          ? c.primaryMuscleGroup === 'Cardio'
+          : c.primaryMuscleGroup !== 'Cardio' &&
+            (!rowPatterns.size ||
+              (c.movementPatterns ?? []).some((p) => rowPatterns.has(p)))),
+    );
+    if (pick) {
+      const sec = secondaryMusclesForPreview(
+        pick.secondaryMuscleGroups,
+        pick.primaryMuscleGroup,
+      );
+      exercises.splice(i, 1, {
+        name: pick.name,
+        exerciseId: pick.id,
+        sets: row.sets,
+        reps: row.reps,
+        ...(row.weight != null ? { weight: row.weight } : {}),
+        notes: 'Swapped in to match the equipment you have available.',
+        prescriptionType:
+          pick.prescriptionType ??
+          inferPrescriptionTypeFromExerciseName(pick.name),
+        primaryMuscleGroup: pick.primaryMuscleGroup,
+        ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
+      });
+      adjusted = true;
+    } else {
+      const strengthRowsLeft = exercises.filter(
+        (e, j) => j !== i && !rowIsCardio(e),
+      ).length;
+      if (isCardio || strengthRowsLeft >= 3) {
+        exercises.splice(i, 1);
+        adjusted = true;
+      }
+    }
+  }
+  if (adjusted) {
+    args.coachNotes.push(
+      'We adjusted this session to stick to the equipment you have available.',
+    );
   }
 }
 
@@ -915,7 +1202,8 @@ function capRedundantMovementFamilies(args: {
       sets: prev.sets,
       reps: prev.reps,
       ...(prev.weight != null ? { weight: prev.weight } : {}),
-      notes: 'Swapped for movement variety (avoid stacking similar lifts).',
+      notes:
+        'Swapped in for movement variety since a similar lift is already in this session.',
       prescriptionType:
         pick.prescriptionType ??
         inferPrescriptionTypeFromExerciseName(pick.name),
@@ -927,8 +1215,16 @@ function capRedundantMovementFamilies(args: {
 
   let swaps = 0;
 
-  /** Cap any key (skipping `null` keys) at MAX_PER_FAMILY, swapping the excess. */
-  const capByKey = (keyOf: (name: string) => string | null): void => {
+  /**
+   * Cap any key (skipping `null` keys) at `max`, swapping the excess. When
+   * `preferSwapTo` is given, candidates matching it are tried before any other
+   * out-of-family candidate (e.g. cap presses by swapping in a pull).
+   */
+  const capByKey = (
+    keyOf: (name: string) => string | null,
+    max: number = MAX_PER_FAMILY,
+    preferSwapTo?: (name: string) => boolean,
+  ): void => {
     const groups = new Map<string, number[]>();
     exercises.forEach((e, i) => {
       if (!isStrengthRow(e)) return;
@@ -938,8 +1234,13 @@ function capRedundantMovementFamilies(args: {
       if (arr) arr.push(i);
       else groups.set(k, [i]);
     });
+    // Live counts per key: a replacement must not push a *sibling* family over
+    // the cap (observed: capping 3 squats swapped in a deadlift that made a
+    // third hinge — the groups snapshot alone can't see that).
+    const counts = new Map<string, number>();
+    for (const [k, idxs] of groups) counts.set(k, idxs.length);
     for (const [key, idxs] of groups) {
-      let excess = idxs.length - MAX_PER_FAMILY;
+      let excess = (counts.get(key) ?? 0) - max;
       if (excess <= 0) continue;
       // Trim from the end (lowest-priority rows) first.
       const swappable = idxs
@@ -947,7 +1248,19 @@ function capRedundantMovementFamilies(args: {
         .sort((a, b) => b - a);
       for (const i of swappable) {
         if (excess <= 0) break;
-        if (trySwap(i, (name) => keyOf(name) !== key)) {
+        const acceptable = (name: string): boolean => {
+          const k = keyOf(name);
+          if (k === key) return false;
+          return !k || (counts.get(k) ?? 0) < max;
+        };
+        const swapped =
+          (preferSwapTo != null &&
+            trySwap(i, (name) => acceptable(name) && preferSwapTo(name))) ||
+          trySwap(i, acceptable);
+        if (swapped) {
+          const newKey = keyOf(exercises[i]!.name ?? '');
+          if (newKey) counts.set(newKey, (counts.get(newKey) ?? 0) + 1);
+          counts.set(key, (counts.get(key) ?? 0) - 1);
           excess--;
           swaps++;
         }
@@ -955,15 +1268,12 @@ function capRedundantMovementFamilies(args: {
     }
   };
 
-  const isLower =
-    sessionTitleIsLowerEmphasis(spec.title) ||
-    sessionTitleNeedsSquatHingeBalance(spec.title, spec.type);
-  if (isLower) {
-    capByKey((n) => {
-      const d = classifyLowerDominance(n);
-      return d === 'other' ? null : `dom:${d}`;
-    });
-  }
+  // Dominance caps used to run only on lower-emphasis days, but a full-body
+  // day can stack 3 hinge variants just as easily — run them everywhere.
+  capByKey((n) => {
+    const d = classifyLowerDominance(n);
+    return d === 'other' ? null : `dom:${d}`;
+  });
   capByKey((n) => {
     const a = classifyPushAngle(n);
     return a === 'other' ? null : `push:${a}`;
@@ -976,6 +1286,34 @@ function capRedundantMovementFamilies(args: {
     const f = baseMovementFamily(n);
     return f ? `base:${f}` : null;
   });
+
+  // Total-press cap: the per-angle caps still allow flat + incline + decline +
+  // overhead on one day (live: 4 presses vs 1 pull on an Upper day). Days whose
+  // title IS press work keep their presses; an upper/mixed day caps at 3, any
+  // other strength day at 2. Excess rows swap to a pull first, so the day's
+  // push:pull balance improves with the same pass.
+  const titleLower = (spec.title ?? '').toLowerCase();
+  const isPressFocusDay =
+    /\b(push|chest|shoulders?|press)\b/.test(titleLower) &&
+    !/\b(pull|back|legs?)\b/.test(titleLower);
+  if (!isPressFocusDay) {
+    const pressMax = /\bupper\b/.test(titleLower) ? 3 : 2;
+    capByKey(
+      (n) => (classifyPushAngle(n) === 'other' ? null : 'press:total'),
+      pressMax,
+      // Prefer a pull whose angle is still under the per-angle cap — this
+      // runs after the pull-angle cap, so an unchecked insert could stack a
+      // third row of the same angle. Falls back to any non-press otherwise.
+      (n) => {
+        const angle = classifyPullAngle(n);
+        if (angle === 'other') return false;
+        const sameAngle = exercises.filter(
+          (e) => isStrengthRow(e) && classifyPullAngle(e.name) === angle,
+        ).length;
+        return sameAngle < MAX_PER_FAMILY;
+      },
+    );
+  }
 
   if (swaps > 0) {
     coachNotes.push(
@@ -999,7 +1337,29 @@ export async function enrichGeneratedSession(
   generationPrefs?: EnrichSessionGenerationPrefs,
 ): Promise<GeneratedSession> {
   if (spec.type !== 'strength') {
-    return session;
+    // Cardio days are built deterministically — the model's cardio rows ship
+    // with strength-style sets/reps and no metadata, so we replace them with a
+    // clear modality plan (see cardio-day-template.ts). Recovery days pass
+    // through untouched for now.
+    if (spec.type === 'cardio') {
+      return buildCardioDaySession({
+        session,
+        library: exercisesService,
+        equipment,
+        avoidPhrases,
+        modalities: generationPrefs?.cardioModalities,
+        durationMinutes: generationPrefs?.durationMinutes,
+        cardioDayIndex: generationPrefs?.cardioDayIndex,
+        chunkExcludeExerciseIds: generationPrefs?.chunkExcludeExerciseIds,
+      });
+    }
+    const findName = (id: string) => exercisesService.findOne(id);
+    return {
+      ...session,
+      reasoning: humanizeExerciseIdsInCopy(session.reasoning, findName),
+      warmUp: humanizeExerciseIdsInCopy(session.warmUp, findName),
+      coolDown: humanizeExerciseIdsInCopy(session.coolDown, findName),
+    };
   }
 
   let exercises = await sortExercisesByCompoundOrder(
@@ -1018,6 +1378,16 @@ export async function enrichGeneratedSession(
     }
   }
 
+  conformExercisesToEquipment({
+    exercises,
+    spec,
+    exercisesService,
+    equipment,
+    avoidPhrases,
+    chunkExcludeExerciseIds: generationPrefs?.chunkExcludeExerciseIds ?? [],
+    coachNotes,
+  });
+
   if (
     sessionTitleNeedsPullBalance(spec.title, spec.type) &&
     !listHasPull(exercises)
@@ -1031,8 +1401,13 @@ export async function enrichGeneratedSession(
       excludeIds,
       limit: 45,
     });
+    // The 'pull' pool is muscle-group based (Back + Arms), so it also holds
+    // triceps/biceps isolation. Only insert a movement that satisfies the same
+    // PULL_NAME predicate that flagged the session — otherwise a live run can
+    // add a cable pushdown "for pull balance" (observed in capture logs).
     const pick = pullPool.find(
       (c) =>
+        PULL_NAME.test(c.name) &&
         !exercises.some((e) => e.exerciseId === c.id || e.name === c.name) &&
         !nameMatchesAvoidList(c.name, avoidPhrases),
     );
@@ -1047,7 +1422,7 @@ export async function enrichGeneratedSession(
         exerciseId: pick.id,
         sets: 3,
         reps: 10,
-        notes: 'Added for pull balance vs session focus',
+        notes: 'Added so pressing and pulling stay balanced.',
         prescriptionType:
           pick.prescriptionType ??
           inferPrescriptionTypeFromExerciseName(pick.name),
@@ -1057,7 +1432,7 @@ export async function enrichGeneratedSession(
           : {}),
       });
       coachNotes.push(
-        'Added a pull movement from the library so this upper/pull day includes a clear pull pattern.',
+        'Added a pulling movement so pressing and pulling stay balanced.',
       );
     }
   }
@@ -1094,7 +1469,7 @@ export async function enrichGeneratedSession(
             exerciseId: pick.id,
             sets: 3,
             reps: 8,
-            notes: 'Added for squat/knee pattern coverage on lower day',
+            notes: 'Added to round out the day with a squat pattern.',
             prescriptionType:
               pick.prescriptionType ??
               inferPrescriptionTypeFromExerciseName(pick.name),
@@ -1102,7 +1477,7 @@ export async function enrichGeneratedSession(
             ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
           });
           coachNotes.push(
-            'Added a knee-dominant (squat) lift from the library for lower-day pattern balance.',
+            'Added a squat-pattern lift so the day trains both squatting and hinging.',
           );
           cover = unionPatternsFromSession(exercises, findMeta);
         }
@@ -1127,7 +1502,7 @@ export async function enrichGeneratedSession(
             exerciseId: pick.id,
             sets: 3,
             reps: 6,
-            notes: 'Added for hip hinge coverage on lower day',
+            notes: 'Added to round out the day with a hip hinge.',
             prescriptionType:
               pick.prescriptionType ??
               inferPrescriptionTypeFromExerciseName(pick.name),
@@ -1135,7 +1510,7 @@ export async function enrichGeneratedSession(
             ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
           });
           coachNotes.push(
-            'Added a hip hinge lift from the library for lower-day pattern balance.',
+            'Added a hip-hinge lift so the day trains both squatting and hinging.',
           );
         }
       }
@@ -1250,7 +1625,7 @@ export async function enrichGeneratedSession(
           ...(sec.length ? { secondaryMuscleGroups: sec } : {}),
         });
         coachNotes.push(
-          'We added a short easy machine finisher at the end for your hybrid-style goal—you can skip it when you are short on time.',
+          'We added a short, easy cardio finisher for your hybrid-style goal. Skip it when you are short on time.',
         );
       }
     }
@@ -1265,12 +1640,22 @@ export async function enrichGeneratedSession(
     exercises,
     spec,
     exercisesService,
+    equipment,
     avoidPhrases,
     chunkExcludeExerciseIds: generationPrefs?.chunkExcludeExerciseIds ?? [],
     coachNotes,
   });
   moveCardioExercisesLast(exercises, findMeta);
   normalizeCardioRowShape(exercises, findMeta);
+  conformStrengthDayCardioFinisher({
+    exercises,
+    findMeta,
+    exercisesService,
+    equipment,
+    avoidPhrases,
+    modalities: generationPrefs?.cardioModalities,
+    coachNotes,
+  });
   // Stamp role-aware sets + rep ranges before clamping so the duration/experience
   // cap still trims the resulting working-set total to fit the session length.
   stampSetsAndReps(exercises, findMeta, generationPrefs);
@@ -1278,17 +1663,20 @@ export async function enrichGeneratedSession(
 
   stampRestSeconds(exercises, findMeta, generationPrefs);
 
-  const mainName = inferMainLiftName(exercises, {
-    sessionTitle: spec.title,
+  const mainName = inferMainLiftName(exercises, { findMeta });
+  const warmUp = humanizeExerciseIdsInCopy(
+    tieWarmupToMainLift(session.warmUp, mainName),
     findMeta,
-  });
-  const warmUp = tieWarmupToMainLift(session.warmUp, mainName);
-  const reasoning = appendDeterministicCoachNotes(
-    session.reasoning,
-    coachNotes,
+  );
+  const reasoning = humanizeExerciseIdsInCopy(
+    appendDeterministicCoachNotes(
+      buildStrengthReasoning(exercises, findMeta) ?? session.reasoning,
+      coachNotes,
+    ),
+    findMeta,
   );
   const coolDown =
-    session.coolDown?.trim() ||
+    humanizeExerciseIdsInCopy(session.coolDown, findMeta)?.trim() ||
     '2–5 minutes of easy walking or light cycling, then brief static stretching for the muscles you trained.';
 
   return { ...session, warmUp, exercises, reasoning, coolDown };
@@ -1450,11 +1838,22 @@ function collectDistinctExerciseIds(session: GeneratedSession): string[] {
   return out;
 }
 
-export type EnrichChunkSessionSpec = { type: string; title?: string };
+export type EnrichChunkSessionSpec = {
+  type: string;
+  title?: string;
+  /** Week this session belongs to — scopes the cross-session exclude list. */
+  weekIndex?: number;
+};
 
 /**
  * Enrich strength sessions in chunk order so hybrid cardio finishers avoid library ids
  * already used on sibling sessions (pre/post enrichment ids from other slots).
+ *
+ * The exclude list is scoped per `weekIndex`: cloned weeks in a multi-week
+ * program are intentional repeats, and a program-wide list depletes the
+ * anchor/swap pools week by week — live, week 3's clone of a bench-led Upper
+ * day re-anchored to Push-Up because week 1 had "used up" the bench. Sessions
+ * without a weekIndex keep the old program-wide behavior.
  */
 export async function enrichGeneratedSessionsInChunkOrder(
   sessions: GeneratedSession[],
@@ -1479,6 +1878,14 @@ export async function enrichGeneratedSessionsInChunkOrder(
     const seenChunk = new Set<string>();
     for (let j = 0; j < sessions.length; j++) {
       if (j === i) continue;
+      const otherSpec = opts.getSpec(j);
+      if (
+        spec.weekIndex != null &&
+        otherSpec?.weekIndex != null &&
+        otherSpec.weekIndex !== spec.weekIndex
+      ) {
+        continue;
+      }
       const sess = j < i ? out[j]! : sessions[j]!;
       for (const id of collectDistinctExerciseIds(sess)) {
         if (seenChunk.has(id)) continue;

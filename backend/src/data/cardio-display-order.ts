@@ -33,6 +33,8 @@ const CARDIO_LIBRARY_ORDER: readonly string[] = [
   'jump_rope_single_under',
   'jump_rope_double_under',
   // Outdoor / swim
+  'outdoor_jog_steady',
+  'outdoor_run_intervals',
   'trail_hiking_brisk',
   'swimming_laps_easy',
   // Common bodyweight conditioning

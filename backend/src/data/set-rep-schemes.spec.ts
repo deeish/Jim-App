@@ -1,4 +1,8 @@
-import { getRoleAwareScheme, type ExerciseRole } from './set-rep-schemes';
+import {
+  COACH_REP_BANDS,
+  getRoleAwareScheme,
+  type ExerciseRole,
+} from './set-rep-schemes';
 
 describe('getRoleAwareScheme', () => {
   // The four goals the Generate Plan form actually sends.
@@ -73,6 +77,21 @@ describe('getRoleAwareScheme', () => {
         for (const role of roles) {
           const s = getRoleAwareScheme(goal, d, role);
           expect(s.repsMax - s.repsMin).toBeLessThanOrEqual(6);
+        }
+      }
+    }
+  });
+
+  it('always lands on a canonical coach band (no 11–17 style machine ranges)', () => {
+    const difficulties = ['beginner', 'intermediate', 'advanced'];
+    for (const goal of goals) {
+      for (const d of difficulties) {
+        for (const role of roles) {
+          const s = getRoleAwareScheme(goal, d, role);
+          const isCanonical = COACH_REP_BANDS.some(
+            ([lo, hi]) => lo === s.repsMin && hi === s.repsMax,
+          );
+          expect(isCanonical).toBe(true);
         }
       }
     }

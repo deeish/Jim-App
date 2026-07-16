@@ -1,6 +1,8 @@
 import {
+  buildStrengthReasoning,
   enrichGeneratedSession,
   enrichGeneratedSessionsInChunkOrder,
+  humanizeExerciseIdsInCopy,
   inferMainLiftName,
   sessionTitleIsLowerEmphasis,
   sessionTitleIsUpperEmphasis,
@@ -9,6 +11,369 @@ import {
   workingSetCap,
   type GeneratedSession,
 } from './session-enrichment';
+
+describe('cardio-day template routing', () => {
+  it('replaces cardio-day LLM rows with the deterministic template', async () => {
+    const exercisesService = {
+      findOne: (id: string) =>
+        id === 'treadmill_jog_steady'
+          ? {
+              id,
+              name: 'Treadmill Jog (Steady State)',
+              primaryMuscleGroup: 'Cardio',
+            }
+          : undefined,
+      getCandidatesForGenerator: () => [],
+    };
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Wednesday',
+        name: 'Cardio',
+        exercises: [
+          { name: 'Trail Hiking (Brisk)', sets: 2, reps: 15, exerciseId: 'x' },
+        ],
+      },
+      { type: 'cardio', title: 'Cardio' },
+      exercisesService as any,
+      undefined,
+      [],
+      { cardioModalities: ['run'], durationMinutes: 25, cardioDayIndex: 0 },
+    );
+    expect(out.exercises[0]?.exerciseId).toBe('treadmill_jog_steady');
+    expect(out.exercises[0]?.prescriptionType).toBe('time');
+    expect(out.warmUp).toBeTruthy();
+    expect(out.coolDown).toBeTruthy();
+  });
+});
+
+describe('strength-day cardio finisher conformance', () => {
+  const compound = {
+    id: 'bench',
+    name: 'Barbell Bench Press',
+    prescriptionType: 'reps' as const,
+    movementPatterns: ['Push'],
+    primaryMuscleGroup: 'Chest',
+  };
+  const rower = {
+    id: 'rowing_machine_steady',
+    name: 'Rowing Machine (Steady State)',
+    prescriptionType: 'time' as const,
+    primaryMuscleGroup: 'Cardio',
+  };
+  const treadmill = {
+    id: 'treadmill_jog_steady',
+    name: 'Treadmill Jog (Steady State)',
+    prescriptionType: 'time' as const,
+    primaryMuscleGroup: 'Cardio',
+  };
+  const byId = new Map<
+    string,
+    { id: string; name: string; primaryMuscleGroup: string }
+  >([
+    [compound.id, compound],
+    [rower.id, rower],
+    [treadmill.id, treadmill],
+  ]);
+  const exercisesService = {
+    findOne: (id: string) => byId.get(id),
+    getCandidatesForGenerator: ({ excludeIds }: { excludeIds?: string[] }) => {
+      const ex = new Set(excludeIds ?? []);
+      return [...byId.values()].filter((r) => !ex.has(r.id));
+    },
+  };
+
+  it('keeps only one cardio row and prefers the modality match', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          { name: compound.name, sets: 4, reps: 6, exerciseId: compound.id },
+          { name: rower.name, sets: 1, reps: 600, exerciseId: rower.id },
+          {
+            name: treadmill.name,
+            sets: 1,
+            reps: 600,
+            exerciseId: treadmill.id,
+          },
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      exercisesService as any,
+      undefined,
+      [],
+      { goal: 'hybrid', cardioModalities: ['run'], durationMinutes: 45 },
+    );
+    const cardioRows = out.exercises.filter(
+      (e) => e.primaryMuscleGroup === 'Cardio',
+    );
+    expect(cardioRows).toHaveLength(1);
+    expect(cardioRows[0]!.exerciseId).toBe('treadmill_jog_steady');
+  });
+
+  it('swaps an off-modality finisher to the preferred modality', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          { name: compound.name, sets: 4, reps: 6, exerciseId: compound.id },
+          { name: rower.name, sets: 1, reps: 600, exerciseId: rower.id },
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      exercisesService as any,
+      undefined,
+      [],
+      { goal: 'hybrid', cardioModalities: ['run'], durationMinutes: 45 },
+    );
+    const cardioRows = out.exercises.filter(
+      (e) => e.primaryMuscleGroup === 'Cardio',
+    );
+    expect(cardioRows).toHaveLength(1);
+    expect(cardioRows[0]!.exerciseId).toBe('treadmill_jog_steady');
+    expect(cardioRows[0]!.prescriptionType).toBe('time');
+  });
+
+  it('leaves a modality-matching single finisher untouched', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          { name: compound.name, sets: 4, reps: 6, exerciseId: compound.id },
+          {
+            name: treadmill.name,
+            sets: 1,
+            reps: 600,
+            exerciseId: treadmill.id,
+          },
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      exercisesService as any,
+      undefined,
+      [],
+      { goal: 'hybrid', cardioModalities: ['run'], durationMinutes: 45 },
+    );
+    const cardioRows = out.exercises.filter(
+      (e) => e.primaryMuscleGroup === 'Cardio',
+    );
+    expect(cardioRows).toHaveLength(1);
+    expect(cardioRows[0]!.exerciseId).toBe('treadmill_jog_steady');
+  });
+});
+
+describe('buildStrengthReasoning', () => {
+  const meta = new Map([
+    ['fs', { primaryMuscleGroup: 'Legs' }],
+    ['rdl', { primaryMuscleGroup: 'Legs' }],
+    ['row', { primaryMuscleGroup: 'Back' }],
+    ['jog', { primaryMuscleGroup: 'Cardio' }],
+  ]);
+  const findMeta = (id: string) => meta.get(id);
+
+  it('describes the final list: opener, supporting count, muscles, cardio close', () => {
+    const text = buildStrengthReasoning(
+      [
+        { name: 'Front Squat', sets: 4, reps: 5, exerciseId: 'fs' },
+        { name: 'Romanian Deadlift', sets: 3, reps: 8, exerciseId: 'rdl' },
+        {
+          name: 'Single-Arm Dumbbell Row',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'row',
+        },
+        { name: 'Treadmill Jog', sets: 1, reps: 600, exerciseId: 'jog' },
+      ],
+      findMeta,
+    );
+    expect(text).toMatch(/^Front Squat leads the session/);
+    expect(text).toMatch(/2 supporting moves/);
+    expect(text).toMatch(/legs and back/);
+    expect(text).toMatch(/cardio block closes the day/);
+  });
+
+  it('returns undefined when there are no strength rows to describe', () => {
+    expect(
+      buildStrengthReasoning(
+        [{ name: 'Treadmill Jog', sets: 1, reps: 600, exerciseId: 'jog' }],
+        findMeta,
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe('post-LLM equipment gate', () => {
+  const mkService = (rows: Array<Record<string, unknown>>) => {
+    const byId = new Map(rows.map((r) => [r.id as string, r]));
+    return {
+      findOne: (id: string) => byId.get(id),
+      getCandidatesForGenerator: ({
+        excludeIds,
+      }: {
+        excludeIds?: string[];
+      }) => {
+        const ex = new Set(excludeIds ?? []);
+        return rows.filter((r) => !ex.has(r.id as string));
+      },
+    } as any;
+  };
+  const dbRow = {
+    id: 'single_arm_dumbbell_row',
+    name: 'Single-Arm Dumbbell Row',
+    primaryMuscleGroup: 'Back',
+    movementPatterns: ['Pull'],
+    primaryEquipment: ['Dumbbell'],
+    prescriptionType: 'reps' as const,
+  };
+  const dbBench = {
+    id: 'flat_dumbbell_bench_press',
+    name: 'Flat Dumbbell Bench Press',
+    primaryMuscleGroup: 'Chest',
+    movementPatterns: ['Push'],
+    primaryEquipment: ['Dumbbell'],
+    prescriptionType: 'reps' as const,
+  };
+  const cablePushdown = {
+    id: 'cable_pushdown',
+    name: 'Cable Pushdown',
+    primaryMuscleGroup: 'Arms',
+    movementPatterns: ['Push'],
+    primaryEquipment: ['Cable'],
+    prescriptionType: 'reps' as const,
+  };
+  const bandPushdown = {
+    id: 'band_pushdown',
+    name: 'Band Pushdown',
+    primaryMuscleGroup: 'Arms',
+    movementPatterns: ['Push'],
+    primaryEquipment: ['Resistance Band'],
+    prescriptionType: 'reps' as const,
+  };
+  const pinchCarry = {
+    id: 'pinch_block_carry',
+    name: 'Pinch Block Carry',
+    primaryMuscleGroup: 'Arms',
+    movementPatterns: ['Carry'],
+    primaryEquipment: ['Unmodeled'],
+    prescriptionType: 'time' as const,
+  };
+  const homeEquipment = ['Dumbbell', 'Resistance Band', 'Bodyweight'];
+  const rowOf = (r: { id: string; name: string }, sets = 3, reps = 10) => ({
+    name: r.name,
+    sets,
+    reps,
+    exerciseId: r.id,
+  });
+
+  it('swaps a row needing unavailable equipment for a same-pattern candidate', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [rowOf(dbRow, 4, 6), rowOf(dbBench), rowOf(cablePushdown)],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([dbRow, dbBench, cablePushdown, bandPushdown]),
+      homeEquipment,
+      [],
+      {},
+    );
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).not.toContain('cable_pushdown');
+    expect(ids).toContain('band_pushdown');
+    const swapped = out.exercises.find(
+      (e) => e.exerciseId === 'band_pushdown',
+    )!;
+    expect(swapped.notes).toMatch(/equipment you have available/i);
+    expect(out.reasoning).toMatch(/equipment you have available/i);
+  });
+
+  it('drops an unmodeled-gear row when no candidate fits and enough lifts remain', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          rowOf(dbRow, 4, 6),
+          rowOf(dbBench),
+          rowOf(bandPushdown),
+          rowOf(pinchCarry),
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([dbRow, dbBench, bandPushdown, pinchCarry]),
+      homeEquipment,
+      [],
+      {},
+    );
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).not.toContain('pinch_block_carry');
+  });
+
+  it('keeps an offending row rather than hollow out a short session', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [rowOf(dbRow, 4, 6), rowOf(pinchCarry)],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([dbRow, pinchCarry]),
+      homeEquipment,
+      [],
+      {},
+    );
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).toContain('pinch_block_carry');
+  });
+
+  it('replaces garbled model reasoning with list-grounded copy', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        reasoning:
+          'The arnold press is replaced with a different vertical press, the waiter carry is not a press so we use the Farmer Handle Carry is not a press either.',
+        exercises: [rowOf(dbRow, 4, 6), rowOf(dbBench)],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([dbRow, dbBench]),
+      homeEquipment,
+      [],
+      {},
+    );
+    expect(out.reasoning).not.toMatch(/arnold press|waiter carry/i);
+    expect(out.reasoning).toMatch(/leads the session while you are freshest/);
+  });
+
+  it('is inert without an equipment list (eval mocks, legacy calls)', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [rowOf(dbRow, 4, 6), rowOf(cablePushdown)],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([dbRow, cablePushdown]),
+      undefined,
+      [],
+      {},
+    );
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).toContain('cable_pushdown');
+  });
+});
 
 describe('workingSetCap', () => {
   it('caps by experience when the session is long enough to fit it', () => {
@@ -81,40 +446,69 @@ describe('sessionTitleIsLowerEmphasis', () => {
 });
 
 describe('inferMainLiftName', () => {
-  it('prefers a compound press over fly for warm-up anchor on Upper', () => {
+  it('returns the slot-1 exercise after ordering (never out-guesses the opener)', () => {
     const main = inferMainLiftName(
       [
-        { name: 'Flat Dumbbell Fly', sets: 5, reps: 10, exerciseId: 'fly1' },
+        { name: 'Front Squat', sets: 4, reps: 5, exerciseId: 'fs1' },
         {
-          name: 'Incline Barbell Bench Press',
+          name: 'Axle Bar Deadlift Hold',
           sets: 4,
-          reps: 8,
-          exerciseId: 'bench1',
+          reps: 9,
+          exerciseId: 'axle1',
+          prescriptionType: 'time',
         },
       ],
       {
-        sessionTitle: 'Upper',
-        findMeta: () => ({ movementPatterns: ['Push'] }),
+        findMeta: (id) =>
+          id === 'fs1'
+            ? { primaryEquipment: ['Barbell'] }
+            : { primaryEquipment: ['Axle Bar'] },
       },
     );
-    expect(main).toMatch(/Bench/i);
+    expect(main).toBe('Front Squat');
   });
 
-  it('deprioritizes sumo deadlift vs upper-body press on Upper', () => {
+  it('skips a leading cardio row when locating the main lift', () => {
+    const main = inferMainLiftName([
+      {
+        name: 'Treadmill Jog (Steady State)',
+        sets: 1,
+        reps: 600,
+        prescriptionType: 'time',
+        primaryMuscleGroup: 'Cardio',
+      },
+      { name: 'Barbell Overhead Press', sets: 4, reps: 5, exerciseId: 'ohp1' },
+    ]);
+    expect(main).toBe('Barbell Overhead Press');
+  });
+
+  it('returns null (no ramp line) when the opener is a timed hold or carry', () => {
+    const main = inferMainLiftName([
+      {
+        name: 'Waiter Carry',
+        sets: 3,
+        reps: 40,
+        exerciseId: 'wc1',
+        prescriptionType: 'time',
+      },
+      { name: 'Flat Dumbbell Bench Press', sets: 4, reps: 5 },
+    ]);
+    expect(main).toBeNull();
+  });
+
+  it('returns null when the opener needs no external load (no "working weight" on a push-up)', () => {
     const main = inferMainLiftName(
       [
-        { name: 'Sumo Deadlift', sets: 4, reps: 5, exerciseId: 'dl1' },
-        { name: 'Chest Dip', sets: 4, reps: 8, exerciseId: 'dip1' },
+        {
+          name: 'Band-Resisted Close-Grip Push-Up',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'pu1',
+        },
       ],
-      {
-        sessionTitle: 'Upper 2',
-        findMeta: (id) =>
-          id === 'dl1'
-            ? { movementPatterns: ['Hinge', 'Pull'] }
-            : { movementPatterns: ['Push'] },
-      },
+      { findMeta: () => ({ primaryEquipment: [] }) },
     );
-    expect(main).toMatch(/Dip/i);
+    expect(main).toBeNull();
   });
 });
 
@@ -1326,6 +1720,172 @@ describe('enrichGeneratedSession prescriptionType', () => {
     expect(out.exercises[0]?.exerciseId).toBe('flat_barbell_bench_press');
   });
 
+  it('swaps in a home-capable anchor when equipment excludes barbells', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Friday',
+      name: 'Lower',
+      exercises: [
+        {
+          name: 'B-Stance Hip Thrust',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'b_stance_hip_thrust',
+        },
+        {
+          name: 'Bodyweight Calf Raise',
+          sets: 3,
+          reps: 15,
+          exerciseId: 'bodyweight_calf_raise',
+        },
+      ],
+    };
+    const metaById: Record<
+      string,
+      { patterns: string[]; muscle: string; equipment: string[] }
+    > = {
+      b_stance_hip_thrust: {
+        patterns: ['Hinge'],
+        muscle: 'Legs',
+        equipment: ['Dumbbell'],
+      },
+      back_squat: {
+        patterns: ['Squat'],
+        muscle: 'Legs',
+        equipment: ['Barbell'],
+      },
+      front_squat: {
+        patterns: ['Squat'],
+        muscle: 'Legs',
+        equipment: ['Barbell'],
+      },
+      forty_five_degree_leg_press: {
+        patterns: ['Squat'],
+        muscle: 'Legs',
+        equipment: ['Machine'],
+      },
+      conventional_deadlift: {
+        patterns: ['Hinge'],
+        muscle: 'Legs',
+        equipment: ['Barbell'],
+      },
+      sumo_deadlift: {
+        patterns: ['Hinge'],
+        muscle: 'Legs',
+        equipment: ['Barbell'],
+      },
+      goblet_squat: {
+        patterns: ['Squat'],
+        muscle: 'Legs',
+        equipment: ['Dumbbell'],
+      },
+      dumbbell_romanian_deadlift: {
+        patterns: ['Hinge'],
+        muscle: 'Legs',
+        equipment: ['Dumbbell'],
+      },
+    };
+    const exercisesService = {
+      findOne: (id: string) => {
+        const m = metaById[id];
+        return {
+          id,
+          name: id,
+          movementPatterns: m?.patterns ?? [],
+          primaryMuscleGroup: m?.muscle ?? 'Legs',
+          secondaryMuscleGroups: [],
+          equipment: m?.equipment ?? [],
+        };
+      },
+      getCandidatesForGenerator: () => [],
+    };
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Lower' },
+      exercisesService as any,
+      ['Dumbbell', 'Resistance Band', 'Bodyweight'],
+      [],
+      { goal: 'hypertrophy', durationMinutes: 45, detailLevel: 'detailed' },
+    );
+    // Barbell/machine anchors are filtered by equipment; the hinge-pattern
+    // dumbbell RDL is the first anchor the home list can actually perform.
+    expect(out.exercises[0]?.exerciseId).toBe('dumbbell_romanian_deadlift');
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).not.toContain('back_squat');
+    expect(ids).not.toContain('conventional_deadlift');
+  });
+
+  it('pull-balance insert skips non-pull arm moves offered by the pull pool', async () => {
+    const session: GeneratedSession = {
+      weekIndex: 1,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        {
+          name: 'Flat Barbell Bench Press',
+          sets: 4,
+          reps: 8,
+          exerciseId: 'flat_barbell_bench_press',
+        },
+        {
+          name: 'Incline Dumbbell Bench Press',
+          sets: 3,
+          reps: 10,
+          exerciseId: 'incline_dumbbell_bench_press',
+        },
+      ],
+    };
+    const exercisesService = {
+      findOne: (id: string) => ({
+        id,
+        name: id,
+        movementPatterns: ['Push'],
+        primaryMuscleGroup: 'Chest',
+        secondaryMuscleGroups: [],
+      }),
+      // The 'pull' focus pool is muscle-group based (Back + Arms) so it leads
+      // with triceps/biceps isolation here — the insert must skip to the row.
+      getCandidatesForGenerator: ({ focus }: { focus: string }) =>
+        focus === 'pull'
+          ? [
+              {
+                id: 'straight_bar_cable_pushdown',
+                name: 'Straight-Bar Cable Pushdown',
+                primaryMuscleGroup: 'Arms',
+                secondaryMuscleGroups: ['Shoulders'],
+                movementPatterns: ['Push'],
+              },
+              {
+                id: 'standing_dumbbell_curl',
+                name: 'Standing Dumbbell Curl',
+                primaryMuscleGroup: 'Arms',
+                secondaryMuscleGroups: [],
+                movementPatterns: ['Pull'],
+              },
+              {
+                id: 'barbell_bent_over_row',
+                name: 'Barbell Bent-Over Row',
+                primaryMuscleGroup: 'Back',
+                secondaryMuscleGroups: ['Arms'],
+                movementPatterns: ['Pull'],
+              },
+            ]
+          : [],
+    };
+    const out = await enrichGeneratedSession(
+      session,
+      { type: 'strength', title: 'Upper' },
+      exercisesService as any,
+      [],
+      [],
+      { goal: 'hypertrophy', durationMinutes: 45, detailLevel: 'detailed' },
+    );
+    const ids = out.exercises.map((e) => e.exerciseId);
+    expect(ids).toContain('barbell_bent_over_row');
+    expect(ids).not.toContain('straight_bar_cable_pushdown');
+    expect(ids).not.toContain('standing_dumbbell_curl');
+  });
+
   it('skips the swap when no candidate anchor shares a movement pattern with slot 1', async () => {
     // Slot 1 is a Pull move; there is no Pull-pattern anchor available because
     // every candidate the helper inspects is exclude-listed via the chunk set.
@@ -1383,9 +1943,8 @@ describe('enrichGeneratedSession prescriptionType', () => {
           'forty_five_degree_leg_press',
           'conventional_deadlift',
           'sumo_deadlift',
-          'lying_leg_curl',
-          'seated_leg_extension',
-          'standing_calf_raise_machine',
+          'goblet_squat',
+          'dumbbell_romanian_deadlift',
         ],
       },
     );
@@ -1484,6 +2043,107 @@ describe('enrichGeneratedSessionsInChunkOrder', () => {
     const lastB = out[1]!.exercises[out[1]!.exercises.length - 1]!.exerciseId;
     expect(lastA).toBe('tread1');
     expect(lastB).toBe('bike1');
+  });
+
+  it('scopes the cross-session exclude list per week — cloned weeks resolve identically', async () => {
+    const mkSession = (weekIndex: number): GeneratedSession => ({
+      weekIndex,
+      weekday: 'Monday',
+      name: 'Upper',
+      exercises: [
+        { name: 'Bench', sets: 3, reps: 8, exerciseId: 'a_bp' },
+        { name: 'Row', sets: 3, reps: 8, exerciseId: 'a_row' },
+      ],
+    });
+    const exercisesService = {
+      findOne: (exId: string) => {
+        if (exId === 'a_bp')
+          return {
+            id: 'a_bp',
+            name: 'Bench',
+            movementPatterns: ['Push'],
+            primaryMuscleGroup: 'Chest',
+          };
+        if (exId === 'a_row')
+          return {
+            id: 'a_row',
+            name: 'Row',
+            movementPatterns: ['Pull'],
+            primaryMuscleGroup: 'Back',
+          };
+        if (exId === 'tread1')
+          return {
+            id: 'tread1',
+            name: 'Treadmill Walk Easy',
+            primaryMuscleGroup: 'Cardio',
+            prescriptionType: 'time' as const,
+          };
+        if (exId === 'bike1')
+          return {
+            id: 'bike1',
+            name: 'Stationary Bike Easy',
+            primaryMuscleGroup: 'Cardio',
+            prescriptionType: 'time' as const,
+          };
+        return undefined;
+      },
+      getCandidatesForGenerator: (opts: {
+        focus?: string;
+        excludeIds?: string[];
+      }) => {
+        if (opts?.focus !== 'cardio') return [];
+        const all = [
+          {
+            id: 'tread1',
+            name: 'Treadmill Walk Easy',
+            primaryMuscleGroup: 'Cardio',
+            prescriptionType: 'time',
+          },
+          {
+            id: 'bike1',
+            name: 'Stationary Bike Easy',
+            primaryMuscleGroup: 'Cardio',
+            prescriptionType: 'time',
+          },
+        ];
+        const ex = new Set(
+          (opts.excludeIds ?? []).map((x) => String(x).trim()),
+        );
+        return all.filter((c) => !ex.has(c.id));
+      },
+    };
+    const enrich = (weekIndices: [number, number]) =>
+      enrichGeneratedSessionsInChunkOrder(
+        [mkSession(weekIndices[0]), mkSession(weekIndices[1])],
+        {
+          getSpec: (i) => ({
+            type: 'strength',
+            title: 'Upper',
+            weekIndex: weekIndices[i]!,
+          }),
+          getAvoidPhrases: () => [],
+          getGenerationPrefs: () => ({
+            goal: 'hybrid',
+            durationMinutes: 45,
+            detailLevel: 'simple',
+          }),
+          exercisesService: exercisesService as any,
+          equipment: ['Machine'],
+        },
+      );
+
+    // Week-2 clone of a week-1 session must resolve to the SAME finisher —
+    // a program-wide exclude list re-anchored cloned weeks into worse picks.
+    const cloned = await enrich([1, 2]);
+    const lastOf = (s: GeneratedSession) =>
+      s.exercises[s.exercises.length - 1]!.exerciseId;
+    expect(lastOf(cloned[0]!)).toBe('tread1');
+    expect(lastOf(cloned[1]!)).toBe('tread1');
+
+    // Two sessions in the SAME week still get distinct picks.
+    const sameWeek = await enrich([1, 1]);
+    expect(lastOf(sameWeek[0]!)).toBe('tread1');
+    expect(lastOf(sameWeek[1]!)).toBe('bike1');
   });
 
   it('stamps the cardio finisher row as time-based with reps=600 (10 min)', async () => {
@@ -1904,5 +2564,333 @@ describe('enrichGeneratedSession within-session redundancy cap', () => {
     expect(
       out.exercises.some((e) => /movement variety/i.test(e.notes ?? '')),
     ).toBe(false);
+  });
+});
+
+describe('humanizeExerciseIdsInCopy', () => {
+  const findMeta = (id: string) =>
+    id === 'front_squat' ? { name: 'Front Squat' } : undefined;
+
+  it('maps known catalog ids to display names', () => {
+    expect(
+      humanizeExerciseIdsInCopy(
+        'This day starts with the front_squat.',
+        findMeta,
+      ),
+    ).toBe('This day starts with the Front Squat.');
+  });
+
+  it('de-underscores unknown snake_case tokens', () => {
+    expect(
+      humanizeExerciseIdsInCopy(
+        'then the barbell_b_stance_rdl block',
+        findMeta,
+      ),
+    ).toBe('then the barbell b stance rdl block');
+  });
+
+  it('leaves plain prose untouched', () => {
+    const text = 'Balance push and pull; finish with easy cardio.';
+    expect(humanizeExerciseIdsInCopy(text, findMeta)).toBe(text);
+  });
+});
+
+describe('cardio row stale-note cleanup', () => {
+  it('drops a seconds-of-work note that contradicts the stamped duration', async () => {
+    const exercisesService = {
+      findOne: (id: string) =>
+        id === 'jumping_jack'
+          ? {
+              id,
+              name: 'Jumping Jack',
+              primaryMuscleGroup: 'Cardio',
+              movementPatterns: ['Cardio'],
+              secondaryMuscleGroups: [],
+            }
+          : {
+              id,
+              name: id,
+              primaryMuscleGroup: 'Legs',
+              movementPatterns: ['Squat'],
+              secondaryMuscleGroups: [],
+            },
+      getCandidatesForGenerator: () => [],
+    };
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Full Body',
+        exercises: [
+          { name: 'Back Squat', sets: 3, reps: 10, exerciseId: 'back_squat' },
+          {
+            name: 'Jumping Jack',
+            sets: 2,
+            reps: 15,
+            notes: '30 seconds of work',
+            exerciseId: 'jumping_jack',
+          },
+        ],
+      },
+      { type: 'strength', title: 'Full Body' },
+      exercisesService as any,
+      [],
+      [],
+      { goal: 'fat loss', durationMinutes: 45, detailLevel: 'simple' },
+    );
+    const jack = out.exercises.find((e) => e.exerciseId === 'jumping_jack')!;
+    expect(jack.durationSeconds).toBe(600);
+    expect(jack.notes).toBeUndefined();
+  });
+});
+
+describe('per-session press-total cap', () => {
+  const mkService = (rows: Array<Record<string, unknown>>) => {
+    const byId = new Map(rows.map((r) => [r.id as string, r]));
+    return {
+      findOne: (id: string) => byId.get(id),
+      getCandidatesForGenerator: ({
+        excludeIds,
+      }: {
+        excludeIds?: string[];
+      }) => {
+        const ex = new Set(excludeIds ?? []);
+        return rows.filter((r) => !ex.has(r.id as string));
+      },
+    } as any;
+  };
+  const lift = (
+    id: string,
+    name: string,
+    primaryMuscleGroup: string,
+    movementPatterns: string[],
+  ) => ({
+    id,
+    name,
+    primaryMuscleGroup,
+    movementPatterns,
+    primaryEquipment: ['Dumbbell'],
+    prescriptionType: 'reps' as const,
+  });
+  const flatBench = lift(
+    'flat_db_bench',
+    'Flat Dumbbell Bench Press',
+    'Chest',
+    ['Push'],
+  );
+  const inclineBench = lift(
+    'incline_db_bench',
+    'Incline Dumbbell Bench Press',
+    'Chest',
+    ['Push'],
+  );
+  const declineBench = lift(
+    'decline_db_bench',
+    'Decline Dumbbell Bench Press',
+    'Chest',
+    ['Push'],
+  );
+  const ohp = lift('db_ohp', 'Dumbbell Overhead Press', 'Shoulders', ['Push']);
+  const pulldown = lift('lat_pulldown', 'Wide-Grip Lat Pulldown', 'Back', [
+    'Pull',
+  ]);
+  const bentRow = lift('bent_over_row', 'Barbell Bent-Over Row', 'Back', [
+    'Pull',
+  ]);
+  const rdl = lift('barbell_rdl', 'Barbell Romanian Deadlift', 'Legs', [
+    'Hinge',
+  ]);
+  const convDl = lift(
+    'conventional_deadlift',
+    'Conventional Deadlift',
+    'Legs',
+    ['Hinge'],
+  );
+  const goodMorning = lift('good_morning', 'Barbell Good Morning', 'Legs', [
+    'Hinge',
+  ]);
+  const backSquat = lift('back_squat', 'Barbell Back Squat', 'Legs', ['Squat']);
+  const rowOf = (r: { id: string; name: string }, sets = 4, reps = 6) => ({
+    name: r.name,
+    sets,
+    reps,
+    exerciseId: r.id,
+  });
+  const countBy = (out: { exercises: Array<{ name: string }> }, rx: RegExp) =>
+    out.exercises.filter((e) => rx.test(e.name)).length;
+  const PRESS_RX = /bench press|overhead press|push-up|dip/i;
+  const PULL_RX = /row|pulldown/i;
+
+  it('caps an Upper day at 3 total presses, swapping the excess for a pull', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          rowOf(flatBench, 4, 5),
+          rowOf(inclineBench),
+          rowOf(declineBench),
+          rowOf(ohp),
+          rowOf(pulldown, 3, 10),
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([
+        flatBench,
+        inclineBench,
+        declineBench,
+        ohp,
+        pulldown,
+        bentRow,
+      ]),
+      undefined,
+      [],
+      undefined,
+    );
+    expect(countBy(out, PRESS_RX)).toBe(3);
+    expect(countBy(out, PULL_RX)).toBe(2);
+    expect(out.exercises.map((e) => e.exerciseId)).toContain('bent_over_row');
+  });
+
+  it('leaves a press-focused day (Push) alone', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Push',
+        exercises: [
+          rowOf(flatBench, 4, 5),
+          rowOf(inclineBench),
+          rowOf(declineBench),
+          rowOf(ohp),
+        ],
+      },
+      { type: 'strength', title: 'Push' },
+      mkService([flatBench, inclineBench, declineBench, ohp, bentRow]),
+      undefined,
+      [],
+      undefined,
+    );
+    expect(countBy(out, PRESS_RX)).toBe(4);
+  });
+
+  it('press-cap swap-ins prefer a pull angle still under the per-angle cap', async () => {
+    // 4 presses + 2 horizontal rows: the excess press must not become a third
+    // horizontal row just because one is next in the pool — the pull-angle cap
+    // already ran and will not re-check inserts.
+    const chestRow = lift(
+      'chest_supported_row',
+      'Chest-Supported Row',
+      'Back',
+      ['Pull'],
+    );
+    const cableRow = lift('seated_cable_row', 'Seated Cable Row', 'Back', [
+      'Pull',
+    ]);
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Upper',
+        exercises: [
+          rowOf(flatBench, 4, 5),
+          rowOf(inclineBench),
+          rowOf(declineBench),
+          rowOf(ohp),
+          rowOf(bentRow, 3, 8),
+          rowOf(chestRow, 3, 8),
+        ],
+      },
+      { type: 'strength', title: 'Upper' },
+      mkService([
+        flatBench,
+        inclineBench,
+        declineBench,
+        ohp,
+        bentRow,
+        chestRow,
+        cableRow, // horizontal candidate first in pool order — must be skipped
+        pulldown, // vertical candidate — the correct pick
+      ]),
+      undefined,
+      [],
+      undefined,
+    );
+    const horizontals = out.exercises.filter((e) =>
+      /row\b/i.test(e.name),
+    ).length;
+    expect(countBy(out, PRESS_RX)).toBe(3);
+    expect(horizontals).toBeLessThanOrEqual(2);
+    expect(out.exercises.map((e) => e.exerciseId)).toContain('lat_pulldown');
+  });
+
+  it('never swaps a capped family into a sibling family already at cap', async () => {
+    // Live case: 3 squats on a Lower day; the excess squat must not become a
+    // third hinge just because a deadlift is the next candidate in the pool.
+    const frontSquat = lift('front_squat', 'Front Squat', 'Legs', ['Squat']);
+    const hackSquat = lift('hack_squat', 'Machine Hack Squat', 'Legs', [
+      'Squat',
+    ]);
+    const gobletSquat = lift('goblet_squat', 'Goblet Squat', 'Legs', ['Squat']);
+    const lunge = lift('walking_lunge', 'Walking Lunge', 'Legs', ['Lunge']);
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Tuesday',
+        name: 'Lower',
+        exercises: [
+          rowOf(frontSquat, 4, 5),
+          rowOf(hackSquat),
+          rowOf(gobletSquat),
+          rowOf(rdl),
+          rowOf(convDl),
+        ],
+      },
+      { type: 'strength', title: 'Lower' },
+      mkService([
+        frontSquat,
+        hackSquat,
+        gobletSquat,
+        rdl,
+        convDl,
+        goodMorning, // hinge candidate first in pool order — must be skipped
+        lunge,
+      ]),
+      undefined,
+      [],
+      undefined,
+    );
+    const hinges = out.exercises.filter((e) =>
+      /deadlift|good morning/i.test(e.name),
+    ).length;
+    const squats = out.exercises.filter((e) => /squat/i.test(e.name)).length;
+    expect(squats).toBeLessThanOrEqual(2);
+    expect(hinges).toBeLessThanOrEqual(2);
+  });
+
+  it('caps hinge variants on a Full Body day now that dominance caps run everywhere', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Monday',
+        name: 'Full Body',
+        exercises: [
+          rowOf(rdl, 4, 5),
+          rowOf(convDl),
+          rowOf(goodMorning),
+          rowOf(pulldown, 3, 10),
+        ],
+      },
+      { type: 'strength', title: 'Full Body' },
+      mkService([rdl, convDl, goodMorning, pulldown, backSquat, bentRow]),
+      undefined,
+      [],
+      undefined,
+    );
+    const hinges = out.exercises.filter((e) =>
+      /deadlift|good morning/i.test(e.name),
+    ).length;
+    expect(hinges).toBeLessThanOrEqual(2);
   });
 });

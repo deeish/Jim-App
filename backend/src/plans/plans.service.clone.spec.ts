@@ -49,27 +49,37 @@ function makeProgression(
   return p;
 }
 
-const clone = (PlansService as any).tryCloneAndProgress as (
+const clone = (PlansService as any).tryCloneFirstWeekSessions as (
   specs: Spec[],
   week1ByFocus: Map<string, GeneratedSession>,
   weekProgression: WeekProgressionDto[],
 ) => GeneratedSession[] | null;
 
-describe('PlansService.tryCloneAndProgress', () => {
-  describe('happy path — build progression', () => {
-    it('clones session with rounded sets and decremented reps', () => {
+describe('PlansService.tryCloneFirstWeekSessions', () => {
+  describe('happy path', () => {
+    it('clones exercise rows verbatim (progression lands post-enrichment)', () => {
       const source = makeSession('push', 3, 10);
       const map = new Map([['push', source]]);
       const result = clone([makeSpec('push')], map, [
-        makeProgression(2, 1.08, -1),
+        makeProgression(2, 1.15, -1),
       ]);
 
       expect(result).not.toBeNull();
       expect(result).toHaveLength(1);
-      // round(3 * 1.08) = round(3.24) = 3 — a +8% week must not add a whole set
+      // Enrichment re-stamps prescriptions from role bands, so the clone must
+      // not pre-apply progression math (it would be erased and then, if it
+      // survived, double-applied by applyWeekProgressionToEnrichedSessions).
       expect(result![0].exercises[0].sets).toBe(3);
-      // 10 + (-1) = 9
-      expect(result![0].exercises[0].reps).toBe(9);
+      expect(result![0].exercises[0].reps).toBe(10);
+    });
+
+    it('copies rows, not references — mutating the clone leaves the source intact', () => {
+      const source = makeSession('push', 3, 10);
+      const map = new Map([['push', source]]);
+      const result = clone([makeSpec('push')], map, [makeProgression(2)]);
+
+      result![0].exercises[0].sets = 99;
+      expect(source.exercises[0].sets).toBe(3);
     });
 
     it('sets weekIndex and weekday from spec, not source', () => {
@@ -92,22 +102,6 @@ describe('PlansService.tryCloneAndProgress', () => {
       expect(result![0].reasoning).toBe('test reasoning');
       expect(result![0].warmUp).toBe('warm up');
       expect(result![0].coolDown).toBe('cool down');
-    });
-  });
-
-  describe('happy path — deload week', () => {
-    it('clones session with rounded sets and incremented reps', () => {
-      const source = makeSession('push', 4, 8);
-      const map = new Map([['push', source]]);
-      const result = clone([makeSpec('push', 4)], map, [
-        makeProgression(4, 0.7, 2),
-      ]);
-
-      // round(4 * 0.7) = round(2.8) = 3 — tracks the 0.7× intent more faithfully
-      // than floor (which over-cut to 2)
-      expect(result![0].exercises[0].sets).toBe(3);
-      // 8 + 2 = 10
-      expect(result![0].exercises[0].reps).toBe(10);
     });
   });
 
@@ -145,36 +139,6 @@ describe('PlansService.tryCloneAndProgress', () => {
       ];
       const result = clone(specs, map, [makeProgression()]);
       expect(result).toBeNull();
-    });
-  });
-
-  describe('clamp behaviour', () => {
-    it('clamps sets to minimum 1 when volumeMultiplier is very small', () => {
-      const source = makeSession('push', 1, 10);
-      const map = new Map([['push', source]]);
-      // round(1 * 0.3) = 0 → clamped to 1
-      const result = clone([makeSpec('push')], map, [
-        makeProgression(2, 0.3, 0),
-      ]);
-      expect(result![0].exercises[0].sets).toBe(1);
-    });
-
-    it('clamps reps to minimum 1 when repModifier is large negative', () => {
-      const source = makeSession('push', 3, 1);
-      const map = new Map([['push', source]]);
-      const result = clone([makeSpec('push')], map, [
-        makeProgression(2, 1.0, -10),
-      ]);
-      expect(result![0].exercises[0].reps).toBe(1);
-    });
-
-    it('clamps reps to maximum 100 when repModifier is large positive', () => {
-      const source = makeSession('push', 3, 99);
-      const map = new Map([['push', source]]);
-      const result = clone([makeSpec('push')], map, [
-        makeProgression(2, 1.0, 10),
-      ]);
-      expect(result![0].exercises[0].reps).toBe(100);
     });
   });
 

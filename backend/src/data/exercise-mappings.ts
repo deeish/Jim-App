@@ -221,7 +221,10 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   wrist_curl_machine: 'Machine',
   wrist_extension_machine: 'Machine',
   wrist_cuff: 'Cable',
-  pinch_block: 'Bodyweight',
+  // pinch_block deliberately unmapped: a pinch block is specialty grip gear,
+  // not bodyweight-free — unmapped required ids read as Unmodeled and never
+  // satisfy an equipment filter (a live plan prescribed a Pinch Block Carry
+  // to a dumbbell/band user because this mapped to 'Bodyweight').
   fat_grip_sleeves: 'Bodyweight',
   thick_bar: 'Barbell',
   rolling_handle: 'Cable',
@@ -234,7 +237,9 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   // Other
   partner_assist: 'Bodyweight',
   towel: 'Bodyweight',
-  tire: 'Bodyweight',
+  // tire deliberately unmapped: flipping requires an actual tire — mapping it
+  // to 'Bodyweight' made Tire Flip always-available (a live dumbbell/band
+  // plan prescribed it). Unmapped required ids read as Unmodeled.
   sled: 'Machine',
   heavy_bag: 'Bodyweight',
   climbing_rope: 'Pull-up Bar',
@@ -256,6 +261,48 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   plate_loaded_preacher_machine: 'Machine',
 };
 
+/**
+ * Sentinel primary-equipment label for rows whose required gear we don't model
+ * (pool, outdoor track). Never matches a user's equipment list, so the row is
+ * unavailable whenever an equipment filter applies.
+ */
+export const UNMODELED_EQUIPMENT = 'Unmodeled';
+
+/**
+ * Setup/support gear that must not gate availability: a home lifter without a
+ * "rack" or "flat bench" tag can still be offered the row (benches are
+ * improvised; the load implement is what matters). Only non-Bodyweight setup
+ * ids need listing — ids mapping to 'Bodyweight' (mats, belts, grip sleeves)
+ * never gate because {@link equipmentSatisfies} treats Bodyweight as free.
+ */
+const SETUP_EQUIPMENT_IDS = new Set([
+  'bench',
+  'flat_bench',
+  'incline_bench',
+  'decline_bench',
+  'adjustable_bench',
+  'preacher_bench',
+  'bench_pad',
+  'power_rack',
+  'rack',
+  'rack_bar',
+  'support',
+  'support_rails',
+]);
+
+/**
+ * True when `available` covers a row's required equipment: every required
+ * label must be owned, except Bodyweight (always available). Empty required =
+ * doable anywhere; UNMODELED_EQUIPMENT never matches.
+ */
+export function equipmentSatisfies(
+  required: string[] | undefined,
+  available: string[],
+): boolean {
+  if (!required?.length) return true;
+  return required.every((eq) => eq === 'Bodyweight' || available.includes(eq));
+}
+
 // Movement Pattern ID → Display Name (must map to VALID_MOVEMENT_PATTERNS for filter UI)
 export const MOVEMENT_PATTERN_MAP: Record<string, string> = {
   push: 'Push',
@@ -264,9 +311,9 @@ export const MOVEMENT_PATTERN_MAP: Record<string, string> = {
   hinge: 'Hinge',
   lunge: 'Lunge',
   carry: 'Carry',
-  cardio: 'Push',
-  core: 'Push',
-  isometric: 'Push',
+  cardio: 'Cardio',
+  core: 'Core',
+  isometric: 'Core',
   // Push variants
   horizontal_push: 'Push',
   incline_push: 'Push',
@@ -351,36 +398,36 @@ export const MOVEMENT_PATTERN_MAP: Record<string, string> = {
   overhead_carry: 'Carry',
   trap_bar_carry: 'Carry',
   loaded_carry: 'Carry',
-  // Core / stability (map to Push for filter; optional)
-  crunch: 'Push',
-  plank: 'Push',
-  dead_bug: 'Push',
-  bird_dog: 'Push',
-  anti_extension: 'Push',
-  anti_rotation: 'Push',
-  pallof_hold: 'Push',
-  side_plank: 'Push',
-  hanging_leg_raise: 'Push',
-  leg_raise: 'Push',
-  russian_twist: 'Push',
-  wood_chop: 'Push',
-  rotation: 'Push',
+  // Core / stability
+  crunch: 'Core',
+  plank: 'Core',
+  dead_bug: 'Core',
+  bird_dog: 'Core',
+  anti_extension: 'Core',
+  anti_rotation: 'Core',
+  pallof_hold: 'Core',
+  side_plank: 'Core',
+  hanging_leg_raise: 'Core',
+  leg_raise: 'Core',
+  russian_twist: 'Core',
+  wood_chop: 'Core',
+  rotation: 'Core',
   // Misc
   band_extension: 'Push',
   band_resistance: 'Push',
-  band_rotation: 'Pull',
+  band_rotation: 'Core',
   band_wrist_curl: 'Pull',
   band_wrist_extension: 'Push',
-  cable_crunch: 'Push',
-  cable_rotation: 'Pull',
+  cable_crunch: 'Core',
+  cable_rotation: 'Core',
   cable_wrist_curl: 'Pull',
   cable_wrist_extension: 'Push',
-  machine_crunch: 'Push',
+  machine_crunch: 'Core',
   machine_curl: 'Pull',
   machine_extension: 'Push',
-  machine_rotation: 'Pull',
-  isometric_hold: 'Push',
-  isometric_rotation: 'Pull',
+  machine_rotation: 'Core',
+  isometric_hold: 'Core',
+  isometric_rotation: 'Core',
   plantar_flexion: 'Squat',
   calf_raise: 'Squat',
 };
@@ -413,6 +460,8 @@ export const VALID_MOVEMENT_PATTERNS = [
   'Hinge',
   'Lunge',
   'Carry',
+  'Core',
+  'Cardio',
 ];
 
 /**
@@ -442,7 +491,15 @@ export interface TransformedExercise {
   primaryMuscleGroup: string;
   subMuscles: string[];
   secondaryMuscleGroups: string[];
+  /** Required + alternative equipment merged — drives library search/browse. */
   equipment: string[];
+  /**
+   * Required equipment only (alternatives excluded). Empty = doable anywhere
+   * (true bodyweight rows have no ids). [UNMODELED_EQUIPMENT] = the row needs
+   * gear we don't track (e.g. a pool) and is unavailable under any equipment
+   * filter. Generation candidate pools filter on this, not `equipment`.
+   */
+  primaryEquipment: string[];
   movementPatterns: string[];
   /** From raw data: "Compound" | "Isolation" etc. Used for common-first sort. */
   type?: string;
@@ -487,6 +544,23 @@ export function transformExercise(raw: RawExercise): TransformedExercise {
     // Remove duplicates
     .filter((value, index, self) => self.indexOf(value) === index);
 
+  // Required equipment only — a cable exercise with a band alternative must
+  // not pass a home (dumbbell/band/bodyweight) generation filter under its
+  // cable name. Setup gear (benches, racks) is dropped so it never gates.
+  // Raw ids that are all unmodeled (e.g. pool) keep a sentinel so the row
+  // reads as unavailable rather than equipment-free.
+  const gatingEquipmentIds = (raw.equipmentIds || []).filter(
+    (id) => !SETUP_EQUIPMENT_IDS.has(id),
+  );
+  const primaryMapped = gatingEquipmentIds
+    .map((id) => EQUIPMENT_MAP[id])
+    .filter((name): name is string => name !== undefined)
+    .filter((value, index, self) => self.indexOf(value) === index);
+  const primaryEquipment =
+    primaryMapped.length > 0 || gatingEquipmentIds.length === 0
+      ? primaryMapped
+      : [UNMODELED_EQUIPMENT];
+
   // Transform movement patterns (only include valid ones from SearchScreen)
   const movementPatterns = (raw.movementPatternIds || [])
     .map((id) => MOVEMENT_PATTERN_MAP[id] ?? MOVEMENT_PATTERN_FILLINS[id])
@@ -512,6 +586,7 @@ export function transformExercise(raw: RawExercise): TransformedExercise {
     subMuscles,
     secondaryMuscleGroups,
     equipment,
+    primaryEquipment,
     movementPatterns,
     type: raw.type,
     prescriptionType,

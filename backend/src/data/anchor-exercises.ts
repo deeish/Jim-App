@@ -4,22 +4,31 @@
  * IDs must exist in exercises_5000plus.json (same format as common-exercise-ids).
  */
 
+/**
+ * Compounds only — an "anchor" is a lift a trainer would open a session with,
+ * so isolation moves (curls, pushdowns, leg extensions) never belong here even
+ * though they're common. Each list keeps gym staples first (slot-1 swaps take
+ * the first acceptable candidate) and ends with dumbbell/bodyweight options so
+ * home users (Dumbbell / Resistance Band / Bodyweight) always have a reachable
+ * anchor once equipment filtering applies.
+ */
 export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
   push: [
     'flat_barbell_bench_press',
-    'flat_dumbbell_bench_press',
+    'incline_barbell_bench_press',
     'barbell_overhead_press',
     'seated_barbell_overhead_press',
     'chest_dip',
-    'incline_barbell_bench_press',
-    'straight_bar_cable_pushdown',
+    'flat_dumbbell_bench_press',
+    'push_up',
   ],
   pull: [
     'pull_up_pronated',
     'lat_pulldown_wide',
     'barbell_bent_over_row',
     'conventional_deadlift',
-    'standing_dumbbell_curl',
+    'chin_up',
+    'single_arm_dumbbell_row',
   ],
   legs: [
     'back_squat',
@@ -27,9 +36,8 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'forty_five_degree_leg_press',
     'conventional_deadlift',
     'sumo_deadlift',
-    'lying_leg_curl',
-    'seated_leg_extension',
-    'standing_calf_raise_machine',
+    'goblet_squat',
+    'dumbbell_romanian_deadlift',
   ],
   upper: [
     'flat_barbell_bench_press',
@@ -38,32 +46,31 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'lat_pulldown_wide',
     'barbell_overhead_press',
     'pull_up_pronated',
-    'standing_dumbbell_curl',
-    'straight_bar_cable_pushdown',
+    'single_arm_dumbbell_row',
+    'push_up',
   ],
   lower: [
     'back_squat',
     'forty_five_degree_leg_press',
     'conventional_deadlift',
-    'lying_leg_curl',
-    'seated_leg_extension',
-    'standing_calf_raise_machine',
+    'goblet_squat',
+    'dumbbell_romanian_deadlift',
   ],
   'upper body': [
     'flat_barbell_bench_press',
     'barbell_bent_over_row',
     'lat_pulldown_wide',
     'barbell_overhead_press',
-    'standing_dumbbell_curl',
-    'straight_bar_cable_pushdown',
+    'flat_dumbbell_bench_press',
+    'single_arm_dumbbell_row',
+    'push_up',
   ],
   'lower body': [
     'back_squat',
     'conventional_deadlift',
     'forty_five_degree_leg_press',
-    'lying_leg_curl',
-    'seated_leg_extension',
-    'standing_calf_raise_machine',
+    'goblet_squat',
+    'dumbbell_romanian_deadlift',
   ],
   'full body': [
     'conventional_deadlift',
@@ -72,6 +79,11 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'pull_up_pronated',
     'barbell_bent_over_row',
     'barbell_overhead_press',
+    'goblet_squat',
+    'flat_dumbbell_bench_press',
+    'dumbbell_romanian_deadlift',
+    'single_arm_dumbbell_row',
+    'push_up',
   ],
 };
 

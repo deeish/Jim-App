@@ -20,6 +20,8 @@ export type ParsedGenerateSessionsCapture = {
   sessionsOut: GeneratedSession[];
   /** Present when capture logged pre-enrichment slice aligned with specs. */
   sessionsPreEnrichment?: GeneratedSession[];
+  /** Server-resolved equipment the generator ran with (pipeline.resolvedContext). */
+  generatorEquipment?: string[];
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -65,6 +67,12 @@ export function parseGenerateSessionsCapture(
   if (Array.isArray(preRaw) && preRaw.length === sessions.length) {
     sessionsPreEnrichment = preRaw as GeneratedSession[];
   }
+  let generatorEquipment: string[] | undefined;
+  const resolvedContext = asRecord(asRecord(r.pipeline)?.resolvedContext);
+  const geRaw = resolvedContext?.generatorEquipment;
+  if (Array.isArray(geRaw) && geRaw.every((x) => typeof x === 'string')) {
+    generatorEquipment = geRaw as string[];
+  }
   return {
     inputs: {
       goal: typeof inputs.goal === 'string' ? inputs.goal : undefined,
@@ -74,6 +82,7 @@ export function parseGenerateSessionsCapture(
     },
     sessionsOut: sessions,
     sessionsPreEnrichment,
+    generatorEquipment,
   };
 }
 
@@ -170,7 +179,14 @@ export function inferMovementPatternsForCaptureExercise(ex: {
     p.add('Pull');
   }
   if (
-    /\b(press|bench|push-up|pushup|dip|fly|curl|pushdown|extension|skull|overhead march|rotation|sit-?up)\b/.test(
+    /\b(sit-?up|crunch|plank|rollout|dead bug|bird dog|pallof|leg raise|knee raise|russian twist|wood ?chop|rotation|hollow|v-?up)\b/.test(
+      blob,
+    )
+  ) {
+    p.add('Core');
+  }
+  if (
+    /\b(press|bench|push-up|pushup|dip|fly|curl|pushdown|extension|skull|overhead march)\b/.test(
       blob,
     )
   ) {
@@ -183,7 +199,7 @@ export function inferMovementPatternsForCaptureExercise(ex: {
     else if (pm === 'chest' || pm === 'shoulders' || pm === 'arms')
       p.add('Push');
     else if (pm === 'legs' || pm === 'glutes') p.add('Squat');
-    else if (pm === 'core') p.add('Push');
+    else if (pm === 'core') p.add('Core');
   }
   return [...p];
 }
@@ -244,6 +260,7 @@ function loadExerciseLibraryMap(
       movementPatterns: t.movementPatterns,
       primaryMuscleGroup: t.primaryMuscleGroup,
       prescriptionType: t.prescriptionType,
+      primaryEquipment: t.primaryEquipment,
     });
   }
   cachedLibrary = { path: jsonPath, map };
@@ -318,6 +335,7 @@ function scoreSessionsWithCatalog(
   inputs: ParsedGenerateSessionsCapture['inputs'],
   sessions: GeneratedSession[],
   catalog: EvalCatalogExercise[],
+  generatorEquipment?: string[],
 ): GenerationCaptureScoreResult {
   const effectiveDetailLevel = effectiveDetail(inputs.detailLevel);
   const byId = new Map(catalog.map((c) => [c.id, c]));
@@ -337,6 +355,7 @@ function scoreSessionsWithCatalog(
     validation,
     effectiveDetailLevel,
     enrichGoal: inputs.goal,
+    generatorEquipment,
   });
   return { score, validation, effectiveDetailLevel };
 }
@@ -450,6 +469,7 @@ export function scoreGenerationCaptureFull(
     parsed.inputs,
     parsed.sessionsOut,
     finalCat.catalog,
+    parsed.generatorEquipment,
   );
 
   let pre: GenerationCaptureScoreResult | undefined;
@@ -466,6 +486,7 @@ export function scoreGenerationCaptureFull(
       parsed.inputs,
       parsed.sessionsPreEnrichment,
       pc.catalog,
+      parsed.generatorEquipment,
     );
     preCatStats = {
       mode: pc.usedLibrary ? 'library' : 'infer',

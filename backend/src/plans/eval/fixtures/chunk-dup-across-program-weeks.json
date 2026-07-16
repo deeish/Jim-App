@@ -1,6 +1,6 @@
 {
   "id": "chunk_dup_across_program_weeks",
-  "description": "Same library id on Monday Upper in week 1 and week 2 (merged-program style); repair dedupes across the chunk.",
+  "description": "Same library id on Monday Upper in week 1 and week 2 (merged-program style); cross-week repeats are normal programming (weeks 2+ clone week 1), so repair keeps them and the validator only flags same-week duplicates.",
   "effectiveDetailLevel": "simple",
   "evalScoring": {
     "skipBalance": true,
@@ -108,7 +108,6 @@
     "after": {
       "validatorOk": true,
       "issuesMustNotInclude": ["duplicate_exercise_id_across_chunk"]
-    },
-    "expectRepairNotes": true
+    }
   }
 }

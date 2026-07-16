@@ -23,6 +23,7 @@
     "eval:score:report:json": "ts-node --transpile-only scripts/eval-score-report.ts --json",
     "eval:capture": "ts-node --transpile-only scripts/score-generation-capture.ts",
     "eval:capture:library": "ts-node --transpile-only scripts/score-generation-capture.ts --library",
+    "eval:captures:report": "ts-node --transpile-only scripts/eval-captures-report.ts",
     "review:queue": "ts-node --transpile-only scripts/review-queue.ts --",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

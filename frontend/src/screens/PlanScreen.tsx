@@ -197,6 +197,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [moving, setMoving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ slotId: string; day: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [clearingWeek, setClearingWeek] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<ApiPlan | null>(null);
   const [startWorkoutLoading, setStartWorkoutLoading] = useState(false);
   const [detailSheetGuideExpanded, setDetailSheetGuideExpanded] = useState(false);
@@ -457,6 +458,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         weekNavLabel: { fontSize: 13, color: colors.text, fontWeight: '600' },
         shiftRow: {
           flexDirection: 'row',
+          flexWrap: 'wrap',
           justifyContent: 'center',
           gap: 12,
           backgroundColor: colors.surface,
@@ -478,6 +480,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         },
         shiftBtnDisabled: { opacity: 0.35 },
         shiftBtnText: { fontSize: 14, color: colors.primary, fontWeight: '700' },
+        clearWeekBtnText: { fontSize: 14, color: colors.error, fontWeight: '700' },
         outOfProgramWeekBanner: {
           paddingVertical: 8,
           paddingHorizontal: 12,
@@ -866,22 +869,42 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       return;
     }
 
-    try {
-      setStartWorkoutLoading(true);
-      const w = await materializePlanSlotWorkout(slotId);
-      await loadPlan();
-      closeDetailSheet();
-      tabNav?.navigate('Workout', { workoutId: w.id, fromPlan: true });
-    } catch (err: any) {
-      const msg = err?.response?.data?.message;
-      Alert.alert('Could not start workout', typeof msg === 'string' ? msg : err?.message ?? 'Try again.');
-    } finally {
-      setStartWorkoutLoading(false);
+    const materializeAndOpen = async () => {
+      try {
+        setStartWorkoutLoading(true);
+        const w = await materializePlanSlotWorkout(slotId);
+        await loadPlan();
+        closeDetailSheet();
+        tabNav?.navigate('Workout', { workoutId: w.id, fromPlan: true });
+      } catch (err: any) {
+        const msg = err?.response?.data?.message;
+        Alert.alert('Could not start workout', typeof msg === 'string' ? msg : err?.message ?? 'Try again.');
+      } finally {
+        setStartWorkoutLoading(false);
+      }
+    };
+
+    // Past the program end the schedule reuses the last program week. Never
+    // add that repeat to the user's day without asking — and remind them
+    // which workout it is.
+    if (programWeekResolution.status === 'in_program' && programWeekResolution.repeatingLastWeek) {
+      Alert.alert(
+        'Repeat this workout?',
+        `Your plan has ended, so this day reuses "${detailSheetWorkout.workout.title}" from week ${programWeekResolution.week} (${planExerciseCount} exercise${planExerciseCount === 1 ? '' : 's'}). Add it to today and start?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Add & start', onPress: () => void materializeAndOpen() },
+        ],
+      );
+      return;
     }
+
+    await materializeAndOpen();
   }, [
     detailSheetWorkout,
     resolveWorkoutForPlanSlot,
     currentPlan?.planWorkouts,
+    programWeekResolution,
     loadPlan,
     closeDetailSheet,
     navigation,
@@ -997,6 +1020,45 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       setDeleting(false);
     }
   }, [deleteConfirm, loadPlan]);
+
+  // Remove every slot in the viewed program week so users don't have to
+  // delete one by one. Hidden on repeated-week views: those show the last
+  // real program week, and "clearing" them would delete that week's slots.
+  const handleClearWeek = useCallback(() => {
+    if (!currentPlan?.id || resolvedProgramWeek === null) return;
+    const slots = Object.values(planByWeek[resolvedProgramWeek] ?? {}).flat();
+    if (!slots.length) return;
+    const planId = currentPlan.id;
+    Alert.alert(
+      'Clear this week?',
+      `This removes all ${slots.length} workout${slots.length === 1 ? '' : 's'} scheduled this week. This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear week',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setClearingWeek(true);
+              try {
+                for (const slot of slots) {
+                  await removePlanSlot(planId, slot.id);
+                }
+              } catch (err: any) {
+                Alert.alert(
+                  'Could not clear the week',
+                  err?.response?.data?.message ?? err?.message ?? 'Some workouts may remain — try again.',
+                );
+              } finally {
+                await loadPlan();
+                setClearingWeek(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }, [currentPlan?.id, resolvedProgramWeek, planByWeek, loadPlan]);
 
   const handleAddWorkoutForDay = useCallback(
     (day: string) => {
@@ -1281,6 +1343,20 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           >
             <Text style={styles.shiftBtnText}>Shift forward →</Text>
           </TouchableOpacity>
+          {!(programWeekResolution.status === 'in_program' && programWeekResolution.repeatingLastWeek) ? (
+            <TouchableOpacity
+              style={[styles.shiftBtn, clearingWeek && styles.shiftBtnDisabled]}
+              disabled={clearingWeek}
+              onPress={handleClearWeek}
+              accessibilityLabel="Remove all workouts from this week"
+            >
+              {clearingWeek ? (
+                <ActivityIndicator size="small" color={colors.error} />
+              ) : (
+                <Text style={styles.clearWeekBtnText}>Clear week</Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
 

@@ -80,7 +80,7 @@ const getAllSubMuscles = (): string[] => {
 
 // Advanced/optional filters - collapsed by default
 const MOVEMENT_PATTERNS = [
-  'Push', 'Pull', 'Squat', 'Hinge', 'Lunge', 'Carry'
+  'Push', 'Pull', 'Squat', 'Hinge', 'Lunge', 'Carry', 'Core', 'Cardio'
 ];
 
 // Cap for browse-mode responses (no search text — with or without chips). The

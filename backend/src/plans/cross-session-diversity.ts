@@ -22,7 +22,7 @@ const DECLINE_RX = /\bdecline\b/i;
 const OVERHEAD_RX =
   /\boverhead\b|\b(ohp|military)\b|\bshoulder\s+press\b|\bz[-\s]?press\b|\bpush\s+press\b|\bjerk\b|\bstrict\s+press\b|\barnold\s+press\b/i;
 const FLAT_BENCH_RX =
-  /\b(flat|bench)\s+(barbell|dumbbell|smith|cable|machine)?\s*(bench\s+)?press\b|\b(barbell|dumbbell|smith|cable|machine)\s+bench\s+press\b|\bbench\s+press\b/i;
+  /\b(flat|bench)\s+(barbell|dumbbell|smith|cable|machine)?\s*(bench\s+)?press\b|\b(barbell|dumbbell|smith|cable|machine)\s+bench\s+press\b|\bbench\s+press\b|\bchest\s+press\b|\bfloor\s+press\b/i;
 
 const HORIZONTAL_PULL_RX =
   /\brow\b|\b(seated|chest[-\s]?supported|inverted|t[-\s]?bar|landmine)\s+row\b/i;
