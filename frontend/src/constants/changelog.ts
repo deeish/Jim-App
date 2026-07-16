@@ -25,6 +25,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-07-16',
+    version: '1.0.0',
+    date: '2026-07-16',
+    title: 'Share workouts with your gym buddy',
+    changes: [
+      { type: 'new', text: 'Share your plan or any workout with a gym buddy. They scan your QR code or enter a short code, preview what you sent, and add it to their own account.' },
+      { type: 'new', text: 'Redeem a share code from Profile, or scan a friend\'s QR code with your phone camera.' },
+    ],
+  },
+  {
     id: '2026-07-15',
     version: '1.0.0',
     date: '2026-07-15',
