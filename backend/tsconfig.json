@@ -1,5 +1,13 @@
 {
   "compilerOptions": {
+    // NOTE: do not re-add "baseUrl" or "paths" here. "baseUrl" is deprecated
+    // (removed in TS 7) and renders as an error in the IDE, and the backend
+    // never used the "@/*" alias — it was copied from the frontend config.
+    // "types" must stay pinned to ["node", "jest"]: without it, tsserver
+    // loses the jest globals and every *.spec.ts lights up with
+    // "Cannot find name 'describe'/'it'/'expect'" errors.
+    // This was first fixed in da0aed3; branches cut from a commit older than
+    // that fix will show the deprecation again until everything merges.
     "module": "commonjs",
     "declaration": true,
     "removeComments": true,
@@ -10,17 +18,14 @@
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": ".",
-    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
+    "types": ["node", "jest"],
     "strictNullChecks": false,
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
-    "noFallthroughCasesInSwitch": false,
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "noFallthroughCasesInSwitch": false
   },
   "include": ["src/**/*"]
 }
