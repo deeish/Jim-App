@@ -8,6 +8,7 @@ import {
   adjacentJoinVariants,
   withinOneEdit,
   correctQueryTokens,
+  applyQuerySynonyms,
   SearchableExercise,
 } from './exercise-search.util';
 
@@ -257,6 +258,21 @@ describe('typo fallback', () => {
     ]);
     // equal frequency → alphabetical
     expect(correctQueryTokens(['aat'], equalFreq)).toEqual(['bat']);
+  });
+});
+
+describe('applyQuerySynonyms', () => {
+  it('maps slang tokens (post-singularization keys)', () => {
+    expect(applyQuerySynonyms(tokenizeQuery('bb row'))).toEqual([
+      'barbell',
+      'row',
+    ]);
+    // "hammies" tokenizes to "hammie" before the synonym lookup
+    expect(applyQuerySynonyms(tokenizeQuery('hammies'))).toEqual(['hamstring']);
+  });
+
+  it('returns null when no synonym applies, so no extra variant is tried', () => {
+    expect(applyQuerySynonyms(tokenizeQuery('bench press'))).toBeNull();
   });
 });
 

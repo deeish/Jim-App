@@ -24,6 +24,7 @@ import {
   searchRelevance,
   adjacentJoinVariants,
   correctQueryTokens,
+  applyQuerySynonyms,
 } from './exercise-search.util';
 
 /** Lower = show first. Used to prefer Barbell/Dumbbell/Bodyweight/Cable/Machine. */
@@ -206,6 +207,15 @@ export class ExercisesService implements OnModuleInit {
         normalizedQuery: tokens.join(' '),
       })),
     ];
+    // Slang variant ("bb row" → "barbell row") — extra attempt, so a synonym
+    // can never shadow an exercise literally named with the slang word.
+    const synonyms = applyQuerySynonyms(queryTokens);
+    if (synonyms) {
+      variants.push({
+        tokens: synonyms,
+        normalizedQuery: synonyms.join(' '),
+      });
+    }
     // Typo fallback: only rewrites tokens that reach nothing anywhere in the
     // catalog, so it cannot hijack a query that already works.
     const corrected = correctQueryTokens(queryTokens, this.searchVocab());

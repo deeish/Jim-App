@@ -123,6 +123,36 @@ export function adjacentJoinVariants(tokens: string[]): string[][] {
 }
 
 /**
+ * Gym slang → the word the catalog actually uses. Keys are post-singularization
+ * tokens ("hammies" arrives as "hammie"). Deliberately tiny and evidence-driven:
+ * most slang already works through catalog aliases ("Military Press" is an
+ * alias of Barbell Overhead Press), so an entry is added only when the golden
+ * query suite proves it dead without one. Applied as an EXTRA query variant,
+ * never a replacement, so a synonym can't shadow a real name or alias match.
+ */
+const QUERY_SYNONYMS: Record<string, string> = {
+  bb: 'barbell',
+  db: 'dumbbell',
+  kb: 'kettlebell',
+  pressdown: 'pushdown',
+  hammie: 'hamstring',
+};
+
+/** Synonym-mapped copy of the tokens, or null when no synonym applies. */
+export function applyQuerySynonyms(tokens: string[]): string[] | null {
+  let changed = false;
+  const mapped = tokens.map((token) => {
+    const synonym = QUERY_SYNONYMS[token];
+    if (synonym) {
+      changed = true;
+      return synonym;
+    }
+    return token;
+  });
+  return changed ? mapped : null;
+}
+
+/**
  * True when a can be turned into b with at most one edit (insert, delete,
  * substitute, or adjacent transposition — Damerau-Levenshtein). Transpositions
  * matter: "sqaut" and "deadlfit" are the most common real typo shape.
