@@ -16,6 +16,7 @@ import {
 import { getCurrentPlan, planSlotForWorkout } from '../services/planService';
 import type { ApiPlan } from '../services/planService';
 import WorkoutLikeButton from '../components/WorkoutLikeButton';
+import ShareModal from '../components/ShareModal';
 import { Workout } from '../types/workout';
 import { useTheme } from '../theme/ThemeContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
@@ -43,6 +44,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
   /** Collapsed by default — exercises stay “above the fold”; expand when you want the long AI copy. */
   const [guideExpanded, setGuideExpanded] = useState(false);
   /** Current plan snapshot to resolve slot duration when this workout is tied to Plan. */
@@ -195,6 +197,8 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         },
         backButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 12 },
         backButtonText: { fontSize: 16, fontWeight: '600', color: colors.primary },
+        backBarActions: { flexDirection: 'row', alignItems: 'center' },
+        shareButton: { padding: 10 },
         saveButton: { padding: 10, marginRight: 4 },
       }),
     [colors]
@@ -360,14 +364,23 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         <Text style={styles.backButtonText}>Back</Text>
       </TouchableOpacity>
       {workout?.id && (
-        <WorkoutLikeButton
-          workoutId={workout.id}
-          saved={saved}
-          onSave={handleToggleSave}
-          onUnsave={handleToggleSave}
-          size={26}
-          style={styles.saveButton}
-        />
+        <View style={styles.backBarActions}>
+          <TouchableOpacity
+            style={styles.shareButton}
+            onPress={() => setShareModalVisible(true)}
+            accessibilityLabel="Share workout"
+          >
+            <Ionicons name="share-outline" size={24} color={colors.primary} />
+          </TouchableOpacity>
+          <WorkoutLikeButton
+            workoutId={workout.id}
+            saved={saved}
+            onSave={handleToggleSave}
+            onUnsave={handleToggleSave}
+            size={26}
+            style={styles.saveButton}
+          />
+        </View>
       )}
     </View>
   );
@@ -556,6 +569,14 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
           </View>
         </View>
       </ScrollView>
+
+      <ShareModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        kind="workout"
+        targetId={workout.id}
+        targetName={workout.name}
+      />
     </View>
   );
 }
