@@ -30,8 +30,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-16',
     title: 'Share workouts with your gym buddy',
     changes: [
-      { type: 'new', text: 'Share your plan or any workout with a gym buddy. They scan your QR code or enter a short code, preview what you sent, and add it to their own account.' },
-      { type: 'new', text: 'Redeem a share code from Profile, or scan a friend\'s QR code with your phone camera.' },
+      { type: 'new', text: 'Share your plan with your gym partner. The feature is on the Plan page once a workout is generated: send a code or have them scan your QR code.' },
     ],
   },
   {
