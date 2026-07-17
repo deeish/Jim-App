@@ -28,6 +28,8 @@ model User {
   savedWorkouts     SavedWorkout[]
   savedExercises    SavedExercise[]
   bodyWeightEntries BodyWeightEntry[]
+  shares            Share[]           @relation("SharesOwned")
+  shareRedemptions  ShareRedemption[]
 
   @@map("users")
 }
@@ -48,6 +50,7 @@ model WorkoutPlan {
   user         User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   planWorkouts PlanWorkout[]
   workouts     Workout[]
+  shares       Share[]
 
   @@map("workout_plans")
   @@index([userId])
@@ -129,6 +132,7 @@ model Workout {
   exercises    WorkoutExercise[]
   workoutLogs  WorkoutLog[]
   savedBy      SavedWorkout[]
+  shares       Share[]
 
   @@map("workouts")
   @@index([userId])
@@ -263,6 +267,53 @@ model CompletedSet {
 
   @@map("completed_sets")
   @@index([workoutLogEntryId])
+}
+
+// ---------------------------------------------------------------------------
+// Share (capability code letting another user clone a plan or workout)
+// ---------------------------------------------------------------------------
+model Share {
+  id          String    @id @default(uuid())
+  code        String    @unique // 8 chars from the unambiguous share-code alphabet
+  kind        String    // "plan" | "workout"
+  ownerUserId String
+  /// Display-name snapshot from the client; backend User.name is never populated.
+  senderName  String?
+  planId      String?
+  workoutId   String?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+
+  owner       User              @relation("SharesOwned", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  plan        WorkoutPlan?      @relation(fields: [planId], references: [id], onDelete: SetNull)
+  workout     Workout?          @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+  redemptions ShareRedemption[]
+
+  @@map("shares")
+  @@index([ownerUserId])
+  @@index([planId])
+  @@index([workoutId])
+}
+
+// ---------------------------------------------------------------------------
+// Share redemption (who accepted a share; clone ids are plain strings so
+// history survives the recipient later deleting the clone)
+// ---------------------------------------------------------------------------
+model ShareRedemption {
+  id              String   @id @default(uuid())
+  shareId         String
+  userId          String
+  clonedPlanId    String?
+  clonedWorkoutId String?
+  createdAt       DateTime @default(now())
+
+  share Share @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([shareId, userId])
+  @@map("share_redemptions")
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------

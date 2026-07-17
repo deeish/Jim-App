@@ -8,7 +8,9 @@ services:
   - type: web
     name: jim-app-api
     runtime: node
-    plan: free
+    # preDeployCommand requires a PAID instance type — Render ignores/rejects it on free.
+    # The live service runs on standard; keep this in sync so a Blueprint sync never downgrades it.
+    plan: standard
     region: oregon
     rootDir: backend
     buildCommand: NPM_CONFIG_PRODUCTION=false npm ci && npx prisma generate && npm run build
@@ -21,6 +23,10 @@ services:
       - key: NODE_VERSION
         value: "20"
       - key: DATABASE_URL
+        sync: false
+      # Session-mode pooler URI; prisma migrate deploy (the pre-deploy command) requires it
+      # because schema.prisma declares directUrl. The runtime app only needs DATABASE_URL.
+      - key: DIRECT_URL
         sync: false
       - key: SUPABASE_URL
         sync: false

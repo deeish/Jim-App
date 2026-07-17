@@ -29,6 +29,7 @@ import { materializePlanSlotWorkout, getWorkoutLogs } from '../services/workoutS
 import LoadingSpinner from '../components/LoadingSpinner';
 import WorkoutDayRow, { pickWorkoutIcon, pickWorkoutAccent, workoutEyebrow } from '../components/WorkoutDayRow';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
+import ShareModal from '../components/ShareModal';
 import {
   formatLocalYmd,
   getCalendarWeekRange,
@@ -191,6 +192,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [showDetails, setShowDetails] = useState(false);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
   const [savedModalVisible, setSavedModalVisible] = useState(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
   const [detailSheetWorkout, setDetailSheetWorkout] = useState<{ workout: PlanWorkout; day: string; date: Date } | null>(null);
   const [restSheetWorkout, setRestSheetWorkout] = useState<{ workout: PlanWorkout; day: string; date: Date } | null>(null);
   const [moveContext, setMoveContext] = useState<{ workout: PlanWorkout; day: string } | null>(null);
@@ -1276,6 +1278,15 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           >
             <Text style={[styles.historyLabelText, { color: colors.primary }]}>Saved workouts</Text>
           </TouchableOpacity>
+          {currentPlan?.id ? (
+            <TouchableOpacity
+              style={styles.historyLabelButton}
+              onPress={() => setShareModalVisible(true)}
+              accessibilityLabel="Share plan"
+            >
+              <Ionicons name="share-outline" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity style={styles.ctaCompact} onPress={handleAIGenerate} accessibilityLabel="AI Generate plan">
             <Ionicons name="sparkles-outline" size={16} color={colors.onPrimary} />
             <Text style={styles.ctaCompactText}>AI Generate</Text>
@@ -1969,6 +1980,16 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           }}
         />
       </Modal>
+
+      {currentPlan?.id ? (
+        <ShareModal
+          visible={shareModalVisible}
+          onClose={() => setShareModalVisible(false)}
+          kind="plan"
+          targetId={currentPlan.id}
+          targetName={currentPlan.name ?? 'My Plan'}
+        />
+      ) : null}
 
       {/* Drag ghost card — floats above everything while dragging */}
       {draggingSlot && (

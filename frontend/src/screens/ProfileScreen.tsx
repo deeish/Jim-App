@@ -781,6 +781,16 @@ export default function ProfileScreen() {
           />
         </View>
 
+        <SectionHeader title="Sharing" colors={colors} />
+        <View style={[styles.sectionCard, themedStyles.sectionCard]}>
+          <Row
+            label="Redeem a share code"
+            onPress={() => navigation.navigate('ShareRedeem')}
+            colors={colors}
+            showChevron
+          />
+        </View>
+
         <SectionHeader title="Preferences" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
           <Row

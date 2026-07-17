@@ -17,6 +17,8 @@ import NavBar from './src/components/NavBar';
 import LoadingScreen from './src/components/LoadingScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import WeightTrackerScreen from './src/screens/WeightTrackerScreen';
+import ShareRedeemScreen from './src/screens/ShareRedeemScreen';
+import ShareDeepLinkHandler from './src/components/ShareDeepLinkHandler';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
@@ -86,7 +88,7 @@ function AppContent() {
   const { session, loading, passwordRecoveryMode } = useAuth();
   const { hasCompletedOnboarding, hydrated } = useUserPreferences();
   const { previewOnboarding } = useDevPreview();
-  const navigationRef = useNavigationContainerRef();
+  const navigationRef = useNavigationContainerRef<RootNavigatorParamList>();
 
   // Hold the branded loader up for at least LOADING_MIN_DISPLAY_MS from launch.
   const [minDisplayElapsed, setMinDisplayElapsed] = useState(false);
@@ -143,6 +145,7 @@ function AppContent() {
           sentryNavigationIntegration?.registerNavigationContainer(navigationRef);
         }}
       >
+        <ShareDeepLinkHandler navigationRef={navigationRef} />
         {__DEV__ && previewOnboarding ? (
           <RootStack.Navigator
             initialRouteName="Onboarding"
@@ -169,6 +172,7 @@ function AppContent() {
               <RootStack.Screen name="Main" component={NavBar} />
               <RootStack.Screen name="Profile" component={ProfileScreen} />
               <RootStack.Screen name="WeightTracker" component={WeightTrackerScreen} />
+              <RootStack.Screen name="ShareRedeem" component={ShareRedeemScreen} />
             </RootStack.Navigator>
           )
         ) : (
