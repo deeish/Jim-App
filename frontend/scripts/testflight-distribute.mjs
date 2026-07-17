@@ -5,8 +5,8 @@
  * Usage (from frontend/):
  *   npm run tf:groups                                   # list tester groups
  *   npm run tf:status                                   # recent builds + processing state
- *   npm run tf:distribute -- --group "Friends" --wait   # add latest build to group(s)
- *   npm run tf:distribute -- --group "Friends" --build 12
+ *   npm run tf:distribute -- --group "Friends" --wait   # wait for the just-submitted build
+ *   npm run tf:distribute -- --group "Friends" --build 12 [--wait]
  *
  * One-time setup (see docs/mobile-release.md):
  *   ASC → Users and Access → Integrations → Team Keys → Generate API Key
@@ -194,7 +194,7 @@ async function cmdDistribute(cfg, args) {
     process.exit(1);
   }
 
-  const token = await signToken(cfg);
+  let token = await signToken(cfg);
   const groups = await fetchGroups(token, cfg.appId);
   const targets = [];
   for (const name of groupNames) {
@@ -210,16 +210,56 @@ async function cmdDistribute(cfg, args) {
     targets.push(g);
   }
 
+  // Right after `eas submit`, ASC can take several minutes to register the
+  // new build at all — "latest" still points at the previous release (this is
+  // how build 11 once got re-distributed instead of 12). With --wait we
+  // therefore poll for the requested build number (or for a build newer than
+  // the current latest) instead of silently taking what is already there.
+  const deadline = Date.now() + 30 * 60 * 1000;
+  const poll = async (message) => {
+    if (Date.now() > deadline) {
+      console.error('Timed out after 30 minutes waiting on App Store Connect.');
+      process.exit(1);
+    }
+    console.log(`${message} — checking again in 30s`);
+    await new Promise((r) => setTimeout(r, 30_000));
+    token = await signToken(cfg); // ASC tokens expire mid-poll after 15 min
+  };
+
   let j = await fetchBuilds(token, cfg.appId, { buildNumber, limit: 1 });
   let build = j.data?.[0];
-  if (!build) {
-    console.error(buildNumber ? `No build ${buildNumber} found.` : 'No builds found.');
+
+  if (buildNumber) {
+    while (!build) {
+      if (!wait) {
+        console.error(
+          `No build ${buildNumber} found. Just-submitted builds take a few minutes to appear in ASC — re-run with --wait to poll for it.`,
+        );
+        process.exit(1);
+      }
+      await poll(`Build ${buildNumber} not registered in ASC yet`);
+      j = await fetchBuilds(token, cfg.appId, { buildNumber, limit: 1 });
+      build = j.data?.[0];
+    }
+  } else if (!build) {
+    console.error('No builds found.');
     process.exit(1);
+  } else if (wait && build.attributes.processingState !== 'PROCESSING') {
+    // --wait without --build means "distribute the build I just submitted".
+    // The latest build already finished processing, so it is the PREVIOUS
+    // release — hold out for a newer upload to register.
+    const baselineTime = Date.parse(build.attributes.uploadedDate);
+    const baselineVersion = build.attributes.version;
+    while (Date.parse(build.attributes.uploadedDate) <= baselineTime) {
+      await poll(
+        `Latest registered build is still ${baselineVersion} — waiting for the new upload (pass --build ${baselineVersion} if you meant that one)`,
+      );
+      j = await fetchBuilds(token, cfg.appId, { limit: 1 });
+      build = j.data?.[0] ?? build;
+    }
   }
 
-  // TestFlight can only take builds that finished processing. --wait polls
-  // every 30s (fresh token as needed) for up to 30 minutes.
-  const deadline = Date.now() + 30 * 60 * 1000;
+  // TestFlight can only take builds that finished processing.
   while (build.attributes.processingState === 'PROCESSING') {
     if (!wait) {
       console.error(
@@ -227,14 +267,8 @@ async function cmdDistribute(cfg, args) {
       );
       process.exit(1);
     }
-    if (Date.now() > deadline) {
-      console.error('Timed out after 30 minutes waiting for processing.');
-      process.exit(1);
-    }
-    console.log('Processing… checking again in 30s');
-    await new Promise((r) => setTimeout(r, 30_000));
-    const freshToken = await signToken(cfg);
-    j = await fetchBuilds(freshToken, cfg.appId, {
+    await poll(`Build ${build.attributes.version} is processing`);
+    j = await fetchBuilds(token, cfg.appId, {
       buildNumber: build.attributes.version,
       limit: 1,
     });
