@@ -38,8 +38,8 @@ In Supabase: **Project Settings → Database** — confirm **backups** and **ret
 
 ## CI / deploy pipeline
 
-- Run **`npm run migrate:deploy`** after the app is built and **before or during** the first rollout that needs the new schema, with `DATABASE_URL` set to the **target** database.
-- Optional: GitHub Actions workflow **Backend: deploy migrations** (`workflow_dispatch`) in `.github/workflows/backend-migrate-deploy.yml` — set repo secret `DATABASE_URL` for the environment you intend to migrate.
+- **Primary mechanism: Render's Pre-Deploy Command** (`npx prisma migrate deploy`, see `render-deploy.md` step 6). It couples schema to code: every deploy applies its own migrations, and a failed migration cancels the deploy while the old version keeps serving. Requires a paid instance type and both `DATABASE_URL` + `DIRECT_URL` in the service environment.
+- Fallback / ad-hoc: GitHub Actions workflow **Backend: deploy migrations** (`workflow_dispatch`) in `.github/workflows/backend-migrate-deploy.yml` — set repo secret `DATABASE_URL` for the environment you intend to migrate. **Manual-only: do not rely on it as the primary path** (in July 2026 a release shipped without its migration ever being applied because this step was forgotten).
 
 ## Existing database created with `db push`
 
@@ -58,6 +58,23 @@ Then future migrations use `migrate deploy` normally.
 
 **If `migrate deploy` fails** because objects already exist, do **not** run destructive SQL blindly—baseline with `migrate resolve` or engage [Prisma baselining](https://www.prisma.io/docs/guides/migrate/developing-with-prisma-migrate/baselining) for your situation.
 
-## Fresh production database
+## Fresh / empty database (staging, local, disaster recovery)
 
-For an **empty** database, `npm run migrate:deploy` applies `20260406120000_init` and creates all tables.
+**`migrate:deploy` does NOT work on an empty database.** The migration history was
+baselined against a live database: `20260101000000_baseline` is a no-op, and the
+February `ALTER TABLE` migrations sort **before** `20260406120000_init` (the one that
+actually creates the tables), so a fresh deploy fails with
+`relation "workouts" does not exist`.
+
+Bootstrap an empty database instead with:
+
+```bash
+cd backend
+# DATABASE_URL -> the EMPTY target database
+npm run db:bootstrap
+```
+
+This pushes the current schema (`prisma db push`) and then marks every committed
+migration as applied, so `migrate deploy` works normally from that point on. The
+script refuses non-localhost hosts unless `DB_BOOTSTRAP_ALLOW_REMOTE=1` is set, so a
+stale `.env` pointing at production cannot be bootstrapped by accident.

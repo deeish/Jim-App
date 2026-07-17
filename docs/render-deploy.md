@@ -19,11 +19,12 @@ Use a **Web Service** pointed at this repo with **root directory** `backend`. Ke
 5. **Start command:**  
    `npm run start:prod`  
    (runs `node dist/src/main`; listens on Render’s **`PORT`**, which the app already reads.)
-6. **Pre-deploy command** (recommended):  
+6. **Pre-deploy command** (required for schema changes to ship with code):  
    `npx prisma migrate deploy`  
-   Applies migrations on each deploy before the new version goes live. Requires **`DATABASE_URL`** to be set first.  
+   Applies migrations on each deploy, after the build and before the new version goes live; if it fails, Render cancels the deploy and the previous version keeps serving. Requires **`DATABASE_URL`** *and* **`DIRECT_URL`** to be set first (Prisma migrations use the session-mode pooler via `directUrl`).  
+   ⚠️ **Pre-deploy commands only run on PAID instance types.** On the free plan this setting silently does nothing — migrations must then be applied by hand (this bit us in July 2026: code shipped for weeks against a table its migration had never created).  
    *If you use the repo’s [`render.yaml`](../render.yaml) Blueprint, this is already declared.*
-7. **Instance type:** Free is fine for solo testing (expect **spin-down** after idle and a slow first request when it wakes).
+7. **Instance type:** Free is fine for solo testing (expect **spin-down** after idle and a slow first request when it wakes) — but see the pre-deploy caveat above before relying on free for anything with a database schema.
 
 Set **Node 20** if the dashboard allows it, or add env **`NODE_VERSION`** = `20` (see [Render Node](https://render.com/docs/node-version)). The backend declares **`engines.node`** in `package.json` for clarity.
 
@@ -37,6 +38,7 @@ Add these in the service **Environment** tab (values from Supabase / Groq / your
 |----------|----------|--------|
 | `NODE_ENV` | Yes | `production` |
 | `DATABASE_URL` | Yes | Supabase Postgres URI (pooler notes in `database-production.md`) |
+| `DIRECT_URL` | Yes if pre-deploy migrations are enabled | Session-mode pooler URI (port 5432, no `pgbouncer=true`); `prisma migrate deploy` fails without it |
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_JWT_SECRET` | Yes | JWT verification (legacy secret or as per auth setup) |
 | `CORS_ORIGINS` | Yes in prod | Comma-separated HTTPS origins for **browser** clients (Expo Web, etc.). **Native apps** often send no `Origin` and still work. |

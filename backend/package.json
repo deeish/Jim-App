@@ -37,6 +37,7 @@
     "audit:catalog": "ts-node --transpile-only scripts/audit-exercise-catalog.ts",
     "generate:movement-fillins": "node scripts/build-movement-fillins.cjs",
     "migrate:deploy": "prisma migrate deploy",
+    "db:bootstrap": "node scripts/db-bootstrap.cjs",
     "migrate:dev": "prisma migrate dev",
     "migrate:status": "prisma migrate status"
   },
