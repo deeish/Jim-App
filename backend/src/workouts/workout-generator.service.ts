@@ -19,6 +19,10 @@ import {
   coachCopyToneBlock,
   sessionCoachingRailLine,
 } from '../plans/session-coaching-rails';
+import {
+  bestCompletedSetByWeight,
+  fetchLastEntriesForExercises,
+} from '../workout-logs/last-performance';
 
 /** Minimal shape for generator candidates (from exercise library). Metadata used for rules and prompts. */
 export interface CandidateExercise {
@@ -801,42 +805,15 @@ export class WorkoutGeneratorService {
     userId: string,
     exerciseIds: string[],
   ): Promise<Map<string, LastPerformance>> {
-    const idSet = new Set(exerciseIds);
-    const logs = await this.prisma.workoutLog.findMany({
-      where: { userId },
-      orderBy: { startedAt: 'desc' },
-      take: 30,
-      include: {
-        entries: { include: { completedSets: true } },
-      },
-    });
+    const entries = await fetchLastEntriesForExercises(
+      this.prisma,
+      userId,
+      exerciseIds,
+    );
     const result = new Map<string, LastPerformance>();
-    for (const log of logs) {
-      for (const entry of log.entries) {
-        if (
-          entry.exerciseId &&
-          idSet.has(entry.exerciseId) &&
-          !result.has(entry.exerciseId)
-        ) {
-          const sets = entry.completedSets?.filter((s) => s.completed) ?? [];
-          const best = sets.reduce<{ weight: number; reps: number } | null>(
-            (acc, s) => {
-              const w = s.weight ?? 0;
-              if (!acc) return { weight: w, reps: s.reps };
-              if (w > acc.weight) return { weight: w, reps: s.reps };
-              return acc;
-            },
-            null,
-          );
-          if (best) {
-            result.set(entry.exerciseId, {
-              weight: best.weight > 0 ? best.weight : undefined,
-              reps: best.reps,
-            });
-          }
-        }
-      }
-      if (result.size === exerciseIds.length) break;
+    for (const [exerciseId, perf] of entries) {
+      const best = bestCompletedSetByWeight(perf.sets);
+      if (best) result.set(exerciseId, best);
     }
     return result;
   }
