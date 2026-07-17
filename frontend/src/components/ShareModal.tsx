@@ -16,6 +16,7 @@ import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { createShare, type ShareKind } from '../services/shareService';
 import { formatShareCode } from '../lib/shareCode';
 import { buildShareMessage, buildShareUrl } from '../lib/shareLinks';
+import { apiErrorMessage } from '../lib/apiErrorMessage';
 
 interface ShareModalProps {
   visible: boolean;
@@ -64,8 +65,7 @@ export default function ShareModal({
       const result = await createShare({ kind, targetId, senderName });
       setCode(result.code);
     } catch (err) {
-      const e = err as { response?: { data?: { message?: string } }; message?: string };
-      setError(e.response?.data?.message ?? e.message ?? 'Could not create a share code.');
+      setError(apiErrorMessage(err, 'Could not create a share code.'));
     } finally {
       setLoading(false);
     }

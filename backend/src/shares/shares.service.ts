@@ -2,6 +2,7 @@ import {
   BadRequestException,
   GoneException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import type {
@@ -27,6 +28,17 @@ import { generateShareCode, normalizeShareCode } from './share-code';
 
 const SHARE_TTL_DAYS = 30;
 const CODE_CREATE_ATTEMPTS = 5;
+
+/** dayOfWeek is a name column; DB sorts it alphabetically (Friday < Monday). */
+const DAY_ORDER: Record<string, number> = {
+  Monday: 0,
+  Tuesday: 1,
+  Wednesday: 2,
+  Thursday: 3,
+  Friday: 4,
+  Saturday: 5,
+  Sunday: 6,
+};
 
 const INVALID_CODE_MESSAGE = "That code doesn't look right.";
 const NOT_FOUND_MESSAGE = 'Share code not found.';
@@ -114,6 +126,8 @@ function isUniqueViolation(err: unknown): boolean {
 
 @Injectable()
 export class SharesService {
+  private readonly logger = new Logger(SharesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly plansService: PlansService,
@@ -208,7 +222,7 @@ export class SharesService {
             (max, pw) => Math.max(max, pw.weekNumber),
             0,
           ),
-          slots: plan.planWorkouts.map((pw) => {
+          slots: this.sortSlotsForDisplay(plan.planWorkouts).map((pw) => {
             const exercises = this.effectiveSlotExercises(pw, plan.workouts);
             return {
               weekNumber: pw.weekNumber,
@@ -276,8 +290,10 @@ export class SharesService {
   ): Promise<AcceptShareResponse> {
     const dto = this.buildCreatePlanDto(share.plan as PlanTree);
     // Reuses the normal plan-apply path: deactivates the recipient's current
-    // plan, deep-creates the tree, materializes Workout rows (no LLM calls —
-    // every slot in the DTO carries exercises via the backfill below).
+    // plan, deep-creates the tree, materializes Workout rows. LLM-free for any
+    // slot with source content (plan_exercises, or the materialized-workout
+    // backfill below); only a legacy slot that is empty everywhere falls back
+    // to PlansService's generator fill.
     const created = await this.plansService.create(dto, userId);
 
     try {
@@ -292,21 +308,33 @@ export class SharesService {
         });
       }
     } catch (err) {
-      if (!isUniqueViolation(err)) throw err;
+      if (!isUniqueViolation(err)) {
+        // The clone succeeded and is already the active plan; failing the
+        // request over redemption bookkeeping would report an error for a
+        // swap that happened. Idempotency degrades (a re-accept re-clones).
+        this.logger.warn(
+          `share redemption write failed after plan clone ${created.id}: ${String(err)}`,
+        );
+        return { kind: 'plan', planId: created.id, alreadyRedeemed: false };
+      }
       // Double-accept race: another request redeemed first. Our clone also
-      // deactivated the winner's clone, so remove ours and re-activate theirs.
+      // deactivated the winner's clone, so remove ours and re-activate theirs
+      // in ONE transaction — a mid-heal crash must never leave the recipient
+      // with zero active plans.
       const winner = await this.prisma.shareRedemption.findUnique({
         where: { shareId_userId: { shareId: share.id, userId } },
       });
       if (!winner?.clonedPlanId) throw err;
-      await this.prisma.workout.deleteMany({
-        where: { workoutPlanId: created.id, userId },
-      });
-      await this.prisma.workoutPlan.delete({ where: { id: created.id } });
-      await this.prisma.workoutPlan.updateMany({
-        where: { id: winner.clonedPlanId, userId },
-        data: { isActive: true },
-      });
+      await this.prisma.$transaction([
+        this.prisma.workout.deleteMany({
+          where: { workoutPlanId: created.id, userId },
+        }),
+        this.prisma.workoutPlan.delete({ where: { id: created.id } }),
+        this.prisma.workoutPlan.updateMany({
+          where: { id: winner.clonedPlanId, userId },
+          data: { isActive: true },
+        }),
+      ]);
       return {
         kind: 'plan',
         planId: winner.clonedPlanId,
@@ -511,6 +539,16 @@ export class SharesService {
       share.owner.name?.trim() ||
       emailLocal ||
       'A friend'
+    );
+  }
+
+  /** Preview order: week, then real weekday order (Monday first), then slot order. */
+  private sortSlotsForDisplay<T extends PlanWorkout>(slots: T[]): T[] {
+    return [...slots].sort(
+      (a, b) =>
+        a.weekNumber - b.weekNumber ||
+        (DAY_ORDER[a.dayOfWeek] ?? 7) - (DAY_ORDER[b.dayOfWeek] ?? 7) ||
+        a.orderInDay - b.orderInDay,
     );
   }
 

@@ -56,25 +56,34 @@ export default function ShareDeepLinkHandler({
     navigationRef.navigate('ShareRedeem', { code });
   }, [navigationRef]);
 
+  /**
+   * Flush now if possible; otherwise retry briefly. The retries cover the gap
+   * between a state flip (session/onboarding settles) and the navigator
+   * actually registering its screens — this handler is an earlier sibling of
+   * the navigator, so its effects can run first in the same commit.
+   */
+  const flushWithRetries = useCallback(() => {
+    tryFlush();
+    if (pendingCodeRef.current) {
+      clearRetries();
+      retryTimersRef.current = READY_RETRY_DELAYS_MS.map((delay) =>
+        setTimeout(tryFlush, delay),
+      );
+    }
+  }, [tryFlush]);
+
   const handleCode = useCallback(
     (code: string) => {
       pendingCodeRef.current = code;
-      tryFlush();
-      if (pendingCodeRef.current) {
-        // Navigator not ready yet (it mounts right after auth/prefs settle).
-        clearRetries();
-        retryTimersRef.current = READY_RETRY_DELAYS_MS.map((delay) =>
-          setTimeout(tryFlush, delay),
-        );
-      }
+      flushWithRetries();
     },
-    [tryFlush],
+    [flushWithRetries],
   );
 
   // Stashed link flushes as soon as sign-in/onboarding/recovery state allows.
   useEffect(() => {
-    if (canNavigate) tryFlush();
-  }, [canNavigate, tryFlush]);
+    if (canNavigate && pendingCodeRef.current) flushWithRetries();
+  }, [canNavigate, flushWithRetries]);
 
   useEffect(() => {
     let cancelled = false;

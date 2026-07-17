@@ -29,16 +29,16 @@ import {
   normalizeShareCode,
 } from '../lib/shareCode';
 import { formatRepRange } from '../lib/formatExerciseRepsDisplay';
+import { parseShareCodeFromUrl } from '../lib/shareLinks';
+import { apiErrorMessage } from '../lib/apiErrorMessage';
 
 type Navigation = NativeStackNavigationProp<RootNavigatorParamList>;
 type Route = RouteProp<RootNavigatorParamList, 'ShareRedeem'>;
 
-function apiErrorMessage(err: unknown, fallback: string): string {
-  const e = err as {
-    response?: { data?: { message?: string } };
-    message?: string;
-  };
-  return e.response?.data?.message ?? e.message ?? fallback;
+const INVALID_CODE_MESSAGE = "That code doesn't look right.";
+
+function replacePlanWarning(currentPlanName: string): string {
+  return `Accepting replaces your current plan "${currentPlanName}". Your workout history is kept.`;
 }
 
 /** "4 × 8–12" / "3 × 45 sec" second line for a preview exercise row. */
@@ -93,7 +93,7 @@ export default function ShareRedeemScreen() {
     if (!raw) return;
     const code = normalizeShareCode(raw);
     if (!code) {
-      setError("That code doesn't look right.");
+      setError(INVALID_CODE_MESSAGE);
       return;
     }
     setInput(formatShareCode(code));
@@ -103,11 +103,25 @@ export default function ShareRedeemScreen() {
   const handleSubmit = () => {
     const code = normalizeShareCode(input);
     if (!code) {
-      setError("That code doesn't look right.");
+      setError(INVALID_CODE_MESSAGE);
       return;
     }
     void fetchPreview(code);
   };
+
+  const handleInputChange = (text: string) => {
+    // Buddies often paste the whole "jimapp://share/CODE" link or message text
+    // rather than just the code; pull the code out of a link when present.
+    const fromUrl = parseShareCodeFromUrl(text.trim());
+    setInput(formatShareCodeInput(fromUrl ?? text));
+    setError(null);
+  };
+
+  // Offer the lookup button until a preview exists, and again whenever the
+  // typed code differs from the one being previewed.
+  const normalizedInput = normalizeShareCode(input);
+  const showLookupButton =
+    !loading && (!preview || (normalizedInput !== null && normalizedInput !== previewCode));
 
   const goToPlanTab = useCallback(() => {
     navigation.navigate('Main', {
@@ -151,7 +165,7 @@ export default function ShareRedeemScreen() {
     if (preview.kind === 'plan' && preview.recipientActivePlanName) {
       Alert.alert(
         'Replace your current plan?',
-        `Accepting "${preview.plan?.name ?? 'this plan'}" will replace your current plan "${preview.recipientActivePlanName}". Your workout history is kept.`,
+        replacePlanWarning(preview.recipientActivePlanName),
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Replace', style: 'destructive', onPress: () => void doAccept() },
@@ -297,9 +311,7 @@ export default function ShareRedeemScreen() {
             {preview.recipientActivePlanName && !preview.isOwnShare ? (
               <View style={styles.warningBox}>
                 <Text style={styles.warningText}>
-                  Accepting replaces your current plan &quot;
-                  {preview.recipientActivePlanName}&quot;. Your workout history
-                  is kept.
+                  {replacePlanWarning(preview.recipientActivePlanName)}
                 </Text>
               </View>
             ) : null}
@@ -422,23 +434,19 @@ export default function ShareRedeemScreen() {
         <TextInput
           style={styles.codeInput}
           value={input}
-          onChangeText={(text) => {
-            setInput(formatShareCodeInput(text));
-            setError(null);
-          }}
+          onChangeText={handleInputChange}
           placeholder="XXXX-XXXX"
           placeholderTextColor={colors.textMuted}
           autoCapitalize="characters"
           autoCorrect={false}
           autoComplete="off"
-          maxLength={9}
           returnKeyType="go"
           onSubmitEditing={handleSubmit}
           accessibilityLabel="Share code"
           testID="e2e-share-code-input"
         />
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        {!preview && !loading ? (
+        {showLookupButton ? (
           <Button
             title="Look up code"
             onPress={handleSubmit}

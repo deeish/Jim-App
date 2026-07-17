@@ -232,8 +232,10 @@ describe('SharesService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    prismaMock.$transaction.mockImplementation(
-      async (fn: (tx: typeof txMock) => Promise<unknown>) => fn(txMock),
+    prismaMock.$transaction.mockImplementation(async (arg: unknown) =>
+      Array.isArray(arg)
+        ? Promise.all(arg)
+        : (arg as (tx: typeof txMock) => Promise<unknown>)(txMock),
     );
     const module = await Test.createTestingModule({
       providers: [
@@ -537,6 +539,23 @@ describe('SharesService', () => {
       expect(preview.alreadyRedeemed).toBe(false);
     });
 
+    it('orders plan preview slots by real weekday order, not alphabetically', async () => {
+      const plan = makePlanTree();
+      const pushSlot = plan.planWorkouts[0] as Record<string, unknown>;
+      plan.planWorkouts = [
+        { ...pushSlot, id: 'pw-f', weekNumber: 1, dayOfWeek: 'Friday' },
+        { ...pushSlot, id: 'pw-m', weekNumber: 1, dayOfWeek: 'Monday' },
+      ] as typeof plan.planWorkouts;
+      prismaMock.share.findUnique.mockResolvedValue(makeShare({ plan }));
+      plansServiceMock.getCurrent.mockResolvedValue(null);
+
+      const preview = await service.getByCode(CODE, RECIPIENT);
+      expect(preview.plan?.slots.map((s) => s.dayOfWeek)).toEqual([
+        'Monday',
+        'Friday',
+      ]);
+    });
+
     it('builds the workout preview with exercises sorted by orderIndex', async () => {
       prismaMock.share.findUnique.mockResolvedValue(
         makeShare({
@@ -659,6 +678,31 @@ describe('SharesService', () => {
           clonedPlanId: 'clone-1',
         },
       });
+    });
+
+    it('returns success when redemption bookkeeping fails after the plan clone', async () => {
+      prismaMock.share.findUnique.mockResolvedValue(makeShare());
+      plansServiceMock.create.mockResolvedValue({ id: 'clone-1' });
+      prismaMock.shareRedemption.create.mockRejectedValue(
+        new Error('db hiccup'),
+      );
+      const warnSpy = jest
+        .spyOn(
+          (service as unknown as { logger: { warn: (m: string) => void } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => {});
+
+      const result = await service.accept(CODE, RECIPIENT);
+      expect(result).toEqual({
+        kind: 'plan',
+        planId: 'clone-1',
+        alreadyRedeemed: false,
+      });
+      expect(warnSpy).toHaveBeenCalled();
+      // The clone must NOT be rolled back over bookkeeping.
+      expect(prismaMock.workoutPlan.delete).not.toHaveBeenCalled();
     });
 
     it('heals the plan double-accept race: deletes the loser clone and re-activates the winner', async () => {
