@@ -209,4 +209,20 @@ describe('applyLastPerformancePrefill', () => {
     ];
     expect(applyLastPerformancePrefill(sessions, benchPerf)).toBe(sessions);
   });
+
+  it('prefers the resolver weight, falling back to the last top weight', () => {
+    const preferred = applyLastPerformancePrefill(
+      [makeSession()],
+      benchPerf,
+      () => 140,
+    );
+    expect(preferred[0].completedSets[0].weight).toBe(140);
+
+    const fallback = applyLastPerformancePrefill(
+      [makeSession()],
+      benchPerf,
+      () => null,
+    );
+    expect(fallback[0].completedSets[0].weight).toBe(135);
+  });
 });

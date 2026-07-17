@@ -26,6 +26,11 @@ import { saveWorkoutDraft } from '../lib/workoutDraftStorage';
 import { getLastPerformance, type SaveWorkoutLogParams } from '../services/workoutService';
 import { applyLastPerformancePrefill, formatLastTimeLine } from '../lib/lastPerformanceDisplay';
 import { exerciseUsesTimeDisplay } from '../lib/exercisePrescription';
+import {
+  formatSuggestionLine,
+  isLowerBodyExercise,
+  suggestNextTarget,
+} from '../lib/nextTargetSuggestion';
 import { resolveWorkoutEtaMinutes, type EtaPlanSlotLike } from '../lib/estimateWorkoutMinutes';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from './Button';
@@ -90,6 +95,7 @@ export default function WorkoutSession({
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
+  const { weightUnit } = useUserPreferences();
   const snap = session.restoredSnapshot;
 
   const [exerciseSessions, setExerciseSessions] = useState<ExerciseSession[]>(() => {
@@ -214,8 +220,9 @@ export default function WorkoutSession({
 
   /**
    * Fetch each exercise's most recent logged performance for the "Last time"
-   * line, and seed untouched weight inputs from it. Restored drafts keep the
-   * line but never the prefill; a failed fetch silently shows nothing.
+   * line, and seed untouched weight inputs from it, preferring the next-target
+   * suggestion over the raw last weight. Restored drafts keep the line but
+   * never the prefill; a failed fetch silently shows nothing.
    */
   useEffect(() => {
     if (!linkableIdsKey) return;
@@ -225,14 +232,34 @@ export default function WorkoutSession({
         if (cancelled) return;
         setLastPerformance((prev) => ({ ...prev, ...map }));
         if (!wasRestoredRef.current) {
-          setExerciseSessions((prev) => applyLastPerformancePrefill(prev, map));
+          setExerciseSessions((prev) =>
+            applyLastPerformancePrefill(prev, map, (es, perf) => {
+              const suggestion = suggestNextTarget({
+                lastSets: perf.sets,
+                repsMin: es.exercise.repsMin,
+                repsMax: es.exercise.repsMax,
+                reps: es.exercise.reps,
+                isTimeBased: exerciseUsesTimeDisplay(
+                  es.exercise.prescriptionType,
+                  es.exercise.name,
+                  es.exercise.primaryMuscleGroup,
+                ),
+                isLowerBody: isLowerBodyExercise(
+                  es.exercise.primaryMuscleGroup,
+                  es.exercise.name,
+                ),
+                unit: weightUnit,
+              });
+              return suggestion?.weightLb ?? null;
+            }),
+          );
         }
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [linkableIdsKey]);
+  }, [linkableIdsKey, weightUnit]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1360,18 +1387,43 @@ function ExerciseCard({
         ) : null}
       </View>
       {(() => {
+        const isTimeBased = exerciseUsesTimeDisplay(
+          exerciseData.prescriptionType,
+          exerciseData.name,
+          exerciseData.primaryMuscleGroup,
+        );
         const lastTimeLine = formatLastTimeLine(
           lastPerformance,
           weightUnit,
-          exerciseUsesTimeDisplay(
-            exerciseData.prescriptionType,
-            exerciseData.name,
-            exerciseData.primaryMuscleGroup,
-          ),
+          isTimeBased,
         );
-        return lastTimeLine != null ? (
-          <Text style={styles.lastSetLine}>{lastTimeLine}</Text>
-        ) : null;
+        const suggestionLine = formatSuggestionLine(
+          lastPerformance
+            ? suggestNextTarget({
+                lastSets: lastPerformance.sets,
+                repsMin: exerciseData.repsMin,
+                repsMax: exerciseData.repsMax,
+                reps: exerciseData.reps,
+                isTimeBased,
+                isLowerBody: isLowerBodyExercise(
+                  exerciseData.primaryMuscleGroup,
+                  exerciseData.name,
+                ),
+                unit: weightUnit,
+              })
+            : null,
+          weightUnit,
+        );
+        return (
+          <>
+            {lastTimeLine != null && (
+              <Text style={styles.lastSetLine}>{lastTimeLine}</Text>
+            )}
+            {suggestionLine != null && (
+              <Text style={styles.suggestionLine}>{suggestionLine}</Text>
+            )}
+          </>
+        );
       })()}
       {lastCompleted != null && (
         <Text style={styles.lastSetLine}>
@@ -2489,6 +2541,12 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   lastSetLine: {
     fontSize: 12,
     color: palette.textTertiary,
+    marginBottom: 3,
+  },
+  suggestionLine: {
+    fontSize: 12,
+    color: palette.primary,
+    fontWeight: '600',
     marginBottom: 3,
   },
   loggingBand: {

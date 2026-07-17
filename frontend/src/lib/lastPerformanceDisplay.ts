@@ -79,14 +79,19 @@ export function lastTopWeightLb(
 }
 
 /**
- * Seeds unweighted, not-yet-completed sets with the last-time top weight.
- * Pure: returns the same array reference when nothing changes. A set the user
- * already gave a weight (or completed) before the fetch resolved is left alone,
- * as are time-based rows, weighted prescriptions, and skipped exercises.
+ * Seeds unweighted, not-yet-completed sets with the last-time top weight (or a
+ * preferred weight, e.g. the next-target suggestion, when the resolver returns
+ * one). Pure: returns the same array reference when nothing changes. A set the
+ * user already gave a weight (or completed) before the fetch resolved is left
+ * alone, as are time-based rows, weighted prescriptions, and skipped exercises.
  */
 export function applyLastPerformancePrefill(
   sessions: ExerciseSession[],
   map: LastPerformanceMap,
+  preferredWeightLb?: (
+    session: ExerciseSession,
+    perf: LastExercisePerformance,
+  ) => number | null,
 ): ExerciseSession[] {
   let changed = false;
   const next = sessions.map((es) => {
@@ -106,7 +111,9 @@ export function applyLastPerformancePrefill(
       return es;
     }
     if (exercise.weight != null && exercise.weight !== 0) return es;
-    const fillLb = lastTopWeightLb(perf);
+    const fillLb =
+      (preferredWeightLb ? preferredWeightLb(es, perf) : null) ??
+      lastTopWeightLb(perf);
     if (fillLb == null) return es;
 
     let setsChanged = false;
