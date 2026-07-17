@@ -14,9 +14,18 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Workout, ExerciseSession, CompletedSet, type WorkoutSessionRestoredSnapshot } from '../types/workout';
+import {
+  Workout,
+  ExerciseSession,
+  CompletedSet,
+  type WorkoutSessionRestoredSnapshot,
+  type LastExercisePerformance,
+  type LastPerformanceMap,
+} from '../types/workout';
 import { saveWorkoutDraft } from '../lib/workoutDraftStorage';
-import type { SaveWorkoutLogParams } from '../services/workoutService';
+import { getLastPerformance, type SaveWorkoutLogParams } from '../services/workoutService';
+import { applyLastPerformancePrefill, formatLastTimeLine } from '../lib/lastPerformanceDisplay';
+import { exerciseUsesTimeDisplay } from '../lib/exercisePrescription';
 import { resolveWorkoutEtaMinutes, type EtaPlanSlotLike } from '../lib/estimateWorkoutMinutes';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from './Button';
@@ -99,6 +108,9 @@ export default function WorkoutSession({
     }));
   });
 
+  const [lastPerformance, setLastPerformance] = useState<LastPerformanceMap>({});
+  /** Latched at init: the snapshot itself is stripped one tick after mount. */
+  const wasRestoredRef = useRef(!!session.restoredSnapshot);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showEndModal, setShowEndModal] = useState(false);
   const [showSessionMenu, setShowSessionMenu] = useState(false);
@@ -184,6 +196,43 @@ export default function WorkoutSession({
       return [...prev, ...appended];
     });
   }, [serverWorkout, session.workout.id]);
+
+  /** Stable key of the session's library exercise ids; refires when Search appends exercises. */
+  const linkableIdsKey = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          exerciseSessions
+            .map((es) => es.exercise.exerciseId)
+            .filter((id): id is string => isLinkableLibraryExerciseId(id)),
+        ),
+      )
+        .sort()
+        .join(','),
+    [exerciseSessions],
+  );
+
+  /**
+   * Fetch each exercise's most recent logged performance for the "Last time"
+   * line, and seed untouched weight inputs from it. Restored drafts keep the
+   * line but never the prefill; a failed fetch silently shows nothing.
+   */
+  useEffect(() => {
+    if (!linkableIdsKey) return;
+    let cancelled = false;
+    getLastPerformance(linkableIdsKey.split(','))
+      .then((map) => {
+        if (cancelled) return;
+        setLastPerformance((prev) => ({ ...prev, ...map }));
+        if (!wasRestoredRef.current) {
+          setExerciseSessions((prev) => applyLastPerformancePrefill(prev, map));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [linkableIdsKey]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -822,6 +871,11 @@ export default function WorkoutSession({
               onFocusSet={(setIdx) => setFocusedSetIndex(setIdx)}
               onSelectExercise={handleSelectExercise}
               onUnskip={handleUnskipExercise}
+              lastPerformance={
+                exerciseSession.exercise.exerciseId
+                  ? lastPerformance[exerciseSession.exercise.exerciseId]
+                  : undefined
+              }
             />
           </View>
         ))}
@@ -1051,6 +1105,7 @@ function ExerciseCard({
   onFocusSet,
   onSelectExercise,
   onUnskip,
+  lastPerformance,
 }: {
   exerciseSession: ExerciseSession;
   index: number;
@@ -1075,6 +1130,7 @@ function ExerciseCard({
   onFocusSet: (setIndex: number) => void;
   onSelectExercise: (index: number) => void;
   onUnskip: (exerciseIndex: number) => void;
+  lastPerformance?: LastExercisePerformance;
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
@@ -1290,6 +1346,20 @@ function ExerciseCard({
           </TouchableOpacity>
         ) : null}
       </View>
+      {(() => {
+        const lastTimeLine = formatLastTimeLine(
+          lastPerformance,
+          weightUnit,
+          exerciseUsesTimeDisplay(
+            exerciseData.prescriptionType,
+            exerciseData.name,
+            exerciseData.primaryMuscleGroup,
+          ),
+        );
+        return lastTimeLine != null ? (
+          <Text style={styles.lastSetLine}>{lastTimeLine}</Text>
+        ) : null;
+      })()}
       {lastCompleted != null && (
         <Text style={styles.lastSetLine}>
           Last set today: {lastCompleted.reps}×
