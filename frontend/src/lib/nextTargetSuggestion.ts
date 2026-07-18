@@ -1,9 +1,13 @@
 import { WeightUnit, kgToLb, lbToKg, roundLb } from './weightDisplay';
+import {
+  exerciseUsesTimeDisplay,
+  type ExercisePrescriptionType,
+} from './exercisePrescription';
 
 /**
  * Deterministic next-target rule: given the last logged performance and the
- * prescribed rep band, suggest the next load/reps. Pure and dependency-free
- * so it can move server-side if plan progression ever consumes it.
+ * prescribed rep band, suggest the next load/reps. Pure (sibling lib deps
+ * only) so it can move server-side if plan progression ever consumes it.
  */
 
 export type NextTargetKind =
@@ -32,6 +36,13 @@ export interface SuggestNextTargetInput {
   isLowerBody: boolean;
   unit: WeightUnit;
 }
+
+/**
+ * A weight jump larger than this fraction of the current load is not real
+ * gym progression (+5 lb on 15 lb lateral raises is a 33% jump) — keep
+ * adding reps past the ceiling instead.
+ */
+const MAX_INCREMENT_FRACTION = 0.15;
 
 const LOWER_BODY_NAME =
   /\b(squat|deadlift|lunge|leg|hip thrust|glute|calf|calves|rdl|romanian|hamstring|step[\s-]?up|good morning)\b/i;
@@ -86,6 +97,14 @@ export function suggestNextTarget(
   if (workingSets.every((s) => s.reps >= hi)) {
     const incrementLb =
       unit === 'kg' ? kgToLb(isLowerBody ? 5 : 2.5) : isLowerBody ? 10 : 5;
+    if (incrementLb > topWeight * MAX_INCREMENT_FRACTION) {
+      return {
+        kind: 'add_rep',
+        weightLb: topWeight,
+        fromWeightLb: topWeight,
+        targetReps: maxWorkingReps + 1,
+      };
+    }
     return {
       kind: 'increase_weight',
       weightLb: roundLb(topWeight + incrementLb),
@@ -94,7 +113,10 @@ export function suggestNextTarget(
     };
   }
 
-  if (workingSets.some((s) => s.reps <= lo - 3)) {
+  // Deload only when even the best working set was a hard failure; one set
+  // collapsing 3+ under the floor is normal late-set fatigue, not a sign the
+  // weight is wrong.
+  if (maxWorkingReps <= lo - 3) {
     let reduced = roundToStep(topWeight * 0.9, unit);
     if (reduced >= topWeight) {
       reduced = roundToStep(topWeight * 0.9 - (unit === 'kg' ? kgToLb(2.5) : 5), unit);
@@ -130,6 +152,41 @@ export function suggestNextTarget(
     fromWeightLb: topWeight,
     targetReps: Math.min(hi, maxWorkingReps + 1),
   };
+}
+
+/** Session-exercise fields the rule needs (structural subset of Exercise). */
+export interface SuggestibleExercise {
+  name: string;
+  reps: number;
+  repsMin?: number;
+  repsMax?: number;
+  prescriptionType?: ExercisePrescriptionType;
+  primaryMuscleGroup?: string;
+}
+
+/**
+ * Builds the rule input from a session exercise. The prefill resolver and the
+ * card render must both go through here so the prefilled weight can never
+ * diverge from the displayed suggestion.
+ */
+export function suggestNextTargetForExercise(
+  exercise: SuggestibleExercise,
+  lastSets: SuggestNextTargetInput['lastSets'],
+  unit: WeightUnit,
+): NextTargetSuggestion | null {
+  return suggestNextTarget({
+    lastSets,
+    repsMin: exercise.repsMin,
+    repsMax: exercise.repsMax,
+    reps: exercise.reps,
+    isTimeBased: exerciseUsesTimeDisplay(
+      exercise.prescriptionType,
+      exercise.name,
+      exercise.primaryMuscleGroup,
+    ),
+    isLowerBody: isLowerBodyExercise(exercise.primaryMuscleGroup, exercise.name),
+    unit,
+  });
 }
 
 /** Suggested-weight display keeps half-kilo precision (103 kg vs 102.5 kg matters). */

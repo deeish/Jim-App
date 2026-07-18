@@ -2,6 +2,7 @@ import {
   formatSuggestionLine,
   isLowerBodyExercise,
   suggestNextTarget,
+  suggestNextTargetForExercise,
   SuggestNextTargetInput,
 } from './nextTargetSuggestion';
 import { kgToLb, roundLb } from './weightDisplay';
@@ -125,7 +126,7 @@ describe('suggestNextTarget', () => {
     ).toBe('increase_weight');
   });
 
-  it('suggests a deload when a working set fell 3+ reps under the floor', () => {
+  it('suggests a deload only when even the best working set fell 3+ reps under the floor', () => {
     expect(
       suggestNextTarget(
         base({
@@ -133,8 +134,8 @@ describe('suggestNextTarget', () => {
           repsMax: 12,
           reps: 8,
           lastSets: [
-            { reps: 8, weight: 135 },
             { reps: 4, weight: 135 },
+            { reps: 3, weight: 135 },
           ],
         }),
       ),
@@ -143,6 +144,49 @@ describe('suggestNextTarget', () => {
       weightLb: 120,
       fromWeightLb: 135,
       targetReps: 8,
+    });
+  });
+
+  it('treats a late-set collapse as fatigue (hold), not a deload', () => {
+    expect(
+      suggestNextTarget(
+        base({
+          repsMin: 8,
+          repsMax: 12,
+          reps: 8,
+          lastSets: [
+            { reps: 8, weight: 135 },
+            { reps: 8, weight: 135 },
+            { reps: 4, weight: 135 },
+          ],
+        }),
+      ),
+    ).toEqual({
+      kind: 'hold',
+      weightLb: 135,
+      fromWeightLb: 135,
+      targetReps: 8,
+    });
+  });
+
+  it('keeps adding reps past the ceiling when the plate jump would be a huge relative increase', () => {
+    expect(
+      suggestNextTarget(
+        base({
+          repsMin: 8,
+          repsMax: 12,
+          reps: 8,
+          lastSets: [
+            { reps: 12, weight: 15 },
+            { reps: 12, weight: 15 },
+          ],
+        }),
+      ),
+    ).toEqual({
+      kind: 'add_rep',
+      weightLb: 15,
+      fromWeightLb: 15,
+      targetReps: 13,
     });
   });
 
@@ -207,6 +251,25 @@ describe('suggestNextTarget', () => {
         base({ reps: 8, lastSets: [{ reps: 8, weight: 135 }] }),
       )?.kind,
     ).toBe('increase_weight');
+  });
+});
+
+describe('suggestNextTargetForExercise', () => {
+  it('derives time-based and lower-body from the exercise fields', () => {
+    expect(
+      suggestNextTargetForExercise(
+        { name: 'Front Plank', reps: 45 },
+        [{ reps: 45, weight: null }],
+        'lb',
+      ),
+    ).toBeNull();
+    expect(
+      suggestNextTargetForExercise(
+        { name: 'Barbell Back Squat', reps: 5, repsMin: 5, repsMax: 8 },
+        [{ reps: 8, weight: 225 }],
+        'lb',
+      )?.weightLb,
+    ).toBe(235);
   });
 });
 
