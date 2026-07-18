@@ -243,23 +243,36 @@ export default function WorkoutSession({
     return () => clearInterval(interval);
   }, [session.startTime]);
 
-  // Auto-save draft every 30 seconds so the session survives an unexpected app kill.
+  // Auto-save draft every 30 seconds so the session survives an unexpected app
+  // kill. The interval reads through a ref: a closure over state here would
+  // persist the mount-time snapshot forever (deps stay stable all session).
+  const draftStateRef = useRef({
+    currentExerciseIndex,
+    exerciseSessions,
+    exerciseNotes,
+    overallNotes,
+    expandedExerciseIndex,
+    focusedSetIndex,
+    showAdvancedLogging,
+  });
+  draftStateRef.current = {
+    currentExerciseIndex,
+    exerciseSessions,
+    exerciseNotes,
+    overallNotes,
+    expandedExerciseIndex,
+    focusedSetIndex,
+    showAdvancedLogging,
+  };
   useEffect(() => {
     const interval = setInterval(() => {
       saveWorkoutDraft({
         workout: session.workout,
         startTimeIso: session.startTime.toISOString(),
-        currentExerciseIndex,
-        exerciseSessions,
-        exerciseNotes,
-        overallNotes,
-        expandedExerciseIndex,
-        focusedSetIndex,
-        showAdvancedLogging,
+        ...draftStateRef.current,
       }).catch(() => {});
     }, 30_000);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.workout, session.startTime]);
 
   const formatTime = (seconds: number) => {
