@@ -82,6 +82,22 @@ describe('formatLastTimeLine', () => {
     expect(line).toBe(`Last time (${JUL10}): 45s @ 50 lb, 2 min`);
   });
 
+  it('suppresses implausible durations on time rows (legacy cardio rep counts)', () => {
+    expect(
+      formatLastTimeLine(perf([{ setNumber: 1, reps: 1, weight: null }]), 'lb', true),
+    ).toBeNull();
+    expect(
+      formatLastTimeLine(
+        perf([
+          { setNumber: 1, reps: 10, weight: null },
+          { setNumber: 2, reps: 45, weight: null },
+        ]),
+        'lb',
+        true,
+      ),
+    ).toBe(`Last time (${JUL10}): 45s`);
+  });
+
   it('returns null for missing or empty performances and bad dates', () => {
     expect(formatLastTimeLine(undefined, 'lb', false)).toBeNull();
     expect(formatLastTimeLine(perf([]), 'lb', false)).toBeNull();

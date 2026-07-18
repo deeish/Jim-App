@@ -11,6 +11,12 @@ import {
 import { isLinkableLibraryExerciseId } from './exerciseNavigation';
 
 /**
+ * Logged values below this can't be real durations — legacy cardio rows store
+ * a rep count (1, 10) in the reps field rather than seconds.
+ */
+const MIN_PLAUSIBLE_DURATION_SECONDS = 15;
+
+/**
  * "Last time" line for the live-session exercise card, e.g.
  *   weighted:   `Last time (Jul 10): 8×135 lb, 8×135 lb, 6×140 lb`
  *   bodyweight: `Last time (Jul 10): 8, 9, 10 reps`
@@ -32,8 +38,15 @@ export function formatLastTimeLine(
 
   let body: string;
   if (isTimeBased) {
-    // Timed rows log their duration seconds in the reps field.
-    body = perf.sets
+    // Timed rows log their duration seconds in the reps field — but legacy
+    // cardio rows can carry a small rep count instead (see the cardio
+    // fallback in formatExerciseRepsDisplay), so only trust plausible
+    // durations rather than rendering "1s".
+    const timedSets = perf.sets.filter(
+      (s) => s.reps >= MIN_PLAUSIBLE_DURATION_SECONDS,
+    );
+    if (timedSets.length === 0) return null;
+    body = timedSets
       .map((s) => {
         const dur = formatRestSecondsForPreview(s.reps);
         const w = formatWeightCompactFromLb(s.weight, unit);
