@@ -25,6 +25,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-07-17',
+    version: '1.0.0',
+    date: '2026-07-17',
+    title: 'Your last numbers, right where you lift',
+    changes: [
+      { type: 'new', text: 'Every exercise in a live workout now shows what you lifted last time, and your weight inputs start from it.' },
+      { type: 'new', text: 'A suggested next target for each lift, based on how your last set went.' },
+    ],
+  },
+  {
     id: '2026-07-16',
     version: '1.0.0',
     date: '2026-07-16',

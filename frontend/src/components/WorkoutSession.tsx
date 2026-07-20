@@ -26,6 +26,10 @@ import { saveWorkoutDraft } from '../lib/workoutDraftStorage';
 import { getLastPerformance, type SaveWorkoutLogParams } from '../services/workoutService';
 import { applyLastPerformancePrefill, formatLastTimeLine } from '../lib/lastPerformanceDisplay';
 import { exerciseUsesTimeDisplay } from '../lib/exercisePrescription';
+import {
+  formatSuggestionLine,
+  suggestNextTargetForExercise,
+} from '../lib/nextTargetSuggestion';
 import { resolveWorkoutEtaMinutes, type EtaPlanSlotLike } from '../lib/estimateWorkoutMinutes';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from './Button';
@@ -90,6 +94,7 @@ export default function WorkoutSession({
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
+  const { weightUnit } = useUserPreferences();
   const snap = session.restoredSnapshot;
 
   const [exerciseSessions, setExerciseSessions] = useState<ExerciseSession[]>(() => {
@@ -214,9 +219,16 @@ export default function WorkoutSession({
 
   /**
    * Fetch each exercise's most recent logged performance for the "Last time"
-   * line, and seed untouched weight inputs from it. Restored drafts keep the
-   * line but never the prefill; a failed fetch silently shows nothing.
+   * line, and seed untouched weight inputs from it, preferring the next-target
+   * suggestion over the raw last weight. Prefill runs once per exercise id so
+   * later refetches (e.g. Search appending exercises) can't overwrite a set
+   * the user deliberately cleared. Restored drafts keep the line but never the
+   * prefill; a failed fetch silently shows nothing. The unit is read through a
+   * ref so a lb/kg toggle doesn't refire the network call.
    */
+  const weightUnitRef = useRef(weightUnit);
+  weightUnitRef.current = weightUnit;
+  const prefilledIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!linkableIdsKey) return;
     let cancelled = false;
@@ -224,9 +236,27 @@ export default function WorkoutSession({
       .then((map) => {
         if (cancelled) return;
         setLastPerformance((prev) => ({ ...prev, ...map }));
-        if (!wasRestoredRef.current) {
-          setExerciseSessions((prev) => applyLastPerformancePrefill(prev, map));
+        if (wasRestoredRef.current) return;
+        const fresh: LastPerformanceMap = {};
+        for (const [id, perf] of Object.entries(map)) {
+          if (!prefilledIdsRef.current.has(id)) {
+            fresh[id] = perf;
+            prefilledIdsRef.current.add(id);
+          }
         }
+        if (Object.keys(fresh).length === 0) return;
+        setExerciseSessions((prev) =>
+          applyLastPerformancePrefill(
+            prev,
+            fresh,
+            (es, perf) =>
+              suggestNextTargetForExercise(
+                es.exercise,
+                perf.sets,
+                weightUnitRef.current,
+              )?.weightLb ?? null,
+          ),
+        );
       })
       .catch(() => {});
     return () => {
@@ -1172,9 +1202,26 @@ function ExerciseCard({
     setEditingWeight(false);
   }, [nextSetIdx]);
   const completedSets = exerciseSession.completedSets.filter((set) => set.completed);
-  const lastWeight = completedSets.length > 0 
-    ? completedSets[completedSets.length - 1].weight 
+  const lastWeight = completedSets.length > 0
+    ? completedSets[completedSets.length - 1].weight
     : exerciseData.weight;
+  /** Memoized: the parent re-renders every second from the elapsed-time ticker. */
+  const historyLines = useMemo(() => {
+    const isTimeBased = exerciseUsesTimeDisplay(
+      exerciseData.prescriptionType,
+      exerciseData.name,
+      exerciseData.primaryMuscleGroup,
+    );
+    return {
+      lastTimeLine: formatLastTimeLine(lastPerformance, weightUnit, isTimeBased),
+      suggestionLine: formatSuggestionLine(
+        lastPerformance
+          ? suggestNextTargetForExercise(exerciseData, lastPerformance.sets, weightUnit)
+          : null,
+        weightUnit,
+      ),
+    };
+  }, [lastPerformance, weightUnit, exerciseData]);
 
   if (exerciseSession.skipped) {
     return (
@@ -1359,20 +1406,12 @@ function ExerciseCard({
           </TouchableOpacity>
         ) : null}
       </View>
-      {(() => {
-        const lastTimeLine = formatLastTimeLine(
-          lastPerformance,
-          weightUnit,
-          exerciseUsesTimeDisplay(
-            exerciseData.prescriptionType,
-            exerciseData.name,
-            exerciseData.primaryMuscleGroup,
-          ),
-        );
-        return lastTimeLine != null ? (
-          <Text style={styles.lastSetLine}>{lastTimeLine}</Text>
-        ) : null;
-      })()}
+      {historyLines.lastTimeLine != null && (
+        <Text style={styles.lastSetLine}>{historyLines.lastTimeLine}</Text>
+      )}
+      {historyLines.suggestionLine != null && (
+        <Text style={styles.suggestionLine}>{historyLines.suggestionLine}</Text>
+      )}
       {lastCompleted != null && (
         <Text style={styles.lastSetLine}>
           Last set today: {lastCompleted.reps}×
@@ -2489,6 +2528,12 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   lastSetLine: {
     fontSize: 12,
     color: palette.textTertiary,
+    marginBottom: 3,
+  },
+  suggestionLine: {
+    fontSize: 12,
+    color: palette.primary,
+    fontWeight: '600',
     marginBottom: 3,
   },
   loggingBand: {
