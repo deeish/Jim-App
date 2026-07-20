@@ -293,7 +293,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!returnTabName) return undefined;
     const sub = navigation.addListener('beforeRemove', (e) => {
-      if (e.data.action.type !== 'GO_BACK') return;
+      // GeneratePlanScreen's beforeRemove guard (the only other one in this
+      // codebase) checks both — matching it here rather than assuming this
+      // stack's swipe/back-gesture path only ever produces GO_BACK.
+      const actionType = e.data.action.type;
+      if (actionType !== 'GO_BACK' && actionType !== 'POP') return;
       const tabNav = getBottomTabNavigator(navigation);
       tabNav?.navigate(returnTabName);
     });
