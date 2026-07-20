@@ -31,7 +31,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Your last numbers, right where you lift',
     changes: [
       { type: 'new', text: 'Every exercise in a live workout now shows what you lifted last time, and your weight inputs start from it.' },
-      { type: 'new', text: 'A suggested next target for each lift: hit the top of your rep range and Jim nudges the weight up; fall short and it tells you to hold or lighten the load.' },
+      { type: 'new', text: 'A suggested next target for each lift, based on how your last set went.' },
     ],
   },
   {
