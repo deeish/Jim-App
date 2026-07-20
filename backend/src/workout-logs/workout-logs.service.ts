@@ -2,6 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkoutsService } from '../workouts/workouts.service';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
+import {
+  fetchLastEntriesForExercises,
+  isTrackableExerciseId,
+} from './last-performance';
+
+/** Bound on ids per last-performance lookup (a workout has far fewer). */
+const MAX_LAST_PERFORMANCE_IDS = 50;
 
 @Injectable()
 export class WorkoutLogsService {
@@ -83,6 +90,22 @@ export class WorkoutLogsService {
       orderBy: { startedAt: 'desc' },
     });
     return logs;
+  }
+
+  /**
+   * Most recent logged entry (completed sets, lb) per requested library
+   * exercise id. Ids with no history are omitted from the result.
+   */
+  async getLastPerformanceForExercises(userId: string, exerciseIds: string[]) {
+    const ids = Array.from(
+      new Set(exerciseIds.filter(isTrackableExerciseId)),
+    ).slice(0, MAX_LAST_PERFORMANCE_IDS);
+    const performances = await fetchLastEntriesForExercises(
+      this.prisma,
+      userId,
+      ids,
+    );
+    return { results: Object.fromEntries(performances) };
   }
 
   async findOne(id: string, userId: string) {

@@ -1,4 +1,4 @@
-import { Workout, WorkoutLog, ExerciseSession } from '../types/workout';
+import { Workout, WorkoutLog, ExerciseSession, LastPerformanceMap } from '../types/workout';
 import { api } from '../api/client';
 
 /** Create (or return) a Workout row from a plan slot’s stored exercises. */
@@ -210,4 +210,17 @@ export const getWorkoutLogs = async (
 export const getWorkoutLogById = async (id: string): Promise<WorkoutLog> => {
   const response = await api.get<WorkoutLog>(`/workout-logs/${id}`);
   return response.data;
+};
+
+/** Most recent logged performance per library exercise id (weights in lb). */
+export const getLastPerformance = async (
+  exerciseIds: string[]
+): Promise<LastPerformanceMap> => {
+  const ids = exerciseIds.map((id) => id.trim()).filter((id) => id.length > 0);
+  if (ids.length === 0) return {};
+  const query = new URLSearchParams({ exerciseIds: ids.join(',') });
+  const response = await api.get<{ results: LastPerformanceMap }>(
+    `/workout-logs/last-performance?${query.toString()}`
+  );
+  return response.data.results ?? {};
 };

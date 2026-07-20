@@ -89,6 +89,24 @@ export interface WorkoutSessionState {
   restTimerPaused: boolean;
 }
 
+// Last performance (most recent logged entry per library exercise id)
+export interface LastPerformedSet {
+  setNumber: number;
+  reps: number;
+  /** Canonical pounds; null for bodyweight/unweighted sets. */
+  weight: number | null;
+}
+
+export interface LastExercisePerformance {
+  workoutLogId: string;
+  performedAt: string; // ISO
+  /** Completed sets only, ordered by setNumber. Never empty. */
+  sets: LastPerformedSet[];
+}
+
+/** Keyed by library exercise id; ids with no history are absent. */
+export type LastPerformanceMap = Record<string, LastExercisePerformance>;
+
 // Workout log (history) types
 export interface WorkoutLogEntrySet {
   setNumber: number;
