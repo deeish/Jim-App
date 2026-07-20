@@ -258,6 +258,20 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     }, [exerciseId, loading, exercise])
   );
 
+  // Plan/Workout → ExerciseDetail (cross-tab): leaving this screen for any reason (tab
+  // change, nested nav) must not leave ExerciseDetail on top of the Search stack, or the
+  // Exercises tab stays "stuck" on detail. Safe to run unconditionally on every blur —
+  // resetting the (possibly backgrounded) Search stack never affects whichever screen the
+  // user actually navigated to.
+  useFocusEffect(
+    useCallback(() => {
+      return (): void => {
+        if (!leaveExerciseForPlanFlow) return;
+        resetSearchStackToSearchList(navigation);
+      };
+    }, [leaveExerciseForPlanFlow, navigation]),
+  );
+
   // Which bottom tab is "home" for this visit, when ExerciseDetail was opened cross-tab
   // from Plan/Workout. Null means a plain Search → ExerciseDetail visit (goBack suffices).
   const returnTabName: 'Plan' | 'Workout' | null =
@@ -267,22 +281,24 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         ? 'Plan'
         : null;
 
-  // Leaving this screen for ANY reason — the on-screen Back button, Android hardware back,
-  // or an iOS swipe-back gesture — must reset the Exercises stack and refocus the tab the
-  // user actually came from. A swipe pops the native stack directly, without running any
-  // of our own back-press handling, so a focus-effect cleanup (the one hook that fires on
-  // every one of those paths alike) is the single source of truth instead of duplicating
-  // this per trigger and missing the gesture case.
-  useFocusEffect(
-    useCallback(() => {
-      return (): void => {
-        if (!returnTabName) return;
-        resetSearchStackToSearchList(navigation);
-        const tabNav = getBottomTabNavigator(navigation);
-        tabNav?.navigate(returnTabName);
-      };
-    }, [returnTabName, navigation]),
-  );
+  // Refocus the originating tab, but ONLY on a genuine "going back" — the on-screen Back
+  // button, Android hardware back, and an iOS swipe-back gesture all dispatch a GO_BACK
+  // action (that uniform shape across trigger types, including gestures, is what
+  // beforeRemove is for). This must NOT fire for every blur: e.g. re-tapping the Exercises
+  // tab while viewing a cross-tab-opened exercise deliberately pops to the browse list
+  // without changing tabs (see NavBar's Search tabPress listener), and tapping a different
+  // tab directly should go to that tab — either would be silently overridden back to
+  // Plan/Workout by a blanket "any blur redirects" check, which is exactly what a first
+  // pass at this fix got wrong.
+  useEffect(() => {
+    if (!returnTabName) return undefined;
+    const sub = navigation.addListener('beforeRemove', (e) => {
+      if (e.data.action.type !== 'GO_BACK') return;
+      const tabNav = getBottomTabNavigator(navigation);
+      tabNav?.navigate(returnTabName);
+    });
+    return sub;
+  }, [returnTabName, navigation]);
 
   useEffect(() => {
     if (exerciseId) loadExercise();
