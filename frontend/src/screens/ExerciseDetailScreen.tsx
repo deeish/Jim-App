@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
-  BackHandler,
   LayoutAnimation,
   Platform,
   UIManager,
@@ -259,15 +258,30 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     }, [exerciseId, loading, exercise])
   );
 
-  // Plan → ExerciseDetail (cross-tab): leaving this screen for any reason (tab change, nested nav) must
-  // not leave ExerciseDetail on top of the Search stack, or the Exercises tab stays "stuck" on detail.
+  // Which bottom tab is "home" for this visit, when ExerciseDetail was opened cross-tab
+  // from Plan/Workout. Null means a plain Search → ExerciseDetail visit (goBack suffices).
+  const returnTabName: 'Plan' | 'Workout' | null =
+    returnToPlanExerciseContext === 'workout'
+      ? 'Workout'
+      : leaveExerciseForPlanFlow
+        ? 'Plan'
+        : null;
+
+  // Leaving this screen for ANY reason — the on-screen Back button, Android hardware back,
+  // or an iOS swipe-back gesture — must reset the Exercises stack and refocus the tab the
+  // user actually came from. A swipe pops the native stack directly, without running any
+  // of our own back-press handling, so a focus-effect cleanup (the one hook that fires on
+  // every one of those paths alike) is the single source of truth instead of duplicating
+  // this per trigger and missing the gesture case.
   useFocusEffect(
     useCallback(() => {
       return (): void => {
-        if (!leaveExerciseForPlanFlow) return;
+        if (!returnTabName) return;
         resetSearchStackToSearchList(navigation);
+        const tabNav = getBottomTabNavigator(navigation);
+        tabNav?.navigate(returnTabName);
       };
-    }, [leaveExerciseForPlanFlow, navigation]),
+    }, [returnTabName, navigation]),
   );
 
   useEffect(() => {
@@ -275,32 +289,8 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   }, [exerciseId, loadExercise]);
 
   const handleBack = useCallback(() => {
-    if (returnToPlanExerciseContext === 'workout') {
-      resetSearchStackToSearchList(navigation);
-      const tabNav = getBottomTabNavigator(navigation);
-      tabNav?.navigate('Workout');
-      return;
-    }
-    if (leaveExerciseForPlanFlow) {
-      // 'preview' | 'calendar' | 'workoutDetail': the originating screen is still
-      // on the Plan stack, so focusing the Plan tab is a true "back" (landing on
-      // the Exercises list here stranded users outside their plan flow).
-      resetSearchStackToSearchList(navigation);
-      const tabNav = getBottomTabNavigator(navigation);
-      tabNav?.navigate('Plan');
-      return;
-    }
     navigation.goBack();
-  }, [returnToPlanExerciseContext, leaveExerciseForPlanFlow, navigation]);
-
-  useEffect(() => {
-    if (!leaveExerciseForPlanFlow) return undefined;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      handleBack();
-      return true;
-    });
-    return () => sub.remove();
-  }, [leaveExerciseForPlanFlow, handleBack]);
+  }, [navigation]);
 
   const handleToggleLike = async () => {
     if (!exerciseId || savingLike) return;
