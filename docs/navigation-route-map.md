@@ -141,7 +141,8 @@ Format: **Screen** (navigator) — how you get there → how you leave.
     - → cross-tab to `Workout`, `{workoutId, fromPlan: true}` (via `(navigation as any)?.getParent?.()`, ONE hop) — "Start workout" when a linked workout already exists, or after materializing one from a plan slot.
     - → cross-tab to `Search` tab, `SearchList`, `{addToWorkout: {...}}` (via `getParent()`, one hop) — "Add exercises" from the context menu, targeting an already-linked workout. **Does not call `goBack()` afterward** (PlanList is the stack root — nothing to pop) — differs from `WorkoutDetailScreen`'s equivalent flow, which does call `goBack()` (see Open Questions, inconsistency #2).
     - → cross-tab to `Search` tab, `SearchList`, `{addToPlan: {day, weekIndex, weekMondayIso, weekAnchorMonday}}` — "Add exercises" for a day with NO linked workout yet.
-    - Various same-screen sheet/modal interactions (delete confirm, move-to-day, clear-week) that don't navigate at all.
+    - Opens `SavedWorkoutsScreen` as a `Modal` ("Saved workouts" button) — see its own entry below. **Correction to an earlier pass of this map**: that entry does navigate (to `WorkoutDetail`), it was wrongly lumped in with the non-navigating sheet/modal interactions below.
+    - Various OTHER same-screen sheet/modal interactions (delete confirm, move-to-day, clear-week) that don't navigate at all.
   - Back: N/A (stack root within the Plan tab). Re-tapping the Plan tab icon while deeper in this stack is NOT specially intercepted the way Search's tab icon is (no `NavBar` listener for `Plan`) — default tab-navigator behavior applies (bring the tab back into focus at whatever screen it was on, does not reset to PlanList). Compare to `Search`'s explicit re-tap-resets-to-root listener — **asymmetric**, see Open Questions.
 
 - **CalendarScreen = `History`**
@@ -173,6 +174,11 @@ Format: **Screen** (navigator) — how you get there → how you leave.
     - `handleStartWorkout`: cross-tab to `Workout` tab `{workoutId}` (same two-hop `getParent()`), immediately followed by `navigation.goBack()` (same reasoning).
     - Header back: `navigation.goBack()` (plain, no `canGoBack()` guard — this screen is only ever reached by `navigate` with history behind it, per the "In" list above, so always has somewhere to pop to).
     - → cross-tab to `ExerciseDetail` via `navigateFromWorkoutDetailToExerciseDetail(navigation, libId)` — tapping an exercise row (see §4).
+
+- **SavedWorkoutsScreen** — not a registered route; rendered as a `Modal` from `PlanScreen.tsx:1975`, in the Plan stack's own tree (not cross-tab). Accepts two optional props, `onClose` and `onSelectWorkout`, for exactly this embedded use.
+  - In: `PlanScreen` "Saved workouts" button only, in current usage.
+  - Out: tapping a saved workout calls `onSelectWorkout(workoutId)`, which `PlanScreen` (line 1977-1980) implements as: close the modal (`setSavedModalVisible(false)`), then `navigation.navigate('WorkoutDetail', {workoutId})` — same destination as `PlanScreen`'s own "View details" flow. Back/close calls `onClose()`, which `PlanScreen` implements as `setSavedModalVisible(false)` (local state, not a navigation action).
+  - **Dead code**: the component also has its own internal fallback logic (`handleBack`/`handleSelectWorkout`, lines 129-143) — `navigation.goBack()` if `onClose` is absent, `navigation.navigate('WorkoutDetail', ...)` if `onSelectWorkout` is absent — for standalone (non-modal) use as a real registered route. `PlanScreen` always supplies both props, so this fallback is unreachable in current usage. Not wired into any navigator's param list, so it can't currently be reached any other way either. Leave it alone rather than deleting it (evidently written for a planned/future standalone use) or "fixing" it believing it's live.
 
 ### Tab: Workout (leaf, hosts `<WorkoutSession>` inline)
 
@@ -306,10 +312,14 @@ regression found during the July 2026 review, not a gap):
    resets to `SearchList`. May be intentional (Plan's stack has more
    "in-progress work" screens where losing your place would be worse) or may
    be an inconsistency nobody noticed — not verified either way here.
-6. **`ProfileScreen`'s account-deletion post-action navigation** wasn't
-   traced to completion in this pass (grep found the confirm-dialog wiring
-   but this map didn't follow it through to whatever happens after a
-   successful delete). Trace separately if working on that flow.
+6. ~~**`ProfileScreen`'s account-deletion post-action navigation** wasn't
+   traced to completion in this pass.~~ **RESOLVED**: `runDeleteAccount`
+   (`ProfileScreen.tsx:518-543`) calls `deleteMyAccount()` then `await
+   signOut()` (line 532) — no explicit navigate call. Same session-clear →
+   AuthStack-fallthrough mechanism already documented above for
+   `SetNewPasswordScreen`'s sign-out (§3, Auth stack section): `App.tsx`
+   picks up the cleared session and swaps to `AuthStack` as a side effect,
+   not a `navigation` call.
 7. **None of the cross-tab `getParent()`/`getParent().getParent()` hop counts
    are type-checked** — they're all `(navigation as any)?.getParent?.()`,
    consistent with `?.`-guarded silent-no-op-on-failure rather than a
