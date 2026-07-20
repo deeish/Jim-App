@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   KeyboardAvoidingView,
   Keyboard,
   Platform,
@@ -86,41 +87,43 @@ export default function AuthScreenLayout({
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.keyboard}
         >
-          <Animated.View
-            entering={FadeInDown.duration(260)}
-            style={[styles.content, contentStyle]}
-          >
-            {onBack ? (
-              <TouchableOpacity
-                style={styles.backLink}
-                onPress={onBack}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessibilityRole="button"
-              >
-                <Ionicons name="chevron-back" size={18} color={colors.primary} />
-                <Text style={[styles.backText, { color: colors.primary }]}>{backLabel}</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            <View style={centerContent ? styles.centerArea : undefined}>
-              {showBrand ? (
-                <View style={styles.brandWrap}>
-                  <JimLogo showTagline />
-                </View>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <Animated.View
+              entering={FadeInDown.duration(260)}
+              style={[styles.content, contentStyle]}
+            >
+              {onBack ? (
+                <TouchableOpacity
+                  style={styles.backLink}
+                  onPress={onBack}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="chevron-back" size={18} color={colors.primary} />
+                  <Text style={[styles.backText, { color: colors.primary }]}>{backLabel}</Text>
+                </TouchableOpacity>
               ) : null}
 
-              <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-              {subtitle ? (
-                <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
+              <View style={centerContent ? styles.centerArea : undefined}>
+                {showBrand ? (
+                  <View style={styles.brandWrap}>
+                    <JimLogo showTagline />
+                  </View>
+                ) : null}
+
+                <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+                {subtitle ? (
+                  <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
+                ) : null}
+
+                <View style={styles.body}>{children}</View>
+              </View>
+
+              {footer && !keyboardOpen ? (
+                <View style={styles.footer}>{footer}</View>
               ) : null}
-
-              <View style={styles.body}>{children}</View>
-            </View>
-
-            {footer && !keyboardOpen ? (
-              <View style={styles.footer}>{footer}</View>
-            ) : null}
-          </Animated.View>
+            </Animated.View>
+          </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
