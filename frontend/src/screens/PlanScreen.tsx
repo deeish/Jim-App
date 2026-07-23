@@ -953,9 +953,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               existingExerciseIds: (linkedWorkout.exercises || [])
                 .map(e => e.exerciseId)
                 .filter((id): id is string => !!id),
+              origin: 'plan',
             },
           },
         });
+        // No-op today (PlanList is the Plan stack's root, nothing to pop) — matches
+        // WorkoutDetailScreen's identical flow so this stays correct if PlanList is
+        // ever reached with history beneath it.
+        navigation.goBack();
       }
     } else {
       Alert.alert('No workout yet', 'This slot doesn\'t have exercises yet. Tap the card to view details.');

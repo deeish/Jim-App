@@ -607,12 +607,6 @@ export default function WorkoutSession({
     showToast('Included again');
   };
 
-  const handleReplaceExercise = () => {
-    if (navigation) {
-      navigation.navigate('Search');
-    }
-  };
-
   const handleAddExerciseFromLibrary = () => {
     const w = session.workout;
     if (!w?.id) {
@@ -632,6 +626,7 @@ export default function WorkoutSession({
             workoutId: w.id,
             workoutName: w.name,
             existingExerciseIds,
+            origin: 'session',
           },
         },
       });
@@ -907,7 +902,6 @@ export default function WorkoutSession({
               navigation={navigation}
               showAdvancedLogging={showAdvancedLogging}
               onToggleAdvancedLogging={() => setShowAdvancedLogging(!showAdvancedLogging)}
-              onReplace={handleReplaceExercise}
               exercise={exerciseSession.exercise}
               onEditPrescription={() => setShowEditPrescriptionModal(index)}
               focusedSetIndex={index === currentExerciseIndex ? focusedSetIndex : null}
@@ -969,10 +963,6 @@ export default function WorkoutSession({
           onLibraryGuide={() => {
             const idx = showExerciseOptions;
             if (idx !== null) openExerciseLibraryGuide(idx);
-          }}
-          onSwap={() => {
-            setShowExerciseOptions(null);
-            handleReplaceExercise();
           }}
           onSkip={() => {
             const idx = showExerciseOptions;
@@ -1141,7 +1131,6 @@ function ExerciseCard({
   navigation,
   showAdvancedLogging,
   onToggleAdvancedLogging,
-  onReplace,
   exercise,
   onEditPrescription,
   focusedSetIndex,
@@ -1166,7 +1155,6 @@ function ExerciseCard({
   navigation?: NativeStackNavigationProp<RootStackParamList>;
   showAdvancedLogging: boolean;
   onToggleAdvancedLogging: () => void;
-  onReplace: () => void;
   exercise: any;
   onEditPrescription: () => void;
   focusedSetIndex: number | null;
@@ -1664,7 +1652,6 @@ function ExerciseOptionsModal({
   onClose,
   libraryGuideAvailable,
   onLibraryGuide,
-  onSwap,
   onSkip,
   onNotes,
   onAddSet,
@@ -1675,7 +1662,6 @@ function ExerciseOptionsModal({
   onClose: () => void;
   libraryGuideAvailable?: boolean;
   onLibraryGuide?: () => void;
-  onSwap: () => void;
   onSkip: () => void;
   onNotes: () => void;
   onAddSet: () => void;
@@ -1717,9 +1703,6 @@ function ExerciseOptionsModal({
             ) : null}
             <TouchableOpacity style={styles.optionItem} onPress={onNotes}>
               <Text style={styles.optionItemText}>Notes</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionItem} onPress={onSwap}>
-              <Text style={styles.optionItemText}>Swap Exercise</Text>
             </TouchableOpacity>
 
             <View style={styles.optionDivider} />

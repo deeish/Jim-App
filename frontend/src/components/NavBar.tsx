@@ -82,8 +82,8 @@ export default function NavBar() {
           ),
         }}
       />
-      <Tab.Screen 
-        name="Plan" 
+      <Tab.Screen
+        name="Plan"
         component={PlanStackNavigator}
         options={{
           tabBarButton: tabBarButton('e2e-tab-plan'),
@@ -91,6 +91,24 @@ export default function NavBar() {
             <CalendarIcon color={color} size={focused ? 26 : 24} />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            const root = navigation.getState();
+            const planRoute = root.routes.find((r: { name: string }) => r.name === 'Plan');
+            const focusedChild = planRoute ? getFocusedRouteNameFromRoute(planRoute as never) : undefined;
+            // Only reset from screens with no in-progress state to lose (plain detail/list
+            // views). Deliberately NOT resetting from GeneratePlan or PlanPreview:
+            // GeneratePlan has its own beforeRemove discard-guard that only intercepts
+            // GO_BACK/POP actions, and this tab-press reset dispatches NAVIGATE — letting it
+            // fire there would silently bypass that guard and blow away an unsaved form.
+            // PlanPreview holds an unapplied generated plan the user may still be reviewing;
+            // same "don't silently lose it" reasoning applies even without a guard to bypass.
+            if (focusedChild === 'History' || focusedChild === 'WorkoutDetail') {
+              e.preventDefault();
+              navigation.navigate('Plan', { screen: 'PlanList' });
+            }
+          },
+        })}
       />
       <Tab.Screen 
         name="Workout" 

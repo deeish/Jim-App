@@ -402,6 +402,7 @@ export default function WorkoutScreen() {
             workoutId: todayWorkout.id,
             workoutName: todayWorkout.name,
             existingExerciseIds,
+            origin: 'workout',
           },
         },
       });
