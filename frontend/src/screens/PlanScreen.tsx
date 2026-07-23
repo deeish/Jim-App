@@ -411,7 +411,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         },
         headerTitles: { flex: 1 },
         headerTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text },
-        goalContext: { fontSize: 12, color: colors.primary, marginTop: 2, fontWeight: '600' },
+        subtitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 },
+        goalContext: { fontSize: 12, color: colors.primary, fontWeight: '600', flex: 1 },
         detailsToggle: { marginTop: 8, paddingVertical: 6, paddingHorizontal: 4 },
         detailsToggleContent: { flexDirection: 'row', alignItems: 'center' },
         detailsToggleText: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
@@ -1267,8 +1268,23 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       {/* Dynamic header: plan name + optional subtitle from load balance */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.headerTitle} numberOfLines={1}>{currentPlan?.name ?? 'My Plan'}</Text>
-        {headerSubtitle ? (
-          <Text style={styles.goalContext} numberOfLines={1}>{headerSubtitle}</Text>
+        {headerSubtitle || currentPlan?.id ? (
+          <View style={styles.subtitleRow}>
+            {headerSubtitle ? (
+              <Text style={styles.goalContext} numberOfLines={1}>{headerSubtitle}</Text>
+            ) : (
+              <View style={{ flex: 1 }} />
+            )}
+            {currentPlan?.id ? (
+              <TouchableOpacity
+                onPress={() => setShareModalVisible(true)}
+                accessibilityLabel="Share plan"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="share-outline" size={18} color={colors.primary} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         ) : null}
         <View style={styles.ctaRow}>
           <TouchableOpacity
@@ -1285,15 +1301,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           >
             <Text style={[styles.historyLabelText, { color: colors.primary }]}>Saved workouts</Text>
           </TouchableOpacity>
-          {currentPlan?.id ? (
-            <TouchableOpacity
-              style={styles.historyLabelButton}
-              onPress={() => setShareModalVisible(true)}
-              accessibilityLabel="Share plan"
-            >
-              <Ionicons name="share-outline" size={18} color={colors.primary} />
-            </TouchableOpacity>
-          ) : null}
           <TouchableOpacity style={styles.ctaCompact} onPress={handleAIGenerate} accessibilityLabel="AI Generate plan">
             <Ionicons name="sparkles-outline" size={16} color={colors.onPrimary} />
             <Text style={styles.ctaCompactText}>AI Generate</Text>
