@@ -10,12 +10,14 @@ not a confirmed bug.
 Source of truth if this drifts: `frontend/src/types/navigation.ts`,
 `frontend/src/components/NavBar.tsx`, `frontend/App.tsx`, and grep for
 `navigation.navigate(`, `navigation.goBack(`, `navigation.dispatch(`,
-`BackHandler`, `beforeRemove` under `frontend/src`.
+`BackHandler`, `beforeRemove` under `frontend/src` — plus, for the
+non-navigator routes in §6, `signOut(`, `Linking.openURL(`, `Share.share(`,
+and `Sharing.shareAsync(`.
 
 **Verification history**: written by one pass, independently re-checked
-against source twice since (three passes total, 2026-07-20). Pass 2 found and
-fixed one wrong claim (a "doesn't navigate" screen that actually did) and
-resolved one open question. Pass 3 (exhaustive re-grep of every
+against source three times since (four passes total, 2026-07-20/22). Pass 2
+found and fixed one wrong claim (a "doesn't navigate" screen that actually
+did) and resolved one open question. Pass 3 (exhaustive re-grep of every
 `.navigate(`/`.goBack(`/`.replace(`/`.dispatch(`/`.setParams(`/`navigationRef`
 call in `frontend/src`, plus every modal/sheet component and every
 non-screen file for hidden navigation triggers) found: one mischaracterized
@@ -24,8 +26,39 @@ capabilities nobody currently triggers (marked "dead code"/"dead capability"
 inline), one fully orphaned component with a dangerous name collision (see
 the `WorkoutDetailModal` callout), and closed out two previously-untraced
 areas (Supabase auth links, push notifications/contexts/services — both
-confirmed to hold no surprises). Nothing else moved across all three passes;
-tsc/tests aren't applicable here since this is a docs-only file.
+confirmed to hold no surprises). **Pass 4** (2026-07-22) noticed that passes
+1-3 all scoped their greps to React Navigation call shapes
+(`navigate`/`goBack`/`dispatch`/`BackHandler`/`beforeRemove`), which cannot
+match a route that ends the session or leaves the app instead of calling
+`navigation.*` — a different but equally real category of "way to leave a
+screen." Re-grepped for `signOut(`, `Linking.`, `Share.share(`, and
+`Sharing.shareAsync(` across all of `frontend/src` and found a whole
+undocumented sub-tree: **`HomeScreen`'s profile-menu "Sign out" item is the
+only normal (non-account-deletion) sign-out affordance in the entire app**,
+plus an **automatic, silent sign-out in `api/client.ts`'s 401 interceptor**
+that can fire from any screen on any failed API call, plus a cluster of
+**external/native routes** (system browser, mail app, OS share sheet) reached
+from `ProfileScreen` and `ExerciseDetailScreen`. All new findings are in the
+new §6 below; every pre-existing citation checked during this pass
+(9 spot-checked line numbers across `ExerciseDetailScreen`, `GeneratePlanScreen`,
+`SearchScreen`, and `PlanScreen`) matched source exactly — no drift found in
+the pre-existing content. **Pass 5** (2026-07-22, same day) re-verified every
+citation pass 4 itself added (all held exactly, including confirming
+`api/client.ts` is exactly 84 lines — the cited range was the whole file, not
+a partial read) and swept the remaining unchecked corners: `services/*.ts`
+and `contexts/UserPreferencesContext.tsx` (both clean, no navigation/signOut/
+Linking of any kind), every `Modal` inside `GeneratePlanScreen` and
+`PlanPreviewScreen` (custom-split builder, saved-splits picker, date picker,
+preview card, swap-exercise picker — all confirmed to contain no navigation
+beyond what §3 already documents), the presentational card components used
+inside list rows (`ExerciseCard`, `ExerciseLibraryCard`, `DayCard`,
+`WorkoutDayRow` — none has its own `useNavigation()`, confirming navigation
+is always orchestrated by the owning screen, never a shared row component),
+and confirmed no error boundary exists anywhere in the app (see §5). Found
+one real refinement (not a contradiction): `SearchScreen`'s three
+`ExerciseDetail` tap targets are not unconditionally equivalent — see the
+corrected entry in §3. tsc/tests aren't applicable here since this is a
+docs-only file.
 
 ## 1. Navigator tree
 
@@ -126,7 +159,9 @@ Format: **Screen** (navigator) — how you get there → how you leave.
 - **Main = NavBar** — see tab breakdown below.
 - **ProfileScreen** (RootStack, sibling of Main)
   - In: `HomeScreen.goToProfile()` (walks `navigation.getParent()` once from Home). No other screen navigates here directly in this codebase.
-  - Out: `navigation.goBack()` (→ back to whatever tab was active). → `WeightTracker` (navigate). → `ShareRedeem` (navigate). "Delete account" flow exists (grep didn't fully trace its post-delete navigation — verify separately if touching this).
+  - Out: `navigation.goBack()` (→ back to whatever tab was active). → `WeightTracker` (navigate). → `ShareRedeem` (navigate). "Delete account" (`handleDeleteAccount` → double confirm → `runDeleteAccount`, `ProfileScreen.tsx:518-543`): calls `deleteMyAccount()` then `signOut()` — no explicit navigate call, same session-clear → `AuthStack`-fallthrough side effect documented throughout this map (fully resolved; superseded the old "grep didn't fully trace this" hedge from an earlier pass — see former Open Question, now struck through, in §7).
+  - **No "Sign out" button of its own** — despite being the app's settings screen, the only place `signOut()` is called from here is as a side effect of a successful account deletion. The app's one normal sign-out affordance lives on `HomeScreen`'s profile menu (see above).
+  - **Non-navigator rows** (verified pass 4, not routes in the React Navigation sense — full detail in §6): "Export my data" (native OS share sheet / file share), "Privacy policy" and "Terms of service" (system browser), "Feedback & support" (device mail app via `mailto:`).
 - **WeightTrackerScreen** (RootStack, sibling of Main)
   - In: ProfileScreen → "Weight Tracker".
   - Out: `navigation.goBack()` → Profile.
@@ -144,7 +179,12 @@ Format: **Screen** (navigator) — how you get there → how you leave.
     - → `Plan` tab, `{screen: 'GeneratePlan', initial: false}` — same `initial:false` reasoning.
     - → `Workout` tab (bare, `undefined` params) — generic "go work out".
     - → `Workout` tab, `{workoutId}` — "start today's session" with a specific workout preselected.
-    - → `Profile` (root sibling, via one `getParent()` hop).
+    - → `Profile` (root sibling, via one `getParent()` hop) — `goToProfile()`, the menu's "My profile" row.
+  - **"Profile menu"** (`HomeScreen.tsx`, avatar-disc button top-right, `accessibilityLabel="Profile menu"`, opens a local `Modal` gated on `menuVisible` state — not a route): three rows, found missing from this map entirely until pass 4 (see §6 for why the grep patterns used in passes 1-3 couldn't see these):
+    - "My profile" → `goToProfile()` (same cross-tab hop as above).
+    - "Log weight" → opens `<LogWeightSheet>` (separate local modal, `logWeightOpen` state) — verified to contain zero navigation calls; a second entry point to the same sheet exists on `WeightTrackerScreen` (its own "+" button). Both are dead-end local UI, not routes.
+    - **"Sign out"** → `confirmSignOut()` → confirm dialog → `signOut()` (AuthContext) → session clears → `App.tsx` falls through to `AuthStack`, same mechanism already documented for `SetNewPasswordScreen` and `ProfileScreen`'s delete-account flow. **This is the only normal, non-destructive sign-out affordance anywhere in the app** — `ProfileScreen` itself has no "Sign out" button; its only call to `signOut()` is an automatic side effect of successfully deleting the account (see the ProfileScreen entry below). Full detail in §6.
+    - (iOS-only wrinkle, not a routing concern: both "Log weight" and "Sign out" defer their follow-up modal/Alert until the menu's `onDismiss` fires, since iOS refuses to present one modal while another is still dismissing.)
   - Back: N/A (tab root, no back button of its own; hardware-back at Home with `backBehavior="none"` and no history has nowhere to go — likely exits the app, standard Android behavior for a tab root).
 
 ### Tab: Plan (`PlanStackNavigator`)
@@ -159,6 +199,7 @@ Format: **Screen** (navigator) — how you get there → how you leave.
     - → cross-tab to `Search` tab, `SearchList`, `{addToWorkout: {...}}` (via `getParent()`, one hop) — "Add exercises" from the context menu, targeting an already-linked workout. **Does not call `goBack()` afterward** (PlanList is the stack root — nothing to pop) — differs from `WorkoutDetailScreen`'s equivalent flow, which does call `goBack()` (see Open Questions, inconsistency #2).
     - → cross-tab to `Search` tab, `SearchList`, `{addToPlan: {day, weekIndex, weekMondayIso, weekAnchorMonday}}` — "Add exercises" for a day with NO linked workout yet.
     - Opens `SavedWorkoutsScreen` as a `Modal` ("Saved workouts" button) — see its own entry below. **Correction to an earlier pass of this map**: that entry does navigate (to `WorkoutDetail`), it was wrongly lumped in with the non-navigating sheet/modal interactions below.
+    - Opens `<ShareModal kind="plan">` ("Share" button, `shareModalVisible` state) — local modal, not a route, same class as `SavedWorkoutsScreen`; found missing from this map until pass 4. Its own "Share" button calls the native OS share sheet (`Share.share`), not `navigation.*` — see §6.
     - Various OTHER same-screen sheet/modal interactions (delete confirm, move-to-day, clear-week) that don't navigate at all.
   - Back: N/A (stack root within the Plan tab). Re-tapping the Plan tab icon while deeper in this stack is NOT specially intercepted the way Search's tab icon is (no `NavBar` listener for `Plan`) — default tab-navigator behavior applies (bring the tab back into focus at whatever screen it was on, does not reset to PlanList). Compare to `Search`'s explicit re-tap-resets-to-root listener — **asymmetric**, see Open Questions.
 
@@ -191,12 +232,17 @@ Format: **Screen** (navigator) — how you get there → how you leave.
     - `handleStartWorkout`: cross-tab to `Workout` tab `{workoutId}` (same two-hop `getParent()`), immediately followed by `navigation.goBack()` (same reasoning).
     - Header back: `navigation.goBack()` (plain, no `canGoBack()` guard — this screen is only ever reached by `navigate` with history behind it, per the "In" list above, so always has somewhere to pop to).
     - → cross-tab to `ExerciseDetail` via `navigateFromWorkoutDetailToExerciseDetail(navigation, libId)` — tapping an exercise row (see §4).
+    - Opens `<ShareModal kind="workout">` ("Share" button, `shareModalVisible` state) — same local-modal pattern as `PlanScreen`'s Share button above; not a route. See §6.
 
 - **SavedWorkoutsScreen** — not a registered route; rendered as a `Modal` from `PlanScreen.tsx:1975`, in the Plan stack's own tree (not cross-tab). Accepts two optional props, `onClose` and `onSelectWorkout`, for exactly this embedded use.
   - In: `PlanScreen` "Saved workouts" button only, in current usage.
   - Out: tapping a saved workout calls `onSelectWorkout(workoutId)`, which `PlanScreen` (line 1977-1980) implements as: close the modal (`setSavedModalVisible(false)`), then `navigation.navigate('WorkoutDetail', {workoutId})` — same destination as `PlanScreen`'s own "View details" flow. Back/close calls `onClose()`, which `PlanScreen` implements as `setSavedModalVisible(false)` (local state, not a navigation action).
   - **Dead code**: the component also has its own internal fallback logic (`handleBack`/`handleSelectWorkout`, lines 129-143) — `navigation.goBack()` if `onClose` is absent, `navigation.navigate('WorkoutDetail', ...)` if `onSelectWorkout` is absent — for standalone (non-modal) use as a real registered route. `PlanScreen` always supplies both props, so this fallback is unreachable in current usage. Not wired into any navigator's param list, so it can't currently be reached any other way either. Leave it alone rather than deleting it (evidently written for a planned/future standalone use) or "fixing" it believing it's live.
   - **A second dead capability found on the third verification sweep**: `PlanList`'s own param type is `{ openSaved?: boolean } | undefined` (`types/navigation.ts:22`), and `PlanScreen` reads it on focus to auto-open this same modal (`route.params?.openSaved` → `setSavedModalVisible(true)`, then clears the param — `PlanScreen.tsx:292-294`). Grepped every `.navigate(` call in the app targeting `PlanList`/`Plan`: none ever sets `openSaved: true`. This auto-open path is currently unreachable by any live UI action — same class of dead-but-present capability as the fallback above, presumably built for a not-yet-wired entry point (a deep link or notification landing straight on "your saved workouts"?). Don't build new logic assuming this path is exercised by anything today.
+
+- **`ShareModal` (`frontend/src/components/ShareModal.tsx`) — not a registered route, found missing from this map until pass 4.** Rendered as a `Modal` from both `PlanScreen.tsx:1985` (`kind="plan"`) and `WorkoutDetailScreen.tsx:573` (`kind="workout"`), gated on each screen's own `shareModalVisible` local state (opened by that screen's "Share" button) — architecturally identical to the `SavedWorkoutsScreen` pattern above, just duplicated per-screen instead of shared.
+  - In: the "Share" button on `PlanScreen` or `WorkoutDetailScreen` only.
+  - Out: `onClose` → the host screen sets `shareModalVisible` back to `false` (local state, not navigation) — same as `SavedWorkoutsScreen`'s `onClose`. The modal's own "Share" button (once a code has loaded from `createShare()`) calls `Share.share({ message })` — the native OS share sheet, not `navigation.*`. Contains no `navigation` usage anywhere in the component. Full non-navigator detail in §6.
 
 - **`WorkoutDetailModal` (`frontend/src/components/WorkoutDetailModal.tsx`) is NOT a route at all — flagging because of a name-collision trap.** Found on the third verification sweep: this component (`visible`/`workout`/`onClose`/`onSwap`/`onRefresh` props, clearly built to show workout details in a bottom-sheet modal) is not imported or rendered by any other file in the entire frontend — a grep for its name matches only its own definition. It's fully orphaned: unreachable by any user action, not part of any live route. Its name is one letter of collision away from the real, live `WorkoutDetailScreen.tsx` (the actual registered `WorkoutDetail` route documented above) — easy to grab the wrong one by name search. Don't add navigation logic to it thinking it's on a real screen, and don't assume `WorkoutDetail`-related bugs live here.
 
@@ -219,7 +265,7 @@ Format: **Screen** (navigator) — how you get there → how you leave.
 - **SearchScreen = `SearchList`** (initial route)
   - In: tab tap; every cross-tab redirect from Plan/Workout/WorkoutDetail/PlanPreview described above (`tabNav.navigate('Search', {screen:'SearchList', params:{addToPlan|addToWorkout}})`); `NavBar`'s own re-tap-while-on-ExerciseDetail redirect (`navigation.navigate('Search', {screen:'SearchList'})`); `ExerciseDetailScreen`'s stack-reset-to-root on any exit (mechanism F, `CommonActions.reset`).
   - Out:
-    - → `ExerciseDetail` (same stack, plain `navigate`, no special params) from three tap targets (row press, variation press, info press) — this is the ONLY entry into `ExerciseDetail` that does NOT set `returnToPlanExerciseContext`, because it's an in-stack push, not cross-tab; plain `goBack()` on `ExerciseDetail` suffices for this path.
+    - → `ExerciseDetail` (same stack, plain `navigate`, no special params) from three tap targets on `ExerciseGroupCard` (row press, variation press, info press) — this is the ONLY entry into `ExerciseDetail` that does NOT set `returnToPlanExerciseContext`, because it's an in-stack push, not cross-tab; plain `goBack()` on `ExerciseDetail` suffices for this path. **Refined on pass 5**: row press and variation press are gated by `addMode` — while `addToPlan`/`addToWorkout` is active, tapping the row or a variation chip calls `toggleSelectForAddToPlan(exercise)` (selects/deselects for the add-flow) instead of navigating; only they fall through to `navigate('ExerciseDetail', ...)` when NOT in add-mode. The info (ⓘ) button is unconditional — it always navigates to `ExerciseDetail`, in or out of add-mode. `ExerciseGroupCard.tsx`'s own source comments independently confirm this exact split ("selection instead of navigation, so the row shows a dedicated info button"), corroborating the behavior rather than just inferring it from the call site.
     - `submitAddToPlan()`: after a successful add, cross-tab to `Plan` tab (bare `tabNav.navigate('Plan')`, one-hop `getParent()`) — always lands wherever Plan's stack already was, not necessarily PlanList.
     - `submitAddToWorkout()`: after a successful add, `navigation.setParams({addToWorkout: undefined})` (clears the mode) THEN cross-tab to `Workout` tab `{workoutId}` (one-hop `getParent()`) — **always redirects to the Workout tab regardless of whether the "add exercises" request originated from Plan's context menu, WorkoutDetail, or a live WorkoutSession** (see Open Questions #3 — this is a real, confirmed asymmetry with `submitAddToPlan`, not a guess).
     - "Cancel" on the add-mode banner: `clearSelection()` + `navigation.setParams({addToPlan: undefined, addToWorkout: undefined})` (`SearchScreen.tsx:1237-1239`) — stays on `SearchList`, just clears add-mode state; not itself a navigation action but the other way `addToPlan`/`addToWorkout` params get cleared besides the two success paths above.
@@ -308,13 +354,109 @@ regression found during the July 2026 review, not a gap):
 - **Confirmed absent, checked on the third verification sweep**: no push
   notifications anywhere in this app (no `expo-notifications` dependency, no
   listener code) — there is no notification-tap-to-route path to document.
-  No hidden navigation in `contexts/` or `api/` either — grepped both
-  directories for `navigate`/`navigation`/`goBack`; the only match is a
-  comment in `AuthContext.tsx`, not a call. Every navigation action in this
-  app originates from a screen or component file already covered above, or
-  from the one `navigationRef` usage in `ShareDeepLinkHandler`.
+  No hidden *React Navigation* calls in `contexts/` or `api/` either —
+  grepped both directories for `navigate`/`navigation`/`goBack`; the only
+  match is a comment in `AuthContext.tsx`, not a call. **Caveat added on
+  pass 4**: that grep couldn't and didn't rule out a non-`navigation.*` way
+  to leave a screen — `api/client.ts` has exactly one (an automatic
+  sign-out), documented in §6 below. Every *in-navigator* action in this app
+  originates from a screen or component file already covered above, or from
+  the one `navigationRef` usage in `ShareDeepLinkHandler`.
+- **Also confirmed absent (pass 5)**: no error boundary anywhere in the app
+  (grepped for `ErrorBoundary`/`componentDidCatch`/`getDerivedStateFromError`
+  — the only class components in the codebase are animation-driven
+  (`BenchPressLoader`, `JGlyph`, `Aurora` and their `.web` variants), none of
+  them error boundaries). A hard crash therefore has no custom in-app
+  "Something went wrong, go Home" screen or reset action to document — it
+  falls straight through to Expo/React Native's own crash handling, outside
+  this app's navigation entirely. `services/*.ts` (every backend-calling
+  service file: `userService`, `bodyWeightService`, `shareService`,
+  `workoutService`, `planService`, `exerciseService`) and
+  `UserPreferencesContext.tsx` were also grepped directly (not just
+  inferred from their callers) for `navigate`/`navigation`/`goBack`/
+  `signOut`/`Linking` — all clean.
 
-## 6. Open questions / things worth verifying before trusting this map blindly
+## 6. Non-navigator routes: forced sign-out and external/native exits
+
+Everything above is a `navigation.*` call reachable by grepping for
+React Navigation's own API shape. Passes 1-3 all grepped for exactly that
+shape (`navigate`/`goBack`/`dispatch`/`BackHandler`/`beforeRemove`/
+`navigationRef`), so none of them could have surfaced what's in this
+section — it's not a gap in how carefully those passes read the matches they
+found, it's that a `signOut()` call or a `Linking.openURL()` call doesn't
+match any of those patterns at all. Pass 4 grepped separately for `signOut(`,
+`Linking.`, `Share.share(`, and `Sharing.shareAsync(` across all of
+`frontend/src` to close that blind spot. Two sub-categories:
+
+**A. Forced/voluntary sign-out** (ends with the same `AuthContext.signOut()`
+→ session cleared → `App.tsx` conditionally renders `AuthStack` instead of
+`RootStack` mechanism documented in §3 for `SetNewPasswordScreen` and
+`ProfileScreen`'s delete-account flow — the only new thing here is the
+*trigger*, not the mechanism):
+
+- **`HomeScreen`'s profile-menu "Sign out" row** (`HomeScreen.tsx` — button
+  at line 372, menu item at line 430) → `onSignOut` → `confirmSignOut()` →
+  `showConfirmDialog` (native `Alert` on iOS/Android, `window.confirm` on
+  web, `lib/confirmAlert.ts`) → on confirm, `void signOut()`. **This is the
+  only normal, user-initiated sign-out affordance anywhere in the app.**
+  `ProfileScreen` — the screen a user would most expect to find "Sign out"
+  on — has none; grepped the whole file for "sign out"/"log out" text and
+  for bare `signOut(` calls and found only the one inside
+  `runDeleteAccount` (`ProfileScreen.tsx:532`), which fires as a side effect
+  of successful account deletion, not as its own affordance.
+- **`api/client.ts`'s 401 response interceptor** (lines 44-84, the only
+  `axios.create(...)` instance in the app — every service file shares it) —
+  on a `401` where a token had actually been attached to the request, it
+  first tries `supabase.auth.refreshSession()` and retries the original
+  request once; only if that refresh itself fails does it call
+  `await supabase.auth.signOut()` directly. **This is a fully automatic,
+  silent, app-wide forced sign-out that can fire from any screen, mid-flow,
+  on any failed API call** — completely outside the component/navigator
+  tree, triggered by backend/session state rather than a user action. Same
+  landing (`AuthStack`) as every other sign-out above, but the user gets no
+  warning first (no confirm dialog — a 401-after-failed-refresh is treated
+  as "session is just gone"). Worth knowing if a future bug report is "the
+  app randomly kicked me to the login screen": this is where to look, not a
+  navigation bug in the screen the user happened to be on.
+
+**B. External/native routes** (leave the in-app navigator entirely; "back"
+from these is an OS-level app-switcher/browser-back action, not anything
+this codebase controls):
+
+- **`ProfileScreen`** (`openUrl` helper, line 481; rows at lines 870/877/884):
+  "Privacy policy" and "Terms of service" → `Linking.openURL(...)` → system
+  browser, URLs from `constants/legalUrls.ts` (env-overridable, falls back
+  to placeholder `example.com` URLs if the env vars aren't set — worth
+  checking those are actually configured before shipping, unrelated to
+  navigation but a real product gap if missed). "Feedback & support" →
+  `Linking.openURL('mailto:...')` (also `legalUrls.ts`,
+  `FEEDBACK_MAILTO`) → device mail app.
+- **`ProfileScreen`'s "Export my data"** (`handleExportMyData`, line 499) →
+  `exportMyData()` (backend call) → `shareJsonExport()`
+  (`lib/shareDataExport.ts`) → writes a temp JSON file and calls
+  `Sharing.shareAsync()` (`expo-sharing`), falling back to bare
+  `Share.share()` on web/if unavailable → native OS share sheet.
+- **`ExerciseDetailScreen`'s "Watch demo on YouTube"** button (line 541) →
+  `Linking.openURL(getYouTubeSearchUrl(exercise.name))` → system
+  browser/YouTube app, a YouTube *search* URL (not a specific video) built
+  from the exercise's name. Only entry point of this kind — grepped for
+  `getYouTubeSearchUrl` and this is its only call site.
+- **`ShareModal`** (see its entry in the Plan-tab section above, opened from
+  both `PlanScreen` and `WorkoutDetailScreen`) — its "Share" button calls
+  `Share.share({ message })` (native OS share sheet) once a share code has
+  loaded. Same native-share-sheet exit as the data-export path, different
+  trigger and payload (a share code + deep link, not a data dump).
+
+None of the above change any back-navigation reasoning elsewhere in this map
+— they're either a full session teardown (sub-category A, nothing to "go
+back" to in-app afterward) or a momentary hand-off to OS-level UI that
+returns the user to exactly the screen they left (sub-category B). Flagging
+them here because the user-facing question this map exists to answer —
+"every kind of route a user might take" — includes both, even though only
+sub-category A has any bearing on the back-button bugs this map was
+originally written to support.
+
+## 7. Open questions / things worth verifying before trusting this map blindly
 
 1. **`WorkoutSession.handleReplaceExercise` → `navigation.navigate('Search')`
    with zero params.** No exercise/workout context is passed, no return
@@ -367,7 +509,7 @@ regression found during the July 2026 review, not a gap):
    hop-counts should be re-audited; none of them would throw a type error to
    catch it, they'd just quietly stop navigating.
 
-## 7. Suggested general approach for an agent using this map
+## 8. Suggested general approach for an agent using this map
 
 - First classify the bug: is it (a) "back doesn't return to the right
   place" (check which mechanism from §2 the screen in question uses, and
@@ -384,3 +526,8 @@ regression found during the July 2026 review, not a gap):
 - Always check `NavBar.tsx` for a tab-specific `tabPress` listener before
   assuming a blur means "user is leaving" — `Search` has one, `Plan` doesn't
   (Open Question #5), and any tab could gain one in the future.
+- If the bug report is shaped like "the app dumped me back to the login
+  screen" rather than "back went to the wrong tab," you're not looking for a
+  `navigation.*` bug at all — check §6 first (`HomeScreen`'s sign-out menu
+  item, or `api/client.ts`'s automatic 401-triggered sign-out). Grepping for
+  `navigate`/`goBack`/`beforeRemove` will not find either.
