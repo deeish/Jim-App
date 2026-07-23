@@ -957,10 +957,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
             },
           },
         });
-        // No-op today (PlanList is the Plan stack's root, nothing to pop) — matches
-        // WorkoutDetailScreen's identical flow so this stays correct if PlanList is
-        // ever reached with history beneath it.
-        navigation.goBack();
+        // Deliberately no goBack() here, unlike WorkoutDetailScreen's equivalent flow:
+        // that screen sits at index > 0 and genuinely pops itself, whereas PlanList is
+        // this stack's root. A GO_BACK dispatched from a stack root does NOT stop there
+        // — it bubbles to the tab navigator and then to the root stack — so it would be
+        // an unhandled action (a dev-only console.error) today, and an actual wrong-way
+        // pop the moment anything sits underneath `Main` in the root stack.
       }
     } else {
       Alert.alert('No workout yet', 'This slot doesn\'t have exercises yet. Tap the card to view details.');
