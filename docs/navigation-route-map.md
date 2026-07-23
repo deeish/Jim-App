@@ -60,6 +60,64 @@ one real refinement (not a contradiction): `SearchScreen`'s three
 corrected entry in §3. tsc/tests aren't applicable here since this is a
 docs-only file.
 
+**Pass 6** (2026-07-22, same day) implemented fixes for four of the
+asymmetries §7 had flagged as "confirmed, needs a decision" rather than
+"open question": (a) `PlanScreen`'s add-exercises-from-menu now calls
+`goBack()` after redirecting, matching `WorkoutDetailScreen` (§3, Plan tab);
+(b) the Plan tab now resets to `PlanList` on re-tap, but ONLY from `History`
+or `WorkoutDetail` — deliberately NOT from `GeneratePlan`/`PlanPreview` (§3,
+mirroring how `Search`'s equivalent listener is documented there rather than
+in the §2 mechanism table); (c) `addToWorkout` now carries an `origin` tag so `SearchScreen` lands
+on Workout only when the request came from there, Plan otherwise (§3, all
+four origin sites); (d) `WorkoutSession`'s dead-end "Swap Exercise" option is
+removed entirely, not just hidden — handler, prop, and menu row all deleted.
+Verified via `tsc --noEmit` (clean) and the full Jest suite (265/265,
+unaffected — screens aren't unit-tested in this repo) after every edit, plus
+a full re-grep for every remaining reference to the removed code and to
+`addToWorkout:` construction sites. That re-grep is what caught a real gap
+mid-implementation: `WorkoutScreen.tsx`'s own pre-start "Add exercises" is a
+FOURTH `addToWorkout` call site, structurally separate from
+`WorkoutSession.tsx`'s mid-session one, that the first implementation pass
+missed entirely — it needed its own `origin: 'workout'` (lands on Workout,
+same as `'session'`, but semantically distinct since no session exists yet
+at that point). Caught before shipping specifically because this pass
+insisted on re-deriving every call site from a fresh grep rather than
+trusting the plan's initial 3-site scope. Details and the full before/after
+per fix are inline at each screen's entry; §7 marks all four resolved.
+
+**Pass 7** (2026-07-22, same day) re-derived every `navigate`/`goBack`/
+`dispatch`/`setParams` call site in `frontend/src` from a fresh grep
+(independent of pass 6's memory of what it had touched) and cross-checked
+every line-number citation in this map against current source — not just
+for the 7 files pass 6 edited, but a full pass. Found and fixed **5 citation
+drifts**, all caused by pass 6's own edits shifting line numbers below them
+in the same file (`PlanScreen.tsx`'s day-preview "View details" button,
+`SavedWorkoutsScreen`'s `onSelectWorkout`, `ShareModal` in both `PlanScreen`
+and `WorkoutDetailScreen`, and `SearchScreen`'s "Cancel" handler) — exactly
+the kind of drift this map's own "Source of truth if this drifts" note warns
+about, and exactly why re-verifying citations after any code change (not
+just after writing new prose) matters. Also found **two real edge cases**
+neither pass 6 nor any earlier pass had surfaced: `tabPress` fires on any
+press of a tab bar button, not only a same-tab re-tap (§3, Plan and Search
+entries); and `addToPlan`/`addToWorkout` params have no cleanup-on-blur,
+so an abandoned add-flow's state (now including the `origin` tag) can
+persist indefinitely (§7 #8, new). Everything else — every call site's
+destination, every cross-tab hop count, every `beforeRemove`/`BackHandler`
+registration — matched this map exactly; no other drift or omission found.
+
+**Pass 8** (2026-07-22, same day) fixed the one pass-7 finding that was left
+as an open decision rather than resolved: both edge cases were confirmed to
+affect mobile exactly the same as web (neither relates to platform-specific
+gesture handling — `tabPress`/`blur`/route params are pure React Navigation
+state behavior, identical across iOS/Android/web), so the `tabPress`-fires-
+on-any-press one needed no code change (it was already correct, just
+under-described), and the `addToPlan`/`addToWorkout` no-cleanup-on-blur one
+got fixed. See §7 #8 (resolved) for the fix and why it's a tab-level `blur`
+listener, not a focus-effect on `SearchScreen` itself — using the latter
+would have reintroduced the exact "which blur means leaving" footgun this
+map's `ExerciseDetail` section already documents in depth. Verified via
+`tsc --noEmit` (clean) and the full Jest suite (265/265).
+
 ## 1. Navigator tree
 
 ```
@@ -128,7 +186,7 @@ verification sweep); a screen may use more than one:
 | A | Plain `navigation.goBack()` | Most screens' header/back button | Explicit tap only. Does nothing for hardware-back/swipe unless the navigator's own default behavior also happens to pop (it usually does, since goBack and hardware-back/swipe all normally dispatch the same `GO_BACK` action — see D). |
 | B | `canGoBack()` fallback | `GeneratePlanScreen:578`, `CalendarScreen:268` | Screens reachable BOTH by push (has history) and by `navigate('Plan', {screen: 'X', initial:false})` from Home (stack can be just `[X]`, nothing to pop). Falls back to a named list screen instead of a no-op back. |
 | C | Cross-tab redirect via `getParent()` chain walk | `exerciseNavigation.ts`, `ExerciseDetailScreen.tsx`, `PlanScreen`, `WorkoutScreen`, `WorkoutDetailScreen`, `SearchScreen` (`addToPlan`/`addToWorkout` completion) | Used whenever a flow must land on a *different tab* than the one it's nested in. Implemented ad hoc per call site — `(navigation as any)?.getParent?.()` one level, or `getParent()?.getParent?.()` two levels, depending on nesting depth at that call site. **Fragile**: get the parent-depth wrong and it silently no-ops (most of these are written defensively with `?.` so a wrong depth just does nothing, not a crash). |
-| D | `beforeRemove` listener filtered by `action.type` | `ExerciseDetailScreen.tsx:295` (filters `'GO_BACK'`), `GeneratePlanScreen.tsx:638` (filters `'GO_BACK'` OR `'POP'`) | The only mechanism that reliably fires for **iOS swipe-back gesture** as well as button/hardware-back, because v6's native-stack syncs gesture completion through the same action-dispatch path specifically so `beforeRemove` can intercept it. `ExerciseDetailScreen` currently only checks `'GO_BACK'`, not `'POP'` — see Open Questions. |
+| D | `beforeRemove` listener filtered by `action.type` | `ExerciseDetailScreen.tsx:295` (filters `'GO_BACK'` OR `'POP'`), `GeneratePlanScreen.tsx:638` (filters `'GO_BACK'` OR `'POP'`) | The only mechanism that reliably fires for **iOS swipe-back gesture** as well as button/hardware-back, because v6's native-stack syncs gesture completion through the same action-dispatch path specifically so `beforeRemove` can intercept it. Both listeners check the same two action types (§7 #4, resolved by commit 794e693 — this row previously said `ExerciseDetailScreen` only checked `'GO_BACK'`, which was already stale by the time pass 6 caught it). |
 | E | `BackHandler.addEventListener('hardwareBackPress', ...)` | `SearchScreen.tsx:412` only (removed from `ExerciseDetailScreen` in the July 2026 nav fix) | Android-only, does NOT fire for iOS swipe. `SearchScreen`'s usage is narrow: only prevents Android back from bubbling out of the Search stack root / toggles the saved-filter tab. |
 | F | Unconditional focus-effect cleanup (`useFocusEffect` returning a cleanup fn) | `ExerciseDetailScreen.tsx` (stack-reset only, NOT tab-redirect — see the July 2026 fix history), `HomeScreen` (data reload, not navigation) | Fires on **every** blur regardless of cause (button, hardware-back, swipe, tab switch, sibling-tab redirect). Safe ONLY for idempotent, tab-local cleanup (e.g. "reset my own stack to its root"). Using it to redirect to a *different tab* is a proven footgun — see `ExerciseDetailScreen`'s commit history: a first attempt did exactly that and it hijacked `NavBar`'s legitimate "re-tap Exercises to browse" behavior and any direct tap on another tab. Any future "fix" that reaches for this pattern for a tab-redirect should re-read that history first. |
 | G | `CommonActions.reset(...)` to clear stack history | `PlanPreviewScreen.tsx:266,1052` (after Apply, or going Home from onboarding) | Used when a screen must NOT be reachable via back afterward (e.g. don't let the user "back" into a stale plan-generation flow after applying it). |
@@ -192,16 +250,17 @@ Format: **Screen** (navigator) — how you get there → how you leave.
 - **PlanScreen = `PlanList`** (initial route of the Plan stack)
   - In: tab tap, or any `tabNav.navigate('Plan')` / `navigate('Plan', {screen:'PlanList', ...})` from elsewhere (Home, ShareRedeem, ExerciseDetail's redirect, PlanPreview's reset-after-apply).
   - Out:
-    - → `WorkoutDetail` (same stack, `navigate`) — TWO real call sites, both gated on the slot already having a linked/materialized workout: the long-press context menu's "View details" item navigates directly when already linked (`handleViewWorkoutFromMenu`, line 933); the day-preview sheet's own "View details" button does the same (line 1896) when `linked`. **Correction to an earlier pass of this map, found on a third verification sweep**: tapping a workout row does NOT navigate directly to `WorkoutDetail` the way "main list 'View details'" implied. `handleCardPress` (line 835-846) always opens the day-preview sheet (`detailSheetWorkout`) first, for every workout-day tap — the sheet's own button is the only "tap a row" path to `WorkoutDetail`, gated on `linked`. The context menu's "View details" item bypasses the sheet only when the workout is already linked (line 932-933); when it isn't, it ALSO just opens the same sheet (line 934-936) rather than navigating.
+    - → `WorkoutDetail` (same stack, `navigate`) — TWO real call sites, both gated on the slot already having a linked/materialized workout: the long-press context menu's "View details" item navigates directly when already linked (`handleViewWorkoutFromMenu`, line 933); the day-preview sheet's own "View details" button does the same (line 1901, shifted from 1896 by pass 6's +5-line edit above it — re-verified pass 7) when `linked`. **Correction to an earlier pass of this map, found on a third verification sweep**: tapping a workout row does NOT navigate directly to `WorkoutDetail` the way "main list 'View details'" implied. `handleCardPress` (line 835-846) always opens the day-preview sheet (`detailSheetWorkout`) first, for every workout-day tap — the sheet's own button is the only "tap a row" path to `WorkoutDetail`, gated on `linked`. The context menu's "View details" item bypasses the sheet only when the workout is already linked (line 932-933); when it isn't, it ALSO just opens the same sheet (line 934-936) rather than navigating.
     - → `History` (same stack, `navigate`) — "View history" button.
     - → `GeneratePlan` (same stack, `navigate`) — "AI Generate".
     - → cross-tab to `Workout`, `{workoutId, fromPlan: true}` (via `(navigation as any)?.getParent?.()`, ONE hop) — "Start workout" when a linked workout already exists, or after materializing one from a plan slot.
-    - → cross-tab to `Search` tab, `SearchList`, `{addToWorkout: {...}}` (via `getParent()`, one hop) — "Add exercises" from the context menu, targeting an already-linked workout. **Does not call `goBack()` afterward** (PlanList is the stack root — nothing to pop) — differs from `WorkoutDetailScreen`'s equivalent flow, which does call `goBack()` (see Open Questions, inconsistency #2).
+    - → cross-tab to `Search` tab, `SearchList`, `{addToWorkout: {..., origin: 'plan'}}` (via `getParent()`, one hop) — "Add exercises" from the context menu, targeting an already-linked workout. **Fixed in pass 6**: now calls `goBack()` right after redirecting, matching `WorkoutDetailScreen`'s equivalent flow (previously it didn't — see former Open Question #2, resolved in §7). Currently a no-op regardless (PlanList is the stack root, nothing to pop) — the fix is defensive, so it stays correct if PlanList is ever reached with history beneath it. The `origin: 'plan'` tag is read by `SearchScreen.submitAddToWorkout` to land back on the **Plan** tab instead of Workout on completion (§7 #3, resolved).
     - → cross-tab to `Search` tab, `SearchList`, `{addToPlan: {day, weekIndex, weekMondayIso, weekAnchorMonday}}` — "Add exercises" for a day with NO linked workout yet.
     - Opens `SavedWorkoutsScreen` as a `Modal` ("Saved workouts" button) — see its own entry below. **Correction to an earlier pass of this map**: that entry does navigate (to `WorkoutDetail`), it was wrongly lumped in with the non-navigating sheet/modal interactions below.
     - Opens `<ShareModal kind="plan">` ("Share" button, `shareModalVisible` state) — local modal, not a route, same class as `SavedWorkoutsScreen`; found missing from this map until pass 4. Its own "Share" button calls the native OS share sheet (`Share.share`), not `navigation.*` — see §6.
     - Various OTHER same-screen sheet/modal interactions (delete confirm, move-to-day, clear-week) that don't navigate at all.
-  - Back: N/A (stack root within the Plan tab). Re-tapping the Plan tab icon while deeper in this stack is NOT specially intercepted the way Search's tab icon is (no `NavBar` listener for `Plan`) — default tab-navigator behavior applies (bring the tab back into focus at whatever screen it was on, does not reset to PlanList). Compare to `Search`'s explicit re-tap-resets-to-root listener — **asymmetric**, see Open Questions.
+  - Back: N/A (stack root within the Plan tab). **Fixed in pass 6** (former Open Question #5, resolved with a deliberate partial fix, not a full match to Search): re-tapping the Plan tab icon now resets to `PlanList` via a `NavBar.tsx` `tabPress` listener, but ONLY when the focused child is `History` or `WorkoutDetail`. It deliberately does NOT reset from `GeneratePlan` or `PlanPreview` — those are excluded on purpose, not an oversight: `GeneratePlan` has its own `beforeRemove` discard-guard (mechanism D) that only intercepts `GO_BACK`/`POP` actions, and a tab-press reset dispatches `NAVIGATE`, which would silently bypass that guard and blow away an unsaved form; `PlanPreview` holds an unapplied generated plan the user may still be reviewing, same "don't silently lose it" reasoning even without a guard to bypass. Re-tapping Plan while on either of those two still just refocuses at the current screen, exactly as before this fix.
+  - **Edge case, verified pass 7**: despite the "re-tap" framing (here and for Search's identical pattern below), `tabPress` fires on **any press of the tab bar button** — including switching to Plan directly from Home/Workout/Search — not only when Plan is already the active tab. Neither listener checks "is this tab currently focused" first, only the target stack's own internal state. So this reset also fires the first time you switch to Plan after having last left it on `History`/`WorkoutDetail` from a previous visit, not just on a literal same-tab re-tap. This is the intended behavior, not a bug, but worth testing explicitly (switch away from WorkoutDetail to Home, then tap Plan directly — should land on PlanList, not WorkoutDetail) since "re-tap" undersells what actually triggers it.
 
 - **CalendarScreen = `History`**
   - In: PlanScreen "View history", or Home's `initial:false`-seeded navigate (may be the stack's only route in the latter case).
@@ -226,9 +285,9 @@ Format: **Screen** (navigator) — how you get there → how you leave.
     - `returnToPlanCard` param: when re-focused after returning from ExerciseDetail, a `useEffect` reopens the exact workout-preview card the user had open (keyed by week/day/workoutId) — read-and-restore pattern, not itself a navigation action.
 
 - **WorkoutDetailScreen**
-  - In: PlanScreen — two real `navigate('WorkoutDetail', {workoutId})` call sites, both gated on the plan slot already being `linked` to a materialized workout: the context menu's "View details" item (line 933) and the day-preview sheet's own "View details" button (line 1896). Neither is a bare "tap the workout row" action — see the corrected PlanScreen entry above. Also: ShareRedeemScreen's `goToWorkout()` (via root-level `navigate('Main', {screen:'Plan', params:{screen:'WorkoutDetail', ...}}})`).
+  - In: PlanScreen — two real `navigate('WorkoutDetail', {workoutId})` call sites, both gated on the plan slot already being `linked` to a materialized workout: the context menu's "View details" item (line 933) and the day-preview sheet's own "View details" button (line 1901). Neither is a bare "tap the workout row" action — see the corrected PlanScreen entry above. Also: ShareRedeemScreen's `goToWorkout()` (via root-level `navigate('Main', {screen:'Plan', params:{screen:'WorkoutDetail', ...}}})`).
   - Out:
-    - `handleAddExercises`: cross-tab to `Search`/`SearchList` `{addToWorkout}` (via `getParent().getParent()`, TWO hops — this screen is nested one level deeper than PlanScreen/WorkoutScreen relative to the tab navigator, hence the extra hop), immediately followed by `navigation.goBack()` (pop WorkoutDetail off the Plan stack right away, since the user is leaving for Search and WorkoutDetail shouldn't linger stale underneath).
+    - `handleAddExercises`: cross-tab to `Search`/`SearchList` `{addToWorkout: {..., origin: 'workoutDetail'}}` (via `getParent().getParent()`, TWO hops — this screen is nested one level deeper than PlanScreen/WorkoutScreen relative to the tab navigator, hence the extra hop), immediately followed by `navigation.goBack()` (pop WorkoutDetail off the Plan stack right away, since the user is leaving for Search and WorkoutDetail shouldn't linger stale underneath). The `origin: 'workoutDetail'` tag (added pass 6) makes `SearchScreen.submitAddToWorkout` land back on **Plan** on completion rather than Workout — see the SearchScreen entry below and §7 #3 (resolved).
     - `handleStartWorkout`: cross-tab to `Workout` tab `{workoutId}` (same two-hop `getParent()`), immediately followed by `navigation.goBack()` (same reasoning).
     - Header back: `navigation.goBack()` (plain, no `canGoBack()` guard — this screen is only ever reached by `navigate` with history behind it, per the "In" list above, so always has somewhere to pop to).
     - → cross-tab to `ExerciseDetail` via `navigateFromWorkoutDetailToExerciseDetail(navigation, libId)` — tapping an exercise row (see §4).
@@ -236,11 +295,11 @@ Format: **Screen** (navigator) — how you get there → how you leave.
 
 - **SavedWorkoutsScreen** — not a registered route; rendered as a `Modal` from `PlanScreen.tsx:1975`, in the Plan stack's own tree (not cross-tab). Accepts two optional props, `onClose` and `onSelectWorkout`, for exactly this embedded use.
   - In: `PlanScreen` "Saved workouts" button only, in current usage.
-  - Out: tapping a saved workout calls `onSelectWorkout(workoutId)`, which `PlanScreen` (line 1977-1980) implements as: close the modal (`setSavedModalVisible(false)`), then `navigation.navigate('WorkoutDetail', {workoutId})` — same destination as `PlanScreen`'s own "View details" flow. Back/close calls `onClose()`, which `PlanScreen` implements as `setSavedModalVisible(false)` (local state, not a navigation action).
+  - Out: tapping a saved workout calls `onSelectWorkout(workoutId)`, which `PlanScreen` (line 1982-1985) implements as: close the modal (`setSavedModalVisible(false)`), then `navigation.navigate('WorkoutDetail', {workoutId})` — same destination as `PlanScreen`'s own "View details" flow. Back/close calls `onClose()`, which `PlanScreen` implements as `setSavedModalVisible(false)` (local state, not a navigation action).
   - **Dead code**: the component also has its own internal fallback logic (`handleBack`/`handleSelectWorkout`, lines 129-143) — `navigation.goBack()` if `onClose` is absent, `navigation.navigate('WorkoutDetail', ...)` if `onSelectWorkout` is absent — for standalone (non-modal) use as a real registered route. `PlanScreen` always supplies both props, so this fallback is unreachable in current usage. Not wired into any navigator's param list, so it can't currently be reached any other way either. Leave it alone rather than deleting it (evidently written for a planned/future standalone use) or "fixing" it believing it's live.
   - **A second dead capability found on the third verification sweep**: `PlanList`'s own param type is `{ openSaved?: boolean } | undefined` (`types/navigation.ts:22`), and `PlanScreen` reads it on focus to auto-open this same modal (`route.params?.openSaved` → `setSavedModalVisible(true)`, then clears the param — `PlanScreen.tsx:292-294`). Grepped every `.navigate(` call in the app targeting `PlanList`/`Plan`: none ever sets `openSaved: true`. This auto-open path is currently unreachable by any live UI action — same class of dead-but-present capability as the fallback above, presumably built for a not-yet-wired entry point (a deep link or notification landing straight on "your saved workouts"?). Don't build new logic assuming this path is exercised by anything today.
 
-- **`ShareModal` (`frontend/src/components/ShareModal.tsx`) — not a registered route, found missing from this map until pass 4.** Rendered as a `Modal` from both `PlanScreen.tsx:1985` (`kind="plan"`) and `WorkoutDetailScreen.tsx:573` (`kind="workout"`), gated on each screen's own `shareModalVisible` local state (opened by that screen's "Share" button) — architecturally identical to the `SavedWorkoutsScreen` pattern above, just duplicated per-screen instead of shared.
+- **`ShareModal` (`frontend/src/components/ShareModal.tsx`) — not a registered route, found missing from this map until pass 4.** Rendered as a `Modal` from both `PlanScreen.tsx:1990` (`kind="plan"`) and `WorkoutDetailScreen.tsx:574` (`kind="workout"`), gated on each screen's own `shareModalVisible` local state (opened by that screen's "Share" button) — architecturally identical to the `SavedWorkoutsScreen` pattern above, just duplicated per-screen instead of shared.
   - In: the "Share" button on `PlanScreen` or `WorkoutDetailScreen` only.
   - Out: `onClose` → the host screen sets `shareModalVisible` back to `false` (local state, not navigation) — same as `SavedWorkoutsScreen`'s `onClose`. The modal's own "Share" button (once a code has loaded from `createShare()`) calls `Share.share({ message })` — the native OS share sheet, not `navigation.*`. Contains no `navigation` usage anywhere in the component. Full non-navigator detail in §6.
 
@@ -252,11 +311,11 @@ Format: **Screen** (navigator) — how you get there → how you leave.
   - In: tab tap (loads "today's" workout via `resolveHomeToday`-style logic if no `workoutId` param); or `navigate('Workout', {workoutId, fromPlan?})` from Home, PlanScreen, WorkoutDetailScreen, ShareRedeemScreen-via-Plan (indirect).
   - Out:
     - `goBackToPlan()` (only rendered when `route.params.fromPlan === true`): cross-tab to `Plan` tab (via one-hop `getParent()`) — this is a forced redirect to Plan, NOT a `goBack()`, so it always lands on whatever the Plan stack's own state already was (not necessarily where the user started).
-    - `handleAddExercises`: cross-tab to `Search`/`SearchList` `{addToWorkout}` (one-hop `getParent()`) — no `goBack()` afterward (Workout is a tab leaf, nothing to pop).
+    - `handleAddExercises`: cross-tab to `Search`/`SearchList` `{addToWorkout: {..., origin: 'workout'}}` (one-hop `getParent()`) — no `goBack()` afterward (Workout is a tab leaf, nothing to pop). The `origin: 'workout'` tag (added pass 6 — this call site was missed in the first implementation pass and only caught by re-grepping every `addToWorkout:` construction site afterward, since it's structurally distinct from `WorkoutSession`'s mid-session version below) keeps `SearchScreen.submitAddToWorkout` landing on **Workout** on completion, same as `'session'` — this is the pre-start list, not a live session, but the user is still on the Workout tab prepping this exact workout, so landing back there is still correct.
     - → cross-tab to `ExerciseDetail` via `navigateFromWorkoutToExerciseDetail(navigation, id)`, both from the pre-start exercise list (`handleOpenExerciseDetail`) and passed down into `<WorkoutSession>` for use during an active session (see §4).
   - `<WorkoutSession>` (rendered inline, not a separate route — "leaving" it is a local state transition inside WorkoutScreen, not a stack pop):
-    - `handleReplaceExercise` → `navigation.navigate('Search')` with **no params at all**. Because this screen has no nested stack, `navigation` here is effectively the tab navigator itself, so this is a plain tab switch to Search's current state (usually `SearchList`) — it does NOT enter any "replace this exercise" mode, carries no `workoutId`/exercise context, and has no return-to-session redirect. **Likely a dead-end / minimally-implemented flow** — see Open Questions #1, this is the single most suspicious route in the whole map.
-    - `handleAddExerciseFromLibrary` → cross-tab to `Search`/`SearchList` `{addToWorkout}` (one-hop `getParent()`) — same pattern as WorkoutScreen's own `handleAddExercises`, just reachable mid-session instead of pre-start.
+    - ~~`handleReplaceExercise` → `navigation.navigate('Search')` with no params, no return path~~ — **removed entirely in pass 6** (former Open Question #1, resolved by deleting rather than fixing): the handler, its `onReplace` prop threading into the exercise card, and the "Swap Exercise" row in `ExerciseOptionsModal` (its only live trigger) are all gone. Confirmed via grep that nothing else referenced any of it, and `onReplace` was never actually read inside the exercise-card component it was threaded into (TypeScript's own "declared but never read" flagged this independently once the pass-through was removed).
+    - `handleAddExerciseFromLibrary` → cross-tab to `Search`/`SearchList` `{addToWorkout: {..., origin: 'session'}}` (one-hop `getParent()`) — same pattern as WorkoutScreen's own `handleAddExercises`, just reachable mid-session instead of pre-start. `origin: 'session'` (added pass 6) keeps `submitAddToWorkout` landing on Workout on completion — the one origin where "there's a live session to return to" is literally true.
     - → cross-tab to `ExerciseDetail` via `navigateFromWorkoutToExerciseDetail` from exercise cards within the live session and from the "How to & demo" chip.
     - Finishing/exiting a session (save log, discard, etc.) is state managed by `WorkoutScreen` itself (`session` state → `null`), not represented in this table since it's not a `navigation` call — verify separately if that's in scope for a routing bug.
 
@@ -267,10 +326,10 @@ Format: **Screen** (navigator) — how you get there → how you leave.
   - Out:
     - → `ExerciseDetail` (same stack, plain `navigate`, no special params) from three tap targets on `ExerciseGroupCard` (row press, variation press, info press) — this is the ONLY entry into `ExerciseDetail` that does NOT set `returnToPlanExerciseContext`, because it's an in-stack push, not cross-tab; plain `goBack()` on `ExerciseDetail` suffices for this path. **Refined on pass 5**: row press and variation press are gated by `addMode` — while `addToPlan`/`addToWorkout` is active, tapping the row or a variation chip calls `toggleSelectForAddToPlan(exercise)` (selects/deselects for the add-flow) instead of navigating; only they fall through to `navigate('ExerciseDetail', ...)` when NOT in add-mode. The info (ⓘ) button is unconditional — it always navigates to `ExerciseDetail`, in or out of add-mode. `ExerciseGroupCard.tsx`'s own source comments independently confirm this exact split ("selection instead of navigation, so the row shows a dedicated info button"), corroborating the behavior rather than just inferring it from the call site.
     - `submitAddToPlan()`: after a successful add, cross-tab to `Plan` tab (bare `tabNav.navigate('Plan')`, one-hop `getParent()`) — always lands wherever Plan's stack already was, not necessarily PlanList.
-    - `submitAddToWorkout()`: after a successful add, `navigation.setParams({addToWorkout: undefined})` (clears the mode) THEN cross-tab to `Workout` tab `{workoutId}` (one-hop `getParent()`) — **always redirects to the Workout tab regardless of whether the "add exercises" request originated from Plan's context menu, WorkoutDetail, or a live WorkoutSession** (see Open Questions #3 — this is a real, confirmed asymmetry with `submitAddToPlan`, not a guess).
-    - "Cancel" on the add-mode banner: `clearSelection()` + `navigation.setParams({addToPlan: undefined, addToWorkout: undefined})` (`SearchScreen.tsx:1237-1239`) — stays on `SearchList`, just clears add-mode state; not itself a navigation action but the other way `addToPlan`/`addToWorkout` params get cleared besides the two success paths above.
+    - `submitAddToWorkout()`: after a successful add, `navigation.setParams({addToWorkout: undefined})` (clears the mode) THEN branches on `addToWorkout.origin` (one-hop `getParent()`): `'plan'` or `'workoutDetail'` → cross-tab to **`Plan`** (bare `tabNav.navigate('Plan')`, same "wherever its stack already was" landing as `submitAddToPlan`); `'workout'` or `'session'` (or anything unrecognized, as a conservative fallback) → cross-tab to **`Workout`** `{workoutId}`, the pre-pass-6 behavior. **Fixed in pass 6** (former Open Question #3, resolved): previously this always redirected to Workout regardless of origin, which was a confirmed asymmetry with `submitAddToPlan` (always `Plan`) — landing on Workout after adding exercises from Plan's context menu or WorkoutDetail was a non-sequitur since neither is mid-workout. Only an actual Workout-tab origin (pre-start list or a live session) still lands there.
+    - "Cancel" on the add-mode banner: `clearSelection()` + `navigation.setParams({addToPlan: undefined, addToWorkout: undefined})` (`SearchScreen.tsx:1245-1247`, shifted from `1237-1239` by pass 6's `submitAddToWorkout` edit above it — re-verified pass 7) — stays on `SearchList`, just clears add-mode state; not itself a navigation action but the other way `addToPlan`/`addToWorkout` params get cleared besides the two success paths above.
     - Android hardware-back at the stack root: mechanism E (`BackHandler`), narrowly scoped to (a) switch the "saved" filter tab back to "all" first if active, or (b) prevent bubbling out to the tab navigator when there's nowhere further to go.
-  - **Special `NavBar` re-tap interception** (mechanism-adjacent, lives in `NavBar.tsx` not this screen): tapping the "Exercises" tab icon while a non-`SearchList` screen (i.e. `ExerciseDetail`) is focused within this stack intercepts the default tab-press and instead resets the stack to `SearchList`, WITHOUT changing which tab is active. This is the behavior that a naive "redirect on any blur" fix to `ExerciseDetail` would break (and did, in an interim commit — see mechanism F above).
+  - **Special `NavBar` re-tap interception** (mechanism-adjacent, lives in `NavBar.tsx` not this screen): tapping the "Exercises" tab icon while a non-`SearchList` screen (i.e. `ExerciseDetail`) is focused within this stack intercepts the default tab-press and instead resets the stack to `SearchList`, WITHOUT changing which tab is active. This is the behavior that a naive "redirect on any blur" fix to `ExerciseDetail` would break (and did, in an interim commit — see mechanism F above). Same "any press, not just re-tap" nuance as Plan's listener applies here too (verified pass 7, see the PlanScreen entry above) — this also fires the first time you switch INTO Search from a different tab if Search's stack was last left on `ExerciseDetail`, not only on a literal same-tab re-tap.
 
 - **ExerciseDetailScreen** — the most heavily-engineered back-navigation in the app; full sub-map in §4.
 
@@ -458,25 +517,21 @@ originally written to support.
 
 ## 7. Open questions / things worth verifying before trusting this map blindly
 
-1. **`WorkoutSession.handleReplaceExercise` → `navigation.navigate('Search')`
-   with zero params.** No exercise/workout context is passed, no return
-   path is set up. Either this is intentionally a bare "go browse the
-   library" affordance with the replace semantics handled some other way
-   this search didn't find, or it's an incomplete feature. Worth a targeted
-   grep for whatever `onReplace` is supposed to do end-to-end before
-   assuming it's fine.
-2. **`PlanScreen.handleAddExercisesFromMenu` doesn't call `goBack()`** after
-   redirecting to Search, while the structurally-identical
-   `WorkoutDetailScreen.handleAddExercises` does. Since `PlanScreen` is a
-   stack root this may be harmless (nothing to pop), but it's an
-   inconsistency worth having an opinion on if touching either flow.
-3. **`SearchScreen.submitAddToWorkout` always redirects to the `Workout` tab**
-   on completion, regardless of whether the request originated from Plan's
-   context menu, `WorkoutDetailScreen`, or a live `WorkoutSession`. Confirmed
-   by reading the code (not a guess) — flagging because it means "add
-   exercises" and "add to plan" have different post-completion landing
-   rules (`submitAddToPlan` goes to `Plan`, always), which may or may not
-   match user expectations depending on where they started.
+1. ~~**`WorkoutSession.handleReplaceExercise` → `navigation.navigate('Search')`
+   with zero params.**~~ **RESOLVED (pass 6)**: removed entirely rather than
+   fixed. The handler, its prop threading, and its only live trigger (the
+   "Swap Exercise" row in `ExerciseOptionsModal`) are all deleted. No
+   replacement feature was built — Dylan's call was to remove the dead-end,
+   not implement real replace-mid-workout semantics.
+2. ~~**`PlanScreen.handleAddExercisesFromMenu` doesn't call `goBack()`**~~
+   **RESOLVED (pass 6)**: now calls it, matching `WorkoutDetailScreen`. Still
+   a no-op today (PlanList is the stack root), but consistent and
+   future-proofed.
+3. ~~**`SearchScreen.submitAddToWorkout` always redirects to the `Workout` tab**
+   on completion, regardless of origin.~~ **RESOLVED (pass 6)**: `addToWorkout`
+   now carries an `origin` tag (`'plan' | 'workoutDetail' | 'workout' | 'session'`,
+   `types/navigation.ts`), and `submitAddToWorkout` lands on `Plan` for the
+   first two, `Workout` for the last two. See the SearchScreen entry in §3.
 4. ~~**`ExerciseDetailScreen`'s `beforeRemove` filter only checks
    `'GO_BACK'`, not `'POP'`.**~~ **RESOLVED** (commit 794e693): now checks
    both, matching `GeneratePlanScreen`. Neither codebase location has a
@@ -486,13 +541,19 @@ originally written to support.
    empirically confirmed. If anyone ever traces which concrete trigger
    produces `POP` vs `GO_BACK` in this app's RN/react-native-screens
    version, replace this note with the actual answer.
-5. **`Plan` tab has no re-tap-to-root interception**, unlike `Search`. Tapping
-   the Plan tab icon while deep in `GeneratePlan`/`PlanPreview`/`WorkoutDetail`
-   just refocuses the tab at whatever screen it was already on (standard tab
-   behavior) rather than resetting to `PlanList` the way re-tapping Exercises
-   resets to `SearchList`. May be intentional (Plan's stack has more
-   "in-progress work" screens where losing your place would be worse) or may
-   be an inconsistency nobody noticed — not verified either way here.
+5. ~~**`Plan` tab has no re-tap-to-root interception**, unlike `Search`.~~
+   **PARTIALLY RESOLVED (pass 6)** — deliberately not a full match to Search:
+   `NavBar.tsx`'s Plan tab now resets to `PlanList` on re-tap from `History`
+   or `WorkoutDetail`, but explicitly NOT from `GeneratePlan` or
+   `PlanPreview`. That exclusion is the whole point, not a leftover gap: a
+   tab-press reset dispatches a `NAVIGATE` action, and `GeneratePlan`'s
+   `beforeRemove` discard-guard (mechanism D) only intercepts `GO_BACK`/`POP`
+   — resetting unconditionally would have silently bypassed that guard and
+   discarded an unsaved form with no confirmation. `PlanPreview` has no such
+   guard but holds an unapplied generated plan the user may still be
+   reviewing, same reasoning applied out of caution. If `GeneratePlan` or
+   `PlanPreview` ever grow their own safe-to-lose-state guarantee, this
+   exclusion is the first thing to revisit.
 6. ~~**`ProfileScreen`'s account-deletion post-action navigation** wasn't
    traced to completion in this pass.~~ **RESOLVED**: `runDeleteAccount`
    (`ProfileScreen.tsx:518-543`) calls `deleteMyAccount()` then `await
@@ -508,6 +569,28 @@ originally written to support.
    (e.g. wrapping a tab screen in a new stack navigator), every one of these
    hop-counts should be re-audited; none of them would throw a type error to
    catch it, they'd just quietly stop navigating.
+8. ~~**`addToPlan`/`addToWorkout` route params have no cleanup-on-blur**~~
+   **RESOLVED (pass 8)**: confirmed to affect mobile identically to web (both
+   are React Navigation state/param behavior, not platform-specific
+   rendering — nothing about `tabPress`/`blur`/route params differs between
+   iOS, Android, and web), so fixed rather than left as a decision.
+   `SearchScreen.tsx` now registers a `blur` listener on the **parent tab
+   navigator** (`navigation.getParent()`, the same one-hop pattern already
+   used for cross-tab redirects elsewhere in this file) that clears
+   `clearSelection()` plus both `addToPlan`/`addToWorkout` params whenever
+   the Search **tab itself** loses focus. Deliberately NOT a focus-effect on
+   `SearchScreen`/`SearchList` itself — that would ALSO fire when pushing
+   `ExerciseDetail` via the info button while in add-mode (an in-stack
+   navigation, not leaving the tab), silently wiping in-progress selections
+   just from checking an exercise's details. Tab-level `blur` only fires on
+   a genuine switch to a different tab, never on navigation within Search's
+   own stack — the same "which blur actually means leaving" distinction
+   already proven out by the `ExerciseDetail` cross-tab fix this whole map
+   exists to document (§2 mechanism F's footgun, §4). Re-tapping the
+   Exercises tab icon while on `ExerciseDetail` mid-add-flow (the existing
+   `NavBar` reset) also does NOT clear add-mode — the Search tab never loses
+   focus in that case either, only its internal stack resets — treated as
+   "still mid-flow," not abandonment.
 
 ## 8. Suggested general approach for an agent using this map
 
@@ -524,8 +607,10 @@ originally written to support.
   F) for stack hygiene, `beforeRemove` filtered by action type (mechanism D)
   for the actual tab-redirect, never conflate the two.
 - Always check `NavBar.tsx` for a tab-specific `tabPress` listener before
-  assuming a blur means "user is leaving" — `Search` has one, `Plan` doesn't
-  (Open Question #5), and any tab could gain one in the future.
+  assuming a blur means "user is leaving" — `Search` and `Plan` both have one
+  (§7 #5 — Plan's is deliberately narrower, excluding screens with
+  in-progress state), `Home` and `Workout` don't, and any tab could gain one
+  in the future.
 - If the bug report is shaped like "the app dumped me back to the login
   screen" rather than "back went to the wrong tab," you're not looking for a
   `navigation.*` bug at all — check §6 first (`HomeScreen`'s sign-out menu

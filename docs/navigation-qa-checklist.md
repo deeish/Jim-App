@@ -71,7 +71,11 @@ map and checklist exist).
 - [ ] "Saved workouts" button → modal opens → tap a saved workout → modal closes, WorkoutDetail opens for it
 - [ ] "Saved workouts" modal → close without selecting → just closes, stays on PlanList
 - [ ] "Share" button → ShareModal opens with a QR code + short code (may take a moment to load) → tap "Share" → native OS share sheet appears → close modal → back on PlanList
-- [ ] Re-tap the "Plan" tab icon while deep in GeneratePlan/PlanPreview/WorkoutDetail → note what actually happens (refocus at current screen vs. reset to PlanList) — this is a known asymmetry vs. Search, not confirmed as a bug; see §14
+- [ ] Re-tap the "Plan" tab icon while on **History** → resets to PlanList (fixed pass 6)
+- [ ] Re-tap the "Plan" tab icon while on **WorkoutDetail** → resets to PlanList (fixed pass 6)
+- [ ] Re-tap the "Plan" tab icon while on **GeneratePlan** (with unsaved edits) → does **NOT** reset — just refocuses on GeneratePlan, edits still there. This is the important one: confirms the fix didn't silently bypass the discard-confirmation guard
+- [ ] Re-tap the "Plan" tab icon while on **PlanPreview** → does **NOT** reset — just refocuses on PlanPreview, nothing lost
+- [ ] **Edge case**: leave Plan while on WorkoutDetail (tap Home, not the Plan icon), then tap the **Plan tab icon directly from Home** → should land on PlanList, not WorkoutDetail. `tabPress` fires on any tab-button press, not just re-taps of the already-active tab — confirm the reset fires on this cross-tab switch too, not only on a literal re-tap
 
 ## 5. Plan → GeneratePlan
 
@@ -96,6 +100,7 @@ map and checklist exist).
 
 - [ ] Reached from Plan (either gated call site) → header back → PlanList
 - [ ] "Add exercises" → Search opens in add-to-workout mode, **and** WorkoutDetail is gone from history immediately (confirm you can't swipe back into it after)
+- [ ] Complete that add (select exercises, confirm) → lands on the **Plan** tab, not Workout (fixed pass 6 — previously this always landed on Workout regardless of origin)
 - [ ] "Start workout" → Workout tab opens this workout, **and** WorkoutDetail is gone from history immediately
 - [ ] Tap an exercise row → ExerciseDetail opens → back → returns to **Plan** tab (not Workout)
 - [ ] "Share" button → ShareModal (workout code) → native share sheet → close → back on WorkoutDetail
@@ -108,7 +113,7 @@ map and checklist exist).
 - [ ] Pre-start exercise list → tap an exercise → ExerciseDetail → back → Workout tab, same list still showing
 - [ ] Start a live session → mid-session "Add exercise" → Search opens in add-to-workout mode
 - [ ] Mid-session, tap an exercise card (or the "How to & demo" chip) → ExerciseDetail → back → Workout tab **with the live session state intact** (sets/reps you'd already entered are still there)
-- [ ] Mid-session "Replace exercise" → confirm current behavior: switches to Search tab with no exercise/return context (known dead-end, not expected to "just work" — see §14)
+- [ ] Open the "..." exercise options menu mid-session → confirm **"Swap Exercise" is gone** (removed pass 6, was a dead-end) — menu should read Notes / + Add Set / RPE toggle / Skip for today, nothing between Notes and the divider before + Add Set
 - [ ] Finish or discard a session → cleanly returns to the pre-start view, no visual glitch
 
 ## 9. Tab: Search / Exercises
@@ -117,13 +122,17 @@ map and checklist exist).
 - [ ] **Not** in add-mode: row tap, variation-chip tap, and the ⓘ info button **all three** open ExerciseDetail
 - [ ] **In** add-mode (arrived via any "Add exercises" flow): row tap and variation-chip tap **select/deselect** instead of navigating; the ⓘ info button **still opens ExerciseDetail** even in add-mode — confirm this split feels intentional, not like a broken tap target
 - [ ] Complete an "add to plan" flow → lands on Plan tab, wherever its stack currently is (not guaranteed to be PlanList)
-- [ ] Complete an "add to workout" flow started **from Plan** → lands on Workout tab
-- [ ] Complete an "add to workout" flow started **from WorkoutDetail** → also lands on Workout tab
-- [ ] Complete an "add to workout" flow started **from a live WorkoutSession** → also lands on Workout tab (all three land the same place regardless of origin — confirmed intentional-but-asymmetric vs. add-to-plan, see §14)
+- [ ] Complete an "add to workout" flow started **from Plan's context menu** → lands on the **Plan** tab (fixed pass 6)
+- [ ] Complete an "add to workout" flow started **from WorkoutDetail** → also lands on the **Plan** tab (fixed pass 6)
+- [ ] Complete an "add to workout" flow started **from WorkoutScreen's pre-start "Add from library"** (before starting the session) → lands on the **Workout** tab, back at the pre-start list
+- [ ] Complete an "add to workout" flow started **from a live WorkoutSession**'s "Add from library" → also lands on the **Workout** tab, session state intact — these last two land on Workout because that's genuinely where the request came from; the first two land on Plan because neither was mid-workout
 - [ ] "Cancel" on the add-mode banner → clears add-mode, stays on SearchList
 - [ ] With ExerciseDetail open, re-tap the "Exercises" tab icon → resets to SearchList **without** switching which tab is focused
 - [ ] **(Android)** hardware-back at the stack root while the "saved" filter is active → switches filter to "all" first, doesn't leave the tab on that same press
 - [ ] **(Android)** hardware-back again once "all" is already active → doesn't unexpectedly bubble out and exit the tab
+- [ ] **Fixed pass 8**: start an "add to workout" (or "add to plan") flow from anywhere, select an exercise or two, then leave Search by tapping a **different tab directly** (not Cancel, not completing the add) → the add-mode banner and selection **should now clear automatically**. Tap back to the Exercises tab → confirm it opens fresh, NOT still in add-mode from the abandoned flow (see §7 #8)
+- [ ] **Regression check for the same fix**: start an add-to-workout flow, tap the ⓘ info button on an exercise to view its detail (staying in add-mode, still on the Exercises tab) → back out to SearchList → confirm your selections and the add-mode banner are **still there**, not wiped just from checking a detail page mid-flow
+- [ ] Same regression check via the **re-tap-Exercises-icon** path instead of the chevron: from that same ExerciseDetail-mid-add-flow state, re-tap the Exercises tab icon (not a different tab) → resets to SearchList, add-mode and selections still intact
 
 ## 10. ExerciseDetail cross-tab back-navigation — the critical matrix
 
@@ -171,21 +180,30 @@ trigger type while the other two looked fine.
 - [ ] If feasible, force a session expiry (e.g. revoke the session server-side, or wait out token expiry) and then trigger any API call → app should silently sign out to Login with no crash, no confirm dialog
 - [ ] If mid-workout when this happens, confirm what you'd expect: this path has **no warning and no save-first step** by design — decide if that's acceptable for a live session with unsaved sets (see §14)
 
-## 14. Known asymmetries — confirm still true, then decide (not pass/fail bugs)
+## 14. Known asymmetries
 
-These are real, already-confirmed behaviors, not open questions — the
-decision needed is whether to leave them as-is or fix them, not whether
-they're happening.
+Four of the five items originally on this list were fixed in pass 6 — their
+verification steps now live inline in the sections above rather than here
+(replace-exercise removal: §8; Plan's `goBack()`: covered by §4/§7 not
+regressing; add-to-workout landing: §9 and §7; Plan tab re-tap: §4). Listed
+here for traceability, plus the one genuinely still-open item:
 
-- [ ] `WorkoutSession` "Replace exercise" is a dead-end tab switch with no context — leave as a future feature, or wire it up properly, or hide the button until it's real?
-- [ ] Plan's "Add exercises" (context menu) doesn't pop back afterward, while WorkoutDetail's equivalent does — harmless today since Plan is a stack root, but worth matching for consistency?
-- [ ] "Add to workout" always lands on the Workout tab regardless of where it started; "Add to plan" always lands on Plan — intentional, but confirm it still matches what users expect
-- [ ] Plan tab has no re-tap-to-root behavior, unlike Search's tab icon — intentional (Plan holds more "in-progress" screens where losing your place is worse) or an oversight?
-- [ ] `SavedWorkoutsScreen`'s standalone fallback and `PlanList`'s `openSaved` param are both dead/unreachable by any current UI — leave alone unless you're building the feature they were meant for (a deep link or notification straight to "your saved workouts"?)
+- ~~`WorkoutSession` "Replace exercise" dead-end~~ — **fixed pass 6**, removed entirely. Verify in §8.
+- ~~Plan's "Add exercises" doesn't call `goBack()`~~ — **fixed pass 6**, now matches WorkoutDetail. No user-visible check (it was already a no-op); covered by not regressing §4's other Plan-tab items.
+- ~~"Add to workout" always lands on Workout regardless of origin~~ — **fixed pass 6**, now origin-aware. Verify in §9 and §7.
+- ~~Plan tab has no re-tap-to-root~~ — **fixed pass 6**, partially (History/WorkoutDetail only, deliberately not GeneratePlan/PlanPreview). Verify in §4.
+- [ ] `SavedWorkoutsScreen`'s standalone fallback and `PlanList`'s `openSaved` param are both dead/unreachable by any current UI — **not touched**, left alone per the map's own recommendation (§3, PlanScreen entry) since deleting or wiring it up wasn't in scope for this pass. Still worth a decision if anyone ever wants to build the deep-link/notification entry point it looks like it was meant for.
 
 ---
 
 **Scope note**: this checklist covers every route documented in
-`docs/navigation-route-map.md` §§1-6 as of pass 5 (2026-07-22). If the
-navigator tree changes (new screen, new tab, new modal), update the map
-first, then add the corresponding item here.
+`docs/navigation-route-map.md` §§1-6, updated through pass 8 (2026-07-22).
+Pass 6 implemented four routing fixes (Plan's `goBack()`, Plan tab
+re-tap-to-root, origin-aware add-to-workout landing, replace-exercise
+removal); pass 7 re-derived every navigation call site from a fresh grep,
+fixed five citation drifts pass 6's own edits had introduced, and found two
+edge cases (tab-press-on-any-switch, not just re-tap — needed no fix, just
+more accurate docs; stale add-mode params with no cleanup-on-blur); pass 8
+confirmed both affect mobile identically to web and fixed the second one
+(§7 #8). If the navigator tree changes (new screen, new tab, new modal),
+update the map first, then add the corresponding item here.
