@@ -116,7 +116,19 @@ export default function NavBar() {
             // another tab, which the built-in deliberately skips.
             if (focusedChild === 'History' || focusedChild === 'WorkoutDetail') {
               e.preventDefault();
-              navigation.navigate('Plan', { screen: 'PlanList' });
+              // Carry PlanList's current params across the reset. A nested navigate like this
+              // is a non-merge NAVIGATE, and StackRouter *replaces* the target route's params
+              // in that case rather than merging — which is exactly how the Search listener
+              // used to destroy an in-progress add-mode. PlanList's only param (`openSaved`)
+              // has no live writer today, so nothing is actually lost right now; passing them
+              // through anyway keeps the next param anyone adds from silently vanishing here.
+              // (The Search listener deliberately does NOT do this: dropping a stale add-mode
+              // on the way back into that tab is the intended behaviour there, backing up
+              // SearchScreen's own blur cleanup.)
+              const planListParams = planRoute?.state?.routes?.find(
+                (r: { name: string }) => r.name === 'PlanList',
+              )?.params;
+              navigation.navigate('Plan', { screen: 'PlanList', params: planListParams });
             }
           },
         })}

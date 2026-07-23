@@ -361,7 +361,7 @@ Format: **Screen** (navigator) — how you get there → how you leave.
   - In: `PlanScreen` "Saved workouts" button only, in current usage.
   - Out: tapping a saved workout calls `onSelectWorkout(workoutId)`, which `PlanScreen` (line 1982-1985) implements as: close the modal (`setSavedModalVisible(false)`), then `navigation.navigate('WorkoutDetail', {workoutId})` — same destination as `PlanScreen`'s own "View details" flow. Back/close calls `onClose()`, which `PlanScreen` implements as `setSavedModalVisible(false)` (local state, not a navigation action).
   - **Dead code**: the component also has its own internal fallback logic (`handleBack`/`handleSelectWorkout`, lines 129-143) — `navigation.goBack()` if `onClose` is absent, `navigation.navigate('WorkoutDetail', ...)` if `onSelectWorkout` is absent — for standalone (non-modal) use as a real registered route. `PlanScreen` always supplies both props, so this fallback is unreachable in current usage. Not wired into any navigator's param list, so it can't currently be reached any other way either. Leave it alone rather than deleting it (evidently written for a planned/future standalone use) or "fixing" it believing it's live.
-  - **A second dead capability found on the third verification sweep**: `PlanList`'s own param type is `{ openSaved?: boolean } | undefined` (`types/navigation.ts:22`), and `PlanScreen` reads it on focus to auto-open this same modal (`route.params?.openSaved` → `setSavedModalVisible(true)`, then clears the param — `PlanScreen.tsx:292-294`). Grepped every `.navigate(` call in the app targeting `PlanList`/`Plan`: none ever sets `openSaved: true`. This auto-open path is currently unreachable by any live UI action — same class of dead-but-present capability as the fallback above, presumably built for a not-yet-wired entry point (a deep link or notification landing straight on "your saved workouts"?). Don't build new logic assuming this path is exercised by anything today.
+  - **A second dead capability found on the third verification sweep**: `PlanList`'s own param type is `{ openSaved?: boolean } | undefined` (`types/navigation.ts:22`), and `PlanScreen` reads it on focus to auto-open this same modal (`route.params?.openSaved` → `setSavedModalVisible(true)`, then clears the param — `PlanScreen.tsx:292-294`). Grepped every `.navigate(` call in the app targeting `PlanList`/`Plan`: none ever sets `openSaved: true`. This auto-open path is currently unreachable by any live UI action — same class of dead-but-present capability as the fallback above, presumably built for a not-yet-wired entry point (a deep link or notification landing straight on "your saved workouts"?). Don't build new logic assuming this path is exercised by anything today. **Pass 10 follow-up**: if you ever DO wire it up, `NavBar`'s Plan-tab reset now carries `PlanList`'s params across rather than replacing them, so `openSaved` will survive a tab press instead of being silently dropped — but re-read §7 #8 first, because the consume-and-clear-on-focus design means the param's lifetime is extremely short either way.
 
 - **`ShareModal` (`frontend/src/components/ShareModal.tsx`) — not a registered route, found missing from this map until pass 4.** Rendered as a `Modal` from both `PlanScreen.tsx:1990` (`kind="plan"`) and `WorkoutDetailScreen.tsx:574` (`kind="workout"`), gated on each screen's own `shareModalVisible` local state (opened by that screen's "Share" button) — architecturally identical to the `SavedWorkoutsScreen` pattern above, just duplicated per-screen instead of shared.
   - In: the "Share" button on `PlanScreen` or `WorkoutDetailScreen` only.
@@ -684,6 +684,19 @@ originally written to support.
    the reset, since a pop preserves the remaining route's params. Any future
    "just navigate back to the stack root" reset in this app should prefer
    `POP_TO_TOP` or pass `merge: true` for the same reason.
+   **Follow-up, same day**: the Plan listener's `History`/`WorkoutDetail`
+   reset had the identical shape and was left alone at first because
+   `PlanList`'s only param (`openSaved`) has no live writer. That reasoning —
+   "harmless because nothing sets it today" — is what makes traps, so it now
+   reads `PlanList`'s current params out of the nested state and passes them
+   through the reset. Note this is genuinely **unobservable** end-to-end
+   today: `openSaved` is consumed-and-cleared the moment `PlanList` gains
+   focus (`PlanScreen.tsx:292-294`), so the params are always empty by the
+   time the reset runs. It was verified as "no regression to the two resets,"
+   not as "preservation proven live" — there is nothing to preserve yet. The
+   Search listener deliberately does the opposite and lets params drop:
+   discarding a stale add-mode on the way back into that tab is the intended
+   behavior there, backing up `SearchScreen`'s own blur cleanup.
 
 ## 8. Suggested general approach for an agent using this map
 
