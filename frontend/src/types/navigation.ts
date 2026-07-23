@@ -29,7 +29,21 @@ export type RootStackParamList = {
       /** From Plan tab — program week math without an extra GET. */
       weekAnchorMonday?: string | null;
     };
-    addToWorkout?: { workoutId: string; workoutName: string; existingExerciseIds?: string[] };
+    addToWorkout?: {
+      workoutId: string;
+      workoutName: string;
+      existingExerciseIds?: string[];
+      /**
+       * Where the "add exercises" request originated. Determines the
+       * post-completion landing tab in SearchScreen.submitAddToWorkout:
+       * 'workout' | 'session' land on the Workout tab (the request came from
+       * there — pre-start list or a live session — so that's still the right
+       * place to land). 'plan' | 'workoutDetail' land back on Plan instead
+       * (neither is mid-workout, so redirecting to Workout would be a
+       * non-sequitur).
+       */
+      origin?: 'plan' | 'workoutDetail' | 'workout' | 'session';
+    };
   } | undefined;
   SearchList: {
     addToPlan?: {
@@ -38,7 +52,21 @@ export type RootStackParamList = {
       weekMondayIso: string;
       weekAnchorMonday?: string | null;
     };
-    addToWorkout?: { workoutId: string; workoutName: string; existingExerciseIds?: string[] };
+    addToWorkout?: {
+      workoutId: string;
+      workoutName: string;
+      existingExerciseIds?: string[];
+      /**
+       * Where the "add exercises" request originated. Determines the
+       * post-completion landing tab in SearchScreen.submitAddToWorkout:
+       * 'workout' | 'session' land on the Workout tab (the request came from
+       * there — pre-start list or a live session — so that's still the right
+       * place to land). 'plan' | 'workoutDetail' land back on Plan instead
+       * (neither is mid-workout, so redirecting to Workout would be a
+       * non-sequitur).
+       */
+      origin?: 'plan' | 'workoutDetail' | 'workout' | 'session';
+    };
   } | undefined;
   ExerciseDetail: {
     exerciseId: string;

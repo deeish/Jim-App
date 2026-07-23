@@ -218,6 +218,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
             workoutId: workout.id,
             workoutName: workout.name,
             existingExerciseIds,
+            origin: 'workoutDetail',
           },
         },
       });

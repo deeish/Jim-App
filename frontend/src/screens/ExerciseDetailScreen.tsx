@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
-  BackHandler,
   LayoutAnimation,
   Platform,
   UIManager,
@@ -259,8 +258,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     }, [exerciseId, loading, exercise])
   );
 
-  // Plan → ExerciseDetail (cross-tab): leaving this screen for any reason (tab change, nested nav) must
-  // not leave ExerciseDetail on top of the Search stack, or the Exercises tab stays "stuck" on detail.
+  // Plan/Workout → ExerciseDetail (cross-tab): leaving this screen for any reason (tab
+  // change, nested nav) must not leave ExerciseDetail on top of the Search stack, or the
+  // Exercises tab stays "stuck" on detail. Safe to run unconditionally on every blur —
+  // resetting the (possibly backgrounded) Search stack never affects whichever screen the
+  // user actually navigated to.
   useFocusEffect(
     useCallback(() => {
       return (): void => {
@@ -270,37 +272,45 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     }, [leaveExerciseForPlanFlow, navigation]),
   );
 
+  // Which bottom tab is "home" for this visit, when ExerciseDetail was opened cross-tab
+  // from Plan/Workout. Null means a plain Search → ExerciseDetail visit (goBack suffices).
+  const returnTabName: 'Plan' | 'Workout' | null =
+    returnToPlanExerciseContext === 'workout'
+      ? 'Workout'
+      : leaveExerciseForPlanFlow
+        ? 'Plan'
+        : null;
+
+  // Refocus the originating tab, but ONLY on a genuine "going back" — the on-screen Back
+  // button, Android hardware back, and an iOS swipe-back gesture all dispatch a GO_BACK
+  // action (that uniform shape across trigger types, including gestures, is what
+  // beforeRemove is for). This must NOT fire for every blur: e.g. re-tapping the Exercises
+  // tab while viewing a cross-tab-opened exercise deliberately pops to the browse list
+  // without changing tabs (see NavBar's Search tabPress listener), and tapping a different
+  // tab directly should go to that tab — either would be silently overridden back to
+  // Plan/Workout by a blanket "any blur redirects" check, which is exactly what a first
+  // pass at this fix got wrong.
+  useEffect(() => {
+    if (!returnTabName) return undefined;
+    const sub = navigation.addListener('beforeRemove', (e) => {
+      // GeneratePlanScreen's beforeRemove guard (the only other one in this
+      // codebase) checks both — matching it here rather than assuming this
+      // stack's swipe/back-gesture path only ever produces GO_BACK.
+      const actionType = e.data.action.type;
+      if (actionType !== 'GO_BACK' && actionType !== 'POP') return;
+      const tabNav = getBottomTabNavigator(navigation);
+      tabNav?.navigate(returnTabName);
+    });
+    return sub;
+  }, [returnTabName, navigation]);
+
   useEffect(() => {
     if (exerciseId) loadExercise();
   }, [exerciseId, loadExercise]);
 
   const handleBack = useCallback(() => {
-    if (returnToPlanExerciseContext === 'workout') {
-      resetSearchStackToSearchList(navigation);
-      const tabNav = getBottomTabNavigator(navigation);
-      tabNav?.navigate('Workout');
-      return;
-    }
-    if (leaveExerciseForPlanFlow) {
-      // 'preview' | 'calendar' | 'workoutDetail': the originating screen is still
-      // on the Plan stack, so focusing the Plan tab is a true "back" (landing on
-      // the Exercises list here stranded users outside their plan flow).
-      resetSearchStackToSearchList(navigation);
-      const tabNav = getBottomTabNavigator(navigation);
-      tabNav?.navigate('Plan');
-      return;
-    }
     navigation.goBack();
-  }, [returnToPlanExerciseContext, leaveExerciseForPlanFlow, navigation]);
-
-  useEffect(() => {
-    if (!leaveExerciseForPlanFlow) return undefined;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      handleBack();
-      return true;
-    });
-    return () => sub.remove();
-  }, [leaveExerciseForPlanFlow, handleBack]);
+  }, [navigation]);
 
   const handleToggleLike = async () => {
     if (!exerciseId || savingLike) return;

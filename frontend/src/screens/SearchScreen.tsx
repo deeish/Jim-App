@@ -776,6 +776,25 @@ export default function SearchScreen({ navigation }: Props) {
     setSelectedIds(new Set());
   }, []);
 
+  // Clear a stale add-mode when the user leaves the Search TAB entirely, instead of
+  // letting it sit in route params indefinitely until an explicit Cancel or a
+  // completed add. Deliberately a tab-level `blur` (on the parent tab navigator), NOT a
+  // focus-effect on this screen — pushing ExerciseDetail via the info button while in
+  // add-mode stays on this tab and must NOT clear this (same "which blur actually means
+  // leaving" distinction as the ExerciseDetail cross-tab fix elsewhere in this app;
+  // tab-level blur only fires on a genuine switch to a different tab, never on
+  // in-stack navigation within Search's own stack).
+  useEffect(() => {
+    if (!addToPlan && !addToWorkout) return;
+    const tabNav = (navigation as any)?.getParent?.();
+    if (!tabNav) return;
+    const unsubscribe = tabNav.addListener('blur', () => {
+      clearSelection();
+      navigation.setParams({ addToPlan: undefined, addToWorkout: undefined });
+    });
+    return unsubscribe;
+  }, [navigation, addToPlan, addToWorkout, clearSelection]);
+
   /** Derive a short workout title from selected exercises' primary muscle groups (e.g. "Chest & Triceps"). */
   const deriveWorkoutTitle = useCallback((selected: Exercise[]): string => {
     const groups = [...new Set(selected.map(e => e.primaryMuscleGroup).filter(Boolean))];
@@ -966,7 +985,15 @@ export default function SearchScreen({ navigation }: Props) {
       clearSelection();
       navigation.setParams({ addToWorkout: undefined });
       const tabNav = (navigation as any)?.getParent?.();
-      if (tabNav) tabNav.navigate('Workout', { workoutId: addToWorkout.workoutId });
+      // Land on Workout only when the request came from there (pre-start list or a live
+      // session) — that's still the right place to be. Plan's context menu and WorkoutDetail
+      // aren't mid-workout, so jumping to Workout there would be a non-sequitur; land back on
+      // Plan instead.
+      const returnToPlan = addToWorkout.origin === 'plan' || addToWorkout.origin === 'workoutDetail';
+      if (tabNav) {
+        if (returnToPlan) tabNav.navigate('Plan');
+        else tabNav.navigate('Workout', { workoutId: addToWorkout.workoutId });
+      }
       Alert.alert('Done', `Added ${selectedExercises.length} exercise(s) to ${addToWorkout.workoutName}.`);
     } catch (err: any) {
       console.error('Add to workout failed:', err);
