@@ -73,7 +73,7 @@ map and checklist exist).
 - [ ] "Share" button → ShareModal opens with a QR code + short code (may take a moment to load) → tap "Share" → native OS share sheet appears → close modal → back on PlanList
 - [ ] Re-tap the "Plan" tab icon while on **History** → resets to PlanList (fixed pass 6)
 - [ ] Re-tap the "Plan" tab icon while on **WorkoutDetail** → resets to PlanList (fixed pass 6)
-- [ ] Re-tap the "Plan" tab icon while on **GeneratePlan** (with unsaved edits) → does **NOT** reset — just refocuses on GeneratePlan, edits still there. This is the important one: confirms the fix didn't silently bypass the discard-confirmation guard
+- [ ] Re-tap the "Plan" tab icon while on **GeneratePlan** (with unsaved edits) → does **NOT** reset — just refocuses on GeneratePlan, edits still there. This is the important one, and it was **genuinely broken until pass 10** (the form was silently discarded, no prompt): native-stack pops the stack itself on a re-tap unless the press is `preventDefault()`ed, and that pop bypasses the discard guard. Verified fixed on Expo web; re-confirm on device
 - [ ] Re-tap the "Plan" tab icon while on **PlanPreview** → does **NOT** reset — just refocuses on PlanPreview, nothing lost
 - [ ] **Edge case**: leave Plan while on WorkoutDetail (tap Home, not the Plan icon), then tap the **Plan tab icon directly from Home** → should land on PlanList, not WorkoutDetail. `tabPress` fires on any tab-button press, not just re-taps of the already-active tab — confirm the reset fires on this cross-tab switch too, not only on a literal re-tap
 
@@ -132,7 +132,7 @@ map and checklist exist).
 - [ ] **(Android)** hardware-back again once "all" is already active → doesn't unexpectedly bubble out and exit the tab
 - [ ] **Fixed pass 8**: start an "add to workout" (or "add to plan") flow from anywhere, select an exercise or two, then leave Search by tapping a **different tab directly** (not Cancel, not completing the add) → the add-mode banner and selection **should now clear automatically**. Tap back to the Exercises tab → confirm it opens fresh, NOT still in add-mode from the abandoned flow (see §7 #8)
 - [ ] **Regression check for the same fix**: start an add-to-workout flow, tap the ⓘ info button on an exercise to view its detail (staying in add-mode, still on the Exercises tab) → back out to SearchList → confirm your selections and the add-mode banner are **still there**, not wiped just from checking a detail page mid-flow
-- [ ] Same regression check via the **re-tap-Exercises-icon** path instead of the chevron: from that same ExerciseDetail-mid-add-flow state, re-tap the Exercises tab icon (not a different tab) → resets to SearchList, add-mode and selections still intact
+- [ ] Same regression check via the **re-tap-Exercises-icon** path instead of the chevron: from that same ExerciseDetail-mid-add-flow state, re-tap the Exercises tab icon (not a different tab) → resets to SearchList, add-mode and selections still intact. This one was **genuinely broken until pass 10** — the chevron path preserved add-mode but the tab-icon path wiped it, because the reset used a non-merge `NAVIGATE`, which replaces route params. Verified fixed on Expo web; re-confirm on device
 
 ## 10. ExerciseDetail cross-tab back-navigation — the critical matrix
 
@@ -182,14 +182,14 @@ trigger type while the other two looked fine.
 
 ## 14. Known asymmetries
 
-Four of the five items originally on this list were fixed in pass 6 — their
-verification steps now live inline in the sections above rather than here
-(replace-exercise removal: §8; Plan's `goBack()`: covered by §4/§7 not
-regressing; add-to-workout landing: §9 and §7; Plan tab re-tap: §4). Listed
+Four of the five items originally on this list were addressed in pass 6 —
+their verification steps now live inline in the sections above rather than
+here (replace-exercise removal: §8; Plan's `goBack()`: withdrawn in pass 9,
+see below; add-to-workout landing: §9 and §7; Plan tab re-tap: §4). Listed
 here for traceability, plus the one genuinely still-open item:
 
 - ~~`WorkoutSession` "Replace exercise" dead-end~~ — **fixed pass 6**, removed entirely. Verify in §8.
-- ~~Plan's "Add exercises" doesn't call `goBack()`~~ — **fixed pass 6**, now matches WorkoutDetail. No user-visible check (it was already a no-op); covered by not regressing §4's other Plan-tab items.
+- ~~Plan's "Add exercises" doesn't call `goBack()`~~ — **not a bug; pass 6's "fix" was reverted in pass 9.** A `GO_BACK` from `PlanList` (a stack root) bubbles up instead of no-oping, so the added line logged a dev `console.error` on every press and risked popping the whole tab shell. The asymmetry with WorkoutDetail is correct. If you're running this checklist in a dev build, the one thing to confirm is the *absence* of that error: §4's "Add exercises" items should now produce a clean console.
 - ~~"Add to workout" always lands on Workout regardless of origin~~ — **fixed pass 6**, now origin-aware. Verify in §9 and §7.
 - ~~Plan tab has no re-tap-to-root~~ — **fixed pass 6**, partially (History/WorkoutDetail only, deliberately not GeneratePlan/PlanPreview). Verify in §4.
 - [ ] `SavedWorkoutsScreen`'s standalone fallback and `PlanList`'s `openSaved` param are both dead/unreachable by any current UI — **not touched**, left alone per the map's own recommendation (§3, PlanScreen entry) since deleting or wiring it up wasn't in scope for this pass. Still worth a decision if anyone ever wants to build the deep-link/notification entry point it looks like it was meant for.
@@ -197,7 +197,7 @@ here for traceability, plus the one genuinely still-open item:
 ---
 
 **Scope note**: this checklist covers every route documented in
-`docs/navigation-route-map.md` §§1-6, updated through pass 8 (2026-07-22).
+`docs/navigation-route-map.md` §§1-6, updated through pass 9 (2026-07-23).
 Pass 6 implemented four routing fixes (Plan's `goBack()`, Plan tab
 re-tap-to-root, origin-aware add-to-workout landing, replace-exercise
 removal); pass 7 re-derived every navigation call site from a fresh grep,
@@ -205,5 +205,17 @@ fixed five citation drifts pass 6's own edits had introduced, and found two
 edge cases (tab-press-on-any-switch, not just re-tap — needed no fix, just
 more accurate docs; stale add-mode params with no cleanup-on-blur); pass 8
 confirmed both affect mobile identically to web and fixed the second one
-(§7 #8). If the navigator tree changes (new screen, new tab, new modal),
-update the map first, then add the corresponding item here.
+(§7 #8); pass 9 re-reviewed all five pass-6 code changes against the React
+Navigation source and reverted the `goBack()` one (see §14) — the other four
+held up; pass 10 ran the whole app locally (backend + Expo web + a faked
+session) and drove every route with Playwright, which found **two real bugs
+nine passes of code review had missed** — GeneratePlan's discard guard being
+bypassed on a Plan-tab re-tap, and add-mode being wiped by an Exercises-tab
+re-tap (both fixed, both flagged inline above). If the navigator tree changes
+(new screen, new tab, new modal), update the map first, then add the
+corresponding item here.
+
+**Lesson worth keeping**: the two bugs pass 10 found were both invisible to
+code review because the responsible code lives in `node_modules`, not
+`frontend/src` — no grep of this repo would ever surface it. Prefer driving
+the running app over another read-through when verifying navigation.

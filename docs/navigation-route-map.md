@@ -62,8 +62,9 @@ docs-only file.
 
 **Pass 6** (2026-07-22, same day) implemented fixes for four of the
 asymmetries §7 had flagged as "confirmed, needs a decision" rather than
-"open question": (a) `PlanScreen`'s add-exercises-from-menu now calls
-`goBack()` after redirecting, matching `WorkoutDetailScreen` (§3, Plan tab);
+"open question": (a) `PlanScreen`'s add-exercises-from-menu got a `goBack()`
+after redirecting, to match `WorkoutDetailScreen` (§3, Plan tab) — **this one
+was wrong and pass 9 reverted it**, see below;
 (b) the Plan tab now resets to `PlanList` on re-tap, but ONLY from `History`
 or `WorkoutDetail` — deliberately NOT from `GeneratePlan`/`PlanPreview` (§3,
 mirroring how `Search`'s equivalent listener is documented there rather than
@@ -117,6 +118,66 @@ listener, not a focus-effect on `SearchScreen` itself — using the latter
 would have reintroduced the exact "which blur means leaving" footgun this
 map's `ExerciseDetail` section already documents in depth. Verified via
 `tsc --noEmit` (clean) and the full Jest suite (265/265).
+
+**Pass 9** (2026-07-23) reviewed pass 6's five code changes against the
+actual React Navigation source in `node_modules` rather than against this
+map's own prose, and **reverted fix (a)**. Passes 6-8 all repeated the claim
+that a `goBack()` from `PlanList` is "a harmless no-op because PlanList is
+the stack root." That premise is false: `GO_BACK` dispatched from a screen
+carries no `target` (`useNavigationCache.js:54`), so when the stack router
+returns `null` at index 0 the action **bubbles to the parent navigator**
+(`useOnAction.js:78`) instead of stopping. Simulating the real dispatch chain
+with the actual routers gives:
+
+| hop | navigator | result |
+|---|---|---|
+| 1 | `PlanStackNavigator`, index 0 | `null` → bubbles up |
+| 2 | tab navigator, `backBehavior="none"` → `history.length === 1` | `null` → bubbles up |
+| 3 | `RootStack`, index 0 (today) | `null` → **unhandled** → dev `console.error` |
+| 3b | `RootStack`, index > 0 (if ever) | **handled — pops `Main` away** |
+
+So it was never a no-op: in dev it logged React Navigation's "The action
+'GO_BACK' was not handled by any navigator" error on every use of Plan's
+"Add exercises", and it sat one unrelated change away (tab `backBehavior`, or
+`OnboardingScreen.tsx:222` switching `replace('Main')` → `navigate('Main')`)
+from yanking the user out of the app shell. The "future-proofing" it was
+added for is unreachable anyway — every `PlanList` reference in the codebase
+is either a `navigate` (which truncates to an existing route) or a
+`reset({index: 0})`, so `PlanList` can never sit at index > 0. Line removed,
+replaced with a comment explaining why this screen must NOT mirror
+`WorkoutDetailScreen` here. Verified via `tsc --noEmit` (clean) and the full
+Jest suite (265/265).
+
+**Pass 10** (2026-07-23) stopped reading and actually *ran* the app — local
+backend + Expo web + a faked-but-real Supabase session, driving every route
+this map documents with Playwright and asserting the resulting screen. Nine
+passes of code review had missed **two real bugs**, both caused by the same
+previously-undocumented mechanism, now recorded as mechanism H in §2:
+
+1. **Tapping the Plan tab while on `GeneratePlan` silently discarded the
+   unsaved form** — no confirmation, form gone. This is the exact failure
+   passes 6-8 believed the tabPress allowlist prevented. It doesn't:
+   `createNativeStackNavigator` registers its **own** `tabPress` listener
+   (`createNativeStackNavigator.js:35-55`) that dispatches `POP_TO_TOP` at the
+   stack whenever its tab is re-tapped while focused. `POP_TO_TOP` is neither
+   `GO_BACK` nor `POP`, so it walks straight past the discard guard. Excluding
+   `GeneratePlan` from *our* listener never protected it — only blocking the
+   default does. Fixed in `NavBar.tsx`: `preventDefault()` on
+   `GeneratePlan`/`PlanPreview`, but only when the tab is already focused
+   (calling it on a switch *into* Plan would cancel the tab switch itself).
+2. **Re-tapping the Exercises tab while viewing an exercise mid-add-flow wiped
+   the whole add-mode** — banner, selections, `addToWorkout` params. §7 #8
+   explicitly claimed this path was safe. It wasn't: the Search listener's
+   `navigate('Search', {screen: 'SearchList'})` is a non-merge `NAVIGATE`, and
+   `StackRouter` **replaces** the target route's params in that case
+   (`StackRouter.js:277-281`) — with `undefined`. Fixed by returning early when
+   the tab is already focused and letting the built-in `POP_TO_TOP` do it,
+   which preserves params. The chevron path was always fine; only the tab-icon
+   path broke, which is why a code read comparing the two never caught it.
+
+Everything else this map documents was confirmed working live, including all
+five pass-6 changes. Verified via `tsc --noEmit` (clean), Jest (265/265), and
+a 38-assertion live routing suite (all green after the two fixes).
 
 ## 1. Navigator tree
 
@@ -176,10 +237,12 @@ Key structural facts that affect back-navigation reasoning:
 
 ## 2. Cross-cutting back-navigation mechanisms (catalog)
 
-The app does not use one consistent back-navigation strategy. At least seven
-distinct mechanisms are in play (table below has seven rows, A–G — an
+The app does not use one consistent back-navigation strategy. At least eight
+distinct mechanisms are in play (table below has eight rows, A–H — an
 earlier pass of this map undercounted this as "six," caught on the third
-verification sweep); a screen may use more than one:
+verification sweep; H was only found on pass 10 by running the app, since it
+lives in a dependency and nothing in `frontend/src` greps for it); a screen
+may use more than one:
 
 | # | Mechanism | Where | What it catches |
 |---|---|---|---|
@@ -190,6 +253,7 @@ verification sweep); a screen may use more than one:
 | E | `BackHandler.addEventListener('hardwareBackPress', ...)` | `SearchScreen.tsx:412` only (removed from `ExerciseDetailScreen` in the July 2026 nav fix) | Android-only, does NOT fire for iOS swipe. `SearchScreen`'s usage is narrow: only prevents Android back from bubbling out of the Search stack root / toggles the saved-filter tab. |
 | F | Unconditional focus-effect cleanup (`useFocusEffect` returning a cleanup fn) | `ExerciseDetailScreen.tsx` (stack-reset only, NOT tab-redirect — see the July 2026 fix history), `HomeScreen` (data reload, not navigation) | Fires on **every** blur regardless of cause (button, hardware-back, swipe, tab switch, sibling-tab redirect). Safe ONLY for idempotent, tab-local cleanup (e.g. "reset my own stack to its root"). Using it to redirect to a *different tab* is a proven footgun — see `ExerciseDetailScreen`'s commit history: a first attempt did exactly that and it hijacked `NavBar`'s legitimate "re-tap Exercises to browse" behavior and any direct tap on another tab. Any future "fix" that reaches for this pattern for a tab-redirect should re-read that history first. |
 | G | `CommonActions.reset(...)` to clear stack history | `PlanPreviewScreen.tsx:266,1052` (after Apply, or going Home from onboarding) | Used when a screen must NOT be reachable via back afterward (e.g. don't let the user "back" into a stale plan-generation flow after applying it). |
+| H | **Native-stack's built-in `tabPress` → `POP_TO_TOP`** (library code, not ours) | `@react-navigation/native-stack`'s `createNativeStackNavigator.js:35-55` — applies automatically to **both** `PlanStackNavigator` and `SearchStackNavigator` | Every `createNativeStackNavigator` silently registers its own `tabPress` listener on the parent tab navigator. When its tab is re-tapped **while already focused** and the stack has depth (`state.index > 0`) and nobody called `preventDefault()`, it dispatches `POP_TO_TOP` at the stack. Three consequences that have each already caused a bug here: (1) the Plan/Search tabs had "re-tap to reset" behavior *before* anyone wrote a listener for it — our listeners partly duplicate it; (2) `POP_TO_TOP` is neither `GO_BACK` nor `POP`, so it bypasses every mechanism-D guard in this app (this is how `GeneratePlan`'s discard confirmation was being skipped); (3) it deliberately does **not** fire when switching *into* the tab from elsewhere (it captures focus at press time), which is the one case our own listeners genuinely need to handle. To keep a screen put on re-tap you must `preventDefault()` — but only when the tab is already focused, or you cancel the tab switch itself. |
 
 ## 3. Screen-by-screen route table
 
@@ -254,13 +318,13 @@ Format: **Screen** (navigator) — how you get there → how you leave.
     - → `History` (same stack, `navigate`) — "View history" button.
     - → `GeneratePlan` (same stack, `navigate`) — "AI Generate".
     - → cross-tab to `Workout`, `{workoutId, fromPlan: true}` (via `(navigation as any)?.getParent?.()`, ONE hop) — "Start workout" when a linked workout already exists, or after materializing one from a plan slot.
-    - → cross-tab to `Search` tab, `SearchList`, `{addToWorkout: {..., origin: 'plan'}}` (via `getParent()`, one hop) — "Add exercises" from the context menu, targeting an already-linked workout. **Fixed in pass 6**: now calls `goBack()` right after redirecting, matching `WorkoutDetailScreen`'s equivalent flow (previously it didn't — see former Open Question #2, resolved in §7). Currently a no-op regardless (PlanList is the stack root, nothing to pop) — the fix is defensive, so it stays correct if PlanList is ever reached with history beneath it. The `origin: 'plan'` tag is read by `SearchScreen.submitAddToWorkout` to land back on the **Plan** tab instead of Workout on completion (§7 #3, resolved).
+    - → cross-tab to `Search` tab, `SearchList`, `{addToWorkout: {..., origin: 'plan'}}` (via `getParent()`, one hop) — "Add exercises" from the context menu, targeting an already-linked workout. **No `goBack()` afterward, deliberately** — pass 6 added one to mirror `WorkoutDetailScreen`, pass 9 removed it again: that screen sits at index > 0 and really does pop itself, whereas `PlanList` is this stack's root, and a `GO_BACK` from a stack root bubbles to the parent navigators rather than stopping (dev `console.error` today, a wrong-way pop of `Main` if anything ever sits under it — full reasoning in the pass 9 note at the top of this file and in Open Question #2, §7). The `origin: 'plan'` tag is read by `SearchScreen.submitAddToWorkout` to land back on the **Plan** tab instead of Workout on completion (§7 #3, resolved).
     - → cross-tab to `Search` tab, `SearchList`, `{addToPlan: {day, weekIndex, weekMondayIso, weekAnchorMonday}}` — "Add exercises" for a day with NO linked workout yet.
     - Opens `SavedWorkoutsScreen` as a `Modal` ("Saved workouts" button) — see its own entry below. **Correction to an earlier pass of this map**: that entry does navigate (to `WorkoutDetail`), it was wrongly lumped in with the non-navigating sheet/modal interactions below.
     - Opens `<ShareModal kind="plan">` ("Share" button, `shareModalVisible` state) — local modal, not a route, same class as `SavedWorkoutsScreen`; found missing from this map until pass 4. Its own "Share" button calls the native OS share sheet (`Share.share`), not `navigation.*` — see §6.
     - Various OTHER same-screen sheet/modal interactions (delete confirm, move-to-day, clear-week) that don't navigate at all.
-  - Back: N/A (stack root within the Plan tab). **Fixed in pass 6** (former Open Question #5, resolved with a deliberate partial fix, not a full match to Search): re-tapping the Plan tab icon now resets to `PlanList` via a `NavBar.tsx` `tabPress` listener, but ONLY when the focused child is `History` or `WorkoutDetail`. It deliberately does NOT reset from `GeneratePlan` or `PlanPreview` — those are excluded on purpose, not an oversight: `GeneratePlan` has its own `beforeRemove` discard-guard (mechanism D) that only intercepts `GO_BACK`/`POP` actions, and a tab-press reset dispatches `NAVIGATE`, which would silently bypass that guard and blow away an unsaved form; `PlanPreview` holds an unapplied generated plan the user may still be reviewing, same "don't silently lose it" reasoning even without a guard to bypass. Re-tapping Plan while on either of those two still just refocuses at the current screen, exactly as before this fix.
-  - **Edge case, verified pass 7**: despite the "re-tap" framing (here and for Search's identical pattern below), `tabPress` fires on **any press of the tab bar button** — including switching to Plan directly from Home/Workout/Search — not only when Plan is already the active tab. Neither listener checks "is this tab currently focused" first, only the target stack's own internal state. So this reset also fires the first time you switch to Plan after having last left it on `History`/`WorkoutDetail` from a previous visit, not just on a literal same-tab re-tap. This is the intended behavior, not a bug, but worth testing explicitly (switch away from WorkoutDetail to Home, then tap Plan directly — should land on PlanList, not WorkoutDetail) since "re-tap" undersells what actually triggers it.
+  - Back: N/A (stack root within the Plan tab). **Fixed in pass 6** (former Open Question #5, resolved with a deliberate partial fix, not a full match to Search): re-tapping the Plan tab icon now resets to `PlanList` via a `NavBar.tsx` `tabPress` listener, but ONLY when the focused child is `History` or `WorkoutDetail`. It deliberately does NOT reset from `GeneratePlan` or `PlanPreview` — those are excluded on purpose, not an oversight: `GeneratePlan` has its own `beforeRemove` discard-guard (mechanism D) that only intercepts `GO_BACK`/`POP` actions, and a tab-press reset dispatches `NAVIGATE`, which would silently bypass that guard and blow away an unsaved form; `PlanPreview` holds an unapplied generated plan the user may still be reviewing, same "don't silently lose it" reasoning even without a guard to bypass. **Reworked in pass 10** — merely omitting them from the allowlist did NOT protect them (live testing showed the form being discarded with no prompt), because native-stack pops the stack itself on a re-tap (mechanism H). The listener now explicitly `preventDefault()`s for `GeneratePlan`/`PlanPreview`, and only when the Plan tab is already focused; doing it on a switch *into* Plan would cancel the tab switch. Re-tapping Plan while on either of those two now really does just refocus at the current screen.
+  - **Edge case, verified pass 7**: despite the "re-tap" framing (here and for Search's identical pattern below), `tabPress` fires on **any press of the tab bar button** — including switching to Plan directly from Home/Workout/Search — not only when Plan is already the active tab. So this reset also fires the first time you switch to Plan after having last left it on `History`/`WorkoutDetail` from a previous visit, not just on a literal same-tab re-tap. This is the intended behavior, not a bug, but worth testing explicitly (switch away from WorkoutDetail to Home, then tap Plan directly — should land on PlanList, not WorkoutDetail) since "re-tap" undersells what actually triggers it. **Refined pass 10**: both listeners now DO consult `navigation.isFocused()`, because the focused and unfocused cases genuinely need different handling — see mechanism H. The switch-in case is in fact the only one either listener still has to implement itself; native-stack already covers the same-tab re-tap.
 
 - **CalendarScreen = `History`**
   - In: PlanScreen "View history", or Home's `initial:false`-seeded navigate (may be the stack's only route in the latter case).
@@ -329,7 +393,7 @@ Format: **Screen** (navigator) — how you get there → how you leave.
     - `submitAddToWorkout()`: after a successful add, `navigation.setParams({addToWorkout: undefined})` (clears the mode) THEN branches on `addToWorkout.origin` (one-hop `getParent()`): `'plan'` or `'workoutDetail'` → cross-tab to **`Plan`** (bare `tabNav.navigate('Plan')`, same "wherever its stack already was" landing as `submitAddToPlan`); `'workout'` or `'session'` (or anything unrecognized, as a conservative fallback) → cross-tab to **`Workout`** `{workoutId}`, the pre-pass-6 behavior. **Fixed in pass 6** (former Open Question #3, resolved): previously this always redirected to Workout regardless of origin, which was a confirmed asymmetry with `submitAddToPlan` (always `Plan`) — landing on Workout after adding exercises from Plan's context menu or WorkoutDetail was a non-sequitur since neither is mid-workout. Only an actual Workout-tab origin (pre-start list or a live session) still lands there.
     - "Cancel" on the add-mode banner: `clearSelection()` + `navigation.setParams({addToPlan: undefined, addToWorkout: undefined})` (`SearchScreen.tsx:1245-1247`, shifted from `1237-1239` by pass 6's `submitAddToWorkout` edit above it — re-verified pass 7) — stays on `SearchList`, just clears add-mode state; not itself a navigation action but the other way `addToPlan`/`addToWorkout` params get cleared besides the two success paths above.
     - Android hardware-back at the stack root: mechanism E (`BackHandler`), narrowly scoped to (a) switch the "saved" filter tab back to "all" first if active, or (b) prevent bubbling out to the tab navigator when there's nowhere further to go.
-  - **Special `NavBar` re-tap interception** (mechanism-adjacent, lives in `NavBar.tsx` not this screen): tapping the "Exercises" tab icon while a non-`SearchList` screen (i.e. `ExerciseDetail`) is focused within this stack intercepts the default tab-press and instead resets the stack to `SearchList`, WITHOUT changing which tab is active. This is the behavior that a naive "redirect on any blur" fix to `ExerciseDetail` would break (and did, in an interim commit — see mechanism F above). Same "any press, not just re-tap" nuance as Plan's listener applies here too (verified pass 7, see the PlanScreen entry above) — this also fires the first time you switch INTO Search from a different tab if Search's stack was last left on `ExerciseDetail`, not only on a literal same-tab re-tap.
+  - **Special `NavBar` re-tap interception** (mechanism-adjacent, lives in `NavBar.tsx` not this screen): tapping the "Exercises" tab icon while a non-`SearchList` screen (i.e. `ExerciseDetail`) is focused within this stack intercepts the default tab-press and instead resets the stack to `SearchList`, WITHOUT changing which tab is active. This is the behavior that a naive "redirect on any blur" fix to `ExerciseDetail` would break (and did, in an interim commit — see mechanism F above). Same "any press, not just re-tap" nuance as Plan's listener applies here too (verified pass 7, see the PlanScreen entry above) — this also fires the first time you switch INTO Search from a different tab if Search's stack was last left on `ExerciseDetail`, not only on a literal same-tab re-tap. **Narrowed in pass 10**: the listener now handles ONLY the switch-in-from-another-tab case and returns early when the Search tab is already focused, leaving the same-tab re-tap to native-stack's built-in `POP_TO_TOP` (mechanism H). The outcome looks identical but is not: the old `navigate(...)` reset was a non-merge `NAVIGATE`, which **replaces** `SearchList`'s params, so re-tapping the tab icon to come back from an exercise's detail page silently destroyed an in-progress add-mode. A pop preserves them.
 
 - **ExerciseDetailScreen** — the most heavily-engineered back-navigation in the app; full sub-map in §4.
 
@@ -524,9 +588,17 @@ originally written to support.
    replacement feature was built — Dylan's call was to remove the dead-end,
    not implement real replace-mid-workout semantics.
 2. ~~**`PlanScreen.handleAddExercisesFromMenu` doesn't call `goBack()`**~~
-   **RESOLVED (pass 6)**: now calls it, matching `WorkoutDetailScreen`. Still
-   a no-op today (PlanList is the stack root), but consistent and
-   future-proofed.
+   **RESOLVED (pass 9) — as "correct as-is, do not add one."** Pass 6 added a
+   `goBack()` here to match `WorkoutDetailScreen` on the belief it was a
+   harmless no-op; pass 9 checked that belief against the React Navigation
+   source and found it false, then reverted. `GO_BACK` from a screen carries
+   no `target`, so a stack that returns `null` (index 0) bubbles the action to
+   its parent rather than swallowing it — it reached the root stack unhandled
+   and logged a dev `console.error` on every "Add exercises" press, and would
+   have popped `Main` outright had the root stack ever held more than one
+   route. The asymmetry with `WorkoutDetailScreen` is correct and intentional:
+   that screen is at index > 0 and genuinely has itself to pop. **Do not
+   "restore consistency" here without re-reading this note.**
 3. ~~**`SearchScreen.submitAddToWorkout` always redirects to the `Workout` tab**
    on completion, regardless of origin.~~ **RESOLVED (pass 6)**: `addToWorkout`
    now carries an `origin` tag (`'plan' | 'workoutDetail' | 'workout' | 'session'`,
@@ -554,6 +626,15 @@ originally written to support.
    reviewing, same reasoning applied out of caution. If `GeneratePlan` or
    `PlanPreview` ever grow their own safe-to-lose-state guarantee, this
    exclusion is the first thing to revisit.
+   **Corrected on pass 10**: the exclusion above, as written in pass 6, did
+   **not** work — live testing showed tapping the Plan tab on `GeneratePlan`
+   silently discarded the form with no prompt. Merely *not* resetting isn't
+   enough, because native-stack's own `tabPress` listener (mechanism H) pops
+   the stack via `POP_TO_TOP`, which the discard guard doesn't filter for.
+   `NavBar.tsx` now calls `e.preventDefault()` for these two screens when the
+   Plan tab is already focused, which is what actually blocks it. Note the
+   focus condition: `preventDefault()` on a switch *into* Plan from another
+   tab would cancel the tab switch and strand the user.
 6. ~~**`ProfileScreen`'s account-deletion post-action navigation** wasn't
    traced to completion in this pass.~~ **RESOLVED**: `runDeleteAccount`
    (`ProfileScreen.tsx:518-543`) calls `deleteMyAccount()` then `await
@@ -591,6 +672,18 @@ originally written to support.
    `NavBar` reset) also does NOT clear add-mode — the Search tab never loses
    focus in that case either, only its internal stack resets — treated as
    "still mid-flow," not abandonment.
+   **Corrected on pass 10**: that last sentence was right about the blur
+   listener but wrong about the outcome — the re-tap path *did* wipe add-mode,
+   just by a different route. `NavBar`'s Search listener reset the stack with
+   `navigate('Search', {screen: 'SearchList'})`, and a non-merge `NAVIGATE`
+   **replaces** the target route's params (`StackRouter.js:277-281`) — here
+   with `undefined`, taking `addToWorkout`/`addToPlan` with it. The chevron
+   path was unaffected, which is exactly why comparing the two in code never
+   surfaced it. Fixed by returning early when the Search tab is already
+   focused and letting native-stack's built-in `POP_TO_TOP` (mechanism H) do
+   the reset, since a pop preserves the remaining route's params. Any future
+   "just navigate back to the stack root" reset in this app should prefer
+   `POP_TO_TOP` or pass `merge: true` for the same reason.
 
 ## 8. Suggested general approach for an agent using this map
 
