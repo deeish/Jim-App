@@ -7,6 +7,11 @@ import { useTheme } from '../theme/ThemeContext';
 import MuscleBodyTile from './MuscleBodyTile';
 import ExerciseLikeButton from './ExerciseLikeButton';
 
+/** Body-map tile size and its gap to the title, shared so the "N variants"
+ *  toggle below the row can line up with the exercise name. */
+const TILE_SIZE = 44;
+const TILE_GAP = 11;
+
 interface ExerciseGroupCardProps {
   group: ExerciseGroup;
   onPress?: (exercise: Exercise) => void;
@@ -54,8 +59,6 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           marginHorizontal: 16,
         },
         card: {
-          flexDirection: 'row',
-          alignItems: 'center',
           backgroundColor: colors.surface,
           paddingVertical: 12,
           paddingHorizontal: 14,
@@ -63,12 +66,24 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           borderWidth: 1,
           borderColor: colors.border,
         },
+        cardRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+        },
+        // The one primary tap target: body-map tile + name + subtitle. Everything
+        // else in the row is a sibling of this, never a child (see the note above
+        // the render tree).
+        cardMain: {
+          flex: 1,
+          flexDirection: 'row',
+          alignItems: 'center',
+          marginRight: 8,
+        },
         muscleDisc: {
-          marginRight: 11,
+          marginRight: TILE_GAP,
         },
         titleCol: {
           flex: 1,
-          marginRight: 8,
         },
         exerciseName: {
           fontSize: 16,
@@ -86,6 +101,9 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           gap: 3,
           marginTop: 6,
           alignSelf: 'flex-start',
+          // Sits below the row rather than inside the title column now, so it
+          // needs the tile's width back to stay left-aligned with the name.
+          marginLeft: TILE_SIZE + TILE_GAP,
         },
         variationsToggleText: {
           fontSize: 12,
@@ -142,96 +160,105 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity
+      {/* The card itself is a plain container, NOT a pressable. react-native-web
+          renders `accessibilityRole="button"` as a real <button>, so making the
+          whole row pressable while it also contained the variants toggle, the
+          like heart and the info icon produced <button> inside <button>: invalid
+          HTML that React reports as a hydration error, with unreliable click
+          delivery and broken keyboard/screen-reader behaviour for every button
+          involved. Each interactive element is now a sibling, so the row renders
+          exactly one <button> per thing you can actually press. */}
+      <View
         style={[
           styles.card,
           isSelected && { borderColor: colors.primary, backgroundColor: colors.primary + '12' },
           isDisabled && { opacity: 0.5 },
         ]}
-        onPress={handleCardPress}
-        activeOpacity={isDisabled ? 1 : 0.7}
-        disabled={isDisabled}
-        accessibilityRole="button"
-        accessibilityLabel={exercise.name}
-        accessibilityState={{ selected: !!isSelected, disabled: !!isDisabled }}
       >
-        {/* Mini body map: the exercise's target muscles lit on a silhouette —
-            a leg curl reads hamstrings, a calf raise reads calves, before you
-            read a word. */}
-        <MuscleBodyTile exercise={exercise} size={44} style={styles.muscleDisc} />
-        <View style={styles.titleCol}>
-          <Text style={styles.exerciseName} numberOfLines={1}>
-            {exercise.name}
-          </Text>
-          {!!subtitle && (
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {subtitle}
-            </Text>
-          )}
-          {hasVars && (
-            <TouchableOpacity
-              style={styles.variationsToggle}
-              onPress={(e) => {
-                e.stopPropagation();
-                setShowVariations(!showVariations);
-              }}
-              hitSlop={{ top: 8, bottom: 8, left: 4, right: 16 }}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`${showVariations ? 'Hide' : 'Show'} ${variationNames.length} variants of ${exercise.name}`}
-            >
-              <Ionicons
-                name={showVariations ? 'chevron-down' : 'chevron-forward'}
-                size={12}
-                color={colors.primary}
-              />
-              <Text style={styles.variationsToggleText}>
-                {variationNames.length} variant{variationNames.length !== 1 ? 's' : ''}
+        <View style={styles.cardRow}>
+          <TouchableOpacity
+            style={styles.cardMain}
+            onPress={handleCardPress}
+            activeOpacity={isDisabled ? 1 : 0.7}
+            disabled={isDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={exercise.name}
+            accessibilityState={{ selected: !!isSelected, disabled: !!isDisabled }}
+          >
+            {/* Mini body map: the exercise's target muscles lit on a silhouette —
+                a leg curl reads hamstrings, a calf raise reads calves, before you
+                read a word. */}
+            <MuscleBodyTile exercise={exercise} size={TILE_SIZE} style={styles.muscleDisc} />
+            <View style={styles.titleCol}>
+              <Text style={styles.exerciseName} numberOfLines={1}>
+                {exercise.name}
               </Text>
-            </TouchableOpacity>
-          )}
+              {!!subtitle && (
+                <Text style={styles.subtitle} numberOfLines={1}>
+                  {subtitle}
+                </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.rowRight}>
+            {onLikePress != null && (
+              <ExerciseLikeButton
+                exerciseId={exercise.id}
+                saved={saved ?? false}
+                onSave={onLikePress}
+                onUnsave={onLikePress}
+                size={20}
+              />
+            )}
+            {selectMode ? (
+              <>
+                {onPressInfo && !isDisabled && (
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={() => onPressInfo(exercise)}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View details for ${exercise.name}`}
+                  >
+                    <Ionicons name="information-circle-outline" size={22} color={colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+                {!isDisabled && (
+                  <Ionicons
+                    name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={24}
+                    color={isSelected ? colors.primary : colors.textMuted}
+                  />
+                )}
+              </>
+            ) : (
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            )}
+          </View>
         </View>
 
-        <View style={styles.rowRight}>
-          {onLikePress != null && (
-            <ExerciseLikeButton
-              exerciseId={exercise.id}
-              saved={saved ?? false}
-              onSave={onLikePress}
-              onUnsave={onLikePress}
-              size={20}
+        {hasVars && (
+          <TouchableOpacity
+            style={styles.variationsToggle}
+            onPress={() => setShowVariations(!showVariations)}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 16 }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`${showVariations ? 'Hide' : 'Show'} ${variationNames.length} variants of ${exercise.name}`}
+          >
+            <Ionicons
+              name={showVariations ? 'chevron-down' : 'chevron-forward'}
+              size={12}
+              color={colors.primary}
             />
-          )}
-          {selectMode ? (
-            <>
-              {onPressInfo && !isDisabled && (
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    onPressInfo(exercise);
-                  }}
-                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                  activeOpacity={0.6}
-                  accessibilityRole="button"
-                  accessibilityLabel={`View details for ${exercise.name}`}
-                >
-                  <Ionicons name="information-circle-outline" size={22} color={colors.textMuted} />
-                </TouchableOpacity>
-              )}
-              {!isDisabled && (
-                <Ionicons
-                  name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={24}
-                  color={isSelected ? colors.primary : colors.textMuted}
-                />
-              )}
-            </>
-          ) : (
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          )}
-        </View>
-      </TouchableOpacity>
+            <Text style={styles.variationsToggleText}>
+              {variationNames.length} variant{variationNames.length !== 1 ? 's' : ''}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Variations List */}
       {hasVars && showVariations && variationNames.length > 0 && (
