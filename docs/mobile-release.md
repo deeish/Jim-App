@@ -48,19 +48,43 @@ needs App Store Connect clicking:
 
 ```bash
 cd frontend
-npm run tf:status                                   # recent builds + processing state
-npm run tf:groups                                   # tester groups (internal/external)
-npm run tf:distribute -- --group "Friends" --wait   # wait for the just-submitted build
-npm run tf:distribute -- --group "Friends" --build 12 [--wait]
+node scripts/testflight-distribute.mjs status      # recent builds + processing state
+node scripts/testflight-distribute.mjs groups      # tester groups (internal/external)
+node scripts/testflight-distribute.mjs distribute --group "Friends/Family" --wait
+node scripts/testflight-distribute.mjs distribute --group "Friends/Family" --build 14
 ```
 
-`--wait` polls (up to 30 min) until the just-submitted build registers in
-App Store Connect **and** finishes processing — new uploads take a few
-minutes to appear, and without `--wait` "latest" would still be the previous
-release. Without any flags the latest already-processed build is used.
-Adding a build to an **external** group triggers Beta App Review
-automatically (the demo review account is already configured in ASC).
-Internal groups get the build immediately.
+On Windows, `npm run tf:distribute -- --flag` mangles the extra flags, so call
+the script directly as above. `npm run tf:status` / `tf:groups` are fine since
+they take no arguments.
+
+**Internal groups need no command at all.** App Store Connect gives internal
+testers every build as soon as it finishes processing, and rejects an explicit
+assignment with HTTP 422. Passing an internal group is harmless — the script
+reports it and skips it — but the build is already available to them.
+
+Adding a build to an **external** group is what triggers Beta App Review (the
+demo review account is already configured in ASC).
+
+### How the build gets picked
+
+With `--build <n>` the choice is explicit and nothing is guessed. Without it,
+the script takes the newest upload **only if it landed within the last 45
+minutes** (`--recent-minutes` to change), on the reasoning that a build you
+just submitted is minutes old. `--wait` then polls up to 30 minutes for such a
+build to appear and finish processing.
+
+That rule exists because both halves of the obvious approach have already
+failed in practice:
+
+- **Build 12** — ASC had not registered the upload yet, so "latest" was still
+  build 11 from days earlier, and 11 was distributed by mistake.
+- **Build 14** — Apple processed the upload in about two minutes, so "latest"
+  already *was* the new build. A version that waited for something newer than
+  the startup latest sat there and timed out after 30 minutes.
+
+Recency separates those two cases; "newer than whatever was latest at startup"
+cannot, because which one happens depends on how fast Apple is that day.
 
 **One-time setup:** App Store Connect → Users and Access → Integrations →
 Team Keys → **Generate API Key** with role **App Manager**. Download the
@@ -77,9 +101,10 @@ The script (`frontend/scripts/testflight-distribute.mjs`) has no dependencies;
 it signs the ASC JWT with Node's built-in crypto. Full release sequence:
 
 ```bash
-npm run eas:build:production -- --platform ios
-npm run eas:submit
-npm run tf:distribute -- --group "Friends" --wait
+npx eas build --profile production --platform ios --non-interactive
+npx eas submit --profile production --platform ios --latest --non-interactive
+# internal testers already have it at this point; for external:
+node scripts/testflight-distribute.mjs distribute --group "Friends/Family" --wait
 ```
 
 ## EAS Update (JavaScript-only fixes)
