@@ -25,13 +25,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    id: '2026-07-17',
+    id: '2026-07-23',
     version: '1.0.0',
-    date: '2026-07-17',
+    date: '2026-07-23',
     title: 'Your last numbers, right where you lift',
     changes: [
       { type: 'new', text: 'Every exercise in a live workout now shows what you lifted last time, and your weight inputs start from it.' },
       { type: 'new', text: 'A suggested next target for each lift, based on how your last set went.' },
+      { type: 'fixed', text: 'The back button now returns you to the page you came from, including when you open an exercise from your plan or a workout.' },
+      { type: 'fixed', text: 'Your plan settings are no longer lost if you tap the Plan tab while filling in the form.' },
+      { type: 'fixed', text: 'Exercises you selected to add now stay selected if you open one to read its details first.' },
+      { type: 'fixed', text: 'Plan header buttons now fit on one row.' },
     ],
   },
   {
