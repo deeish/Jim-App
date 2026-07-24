@@ -1638,11 +1638,16 @@ function ExerciseCard({
       })()}
 
 
-      {notes && (
+      {/* `notes` defaults to '' (see the `exerciseNotes[index] || ''` prop). A bare
+          `notes && (...)` renders that empty string, and an empty string is a text
+          node — which react-native-web rejects as a child of a <View> ("Unexpected
+          text node"), firing once per card on every live session. Guard on a
+          non-empty value so nothing renders when there is no note. */}
+      {notes ? (
         <View style={styles.exerciseNotesPreview}>
           <Text style={styles.exerciseNotesPreviewText}>{notes}</Text>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
