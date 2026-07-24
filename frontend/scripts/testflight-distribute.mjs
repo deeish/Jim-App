@@ -8,6 +8,13 @@
  *   npm run tf:distribute -- --group "Friends" --wait   # wait for the just-submitted build
  *   npm run tf:distribute -- --group "Friends" --build 12 [--wait]
  *
+ * On Windows `npm run ... -- --flag` mangles the extra flags; call this file
+ * directly instead: node scripts/testflight-distribute.mjs distribute --group ...
+ *
+ * Only EXTERNAL groups are ever assigned a build. Internal groups are reported
+ * and skipped: App Store Connect hands internal testers every processed build
+ * automatically and returns HTTP 422 if you try to assign one explicitly.
+ *
  * One-time setup (see docs/mobile-release.md):
  *   ASC → Users and Access → Integrations → Team Keys → Generate API Key
  *   (role: App Manager). Download the .p8 (only offered once), note the
@@ -147,6 +154,16 @@ const fetchBuilds = (token, appId, { buildNumber, limit = 8 } = {}) =>
       '&include=preReleaseVersion&fields[preReleaseVersions]=version',
   );
 
+/** Rough "how long ago was this uploaded", for messages about build recency. */
+function describeAge(build) {
+  const mins = Math.round((Date.now() - Date.parse(build.attributes.uploadedDate)) / 60_000);
+  if (mins < 1) return 'less than a minute';
+  if (mins < 60) return `${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours} h`;
+  return `${Math.round(hours / 24)} d`;
+}
+
 function describeBuild(build, included) {
   const pre = (included ?? []).find(
     (x) =>
@@ -182,17 +199,23 @@ async function cmdDistribute(cfg, args) {
   const groupNames = [];
   let buildNumber;
   let wait = false;
+  // How recently a build must have been uploaded to count as "the one I just
+  // submitted" when no --build is given. See the resolution comment below.
+  let recentMinutes = 45;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--group') groupNames.push(args[++i]);
     else if (args[i] === '--build') buildNumber = args[++i];
     else if (args[i] === '--wait') wait = true;
+    else if (args[i] === '--recent-minutes') recentMinutes = Number(args[++i]);
   }
-  if (!groupNames.length) {
+  if (!groupNames.length || !Number.isFinite(recentMinutes) || recentMinutes <= 0) {
     console.error(
-      'Usage: npm run tf:distribute -- --group "<name>" [--group "<name2>"] [--build <number>] [--wait]',
+      'Usage: node scripts/testflight-distribute.mjs distribute --group "<name>" ' +
+        '[--group "<name2>"] [--build <number>] [--wait] [--recent-minutes <n>]',
     );
     process.exit(1);
   }
+  const recentWindowMs = recentMinutes * 60_000;
 
   let token = await signToken(cfg);
   const groups = await fetchGroups(token, cfg.appId);
@@ -210,11 +233,22 @@ async function cmdDistribute(cfg, args) {
     targets.push(g);
   }
 
-  // Right after `eas submit`, ASC can take several minutes to register the
-  // new build at all — "latest" still points at the previous release (this is
-  // how build 11 once got re-distributed instead of 12). With --wait we
-  // therefore poll for the requested build number (or for a build newer than
-  // the current latest) instead of silently taking what is already there.
+  // Resolving "the build I just submitted" is the whole difficulty here, and
+  // both of the ways this has gone wrong were timing races:
+  //
+  //   build 12 — ASC had not registered the new upload yet, so "latest" was
+  //              still build 11 from days earlier, and 11 got re-distributed.
+  //   build 14 — Apple processed the upload within a couple of minutes, so by
+  //              the time this ran, "latest" already WAS the new build. The
+  //              then-current fix waited for something newer than it, which
+  //              never came, and it timed out after 30 minutes.
+  //
+  // Waiting for "a build newer than whatever was latest at startup" cannot
+  // distinguish those two, because it depends on who wins the race with Apple.
+  // Recency can: the build you just submitted is, by definition, uploaded
+  // moments ago. So --wait now polls until the newest upload is inside the
+  // recency window, which keeps waiting in the build-12 case and returns
+  // immediately in the build-14 case. --build <n> always wins over all of this.
   const deadline = Date.now() + 30 * 60 * 1000;
   const poll = async (message) => {
     if (Date.now() > deadline) {
@@ -241,18 +275,25 @@ async function cmdDistribute(cfg, args) {
       j = await fetchBuilds(token, cfg.appId, { buildNumber, limit: 1 });
       build = j.data?.[0];
     }
-  } else if (!build) {
-    console.error('No builds found.');
-    process.exit(1);
-  } else if (wait && build.attributes.processingState !== 'PROCESSING') {
-    // --wait without --build means "distribute the build I just submitted".
-    // The latest build already finished processing, so it is the PREVIOUS
-    // release — hold out for a newer upload to register.
-    const baselineTime = Date.parse(build.attributes.uploadedDate);
-    const baselineVersion = build.attributes.version;
-    while (Date.parse(build.attributes.uploadedDate) <= baselineTime) {
+  } else {
+    // No --build: take the newest upload, but only once it is recent enough to
+    // plausibly be the one just submitted (see the comment above the poller).
+    const isRecent = (b) =>
+      b && Date.now() - Date.parse(b.attributes.uploadedDate) <= recentWindowMs;
+    while (!isRecent(build)) {
+      if (!wait) {
+        console.error(
+          build
+            ? `Newest upload is build ${build.attributes.version}, from ${describeAge(build)} ago — too old to be a build you just submitted.\n` +
+                `Re-run with --wait to poll for the new upload, or --build ${build.attributes.version} to distribute that one deliberately.`
+            : 'No builds found.',
+        );
+        process.exit(1);
+      }
       await poll(
-        `Latest registered build is still ${baselineVersion} — waiting for the new upload (pass --build ${baselineVersion} if you meant that one)`,
+        build
+          ? `Newest upload is still build ${build.attributes.version} from ${describeAge(build)} ago — waiting for the new one to register`
+          : 'No builds registered in App Store Connect yet',
       );
       j = await fetchBuilds(token, cfg.appId, { limit: 1 });
       build = j.data?.[0] ?? build;
@@ -285,14 +326,30 @@ async function cmdDistribute(cfg, args) {
     process.exit(1);
   }
 
+  // App Store Connect makes every processed build available to internal testers
+  // on its own, and REJECTS an explicit assignment with HTTP 422 ("Cannot add
+  // internal group to a build"). So an internal group is never something to
+  // POST — reaching VALID, which we just confirmed above, is the whole job.
+  const internalGroups = targets.filter((g) => g.attributes.isInternalGroup);
+  const externalGroups = targets.filter((g) => !g.attributes.isInternalGroup);
+
+  for (const g of internalGroups) {
+    console.log(
+      `"${g.attributes.name}" is an internal group — App Store Connect gives internal ` +
+        `testers every processed build automatically, so there is nothing to assign. ` +
+        `Build ${build.attributes.version} is VALID and available to them now.`,
+    );
+  }
+
+  if (!externalGroups.length) return;
+
   console.log(`Distributing ${describeBuild(build, j.included)}`);
-  for (const g of targets) {
+  for (const g of externalGroups) {
     await asc(token, 'POST', `/betaGroups/${g.id}/relationships/builds`, {
       data: [{ type: 'builds', id: build.id }],
     });
-    const external = !g.attributes.isInternalGroup;
     console.log(
-      `Added to "${g.attributes.name}"${external ? ' — external group: Apple runs Beta App Review before testers see it.' : ' — internal testers get it right away.'}`,
+      `Added to "${g.attributes.name}" — external group: Apple runs Beta App Review before testers see it.`,
     );
   }
 }
