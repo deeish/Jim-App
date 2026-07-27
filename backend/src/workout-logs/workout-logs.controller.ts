@@ -12,6 +12,8 @@ import {
 import { WorkoutLogsService } from './workout-logs.service';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
 import { LastPerformanceQueryDto } from './dto/last-performance-query.dto';
+import { PersonalBestsQueryDto } from './dto/personal-bests-query.dto';
+import { StatsQueryDto } from './dto/stats-query.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 
@@ -49,6 +51,25 @@ export class WorkoutLogsController {
       userId,
       exerciseIds,
     );
+  }
+
+  // Literal route: must stay above the ':id' catch-all or it gets shadowed.
+  @Get('stats')
+  getStats(@Query() query: StatsQueryDto, @UserId() userId: string) {
+    return this.workoutLogsService.getStats(userId, query.months);
+  }
+
+  // Literal route: must stay above the ':id' catch-all or it gets shadowed.
+  @Get('personal-bests')
+  getPersonalBests(
+    @Query() query: PersonalBestsQueryDto,
+    @UserId() userId: string,
+  ) {
+    const exerciseIds = query.exerciseIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+    return this.workoutLogsService.getPersonalBests(userId, exerciseIds);
   }
 
   @Get(':id')
