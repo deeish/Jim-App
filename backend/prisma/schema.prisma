@@ -226,6 +226,9 @@ model WorkoutLog {
   @@index([userId])
   @@index([workoutId])
   @@index([startedAt])
+  /// Progress/stats reads filter by user and range/order by startedAt; the two
+  /// single-column indexes above can't serve that as one lookup.
+  @@index([userId, startedAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +249,9 @@ model WorkoutLogEntry {
 
   @@map("workout_log_entries")
   @@index([workoutLogId])
+  /// Per-exercise history / personal bests join on this; without it the
+  /// lookup scans every entry the user has ever logged.
+  @@index([exerciseId])
 }
 
 // ---------------------------------------------------------------------------
