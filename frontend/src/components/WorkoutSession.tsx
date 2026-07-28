@@ -21,10 +21,21 @@ import {
   type WorkoutSessionRestoredSnapshot,
   type LastExercisePerformance,
   type LastPerformanceMap,
+  type PersonalBestMap,
 } from '../types/workout';
 import { saveWorkoutDraft } from '../lib/workoutDraftStorage';
-import { getLastPerformance, type SaveWorkoutLogParams } from '../services/workoutService';
+import {
+  getLastPerformance,
+  getPersonalBests,
+  type SaveWorkoutLogParams,
+} from '../services/workoutService';
 import { applyLastPerformancePrefill, formatLastTimeLine } from '../lib/lastPerformanceDisplay';
+import {
+  collectSessionAchievements,
+  formatAchievementDetail,
+  formatAchievementLabel,
+  summarizeSessionTotals,
+} from '../lib/sessionAchievements';
 import { exerciseUsesTimeDisplay } from '../lib/exercisePrescription';
 import {
   formatSuggestionLine,
@@ -114,6 +125,7 @@ export default function WorkoutSession({
   });
 
   const [lastPerformance, setLastPerformance] = useState<LastPerformanceMap>({});
+  const [personalBests, setPersonalBests] = useState<PersonalBestMap>({});
   /** Latched at init: the snapshot itself is stripped one tick after mount. */
   const wasRestoredRef = useRef(!!session.restoredSnapshot);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -264,6 +276,32 @@ export default function WorkoutSession({
     };
   }, [linkableIdsKey]);
 
+  /**
+   * All-time heaviest set per exercise, for the finish screen's personal-best
+   * claims. Fetched here at session start rather than on the finish screen for
+   * two reasons: the log is only POSTed once the finish screen is dismissed, so
+   * reading now is what guarantees a record excludes the session in progress;
+   * and the most emotionally important screen in the app shouldn't hang on a
+   * network call. A failed fetch just means no record is claimed.
+   *
+   * Kept separate from the last-performance fetch above so neither can break
+   * the other — and the two answer genuinely different questions: that one is
+   * bounded to the 30 most recent logs, this one is unbounded (§3.7a).
+   */
+  useEffect(() => {
+    if (!linkableIdsKey) return;
+    let cancelled = false;
+    getPersonalBests(linkableIdsKey.split(','))
+      .then((map) => {
+        if (cancelled) return;
+        setPersonalBests((prev) => ({ ...prev, ...map }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [linkableIdsKey]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       const elapsed = Math.floor((new Date().getTime() - session.startTime.getTime()) / 1000);
@@ -373,14 +411,6 @@ export default function WorkoutSession({
     ).length;
   };
 
-  const getTotalCompletedSets = () => {
-    return exerciseSessions
-      .filter((es) => !es.skipped)
-      .reduce(
-        (total, es) => total + es.completedSets.filter((set) => set.completed).length,
-        0
-      );
-  };
 
   const getCurrentExercise = () => {
     return exerciseSessions[currentExerciseIndex];
@@ -684,16 +714,9 @@ export default function WorkoutSession({
   const handleFinishComplete = () => {
     const endTime = new Date();
     const totalTime = Math.floor((endTime.getTime() - session.startTime.getTime()) / 1000);
-    const totalVolume = exerciseSessions
-      .filter((es) => !es.skipped)
-      .reduce((total, es) => {
-        return (
-          total +
-          es.completedSets
-            .filter((set) => set.completed && set.weight) // Exclude bodyweight exercises
-            .reduce((vol, set) => vol + (set.reps || 0) * (set.weight || 0), 0)
-        );
-      }, 0);
+    // Same helper the finish screen renders from, so the numbers the user was
+    // just shown and the ones written to history can't drift apart.
+    const totals = summarizeSessionTotals(exerciseSessions);
 
     onComplete({
       workout: session.workout,
@@ -701,8 +724,8 @@ export default function WorkoutSession({
       startTime: session.startTime,
       endTime,
       totalTime,
-      totalSets: getTotalCompletedSets(),
-      totalVolume,
+      totalSets: totals.completedSets,
+      totalVolume: totals.volumeLb,
       overallNotes,
       exerciseNotes,
     });
@@ -805,6 +828,8 @@ export default function WorkoutSession({
         elapsedTime={elapsedTime}
         overallNotes={overallNotes}
         exerciseNotes={exerciseNotes}
+        lastPerformance={lastPerformance}
+        personalBests={personalBests}
         onComplete={handleFinishComplete}
         onBack={() => {
           setShowFinishScreen(false);
@@ -1977,6 +2002,9 @@ function NotesModal({
   );
 }
 
+/** Finish-screen highlights are a reel, not a report. */
+const MAX_VISIBLE_ACHIEVEMENTS = 3;
+
 // Workout Finish Screen
 function WorkoutFinishScreen({
   session,
@@ -1984,6 +2012,8 @@ function WorkoutFinishScreen({
   elapsedTime,
   overallNotes,
   exerciseNotes,
+  lastPerformance,
+  personalBests,
   onComplete,
   onBack,
 }: {
@@ -1992,16 +2022,35 @@ function WorkoutFinishScreen({
   elapsedTime: number;
   overallNotes: string;
   exerciseNotes: Record<number, string>;
+  lastPerformance: LastPerformanceMap;
+  personalBests: PersonalBestMap;
   onComplete: () => void;
   onBack: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
+  const { weightUnit } = useUserPreferences();
   const [isSaved, setIsSaved] = useState(false);
-  
-  const totalSets = exerciseSessions
-    .filter((es) => !es.skipped)
-    .reduce((total, es) => total + es.completedSets.filter((set) => set.completed).length, 0);
+
+  const totals = useMemo(
+    () => summarizeSessionTotals(exerciseSessions),
+    [exerciseSessions],
+  );
+  const achievements = useMemo(
+    () =>
+      collectSessionAchievements(
+        exerciseSessions,
+        lastPerformance,
+        personalBests,
+      ),
+    [exerciseSessions, lastPerformance, personalBests],
+  );
+  const visibleAchievements = achievements.slice(0, MAX_VISIBLE_ACHIEVEMENTS);
+  const hiddenAchievements = achievements.length - visibleAchievements.length;
+  const volumeValue =
+    weightUnit === 'kg'
+      ? Math.round(lbToKg(totals.volumeLb))
+      : Math.round(totals.volumeLb);
 
   const formatTime = (seconds: number) => {
     if (seconds < 3600) {
@@ -2027,19 +2076,81 @@ function WorkoutFinishScreen({
   };
 
   return (
-    <View style={styles.finishContainer}>
-      <Text style={styles.finishTitle}>Workout Complete! 🎉</Text>
-      
+    <ScrollView
+      style={styles.finishContainer}
+      contentContainerStyle={styles.finishContent}
+    >
+      <Text style={styles.finishTitle}>Workout Complete!</Text>
+
+      {/* Metrics that always exist, whatever was logged. */}
       <View style={styles.finishStats}>
         <View style={styles.finishStat}>
           <Text style={styles.finishStatValue}>{formatTime(elapsedTime)}</Text>
-          <Text style={styles.finishStatLabel}>Total Time</Text>
+          <Text style={styles.finishStatLabel}>Time</Text>
         </View>
         <View style={styles.finishStat}>
-          <Text style={styles.finishStatValue}>{totalSets}</Text>
-          <Text style={styles.finishStatLabel}>Total Sets</Text>
+          <Text style={styles.finishStatValue}>{totals.exercisesWorked}</Text>
+          <Text style={styles.finishStatLabel}>Exercises</Text>
+        </View>
+        <View style={styles.finishStat}>
+          <Text style={styles.finishStatValue}>{totals.completedSets}</Text>
+          <Text style={styles.finishStatLabel}>Sets</Text>
         </View>
       </View>
+
+      {/*
+        Volume is hidden rather than shown as zero. Bodyweight work never has a
+        weight, and generated plans ship none until the last-performance prefill
+        starts filling it in, so plenty of real sessions total nothing — and
+        "0 lb" reads as a broken screen rather than an honest one.
+      */}
+      {totals.hasWeightedWork && (
+        <View style={styles.finishVolumeRow}>
+          <Text style={styles.finishVolumeLabel}>Total volume</Text>
+          <Text style={styles.finishVolumeValue}>
+            {`${volumeValue.toLocaleString()} ${weightUnit}`}
+          </Text>
+        </View>
+      )}
+
+      {achievements.length > 0 && (
+        <View style={styles.finishHighlights}>
+          <Text style={styles.finishSectionLabel}>Highlights</Text>
+          {visibleAchievements.map((achievement) => (
+            <View
+              key={achievement.exerciseId}
+              style={styles.finishHighlightRow}
+            >
+              <Ionicons
+                name={
+                  achievement.kind === 'personal-best'
+                    ? 'trophy-outline'
+                    : 'trending-up-outline'
+                }
+                size={20}
+                color={
+                  achievement.kind === 'personal-best'
+                    ? colors.primary
+                    : colors.secondary
+                }
+              />
+              <View style={styles.finishHighlightText}>
+                <Text style={styles.finishHighlightTitle}>
+                  {`${formatAchievementLabel(achievement.kind)}: ${achievement.exerciseName}`}
+                </Text>
+                <Text style={styles.finishHighlightDetail}>
+                  {formatAchievementDetail(achievement, weightUnit)}
+                </Text>
+              </View>
+            </View>
+          ))}
+          {hiddenAchievements > 0 && (
+            <Text style={styles.finishHighlightMore}>
+              {`+${hiddenAchievements} more`}
+            </Text>
+          )}
+        </View>
+      )}
 
       <View style={styles.finishActions}>
         <Button
@@ -2048,8 +2159,13 @@ function WorkoutFinishScreen({
           disabled={isSaved}
           style={styles.finishButton}
         />
+        {/*
+          Saves and returns to the Workout tab — exactly what the primary button
+          does, and what this one always did. It never opened history, which is
+          what its old label promised.
+        */}
         <Button
-          title="View History"
+          title="Done"
           onPress={onComplete}
           variant="secondary"
           disabled={isSaved}
@@ -2064,7 +2180,7 @@ function WorkoutFinishScreen({
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -3142,6 +3258,11 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   finishContainer: {
     flex: 1,
     backgroundColor: palette.background,
+  },
+  // Scrolls rather than centres rigidly: highlights make this screen's height
+  // depend on the session, and it still centres when there is little to show.
+  finishContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -3150,12 +3271,12 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     fontSize: 32,
     fontWeight: 'bold',
     color: palette.text,
-    marginBottom: 40,
+    marginBottom: 28,
   },
   finishStats: {
     flexDirection: 'row',
     gap: 20,
-    marginBottom: 40,
+    marginBottom: 20,
     width: '100%',
     justifyContent: 'space-around',
   },
@@ -3163,7 +3284,7 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     alignItems: 'center',
   },
   finishStatValue: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: 'bold',
     color: palette.primary,
     marginBottom: 8,
@@ -3178,9 +3299,75 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     color: palette.textMuted,
     marginTop: 2,
   },
+  finishVolumeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    marginBottom: 20,
+  },
+  finishVolumeLabel: {
+    fontSize: 14,
+    color: palette.textSecondary,
+  },
+  finishVolumeValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  finishHighlights: {
+    width: '100%',
+    gap: 10,
+    marginBottom: 28,
+  },
+  finishSectionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: palette.textMuted,
+  },
+  finishHighlightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  finishHighlightText: {
+    flex: 1,
+    gap: 2,
+  },
+  finishHighlightTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  finishHighlightDetail: {
+    fontSize: 13,
+    color: palette.textSecondary,
+  },
+  finishHighlightMore: {
+    fontSize: 13,
+    color: palette.textMuted,
+    textAlign: 'center',
+  },
   finishActions: {
     width: '100%',
     gap: 12,
+    // Keeps the actions off the stats when there is no volume row or
+    // highlights between them.
+    marginTop: 12,
   },
   finishButton: {
     minHeight: 56,
