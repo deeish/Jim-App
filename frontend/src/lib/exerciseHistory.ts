@@ -145,11 +145,35 @@ export function summarizeSession(session: HistorySession): HistorySessionSummary
   };
 }
 
+/**
+ * Collapses rows that belong to the same logged session.
+ *
+ * The log writes one entry per exercise *slot*, so a lift performed twice in
+ * one workout — an opener plus a back-off block, or one re-added from the
+ * library — arrives as two rows sharing a `workoutLogId`. Rendered as-is that
+ * is two rows under one date, and a duplicate React key.
+ */
+function mergeRowsBySession(rows: HistorySession[]): HistorySession[] {
+  const bySession = new Map<string, HistorySession>();
+  for (const row of rows) {
+    const existing = bySession.get(row.workoutLogId);
+    if (!existing) {
+      bySession.set(row.workoutLogId, { ...row, sets: [...row.sets] });
+    } else {
+      existing.sets.push(...row.sets);
+    }
+  }
+  // Map iteration is insertion order, so newest-first is preserved.
+  return [...bySession.values()];
+}
+
 /** Everything the ExerciseDetail history section renders. */
 export function summarizeExerciseHistory(
   history: ExerciseHistory | null | undefined,
 ): ExerciseHistorySummary {
-  const sessions = (history?.sessions ?? []).map(summarizeSession);
+  const sessions = mergeRowsBySession(history?.sessions ?? []).map(
+    summarizeSession,
+  );
   const best = history?.best ?? null;
   // Reversed because the response is newest first but a trend reads forward.
   const e1rmTrend = sessions

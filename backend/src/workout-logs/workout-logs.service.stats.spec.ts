@@ -134,10 +134,8 @@ describe('WorkoutLogsService progress reads', () => {
     it('scopes to the user and exercise, newest session first', async () => {
       await service.getExerciseHistory('u1', 'bench_press');
       const arg = historyArg();
-      expect(arg.where).toEqual({
-        exerciseId: 'bench_press',
-        workoutLog: { userId: 'u1' },
-      });
+      expect(arg.where.exerciseId).toBe('bench_press');
+      expect(arg.where.workoutLog).toEqual({ userId: 'u1' });
       expect(arg.orderBy).toEqual({ workoutLog: { startedAt: 'desc' } });
     });
 
@@ -161,22 +159,15 @@ describe('WorkoutLogsService progress reads', () => {
       expect(historyArg().take).toBe(50);
     });
 
-    it('drops sessions that recorded no completed sets', async () => {
-      prismaMock.workoutLogEntry.findMany.mockResolvedValueOnce([
-        {
-          workoutLogId: 'log-1',
-          workoutLog: { startedAt: new Date('2026-07-27T10:00:00Z') },
-          completedSets: [{ setNumber: 1, reps: 5, weight: 135 }],
-        },
-        {
-          workoutLogId: 'log-2',
-          workoutLog: { startedAt: new Date('2026-07-20T10:00:00Z') },
-          completedSets: [],
-        },
-      ]);
-      const res = await service.getExerciseHistory('u1', 'bench_press');
-      expect(res.sessions).toHaveLength(1);
-      expect(res.sessions[0].workoutLogId).toBe('log-1');
+    // Excluded in the query rather than afterwards. An exercise the user
+    // started but logged no set for is still written as an entry (only skipped
+    // ones are left out), so filtering after `take` would quietly return fewer
+    // sessions than were requested.
+    it('excludes entries with no completed sets in the query itself', async () => {
+      await service.getExerciseHistory('u1', 'bench_press');
+      expect(historyArg().where.completedSets).toEqual({
+        some: { completed: true },
+      });
     });
 
     // Asking unconditionally must be safe: the caller should not have to know

@@ -231,8 +231,16 @@ export function resolveHistorySessions(limit: number | undefined): number {
  *
  * Bounded by **session count for this exercise**, not by a window of recent
  * logs: someone who trains this lift once a month would fall straight out of a
- * 30-log window and see an empty history despite years of it. Entries with no
- * completed sets are dropped rather than rendered as blank rows.
+ * 30-log window and see an empty history despite years of it.
+ *
+ * Entries with no completed sets are excluded **in the query**, not afterwards.
+ * An exercise the user started but logged no set for is still written as an
+ * entry — only skipped ones are left out — so filtering after `take` would
+ * quietly return fewer sessions than were asked for.
+ *
+ * One row per logged entry, so a lift performed twice in a single session
+ * yields two rows sharing a `workoutLogId`; callers that present sessions
+ * should merge on it.
  */
 export async function fetchExerciseHistory(
   prisma: PrismaService,
@@ -241,7 +249,11 @@ export async function fetchExerciseHistory(
   limit: number,
 ): Promise<ExerciseHistorySession[]> {
   const entries = await prisma.workoutLogEntry.findMany({
-    where: { exerciseId, workoutLog: { userId } },
+    where: {
+      exerciseId,
+      workoutLog: { userId },
+      completedSets: { some: { completed: true } },
+    },
     orderBy: { workoutLog: { startedAt: 'desc' } },
     take: limit,
     select: {
@@ -255,17 +267,15 @@ export async function fetchExerciseHistory(
     },
   });
 
-  return entries
-    .filter((entry) => entry.completedSets.length > 0)
-    .map((entry) => ({
-      workoutLogId: entry.workoutLogId,
-      performedAt: entry.workoutLog.startedAt,
-      sets: entry.completedSets.map((s) => ({
-        setNumber: s.setNumber,
-        reps: s.reps,
-        weight: s.weight,
-      })),
-    }));
+  return entries.map((entry) => ({
+    workoutLogId: entry.workoutLogId,
+    performedAt: entry.workoutLog.startedAt,
+    sets: entry.completedSets.map((s) => ({
+      setNumber: s.setNumber,
+      reps: s.reps,
+      weight: s.weight,
+    })),
+  }));
 }
 
 /**

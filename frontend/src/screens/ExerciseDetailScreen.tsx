@@ -118,10 +118,10 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
    * to work without it.
    */
   useEffect(() => {
-    if (!isLinkableLibraryExerciseId(exerciseId)) {
-      setHistory(null);
-      return;
-    }
+    // Cleared first so a reused screen instance can never show the previous
+    // exercise's history while the new one is in flight.
+    setHistory(null);
+    if (!isLinkableLibraryExerciseId(exerciseId)) return;
     let cancelled = false;
     getExerciseHistory(exerciseId as string)
       .then((data) => {

@@ -181,6 +181,36 @@ describe('summarizeExerciseHistory', () => {
     expect(summary.e1rmBestLb).toBeNull();
   });
 
+  // The log writes one entry per exercise slot, so a lift done twice in one
+  // workout arrives as two rows sharing a workoutLogId — two rows under one
+  // date, and a duplicate React key.
+  it('collapses two entries from the same session into one row', () => {
+    const summary = summarizeExerciseHistory(
+      history([
+        session('2026-07-27T10:00:00.000Z', [set(1, 5, 185)], 'log-1'),
+        session('2026-07-27T10:00:00.000Z', [set(1, 12, 135)], 'log-1'),
+      ]),
+    );
+    expect(summary.sessions).toHaveLength(1);
+    // Both blocks count towards the session's totals.
+    expect(summary.sessions[0].setCount).toBe(2);
+    expect(summary.sessions[0].totalReps).toBe(17);
+    expect(summary.sessions[0].topSet).toEqual({ weightLb: 185, reps: 5 });
+    // 135x12 -> 189 beats 185x5 -> 216? No: 185*(1+5/30)=215.8->216 wins.
+    expect(summary.sessions[0].e1rmLb).toBe(216);
+  });
+
+  it('keeps separate sessions separate', () => {
+    const summary = summarizeExerciseHistory(
+      history([
+        session('2026-07-27T10:00:00.000Z', [set(1, 5, 185)], 'log-1'),
+        session('2026-07-20T10:00:00.000Z', [set(1, 5, 180)], 'log-2'),
+      ]),
+    );
+    expect(summary.sessions).toHaveLength(2);
+    expect(summary.sessions[0].workoutLogId).toBe('log-1');
+  });
+
   it('carries the all-time best straight through', () => {
     const best = { weightLb: 225, reps: 3, performedAt: '2026-01-09T10:00:00.000Z' };
     expect(summarizeExerciseHistory(history([], best)).best).toEqual(best);
