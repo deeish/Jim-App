@@ -34,6 +34,7 @@ import {
   collectSessionAchievements,
   formatAchievementDetail,
   formatAchievementLabel,
+  formatSessionVolume,
   summarizeSessionTotals,
 } from '../lib/sessionAchievements';
 import { exerciseUsesTimeDisplay } from '../lib/exercisePrescription';
@@ -2030,6 +2031,10 @@ function WorkoutFinishScreen({
   const { colors } = useTheme();
   const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
   const { weightUnit } = useUserPreferences();
+  // This screen scrolls the full height rather than sitting centred, so on a
+  // notched device its content would otherwise run under the status bar. The
+  // rest of the app takes the top edge per screen the same way.
+  const insets = useSafeAreaInsets();
   const [isSaved, setIsSaved] = useState(false);
 
   const totals = useMemo(
@@ -2047,10 +2052,6 @@ function WorkoutFinishScreen({
   );
   const visibleAchievements = achievements.slice(0, MAX_VISIBLE_ACHIEVEMENTS);
   const hiddenAchievements = achievements.length - visibleAchievements.length;
-  const volumeValue =
-    weightUnit === 'kg'
-      ? Math.round(lbToKg(totals.volumeLb))
-      : Math.round(totals.volumeLb);
 
   const formatTime = (seconds: number) => {
     if (seconds < 3600) {
@@ -2078,7 +2079,13 @@ function WorkoutFinishScreen({
   return (
     <ScrollView
       style={styles.finishContainer}
-      contentContainerStyle={styles.finishContent}
+      contentContainerStyle={[
+        styles.finishContent,
+        {
+          paddingTop: Math.max(insets.top, 20),
+          paddingBottom: Math.max(insets.bottom, 20),
+        },
+      ]}
     >
       <Text style={styles.finishTitle}>Workout Complete!</Text>
 
@@ -2108,7 +2115,7 @@ function WorkoutFinishScreen({
         <View style={styles.finishVolumeRow}>
           <Text style={styles.finishVolumeLabel}>Total volume</Text>
           <Text style={styles.finishVolumeValue}>
-            {`${volumeValue.toLocaleString()} ${weightUnit}`}
+            {formatSessionVolume(totals.volumeLb, weightUnit)}
           </Text>
         </View>
       )}
@@ -3261,11 +3268,12 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   },
   // Scrolls rather than centres rigidly: highlights make this screen's height
   // depend on the session, and it still centres when there is little to show.
+  // Vertical padding is applied inline from the safe-area insets.
   finishContent: {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
   },
   finishTitle: {
     fontSize: 32,
