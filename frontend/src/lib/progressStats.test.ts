@@ -80,17 +80,15 @@ describe('local day and week bucketing', () => {
 });
 
 describe('summarizeProgress', () => {
-  it('counts two sessions in one day as one active day', () => {
-    const summary = summarizeProgress(
-      statsOf([
-        session(new Date(2026, 6, 27, 7, 0, 0)),
-        session(new Date(2026, 6, 27, 18, 0, 0)),
-      ]),
-      MONDAY,
-    );
+  // Two workouts in one day is supported and confirmed live, so both have to
+  // count — while still resolving to the single day they happened on.
+  it('counts both of two sessions logged on the same day', () => {
+    const morning = session(new Date(2026, 6, 27, 7, 0, 0));
+    const evening = session(new Date(2026, 6, 27, 18, 0, 0));
+    const summary = summarizeProgress(statsOf([morning, evening]), MONDAY);
     expect(summary.sessionCount).toBe(2);
-    expect(summary.activeDays).toBe(1);
     expect(summary.sessionsThisWeek).toBe(2);
+    expect(sessionLocalDay(morning)).toBe(sessionLocalDay(evening));
   });
 
   it('sums sets, time and volume across sessions', () => {
@@ -117,9 +115,9 @@ describe('summarizeProgress', () => {
     );
     expect(summary.hasWeightedWork).toBe(false);
     expect(summary.totalVolumeLb).toBe(0);
-    // The session still counts — these are the metrics the screen leads with.
+    // The sessions still count — these are the metrics the screen leads with.
     expect(summary.sessionCount).toBe(2);
-    expect(summary.activeDays).toBe(2);
+    expect(summary.totalSets).toBe(24);
   });
 
   it('treats null set and time columns as zero', () => {

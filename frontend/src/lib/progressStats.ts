@@ -40,8 +40,6 @@ export interface ProgressSummary {
    * total zero, and "0 lb" reads as a broken screen rather than an honest one.
    */
   hasWeightedWork: boolean;
-  /** Distinct local days trained, so two sessions in one day count once. */
-  activeDays: number;
   /** Consecutive local weeks with at least one session. */
   weekStreak: number;
   /** Longest such run anywhere in the window. */
@@ -57,13 +55,18 @@ const EMPTY_SUMMARY: Omit<ProgressSummary, 'weeklyTrend'> = {
   totalTimeSeconds: 0,
   totalVolumeLb: 0,
   hasWeightedWork: false,
-  activeDays: 0,
   weekStreak: 0,
   bestWeekStreak: 0,
   sessionsThisWeek: 0,
 };
 
-/** Local day a session belongs to, matching the History calendar. */
+/**
+ * Local day a session belongs to.
+ *
+ * Identical to how `CalendarScreen` keys its logs (`formatLocalYmd` over the
+ * same `startedAt` field), which is what guarantees Progress and History can
+ * never disagree about which day a session happened on.
+ */
 export function sessionLocalDay(session: WorkoutStatsSession): string | null {
   const started = new Date(session.startedAt);
   if (Number.isNaN(started.getTime())) return null;
@@ -189,7 +192,6 @@ export function summarizeProgress(
     return { ...EMPTY_SUMMARY, weeklyTrend: buildWeeklyTrend([], now) };
   }
 
-  const days = new Set<string>();
   const weeks = new Set<string>();
   let totalSets = 0;
   let totalTimeSeconds = 0;
@@ -197,8 +199,6 @@ export function summarizeProgress(
   let hasWeightedWork = false;
 
   for (const session of sessions) {
-    const day = sessionLocalDay(session);
-    if (day) days.add(day);
     const week = sessionLocalWeek(session);
     if (week) weeks.add(week);
     totalSets += session.totalSets ?? 0;
@@ -215,7 +215,6 @@ export function summarizeProgress(
     totalTimeSeconds,
     totalVolumeLb,
     hasWeightedWork,
-    activeDays: days.size,
     weekStreak: weekStreak(weeks, now),
     bestWeekStreak: longestWeekStreak(weeks),
     sessionsThisWeek: sessions.filter((s) => sessionLocalWeek(s) === thisWeek)

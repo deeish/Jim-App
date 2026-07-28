@@ -59,8 +59,9 @@ export default function ProgressScreen() {
     }, [load]),
   );
 
-  // Recomputed per render against the current clock so the streak and the
-  // trend window stay correct if the screen is left open across midnight.
+  // The clock is read when the stats change, not on every render. That is what
+  // keeps this current in practice: the screen refetches on every focus, so
+  // leaving and returning re-reads "now" along with the data.
   const summary = useMemo(() => summarizeProgress(stats, new Date()), [stats]);
 
   const maxWeekSessions = useMemo(
@@ -95,7 +96,10 @@ export default function ProgressScreen() {
     );
   }
 
-  if (failed) {
+  // Only surrender the screen when there is nothing to show. A refetch that
+  // fails on re-focus must not throw away a perfectly good payload the user was
+  // already looking at.
+  if (failed && !stats) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         {header}
@@ -163,11 +167,10 @@ export default function ProgressScreen() {
           </View>
         </View>
 
+        {/* Same three-up row the finish screen uses, for the same reason: these
+            are the numbers that exist no matter what was logged. */}
         <View style={styles.tileRow}>
           <Tile styles={styles} value={String(summary.sessionCount)} label="Sessions" />
-          <Tile styles={styles} value={String(summary.activeDays)} label="Days trained" />
-        </View>
-        <View style={styles.tileRow}>
           <Tile styles={styles} value={String(summary.totalSets)} label="Sets" />
           <Tile
             styles={styles}
@@ -322,17 +325,19 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     streakTextBlock: { flex: 1, gap: 3 },
     streakValue: { fontSize: 20, fontWeight: '700', color: colors.text },
     streakSub: { fontSize: 13, color: colors.textSecondary },
-    tileRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
+    tileRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
     tile: {
       flex: 1,
       paddingVertical: 16,
+      paddingHorizontal: 4,
       alignItems: 'center',
       borderRadius: 14,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
     },
-    tileValue: { fontSize: 26, fontWeight: '700', color: colors.primary },
+    // 22 rather than 26: three across has to fit "33h 50m" on a narrow phone.
+    tileValue: { fontSize: 22, fontWeight: '700', color: colors.primary },
     tileLabel: { fontSize: 13, color: colors.textTertiary, marginTop: 4 },
     volumeRow: {
       flexDirection: 'row',
