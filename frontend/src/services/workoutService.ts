@@ -6,6 +6,7 @@ import {
   PersonalBestMap,
   WorkoutStats,
 } from '../types/workout';
+import type { ExerciseHistory } from '../lib/exerciseHistory';
 import { api } from '../api/client';
 
 /** Create (or return) a Workout row from a plan slot’s stored exercises. */
@@ -256,6 +257,23 @@ export const getPersonalBests = async (
  * summary columns only — the client buckets them into local days and weeks, so
  * the numbers agree with the History calendar rather than with UTC.
  */
+/**
+ * One exercise's recent sessions plus its all-time best. Bounded by sessions of
+ * that lift rather than by a window of recent logs, so a movement trained once
+ * a month still has a history.
+ */
+export const getExerciseHistory = async (
+  exerciseId: string,
+  limit?: number
+): Promise<ExerciseHistory> => {
+  const query = new URLSearchParams({ exerciseId: exerciseId.trim() });
+  if (limit != null) query.set('limit', String(limit));
+  const response = await api.get<ExerciseHistory>(
+    `/workout-logs/exercise-history?${query.toString()}`
+  );
+  return response.data;
+};
+
 export const getWorkoutStats = async (
   months?: number
 ): Promise<WorkoutStats> => {
