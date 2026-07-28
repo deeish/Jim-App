@@ -3,7 +3,6 @@ import {
   collectSessionAchievements,
   formatAchievementDetail,
   formatAchievementLabel,
-  formatSessionVolume,
   summarizeSessionTotals,
 } from './sessionAchievements';
 import type {
@@ -338,21 +337,6 @@ describe('achievement formatting', () => {
     NO_LAST,
     { 'ex-bench': record(135) },
   )[0];
-
-  // Grouped by hand rather than via toLocaleString, which is a no-op on Hermes
-  // builds without full Intl and would read differently on Android.
-  it('groups volume thousands the same way on every platform', () => {
-    expect(formatSessionVolume(3850, 'lb')).toBe('3,850 lb');
-    expect(formatSessionVolume(999, 'lb')).toBe('999 lb');
-    expect(formatSessionVolume(1000, 'lb')).toBe('1,000 lb');
-    expect(formatSessionVolume(1234567, 'lb')).toBe('1,234,567 lb');
-    expect(formatSessionVolume(0, 'lb')).toBe('0 lb');
-  });
-
-  it('converts volume to kg before grouping', () => {
-    // 3850 lb is ~1746 kg.
-    expect(formatSessionVolume(3850, 'kg')).toBe('1,746 kg');
-  });
 
   it('labels each kind plainly', () => {
     expect(formatAchievementLabel('personal-best')).toBe('Personal best');

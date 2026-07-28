@@ -11,7 +11,7 @@ import {
   exerciseUsesTimeDisplay,
   formatRestSecondsForPreview,
 } from './exercisePrescription';
-import { WeightUnit, formatWeightCompactFromLb, lbToKg } from './weightDisplay';
+import { WeightUnit, formatWeightCompactFromLb } from './weightDisplay';
 
 /**
  * Turns a just-finished session into the numbers and the claims the finish
@@ -227,26 +227,6 @@ function buildAchievement(
       exercise.primaryMuscleGroup,
     ),
   };
-}
-
-/**
- * Session volume for display, e.g. `3,850 lb`.
- *
- * Groups thousands by hand rather than through `toLocaleString`: Hermes on
- * Android ships without full Intl in some builds, where that call quietly
- * returns an ungrouped string, so the same session would read differently on
- * Android than on iOS or web.
- */
-export function formatSessionVolume(
-  volumeLb: number,
-  unit: WeightUnit,
-): string {
-  const value = Math.round(unit === 'kg' ? lbToKg(volumeLb) : volumeLb);
-  return `${groupThousands(value)} ${unit}`;
-}
-
-function groupThousands(value: number): string {
-  return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 /** Headline for an achievement row, e.g. `Personal best`. */

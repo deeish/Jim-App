@@ -34,7 +34,6 @@ import {
   collectSessionAchievements,
   formatAchievementDetail,
   formatAchievementLabel,
-  formatSessionVolume,
   summarizeSessionTotals,
 } from '../lib/sessionAchievements';
 import { exerciseUsesTimeDisplay } from '../lib/exercisePrescription';
@@ -49,6 +48,7 @@ import { useTheme } from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import {
   formatAtWeightFromLb,
+  formatVolumeFromLb,
   formatWeightCompactFromLb,
   kgToLb,
   lbToKg,
@@ -2115,7 +2115,7 @@ function WorkoutFinishScreen({
         <View style={styles.finishVolumeRow}>
           <Text style={styles.finishVolumeLabel}>Total volume</Text>
           <Text style={styles.finishVolumeValue}>
-            {formatSessionVolume(totals.volumeLb, weightUnit)}
+            {formatVolumeFromLb(totals.volumeLb, weightUnit)}
           </Text>
         </View>
       )}
@@ -2167,17 +2167,11 @@ function WorkoutFinishScreen({
           style={styles.finishButton}
         />
         {/*
-          Saves and returns to the Workout tab — exactly what the primary button
-          does, and what this one always did. It never opened history, which is
-          what its old label promised.
+          There is deliberately no second button here. The old "View History"
+          one saved and returned to the Workout tab, exactly as the primary
+          button does, so it offered a second route to one outcome under a label
+          that promised something else.
         */}
-        <Button
-          title="Done"
-          onPress={onComplete}
-          variant="secondary"
-          disabled={isSaved}
-          style={styles.finishButton}
-        />
         {!isSaved && (
           <TouchableOpacity
             style={styles.finishBackButton}
