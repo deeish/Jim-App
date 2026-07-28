@@ -4,6 +4,7 @@ import {
   ExerciseSession,
   LastPerformanceMap,
   PersonalBestMap,
+  WorkoutStats,
 } from '../types/workout';
 import { api } from '../api/client';
 
@@ -247,4 +248,20 @@ export const getPersonalBests = async (
     `/workout-logs/personal-bests?${query.toString()}`
   );
   return response.data.results ?? {};
+};
+
+/**
+ * Session-level history for the Progress screen, over a rolling window of
+ * months (server default 12). Returns raw `startedAt` instants and per-session
+ * summary columns only — the client buckets them into local days and weeks, so
+ * the numbers agree with the History calendar rather than with UTC.
+ */
+export const getWorkoutStats = async (
+  months?: number
+): Promise<WorkoutStats> => {
+  const query = new URLSearchParams();
+  if (months != null) query.set('months', String(months));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  const response = await api.get<WorkoutStats>(`/workout-logs/stats${suffix}`);
+  return response.data;
 };

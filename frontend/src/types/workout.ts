@@ -126,6 +126,43 @@ export interface PersonalBest {
 /** Keyed by library exercise id; ids with no weighted history are absent. */
 export type PersonalBestMap = Record<string, PersonalBest>;
 
+/**
+ * One logged session from `GET /workout-logs/stats` — a narrow projection with
+ * no entries and no sets, so a year of history stays small over mobile data.
+ */
+export interface WorkoutStatsSession {
+  id: string;
+  /**
+   * Raw ISO instant. Bucket this into the *device's* local day, never a UTC
+   * one, or totals disagree with the History calendar the user is looking at.
+   */
+  startedAt: string;
+  completedAt: string | null;
+  totalTimeSeconds: number | null;
+  totalSets: number | null;
+  /** Canonical pounds; null or 0 whenever the session logged no weighted sets. */
+  totalVolume: number | null;
+  workoutName: string | null;
+}
+
+export interface WorkoutStatsTotals {
+  sessionCount: number;
+  totalSets: number;
+  totalTimeSeconds: number;
+  totalVolumeLb: number;
+  /** Sessions that recorded any weighted volume. */
+  sessionsWithVolume: number;
+}
+
+export interface WorkoutStats {
+  /** Rolling window actually served, in months. */
+  months: number;
+  rangeStart: string;
+  totals: WorkoutStatsTotals;
+  /** Newest first. */
+  sessions: WorkoutStatsSession[];
+}
+
 // Workout log (history) types
 export interface WorkoutLogEntrySet {
   setNumber: number;
