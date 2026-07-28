@@ -164,6 +164,7 @@ describe('collectSessionAchievements', () => {
         reps: 5,
         previousLb: 140,
         gainLb: 5,
+        isTimeBased: false,
       },
     ]);
   });
@@ -284,6 +285,39 @@ describe('collectSessionAchievements', () => {
     ]);
   });
 
+  // The same exercise can appear twice in one session (a back-off block, or
+  // re-added from the library). Two rows would duplicate a React key and claim
+  // the same lift twice.
+  it('claims an exercise once even when it appears twice in the session', () => {
+    const found = collectSessionAchievements(
+      [
+        session('Bench Press', 'ex-bench', [{ reps: 5, weight: 145 }]),
+        session('Bench Press', 'ex-bench', [{ reps: 3, weight: 155 }]),
+      ],
+      NO_LAST,
+      { 'ex-bench': record(140) },
+    );
+    expect(found).toHaveLength(1);
+    // Best across both appearances, not just the first.
+    expect(found[0].weightLb).toBe(155);
+    expect(found[0].reps).toBe(3);
+  });
+
+  it('ignores a repeat appearance that was skipped', () => {
+    const found = collectSessionAchievements(
+      [
+        session('Bench Press', 'ex-bench', [{ reps: 5, weight: 145 }]),
+        session('Bench Press', 'ex-bench', [{ reps: 3, weight: 500 }], {
+          skipped: true,
+        }),
+      ],
+      NO_LAST,
+      { 'ex-bench': record(140) },
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0].weightLb).toBe(145);
+  });
+
   it('keeps workout order when gains tie', () => {
     const found = collectSessionAchievements(
       [
@@ -319,5 +353,44 @@ describe('achievement formatting', () => {
     expect(formatAchievementDetail(achievement, 'kg')).toBe(
       '5×64 kg · up from 61 kg',
     );
+  });
+
+  // Loaded carries and weighted holds are timed *and* weighted, and timed sets
+  // log their seconds in the reps field. "45×70 lb" would read as 45 reps.
+  it('renders a loaded carry as a duration at a load', () => {
+    const carry = collectSessionAchievements(
+      [session("Farmer's Carry", 'ex-carry', [{ reps: 45, weight: 70 }])],
+      NO_LAST,
+      { 'ex-carry': record(65) },
+    )[0];
+    expect(carry.isTimeBased).toBe(true);
+    expect(formatAchievementDetail(carry, 'lb')).toBe(
+      '45s @ 70 lb · up from 65 lb',
+    );
+  });
+
+  it('omits an implausible duration rather than rendering it as seconds', () => {
+    const legacy = collectSessionAchievements(
+      [session("Farmer's Carry", 'ex-carry', [{ reps: 10, weight: 70 }])],
+      NO_LAST,
+      { 'ex-carry': record(65) },
+    )[0];
+    expect(formatAchievementDetail(legacy, 'lb')).toBe('70 lb · up from 65 lb');
+  });
+
+  it('keeps reps×weight for an ordinary lift', () => {
+    expect(achievement.isTimeBased).toBe(false);
+  });
+
+  // 141 lb and 140 lb both round to 64 kg; "up from 64 kg" would look broken.
+  it('drops the comparison when the unit rounds both to the same number', () => {
+    const tiny = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 5, weight: 141 }])],
+      NO_LAST,
+      { 'ex-bench': record(140) },
+    )[0];
+    expect(formatAchievementDetail(tiny, 'kg')).toBe('5×64 kg');
+    // The same achievement still reads correctly in pounds.
+    expect(formatAchievementDetail(tiny, 'lb')).toBe('5×141 lb · up from 140 lb');
   });
 });
