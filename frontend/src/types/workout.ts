@@ -107,6 +107,25 @@ export interface LastExercisePerformance {
 /** Keyed by library exercise id; ids with no history are absent. */
 export type LastPerformanceMap = Record<string, LastExercisePerformance>;
 
+/**
+ * Heaviest set ever logged for an exercise, across all of the user's history.
+ *
+ * Deliberately a separate read from `LastPerformanceMap`, which is bounded to
+ * the 30 most recent logs (~7 weeks): a "best" reduced over that window is a
+ * recent best, and celebrating it as a personal best is simply false for anyone
+ * who lifted heavier before it.
+ */
+export interface PersonalBest {
+  /** Canonical pounds; always > 0 (unweighted sets set no load record). */
+  weightLb: number;
+  /** Reps performed at that weight. */
+  reps: number;
+  performedAt: string; // ISO
+}
+
+/** Keyed by library exercise id; ids with no weighted history are absent. */
+export type PersonalBestMap = Record<string, PersonalBest>;
+
 // Workout log (history) types
 export interface WorkoutLogEntrySet {
   setNumber: number;

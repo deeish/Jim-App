@@ -1,4 +1,10 @@
-import { Workout, WorkoutLog, ExerciseSession, LastPerformanceMap } from '../types/workout';
+import {
+  Workout,
+  WorkoutLog,
+  ExerciseSession,
+  LastPerformanceMap,
+  PersonalBestMap,
+} from '../types/workout';
 import { api } from '../api/client';
 
 /** Create (or return) a Workout row from a plan slot’s stored exercises. */
@@ -221,6 +227,24 @@ export const getLastPerformance = async (
   const query = new URLSearchParams({ exerciseIds: ids.join(',') });
   const response = await api.get<{ results: LastPerformanceMap }>(
     `/workout-logs/last-performance?${query.toString()}`
+  );
+  return response.data.results ?? {};
+};
+
+/**
+ * Heaviest set ever logged per library exercise id (weights in lb), across all
+ * history. A separate call from `getLastPerformance` on purpose: that one is
+ * bounded to the 30 most recent logs, so a "best" taken from it would celebrate
+ * a lift the user beat months ago. Ids with no weighted history are absent.
+ */
+export const getPersonalBests = async (
+  exerciseIds: string[]
+): Promise<PersonalBestMap> => {
+  const ids = exerciseIds.map((id) => id.trim()).filter((id) => id.length > 0);
+  if (ids.length === 0) return {};
+  const query = new URLSearchParams({ exerciseIds: ids.join(',') });
+  const response = await api.get<{ results: PersonalBestMap }>(
+    `/workout-logs/personal-bests?${query.toString()}`
   );
   return response.data.results ?? {};
 };
