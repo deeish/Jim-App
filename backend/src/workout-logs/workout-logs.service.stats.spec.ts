@@ -127,6 +127,75 @@ describe('WorkoutLogsService progress reads', () => {
     });
   });
 
+  describe('getExerciseHistory', () => {
+    const historyArg = () =>
+      prismaMock.workoutLogEntry.findMany.mock.calls[0][0];
+
+    it('scopes to the user and exercise, newest session first', async () => {
+      await service.getExerciseHistory('u1', 'bench_press');
+      const arg = historyArg();
+      expect(arg.where).toEqual({
+        exerciseId: 'bench_press',
+        workoutLog: { userId: 'u1' },
+      });
+      expect(arg.orderBy).toEqual({ workoutLog: { startedAt: 'desc' } });
+    });
+
+    it('returns only completed sets, in set order', async () => {
+      const arg = await service
+        .getExerciseHistory('u1', 'bench_press')
+        .then(() => historyArg());
+      expect(arg.select.completedSets.where).toEqual({ completed: true });
+      expect(arg.select.completedSets.orderBy).toEqual({ setNumber: 'asc' });
+    });
+
+    // Bounded by sessions of THIS lift, not by a window of recent logs: a lift
+    // trained monthly would fall out of a 30-log window entirely.
+    it('bounds by session count for this exercise', async () => {
+      await service.getExerciseHistory('u1', 'bench_press', 5);
+      expect(historyArg().take).toBe(5);
+    });
+
+    it('clamps an absurd limit rather than trusting it', async () => {
+      await service.getExerciseHistory('u1', 'bench_press', 100000);
+      expect(historyArg().take).toBe(50);
+    });
+
+    it('drops sessions that recorded no completed sets', async () => {
+      prismaMock.workoutLogEntry.findMany.mockResolvedValueOnce([
+        {
+          workoutLogId: 'log-1',
+          workoutLog: { startedAt: new Date('2026-07-27T10:00:00Z') },
+          completedSets: [{ setNumber: 1, reps: 5, weight: 135 }],
+        },
+        {
+          workoutLogId: 'log-2',
+          workoutLog: { startedAt: new Date('2026-07-20T10:00:00Z') },
+          completedSets: [],
+        },
+      ]);
+      const res = await service.getExerciseHistory('u1', 'bench_press');
+      expect(res.sessions).toHaveLength(1);
+      expect(res.sessions[0].workoutLogId).toBe('log-1');
+    });
+
+    // Asking unconditionally must be safe: the caller should not have to know
+    // whether an id is a placeholder before requesting its history.
+    it('returns an empty history for untrackable ids without querying', async () => {
+      for (const id of ['manual', 'generated_abc_1', 'draft_x', 'applied_y']) {
+        jest.clearAllMocks();
+        const res = await service.getExerciseHistory('u1', id);
+        expect(prismaMock.workoutLogEntry.findMany).not.toHaveBeenCalled();
+        expect(res).toEqual({ exerciseId: id, best: null, sessions: [] });
+      }
+    });
+
+    it('trims the requested id', async () => {
+      await service.getExerciseHistory('u1', '  bench_press  ');
+      expect(historyArg().where.exerciseId).toBe('bench_press');
+    });
+  });
+
   describe('getPersonalBests', () => {
     it('drops untrackable ids and de-duplicates', async () => {
       await service.getPersonalBests('u1', [

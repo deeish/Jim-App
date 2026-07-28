@@ -1,8 +1,11 @@
 import {
   bestWeightedSetPerExercise,
+  resolveHistorySessions,
   resolveStatsMonths,
   resolveStatsRangeStart,
   summarizeSessions,
+  EXERCISE_HISTORY_DEFAULT_SESSIONS,
+  EXERCISE_HISTORY_MAX_SESSIONS,
   STATS_DEFAULT_MONTHS,
   STATS_MAX_MONTHS,
   type EntryWithSets,
@@ -33,6 +36,27 @@ function entry(
     completedSets: sets,
   };
 }
+
+describe('resolveHistorySessions', () => {
+  it('defaults when omitted or not a number', () => {
+    expect(resolveHistorySessions(undefined)).toBe(
+      EXERCISE_HISTORY_DEFAULT_SESSIONS,
+    );
+    expect(resolveHistorySessions(Number.NaN)).toBe(
+      EXERCISE_HISTORY_DEFAULT_SESSIONS,
+    );
+  });
+
+  it('clamps to the supported range', () => {
+    expect(resolveHistorySessions(0)).toBe(1);
+    expect(resolveHistorySessions(-5)).toBe(1);
+    expect(resolveHistorySessions(9999)).toBe(EXERCISE_HISTORY_MAX_SESSIONS);
+  });
+
+  it('floors fractional requests', () => {
+    expect(resolveHistorySessions(7.9)).toBe(7);
+  });
+});
 
 describe('resolveStatsMonths', () => {
   it('defaults when omitted or not a number', () => {

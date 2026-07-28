@@ -7,8 +7,10 @@ import {
   isTrackableExerciseId,
 } from './last-performance';
 import {
+  fetchExerciseHistory,
   fetchPersonalBests,
   fetchSessionSummaries,
+  resolveHistorySessions,
   resolveStatsMonths,
   resolveStatsRangeStart,
   summarizeSessions,
@@ -142,6 +144,30 @@ export class WorkoutLogsService {
    * Heaviest set ever per requested exercise, over all history. Ids with no
    * weighted history are omitted (an unweighted set sets no load PR).
    */
+  /**
+   * One exercise's recent sessions, plus its all-time best.
+   *
+   * The best comes from the unbounded aggregate rather than from the returned
+   * sessions: reducing it over a bounded list would report a recent best as a
+   * lifetime record, which is the same mistake the personal-bests read exists
+   * to avoid. An untrackable id (placeholder or the `'manual'` fallback) yields
+   * an empty history rather than an error, so callers can ask unconditionally.
+   */
+  async getExerciseHistory(userId: string, exerciseId: string, limit?: number) {
+    const id = exerciseId.trim();
+    if (!isTrackableExerciseId(id)) {
+      return { exerciseId: id, best: null, sessions: [] };
+    }
+    const sessions = await fetchExerciseHistory(
+      this.prisma,
+      userId,
+      id,
+      resolveHistorySessions(limit),
+    );
+    const bests = await fetchPersonalBests(this.prisma, userId, [id]);
+    return { exerciseId: id, best: bests.get(id) ?? null, sessions };
+  }
+
   async getPersonalBests(userId: string, exerciseIds: string[]) {
     const ids = Array.from(
       new Set(exerciseIds.filter(isTrackableExerciseId)),

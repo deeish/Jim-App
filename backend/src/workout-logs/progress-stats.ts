@@ -194,6 +194,80 @@ export async function fetchSessionSummaries(
   }));
 }
 
+/** How many sessions of one exercise the history read returns by default. */
+export const EXERCISE_HISTORY_DEFAULT_SESSIONS = 12;
+
+/** Upper bound a client may request, so the read stays bounded. */
+export const EXERCISE_HISTORY_MAX_SESSIONS = 50;
+
+export interface ExerciseHistorySet {
+  setNumber: number;
+  reps: number;
+  /** Canonical pounds; null for bodyweight sets. */
+  weight: number | null;
+}
+
+export interface ExerciseHistorySession {
+  workoutLogId: string;
+  performedAt: Date;
+  /** Completed sets only, ordered by setNumber. Never empty. */
+  sets: ExerciseHistorySet[];
+}
+
+/** Clamps a requested session count into the supported range. */
+export function resolveHistorySessions(limit: number | undefined): number {
+  if (limit == null || !Number.isFinite(limit)) {
+    return EXERCISE_HISTORY_DEFAULT_SESSIONS;
+  }
+  const whole = Math.floor(limit);
+  if (whole < 1) return 1;
+  if (whole > EXERCISE_HISTORY_MAX_SESSIONS)
+    return EXERCISE_HISTORY_MAX_SESSIONS;
+  return whole;
+}
+
+/**
+ * The user's most recent sessions for one exercise, newest first.
+ *
+ * Bounded by **session count for this exercise**, not by a window of recent
+ * logs: someone who trains this lift once a month would fall straight out of a
+ * 30-log window and see an empty history despite years of it. Entries with no
+ * completed sets are dropped rather than rendered as blank rows.
+ */
+export async function fetchExerciseHistory(
+  prisma: PrismaService,
+  userId: string,
+  exerciseId: string,
+  limit: number,
+): Promise<ExerciseHistorySession[]> {
+  const entries = await prisma.workoutLogEntry.findMany({
+    where: { exerciseId, workoutLog: { userId } },
+    orderBy: { workoutLog: { startedAt: 'desc' } },
+    take: limit,
+    select: {
+      workoutLogId: true,
+      workoutLog: { select: { startedAt: true } },
+      completedSets: {
+        where: { completed: true },
+        orderBy: { setNumber: 'asc' },
+        select: { setNumber: true, reps: true, weight: true },
+      },
+    },
+  });
+
+  return entries
+    .filter((entry) => entry.completedSets.length > 0)
+    .map((entry) => ({
+      workoutLogId: entry.workoutLogId,
+      performedAt: entry.workoutLog.startedAt,
+      sets: entry.completedSets.map((s) => ({
+        setNumber: s.setNumber,
+        reps: s.reps,
+        weight: s.weight,
+      })),
+    }));
+}
+
 /**
  * Every weighted set the user has logged for these exercises — unbounded by
  * log count on purpose (see the module note). Rows are three small columns
