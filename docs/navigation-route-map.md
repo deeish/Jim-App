@@ -190,6 +190,7 @@ NavigationContainer
    │                                  ├─ Plan               PlanStackNavigator (RootStackParamList)
    │                                  │    ├─ PlanList        PlanScreen        (initial route)
    │                                  │    ├─ History          CalendarScreen
+   │                                  │    ├─ Progress         ProgressScreen
    │                                  │    ├─ GeneratePlan     GeneratePlanScreen
    │                                  │    ├─ PlanPreview      PlanPreviewScreen
    │                                  │    └─ WorkoutDetail    WorkoutDetailScreen

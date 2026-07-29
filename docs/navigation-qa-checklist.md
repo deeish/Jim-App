@@ -44,6 +44,7 @@ map and checklist exist).
 
 - [ ] Sign in → lands on Home by default
 - [ ] "View history" → Plan tab → History screen; back button returns to PlanList (not a dead end), even if Plan was never separately visited
+- [ ] "Progress" shortcut → Plan tab → Progress screen; back returns to PlanList, same as History (added 2026-07-28; verified on Expo web only, so hardware-back and swipe-back are unconfirmed)
 - [ ] "View plan" → Plan tab shows PlanList
 - [ ] "AI Generate" shortcut → Plan tab → GeneratePlan
 - [ ] Generic "go work out" → Workout tab
@@ -72,6 +73,7 @@ map and checklist exist).
 - [ ] "Saved workouts" modal → close without selecting → just closes, stays on PlanList
 - [ ] "Share" button → ShareModal opens with a QR code + short code (may take a moment to load) → tap "Share" → native OS share sheet appears → close modal → back on PlanList
 - [ ] Re-tap the "Plan" tab icon while on **History** → resets to PlanList (fixed pass 6)
+- [ ] Re-tap the "Plan" tab icon while on **Progress** → resets to PlanList (added 2026-07-28; behaves like History on Expo web)
 - [ ] Re-tap the "Plan" tab icon while on **WorkoutDetail** → resets to PlanList (fixed pass 6)
 - [ ] Re-tap the "Plan" tab icon while on **GeneratePlan** (with unsaved edits) → does **NOT** reset — just refocuses on GeneratePlan, edits still there. This is the important one, and it was **genuinely broken until pass 10** (the form was silently discarded, no prompt): native-stack pops the stack itself on a re-tap unless the press is `preventDefault()`ed, and that pop bypasses the discard guard. Verified fixed on Expo web; re-confirm on device
 - [ ] Re-tap the "Plan" tab icon while on **PlanPreview** → does **NOT** reset — just refocuses on PlanPreview, nothing lost
