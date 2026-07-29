@@ -25,6 +25,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-07-28',
+    version: '1.0.0',
+    date: '2026-07-28',
+    title: 'See what all that lifting adds up to',
+    changes: [
+      { type: 'new', text: 'A Progress page showing your week streak, total sessions, sets and time, plus how many sessions you have done each week. Find it from the shortcuts on Home.' },
+      { type: 'new', text: 'Every exercise page now shows your own history with that lift: your best set, an estimated one-rep max, and your recent sessions.' },
+      { type: 'improved', text: 'The end of a workout now shows what you actually earned, including any personal best or lift you beat since last time, and your total volume.' },
+    ],
+  },
+  {
     id: '2026-07-23',
     version: '1.0.0',
     date: '2026-07-23',
