@@ -19,6 +19,20 @@ describe('formatVolumeFromLb', () => {
     expect(formatVolumeFromLb(0, 'lb')).toBe('0 lb');
   });
 
+  // The decimal pad allows sub-pound weights, so a session can total 0.4 lb —
+  // and for a kg user anything under ~1.1 lb rounds to 0 kg. Callers gate the
+  // volume row on raw volume > 0, so the display must never round a real
+  // total back to the "0 lb" the gate exists to prevent.
+  it('renders a tiny but real volume as "< 1", never a rounded zero', () => {
+    expect(formatVolumeFromLb(0.4, 'lb')).toBe('< 1 lb');
+    expect(formatVolumeFromLb(1.1, 'kg')).toBe('< 1 kg');
+  });
+
+  it('rounds up to a plain figure once the display unit reaches one', () => {
+    expect(formatVolumeFromLb(0.5, 'lb')).toBe('1 lb');
+    expect(formatVolumeFromLb(1.2, 'kg')).toBe('1 kg');
+  });
+
   it('converts to kg before grouping', () => {
     // 3850 lb is ~1746 kg.
     expect(formatVolumeFromLb(3850, 'kg')).toBe('1,746 kg');
