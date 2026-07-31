@@ -26,10 +26,13 @@ import ExerciseLikeButton from '../components/ExerciseLikeButton';
 import { getExerciseHistory } from '../services/workoutService';
 import { isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import {
+  formatBestSetValue,
   formatHistoryDate,
+  formatHistoryRowMain,
   summarizeExerciseHistory,
   type ExerciseHistory,
 } from '../lib/exerciseHistory';
+import { exerciseUsesTimeDisplay } from '../lib/exercisePrescription';
 import { formatWeightCompactFromLb } from '../lib/weightDisplay';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
@@ -133,9 +136,18 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     };
   }, [exerciseId]);
 
+  // Timed work (planks, carries, treadmill blocks) logs duration seconds in
+  // the reps field; the summary must know or it would read them as reps.
+  const isTimeBased =
+    exercise != null &&
+    exerciseUsesTimeDisplay(
+      exercise.prescriptionType,
+      exercise.name,
+      exercise.primaryMuscleGroup,
+    );
   const historySummary = useMemo(
-    () => summarizeExerciseHistory(history),
-    [history],
+    () => summarizeExerciseHistory(history, isTimeBased),
+    [history, isTimeBased],
   );
   // Scales the bars only. The headline figure is `e1rmBestLb`, which also
   // accounts for an all-time best set older than the plotted window.
@@ -502,7 +514,9 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           an empty state: this page is reached by browsing a 1,299-exercise
           library, and an empty history block on every unfamiliar movement is
           noise. Load claims are gated on weight data existing, so a bodyweight
-          movement shows its reps and no invented numbers.
+          movement shows its reps and no invented numbers. Timed movements
+          render durations, and no one-rep max is projected from time — so
+          their estimate tile, per-row estimates, and trend never appear.
         */}
         {historySummary.sessions.length > 0 && (
           <View style={styles.section}>
@@ -514,7 +528,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                   <View style={styles.historyStat}>
                     <Text style={styles.historyStatLabel}>Best set</Text>
                     <Text style={styles.historyStatValue}>
-                      {`${historySummary.best.reps}×${formatWeightCompactFromLb(historySummary.best.weightLb, weightUnit)}`}
+                      {formatBestSetValue(
+                        historySummary.best,
+                        weightUnit,
+                        historySummary.isTimeBased,
+                      )}
                     </Text>
                   </View>
                 )}
@@ -544,8 +562,10 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                         ? 40 + (point.e1rmLb / e1rmChartPeak) * 60
                         : 40;
                     return (
+                      // Keyed by log id: performedAt is client-supplied and a
+                      // double-save can stamp two logs with the same instant.
                       <View
-                        key={point.performedAt}
+                        key={point.workoutLogId}
                         style={[
                           styles.historyBar,
                           {
@@ -566,9 +586,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                   {formatHistoryDate(s.performedAt)}
                 </Text>
                 <Text style={styles.historyRowMain}>
-                  {s.topSet
-                    ? `${s.topSet.reps}×${formatWeightCompactFromLb(s.topSet.weightLb, weightUnit)}`
-                    : `${s.setCount} ${s.setCount === 1 ? 'set' : 'sets'} · ${s.totalReps} reps`}
+                  {formatHistoryRowMain(s, weightUnit, historySummary.isTimeBased)}
                 </Text>
                 {s.e1rmLb != null && (
                   <Text style={styles.historyRowEst}>
