@@ -21,6 +21,7 @@ Per-initiative plans copied from `PLAN_REVIEW.md` (e.g. `2026-03-24-feature-name
 - [2026-06-17-navigation-performance.md](./plans/2026-06-17-navigation-performance.md) — ~2s tab-switch delay: investigation, ruled-out causes, measure-first plan (Sentry tracing), safe wins, and a gated cache plan.
 - [2026-06-19-liquid-glass-icon.md](./plans/2026-06-19-liquid-glass-icon.md) — Deferred: iOS 26 Liquid Glass app icon (Icon Composer layers + EAS), why it's not a Swift rewrite, and the flat-PNG fallback.
 - [2026-06-19-replace-exercise-quality.md](./plans/2026-06-19-replace-exercise-quality.md) — Not started: per-exercise "replace" picks near-duplicates / wrong muscle; fix = backend catalog-based replacement keyed on the target's muscle + movement-pattern dedup.
+- [2026-07-27-progress-and-history.md](./plans/2026-07-27-progress-and-history.md) — Not started: every set is logged and nothing is shown back (`totalVolume` stored but never rendered, no stats endpoint, no progress screen). Phased plan + seven correctness traps — read §3.3 and §3.7 first (a `dayKey` migration shipped in the wrong order 400s every workout save under `forbidNonWhitelisted`; and "personal best" computed from the existing 30-log window ships false PRs).
 
 ## Maintenance
 

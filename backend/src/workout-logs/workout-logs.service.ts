@@ -6,8 +6,15 @@ import {
   fetchLastEntriesForExercises,
   isTrackableExerciseId,
 } from './last-performance';
+import {
+  fetchPersonalBests,
+  fetchSessionSummaries,
+  resolveStatsMonths,
+  resolveStatsRangeStart,
+  summarizeSessions,
+} from './progress-stats';
 
-/** Bound on ids per last-performance lookup (a workout has far fewer). */
+/** Bound on ids per exercise-keyed lookup (a workout has far fewer). */
 const MAX_LAST_PERFORMANCE_IDS = 50;
 
 @Injectable()
@@ -106,6 +113,41 @@ export class WorkoutLogsService {
       ids,
     );
     return { results: Object.fromEntries(performances) };
+  }
+
+  /**
+   * Session-level history for the progress screens.
+   *
+   * Returns raw `startedAt` instants and lets the client bucket them into its
+   * own local days/weeks — the History calendar already groups this way, and
+   * bucketing here would use UTC days and disagree with it.
+   */
+  async getStats(userId: string, months?: number) {
+    const resolvedMonths = resolveStatsMonths(months);
+    const rangeStart = resolveStatsRangeStart(resolvedMonths, new Date());
+    const sessions = await fetchSessionSummaries(
+      this.prisma,
+      userId,
+      rangeStart,
+    );
+    return {
+      months: resolvedMonths,
+      rangeStart: rangeStart.toISOString(),
+      totals: summarizeSessions(sessions),
+      sessions,
+    };
+  }
+
+  /**
+   * Heaviest set ever per requested exercise, over all history. Ids with no
+   * weighted history are omitted (an unweighted set sets no load PR).
+   */
+  async getPersonalBests(userId: string, exerciseIds: string[]) {
+    const ids = Array.from(
+      new Set(exerciseIds.filter(isTrackableExerciseId)),
+    ).slice(0, MAX_LAST_PERFORMANCE_IDS);
+    const bests = await fetchPersonalBests(this.prisma, userId, ids);
+    return { results: Object.fromEntries(bests) };
   }
 
   async findOne(id: string, userId: string) {
