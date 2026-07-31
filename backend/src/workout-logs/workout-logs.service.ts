@@ -141,10 +141,6 @@ export class WorkoutLogsService {
   }
 
   /**
-   * Heaviest set ever per requested exercise, over all history. Ids with no
-   * weighted history are omitted (an unweighted set sets no load PR).
-   */
-  /**
    * One exercise's recent sessions, plus its all-time best.
    *
    * The best comes from the unbounded aggregate rather than from the returned
@@ -168,6 +164,10 @@ export class WorkoutLogsService {
     return { exerciseId: id, best: bests.get(id) ?? null, sessions };
   }
 
+  /**
+   * Heaviest set ever per requested exercise, over all history. Ids with no
+   * weighted history are omitted (an unweighted set sets no load PR).
+   */
   async getPersonalBests(userId: string, exerciseIds: string[]) {
     const ids = Array.from(
       new Set(exerciseIds.filter(isTrackableExerciseId)),

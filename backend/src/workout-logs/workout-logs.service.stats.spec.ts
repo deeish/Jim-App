@@ -128,44 +128,66 @@ describe('WorkoutLogsService progress reads', () => {
   });
 
   describe('getExerciseHistory', () => {
-    const historyArg = () =>
-      prismaMock.workoutLogEntry.findMany.mock.calls[0][0];
+    // Two queries: the log-id query picks which sessions, the entry query
+    // fetches their rows. `logIdArg` inspects the first, `entryArg` the second
+    // — tests that reach the entry query must first give the log-id query
+    // something to return.
+    const logIdArg = () => prismaMock.workoutLog.findMany.mock.calls[0][0];
+    const entryArg = () => prismaMock.workoutLogEntry.findMany.mock.calls[0][0];
 
     it('scopes to the user and exercise, newest session first', async () => {
+      prismaMock.workoutLog.findMany.mockResolvedValue([{ id: 'log-1' }]);
       await service.getExerciseHistory('u1', 'bench_press');
-      const arg = historyArg();
+      const logArg = logIdArg();
+      expect(logArg.where.userId).toBe('u1');
+      expect(logArg.where.entries.some.exerciseId).toBe('bench_press');
+      expect(logArg.orderBy).toEqual({ startedAt: 'desc' });
+      const arg = entryArg();
       expect(arg.where.exerciseId).toBe('bench_press');
       expect(arg.where.workoutLog).toEqual({ userId: 'u1' });
       expect(arg.orderBy).toEqual({ workoutLog: { startedAt: 'desc' } });
     });
 
     it('returns only completed sets, in set order', async () => {
+      prismaMock.workoutLog.findMany.mockResolvedValue([{ id: 'log-1' }]);
       const arg = await service
         .getExerciseHistory('u1', 'bench_press')
-        .then(() => historyArg());
+        .then(() => entryArg());
       expect(arg.select.completedSets.where).toEqual({ completed: true });
       expect(arg.select.completedSets.orderBy).toEqual({ setNumber: 'asc' });
     });
 
     // Bounded by sessions of THIS lift, not by a window of recent logs: a lift
-    // trained monthly would fall out of a 30-log window entirely.
-    it('bounds by session count for this exercise', async () => {
+    // trained monthly would fall out of a 30-log window entirely. And the
+    // bound sits on distinct logs, never on entry rows — a lift performed in
+    // two slots of one workout writes two rows per session, so a `take` on
+    // rows would silently halve the history or cut a session mid-pair.
+    it('bounds by session count for this exercise, not entry rows', async () => {
+      prismaMock.workoutLog.findMany.mockResolvedValue([{ id: 'log-1' }]);
       await service.getExerciseHistory('u1', 'bench_press', 5);
-      expect(historyArg().take).toBe(5);
+      expect(logIdArg().take).toBe(5);
+      const arg = entryArg();
+      expect(arg.take).toBeUndefined();
+      expect(arg.where.workoutLogId).toEqual({ in: ['log-1'] });
     });
 
     it('clamps an absurd limit rather than trusting it', async () => {
       await service.getExerciseHistory('u1', 'bench_press', 100000);
-      expect(historyArg().take).toBe(50);
+      expect(logIdArg().take).toBe(50);
     });
 
-    // Excluded in the query rather than afterwards. An exercise the user
+    // Excluded in the queries rather than afterwards. An exercise the user
     // started but logged no set for is still written as an entry (only skipped
-    // ones are left out), so filtering after `take` would quietly return fewer
-    // sessions than were requested.
-    it('excludes entries with no completed sets in the query itself', async () => {
+    // ones are left out): on the log-id query it must not burn one of the
+    // `limit` session slots, and on the entry query it must not ride in beside
+    // a real slot as an empty `sets` row.
+    it('excludes entries with no completed sets in the queries themselves', async () => {
+      prismaMock.workoutLog.findMany.mockResolvedValue([{ id: 'log-1' }]);
       await service.getExerciseHistory('u1', 'bench_press');
-      expect(historyArg().where.completedSets).toEqual({
+      expect(logIdArg().where.entries.some.completedSets).toEqual({
+        some: { completed: true },
+      });
+      expect(entryArg().where.completedSets).toEqual({
         some: { completed: true },
       });
     });
@@ -176,6 +198,7 @@ describe('WorkoutLogsService progress reads', () => {
       for (const id of ['manual', 'generated_abc_1', 'draft_x', 'applied_y']) {
         jest.clearAllMocks();
         const res = await service.getExerciseHistory('u1', id);
+        expect(prismaMock.workoutLog.findMany).not.toHaveBeenCalled();
         expect(prismaMock.workoutLogEntry.findMany).not.toHaveBeenCalled();
         expect(res).toEqual({ exerciseId: id, best: null, sessions: [] });
       }
@@ -183,7 +206,7 @@ describe('WorkoutLogsService progress reads', () => {
 
     it('trims the requested id', async () => {
       await service.getExerciseHistory('u1', '  bench_press  ');
-      expect(historyArg().where.exerciseId).toBe('bench_press');
+      expect(logIdArg().where.entries.some.exerciseId).toBe('bench_press');
     });
   });
 
