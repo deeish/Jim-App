@@ -146,6 +146,34 @@ describe('summarizeSessionTotals', () => {
     expect(totals.exercisesWorked).toBe(1);
     expect(totals.completedSets).toBe(1);
   });
+
+  // The same lift can fill two slots (an opener plus a back-off block, or
+  // re-added from the library). The tile says "Exercises", so it counts
+  // movements: Bench + Bench back-off + Squat is 2, not 3.
+  it('counts a movement once when it fills two slots', () => {
+    const totals = summarizeSessionTotals([
+      session('Bench Press', 'ex-bench', [{ reps: 5, weight: 155 }]),
+      session('Bench Press', 'ex-bench', [{ reps: 8, weight: 125 }]),
+      session('Squat', 'ex-squat', [{ reps: 5, weight: 225 }]),
+    ]);
+    expect(totals.exercisesWorked).toBe(2);
+    // Set and volume totals still credit everything both slots did.
+    expect(totals.completedSets).toBe(3);
+    expect(totals.volumeLb).toBe(5 * 155 + 8 * 125 + 5 * 225);
+  });
+
+  // 'manual' is the log service's shared bucket for entries saved without a
+  // library id — a non-identity. Two hand-added movements land on the same
+  // value and must not collapse into one, and a slot with no id at all has
+  // nothing to merge with either.
+  it('counts manual and id-less slots individually, never merged', () => {
+    const totals = summarizeSessionTotals([
+      session('Weird cable thing', 'manual', [{ reps: 10, weight: 30 }]),
+      session('Odd machine press', 'manual', [{ reps: 12, weight: 45 }]),
+      session('Hand-added carry', undefined, [{ reps: 40, weight: 50 }]),
+    ]);
+    expect(totals.exercisesWorked).toBe(3);
+  });
 });
 
 describe('collectSessionAchievements', () => {

@@ -7,6 +7,7 @@ import {
   MIN_PLAUSIBLE_DURATION_SECONDS,
   lastTopWeightLb,
 } from './lastPerformanceDisplay';
+import { isLinkableLibraryExerciseId } from './exerciseNavigation';
 import {
   exerciseUsesTimeDisplay,
   formatRestSecondsForPreview,
@@ -33,8 +34,7 @@ import { WeightUnit, formatWeightCompactFromLb } from './weightDisplay';
  * Both server maps are keyed only by ids the backend considers trackable, so
  * placeholder ids (`draft_`/`applied_`/`generated_`) and the `'manual'` bucket
  * are simply absent from them. Requiring a prior number for every claim is what
- * excludes those here — deliberately not the frontend's
- * `isLinkableLibraryExerciseId`, which does not reject `'manual'`.
+ * excludes those here; the claims path needs no id guard of its own.
  */
 
 /** Heaviest completed weighted set of one exercise. */
@@ -46,7 +46,12 @@ interface WeightedSet {
 export interface SessionTotals {
   /** Completed sets across every non-skipped exercise. */
   completedSets: number;
-  /** Non-skipped exercises with at least one completed set. */
+  /**
+   * Distinct movements with at least one completed set. Two slots of the same
+   * library exercise count once; slots without a usable library id (the
+   * `'manual'` bucket, placeholder ids, no id at all) count one each, since
+   * nothing proves two of them are the same movement.
+   */
   exercisesWorked: number;
   /** Canonical pounds. Unweighted sets contribute nothing. */
   volumeLb: number;
@@ -119,9 +124,16 @@ export function summarizeSessionTotals(
   sessions: ExerciseSession[],
 ): SessionTotals {
   let completedSets = 0;
-  let exercisesWorked = 0;
   let volumeLb = 0;
   let hasWeightedWork = false;
+  // "Exercises" counts distinct movements, not slots. The same lift can fill
+  // two slots (an opener plus a back-off block, or re-added from the library),
+  // and "3 Exercises" for Bench, Bench, Squat reads as a miscount — so slots
+  // sharing a library id merge, the identity the claims below group by. An id
+  // that names no single movement (the shared `'manual'` bucket, placeholder
+  // ids, none at all) cannot merge anything: each such slot counts as its own.
+  const workedMovements = new Set<string>();
+  let workedUnidentifiedSlots = 0;
 
   for (const es of sessions) {
     if (es.skipped) continue;
@@ -136,10 +148,19 @@ export function summarizeSessionTotals(
       }
     }
     completedSets += setsHere;
-    if (setsHere > 0) exercisesWorked += 1;
+    if (setsHere > 0) {
+      const id = es.exercise.exerciseId;
+      if (id && isLinkableLibraryExerciseId(id)) workedMovements.add(id);
+      else workedUnidentifiedSlots += 1;
+    }
   }
 
-  return { completedSets, exercisesWorked, volumeLb, hasWeightedWork };
+  return {
+    completedSets,
+    exercisesWorked: workedMovements.size + workedUnidentifiedSlots,
+    volumeLb,
+    hasWeightedWork,
+  };
 }
 
 /**
