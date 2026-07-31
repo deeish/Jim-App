@@ -226,17 +226,30 @@ export function summarizeProgress(
 /** Total training time, e.g. `12h 30m` or `45m`. Zero renders as `0m`. */
 export function formatTotalDuration(totalSeconds: number): string {
   const safe = Math.max(0, Math.round(totalSeconds));
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.round((safe % 3600) / 60);
+  let hours = Math.floor(safe / 3600);
+  let minutes = Math.round((safe % 3600) / 60);
+  // Rounding can push minutes to 60; carry it into the hour before choosing a
+  // shape, or 3599s renders as "60m" instead of "1h".
+  if (minutes === 60) {
+    hours += 1;
+    minutes = 0;
+  }
   if (hours === 0) return `${minutes}m`;
-  // Rounding can push minutes to 60; roll it into the hour rather than show 60m.
-  if (minutes === 60) return `${hours + 1}h`;
   return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
 }
+
+// Hand-rolled instead of `toLocaleDateString`: Hermes on some Android builds
+// ships without full Intl, where the format options are silently ignored and a
+// full date string lands in an 11pt axis label. Same rationale as the grouping
+// note in `weightDisplay.ts`.
+const SHORT_MONTH_NAMES = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+] as const;
 
 /** Week label for the trend axis, e.g. `Jul 27`. */
 export function formatWeekLabel(weekStartYmd: string): string {
   const date = parseLocalYmd(weekStartYmd);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${SHORT_MONTH_NAMES[date.getMonth()]} ${date.getDate()}`;
 }

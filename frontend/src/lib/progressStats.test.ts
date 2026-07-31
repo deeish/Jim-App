@@ -2,6 +2,7 @@ import {
   TREND_WEEKS,
   buildWeeklyTrend,
   formatTotalDuration,
+  formatWeekLabel,
   longestWeekStreak,
   sessionLocalDay,
   sessionLocalWeek,
@@ -258,7 +259,30 @@ describe('formatTotalDuration', () => {
     expect(formatTotalDuration(3 * 3600 + 3599)).toBe('4h');
   });
 
+  // 3570-3599s round to 60 minutes with zero whole hours; the carry has to
+  // happen before the under-an-hour shape is chosen, or these render as "60m".
+  it('rolls a rounded-up 60 minutes into the first hour too', () => {
+    expect(formatTotalDuration(3599)).toBe('1h');
+    expect(formatTotalDuration(3570)).toBe('1h');
+    expect(formatTotalDuration(3569)).toBe('59m');
+  });
+
   it('never renders a negative duration', () => {
     expect(formatTotalDuration(-10)).toBe('0m');
+  });
+});
+
+describe('formatWeekLabel', () => {
+  // Pins the exact axis format. The month name comes from a hand-rolled table,
+  // not `toLocaleDateString`: Hermes without full Intl ignores the options and
+  // would render a full date string into the chart label.
+  it('renders as short month plus unpadded day', () => {
+    expect(formatWeekLabel('2026-07-27')).toBe('Jul 27');
+    expect(formatWeekLabel('2026-01-05')).toBe('Jan 5');
+    expect(formatWeekLabel('2026-12-28')).toBe('Dec 28');
+  });
+
+  it('returns an empty string for an unparseable input', () => {
+    expect(formatWeekLabel('not-a-date')).toBe('');
   });
 });

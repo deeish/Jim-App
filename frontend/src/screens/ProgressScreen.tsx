@@ -19,7 +19,7 @@ import {
   formatWeekLabel,
   summarizeProgress,
 } from '../lib/progressStats';
-import { formatVolumeFromLb } from '../lib/weightDisplay';
+import { formatVolumeFromLb, groupThousands } from '../lib/weightDisplay';
 
 /**
  * Everything logged, finally rendered.
@@ -42,8 +42,14 @@ export default function ProgressScreen() {
   const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
+    // `loading` flips back on for every request, not just the first: a Retry
+    // that only cleared `failed` would render the no-sessions branch below for
+    // the whole in-flight wait, telling a user with months of history they have
+    // none. Ordered before `setFailed(false)` so that even if the two updates
+    // ever rendered separately, no intermediate state slips past both guards.
+    setLoading(true);
+    setFailed(false);
     try {
-      setFailed(false);
       setStats(await getWorkoutStats());
     } catch (e) {
       console.warn('[Progress] load failed:', e);
@@ -85,7 +91,10 @@ export default function ProgressScreen() {
     </View>
   );
 
-  if (loading) {
+  // With nothing fetched yet the spinner is the only honest render, on the
+  // first load and on retries alike. Once data exists, a focus refetch keeps
+  // the content on screen instead — never a spinner flash.
+  if (loading && !stats) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         {header}
@@ -118,7 +127,9 @@ export default function ProgressScreen() {
   }
 
   // A brand-new user gets an explanation, never a grid of zeroes and an empty
-  // chart that implies something went wrong.
+  // chart that implies something went wrong. Only a settled, successful fetch
+  // reaches this branch — in-flight and failed-with-no-data were handled above
+  // — so zero here means the server really reported zero sessions.
   if (summary.sessionCount === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -168,10 +179,16 @@ export default function ProgressScreen() {
         </View>
 
         {/* Same three-up row the finish screen uses, for the same reason: these
-            are the numbers that exist no matter what was logged. */}
+            are the numbers that exist no matter what was logged. Counts are
+            grouped like the volume figure below — a year of training runs the
+            set count well into four digits. */}
         <View style={styles.tileRow}>
-          <Tile styles={styles} value={String(summary.sessionCount)} label="Sessions" />
-          <Tile styles={styles} value={String(summary.totalSets)} label="Sets" />
+          <Tile
+            styles={styles}
+            value={groupThousands(summary.sessionCount)}
+            label="Sessions"
+          />
+          <Tile styles={styles} value={groupThousands(summary.totalSets)} label="Sets" />
           <Tile
             styles={styles}
             value={formatTotalDuration(summary.totalTimeSeconds)}
@@ -233,7 +250,7 @@ export default function ProgressScreen() {
 
         {summary.bestWeekStreak > summary.weekStreak && (
           <Text style={styles.footnote}>
-            {`Longest streak so far: ${summary.bestWeekStreak} weeks`}
+            {`Longest streak so far: ${summary.bestWeekStreak} ${summary.bestWeekStreak === 1 ? 'week' : 'weeks'}`}
           </Text>
         )}
         <Text style={styles.footnote}>
