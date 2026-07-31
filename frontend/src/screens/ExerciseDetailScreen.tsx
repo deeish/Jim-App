@@ -23,6 +23,18 @@ import MuscleBodyTile from '../components/MuscleBodyTile';
 import MuscleBodyMap from '../components/bodymap/MuscleBodyMap';
 import { exerciseToHighlights } from '../lib/exerciseToHighlights';
 import ExerciseLikeButton from '../components/ExerciseLikeButton';
+import { getExerciseHistory } from '../services/workoutService';
+import { isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
+import {
+  formatBestSetValue,
+  formatHistoryDate,
+  formatHistoryRowMain,
+  summarizeExerciseHistory,
+  type ExerciseHistory,
+} from '../lib/exerciseHistory';
+import { exerciseUsesTimeDisplay } from '../lib/exercisePrescription';
+import { formatWeightCompactFromLb } from '../lib/weightDisplay';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
 // Enable LayoutAnimation on Android (same guard as SearchScreen)
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -92,6 +104,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     (returnToPlanPreview ? ('preview' as const) : undefined);
   const leaveExerciseForPlanFlow = returnToPlanExerciseContext != null;
   const { colors, isDark } = useTheme();
+  const { weightUnit } = useUserPreferences();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -99,6 +112,49 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   // Collapsed by default: most users go straight to the video, and the step
   // list is the longest block on the page.
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [history, setHistory] = useState<ExerciseHistory | null>(null);
+
+  /**
+   * The user's own history with this lift. Only asked for when the id is a real
+   * library id — placeholders and the `'manual'` fallback have no history to
+   * fetch — and a failure is silent, since this is an extra on a page that has
+   * to work without it.
+   */
+  useEffect(() => {
+    // Cleared first so a reused screen instance can never show the previous
+    // exercise's history while the new one is in flight.
+    setHistory(null);
+    if (!isLinkableLibraryExerciseId(exerciseId)) return;
+    let cancelled = false;
+    getExerciseHistory(exerciseId as string)
+      .then((data) => {
+        if (!cancelled) setHistory(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [exerciseId]);
+
+  // Timed work (planks, carries, treadmill blocks) logs duration seconds in
+  // the reps field; the summary must know or it would read them as reps.
+  const isTimeBased =
+    exercise != null &&
+    exerciseUsesTimeDisplay(
+      exercise.prescriptionType,
+      exercise.name,
+      exercise.primaryMuscleGroup,
+    );
+  const historySummary = useMemo(
+    () => summarizeExerciseHistory(history, isTimeBased),
+    [history, isTimeBased],
+  );
+  // Scales the bars only. The headline figure is `e1rmBestLb`, which also
+  // accounts for an all-time best set older than the plotted window.
+  const e1rmChartPeak = useMemo(
+    () => Math.max(0, ...historySummary.e1rmTrend.map((p) => p.e1rmLb)),
+    [historySummary.e1rmTrend],
+  );
 
   const styles = useMemo(
     () =>
@@ -193,6 +249,48 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         secondaryTag: { backgroundColor: colors.background, borderColor: colors.border },
         equipmentTag: { backgroundColor: colors.background, borderColor: colors.border },
         movementTag: { backgroundColor: colors.background, borderColor: colors.border },
+        historyHeadline: {
+          flexDirection: 'row',
+          gap: 10,
+          marginBottom: 14,
+        },
+        historyStat: {
+          flex: 1,
+          paddingVertical: 12,
+          paddingHorizontal: 10,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.background,
+        },
+        historyStatLabel: { fontSize: 11, color: colors.textMuted, marginBottom: 4 },
+        historyStatValue: { fontSize: 17, fontWeight: '700', color: colors.text },
+        historyChartLabel: {
+          fontSize: 11,
+          fontWeight: '600',
+          letterSpacing: 0.6,
+          textTransform: 'uppercase',
+          color: colors.textMuted,
+          marginBottom: 8,
+        },
+        historyChart: {
+          flexDirection: 'row',
+          alignItems: 'flex-end',
+          height: 64,
+          gap: 4,
+          marginBottom: 16,
+        },
+        historyBar: { flex: 1, borderRadius: 3, minHeight: 4 },
+        historyRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingVertical: 10,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.border,
+        },
+        historyRowDate: { width: 62, fontSize: 13, color: colors.textMuted },
+        historyRowMain: { flex: 1, fontSize: 14, color: colors.text, fontWeight: '600' },
+        historyRowEst: { fontSize: 12, color: colors.textSecondary },
         tagText: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
         collapseHeader: {
           flexDirection: 'row',
@@ -406,6 +504,97 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         {exercise.description && (
           <View style={styles.section}>
             <Text style={styles.description}>{exercise.description}</Text>
+          </View>
+        )}
+
+        {/*
+          The user's own history with this lift.
+
+          Hidden entirely when they have never logged it, rather than shown as
+          an empty state: this page is reached by browsing a 1,299-exercise
+          library, and an empty history block on every unfamiliar movement is
+          noise. Load claims are gated on weight data existing, so a bodyweight
+          movement shows its reps and no invented numbers. Timed movements
+          render durations, and no one-rep max is projected from time — so
+          their estimate tile, per-row estimates, and trend never appear.
+        */}
+        {historySummary.sessions.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your history</Text>
+
+            {historySummary.hasWeightedWork && (
+              <View style={styles.historyHeadline}>
+                {historySummary.best && (
+                  <View style={styles.historyStat}>
+                    <Text style={styles.historyStatLabel}>Best set</Text>
+                    <Text style={styles.historyStatValue}>
+                      {formatBestSetValue(
+                        historySummary.best,
+                        weightUnit,
+                        historySummary.isTimeBased,
+                      )}
+                    </Text>
+                  </View>
+                )}
+                {historySummary.e1rmBestLb != null && (
+                  <View style={styles.historyStat}>
+                    <Text style={styles.historyStatLabel}>Best est. 1RM</Text>
+                    <Text style={styles.historyStatValue}>
+                      {formatWeightCompactFromLb(
+                        historySummary.e1rmBestLb,
+                        weightUnit,
+                      )}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {historySummary.e1rmTrend.length > 1 && (
+              <>
+                <Text style={styles.historyChartLabel}>Estimated 1RM</Text>
+                <View style={styles.historyChart}>
+                  {historySummary.e1rmTrend.map((point) => {
+                    // Scaled from zero would flatten every real change into a
+                    // row of near-identical bars, so the floor sits at 40%.
+                    const heightPct =
+                      e1rmChartPeak > 0
+                        ? 40 + (point.e1rmLb / e1rmChartPeak) * 60
+                        : 40;
+                    return (
+                      // Keyed by log id: performedAt is client-supplied and a
+                      // double-save can stamp two logs with the same instant.
+                      <View
+                        key={point.workoutLogId}
+                        style={[
+                          styles.historyBar,
+                          {
+                            height: `${heightPct}%`,
+                            backgroundColor: colors.primary,
+                          },
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            {historySummary.sessions.map((s) => (
+              <View key={s.workoutLogId} style={styles.historyRow}>
+                <Text style={styles.historyRowDate}>
+                  {formatHistoryDate(s.performedAt)}
+                </Text>
+                <Text style={styles.historyRowMain}>
+                  {formatHistoryRowMain(s, weightUnit, historySummary.isTimeBased)}
+                </Text>
+                {s.e1rmLb != null && (
+                  <Text style={styles.historyRowEst}>
+                    {`est. ${formatWeightCompactFromLb(s.e1rmLb, weightUnit)}`}
+                  </Text>
+                )}
+              </View>
+            ))}
           </View>
         )}
 

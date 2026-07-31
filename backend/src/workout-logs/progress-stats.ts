@@ -85,10 +85,26 @@ export function resolveStatsMonths(months: number | undefined): number {
  * Start of the rolling window. Deliberately a *date range*, not a log-count
  * cap: a count bound silently truncates any streak longer than the window and
  * would cap the headline number without saying so.
+ *
+ * When the source day doesn't exist in the target month, the start clamps to
+ * that month's last day: Mar 31 − 1 lands on Feb 28/29, Jul 31 − 1 on Jun 30,
+ * Feb 29 − 12 on Feb 28. Bare `setMonth` instead overflows into the *next*
+ * month — from Mar 31 it calls "one month back" Mar 3, silently dropping
+ * Feb 28 – Mar 2 from the window.
  */
 export function resolveStatsRangeStart(months: number, now: Date): Date {
   const start = new Date(now.getTime());
+  const dayOfMonth = start.getDate();
+  // Walk months from the 1st so the arithmetic can't overflow, then restore
+  // the day clamped to what the target month actually has.
+  start.setDate(1);
   start.setMonth(start.getMonth() - resolveStatsMonths(months));
+  const lastDayOfTarget = new Date(
+    start.getFullYear(),
+    start.getMonth() + 1,
+    0,
+  ).getDate();
+  start.setDate(Math.min(dayOfMonth, lastDayOfTarget));
   return start;
 }
 
@@ -191,6 +207,111 @@ export async function fetchSessionSummaries(
     totalSets: r.totalSets,
     totalVolume: r.totalVolume,
     workoutName: r.workout?.name ?? null,
+  }));
+}
+
+/** How many sessions of one exercise the history read returns by default. */
+export const EXERCISE_HISTORY_DEFAULT_SESSIONS = 12;
+
+/** Upper bound a client may request, so the read stays bounded. */
+export const EXERCISE_HISTORY_MAX_SESSIONS = 50;
+
+export interface ExerciseHistorySet {
+  setNumber: number;
+  reps: number;
+  /** Canonical pounds; null for bodyweight sets. */
+  weight: number | null;
+}
+
+export interface ExerciseHistorySession {
+  workoutLogId: string;
+  performedAt: Date;
+  /** Completed sets only, ordered by setNumber. Never empty. */
+  sets: ExerciseHistorySet[];
+}
+
+/** Clamps a requested session count into the supported range. */
+export function resolveHistorySessions(limit: number | undefined): number {
+  if (limit == null || !Number.isFinite(limit)) {
+    return EXERCISE_HISTORY_DEFAULT_SESSIONS;
+  }
+  const whole = Math.floor(limit);
+  if (whole < 1) return 1;
+  if (whole > EXERCISE_HISTORY_MAX_SESSIONS)
+    return EXERCISE_HISTORY_MAX_SESSIONS;
+  return whole;
+}
+
+/**
+ * The user's most recent sessions for one exercise, newest first.
+ *
+ * Bounded by **session count for this exercise**, not by a window of recent
+ * logs: someone who trains this lift once a month would fall straight out of a
+ * 30-log window and see an empty history despite years of it.
+ *
+ * Two queries on purpose. The log writes one entry per exercise *slot*, so a
+ * lift performed twice in one workout — an opener plus a back-off block —
+ * yields two rows sharing a `workoutLogId`. A `take` on entry rows would hand
+ * that user half the sessions they asked for, and a cut landing mid-pair would
+ * return a session missing rows, understating its top set and volume. Instead
+ * the first query picks the `limit` most recent logs containing the exercise;
+ * the second fetches every matching row of those logs. Callers that present
+ * sessions should still merge rows on `workoutLogId`.
+ *
+ * Entries with no completed sets are excluded **in the queries**, not
+ * afterwards. An exercise the user started but logged no set for is still
+ * written as an entry — only skipped ones are left out — so it must neither
+ * burn one of the `limit` session slots (log query) nor ride in beside a real
+ * slot as an empty `sets` row (entry query).
+ */
+export async function fetchExerciseHistory(
+  prisma: PrismaService,
+  userId: string,
+  exerciseId: string,
+  limit: number,
+): Promise<ExerciseHistorySession[]> {
+  const logs = await prisma.workoutLog.findMany({
+    where: {
+      userId,
+      entries: {
+        some: { exerciseId, completedSets: { some: { completed: true } } },
+      },
+    },
+    orderBy: { startedAt: 'desc' },
+    take: limit,
+    select: { id: true },
+  });
+  if (logs.length === 0) return [];
+
+  const entries = await prisma.workoutLogEntry.findMany({
+    where: {
+      exerciseId,
+      workoutLogId: { in: logs.map((log) => log.id) },
+      // Redundant with the id list, which is already user-scoped; kept so a
+      // bug in the log query above can never leak another user's rows.
+      workoutLog: { userId },
+      completedSets: { some: { completed: true } },
+    },
+    orderBy: { workoutLog: { startedAt: 'desc' } },
+    select: {
+      workoutLogId: true,
+      workoutLog: { select: { startedAt: true } },
+      completedSets: {
+        where: { completed: true },
+        orderBy: { setNumber: 'asc' },
+        select: { setNumber: true, reps: true, weight: true },
+      },
+    },
+  });
+
+  return entries.map((entry) => ({
+    workoutLogId: entry.workoutLogId,
+    performedAt: entry.workoutLog.startedAt,
+    sets: entry.completedSets.map((s) => ({
+      setNumber: s.setNumber,
+      reps: s.reps,
+      weight: s.weight,
+    })),
   }));
 }
 

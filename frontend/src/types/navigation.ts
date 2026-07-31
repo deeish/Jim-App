@@ -87,6 +87,8 @@ export type RootStackParamList = {
     | { editFromSnapshot?: PlanInputs; autoGenerate?: boolean; fromOnboarding?: boolean }
     | undefined;
   History: undefined;
+  /** Streaks, totals and the weekly trend. Lives beside History in the Plan stack. */
+  Progress: undefined;
   PlanPreview: {
     /** Canonical snapshot when user taps Generate; use this downstream. */
     planInputs?: PlanInputs;

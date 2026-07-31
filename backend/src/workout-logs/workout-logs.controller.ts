@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { WorkoutLogsService } from './workout-logs.service';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
+import { ExerciseHistoryQueryDto } from './dto/exercise-history-query.dto';
 import { LastPerformanceQueryDto } from './dto/last-performance-query.dto';
 import { PersonalBestsQueryDto } from './dto/personal-bests-query.dto';
 import { StatsQueryDto } from './dto/stats-query.dto';
@@ -57,6 +58,19 @@ export class WorkoutLogsController {
   @Get('stats')
   getStats(@Query() query: StatsQueryDto, @UserId() userId: string) {
     return this.workoutLogsService.getStats(userId, query.months);
+  }
+
+  // Literal route: must stay above the ':id' catch-all or it gets shadowed.
+  @Get('exercise-history')
+  getExerciseHistory(
+    @Query() query: ExerciseHistoryQueryDto,
+    @UserId() userId: string,
+  ) {
+    return this.workoutLogsService.getExerciseHistory(
+      userId,
+      query.exerciseId,
+      query.limit,
+    );
   }
 
   // Literal route: must stay above the ':id' catch-all or it gets shadowed.

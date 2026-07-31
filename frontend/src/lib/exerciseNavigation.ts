@@ -3,9 +3,20 @@
  * Library ids only; placeholders (draft_/applied_/generated_) are not routable.
  */
 
+/**
+ * True when the id is a real library exercise that has a detail page.
+ *
+ * Mirrors the backend's `isTrackableExerciseId`, **including the literal
+ * `'manual'`**, which the log service assigns to any entry saved without a
+ * library id. That value only ever appears in `WorkoutLogEntry.exerciseId`, so
+ * it was harmless while nothing rendered that table — but a screen showing
+ * logged entries would otherwise treat it as routable and navigate to a detail
+ * page for an exercise that does not exist. Keep the two guards in step.
+ */
 export function isLinkableLibraryExerciseId(raw: string | undefined | null): boolean {
   const id = typeof raw === 'string' ? raw.trim() : '';
   if (!id) return false;
+  if (id === 'manual') return false;
   if (/^(draft_|applied_|generated_)/i.test(id)) return false;
   return true;
 }

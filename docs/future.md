@@ -225,6 +225,18 @@ Some users may want planned workouts **visible** (Plan / Workout preview) withou
 
 ## Make sure history also stores reps/sets, etc...
 
+Reps and sets were always stored; as of 2026-07-28 they are also **shown** — per-exercise history lives on `ExerciseDetail` (best set, estimated 1RM, recent sessions) and session-level totals on the new Progress screen. See `plans/2026-07-27-progress-and-history.md`.
+
+## Deleting a workout still destroys its logs
+
+`WorkoutLog.workout` is `onDelete: Cascade` (`schema.prisma:222`) and `DELETE /api/workouts/:id` is live. **Latent only** because `deleteWorkout` (`frontend/src/services/workoutService.ts`) has zero callers.
+
+It matters more now that logged history is visible and valuable across three screens. **Decide before any delete affordance ships:** `onDelete: SetNull` with a nullable `workoutId`, or refuse to delete a workout that has logs. This is open decision §6.5 of the progress plan, deliberately left unanswered because nothing can trigger it yet.
+
+## Planned-vs-actual set adherence is unrecoverable
+
+`workout-logs.service.ts` filters `s.completed` before writing, so a set the user planned but never completed is never persisted. Anything comparing prescribed volume against performed volume therefore cannot be backfilled — it needs a schema change first, and only starts being true from the day it ships. Flagged as §3.6 of the progress plan; no action taken.
+
 ## Server-side user preferences (multi-device / reinstall restore)
 
 Onboarding selections (goal, experience, equipment, training days, injury tags/notes, display name, avatar, `hasCompletedOnboarding`) are persisted **locally only** — per-user in AsyncStorage under `jim_user_preferences_v1:<userId>` (`frontend/src/contexts/UserPreferencesContext.tsx`). Cross-account leakage on a shared device is fixed (per-user keying + reset on sign-out), but there is **no server-side store**, so an existing user who logs in on a new phone or after reinstalling lands with empty prefs → `hasCompletedOnboarding=false` → forced to re-onboard, and prior preferences are lost.

@@ -238,6 +238,10 @@ export default function HomeScreen() {
     navigation.navigate('Plan', { screen: 'History', initial: false });
   };
 
+  const goToProgress = () => {
+    navigation.navigate('Plan', { screen: 'Progress', initial: false });
+  };
+
   const goToPlan = () => {
     navigation.navigate('Plan');
   };
@@ -765,6 +769,21 @@ export default function HomeScreen() {
               <View style={styles.cardTextBlock}>
                 <Text style={[styles.rowCardTitle, { color: colors.text }]}>Workout history</Text>
                 <Text style={[styles.rowCardSub, { color: colors.textMuted }]}>Past sessions and logs by day</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.card, styles.rowCard, themedStyles.secondaryCard]}
+              onPress={goToProgress}
+              activeOpacity={0.88}
+            >
+              <View style={[styles.cardIconCircle, { backgroundColor: colors.secondary + '22' }]}>
+                <Ionicons name="trending-up-outline" size={24} color={colors.secondary} />
+              </View>
+              <View style={styles.cardTextBlock}>
+                <Text style={[styles.rowCardTitle, { color: colors.text }]}>Progress</Text>
+                <Text style={[styles.rowCardSub, { color: colors.textMuted }]}>Streak, totals and weekly trend</Text>
               </View>
               <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
             </TouchableOpacity>

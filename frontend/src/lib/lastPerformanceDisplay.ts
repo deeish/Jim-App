@@ -14,7 +14,7 @@ import { isLinkableLibraryExerciseId } from './exerciseNavigation';
  * Logged values below this can't be real durations — legacy cardio rows store
  * a rep count (1, 10) in the reps field rather than seconds.
  */
-const MIN_PLAUSIBLE_DURATION_SECONDS = 15;
+export const MIN_PLAUSIBLE_DURATION_SECONDS = 15;
 
 /**
  * "Last time" line for the live-session exercise card, e.g.

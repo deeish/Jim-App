@@ -1,4 +1,12 @@
-import { Workout, WorkoutLog, ExerciseSession, LastPerformanceMap } from '../types/workout';
+import {
+  Workout,
+  WorkoutLog,
+  ExerciseSession,
+  LastPerformanceMap,
+  PersonalBestMap,
+  WorkoutStats,
+} from '../types/workout';
+import type { ExerciseHistory } from '../lib/exerciseHistory';
 import { api } from '../api/client';
 
 /** Create (or return) a Workout row from a plan slot’s stored exercises. */
@@ -223,4 +231,60 @@ export const getLastPerformance = async (
     `/workout-logs/last-performance?${query.toString()}`
   );
   return response.data.results ?? {};
+};
+
+/**
+ * Heaviest set ever logged per library exercise id (weights in lb), across all
+ * history. A separate call from `getLastPerformance` on purpose: that one is
+ * bounded to the 30 most recent logs, so a "best" taken from it would celebrate
+ * a lift the user beat months ago. Ids with no weighted history are absent.
+ */
+export const getPersonalBests = async (
+  exerciseIds: string[]
+): Promise<PersonalBestMap> => {
+  const ids = exerciseIds.map((id) => id.trim()).filter((id) => id.length > 0);
+  if (ids.length === 0) return {};
+  const query = new URLSearchParams({ exerciseIds: ids.join(',') });
+  const response = await api.get<{ results: PersonalBestMap }>(
+    `/workout-logs/personal-bests?${query.toString()}`
+  );
+  return response.data.results ?? {};
+};
+
+/**
+ * One exercise's recent sessions plus its all-time best. Bounded by sessions of
+ * that lift rather than by a window of recent logs, so a movement trained once
+ * a month still has a history.
+ */
+export const getExerciseHistory = async (
+  exerciseId: string,
+  limit?: number
+): Promise<ExerciseHistory> => {
+  const id = exerciseId.trim();
+  // Same guard as getPersonalBests: an empty id would go out as `exerciseId=`
+  // and 400 against the backend's @IsNotEmpty. The server answers untrackable
+  // ids with this exact empty envelope, so resolve it locally instead.
+  if (id.length === 0) return { exerciseId: id, best: null, sessions: [] };
+  const query = new URLSearchParams({ exerciseId: id });
+  if (limit != null) query.set('limit', String(limit));
+  const response = await api.get<ExerciseHistory>(
+    `/workout-logs/exercise-history?${query.toString()}`
+  );
+  return response.data;
+};
+
+/**
+ * Session-level history for the Progress screen, over a rolling window of
+ * months (server default 12). Returns raw `startedAt` instants and per-session
+ * summary columns only — the client buckets them into local days and weeks, so
+ * the numbers agree with the History calendar rather than with UTC.
+ */
+export const getWorkoutStats = async (
+  months?: number
+): Promise<WorkoutStats> => {
+  const query = new URLSearchParams();
+  if (months != null) query.set('months', String(months));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  const response = await api.get<WorkoutStats>(`/workout-logs/stats${suffix}`);
+  return response.data;
 };

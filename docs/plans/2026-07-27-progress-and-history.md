@@ -2,7 +2,48 @@
 
 **Date:** 2026-07-27
 **Branch context:** `main` (clean; 265 frontend + 470 backend tests green at `95f86d3`)
-**Status:** **Not started.** Written 2026-07-27 against live code and a full local run-through (onboarding → generate → apply → live session → 17 logged sets → finish → history). **Verified across four passes the same day.** Pass 2 changed the approach in four places and added three missed risks; pass 3 found the pass-2 PR recommendation was itself wrong and that no index supports these queries (§3.7); pass 4 found a real Phase 3 bug (the `'manual'` guard divergence, §3.4) and **retracted an incorrect criticism of its own** (the finish-screen green button is on-palette, §4 Phase 1). No branch, no stash, no prior design doc.
+**Status:** **All four phases implemented (2026-07-28).** See §0 for what shipped and what is still open. The analysis below is kept as written — the traps in §3 are why the implementation looks the way it does.
+
+> **Review-pass follow-up (2026-07-29, committed 2026-07-31):** a five-agent review found three real bugs and a batch of cosmetics; the fixes landed as five themed commits. `docs/plans/2026-07-29-session-handoff.md` records every fix and the two decisions still open (UTC month windows in History, workout-deletion semantics).
+
+Written 2026-07-27 against live code and a full local run-through (onboarding → generate → apply → live session → 17 logged sets → finish → history). **Verified across four passes the same day.** Pass 2 changed the approach in four places and added three missed risks; pass 3 found the pass-2 PR recommendation was itself wrong and that no index supports these queries (§3.7); pass 4 found a real Phase 3 bug (the `'manual'` guard divergence, §3.4) and **retracted an incorrect criticism of its own** (the finish-screen green button is on-palette, §4 Phase 1). No branch, no stash, no prior design doc.
+
+---
+
+## 0. Implementation status (2026-07-28)
+
+**Phase 0** — `feat/progress-stats-endpoints`, open as **draft PR #24**.
+**Phases 1–3** — `feat/progress-finish-screen`, stacked on that branch.
+
+| Phase | What landed |
+|---|---|
+| 0 | Two indexes + `GET /workout-logs/stats` + `GET /workout-logs/personal-bests` |
+| 1 | Finish screen rebuilt: honest "personal best" / "beat last time" claims, volume, no confetti |
+| 2 | `ProgressScreen` in the Plan stack: week streak, totals, 12-week trend |
+| 3 | "Your history" on `ExerciseDetail` + `GET /workout-logs/exercise-history`; the §3.4 `'manual'` guard divergence is **fixed** |
+
+**Every acceptance criterion in §5 is met**, including the UTC−7 case — verified by
+driving the app with the browser at `America/Los_Angeles` against a session
+stored at `2026-07-27T03:00:00Z` (8pm Sunday local): History marks **Sun 26** and
+Progress reports **0 sessions this week**, i.e. both bucket locally and agree.
+
+**Decisions taken** from §6, all on that section's own recommendations: Progress
+lives in the Plan stack (1), streak is consecutive weeks with ≥1 session (2),
+personal best is heaviest set ever (3), e1RM is Epley suppressed above 12 reps
+(4), stats window is a rolling 12 months (6).
+
+**Still open:** §6.5 workout-deletion semantics. `WorkoutLog.workout` is still
+`onDelete: Cascade` and `deleteWorkout` still has zero callers, so nothing is
+broken — but this needs a call **before any delete affordance ships**. Also
+unresolved by design: §3.6's planned-vs-actual *set* adherence, which stays
+unrecoverable retroactively because only completed sets are persisted.
+
+> ⚠️ **Deploy ordering changed in Phase 3.** This work is no longer
+> frontend-only: Phase 3 added a third read endpoint. The backend must be live
+> before the app ships, or Progress shows its error state and the history
+> section silently hides. **Saving a workout is unaffected either way** — no
+> request gained a field, so §3.3's `forbidNonWhitelisted` hazard was never
+> exposed.
 
 > **On the review yield:** pass 2 found three structural issues, pass 3 found four, pass 4 found one real bug plus one self-correction and two wording fixes. The findings are shifting from *structural* to *cosmetic* — the signal that static review is close to exhausted here. Remaining risk (query performance, device behaviour, real-data shape) is the kind that only measurement resolves. **Build Phase 0 and measure; don't spend another pass reading.**
 
