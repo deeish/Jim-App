@@ -4,6 +4,8 @@
 **Branch context:** `main` (clean; 265 frontend + 470 backend tests green at `95f86d3`)
 **Status:** **All four phases implemented (2026-07-28).** See §0 for what shipped and what is still open. The analysis below is kept as written — the traps in §3 are why the implementation looks the way it does.
 
+> **Review-pass follow-up (2026-07-29, committed 2026-07-31):** a five-agent review found three real bugs and a batch of cosmetics; the fixes landed as five themed commits. `docs/plans/2026-07-29-session-handoff.md` records every fix and the two decisions still open (UTC month windows in History, workout-deletion semantics).
+
 Written 2026-07-27 against live code and a full local run-through (onboarding → generate → apply → live session → 17 logged sets → finish → history). **Verified across four passes the same day.** Pass 2 changed the approach in four places and added three missed risks; pass 3 found the pass-2 PR recommendation was itself wrong and that no index supports these queries (§3.7); pass 4 found a real Phase 3 bug (the `'manual'` guard divergence, §3.4) and **retracted an incorrect criticism of its own** (the finish-screen green button is on-palette, §4 Phase 1). No branch, no stash, no prior design doc.
 
 ---
