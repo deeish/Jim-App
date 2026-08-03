@@ -1,4 +1,4 @@
-import type { ColorPalette } from '../theme/colors';
+import { SOFT_ALPHA, type ColorPalette } from '../theme/colors';
 
 /** Short label for preview chips — keeps rows compact on small screens. */
 export function shortBodyTagLabel(
@@ -74,26 +74,33 @@ function toneForTag(label: string): TagTone {
   return 'neutral';
 }
 
-/** Muted chip colors that read on dark/light surfaces without new theme tokens. */
+/**
+ * Chip colours: the tag's own hue as 11px text on a 10% tint of itself.
+ *
+ * Every tone uses SOFT_ALPHA. That single shared value is the strongest tint
+ * whose own colour still clears 4.5:1 on top of it — the previous per-tone
+ * alphas (0x22-0x33) all failed that, which is why they are gone.
+ */
 export function bodyTagChipColors(label: string, colors: ColorPalette): { backgroundColor: string; color: string } {
   const tone = toneForTag(label);
+  const tinted = (color: string) => ({ backgroundColor: `${color}${SOFT_ALPHA}`, color });
   switch (tone) {
     case 'cardio':
-      return { backgroundColor: `${colors.workoutCardio}28`, color: colors.workoutCardio };
+      return tinted(colors.workoutCardio);
     case 'carry':
-      return { backgroundColor: `${colors.accent}28`, color: colors.accent };
+      return tinted(colors.accent);
     case 'chest':
-      return { backgroundColor: colors.primarySoft, color: colors.primary };
+      return tinted(colors.primary);
     case 'back':
-      return { backgroundColor: colors.successSoft, color: colors.success };
+      return tinted(colors.success);
     case 'legs':
-      return { backgroundColor: `${colors.secondary}33`, color: colors.secondary };
+      return tinted(colors.secondary);
     case 'arms':
-      return { backgroundColor: colors.warningSoft, color: colors.warning };
+      return tinted(colors.warning);
     case 'shoulders':
-      return { backgroundColor: `${colors.accent}22`, color: colors.accent };
+      return tinted(colors.accent);
     case 'core':
-      return { backgroundColor: `${colors.workoutRecovery}30`, color: colors.workoutRecovery };
+      return tinted(colors.workoutRecovery);
     default:
       return { backgroundColor: colors.border, color: colors.textSecondary };
   }

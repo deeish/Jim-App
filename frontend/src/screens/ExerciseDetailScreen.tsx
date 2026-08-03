@@ -312,7 +312,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           marginRight: 12,
           marginTop: 2,
         },
-        instructionNumberText: { fontSize: 14, fontWeight: 'bold', color: '#FFFFFF' },
+        instructionNumberText: { fontSize: 14, fontWeight: 'bold', color: colors.onPrimary },
         instructionText: { flex: 1, fontSize: 15, color: colors.textSecondary, lineHeight: 22 },
         aliasesText: { fontSize: 15, color: colors.textSecondary, fontStyle: 'italic' },
       }),

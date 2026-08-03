@@ -2808,7 +2808,7 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     color: palette.textTertiary,
   },
   setTrackerPillTextCompleted: {
-    color: '#FFFFFF',
+    color: palette.onPrimary,
   },
   setTrackerDot: {
     width: 32,
@@ -2854,7 +2854,7 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     borderColor: palette.primary,
   },
   setCheckboxCheck: {
-    color: '#FFFFFF',
+    color: palette.onPrimary,
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -3028,7 +3028,7 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     color: palette.text,
   },
   modalButtonConfirmText: {
-    color: '#FFFFFF',
+    color: palette.onPrimary,
   },
   modalCloseText: {
     fontSize: 24,

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { createQrMatrix, runLengthRow } from '../lib/qrMatrix';
+import { palette } from '../theme/colors';
 
 const QUIET_ZONE_MODULES = 4;
 
@@ -36,6 +37,10 @@ export default function QrCodeView({
         backgroundColor: '#FFFFFF',
         borderRadius: 12,
         padding: quiet,
+        // The card is white by spec, and so is the sheet behind it — without this
+        // hairline the QR appears to float with no edge.
+        borderWidth: 1,
+        borderColor: palette.border,
       }}
     >
       {rows.map((runs, rowIndex) => (
