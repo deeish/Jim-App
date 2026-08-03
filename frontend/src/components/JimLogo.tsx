@@ -130,7 +130,7 @@ export default function JimLogo({
       <Animated.View style={[styles.logoTile, tileStyle]}>
         <View style={styles.logoTileClip}>
           <LinearGradient
-            colors={[colors.primary, colors.accent]}
+            colors={[colors.brandGradientStart, colors.brandGradientEnd]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
@@ -194,9 +194,11 @@ function makeStyles(colors: ColorPalette) {
       height: 88,
       borderRadius: 44,
       borderWidth: 2,
-      borderColor: colors.primary,
+      // Alpha'd rather than solid: a mid-value ring that whispers on near-black
+      // shouts on white, so the expanding pulse needs to be much quieter here.
+      borderColor: `${colors.primary}55`,
     },
-    pulseRingAccent: { borderColor: colors.accent },
+    pulseRingAccent: { borderColor: `${colors.brandGradientStart}40` },
     pulseHalo: {
       position: 'absolute',
       width: 132,

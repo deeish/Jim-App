@@ -52,17 +52,24 @@ export default function AuroraBackground({ colors }: { colors: ColorPalette }) {
       <Fill color={colors.background} />
       <Group>
         <Blur blur={60} />
+        {/* All three blobs stay in the blue family at low alpha. The previous
+            45-70% saturated blobs were tuned to GLOW on a near-black base; over a
+            white one the same alphas subtract luminance and read as dirt. */}
         <Circle c={c1} r={r1}>
-          <RadialGradient c={c1} r={r1} colors={[`${colors.primary}B3`, `${colors.primary}00`]} />
+          <RadialGradient
+            c={c1}
+            r={r1}
+            colors={[`${colors.brandGradientStart}26`, `${colors.brandGradientStart}00`]}
+          />
         </Circle>
         <Circle c={c2} r={r2}>
-          <RadialGradient c={c2} r={r2} colors={[`${colors.accent}80`, `${colors.accent}00`]} />
+          <RadialGradient c={c2} r={r2} colors={[`${colors.primary}1A`, `${colors.primary}00`]} />
         </Circle>
         <Circle c={c3} r={r3}>
           <RadialGradient
             c={c3}
             r={r3}
-            colors={[`${colors.secondary}73`, `${colors.secondary}00`]}
+            colors={[`${colors.brandGradientStart}14`, `${colors.brandGradientStart}00`]}
           />
         </Circle>
       </Group>

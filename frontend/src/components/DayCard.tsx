@@ -21,7 +21,7 @@ export default function DayCard({ day, workout, onPress }: DayCardProps) {
           borderRadius: 12,
           shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.3,
+          shadowOpacity: 0.1,
           shadowRadius: 3.84,
           elevation: 5,
         },

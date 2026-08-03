@@ -13,11 +13,12 @@
     },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F2F2F7",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F1110"
+      "backgroundColor": "#F2F2F7"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -32,7 +33,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0F1110"
+        "backgroundColor": "#F2F2F7"
       },
       "package": "com.jimapp.app"
     },

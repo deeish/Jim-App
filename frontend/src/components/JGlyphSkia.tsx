@@ -36,7 +36,7 @@ export default function JGlyphSkia({
     <LinearGradient
       start={vec(36, 4)}
       end={vec(36, 64)}
-      colors={['#FFFFFF', colors.onPrimary, '#E9D6B0']}
+      colors={['#FFFFFF', colors.onPrimary, colors.brandGlyphShade]}
     />
   );
   return (
@@ -65,7 +65,7 @@ export default function JGlyphSkia({
               style="stroke"
               strokeWidth={2}
               strokeCap="round"
-              color="rgba(58,30,10,0.6)"
+              color="rgba(0,32,80,0.45)"
             />
           </Group>
         </Group>

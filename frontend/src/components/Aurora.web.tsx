@@ -14,7 +14,7 @@ function GradientFallback({ colors }: { colors: ColorPalette }) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <LinearGradient
-        colors={[`${colors.primary}26`, colors.background, `${colors.accent}1A`]}
+        colors={[`${colors.brandGradientStart}1F`, colors.background, `${colors.primary}14`]}
         locations={[0, 0.55, 1]}
         start={{ x: 0.1, y: 0 }}
         end={{ x: 0.9, y: 1 }}
