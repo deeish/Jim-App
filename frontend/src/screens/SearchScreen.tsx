@@ -24,7 +24,7 @@ import { useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
-import type { ColorPalette } from '../theme/colors';
+import { palette, type ColorPalette } from '../theme/colors';
 import Button from '../components/Button';
 import { searchExercises, Exercise, getSavedExerciseIds, getSavedExercises, saveExercise, unsaveExercise } from '../services/exerciseService';
 import ExerciseGroupCard from '../components/ExerciseGroupCard';
@@ -122,6 +122,8 @@ type ChipStyles = {
   chipSelected: StyleProp<ViewStyle>;
   chipPartial: StyleProp<ViewStyle>;
   chipText: StyleProp<TextStyle>;
+  /** Partial chips have a pale fill, so their label/glyph go blue, not white. */
+  chipTextPartial: StyleProp<TextStyle>;
   chipTextSelected: StyleProp<TextStyle>;
   chipCount: StyleProp<TextStyle>;
   chipCountSelected: StyleProp<TextStyle>;
@@ -172,16 +174,30 @@ const Chip = React.memo(function Chip({
       accessibilityLabel={`${label} filter${isSelected ? ', selected' : ''}`}
       accessibilityState={{ selected: isSelected }}
     >
-      <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+      <Text
+        style={[
+          styles.chipText,
+          isSelected && styles.chipTextSelected,
+          showPartial && styles.chipTextPartial,
+        ]}
+      >
         {label}
       </Text>
       {count && (
-        <Text style={[styles.chipCount, isSelected && styles.chipCountSelected]}>
+        <Text
+          style={[
+            styles.chipCount,
+            isSelected && styles.chipCountSelected,
+            showPartial && styles.chipTextPartial,
+          ]}
+        >
           {count}
         </Text>
       )}
-      {isSelected && !showPartial && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-      {showPartial && <Ionicons name="remove" size={14} color="#FFFFFF" />}
+      {isSelected && !showPartial && (
+        <Ionicons name="checkmark" size={14} color={palette.onPrimary} />
+      )}
+      {showPartial && <Ionicons name="remove" size={14} color={palette.primary} />}
     </TouchableOpacity>
   );
 });
@@ -1037,7 +1053,7 @@ export default function SearchScreen({ navigation }: Props) {
           alignItems: 'center',
           paddingHorizontal: 8,
         },
-        filterBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+        filterBadgeText: { color: colors.onPrimary, fontSize: 12, fontWeight: '700' },
         resetButton: { fontSize: 16, color: colors.primary, fontWeight: '600' },
         resetButtonDisabled: { opacity: 0.4 },
         searchContainer: {
@@ -1103,7 +1119,7 @@ export default function SearchScreen({ navigation }: Props) {
           alignItems: 'center',
           paddingHorizontal: 6,
         },
-        sectionBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+        sectionBadgeText: { color: colors.onPrimary, fontSize: 11, fontWeight: '700' },
         sectionDescription: { fontSize: 14, color: colors.textMuted, marginBottom: 12 },
         chipsContainer: { flexDirection: 'row', gap: 8, paddingRight: 16 },
         chip: {
@@ -1120,9 +1136,10 @@ export default function SearchScreen({ navigation }: Props) {
         },
         chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
         chipText: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
-        chipTextSelected: { color: '#FFFFFF', fontWeight: '600' },
+        chipTextSelected: { color: colors.onPrimary, fontWeight: '600' },
+        chipTextPartial: { color: colors.primary },
         chipCount: { fontSize: 11, color: colors.textMuted, fontWeight: '600', marginLeft: 4 },
-        chipCountSelected: { color: '#FFFFFF' },
+        chipCountSelected: { color: colors.onPrimary },
         chipPartial: {
           backgroundColor: colors.primary + '60',
           borderColor: colors.primary,
@@ -1156,7 +1173,7 @@ export default function SearchScreen({ navigation }: Props) {
           alignItems: 'center',
           paddingHorizontal: 6,
         },
-        advancedBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+        advancedBadgeText: { color: colors.onPrimary, fontSize: 11, fontWeight: '700' },
         resultsPreview: {
           marginTop: 16,
           marginHorizontal: 16,
@@ -1243,7 +1260,7 @@ export default function SearchScreen({ navigation }: Props) {
         },
         segmentBtnActive: { backgroundColor: colors.primary },
         segmentBtnText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
-        segmentBtnTextActive: { color: '#FFFFFF' },
+        segmentBtnTextActive: { color: colors.onPrimary },
       }),
     [colors]
   );
@@ -1549,7 +1566,7 @@ export default function SearchScreen({ navigation }: Props) {
 
         {error && (
           <View style={styles.resultsPreview}>
-            <Text style={[styles.resultsPreviewText, { color: '#FF6B6B' }]}>
+            <Text style={[styles.resultsPreviewText, { color: colors.error }]}>
               Error
             </Text>
             <Text style={styles.resultsPreviewHint}>{error}</Text>

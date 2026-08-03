@@ -103,7 +103,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     route.params?.returnToPlanExerciseContext ??
     (returnToPlanPreview ? ('preview' as const) : undefined);
   const leaveExerciseForPlanFlow = returnToPlanExerciseContext != null;
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const { weightUnit } = useUserPreferences();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
@@ -312,7 +312,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           marginRight: 12,
           marginTop: 2,
         },
-        instructionNumberText: { fontSize: 14, fontWeight: 'bold', color: '#FFFFFF' },
+        instructionNumberText: { fontSize: 14, fontWeight: 'bold', color: colors.onPrimary },
         instructionText: { flex: 1, fontSize: 15, color: colors.textSecondary, lineHeight: 22 },
         aliasesText: { fontSize: 15, color: colors.textSecondary, fontStyle: 'italic' },
       }),
@@ -454,7 +454,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     );
   }
 
-  const muscleVisual = getMuscleGroupVisual(exercise.primaryMuscleGroup, isDark);
+  const muscleVisual = getMuscleGroupVisual(exercise.primaryMuscleGroup);
   // Body-map hero: null for cardio/unknown metadata, in which case the section
   // keeps its tags-only layout (the disc stays the fallback mark).
   const bodyMap = exerciseToHighlights(exercise);

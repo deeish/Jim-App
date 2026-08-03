@@ -576,7 +576,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           borderColor: colors.border,
           shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: 12 },
-          shadowOpacity: 0.45,
+          shadowOpacity: 0.16,
           shadowRadius: 28,
           elevation: 16,
         },
@@ -721,7 +721,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           borderColor: colors.border,
           shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: 12 },
-          shadowOpacity: 0.45,
+          shadowOpacity: 0.16,
           shadowRadius: 28,
           elevation: 16,
         },
@@ -2010,7 +2010,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         <Animated.View
           style={[
             ghostAnimatedStyle,
-            { width: '91%', elevation: 16, shadowOpacity: 0.35, shadowRadius: 14, shadowColor: colors.shadow },
+            { width: '91%', elevation: 16, shadowOpacity: 0.16, shadowRadius: 14, shadowColor: colors.shadow },
           ]}
           pointerEvents="none"
         >

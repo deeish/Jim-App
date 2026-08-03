@@ -1,10 +1,11 @@
 import { buildBodyMapFigure, focusWindow, tileWindow } from './bodyMapFigure';
 import { BODY_MAP_REGIONS } from './bodyMapPaths';
 import { exerciseToTileHighlights } from '../../lib/exerciseToHighlights';
+import { muscleGroupColors, palette } from '../../theme/colors';
 
 describe('buildBodyMapFigure', () => {
   it('sizes from the rendered height with the viewbox ratio', () => {
-    const figure = buildBodyMapFigure({ highlights: [], view: 'front', size: 440, isDark: true });
+    const figure = buildBodyMapFigure({ highlights: [], view: 'front', size: 440 });
     expect(figure.height).toBe(440);
     expect(figure.width).toBe(200);
     expect(figure.scale).toBe(1);
@@ -15,7 +16,6 @@ describe('buildBodyMapFigure', () => {
       highlights: [{ region: 'Lats', intensity: 1 }],
       view: 'auto',
       size: 180,
-      isDark: true,
     });
     expect(figure.view).toBe('back');
   });
@@ -25,17 +25,18 @@ describe('buildBodyMapFigure', () => {
       highlights: [{ region: 'Upper Chest', intensity: 1 }, { region: 'Front Delts', intensity: 0.4 }],
       view: 'front',
       size: 180,
-      isDark: true,
     });
     const byKey = Object.fromEntries(figure.regions.map((r) => [r.key, r.color]));
-    expect(byKey['Upper Chest']).toBe('#E05B5Bff'); // chest hue (dark), full intensity
-    expect(byKey['Front Delts']).toBe('#E0913F66'); // shoulders hue (dark), 0.4 -> 0x66
-    expect(byKey['Quads']).toBe('rgba(255,255,255,0.075)');
+    // Derived from the theme rather than hardcoded, so a palette change restyles
+    // the body map without failing this test — only the alpha scaling is asserted.
+    expect(byKey['Upper Chest']).toBe(`${muscleGroupColors.chest}ff`); // full intensity
+    expect(byKey['Front Delts']).toBe(`${muscleGroupColors.shoulders}66`); // 0.4 -> 0x66
+    expect(byKey['Quads']).toBe(palette.bodyMapQuiet);
   });
 
   it('emits every region of the requested view exactly once', () => {
     for (const view of ['front', 'back'] as const) {
-      const figure = buildBodyMapFigure({ highlights: [], view, size: 180, isDark: false });
+      const figure = buildBodyMapFigure({ highlights: [], view, size: 180 });
       expect(figure.regions.map((r) => r.key).sort()).toEqual(
         Object.keys(BODY_MAP_REGIONS[view]).sort(),
       );
@@ -103,7 +104,6 @@ describe('focusWindow', () => {
       highlights: exerciseToTileHighlights({ primaryMuscleGroup: 'Chest' })!.highlights,
       view: 'front',
       size: 44,
-      isDark: true,
       frame: 'tile',
     });
     expect(figure.window.w).toBe(figure.window.h);
@@ -117,10 +117,9 @@ describe('focusWindow', () => {
       highlights,
       view: 'front',
       size: 180,
-      isDark: true,
       frame: 'focus',
     });
-    const body = buildBodyMapFigure({ highlights, view: 'front', size: 180, isDark: true });
+    const body = buildBodyMapFigure({ highlights, view: 'front', size: 180 });
     expect(focused.height).toBe(180);
     expect(focused.width).toBeGreaterThan(body.width); // zoomed => wider at same height
     expect(focused.scale).toBeGreaterThan(body.scale);

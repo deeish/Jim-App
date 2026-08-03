@@ -3349,7 +3349,7 @@ function createGeneratePlanStyles(c: ColorPalette) {
     borderWidth: 2,
     shadowColor: c.primary,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.18,
     shadowRadius: 3,
     elevation: 2,
   },

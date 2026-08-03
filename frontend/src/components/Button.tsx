@@ -46,15 +46,17 @@ export default function Button({
           elevation: 5,
         },
         primary: { backgroundColor: colors.primary },
+        // Outlined in the interactive blue, not the completion green: this is a
+        // secondary ACTION, and its loading spinner was already colors.primary.
         secondary: {
           backgroundColor: colors.surface,
           borderWidth: 2,
-          borderColor: colors.secondary,
+          borderColor: colors.primary,
         },
         disabled: { opacity: 0.6 },
         buttonText: { fontSize: 18, fontWeight: '600' },
         primaryText: { color: colors.onPrimary },
-        secondaryText: { color: colors.secondary },
+        secondaryText: { color: colors.primary },
       }),
     [colors]
   );

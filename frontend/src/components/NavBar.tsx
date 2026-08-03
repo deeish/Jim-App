@@ -55,7 +55,7 @@ export default function NavBar() {
           elevation: 12,
           shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.3,
+          shadowOpacity: 0.08,
           shadowRadius: 12,
         },
         tabBarLabelStyle: {

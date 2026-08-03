@@ -184,7 +184,7 @@ export default function WeightTrackerScreen() {
           borderRadius: 28,
           shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.2,
+          shadowOpacity: 0.12,
           shadowRadius: 4,
           elevation: 6,
         },

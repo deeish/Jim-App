@@ -104,7 +104,13 @@ export default function AuthScreenLayout({
                 </TouchableOpacity>
               ) : null}
 
-              <View style={centerContent ? styles.centerArea : undefined}>
+              <View
+                style={
+                  centerContent
+                    ? [styles.centerArea, keyboardOpen && styles.centerAreaKeyboardOpen]
+                    : undefined
+                }
+              >
                 {showBrand ? (
                   <View style={styles.brandWrap}>
                     <JimLogo showTagline />
@@ -146,6 +152,15 @@ const styles = StyleSheet.create({
   // reserves space at the bottom, shifting content up ~40px) so there's less
   // headroom above the logo. Tune this single value to taste.
   centerArea: { flex: 1, justifyContent: 'center', paddingBottom: 80 },
+  // Centring is a resting-state choice, and it is also what turns any keyboard
+  // resize into whole-screen movement: KeyboardAvoidingView writes the keyboard
+  // height into paddingBottom, and a vertically-centred flex:1 block re-centres
+  // on every container height change, so a keyboard delta of X shifts the logo,
+  // title, fields and button by X/2. Top-anchoring while the keyboard is up
+  // makes that padding change dead space below the content instead, so nothing
+  // visible moves. The centred look is untouched whenever the keyboard is down,
+  // and the single transition rides the keyboard's own open/close animation.
+  centerAreaKeyboardOpen: { justifyContent: 'flex-start', paddingBottom: 0 },
   brandWrap: { alignItems: 'center', marginTop: 8, marginBottom: 28 },
   title: { fontSize: 26, fontWeight: '700', textAlign: 'center', marginBottom: 6 },
   subtitle: { fontSize: 15, lineHeight: 21, textAlign: 'center', marginBottom: 28 },

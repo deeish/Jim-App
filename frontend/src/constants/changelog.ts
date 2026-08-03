@@ -25,6 +25,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-08-03',
+    version: '1.0.0',
+    date: '2026-08-03',
+    title: 'A cleaner look',
+    changes: [
+      { type: 'improved', text: 'A new look throughout the app, built around a single light theme. The dark mode setting has been removed.' },
+      { type: 'improved', text: 'A new app icon and launch screen to match.' },
+      { type: 'fixed', text: 'Tapping the eye to show your password no longer shifts the sign in screen.' },
+    ],
+  },
+  {
     id: '2026-07-28',
     version: '1.0.0',
     date: '2026-07-28',

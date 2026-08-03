@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, StyleProp, ViewStyle } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useTheme } from '../theme/ThemeContext';
 import { getMuscleGroupVisual } from '../constants/muscleGroupMeta';
 
 /**
@@ -18,8 +17,7 @@ function MuscleGroupDisc({
   size: number;
   style?: StyleProp<ViewStyle>;
 }) {
-  const { isDark } = useTheme();
-  const visual = getMuscleGroupVisual(group, isDark);
+  const visual = getMuscleGroupVisual(group);
   const iconSize = Math.round(size * 0.55);
   return (
     <View

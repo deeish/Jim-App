@@ -84,7 +84,7 @@ function DevPreviewDone() {
 }
 
 function AppContent() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const { session, loading, passwordRecoveryMode } = useAuth();
   const { hasCompletedOnboarding, hydrated } = useUserPreferences();
   const { previewOnboarding } = useDevPreview();
@@ -124,7 +124,7 @@ function AppContent() {
   }));
 
   const navTheme = {
-    dark: isDark,
+    dark: false,
     colors: {
       primary: colors.primary,
       background: colors.background,
@@ -180,7 +180,7 @@ function AppContent() {
         )}
       </NavigationContainer>
       )}
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <StatusBar style="dark" />
       {loaderMounted && (
         <Animated.View
           style={[StyleSheet.absoluteFill, loaderOverlayStyle]}

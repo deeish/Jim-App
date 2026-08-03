@@ -1,6 +1,5 @@
 import React, { useId } from 'react';
 import { StyleProp, View, ViewStyle } from 'react-native';
-import { useTheme } from '../../theme/ThemeContext';
 import { BodyMapHighlight } from '../../lib/exerciseToHighlights';
 import { BodyMapView } from './bodyMapPaths';
 import { buildBodyMapFigure, WINDOW_FADE_UNITS } from './bodyMapFigure';
@@ -45,8 +44,7 @@ function MuscleBodyMap({
   frame?: 'body' | 'focus' | 'tile';
   style?: StyleProp<ViewStyle>;
 }) {
-  const { isDark } = useTheme();
-  const figure = buildBodyMapFigure({ highlights, view, size, isDark, frame });
+  const figure = buildBodyMapFigure({ highlights, view, size, frame });
   const { window: win } = figure;
   const needsFade = win.fadeTop || win.fadeBottom;
   const maskId = `bm-fade-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;

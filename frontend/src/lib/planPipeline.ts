@@ -46,6 +46,7 @@ import {
 } from './estimateWorkoutMinutes';
 import type { WorkoutPreview } from '../services/workoutService';
 import { shortBodyTagLabel, parseCardioFinisherRow } from './previewExerciseMeta';
+import { palette, planSlotIconColors } from '../theme/colors';
 
 export { isTimeHoldExerciseName } from './exercisePrescription';
 export { formatDraftReps, formatExerciseRepsDisplay, formatRepRange } from './formatExerciseRepsDisplay';
@@ -1228,11 +1229,10 @@ export interface WeekPlanAdapter {
   workouts: Record<string, PlanWorkoutAdapter[]>;
 }
 
-const TYPE_COLORS: Record<string, string> = {
-  strength: '#C7A46A',
-  cardio: '#E67E22',
-  recovery: '#9B59B6',
-};
+// Session-type slot colours come from the theme so a palette change reaches the
+// AI-drafted preview too. This module is not a React context, hence the direct
+// palette import rather than useTheme().
+const TYPE_COLORS = planSlotIconColors(palette);
 
 /**
  * Phase 8 — derive a per-session intensity badge from `(totalSets × estimatedMinutes)`
@@ -1310,7 +1310,7 @@ export function planDraftToWeekPlans(draft: PlanDraft): WeekPlanAdapter[] {
         id: `draft-${draft.draftId}-w${w.weekIndex}-${d.weekday}-1`,
         title: session.title,
         detailLine: previewDetailLineFromSession(session, duration),
-        iconColor: TYPE_COLORS[session.type] ?? '#C7A46A',
+        iconColor: TYPE_COLORS[session.type as keyof typeof TYPE_COLORS] ?? TYPE_COLORS.neutral,
         durationMinutes: duration,
         plannedDurationMinutes: plannedDuration,
         intensity: deriveSessionIntensity(session, duration),
