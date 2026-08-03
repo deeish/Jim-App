@@ -33,7 +33,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F2F2F7"
+        "backgroundColor": "#0047B3"
       },
       "package": "com.jimapp.app"
     },
