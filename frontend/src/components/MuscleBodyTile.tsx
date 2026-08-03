@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, StyleProp, ViewStyle } from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
 import { getMuscleGroupVisual } from '../constants/muscleGroupMeta';
 import { BodyMappableExercise, exerciseToTileHighlights } from '../lib/exerciseToHighlights';
 import MuscleBodyMap from './bodymap/MuscleBodyMap';
@@ -29,12 +28,11 @@ function MuscleBodyTile({
   size: number;
   style?: StyleProp<ViewStyle>;
 }) {
-  const { isDark } = useTheme();
   const bodyMap = exerciseToTileHighlights(exercise);
   if (!bodyMap) {
     return <MuscleGroupDisc group={exercise.primaryMuscleGroup} size={size} style={style} />;
   }
-  const visual = getMuscleGroupVisual(exercise.primaryMuscleGroup, isDark);
+  const visual = getMuscleGroupVisual(exercise.primaryMuscleGroup);
   return (
     <View
       style={[

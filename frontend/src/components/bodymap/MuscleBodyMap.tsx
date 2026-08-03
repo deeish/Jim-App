@@ -11,7 +11,6 @@ import {
   SkPath,
   vec,
 } from '@shopify/react-native-skia';
-import { useTheme } from '../../theme/ThemeContext';
 import { BodyMapHighlight } from '../../lib/exerciseToHighlights';
 import { BodyMapView } from './bodyMapPaths';
 import { buildBodyMapFigure, WINDOW_FADE_UNITS } from './bodyMapFigure';
@@ -61,8 +60,7 @@ function MuscleBodyMap({
   frame?: 'body' | 'focus' | 'tile';
   style?: StyleProp<ViewStyle>;
 }) {
-  const { isDark } = useTheme();
-  const figure = buildBodyMapFigure({ highlights, view, size, isDark, frame });
+  const figure = buildBodyMapFigure({ highlights, view, size, frame });
   const { window: win, scale } = figure;
   const outline = getSkPath('outline', figure.outlinePath);
   const needsFade = win.fadeTop || win.fadeBottom;

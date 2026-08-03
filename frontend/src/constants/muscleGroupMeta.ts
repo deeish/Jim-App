@@ -1,4 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { muscleGroupColors, palette, SOFT_ALPHA } from '../theme/colors';
 
 /**
  * Visual identity per primary muscle group: a hue and a vector glyph from the
@@ -14,6 +15,9 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
  * Keys match the API's `primaryMuscleGroup` values (the same seven groups as
  * MUSCLE_HIERARCHY in SearchScreen). Lookup is case-insensitive; anything
  * unknown falls back to a neutral disc.
+ *
+ * The hues live in the theme layer (`muscleGroupColors`) so all colour stays in
+ * one file; this module owns only the glyph pairing.
  */
 
 export type MuscleGroupIconRef =
@@ -21,45 +25,33 @@ export type MuscleGroupIconRef =
   | { set: 'mci'; name: keyof typeof MaterialCommunityIcons.glyphMap };
 
 export type MuscleGroupVisual = {
-  /** Full-strength glyph / accent color for the active theme. */
+  /** Full-strength glyph / accent color. */
   color: string;
   /** Soft disc fill derived from `color` (8-digit hex, like the chip fills). */
   softColor: string;
   icon: MuscleGroupIconRef;
 };
 
-// Two hue ramps: the dark-theme set is brighter so discs read against #1A1F1B;
-// the light set is deepened so glyphs keep contrast on the warm paper surface.
-const META: Record<string, { icon: MuscleGroupIconRef; dark: string; light: string }> = {
-  chest: { icon: { set: 'ionicons', name: 'barbell' }, dark: '#E05B5B', light: '#BC4141' },
-  back: { icon: { set: 'mci', name: 'kettlebell' }, dark: '#5B87D6', light: '#3A64AE' },
-  shoulders: { icon: { set: 'mci', name: 'dumbbell' }, dark: '#E0913F', light: '#B26A24' },
-  arms: { icon: { set: 'mci', name: 'arm-flex' }, dark: '#9D77F0', light: '#6D45C9' },
-  legs: { icon: { set: 'mci', name: 'lightning-bolt' }, dark: '#4FAF74', light: '#2F7E4E' },
-  core: { icon: { set: 'ionicons', name: 'body' }, dark: '#D9B13B', light: '#96771C' },
-  cardio: { icon: { set: 'mci', name: 'heart-pulse' }, dark: '#45B8C4', light: '#22808C' },
+const META: Record<string, { icon: MuscleGroupIconRef; color: string }> = {
+  chest: { icon: { set: 'ionicons', name: 'barbell' }, color: muscleGroupColors.chest },
+  back: { icon: { set: 'mci', name: 'kettlebell' }, color: muscleGroupColors.back },
+  shoulders: { icon: { set: 'mci', name: 'dumbbell' }, color: muscleGroupColors.shoulders },
+  arms: { icon: { set: 'mci', name: 'arm-flex' }, color: muscleGroupColors.arms },
+  legs: { icon: { set: 'mci', name: 'lightning-bolt' }, color: muscleGroupColors.legs },
+  core: { icon: { set: 'ionicons', name: 'body' }, color: muscleGroupColors.core },
+  cardio: { icon: { set: 'mci', name: 'heart-pulse' }, color: muscleGroupColors.cardio },
 };
 
-const FALLBACK: { icon: MuscleGroupIconRef; dark: string; light: string } = {
+const FALLBACK: { icon: MuscleGroupIconRef; color: string } = {
   icon: { set: 'mci', name: 'dumbbell' },
-  dark: '#8B8F88',
-  light: '#7A857F',
+  color: palette.textMuted,
 };
 
-// Disc fill alpha. Strong enough to read as a deliberate color chip — at ~15%
-// the discs looked like smudges on the dark surface.
-const SOFT_ALPHA_DARK = '3D'; // ~24%
-const SOFT_ALPHA_LIGHT = '38'; // ~22%
-
-export function getMuscleGroupVisual(
-  group: string | undefined | null,
-  isDark: boolean,
-): MuscleGroupVisual {
+export function getMuscleGroupVisual(group: string | undefined | null): MuscleGroupVisual {
   const meta = META[(group ?? '').trim().toLowerCase()] ?? FALLBACK;
-  const color = isDark ? meta.dark : meta.light;
   return {
-    color,
-    softColor: color + (isDark ? SOFT_ALPHA_DARK : SOFT_ALPHA_LIGHT),
+    color: meta.color,
+    softColor: meta.color + SOFT_ALPHA,
     icon: meta.icon,
   };
 }

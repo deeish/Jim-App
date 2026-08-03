@@ -353,7 +353,7 @@ const styles = { ...staticStyles, ...layoutStyles };
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootNavigatorParamList>>();
-  const { colors, isDark, setTheme } = useTheme();
+  const { colors } = useTheme();
   const { user, signOut } = useAuth();
   const {
     hydrated: prefsHydrated,
@@ -691,20 +691,6 @@ export default function ProfileScreen() {
 
         <SectionHeader title="Settings" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
-          <Row
-            label="Dark mode"
-            value={isDark ? 'On' : 'Off'}
-            colors={colors}
-            right={
-              <Switch
-                value={isDark}
-                onValueChange={(v) => setTheme(v ? 'dark' : 'light')}
-                trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={colors.text}
-              />
-            }
-          />
-          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
           <View style={styles.weightRow}>
             <View style={styles.weightRowLabelCol}>
               <Text style={[styles.rowLabel, { color: colors.text }]}>Weight units</Text>
