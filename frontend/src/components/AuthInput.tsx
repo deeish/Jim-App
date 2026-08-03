@@ -13,6 +13,25 @@ import { useTheme } from '../theme';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
+/**
+ * Pinned on secure fields so the keyboard's shape does not change when the
+ * show/hide eye flips `secureTextEntry`.
+ *
+ * iOS suppresses the QuickType predictive strip for a secure field and restores
+ * it for a plain one. RN passes `autoCorrect` through as an unset optional, so
+ * UIKit's per-mode default applies and the keyboard grows ~44pt taller the
+ * moment the password is revealed. That height change is what visibly moves the
+ * auth screens. Fixing both states to the same behaviour removes the delta.
+ *
+ * Setting `autoCapitalize` also fixes an unrelated papercut: with the password
+ * revealed, iOS was auto-capitalising newly typed characters.
+ */
+const SECURE_KEYBOARD_PROPS = {
+  autoCorrect: false,
+  spellCheck: false,
+  autoCapitalize: 'none',
+} as const;
+
 type Props = Omit<TextInputProps, 'secureTextEntry'> & {
   value: string;
   onChangeText: (text: string) => void;
@@ -76,6 +95,7 @@ const AuthInput = forwardRef<TextInput, Props>(function AuthInput(
           setFocused(false);
           onBlur?.(e);
         }}
+        {...(secure ? SECURE_KEYBOARD_PROPS : null)}
         {...rest}
       />
       {secure ? (
