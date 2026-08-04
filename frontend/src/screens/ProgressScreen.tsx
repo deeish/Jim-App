@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { leading, radius, spacing, text, tracking, useTheme, weight } from '../theme';
+import { useStackBackFallback } from '../navigation/headerOptions';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { getWorkoutStats } from '../services/workoutService';
 import type { WorkoutStats } from '../types/workout';
@@ -77,31 +77,21 @@ export default function ProgressScreen() {
 
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const header = (
-    <View style={styles.header}>
-      <TouchableOpacity
-        style={styles.backBtn}
-        onPress={() => navigation.goBack()}
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-      >
-        <Ionicons name="chevron-back" size={24} color={colors.primary} />
-      </TouchableOpacity>
-      <Text style={styles.headerTitle}>Progress</Text>
-    </View>
-  );
+  // Title, back button and scroll-edge treatment all come from the native header
+  // configured in PlanStackNavigator. This only covers the one case the platform
+  // cannot infer: arriving here with an empty stack behind us.
+  useStackBackFallback(navigation, 'PlanList', colors);
 
   // With nothing fetched yet the spinner is the only honest render, on the
   // first load and on retries alike. Once data exists, a focus refetch keeps
   // the content on screen instead — never a spinner flash.
   if (loading && !stats) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {header}
+      <View style={styles.container}>
         <View style={styles.centered}>
           <ActivityIndicator color={colors.primary} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -110,8 +100,7 @@ export default function ProgressScreen() {
   // already looking at.
   if (failed && !stats) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {header}
+      <View style={styles.container}>
         <View style={styles.centered}>
           <Ionicons name="cloud-offline-outline" size={40} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>Could not load your progress</Text>
@@ -122,7 +111,7 @@ export default function ProgressScreen() {
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -132,8 +121,7 @@ export default function ProgressScreen() {
   // — so zero here means the server really reported zero sessions.
   if (summary.sessionCount === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {header}
+      <View style={styles.container}>
         <View style={styles.centered}>
           <Ionicons name="trending-up-outline" size={44} color={colors.primary} />
           <Text style={styles.emptyTitle}>No sessions logged yet</Text>
@@ -142,14 +130,18 @@ export default function ProgressScreen() {
             trend will build up.
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {header}
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <View style={styles.container}>
+      {/* `automatic` is what lets the native large title collapse into the bar
+          as this list scrolls. Without it the title stays fixed at full size. */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <View style={styles.streakCard}>
           <View style={styles.streakIconWrap}>
             <Ionicons name="flame-outline" size={26} color={colors.primary} />
@@ -257,7 +249,7 @@ export default function ProgressScreen() {
           {`Based on the last ${stats?.months ?? 12} months of logged sessions.`}
         </Text>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -281,16 +273,6 @@ function Tile({
 function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    backBtn: { padding: spacing.sm, marginRight: spacing.xs },
-    headerTitle: { fontSize: text.headline, fontWeight: weight.bold, color: colors.text },
     centered: {
       flex: 1,
       alignItems: 'center',

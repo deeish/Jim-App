@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useStackBackFallback } from '../navigation/headerOptions';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
@@ -154,6 +154,12 @@ function DayDetailSection({
 
 export default function CalendarScreen({ navigation }: Props) {
   const { colors } = useTheme();
+  // The title and back button now come from the native header in
+  // PlanStackNavigator. This keeps the one behaviour the platform cannot infer:
+  // Home reaches History with navigate('Plan', { screen: 'History' }), which can
+  // leave it as the only route in the stack — nothing to pop, so no back button
+  // at all — and the hand-rolled header this replaced always offered a way out.
+  useStackBackFallback(navigation, 'PlanList', colors);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [logs, setLogs] = useState<WorkoutLog[]>([]);
@@ -259,33 +265,12 @@ export default function CalendarScreen({ navigation }: Props) {
     : '';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          onPress={() => {
-            // Reached from the Plan page (pushed onto the stack) → pop back to it.
-            // Reached from Home via navigate('Plan', { screen: 'History' }) the stack
-            // can be just [History] with nothing to pop, so fall back to the plan page.
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate('PlanList');
-            }
-          }}
-          style={styles.backButton}
-          accessibilityRole="button"
-          accessibilityLabel="Back to plan"
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.primary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>History</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={true}
+        contentInsetAdjustmentBehavior="automatic"
       >
         <View style={[styles.monthNav, { borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={prevMonth} style={styles.monthNavButton}>
@@ -397,31 +382,13 @@ export default function CalendarScreen({ navigation }: Props) {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: spacing.xs,
-  },
-  headerTitle: {
-    fontSize: text.headline,
-    fontWeight: weight.bold,
-  },
-  headerSpacer: {
-    width: 40,
   },
   scroll: {
     flex: 1,
