@@ -47,20 +47,29 @@ export default function NavBar() {
         // like it had two competing active colors.)
         tabBarInactiveTintColor: colors.textMuted,
         tabBarHideOnKeyboard: true,
-        // On iOS 26 the bar's fill is the system glass material; everywhere else
-        // it stays the opaque surface it has always been. The border and the cast
-        // shadow are the fallback's job — glass carries its own edge treatment,
-        // and drawing ours on top of it reads as a seam.
-        tabBarBackground: () => <GlassSurface style={StyleSheet.absoluteFill} />,
+        // On iOS 26 the bar's fill is the system glass material. Only supplied
+        // when glass is actually available: bottom-tabs forces the bar
+        // transparent whenever tabBarBackground is present, so on every other
+        // platform this would just paint colors.surface a second time.
+        ...(glassAvailable
+          ? { tabBarBackground: () => <GlassSurface style={StyleSheet.absoluteFill} /> }
+          : null),
         tabBarStyle: {
           backgroundColor: glassAvailable ? 'transparent' : colors.surface,
-          borderTopWidth: glassAvailable ? 0 : 1,
+          // The border stays in BOTH branches. Glass carries its own edge only
+          // when it has something to refract, and this bar is not positioned
+          // absolutely — bottom-tabs keeps it in the layout flow, so content
+          // stops above it and never passes underneath. Without the hairline the
+          // glass samples a flat page background and the bar loses its boundary
+          // entirely. (Making it float needs every screen to pad by
+          // useBottomTabBarHeight(); until then, keep the separator.)
+          borderTopWidth: 1,
           borderTopColor: colors.border,
           paddingTop: spacing.md,
           paddingBottom: Platform.OS === 'ios' ? 20 : 12,
           height: Platform.OS === 'ios' ? 88 : 70,
           shadowColor: colors.shadow,
-          ...(glassAvailable ? null : elevationUp),
+          ...elevationUp,
         },
         tabBarLabelStyle: {
           fontSize: text.footnote,

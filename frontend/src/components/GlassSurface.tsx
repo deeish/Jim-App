@@ -16,6 +16,18 @@ import { useTheme } from '../theme';
  * session, and calling it per render would put a native bridge hop in the path
  * of every tab-bar frame.
  *
+ * IT MUST STAY WRAPPED. `isLiquidGlassAvailable()` is not a safe probe — on iOS
+ * it calls `requireNativeModule('ExpoGlassEffect')`, which *throws* rather than
+ * returning false when the module is absent from the binary. Unwrapped, that
+ * throw happens during module evaluation of this file, which NavBar imports,
+ * which App imports: it fires before any React tree exists, so no error boundary
+ * and no fallback can catch it. The app would white-screen on launch.
+ *
+ * That is not hypothetical. Any JS-only update delivered to a binary built
+ * before this package was added would hit exactly that path, which is why the
+ * app version is also bumped in this change — a native dependency and an
+ * unchanged runtimeVersion is the combination that ships a crash over the air.
+ *
  * COLOUR SCHEME IS PINNED TO LIGHT. The app ships one light theme and sets
  * `userInterfaceStyle: "light"` in app.json, but the glass material defaults to
  * `'auto'`, which follows the *device* appearance rather than the app's. On a
@@ -24,7 +36,15 @@ import { useTheme } from '../theme';
  * TYPE_COLORS and bodyMapFigure. If a dark theme ever returns, this becomes
  * `colorScheme={scheme}` and not before.
  */
-export const glassAvailable = isLiquidGlassAvailable();
+export const glassAvailable = ((): boolean => {
+  try {
+    return isLiquidGlassAvailable();
+  } catch {
+    // Native module missing: an older binary running a newer JS bundle. Fall
+    // back rather than take the whole app down.
+    return false;
+  }
+})();
 
 type Props = ViewProps & {
   /** Opaque colour used wherever glass is unavailable. Defaults to the card surface. */
