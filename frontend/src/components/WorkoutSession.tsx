@@ -44,7 +44,27 @@ import {
 import { resolveWorkoutEtaMinutes, type EtaPlanSlotLike } from '../lib/estimateWorkoutMinutes';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from './Button';
-import { leading, radius, spacing, text, tracking, useTheme, weight } from '../theme';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { haptics } from '../lib/haptics';
+import {
+  duration,
+  easing,
+  leading,
+  radius,
+  spacing,
+  spring,
+  text,
+  tracking,
+  useTheme,
+  weight,
+} from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import {
   formatAtWeightFromLb,
@@ -431,6 +451,19 @@ export default function WorkoutSession({
 
   const handleSetComplete = (exerciseIndex: number, setIndex: number) => {
     setFocusedSetIndex(null);
+
+    // Read before the update, and fire outside the updater — React may invoke a
+    // state updater more than once, and a double buzz on one tap is worse than
+    // none. Only ticking a set is worth confirming; un-ticking is a correction.
+    const isCompleting = !exerciseSessions[exerciseIndex]?.completedSets[setIndex]?.completed;
+    if (isCompleting) {
+      const sets = exerciseSessions[exerciseIndex].completedSets;
+      const lastOutstanding = sets.every((s, i) => i === setIndex || s.completed);
+      // Finishing the exercise gets the success pattern; a set gets a light tick.
+      if (lastOutstanding) haptics.success();
+      else haptics.step();
+    }
+
     setExerciseSessions((prev) => {
       const updated = [...prev];
       const sets = updated[exerciseIndex].completedSets;
@@ -888,9 +921,7 @@ export default function WorkoutSession({
               return null;
             })()}
           </View>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${progress}%` }]} />
-          </View>
+          <WorkoutProgressBar progress={progress} />
         </View>
       </View>
 
@@ -1136,6 +1167,93 @@ export default function WorkoutSession({
         </View>
       )}
     </View>
+  );
+}
+
+/**
+ * The session progress bar, which fills rather than jumps.
+ *
+ * Completing the last set of an exercise moves this by a whole segment, and a
+ * hard cut gives the user nothing to connect the set they just logged to the
+ * progress they just made. The animation is what carries that.
+ */
+function WorkoutProgressBar({ progress }: { progress: number }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
+  const width = useSharedValue(progress);
+
+  useEffect(() => {
+    width.value = withTiming(progress, {
+      duration: duration.base,
+      easing: Easing.bezier(...easing.standard),
+    });
+  }, [progress, width]);
+
+  const fillStyle = useAnimatedStyle(() => ({ width: `${width.value}%` }));
+
+  return (
+    <View style={styles.progressBar}>
+      <Animated.View style={[styles.progressFill, fillStyle]} />
+    </View>
+  );
+}
+
+/**
+ * One set marker. Pops when it flips to complete.
+ *
+ * Deliberately keyed on the transition rather than the value: re-entering the
+ * screen with sets already logged must not replay the whole row, and un-ticking
+ * a set is a correction, which should feel like an undo rather than a reward.
+ */
+function SetPill({
+  completed,
+  isFocused,
+  isFuture,
+  label,
+}: {
+  completed: boolean;
+  isFocused: boolean;
+  isFuture: boolean;
+  label: string;
+}) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
+  const scale = useSharedValue(1);
+  const wasCompleted = useRef(completed);
+
+  useEffect(() => {
+    if (completed && !wasCompleted.current) {
+      scale.value = withSequence(
+        withTiming(1.22, { duration: duration.instant }),
+        withSpring(1, spring.bouncy),
+      );
+    }
+    wasCompleted.current = completed;
+  }, [completed, scale]);
+
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.setTrackerPill,
+        completed && styles.setTrackerPillCompleted,
+        isFocused && styles.setTrackerPillFocused,
+        isFuture && styles.setTrackerPillFuture,
+        animatedStyle,
+      ]}
+    >
+      <Text
+        style={[
+          styles.setTrackerPillText,
+          completed && !isFocused && styles.setTrackerPillTextCompleted,
+          isFocused && styles.setTrackerPillTextFocused,
+          isFuture && styles.setTrackerPillTextFuture,
+        ]}
+      >
+        {label}
+      </Text>
+    </Animated.View>
   );
 }
 
@@ -1442,26 +1560,13 @@ function ExerciseCard({
             const isFocused = isCurrent && nextSetIdx === setIdx;
             const isFuture = !set.completed && !isFocused;
             const pill = (
-              <View
+              <SetPill
                 key={setIdx}
-                style={[
-                  styles.setTrackerPill,
-                  set.completed && styles.setTrackerPillCompleted,
-                  isFocused && styles.setTrackerPillFocused,
-                  isFuture && styles.setTrackerPillFuture,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.setTrackerPillText,
-                    set.completed && !isFocused && styles.setTrackerPillTextCompleted,
-                    isFocused && styles.setTrackerPillTextFocused,
-                    isFuture && styles.setTrackerPillTextFuture,
-                  ]}
-                >
-                  {set.completed ? '✓' : setIdx + 1}
-                </Text>
-              </View>
+                completed={set.completed}
+                isFocused={isFocused}
+                isFuture={isFuture}
+                label={set.completed ? '✓' : String(setIdx + 1)}
+              />
             );
             if (isCurrent && onFocusSet) {
               return (
