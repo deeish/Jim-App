@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { useStackBackFallback } from '../navigation/headerOptions';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
@@ -154,12 +153,9 @@ function DayDetailSection({
 
 export default function CalendarScreen({ navigation }: Props) {
   const { colors } = useTheme();
-  // The title and back button now come from the native header in
-  // PlanStackNavigator. This keeps the one behaviour the platform cannot infer:
-  // Home reaches History with navigate('Plan', { screen: 'History' }), which can
-  // leave it as the only route in the stack — nothing to pop, so no back button
-  // at all — and the hand-rolled header this replaced always offered a way out.
-  useStackBackFallback(navigation, 'PlanList', colors);
+  // Title and back button now come from the native header in PlanStackNavigator.
+  // The back button relies on PlanList sitting beneath this route, which
+  // HomeScreen guarantees by navigating here with `initial: false`.
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [logs, setLogs] = useState<WorkoutLog[]>([]);
