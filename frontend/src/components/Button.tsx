@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Text, StyleSheet, ActivityIndicator, Pressable, ViewStyle, TextStyle } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import { radius, spacing, text, useTheme, weight } from '../theme';
+import { elevation, radius, spacing, text, useTheme, weight } from '../theme';
 import { haptics } from '../lib/haptics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -40,10 +40,7 @@ export default function Button({
           borderRadius: radius.md,
           alignItems: 'center',
           shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 3.84,
-          elevation: 5,
+          ...elevation.level2,
         },
         primary: { backgroundColor: colors.primary },
         // Outlined in the interactive blue, not the completion green: this is a

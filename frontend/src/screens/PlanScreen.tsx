@@ -19,7 +19,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
-import { leading, planSlotIconColors, radius, spacing, text, tracking, useTheme, weight } from '../theme';
+import { elevation, leading, planSlotIconColors, radius, spacing, text, tracking, useTheme, weight } from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot, movePlanSlot } from '../services/planService';
@@ -575,10 +575,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           borderWidth: 1,
           borderColor: colors.border,
           shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 12 },
-          shadowOpacity: 0.16,
-          shadowRadius: 28,
-          elevation: 16,
+          ...elevation.level3,
         },
         detailSheetScroll: { flexGrow: 0, maxHeight: 420 },
         detailSheetScrollContent: { paddingBottom: spacing.md },
@@ -720,10 +717,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           borderWidth: 1,
           borderColor: colors.border,
           shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 12 },
-          shadowOpacity: 0.16,
-          shadowRadius: 28,
-          elevation: 16,
+          ...elevation.level3,
         },
         restSheetBody: {
           paddingHorizontal: spacing.xl,
@@ -2010,7 +2004,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         <Animated.View
           style={[
             ghostAnimatedStyle,
-            { width: '91%', elevation: 16, shadowOpacity: 0.16, shadowRadius: 14, shadowColor: colors.shadow },
+            { width: '91%', shadowColor: colors.shadow, ...elevation.level3 },
           ]}
           pointerEvents="none"
         >

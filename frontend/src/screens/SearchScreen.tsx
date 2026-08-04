@@ -41,7 +41,7 @@ import {
 import { EQUIPMENT_OPTIONS } from '../constants/equipment';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
-import { radius, spacing, text, weight } from '../theme';
+import { elevationUp, radius, spacing, text, weight } from '../theme';
 type SearchScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Search'>;
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 
@@ -1205,10 +1205,7 @@ export default function SearchScreen({ navigation }: Props) {
           borderTopWidth: 1,
           borderTopColor: colors.border,
           shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-          elevation: 8,
+          ...elevationUp,
         },
         resultCountContainer: { flex: 1, marginRight: spacing.md },
         resultCountText: { fontSize: text.callout, color: colors.textSecondary, fontWeight: weight.medium },

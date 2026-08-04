@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Exercise } from '../services/exerciseService';
 import { useTheme } from '../theme/ThemeContext';
 
-import { leading, radius, spacing, text, weight } from '../theme';
+import { elevation, leading, radius, spacing, text, weight } from '../theme';
 interface ExerciseLibraryCardProps {
   exercise: Exercise;
   onPress?: () => void;
@@ -23,10 +23,7 @@ export default function ExerciseLibraryCard({ exercise, onPress }: ExerciseLibra
           borderWidth: 1,
           borderColor: colors.border,
           shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 3.84,
-          elevation: 3,
+          ...elevation.level1,
         },
         header: {
           flexDirection: 'row',

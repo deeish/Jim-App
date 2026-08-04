@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Workout } from '../types/workout';
 import { useTheme } from '../theme/ThemeContext';
 
-import { radius, spacing, text, weight } from '../theme';
+import { elevation, radius, spacing, text, weight } from '../theme';
 interface DayCardProps {
   day: string;
   workout?: Workout;
@@ -21,10 +21,7 @@ export default function DayCard({ day, workout, onPress }: DayCardProps) {
           padding: spacing.lg,
           borderRadius: radius.md,
           shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 3.84,
-          elevation: 5,
+          ...elevation.level1,
         },
         header: {
           flexDirection: 'row',

@@ -47,7 +47,7 @@ import {
   PLAN_WEEKDAY_NAMES_MONDAY_FIRST,
 } from '../lib/planCalendar';
 import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
-import { leading, radius, spacing, text, tracking, weight } from '../theme';
+import { elevation, leading, radius, spacing, text, tracking, weight } from '../theme';
 import {
   exercisesLikeFromPrescription,
   getPlanSlotDisplayMinutes,
@@ -1029,10 +1029,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     overflow: 'hidden',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
+    ...elevation.level3,
   },
   menuItem: {
     flexDirection: 'row',

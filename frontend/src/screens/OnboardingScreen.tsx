@@ -15,7 +15,7 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { ColorPalette } from '../theme/colors';
-import { leading, radius, spacing, text, tracking, useTheme, weight } from '../theme';
+import { elevation, leading, radius, spacing, text, tracking, useTheme, weight } from '../theme';
 import {
   useUserPreferences,
   GOAL_OPTIONS,
@@ -858,10 +858,7 @@ function makeStyles(colors: ColorPalette) {
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.lg,
       shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.08,
-      shadowRadius: 6,
-      elevation: 2,
+      ...elevation.level1,
     },
     featureText: { flex: 1, fontSize: text.callout, fontWeight: weight.semibold },
     welcomeFooter: {},
@@ -873,10 +870,7 @@ function makeStyles(colors: ColorPalette) {
     },
     cardShadow: {
       shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 6,
-      elevation: 2,
+      ...elevation.level1,
     },
     card: {
       flexDirection: 'row',
@@ -1026,10 +1020,7 @@ function makeStyles(colors: ColorPalette) {
       alignItems: 'center',
       backgroundColor: colors.primary,
       shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 3.84,
-      elevation: 5,
+      ...elevation.level2,
     },
     nextBtnDisabled: { backgroundColor: colors.border },
     nextBtnText: { fontSize: text.headline, fontWeight: weight.semibold, color: colors.onPrimary },

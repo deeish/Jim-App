@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
-import { leading, radius, spacing, text, tracking, useTheme, weight } from '../theme';
+import { elevation, leading, radius, spacing, text, tracking, useTheme, weight } from '../theme';
 import type { ColorPalette } from '../theme/colors';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { storedInjuryTagsToAvoidList } from '../constants/injuryTags';
@@ -3347,11 +3347,12 @@ function createGeneratePlanStyles(c: ColorPalette) {
   },
   optionButtonSelectedRing: {
     borderWidth: 2,
+    // Shares level1's geometry but not its colour or weight: this is a selection
+    // glow in the brand blue, not a depth cue, so it stays deliberately stronger
+    // than a resting card's shadow would be.
+    ...elevation.level1,
     shadowColor: c.primary,
-    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.18,
-    shadowRadius: 3,
-    elevation: 2,
   },
   optionButtonText: {
     fontSize: text.body,
