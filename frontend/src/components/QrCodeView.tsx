@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { createQrMatrix, runLengthRow } from '../lib/qrMatrix';
 import { palette } from '../theme/colors';
 
+import { radius } from '../theme';
 const QUIET_ZONE_MODULES = 4;
 
 /**
@@ -35,7 +36,7 @@ export default function QrCodeView({
         width: size,
         height: size,
         backgroundColor: '#FFFFFF',
-        borderRadius: 12,
+        borderRadius: radius.md,
         padding: quiet,
         // The card is white by spec, and so is the sheet behind it — without this
         // hairline the QR appears to float with no edge.

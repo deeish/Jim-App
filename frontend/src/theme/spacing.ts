@@ -13,10 +13,11 @@
  * which exist only because a number got nudged until one screen looked right.
  *
  * SNAPPING RULE for anything not already on the scale: round to the nearest step,
- * and on a tie prefer the tighter one. The three big off-grid populations were 6
- * (88 uses), 10 (96) and 14 (96); these are judgement calls rather than arithmetic
- * ones, because a 14 that separates two sections wants `lg`, while a 14 inside a
- * dense list row wants `md`. Read the context, don't just round.
+ * and on a tie round up. The three big off-grid populations were 6 (88 uses), 10
+ * (96) and 14 (96) — all exact ties. They round up because the type scale landed
+ * slightly larger than what it replaced (13 -> 14, 15 -> 16, 17 -> 18), and
+ * growing the text while tightening its container is how a layout ends up feeling
+ * cramped. Bigger type wants proportionally more room, not less.
  *
  * Values above `xxxl` are deliberately absent. One-off layout numbers — a 180pt
  * hero, an 80pt chart gutter — are sizes, not rhythm, and belong inline next to

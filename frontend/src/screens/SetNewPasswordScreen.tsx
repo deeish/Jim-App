@@ -9,6 +9,7 @@ import AuthScreenLayout from '../components/AuthScreenLayout';
 import { supabase } from '../lib/supabase';
 import { validatePassword, mapAuthError } from '../lib/authValidation';
 
+import { spacing, text, weight } from '../theme';
 /**
  * Shown after the user opens the password-reset link from email (PASSWORD_RECOVERY session).
  */
@@ -91,8 +92,8 @@ export default function SetNewPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  field: { marginBottom: 14 },
-  button: { marginTop: 4 },
-  hint: { fontSize: 14, marginTop: 24, marginBottom: 8, textAlign: 'center' },
+  label: { fontSize: text.body, fontWeight: weight.semibold, marginBottom: spacing.sm },
+  field: { marginBottom: spacing.lg },
+  button: { marginTop: spacing.xs },
+  hint: { fontSize: text.body, marginTop: spacing.xxl, marginBottom: spacing.sm, textAlign: 'center' },
 });

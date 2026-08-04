@@ -14,6 +14,7 @@ import { CalendarIcon } from './TabIcons';
 import { useTheme } from '../theme/ThemeContext';
 import type { RootStackParamList } from '../types/navigation';
 
+import { spacing, text, weight } from '../theme';
 export type RootTabParamList = {
   Home: undefined;
   Plan: NavigatorScreenParams<RootStackParamList> | undefined;
@@ -49,7 +50,7 @@ export default function NavBar() {
           backgroundColor: colors.surface,
           borderTopWidth: 1,
           borderTopColor: colors.border,
-          paddingTop: 12,
+          paddingTop: spacing.md,
           paddingBottom: Platform.OS === 'ios' ? 20 : 12,
           height: Platform.OS === 'ios' ? 88 : 70,
           elevation: 12,
@@ -59,12 +60,12 @@ export default function NavBar() {
           shadowRadius: 12,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-          marginTop: 4,
+          fontSize: text.footnote,
+          fontWeight: weight.semibold,
+          marginTop: spacing.xs,
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: spacing.xs,
         },
       }}
     >

@@ -10,6 +10,7 @@ import AuthNotice from '../components/AuthNotice';
 import AuthScreenLayout from '../components/AuthScreenLayout';
 import { validateEmail, mapAuthError } from '../lib/authValidation';
 
+import { spacing, text, weight } from '../theme';
 export default function LoginScreen() {
   const navigation = useNavigation();
   const { colors } = useTheme();
@@ -136,13 +137,13 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  field: { marginBottom: 14 },
-  forgotWrap: { alignSelf: 'flex-end', marginBottom: 16 },
-  forgotText: { fontSize: 14, fontWeight: '600' },
-  button: { marginTop: 4 },
-  devLink: { alignSelf: 'center', marginTop: 16 },
-  devLinkText: { fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
-  footerText: { fontSize: 15 },
-  link: { fontSize: 15, fontWeight: '600' },
+  label: { fontSize: text.body, fontWeight: weight.semibold, marginBottom: spacing.sm },
+  field: { marginBottom: spacing.lg },
+  forgotWrap: { alignSelf: 'flex-end', marginBottom: spacing.lg },
+  forgotText: { fontSize: text.body, fontWeight: weight.semibold },
+  button: { marginTop: spacing.xs },
+  devLink: { alignSelf: 'center', marginTop: spacing.lg },
+  devLinkText: { fontSize: text.body, fontWeight: weight.semibold, textDecorationLine: 'underline' },
+  footerText: { fontSize: text.callout },
+  link: { fontSize: text.callout, fontWeight: weight.semibold },
 });

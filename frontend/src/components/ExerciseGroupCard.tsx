@@ -7,6 +7,7 @@ import { useTheme } from '../theme/ThemeContext';
 import MuscleBodyTile from './MuscleBodyTile';
 import ExerciseLikeButton from './ExerciseLikeButton';
 
+import { radius, spacing, text, weight } from '../theme';
 /** Body-map tile size and its gap to the title, shared so the "N variants"
  *  toggle below the row can line up with the exercise name. */
 const TILE_SIZE = 44;
@@ -55,14 +56,14 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
     () =>
       StyleSheet.create({
         container: {
-          marginBottom: 8,
-          marginHorizontal: 16,
+          marginBottom: spacing.sm,
+          marginHorizontal: spacing.lg,
         },
         card: {
           backgroundColor: colors.surface,
-          paddingVertical: 12,
-          paddingHorizontal: 14,
-          borderRadius: 12,
+          paddingVertical: spacing.md,
+          paddingHorizontal: spacing.lg,
+          borderRadius: radius.md,
           borderWidth: 1,
           borderColor: colors.border,
         },
@@ -77,7 +78,7 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           flex: 1,
           flexDirection: 'row',
           alignItems: 'center',
-          marginRight: 8,
+          marginRight: spacing.sm,
         },
         muscleDisc: {
           marginRight: TILE_GAP,
@@ -86,43 +87,43 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           flex: 1,
         },
         exerciseName: {
-          fontSize: 16,
-          fontWeight: '600',
+          fontSize: text.callout,
+          fontWeight: weight.semibold,
           color: colors.text,
         },
         subtitle: {
-          fontSize: 13,
+          fontSize: text.body,
           color: colors.textMuted,
-          marginTop: 2,
+          marginTop: spacing.xxs,
         },
         variationsToggle: {
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 3,
-          marginTop: 6,
+          gap: spacing.xs,
+          marginTop: spacing.sm,
           alignSelf: 'flex-start',
           // Sits below the row rather than inside the title column now, so it
           // needs the tile's width back to stay left-aligned with the name.
           marginLeft: TILE_SIZE + TILE_GAP,
         },
         variationsToggleText: {
-          fontSize: 12,
-          fontWeight: '600',
+          fontSize: text.footnote,
+          fontWeight: weight.semibold,
           color: colors.primary,
         },
         rowRight: {
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 4,
+          gap: spacing.xs,
         },
         iconButton: {
-          padding: 4,
+          padding: spacing.xs,
         },
         variationsContainer: {
-          marginTop: 4,
-          marginLeft: 12,
+          marginTop: spacing.xs,
+          marginLeft: spacing.md,
           backgroundColor: colors.surface,
-          borderRadius: 10,
+          borderRadius: radius.md,
           borderWidth: 1,
           borderColor: colors.border,
           overflow: 'hidden',
@@ -131,8 +132,8 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
-          paddingVertical: 10,
-          paddingHorizontal: 12,
+          paddingVertical: spacing.md,
+          paddingHorizontal: spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
         },
@@ -140,12 +141,12 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           borderBottomWidth: 0,
         },
         variationName: {
-          fontSize: 14,
+          fontSize: text.body,
           color: colors.textSecondary,
           flex: 1,
         },
         variationArrow: {
-          marginLeft: 8,
+          marginLeft: spacing.sm,
         },
       }),
     [colors]

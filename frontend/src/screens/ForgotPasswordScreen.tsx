@@ -9,6 +9,7 @@ import AuthNotice from '../components/AuthNotice';
 import AuthScreenLayout from '../components/AuthScreenLayout';
 import { validateEmail, mapAuthError } from '../lib/authValidation';
 
+import { spacing, text, weight } from '../theme';
 export default function ForgotPasswordScreen() {
   const navigation = useNavigation();
   const { colors } = useTheme();
@@ -80,7 +81,7 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  field: { marginBottom: 14 },
-  button: { marginTop: 4 },
+  label: { fontSize: text.body, fontWeight: weight.semibold, marginBottom: spacing.sm },
+  field: { marginBottom: spacing.lg },
+  button: { marginTop: spacing.xs },
 });

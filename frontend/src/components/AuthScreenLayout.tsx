@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme';
+import { leading, spacing, text, useTheme, weight } from '../theme';
 import JimLogo from './JimLogo';
 
 type Props = {
@@ -140,14 +140,14 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flex: 1 },
   keyboard: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: 24, paddingTop: 24 },
+  content: { flex: 1, paddingHorizontal: spacing.xxl, paddingTop: spacing.xxl },
   backLink: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
-  backText: { fontSize: 16, fontWeight: '600', marginLeft: 2 },
+  backText: { fontSize: text.callout, fontWeight: weight.semibold, marginLeft: spacing.xxs },
   // Center the block, but bias it slightly above true center (the paddingBottom
   // reserves space at the bottom, shifting content up ~40px) so there's less
   // headroom above the logo. Tune this single value to taste.
@@ -160,16 +160,16 @@ const styles = StyleSheet.create({
   // makes that padding change dead space below the content instead, so nothing
   // visible moves. The centred look is untouched whenever the keyboard is down,
   // and the single transition rides the keyboard's own open/close animation.
-  centerAreaKeyboardOpen: { justifyContent: 'flex-start', paddingBottom: 0 },
-  brandWrap: { alignItems: 'center', marginTop: 8, marginBottom: 28 },
-  title: { fontSize: 26, fontWeight: '700', textAlign: 'center', marginBottom: 6 },
-  subtitle: { fontSize: 15, lineHeight: 21, textAlign: 'center', marginBottom: 28 },
+  centerAreaKeyboardOpen: { justifyContent: 'flex-start', paddingBottom: spacing.none },
+  brandWrap: { alignItems: 'center', marginTop: spacing.sm, marginBottom: spacing.xxl },
+  title: { fontSize: text.display, fontWeight: weight.bold, textAlign: 'center', marginBottom: spacing.sm },
+  subtitle: { fontSize: text.callout, lineHeight: leading.callout, textAlign: 'center', marginBottom: spacing.xxl },
   body: {},
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 'auto',
-    paddingTop: 24,
+    paddingTop: spacing.xxl,
   },
 });

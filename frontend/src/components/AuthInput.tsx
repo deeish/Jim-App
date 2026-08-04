@@ -9,7 +9,7 @@ import {
   type StyleProp,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme';
+import { radius, spacing, text, useTheme } from '../theme';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -124,10 +124,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
   },
-  leading: { marginRight: 10 },
-  input: { flex: 1, paddingVertical: 14, fontSize: 16 },
-  toggle: { paddingLeft: 12 },
+  leading: { marginRight: spacing.md },
+  input: { flex: 1, paddingVertical: spacing.lg, fontSize: text.callout },
+  toggle: { paddingLeft: spacing.md },
 });

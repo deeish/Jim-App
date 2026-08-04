@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 
+import { radius, spacing } from '../theme';
 interface IconProps {
   color: string;
   size?: number;
@@ -61,7 +62,7 @@ const styles = StyleSheet.create({
   calendarBase: {
     width: 20,
     height: 20,
-    borderRadius: 4,
+    borderRadius: radius.xs,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -78,17 +79,17 @@ const styles = StyleSheet.create({
     right: 4,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    gap: 2,
+    gap: spacing.xxs,
   },
   calendarLine: {
     width: 2,
     height: 5,
-    borderRadius: 1,
+    borderRadius: radius.xs,
   },
   profileHead: {
     width: 6,
     height: 6,
-    borderRadius: 3,
+    borderRadius: radius.xs,
     position: 'absolute',
     top: 5,
     left: 11,
@@ -96,7 +97,7 @@ const styles = StyleSheet.create({
   profileBody: {
     width: 12,
     height: 8,
-    borderRadius: 6,
+    borderRadius: radius.sm,
     position: 'absolute',
     bottom: 5,
     left: 8,

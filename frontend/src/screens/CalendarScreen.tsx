@@ -16,6 +16,7 @@ import { getWorkoutLogs } from '../services/workoutService';
 import type { WorkoutLog, WorkoutLogEntry, WorkoutLogEntrySet } from '../types/workout';
 import { formatLocalYmd } from '../lib/planCalendar';
 
+import { leading, radius, spacing, text, weight } from '../theme';
 type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'History'>;
 
 type Props = {
@@ -305,7 +306,7 @@ export default function CalendarScreen({ navigation }: Props) {
           </View>
         )}
         {logsError && !logsLoading && (
-          <Text style={[styles.loadingText, { color: colors.error, textAlign: 'center', marginTop: 8 }]}>
+          <Text style={[styles.loadingText, { color: colors.error, textAlign: 'center', marginTop: spacing.sm }]}>
             {logsError}
           </Text>
         )}
@@ -327,7 +328,7 @@ export default function CalendarScreen({ navigation }: Props) {
                     <TouchableOpacity
                       style={[
                         styles.dayInner,
-                        isToday(day) && { backgroundColor: colors.primary, borderRadius: 20 },
+                        isToday(day) && { backgroundColor: colors.primary, borderRadius: radius.xl },
                         selectedDate?.day === day && {
                           borderWidth: 2,
                           borderColor: colors.primary,
@@ -342,7 +343,7 @@ export default function CalendarScreen({ navigation }: Props) {
                         style={[
                           styles.dayText,
                           { color: colors.text },
-                          isToday(day) && { color: colors.background, fontWeight: '700' },
+                          isToday(day) && { color: colors.background, fontWeight: weight.bold },
                         ]}
                       >
                         {day}
@@ -408,16 +409,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
   },
   backButton: {
-    padding: 4,
+    padding: spacing.xs,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: text.headline,
+    fontWeight: weight.bold,
   },
   headerSpacer: {
     width: 40,
@@ -426,51 +427,51 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 32,
+    paddingBottom: spacing.xxxl,
   },
   monthNav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
   },
   monthNavButton: {
-    padding: 8,
+    padding: spacing.sm,
   },
   monthTitle: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: text.headline,
+    fontWeight: weight.semibold,
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 8,
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
   },
   loadingText: {
-    fontSize: 12,
+    fontSize: text.footnote,
   },
   weekdayRow: {
     flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
   },
   weekdayLabel: {
     flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
     textAlign: 'center',
   },
   calendarGrid: {
-    paddingHorizontal: 8,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.md,
   },
   weekRow: {
     flexDirection: 'row',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   dayCell: {
     flex: 1,
@@ -486,131 +487,131 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dayText: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: text.callout,
+    fontWeight: weight.medium,
   },
   logBadge: {
     position: 'absolute',
     bottom: 2,
     minWidth: 16,
     height: 16,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: spacing.xs,
   },
   logBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: text.caption,
+    fontWeight: weight.bold,
   },
   hintRow: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
     alignItems: 'center',
   },
   hintText: {
-    fontSize: 14,
+    fontSize: text.body,
     fontStyle: 'italic',
   },
   dayDetailSection: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 24,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xxl,
     borderTopWidth: 1,
   },
   dayDetailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   dayDetailTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: text.title,
+    fontWeight: weight.bold,
   },
   dayDetailSubtitle: {
-    fontSize: 13,
-    marginTop: 2,
+    fontSize: text.body,
+    marginTop: spacing.xxs,
   },
   emptyDayText: {
-    fontSize: 15,
+    fontSize: text.callout,
     textAlign: 'center',
-    paddingVertical: 24,
+    paddingVertical: spacing.xxl,
   },
   logBlock: {
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 1,
-    padding: 16,
-    marginBottom: 16,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
   },
   logWorkoutName: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 8,
+    fontSize: text.headline,
+    fontWeight: weight.bold,
+    marginBottom: spacing.sm,
   },
   logMetaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 12,
+    gap: spacing.md,
+    marginBottom: spacing.md,
   },
   logMeta: {
-    fontSize: 14,
+    fontSize: text.body,
   },
   overallNotesBox: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    padding: spacing.md,
+    borderRadius: radius.sm,
+    marginBottom: spacing.lg,
   },
   overallNotesLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
+    marginBottom: spacing.xs,
   },
   overallNotesText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: text.body,
+    lineHeight: leading.body,
   },
   entriesList: {
-    gap: 12,
+    gap: spacing.md,
   },
   entryBlock: {
     borderLeftWidth: 3,
-    paddingLeft: 12,
-    marginBottom: 12,
+    paddingLeft: spacing.md,
+    marginBottom: spacing.md,
   },
   entryName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: text.callout,
+    fontWeight: weight.semibold,
+    marginBottom: spacing.xs,
   },
   entryNotes: {
-    fontSize: 13,
+    fontSize: text.body,
     fontStyle: 'italic',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   setsList: {
-    gap: 4,
+    gap: spacing.xs,
   },
   setRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 2,
+    gap: spacing.sm,
+    marginBottom: spacing.xxs,
   },
   setNumber: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: text.body,
+    fontWeight: weight.semibold,
     minWidth: 44,
   },
   setDetail: {
-    fontSize: 14,
+    fontSize: text.body,
   },
   setNotes: {
-    fontSize: 12,
+    fontSize: text.footnote,
     fontStyle: 'italic',
     marginLeft: 52,
-    marginTop: 2,
+    marginTop: spacing.xxs,
   },
 });

@@ -6,6 +6,7 @@ import Button from './Button';
 import { generateWorkout } from '../services/workoutService';
 import { useTheme } from '../theme/ThemeContext';
 
+import { radius, spacing, text, weight } from '../theme';
 interface WorkoutDetailModalProps {
   visible: boolean;
   workout: Workout;
@@ -31,13 +32,13 @@ export default function WorkoutDetailModal({ visible, workout, onClose, onSwap, 
         },
         container: {
           backgroundColor: colors.surface,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
+          borderTopLeftRadius: radius.xl,
+          borderTopRightRadius: radius.xl,
           maxHeight: '90%',
           flex: 1,
         },
         header: {
-          padding: 20,
+          padding: spacing.xl,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           flexDirection: 'row',
@@ -45,35 +46,35 @@ export default function WorkoutDetailModal({ visible, workout, onClose, onSwap, 
           alignItems: 'center',
         },
         title: {
-          fontSize: 24,
-          fontWeight: 'bold',
+          fontSize: text.title,
+          fontWeight: weight.bold,
           color: colors.text,
           flex: 1,
         },
         day: {
-          fontSize: 16,
+          fontSize: text.callout,
           color: colors.primary,
-          fontWeight: '600',
-          marginLeft: 12,
+          fontWeight: weight.semibold,
+          marginLeft: spacing.md,
         },
         closeButton: {
-          padding: 8,
+          padding: spacing.sm,
         },
         closeText: {
-          fontSize: 24,
+          fontSize: text.title,
           color: colors.textTertiary,
         },
         content: {
           flex: 1,
         },
         exercisesContainer: {
-          padding: 12,
+          padding: spacing.md,
         },
         footer: {
-          padding: 16,
+          padding: spacing.lg,
           borderTopWidth: 1,
           borderTopColor: colors.border,
-          gap: 12,
+          gap: spacing.md,
         },
         footerButton: {
           minHeight: 48,
@@ -86,29 +87,29 @@ export default function WorkoutDetailModal({ visible, workout, onClose, onSwap, 
         },
         swapContent: {
           backgroundColor: colors.surface,
-          borderRadius: 12,
-          padding: 24,
+          borderRadius: radius.md,
+          padding: spacing.xxl,
           width: '80%',
           maxWidth: 400,
           maxHeight: '70%',
         },
         swapTitle: {
-          fontSize: 20,
-          fontWeight: 'bold',
+          fontSize: text.title,
+          fontWeight: weight.bold,
           color: colors.text,
-          marginBottom: 16,
+          marginBottom: spacing.lg,
         },
         swapDaysList: {
           maxHeight: 300,
-          marginBottom: 16,
+          marginBottom: spacing.lg,
         },
         swapDayItem: {
-          padding: 16,
+          padding: spacing.lg,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
         },
         swapDayText: {
-          fontSize: 18,
+          fontSize: text.headline,
           color: colors.text,
         },
         swapCancelButton: {

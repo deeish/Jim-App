@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Text, StyleSheet, ActivityIndicator, Pressable, ViewStyle, TextStyle } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import { useTheme } from '../theme';
+import { radius, spacing, text, useTheme, weight } from '../theme';
 import { haptics } from '../lib/haptics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -36,8 +36,8 @@ export default function Button({
     () =>
       StyleSheet.create({
         button: {
-          padding: 18,
-          borderRadius: 14,
+          padding: spacing.lg,
+          borderRadius: radius.md,
           alignItems: 'center',
           shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: 2 },
@@ -54,7 +54,7 @@ export default function Button({
           borderColor: colors.primary,
         },
         disabled: { opacity: 0.6 },
-        buttonText: { fontSize: 18, fontWeight: '600' },
+        buttonText: { fontSize: text.headline, fontWeight: weight.semibold },
         primaryText: { color: colors.onPrimary },
         secondaryText: { color: colors.primary },
       }),

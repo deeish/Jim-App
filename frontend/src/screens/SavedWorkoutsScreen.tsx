@@ -19,6 +19,7 @@ import { getCurrentPlan, planSlotForWorkout } from '../services/planService';
 import type { ApiPlan } from '../services/planService';
 import type { Workout } from '../types/workout';
 
+import { radius, spacing, text, weight } from '../theme';
 type NavProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
 
 function savedWorkoutDurationLabel(w: Workout, plan: ApiPlan | null): string | null {
@@ -79,36 +80,36 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
         header: {
           flexDirection: 'row',
           alignItems: 'center',
-          paddingHorizontal: 16,
-          paddingVertical: 12,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           backgroundColor: colors.surface,
         },
-        backBtn: { padding: 8, marginRight: 8 },
-        headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+        backBtn: { padding: spacing.sm, marginRight: spacing.sm },
+        headerTitle: { fontSize: text.headline, fontWeight: weight.bold, color: colors.text },
         loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-        list: { padding: 16 },
+        list: { padding: spacing.lg },
         empty: {
           flex: 1,
           justifyContent: 'center',
           alignItems: 'center',
-          padding: 24,
+          padding: spacing.xxl,
         },
-        emptyText: { fontSize: 16, color: colors.textSecondary, textAlign: 'center' },
+        emptyText: { fontSize: text.callout, color: colors.textSecondary, textAlign: 'center' },
         card: {
           backgroundColor: colors.surface,
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 12,
+          borderRadius: radius.md,
+          padding: spacing.lg,
+          marginBottom: spacing.md,
           borderWidth: 1,
           borderColor: colors.border,
         },
-        cardTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-        cardTitle: { flex: 1, fontSize: 17, fontWeight: '600', color: colors.text },
-        cardUnsaveBtn: { padding: 4, marginLeft: 8 },
-        cardMeta: { fontSize: 13, color: colors.textSecondary },
-        cardExercises: { fontSize: 13, color: colors.textTertiary, marginTop: 6 },
+        cardTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
+        cardTitle: { flex: 1, fontSize: text.headline, fontWeight: weight.semibold, color: colors.text },
+        cardUnsaveBtn: { padding: spacing.xs, marginLeft: spacing.sm },
+        cardMeta: { fontSize: text.body, color: colors.textSecondary },
+        cardExercises: { fontSize: text.body, color: colors.textTertiary, marginTop: spacing.sm },
       }),
     [colors]
   );
@@ -157,7 +158,7 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
         </View>
       ) : workouts.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="heart-outline" size={48} color={colors.textMuted} style={{ marginBottom: 12 }} />
+          <Ionicons name="heart-outline" size={48} color={colors.textMuted} style={{ marginBottom: spacing.md }} />
           <Text style={styles.emptyText}>
             Workouts you like will appear here. Tap the heart on any workout to save it.
           </Text>
@@ -165,7 +166,7 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
       ) : (
         <ScrollView
           style={styles.list}
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{ paddingBottom: spacing.xxl }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
           }

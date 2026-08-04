@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { useTheme } from '../theme';
+import { leading, radius, spacing, text, useTheme } from '../theme';
 
 type Props = {
   children: React.ReactNode;
@@ -36,10 +36,10 @@ export default function AuthNotice({ children, variant = 'error', style }: Props
 const styles = StyleSheet.create({
   box: {
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 14,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.lg,
   },
-  text: { fontSize: 14, lineHeight: 19 },
+  text: { fontSize: text.body, lineHeight: leading.body },
 });
