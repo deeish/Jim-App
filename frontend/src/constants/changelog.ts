@@ -24,26 +24,24 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  // One entry covering everything since build 14. The 2026-07-28 and 2026-08-03
+  // entries were folded in here rather than shipped as their own cards: neither
+  // ever reached a build, and three stacked cards for a single release would
+  // have pushed the light theme and the Progress page behind "older".
   {
-    id: '2026-08-03',
-    version: '1.0.0',
-    date: '2026-08-03',
-    title: 'A cleaner look',
+    id: '2026-08-04',
+    version: '1.1.0',
+    date: '2026-08-04',
+    title: 'A new look, and your numbers',
     changes: [
       { type: 'improved', text: 'A new look throughout the app, built around a single light theme. The dark mode setting has been removed.' },
       { type: 'improved', text: 'A new app icon and launch screen to match.' },
-      { type: 'fixed', text: 'Tapping the eye to show your password no longer shifts the sign in screen.' },
-    ],
-  },
-  {
-    id: '2026-07-28',
-    version: '1.0.0',
-    date: '2026-07-28',
-    title: 'See what all that lifting adds up to',
-    changes: [
       { type: 'new', text: 'A Progress page showing your week streak, total sessions, sets and time, plus how many sessions you have done each week. Find it from the shortcuts on Home.' },
       { type: 'new', text: 'Every exercise page now shows your own history with that lift: your best set, an estimated one-rep max, and your recent sessions.' },
       { type: 'improved', text: 'The end of a workout now shows what you actually earned, including any personal best or lift you beat since last time, and your total volume.' },
+      { type: 'improved', text: 'Workouts now respond as you log. Sets confirm with a tap you can feel, and your progress fills in as you go.' },
+      { type: 'improved', text: 'Pages that are still loading now show the shape of what is coming instead of a spinner.' },
+      { type: 'fixed', text: 'Tapping the eye to show your password no longer shifts the sign in screen.' },
     ],
   },
   {

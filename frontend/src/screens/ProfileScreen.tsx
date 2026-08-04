@@ -41,6 +41,7 @@ import type { RootNavigatorParamList } from '../types/navigation';
 import { shareJsonExport } from '../lib/shareDataExport';
 import { PROFILE_AVATARS, type ProfileAvatarId } from '../constants/profileAvatars';
 
+import { radius, spacing, text, tracking, weight } from '../theme';
 function SectionHeader({ title, colors }: { title: string; colors: ColorPalette }) {
   return (
     <Text style={[styles.sectionHeader, { color: colors.textMuted }]}>{title}</Text>
@@ -129,43 +130,43 @@ function PickerAvatarGlyph({
 
 const staticStyles = StyleSheet.create({
   sectionHeader: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+    fontSize: text.caption,
+    fontWeight: weight.bold,
+    letterSpacing: tracking.wider,
     textTransform: 'uppercase',
-    marginBottom: 8,
-    marginLeft: 2,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.xxs,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
   rowLabel: {
-    fontSize: 16,
+    fontSize: text.callout,
   },
   rowRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.md,
     flexShrink: 1,
     justifyContent: 'flex-end',
   },
   rowValue: {
-    fontSize: 15,
+    fontSize: text.callout,
     textAlign: 'right',
     maxWidth: 200,
   },
   chevron: {
-    fontSize: 22,
-    fontWeight: '300',
-    marginLeft: 4,
+    fontSize: text.title,
+    fontWeight: weight.regular,
+    marginLeft: spacing.xs,
   },
   rowDivider: {
     height: 1,
-    marginLeft: 16,
+    marginLeft: spacing.lg,
   },
   bottomPad: {
     height: 40,
@@ -178,47 +179,47 @@ const layoutStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
     borderBottomWidth: 1,
   },
   backButton: { minWidth: 72 },
-  backLabel: { fontSize: 16, fontWeight: '600' },
-  headerTitle: { fontSize: 18, fontWeight: '700', flex: 1, textAlign: 'center' },
+  backLabel: { fontSize: text.callout, fontWeight: weight.semibold },
+  headerTitle: { fontSize: text.headline, fontWeight: weight.bold, flex: 1, textAlign: 'center' },
   headerRight: { minWidth: 72 },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingTop: 20 },
+  scrollContent: { paddingHorizontal: spacing.xxl, paddingTop: spacing.xl },
   profileCard: {
-    borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    borderRadius: radius.md,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
-    marginBottom: 22,
+    marginBottom: spacing.xl,
     borderWidth: 1,
   },
-  avatarWrap: { marginBottom: 4 },
+  avatarWrap: { marginBottom: spacing.xs },
   nameFieldWrap: {
     alignSelf: 'stretch',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   profileFieldLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-    marginBottom: 4,
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
+    letterSpacing: tracking.wide,
+    marginBottom: spacing.xs,
     alignSelf: 'flex-start',
     width: '100%',
     maxWidth: 240,
-    paddingLeft: 1,
+    paddingLeft: spacing.xxs,
   },
   profileNameInput: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    fontSize: 16,
-    fontWeight: '600',
+    borderRadius: radius.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    fontSize: text.callout,
+    fontWeight: weight.semibold,
     textAlign: 'center',
     width: '100%',
     maxWidth: 240,
@@ -226,33 +227,33 @@ const layoutStyles = StyleSheet.create({
   },
   profileEmailBlock: {
     alignItems: 'center',
-    marginTop: 8,
-    paddingHorizontal: 8,
-    gap: 2,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    gap: spacing.xxs,
   },
-  profileEmail: { fontSize: 14, textAlign: 'center' },
-  profileHint: { fontSize: 12, textAlign: 'center' },
+  profileEmail: { fontSize: text.body, textAlign: 'center' },
+  profileHint: { fontSize: text.footnote, textAlign: 'center' },
   profileCardDivider: {
     alignSelf: 'stretch',
     height: StyleSheet.hairlineWidth,
-    marginTop: 14,
-    marginBottom: 2,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xxs,
   },
   avatarPickerStrip: {
     alignSelf: 'stretch',
     width: '100%',
-    marginTop: 10,
+    marginTop: spacing.md,
   },
   avatarPickerLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-    marginBottom: 6,
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
+    letterSpacing: tracking.wide,
+    marginBottom: spacing.sm,
   },
   avatarPickerClip: {
     alignSelf: 'stretch',
     overflow: 'hidden',
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
   avatarPickerScroll: {
     flexGrow: 0,
@@ -261,28 +262,28 @@ const layoutStyles = StyleSheet.create({
   avatarPickerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 2,
-    paddingLeft: 0,
-    paddingRight: 8,
+    gap: spacing.sm,
+    paddingVertical: spacing.xxs,
+    paddingLeft: spacing.none,
+    paddingRight: spacing.sm,
   },
   avatarOptionOuter: {
     width: 46,
     height: 46,
-    borderRadius: 23,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   deleteAccountRow: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
   },
-  deleteAccountRowText: { fontSize: 16, fontWeight: '600' },
+  deleteAccountRowText: { fontSize: text.callout, fontWeight: weight.semibold },
   sectionCard: {
-    borderRadius: 14,
-    marginBottom: 28,
+    borderRadius: radius.md,
+    marginBottom: spacing.xxl,
     borderWidth: 1,
     overflow: 'hidden',
   },
@@ -291,41 +292,41 @@ const layoutStyles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingBottom: 28,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    paddingBottom: spacing.xxl,
     maxHeight: '85%',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    fontSize: text.headline,
+    fontWeight: weight.bold,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
   equipRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
   },
-  equipLabel: { fontSize: 16 },
+  equipLabel: { fontSize: text.callout },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 16,
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    gap: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
   },
-  modalBtnText: { fontSize: 16, fontWeight: '600' },
+  modalBtnText: { fontSize: text.callout, fontWeight: weight.semibold },
   weightRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 12,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
   },
   weightRowLabelCol: {
     flex: 1,
@@ -333,19 +334,19 @@ const layoutStyles = StyleSheet.create({
   },
   weightSegment: {
     flexDirection: 'row',
-    borderRadius: 10,
+    borderRadius: radius.md,
     borderWidth: 1,
     overflow: 'hidden',
   },
   weightSegmentBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     minWidth: 88,
     alignItems: 'center',
   },
   weightSegmentBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: text.callout,
+    fontWeight: weight.semibold,
   },
 });
 
@@ -629,7 +630,7 @@ export default function ProfileScreen() {
                 accessibilityLabel="Display name"
               />
               {nameDraft.length > 0 && (
-                <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'right', marginTop: 2 }}>
+                <Text style={{ color: colors.textMuted, fontSize: text.caption, textAlign: 'right', marginTop: spacing.xxs }}>
                   {nameDraft.length}/80
                 </Text>
               )}
@@ -694,7 +695,7 @@ export default function ProfileScreen() {
           <View style={styles.weightRow}>
             <View style={styles.weightRowLabelCol}>
               <Text style={[styles.rowLabel, { color: colors.text }]}>Weight units</Text>
-              <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 4 }}>
+              <Text style={{ fontSize: text.body, color: colors.textMuted, marginTop: spacing.xs }}>
                 Tap to choose how weights are shown when you log workouts.
               </Text>
             </View>
@@ -891,7 +892,7 @@ export default function ProfileScreen() {
             style={[
               styles.modalSheet,
               themedStyles.modalSheet,
-              { maxHeight: '50%', marginHorizontal: 24, alignSelf: 'center', width: '100%' },
+              { maxHeight: '50%', marginHorizontal: spacing.xxl, alignSelf: 'center', width: '100%' },
             ]}
           >
             <Text style={[styles.modalTitle, themedStyles.modalTitle]}>
@@ -962,10 +963,10 @@ export default function ProfileScreen() {
             <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Your equipment</Text>
             <Text
               style={{
-                fontSize: 14,
+                fontSize: text.body,
                 color: colors.textMuted,
-                paddingHorizontal: 20,
-                marginBottom: 8,
+                paddingHorizontal: spacing.xl,
+                marginBottom: spacing.sm,
               }}
             >
               Used as the default filter in Find Workouts. Toggle what you have access to.

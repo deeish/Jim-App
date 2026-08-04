@@ -10,7 +10,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useTheme } from '../theme';
+import { radius, spacing, text, useTheme, weight } from '../theme';
+import GlassSurface, { glassAvailable } from './GlassSurface';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { kgToLb, lbToKg } from '../lib/weightDisplay';
 import { haptics } from '../lib/haptics';
@@ -81,49 +82,51 @@ export default function LogWeightSheet({
           flex: 1,
           backgroundColor: colors.scrim,
           justifyContent: 'center',
-          paddingHorizontal: 24,
+          paddingHorizontal: spacing.xxl,
         },
         sheet: {
-          backgroundColor: colors.surface,
-          borderRadius: 18,
-          padding: 22,
-          borderWidth: 1,
+          // No backgroundColor here: GlassSurface owns the fill, either as the
+          // system glass material or as the opaque fallback it passes through.
+          borderRadius: radius.lg,
+          padding: spacing.xl,
+          borderWidth: glassAvailable ? 0 : 1,
           borderColor: colors.border,
+          overflow: 'hidden',
         },
-        title: { fontSize: 18, fontWeight: '700', color: colors.text },
+        title: { fontSize: text.headline, fontWeight: weight.bold, color: colors.text },
         subtitle: {
-          fontSize: 13,
+          fontSize: text.body,
           color: colors.textMuted,
-          marginTop: 4,
-          marginBottom: 16,
+          marginTop: spacing.xs,
+          marginBottom: spacing.lg,
         },
         inputRow: {
           flexDirection: 'row',
           alignItems: 'center',
           borderWidth: 1,
           borderColor: colors.border,
-          borderRadius: 12,
-          paddingHorizontal: 14,
+          borderRadius: radius.md,
+          paddingHorizontal: spacing.lg,
           backgroundColor: colors.background,
         },
         input: {
           flex: 1,
-          fontSize: 28,
-          fontWeight: '700',
+          fontSize: text.display,
+          fontWeight: weight.bold,
           color: colors.text,
-          paddingVertical: 12,
+          paddingVertical: spacing.md,
         },
-        unit: { fontSize: 18, fontWeight: '600', color: colors.textSecondary },
-        error: { color: colors.error, fontSize: 13, marginTop: 10 },
+        unit: { fontSize: text.headline, fontWeight: weight.semibold, color: colors.textSecondary },
+        error: { color: colors.error, fontSize: text.body, marginTop: spacing.md },
         actions: {
           flexDirection: 'row',
           justifyContent: 'flex-end',
           alignItems: 'center',
-          marginTop: 20,
-          gap: 24,
+          marginTop: spacing.xl,
+          gap: spacing.xxl,
         },
-        cancel: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
-        save: { fontSize: 16, fontWeight: '700', color: colors.primary },
+        cancel: { fontSize: text.callout, fontWeight: weight.semibold, color: colors.textSecondary },
+        save: { fontSize: text.callout, fontWeight: weight.bold, color: colors.primary },
       }),
     [colors],
   );
@@ -173,7 +176,7 @@ export default function LogWeightSheet({
           activeOpacity={1}
           onPress={onClose}
         />
-        <View style={styles.sheet}>
+        <GlassSurface style={styles.sheet}>
           <Text style={styles.title}>Log your weight</Text>
           <Text style={styles.subtitle}>
             Recorded in {weightUnit === 'kg' ? 'kilograms' : 'pounds'}.
@@ -206,7 +209,7 @@ export default function LogWeightSheet({
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </GlassSurface>
       </KeyboardAvoidingView>
     </Modal>
   );

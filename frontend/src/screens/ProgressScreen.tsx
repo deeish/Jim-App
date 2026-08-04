@@ -1,16 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme';
+import { radius, spacing, text, tracking, useTheme, weight } from '../theme';
+import { SkeletonCard } from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { getWorkoutStats } from '../services/workoutService';
 import type { WorkoutStats } from '../types/workout';
@@ -77,31 +71,21 @@ export default function ProgressScreen() {
 
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const header = (
-    <View style={styles.header}>
-      <TouchableOpacity
-        style={styles.backBtn}
-        onPress={() => navigation.goBack()}
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-      >
-        <Ionicons name="chevron-back" size={24} color={colors.primary} />
-      </TouchableOpacity>
-      <Text style={styles.headerTitle}>Progress</Text>
-    </View>
-  );
+  // Title, back button and scroll-edge treatment all come from the native header
+  // configured in PlanStackNavigator. The back button relies on PlanList sitting
+  // beneath this route, which HomeScreen guarantees via `initial: false`.
 
-  // With nothing fetched yet the spinner is the only honest render, on the
+  // With nothing fetched yet a placeholder is the only honest render, on the
   // first load and on retries alike. Once data exists, a focus refetch keeps
-  // the content on screen instead — never a spinner flash.
+  // the content on screen instead — never a loading flash.
   if (loading && !stats) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {header}
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.primary} />
+      <View style={styles.container}>
+        <View style={styles.skeletonWrap}>
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={3} style={{ marginTop: spacing.lg }} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -110,19 +94,16 @@ export default function ProgressScreen() {
   // already looking at.
   if (failed && !stats) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {header}
-        <View style={styles.centered}>
-          <Ionicons name="cloud-offline-outline" size={40} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>Could not load your progress</Text>
-          <Text style={styles.emptyBody}>
-            Check your connection and try again.
-          </Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => void load()}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <View style={styles.container}>
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Could not load your progress"
+          body="Check your connection and try again."
+          actionLabel="Retry"
+          onAction={() => void load()}
+          tone="error"
+        />
+      </View>
     );
   }
 
@@ -132,24 +113,25 @@ export default function ProgressScreen() {
   // — so zero here means the server really reported zero sessions.
   if (summary.sessionCount === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {header}
-        <View style={styles.centered}>
-          <Ionicons name="trending-up-outline" size={44} color={colors.primary} />
-          <Text style={styles.emptyTitle}>No sessions logged yet</Text>
-          <Text style={styles.emptyBody}>
-            Finish a workout and this is where your streak, totals and weekly
-            trend will build up.
-          </Text>
-        </View>
-      </SafeAreaView>
+      <View style={styles.container}>
+        <EmptyState
+          icon="trending-up-outline"
+          title="No sessions logged yet"
+          body="Finish a workout and this is where your streak, totals and weekly trend will build up."
+          tone="brand"
+        />
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {header}
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <View style={styles.container}>
+      {/* `automatic` is what lets the native large title collapse into the bar
+          as this list scrolls. Without it the title stays fixed at full size. */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <View style={styles.streakCard}>
           <View style={styles.streakIconWrap}>
             <Ionicons name="flame-outline" size={26} color={colors.primary} />
@@ -257,7 +239,7 @@ export default function ProgressScreen() {
           {`Based on the last ${stats?.months ?? 12} months of logged sessions.`}
         </Text>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -281,52 +263,17 @@ function Tile({
 function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    backBtn: { padding: 6, marginRight: 4 },
-    headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
-    centered: {
+    skeletonWrap: {
       flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 32,
-      gap: 12,
+      padding: spacing.lg,
     },
-    emptyTitle: {
-      fontSize: 17,
-      fontWeight: '700',
-      color: colors.text,
-      textAlign: 'center',
-    },
-    emptyBody: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      lineHeight: 20,
-    },
-    retryBtn: {
-      marginTop: 4,
-      paddingVertical: 10,
-      paddingHorizontal: 22,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-    },
-    retryText: { color: colors.primary, fontWeight: '600' },
-    scrollContent: { padding: 16, paddingBottom: 32 },
+    scrollContent: { padding: spacing.lg, paddingBottom: spacing.xxxl },
     streakCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 14,
-      padding: 18,
-      borderRadius: 16,
+      gap: spacing.lg,
+      padding: spacing.lg,
+      borderRadius: radius.lg,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
@@ -334,54 +281,54 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     streakIconWrap: {
       width: 46,
       height: 46,
-      borderRadius: 23,
+      borderRadius: radius.pill,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.primarySoft,
     },
-    streakTextBlock: { flex: 1, gap: 3 },
-    streakValue: { fontSize: 20, fontWeight: '700', color: colors.text },
-    streakSub: { fontSize: 13, color: colors.textSecondary },
-    tileRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+    streakTextBlock: { flex: 1, gap: spacing.xs },
+    streakValue: { fontSize: text.title, fontWeight: weight.bold, color: colors.text },
+    streakSub: { fontSize: text.body, color: colors.textSecondary },
+    tileRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
     tile: {
       flex: 1,
-      paddingVertical: 16,
-      paddingHorizontal: 4,
+      paddingVertical: spacing.lg,
+      paddingHorizontal: spacing.xs,
       alignItems: 'center',
-      borderRadius: 14,
+      borderRadius: radius.md,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
     },
     // 22 rather than 26: three across has to fit "33h 50m" on a narrow phone.
-    tileValue: { fontSize: 22, fontWeight: '700', color: colors.primary },
-    tileLabel: { fontSize: 13, color: colors.textTertiary, marginTop: 4 },
+    tileValue: { fontSize: text.title, fontWeight: weight.bold, color: colors.primary },
+    tileLabel: { fontSize: text.body, color: colors.textTertiary, marginTop: spacing.xs },
     volumeRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginTop: 12,
-      paddingVertical: 14,
-      paddingHorizontal: 16,
-      borderRadius: 14,
+      marginTop: spacing.md,
+      paddingVertical: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      borderRadius: radius.md,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
     },
-    volumeLabel: { fontSize: 14, color: colors.textSecondary },
-    volumeValue: { fontSize: 16, fontWeight: '600', color: colors.text },
+    volumeLabel: { fontSize: text.body, color: colors.textSecondary },
+    volumeValue: { fontSize: text.callout, fontWeight: weight.semibold, color: colors.text },
     sectionLabel: {
-      fontSize: 12,
-      fontWeight: '600',
-      letterSpacing: 0.8,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      letterSpacing: tracking.wider,
       textTransform: 'uppercase',
       color: colors.textMuted,
-      marginTop: 24,
-      marginBottom: 10,
+      marginTop: spacing.xxl,
+      marginBottom: spacing.md,
     },
     chartCard: {
-      padding: 16,
-      borderRadius: 14,
+      padding: spacing.lg,
+      borderRadius: radius.md,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
@@ -390,20 +337,20 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       flexDirection: 'row',
       alignItems: 'flex-end',
       height: 96,
-      gap: 5,
+      gap: spacing.xs,
     },
-    bar: { flex: 1, borderRadius: 4, minHeight: 3 },
+    bar: { flex: 1, borderRadius: radius.xs, minHeight: 3 },
     chartAxis: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginTop: 10,
+      marginTop: spacing.md,
     },
-    axisLabel: { fontSize: 11, color: colors.textMuted },
+    axisLabel: { fontSize: text.caption, color: colors.textMuted },
     footnote: {
-      fontSize: 12,
+      fontSize: text.footnote,
       color: colors.textMuted,
       textAlign: 'center',
-      marginTop: 18,
+      marginTop: spacing.lg,
     },
   });
 }

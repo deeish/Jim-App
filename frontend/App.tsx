@@ -24,7 +24,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import SetNewPasswordScreen from './src/screens/SetNewPasswordScreen';
-import { ThemeProvider, useTheme } from './src/theme';
+import { ThemeProvider, spacing, text, useTheme } from './src/theme';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { UserPreferencesProvider, useUserPreferences } from './src/contexts/UserPreferencesContext';
 import { DevPreviewProvider, useDevPreview } from './src/contexts/DevPreviewContext';
@@ -198,9 +198,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
   },
-  loadingText: { fontSize: 16 },
+  loadingText: { fontSize: text.callout },
 });
 
 function App() {

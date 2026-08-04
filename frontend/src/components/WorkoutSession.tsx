@@ -44,7 +44,27 @@ import {
 import { resolveWorkoutEtaMinutes, type EtaPlanSlotLike } from '../lib/estimateWorkoutMinutes';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from './Button';
-import { useTheme } from '../theme';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { haptics } from '../lib/haptics';
+import {
+  duration,
+  easing,
+  leading,
+  radius,
+  spacing,
+  spring,
+  text,
+  tracking,
+  useTheme,
+  weight,
+} from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import {
   formatAtWeightFromLb,
@@ -431,6 +451,19 @@ export default function WorkoutSession({
 
   const handleSetComplete = (exerciseIndex: number, setIndex: number) => {
     setFocusedSetIndex(null);
+
+    // Read before the update, and fire outside the updater — React may invoke a
+    // state updater more than once, and a double buzz on one tap is worse than
+    // none. Only ticking a set is worth confirming; un-ticking is a correction.
+    const isCompleting = !exerciseSessions[exerciseIndex]?.completedSets[setIndex]?.completed;
+    if (isCompleting) {
+      const sets = exerciseSessions[exerciseIndex].completedSets;
+      const lastOutstanding = sets.every((s, i) => i === setIndex || s.completed);
+      // Finishing the exercise gets the success pattern; a set gets a light tick.
+      if (lastOutstanding) haptics.success();
+      else haptics.step();
+    }
+
     setExerciseSessions((prev) => {
       const updated = [...prev];
       const sets = updated[exerciseIndex].completedSets;
@@ -888,9 +921,7 @@ export default function WorkoutSession({
               return null;
             })()}
           </View>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${progress}%` }]} />
-          </View>
+          <WorkoutProgressBar progress={progress} />
         </View>
       </View>
 
@@ -1136,6 +1167,93 @@ export default function WorkoutSession({
         </View>
       )}
     </View>
+  );
+}
+
+/**
+ * The session progress bar, which fills rather than jumps.
+ *
+ * Completing the last set of an exercise moves this by a whole segment, and a
+ * hard cut gives the user nothing to connect the set they just logged to the
+ * progress they just made. The animation is what carries that.
+ */
+function WorkoutProgressBar({ progress }: { progress: number }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
+  const width = useSharedValue(progress);
+
+  useEffect(() => {
+    width.value = withTiming(progress, {
+      duration: duration.base,
+      easing: Easing.bezier(...easing.standard),
+    });
+  }, [progress, width]);
+
+  const fillStyle = useAnimatedStyle(() => ({ width: `${width.value}%` }));
+
+  return (
+    <View style={styles.progressBar}>
+      <Animated.View style={[styles.progressFill, fillStyle]} />
+    </View>
+  );
+}
+
+/**
+ * One set marker. Pops when it flips to complete.
+ *
+ * Deliberately keyed on the transition rather than the value: re-entering the
+ * screen with sets already logged must not replay the whole row, and un-ticking
+ * a set is a correction, which should feel like an undo rather than a reward.
+ */
+function SetPill({
+  completed,
+  isFocused,
+  isFuture,
+  label,
+}: {
+  completed: boolean;
+  isFocused: boolean;
+  isFuture: boolean;
+  label: string;
+}) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
+  const scale = useSharedValue(1);
+  const wasCompleted = useRef(completed);
+
+  useEffect(() => {
+    if (completed && !wasCompleted.current) {
+      scale.value = withSequence(
+        withTiming(1.22, { duration: duration.instant }),
+        withSpring(1, spring.bouncy),
+      );
+    }
+    wasCompleted.current = completed;
+  }, [completed, scale]);
+
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.setTrackerPill,
+        completed && styles.setTrackerPillCompleted,
+        isFocused && styles.setTrackerPillFocused,
+        isFuture && styles.setTrackerPillFuture,
+        animatedStyle,
+      ]}
+    >
+      <Text
+        style={[
+          styles.setTrackerPillText,
+          completed && !isFocused && styles.setTrackerPillTextCompleted,
+          isFocused && styles.setTrackerPillTextFocused,
+          isFuture && styles.setTrackerPillTextFuture,
+        ]}
+      >
+        {label}
+      </Text>
+    </Animated.View>
   );
 }
 
@@ -1442,26 +1560,13 @@ function ExerciseCard({
             const isFocused = isCurrent && nextSetIdx === setIdx;
             const isFuture = !set.completed && !isFocused;
             const pill = (
-              <View
+              <SetPill
                 key={setIdx}
-                style={[
-                  styles.setTrackerPill,
-                  set.completed && styles.setTrackerPillCompleted,
-                  isFocused && styles.setTrackerPillFocused,
-                  isFuture && styles.setTrackerPillFuture,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.setTrackerPillText,
-                    set.completed && !isFocused && styles.setTrackerPillTextCompleted,
-                    isFocused && styles.setTrackerPillTextFocused,
-                    isFuture && styles.setTrackerPillTextFuture,
-                  ]}
-                >
-                  {set.completed ? '✓' : setIdx + 1}
-                </Text>
-              </View>
+                completed={set.completed}
+                isFocused={isFocused}
+                isFuture={isFuture}
+                label={set.completed ? '✓' : String(setIdx + 1)}
+              />
             );
             if (isCurrent && onFocusSet) {
               return (
@@ -2193,7 +2298,7 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   },
   header: {
     backgroundColor: palette.surface,
-    padding: 20,
+    padding: spacing.xl,
     borderBottomWidth: 1,
     borderBottomColor: palette.border,
   },
@@ -2201,42 +2306,42 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: spacing.md,
   },
   headerLeft: {
     flex: 1,
     minWidth: 0,
   },
   workoutName: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: text.title,
+    fontWeight: weight.bold,
     color: palette.text,
-    marginBottom: 2,
+    marginBottom: spacing.xxs,
   },
   workoutDate: {
-    fontSize: 15,
+    fontSize: text.callout,
     color: palette.textSecondary,
-    marginBottom: 6,
+    marginBottom: spacing.sm,
   },
   workoutMetaLine: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: text.body,
+    lineHeight: leading.body,
     color: palette.textTertiary,
-    fontWeight: '500',
+    fontWeight: weight.medium,
   },
   headerMenuButton: {
-    padding: 4,
-    marginTop: 2,
+    padding: spacing.xs,
+    marginTop: spacing.xxs,
   },
   headerMenuButtonText: {
-    fontSize: 24,
+    fontSize: text.title,
     color: palette.textTertiary,
   },
   progressSection: {
     backgroundColor: palette.surface,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 6,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: palette.border,
   },
@@ -2247,20 +2352,20 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   exerciseGuideCollapsed: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
     alignSelf: 'stretch',
     backgroundColor: palette.primary + '1c',
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: palette.primary + '44',
   },
   exerciseGuideCollapsedText: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: text.body,
+    fontWeight: weight.bold,
     color: palette.primary,
   },
   exerciseGuideChip: {
@@ -2269,12 +2374,12 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     alignSelf: 'flex-start',
     flexShrink: 1,
     maxWidth: '100%',
-    gap: 6,
-    marginTop: 4,
-    marginBottom: 2,
-    paddingVertical: 5,
-    paddingHorizontal: 11,
-    borderRadius: 999,
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xxs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
     backgroundColor: palette.primary + '18',
     borderWidth: 1,
     borderColor: palette.primary + '40',
@@ -2282,11 +2387,11 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   exerciseGuideChipInRow: {
     alignSelf: 'center',
     flexShrink: 0,
-    marginTop: 0,
-    marginBottom: 0,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    gap: 5,
+    marginTop: spacing.none,
+    marginBottom: spacing.none,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
     borderWidth: 1.5,
     borderColor: palette.primary + '55',
     backgroundColor: palette.primary + '22',
@@ -2299,67 +2404,67 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     flexShrink: 1,
   },
   exerciseGuideChipStrong: {
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: text.body,
+    fontWeight: weight.heavy,
     color: palette.text,
   },
   exerciseGuideChipMuted: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
     color: palette.textMuted,
   },
   exerciseGuideChipLabelInRow: {
     flexShrink: 0,
   },
   exerciseGuideChipStrongInRow: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: text.footnote,
+    fontWeight: weight.heavy,
     color: palette.text,
   },
   exerciseGuideChipMutedInRow: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: text.caption,
+    fontWeight: weight.bold,
     color: palette.textMuted,
   },
   progressHeader: {
-    marginBottom: 6,
+    marginBottom: spacing.sm,
   },
   progressText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: text.body,
+    fontWeight: weight.semibold,
     color: palette.textSecondary,
   },
   progressBar: {
     height: 4,
     backgroundColor: palette.background,
-    borderRadius: 2,
+    borderRadius: radius.xs,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     backgroundColor: palette.primary,
     opacity: 0.85,
-    borderRadius: 2,
+    borderRadius: radius.xs,
   },
   nextExerciseText: {
-    fontSize: 14,
+    fontSize: text.body,
     color: palette.textTertiary,
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   content: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 8,
-    paddingBottom: 6,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
   },
   exerciseCardCollapsed: {
     backgroundColor: palette.surface,
-    marginHorizontal: 12,
-    marginBottom: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: palette.border,
     flexDirection: 'row',
@@ -2380,24 +2485,24 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     textDecorationColor: palette.textSecondary,
   },
   exerciseCardSkippedHint: {
-    fontSize: 13,
+    fontSize: text.body,
     color: palette.textSecondary,
-    marginTop: 4,
-    fontWeight: '500',
+    marginTop: spacing.xs,
+    fontWeight: weight.medium,
   },
   unskipButton: {
     alignSelf: 'flex-start',
-    marginTop: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: palette.primary + '55',
     backgroundColor: palette.surface,
   },
   unskipButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: text.body,
+    fontWeight: weight.bold,
     color: palette.primary,
   },
   exerciseCardCollapsedContent: {
@@ -2413,70 +2518,73 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   exerciseCardCollapsedHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
   exerciseCardNameCollapsed: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: text.headline,
+    fontWeight: weight.semibold,
     color: palette.text,
   },
   activeBadge: {
     backgroundColor: palette.primary + '33',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
+    // xs, not sm: uppercase "ACTIVE" sits beside the exercise name in the
+    // collapsed card, and its type stepped up onto the scale. Any width this
+    // pill gains comes straight out of the name next to it.
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xxs,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: palette.primary + '55',
   },
   activeBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
+    fontSize: text.caption,
+    fontWeight: weight.bold,
     color: palette.primary,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: tracking.wide,
   },
   skippedBadge: {
     backgroundColor: palette.primary + '33',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: palette.primary + '66',
   },
   skippedBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: text.caption,
+    fontWeight: weight.heavy,
     color: palette.primary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: tracking.wider,
   },
   exerciseCardInfoCollapsed: {
-    fontSize: 14,
+    fontSize: text.body,
     color: palette.textSecondary,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   exerciseCardCollapsedPills: {
     flexDirection: 'row',
-    gap: 4,
+    gap: spacing.xs,
   },
   setTrackerPillCollapsed: {
     minWidth: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: radius.md,
     backgroundColor: palette.background,
     borderWidth: 2,
     borderColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: spacing.sm,
   },
   exerciseCard: {
     backgroundColor: palette.surface,
-    marginHorizontal: 12,
-    marginBottom: 5,
-    padding: 8,
-    borderRadius: 12,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+    padding: spacing.sm,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: palette.border,
   },
@@ -2488,10 +2596,10 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 2,
+    marginBottom: spacing.xxs,
   },
   exerciseCardHeaderCurrent: {
-    marginBottom: 2,
+    marginBottom: spacing.xxs,
   },
   exerciseCardHeaderLeft: {
     flex: 1,
@@ -2499,61 +2607,61 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   exerciseCardHeaderTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 2,
+    gap: spacing.sm,
+    marginBottom: spacing.xxs,
   },
   exerciseCardHeaderRight: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.sm,
   },
   exerciseCardName: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: text.headline,
+    fontWeight: weight.bold,
     color: palette.text,
     flexShrink: 1,
   },
   muscleTags: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: spacing.sm,
   },
   muscleTag: {
     backgroundColor: palette.primary + '15',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
   },
   muscleTagText: {
-    fontSize: 12,
+    fontSize: text.footnote,
     color: palette.primary,
-    fontWeight: '500',
+    fontWeight: weight.medium,
   },
   optionsButton: {
-    padding: 4,
+    padding: spacing.xs,
   },
   optionsButtonText: {
-    fontSize: 20,
+    fontSize: text.title,
     color: palette.textTertiary,
   },
   collapseButton: {
-    padding: 4,
+    padding: spacing.xs,
   },
   collapseButtonText: {
-    fontSize: 24,
+    fontSize: text.title,
     color: palette.textTertiary,
   },
   exerciseCardInfo: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: text.body,
+    fontWeight: weight.semibold,
     color: palette.textSecondary,
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   planAndGuideRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
-    marginBottom: 2,
+    gap: spacing.sm,
+    marginBottom: spacing.xxs,
     flexWrap: 'wrap',
   },
   planCell: {
@@ -2561,15 +2669,15 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     minWidth: 100,
   },
   exerciseCardInfoCompact: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: text.body,
+    fontWeight: weight.semibold,
     color: palette.textSecondary,
-    marginBottom: 0,
+    marginBottom: spacing.none,
   },
   prescriptionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: spacing.sm,
   },
   prescriptionRowTappable: {
     marginHorizontal: -4,
@@ -2579,98 +2687,98 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    paddingVertical: 4,
-    paddingRight: 8,
+    paddingVertical: spacing.xs,
+    paddingRight: spacing.sm,
   },
   prescriptionEditHint: {
-    fontSize: 12,
+    fontSize: text.footnote,
     color: palette.textTertiary,
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
   editPrescriptionText: {
-    fontSize: 16,
+    fontSize: text.callout,
     color: palette.primary,
-    marginLeft: 4,
+    marginLeft: spacing.xs,
   },
   completedSetsContainer: {
-    marginBottom: 12,
-    marginTop: 8,
+    marginBottom: spacing.md,
+    marginTop: spacing.sm,
   },
   completedSetsLabel: {
-    fontSize: 14,
+    fontSize: text.body,
     color: palette.textTertiary,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   completedSetsList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   completedSetBadge: {
     backgroundColor: palette.background,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: palette.border,
   },
   completedSetText: {
-    fontSize: 12,
+    fontSize: text.footnote,
     color: palette.textSecondary,
   },
   setTrackerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 5,
-    paddingVertical: 0,
+    marginBottom: spacing.xs,
+    paddingVertical: spacing.none,
   },
   setProgressLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: text.body,
+    fontWeight: weight.semibold,
     color: palette.textSecondary,
   },
   lastSetLine: {
-    fontSize: 12,
+    fontSize: text.footnote,
     color: palette.textTertiary,
-    marginBottom: 3,
+    marginBottom: spacing.xs,
   },
   suggestionLine: {
-    fontSize: 12,
+    fontSize: text.footnote,
     color: palette.primary,
-    fontWeight: '600',
-    marginBottom: 3,
+    fontWeight: weight.semibold,
+    marginBottom: spacing.xs,
   },
   loggingBand: {
     backgroundColor: palette.background,
-    borderRadius: 10,
-    padding: 8,
-    marginBottom: 0,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.none,
     borderWidth: 1,
     borderColor: palette.border,
   },
   loggingControlsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 0,
+    gap: spacing.md,
+    marginBottom: spacing.none,
   },
   stepperBlock: {
     flex: 1,
   },
   stepperLabel: {
-    fontSize: 11,
+    fontSize: text.caption,
     color: palette.textTertiary,
-    marginBottom: 2,
+    marginBottom: spacing.xxs,
   },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   stepperButton: {
     width: 36,
     height: 36,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     backgroundColor: palette.background,
     borderWidth: 1,
     borderColor: palette.border,
@@ -2678,14 +2786,14 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     alignItems: 'center',
   },
   stepperButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: text.headline,
+    fontWeight: weight.semibold,
     color: palette.text,
   },
   stepperValue: {
     minWidth: 44,
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: text.headline,
+    fontWeight: weight.semibold,
     color: palette.text,
     textAlign: 'center',
   },
@@ -2693,31 +2801,31 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     minWidth: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: spacing.xs,
   },
   stepperValueInput: {
     width: 52,
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: text.headline,
+    fontWeight: weight.semibold,
     color: palette.text,
     textAlign: 'center',
     backgroundColor: palette.background,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: palette.border,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.xs,
   },
   weightStepRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginTop: 4,
+    gap: spacing.sm,
+    marginTop: spacing.xs,
     flexWrap: 'wrap',
   },
   weightStepChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.background,
@@ -2727,9 +2835,9 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     backgroundColor: palette.primary + '20',
   },
   weightStepChipText: {
-    fontSize: 12,
+    fontSize: text.footnote,
     color: palette.textSecondary,
-    fontWeight: '600',
+    fontWeight: weight.semibold,
   },
   weightStepChipTextActive: {
     color: palette.primary,
@@ -2752,59 +2860,59 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   setTrackerRightRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   setPillControl: {
     minWidth: 40,
     minHeight: 40,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     backgroundColor: palette.background,
     borderWidth: 1,
     borderColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: spacing.xs,
   },
   setPillControlDisabled: {
     opacity: 0.5,
   },
   setPillControlText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: text.headline,
+    fontWeight: weight.semibold,
     color: palette.text,
   },
   setPillControlTextDisabled: {
     color: palette.textTertiary,
   },
   setTrackerLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: text.body,
+    fontWeight: weight.semibold,
     color: palette.textSecondary,
   },
   setTrackerDots: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: spacing.sm,
     flex: 1,
   },
   setTrackerPill: {
     minWidth: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: radius.pill,
     backgroundColor: palette.background,
     borderWidth: 2,
     borderColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: spacing.sm,
   },
   setTrackerPillCompleted: {
     backgroundColor: palette.primary,
     borderColor: palette.primary,
   },
   setTrackerPillText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: text.body,
+    fontWeight: weight.semibold,
     color: palette.textTertiary,
   },
   setTrackerPillTextCompleted: {
@@ -2813,7 +2921,7 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   setTrackerDot: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     backgroundColor: palette.background,
     borderWidth: 2,
     borderColor: palette.border,
@@ -2821,29 +2929,29 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     alignItems: 'center',
   },
   setTrackerDotText: {
-    fontSize: 16,
+    fontSize: text.callout,
     color: palette.textTertiary,
   },
   setTrackerDotCompleted: {
     color: palette.primary,
-    fontWeight: 'bold',
+    fontWeight: weight.bold,
   },
   currentSetContainer: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   currentSetLabel: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: text.callout,
+    fontWeight: weight.semibold,
     color: palette.text,
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   setsContainer: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   setCheckbox: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 2,
     borderColor: palette.border,
     justifyContent: 'center',
@@ -2855,66 +2963,66 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   },
   setCheckboxCheck: {
     color: palette.onPrimary,
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: text.body,
+    fontWeight: weight.bold,
   },
   setNumber: {
     width: 30,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: text.callout,
+    fontWeight: weight.semibold,
     color: palette.textSecondary,
   },
   setInput: {
     flex: 1,
     backgroundColor: palette.background,
-    padding: 10,
-    borderRadius: 8,
+    padding: spacing.md,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: palette.border,
     color: palette.text,
-    fontSize: 16,
+    fontSize: text.callout,
   },
   setInputRpe: {
     flex: 0.5,
   },
   addSetButton: {
-    padding: 12,
+    padding: spacing.md,
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: palette.border,
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   addSetButtonText: {
     color: palette.primary,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: text.callout,
+    fontWeight: weight.semibold,
   },
   exerciseNotesPreview: {
-    marginTop: 8,
-    padding: 8,
+    marginTop: spacing.sm,
+    padding: spacing.sm,
     backgroundColor: palette.background,
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
   exerciseNotesPreviewText: {
-    fontSize: 14,
+    fontSize: text.body,
     color: palette.textTertiary,
     fontStyle: 'italic',
   },
   advancedToggle: {
-    marginTop: 12,
-    padding: 8,
+    marginTop: spacing.md,
+    padding: spacing.sm,
     alignItems: 'center',
   },
   advancedToggleText: {
     color: palette.primary,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: text.body,
+    fontWeight: weight.semibold,
   },
   footer: {
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 14,
-    gap: 8,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    gap: spacing.sm,
     backgroundColor: palette.surface,
     borderTopWidth: 1,
     borderTopColor: palette.border,
@@ -2922,10 +3030,10 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   footerAddLibraryCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: palette.primary + '40',
     backgroundColor: palette.background,
@@ -2935,26 +3043,26 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     minWidth: 0,
   },
   footerAddLibraryCardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: text.callout,
+    fontWeight: weight.bold,
     color: palette.text,
   },
   footerAddLibraryCardSub: {
-    fontSize: 11,
+    fontSize: text.caption,
     color: palette.textMuted,
-    marginTop: 1,
-    fontWeight: '500',
+    marginTop: spacing.xxs,
+    fontWeight: weight.medium,
   },
   primaryButton: {
     minHeight: 56,
   },
   saveExitButton: {
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: spacing.md,
   },
   saveExitButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: text.body,
+    fontWeight: weight.semibold,
     color: palette.textSecondary,
   },
   toastContainer: {
@@ -2968,11 +3076,11 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   toastText: {
     backgroundColor: palette.text,
     color: palette.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    fontSize: 14,
-    fontWeight: '500',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.sm,
+    fontSize: text.body,
+    fontWeight: weight.medium,
     overflow: 'hidden',
   },
   modalOverlay: {
@@ -2983,35 +3091,35 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   },
   modalContent: {
     backgroundColor: palette.surface,
-    borderRadius: 12,
-    padding: 24,
+    borderRadius: radius.md,
+    padding: spacing.xxl,
     width: '80%',
     maxWidth: 400,
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: text.title,
+    fontWeight: weight.bold,
     color: palette.text,
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   modalText: {
-    fontSize: 16,
+    fontSize: text.callout,
     color: palette.textSecondary,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   modalSubtext: {
-    fontSize: 14,
+    fontSize: text.body,
     color: palette.textTertiary,
-    marginBottom: 24,
+    marginBottom: spacing.xxl,
   },
   modalButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.md,
   },
   modalButton: {
     flex: 1,
-    padding: 14,
-    borderRadius: 8,
+    padding: spacing.lg,
+    borderRadius: radius.sm,
     alignItems: 'center',
   },
   modalButtonCancel: {
@@ -3023,21 +3131,21 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     backgroundColor: palette.error,
   },
   modalButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: text.callout,
+    fontWeight: weight.semibold,
     color: palette.text,
   },
   modalButtonConfirmText: {
     color: palette.onPrimary,
   },
   modalCloseText: {
-    fontSize: 24,
+    fontSize: text.title,
     color: palette.textTertiary,
   },
   optionsModal: {
     backgroundColor: palette.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     width: '100%',
     position: 'absolute',
     bottom: 0,
@@ -3047,43 +3155,43 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: spacing.xl,
     borderBottomWidth: 1,
     borderBottomColor: palette.border,
   },
   optionsModalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: text.title,
+    fontWeight: weight.bold,
     color: palette.text,
   },
   optionsList: {
-    padding: 8,
+    padding: spacing.sm,
   },
   optionDivider: {
     height: 1,
     backgroundColor: palette.border,
-    marginVertical: 8,
-    marginHorizontal: 8,
+    marginVertical: spacing.sm,
+    marginHorizontal: spacing.sm,
   },
   optionItem: {
-    padding: 16,
+    padding: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: palette.border,
   },
   optionItemText: {
-    fontSize: 16,
+    fontSize: text.callout,
     color: palette.text,
   },
   optionItemSubtext: {
-    fontSize: 13,
+    fontSize: text.body,
     color: palette.textMuted,
-    marginTop: 4,
-    lineHeight: 18,
+    marginTop: spacing.xs,
+    lineHeight: leading.body,
   },
   sessionMenuCard: {
     backgroundColor: palette.surface,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
     width: '88%',
     maxWidth: 400,
     borderWidth: 1,
@@ -3093,16 +3201,16 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   sessionMenuRow: {
-    paddingVertical: 14,
+    paddingVertical: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: palette.border,
   },
   sessionMenuRowFirst: {
     borderTopWidth: 0,
-    paddingTop: 0,
+    paddingTop: spacing.none,
   },
   optionItemDestructive: {
     borderBottomWidth: 0,
@@ -3120,76 +3228,76 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   },
   editPrescriptionModal: {
     backgroundColor: palette.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     width: '100%',
-    paddingBottom: 24,
+    paddingBottom: spacing.xxl,
   },
   editPrescriptionModalHandle: {
     width: 40,
     height: 4,
     backgroundColor: palette.border,
-    borderRadius: 2,
+    borderRadius: radius.xs,
     alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 4,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
   editPrescriptionModalHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    gap: 12,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
+    gap: spacing.md,
   },
   editPrescriptionModalHeaderText: {
     flex: 1,
   },
   editPrescriptionModalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: text.title,
+    fontWeight: weight.bold,
     color: palette.text,
-    marginBottom: 2,
+    marginBottom: spacing.xxs,
   },
   editPrescriptionModalSubtitle: {
-    fontSize: 14,
+    fontSize: text.body,
     color: palette.textSecondary,
   },
   editPrescriptionModalClose: {
-    padding: 4,
+    padding: spacing.xs,
   },
   editPrescriptionModalBody: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    gap: 16,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
+    gap: spacing.lg,
   },
   editPrescriptionField: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   editPrescriptionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: text.body,
+    fontWeight: weight.semibold,
     color: palette.textSecondary,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   editPrescriptionInput: {
     backgroundColor: palette.background,
-    borderRadius: 8,
-    padding: 14,
+    borderRadius: radius.sm,
+    padding: spacing.lg,
     borderWidth: 1,
     borderColor: palette.border,
     color: palette.text,
-    fontSize: 16,
+    fontSize: text.callout,
   },
   editModalStepperRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
   },
   editModalStepperValue: {
     minWidth: 48,
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: text.headline,
+    fontWeight: weight.semibold,
     color: palette.text,
     textAlign: 'center',
   },
@@ -3197,27 +3305,27 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: palette.border,
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   editPrescriptionToggleLabel: {
-    fontSize: 16,
+    fontSize: text.callout,
     color: palette.text,
   },
   editPrescriptionModalFooter: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 12,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
   },
   editPrescriptionModalButton: {
     flex: 1,
   },
   notesModal: {
     backgroundColor: palette.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     maxHeight: '60%',
     width: '100%',
     position: 'absolute',
@@ -3227,22 +3335,22 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: spacing.xl,
     borderBottomWidth: 1,
     borderBottomColor: palette.border,
   },
   notesModalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: text.title,
+    fontWeight: weight.bold,
     color: palette.text,
   },
   notesInput: {
     backgroundColor: palette.background,
-    borderRadius: 8,
-    padding: 16,
-    margin: 20,
+    borderRadius: radius.sm,
+    padding: spacing.lg,
+    margin: spacing.xl,
     color: palette.text,
-    fontSize: 16,
+    fontSize: text.callout,
     minHeight: 120,
     textAlignVertical: 'top',
     borderWidth: 1,
@@ -3250,8 +3358,8 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   },
   notesModalButtons: {
     flexDirection: 'row',
-    padding: 20,
-    gap: 12,
+    padding: spacing.xl,
+    gap: spacing.md,
   },
   notesModalButton: {
     flex: 1,
@@ -3267,18 +3375,18 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
   },
   finishTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: text.display,
+    fontWeight: weight.bold,
     color: palette.text,
-    marginBottom: 28,
+    marginBottom: spacing.xxl,
   },
   finishStats: {
     flexDirection: 'row',
-    gap: 20,
-    marginBottom: 20,
+    gap: spacing.xl,
+    marginBottom: spacing.xl,
     width: '100%',
     justifyContent: 'space-around',
   },
@@ -3286,102 +3394,102 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
     alignItems: 'center',
   },
   finishStatValue: {
-    fontSize: 30,
-    fontWeight: 'bold',
+    fontSize: text.display,
+    fontWeight: weight.bold,
     color: palette.primary,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   finishStatLabel: {
-    fontSize: 14,
+    fontSize: text.body,
     color: palette.textTertiary,
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   finishStatSubtext: {
-    fontSize: 12,
+    fontSize: text.footnote,
     color: palette.textMuted,
-    marginTop: 2,
+    marginTop: spacing.xxs,
   },
   finishVolumeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
     backgroundColor: palette.surface,
     borderWidth: 1,
     borderColor: palette.border,
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   finishVolumeLabel: {
-    fontSize: 14,
+    fontSize: text.body,
     color: palette.textSecondary,
   },
   finishVolumeValue: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: text.callout,
+    fontWeight: weight.semibold,
     color: palette.text,
   },
   finishHighlights: {
     width: '100%',
-    gap: 10,
-    marginBottom: 28,
+    gap: spacing.md,
+    marginBottom: spacing.xxl,
   },
   finishSectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.8,
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
+    letterSpacing: tracking.wider,
     textTransform: 'uppercase',
     color: palette.textMuted,
   },
   finishHighlightRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
     backgroundColor: palette.surface,
     borderWidth: 1,
     borderColor: palette.border,
   },
   finishHighlightText: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xxs,
   },
   finishHighlightTitle: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: text.callout,
+    fontWeight: weight.semibold,
     color: palette.text,
   },
   finishHighlightDetail: {
-    fontSize: 13,
+    fontSize: text.body,
     color: palette.textSecondary,
   },
   finishHighlightMore: {
-    fontSize: 13,
+    fontSize: text.body,
     color: palette.textMuted,
     textAlign: 'center',
   },
   finishActions: {
     width: '100%',
-    gap: 12,
+    gap: spacing.md,
     // Keeps the actions off the stats when there is no volume row or
     // highlights between them.
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   finishButton: {
     minHeight: 56,
   },
   finishBackButton: {
-    padding: 16,
+    padding: spacing.lg,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   finishBackButtonText: {
     color: palette.textTertiary,
-    fontSize: 16,
+    fontSize: text.callout,
   },
   });
 }

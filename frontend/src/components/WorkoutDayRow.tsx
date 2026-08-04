@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme';
+import { radius, spacing, text, tracking, useTheme, weight } from '../theme';
 import type { ColorPalette } from '../theme/colors';
 
 export type WorkoutDayRowType = 'strength' | 'cardio' | 'recovery';
@@ -123,11 +123,11 @@ function makeStyles(
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
-      paddingVertical: 14,
+      gap: spacing.md,
+      paddingVertical: spacing.lg,
       paddingLeft: baseLeftPadding,
-      paddingRight: 8,
-      borderRadius: 12,
+      paddingRight: spacing.sm,
+      borderRadius: radius.md,
       backgroundColor: isToday ? colors.primarySoft : 'transparent',
       borderWidth: isCompleted ? 1 : 0,
       borderColor: isCompleted ? colors.secondary + '55' : 'transparent',
@@ -139,10 +139,10 @@ function makeStyles(
     },
     dayLabel: {
       width: 34,
-      fontSize: 13,
-      fontWeight: '700',
+      fontSize: text.body,
+      fontWeight: weight.bold,
       color: colors.textMuted,
-      letterSpacing: 0.4,
+      letterSpacing: tracking.wide,
     },
     statusCell: {
       width: 28,
@@ -153,14 +153,14 @@ function makeStyles(
     iconCircle: {
       width: 28,
       height: 28,
-      borderRadius: 9,
+      borderRadius: radius.sm,
       alignItems: 'center',
       justifyContent: 'center',
     },
     restDot: {
       width: 6,
       height: 6,
-      borderRadius: 3,
+      borderRadius: radius.xs,
       backgroundColor: colors.textMuted,
     },
     titleCell: {
@@ -168,29 +168,29 @@ function makeStyles(
       minWidth: 0,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: spacing.sm,
     },
     title: {
       flexShrink: 1,
-      fontSize: 16,
-      fontWeight: '600',
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
       color: isCompleted ? colors.textTertiary : isEmpty ? colors.primary : colors.text,
     },
     todayPill: {
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xxs,
+      borderRadius: radius.xs,
       backgroundColor: colors.secondary,
     },
     todayPillText: {
-      fontSize: 10,
-      fontWeight: '700',
+      fontSize: text.caption,
+      fontWeight: weight.bold,
       color: colors.onPrimary,
-      letterSpacing: 0.4,
+      letterSpacing: tracking.wide,
     },
     duration: {
-      fontSize: 14,
-      fontWeight: '600',
+      fontSize: text.body,
+      fontWeight: weight.semibold,
       color: colors.textSecondary,
     },
     moreSlot: {

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Linking,
   LayoutAnimation,
   Platform,
@@ -36,6 +35,8 @@ import { exerciseUsesTimeDisplay } from '../lib/exercisePrescription';
 import { formatWeightCompactFromLb } from '../lib/weightDisplay';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
+import { leading, radius, spacing, text, tracking, weight } from '../theme';
+import { Skeleton, SkeletonCard } from '../components/Skeleton';
 // Enable LayoutAnimation on Android (same guard as SearchScreen)
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -160,51 +161,49 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     () =>
       StyleSheet.create({
         container: { flex: 1, backgroundColor: colors.background },
-        loadingContainer: {
+        skeletonWrap: {
           flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: colors.background,
+          padding: spacing.xl,
         },
         emptyContainer: {
           flex: 1,
           justifyContent: 'center',
           alignItems: 'center',
-          padding: 20,
+          padding: spacing.xl,
           backgroundColor: colors.background,
         },
-        emptyText: { fontSize: 18, color: colors.textTertiary, marginBottom: 20 },
+        emptyText: { fontSize: text.headline, color: colors.textTertiary, marginBottom: spacing.xl },
         header: {
-          paddingHorizontal: 16,
-          paddingVertical: 12,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           backgroundColor: colors.surface,
         },
-        backButtonContainer: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 2 },
-        backButtonText: { fontSize: 16, color: colors.primary, fontWeight: '600' },
+        backButtonContainer: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
+        backButtonText: { fontSize: text.callout, color: colors.primary, fontWeight: weight.semibold },
         videoSection: {
-          padding: 20,
-          paddingTop: 0,
+          padding: spacing.xl,
+          paddingTop: spacing.none,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           backgroundColor: colors.surface,
         },
-        videoSectionTitle: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 8 },
-        videoSectionHint: { fontSize: 14, color: colors.textSecondary, marginBottom: 12, lineHeight: 20 },
+        videoSectionTitle: { fontSize: text.headline, fontWeight: weight.semibold, color: colors.text, marginBottom: spacing.sm },
+        videoSectionHint: { fontSize: text.body, color: colors.textSecondary, marginBottom: spacing.md, lineHeight: leading.body },
         youtubeButton: {
           backgroundColor: colors.primary + '25',
-          paddingVertical: 14,
-          paddingHorizontal: 20,
-          borderRadius: 12,
+          paddingVertical: spacing.lg,
+          paddingHorizontal: spacing.xl,
+          borderRadius: radius.md,
           borderWidth: 1,
           borderColor: colors.primary,
         },
-        youtubeButtonText: { fontSize: 16, color: colors.primary, fontWeight: '600' },
-        backButton: { fontSize: 16, color: colors.primary, fontWeight: '600' },
+        youtubeButtonText: { fontSize: text.callout, color: colors.primary, fontWeight: weight.semibold },
+        backButton: { fontSize: text.callout, color: colors.primary, fontWeight: weight.semibold },
         content: { flex: 1, backgroundColor: colors.background },
         titleSection: {
-          padding: 20,
+          padding: spacing.xl,
           backgroundColor: colors.surface,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
@@ -212,36 +211,36 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           justifyContent: 'space-between',
           alignItems: 'flex-start',
         },
-        exerciseName: { fontSize: 28, fontWeight: 'bold', color: colors.text, flex: 1, marginRight: 12 },
-        titleLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+        exerciseName: { fontSize: text.display, fontWeight: weight.bold, color: colors.text, flex: 1, marginRight: spacing.md },
+        titleLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
         difficultyBadge: {
           backgroundColor: colors.primary + '20',
-          paddingHorizontal: 12,
-          paddingVertical: 6,
-          borderRadius: 12,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderRadius: radius.md,
         },
-        difficultyText: { fontSize: 12, fontWeight: '600', color: colors.primary, textTransform: 'capitalize' },
+        difficultyText: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.primary, textTransform: 'capitalize' },
         section: {
-          padding: 20,
+          padding: spacing.xl,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           backgroundColor: colors.surface,
         },
-        sectionTitle: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 12 },
-        description: { fontSize: 16, color: colors.textSecondary, lineHeight: 24 },
-        tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+        sectionTitle: { fontSize: text.headline, fontWeight: weight.semibold, color: colors.text, marginBottom: spacing.md },
+        description: { fontSize: text.callout, color: colors.textSecondary, lineHeight: leading.callout },
+        tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
         bodyMapRow: {
           flexDirection: 'row',
           justifyContent: 'center',
-          gap: 32,
-          marginTop: 4,
-          marginBottom: 18,
+          gap: spacing.xxxl,
+          marginTop: spacing.xs,
+          marginBottom: spacing.lg,
         },
         tag: {
           backgroundColor: colors.primary + '15',
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-          borderRadius: 12,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderRadius: radius.md,
           borderWidth: 1,
           borderColor: colors.primary + '30',
         },
@@ -251,70 +250,70 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         movementTag: { backgroundColor: colors.background, borderColor: colors.border },
         historyHeadline: {
           flexDirection: 'row',
-          gap: 10,
-          marginBottom: 14,
+          gap: spacing.md,
+          marginBottom: spacing.lg,
         },
         historyStat: {
           flex: 1,
-          paddingVertical: 12,
-          paddingHorizontal: 10,
-          borderRadius: 12,
+          paddingVertical: spacing.md,
+          paddingHorizontal: spacing.md,
+          borderRadius: radius.md,
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.background,
         },
-        historyStatLabel: { fontSize: 11, color: colors.textMuted, marginBottom: 4 },
-        historyStatValue: { fontSize: 17, fontWeight: '700', color: colors.text },
+        historyStatLabel: { fontSize: text.caption, color: colors.textMuted, marginBottom: spacing.xs },
+        historyStatValue: { fontSize: text.headline, fontWeight: weight.bold, color: colors.text },
         historyChartLabel: {
-          fontSize: 11,
-          fontWeight: '600',
-          letterSpacing: 0.6,
+          fontSize: text.caption,
+          fontWeight: weight.semibold,
+          letterSpacing: tracking.wider,
           textTransform: 'uppercase',
           color: colors.textMuted,
-          marginBottom: 8,
+          marginBottom: spacing.sm,
         },
         historyChart: {
           flexDirection: 'row',
           alignItems: 'flex-end',
           height: 64,
-          gap: 4,
-          marginBottom: 16,
+          gap: spacing.xs,
+          marginBottom: spacing.lg,
         },
-        historyBar: { flex: 1, borderRadius: 3, minHeight: 4 },
+        historyBar: { flex: 1, borderRadius: radius.xs, minHeight: 4 },
         historyRow: {
           flexDirection: 'row',
           alignItems: 'center',
-          paddingVertical: 10,
+          paddingVertical: spacing.md,
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.border,
         },
-        historyRowDate: { width: 62, fontSize: 13, color: colors.textMuted },
-        historyRowMain: { flex: 1, fontSize: 14, color: colors.text, fontWeight: '600' },
-        historyRowEst: { fontSize: 12, color: colors.textSecondary },
-        tagText: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
+        historyRowDate: { width: 62, fontSize: text.body, color: colors.textMuted },
+        historyRowMain: { flex: 1, fontSize: text.body, color: colors.text, fontWeight: weight.semibold },
+        historyRowEst: { fontSize: text.footnote, color: colors.textSecondary },
+        tagText: { fontSize: text.body, fontWeight: weight.medium, color: colors.textSecondary },
         collapseHeader: {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
         },
-        collapseTitle: { marginBottom: 0 },
-        collapseMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-        collapseCount: { fontSize: 13, color: colors.textSecondary },
-        instructionsList: { marginTop: 16 },
-        instructionItem: { flexDirection: 'row', marginBottom: 16, alignItems: 'flex-start' },
+        collapseTitle: { marginBottom: spacing.none },
+        collapseMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+        collapseCount: { fontSize: text.body, color: colors.textSecondary },
+        instructionsList: { marginTop: spacing.lg },
+        instructionItem: { flexDirection: 'row', marginBottom: spacing.lg, alignItems: 'flex-start' },
         instructionNumber: {
           width: 28,
           height: 28,
-          borderRadius: 14,
+          borderRadius: radius.pill,
           backgroundColor: colors.primary,
           justifyContent: 'center',
           alignItems: 'center',
-          marginRight: 12,
-          marginTop: 2,
+          marginRight: spacing.md,
+          marginTop: spacing.xxs,
         },
-        instructionNumberText: { fontSize: 14, fontWeight: 'bold', color: colors.onPrimary },
-        instructionText: { flex: 1, fontSize: 15, color: colors.textSecondary, lineHeight: 22 },
-        aliasesText: { fontSize: 15, color: colors.textSecondary, fontStyle: 'italic' },
+        instructionNumberText: { fontSize: text.body, fontWeight: weight.bold, color: colors.onPrimary },
+        instructionText: { flex: 1, fontSize: text.callout, color: colors.textSecondary, lineHeight: leading.callout },
+        aliasesText: { fontSize: text.callout, color: colors.textSecondary, fontStyle: 'italic' },
       }),
     [colors]
   );
@@ -434,8 +433,16 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={styles.skeletonWrap}>
+          <Skeleton width="65%" height={26} />
+          <Skeleton width="40%" height={14} style={{ marginTop: spacing.md }} />
+          <Skeleton
+            width="100%"
+            height={180}
+            borderRadius={radius.md}
+            style={{ marginTop: spacing.xl }}
+          />
+          <SkeletonCard lines={3} style={{ marginTop: spacing.xl }} />
         </View>
       </SafeAreaView>
     );
@@ -483,7 +490,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
             <MuscleBodyTile exercise={exercise} size={48} />
             <Text style={styles.exerciseName}>{exercise.name}</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
             <ExerciseLikeButton
               exerciseId={exercise.id}
               saved={saved}
@@ -625,7 +632,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                 { backgroundColor: muscleVisual.softColor, borderColor: muscleVisual.color },
               ]}
             >
-              <Text style={[styles.tagText, { color: muscleVisual.color, fontWeight: '600' }]}>
+              <Text style={[styles.tagText, { color: muscleVisual.color, fontWeight: weight.semibold }]}>
                 {exercise.primaryMuscleGroup}
               </Text>
             </View>

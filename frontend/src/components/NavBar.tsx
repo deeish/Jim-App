@@ -1,5 +1,6 @@
 import React from 'react';
-import { Platform, Pressable } from 'react-native';
+import { Platform, Pressable, StyleSheet } from 'react-native';
+import GlassSurface, { glassAvailable } from './GlassSurface';
 import {
   createBottomTabNavigator,
   type BottomTabBarButtonProps,
@@ -14,6 +15,7 @@ import { CalendarIcon } from './TabIcons';
 import { useTheme } from '../theme/ThemeContext';
 import type { RootStackParamList } from '../types/navigation';
 
+import { elevationUp, spacing, text, weight } from '../theme';
 export type RootTabParamList = {
   Home: undefined;
   Plan: NavigatorScreenParams<RootStackParamList> | undefined;
@@ -45,26 +47,37 @@ export default function NavBar() {
         // like it had two competing active colors.)
         tabBarInactiveTintColor: colors.textMuted,
         tabBarHideOnKeyboard: true,
+        // On iOS 26 the bar's fill is the system glass material. Only supplied
+        // when glass is actually available: bottom-tabs forces the bar
+        // transparent whenever tabBarBackground is present, so on every other
+        // platform this would just paint colors.surface a second time.
+        ...(glassAvailable
+          ? { tabBarBackground: () => <GlassSurface style={StyleSheet.absoluteFill} /> }
+          : null),
         tabBarStyle: {
-          backgroundColor: colors.surface,
+          backgroundColor: glassAvailable ? 'transparent' : colors.surface,
+          // The border stays in BOTH branches. Glass carries its own edge only
+          // when it has something to refract, and this bar is not positioned
+          // absolutely — bottom-tabs keeps it in the layout flow, so content
+          // stops above it and never passes underneath. Without the hairline the
+          // glass samples a flat page background and the bar loses its boundary
+          // entirely. (Making it float needs every screen to pad by
+          // useBottomTabBarHeight(); until then, keep the separator.)
           borderTopWidth: 1,
           borderTopColor: colors.border,
-          paddingTop: 12,
+          paddingTop: spacing.md,
           paddingBottom: Platform.OS === 'ios' ? 20 : 12,
           height: Platform.OS === 'ios' ? 88 : 70,
-          elevation: 12,
           shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
+          ...elevationUp,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-          marginTop: 4,
+          fontSize: text.footnote,
+          fontWeight: weight.semibold,
+          marginTop: spacing.xs,
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: spacing.xs,
         },
       }}
     >

@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import type { ColorPalette } from '../theme/colors';
 
+import { radius, spacing, text, tracking, weight } from '../theme';
 const WEEK_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 function parseIsoLocal(iso: string): Date {
@@ -169,24 +170,24 @@ export function MonthCalendarPicker({ selectedIso, minIso, colors, onSelectDay }
 function createStyles(c: ColorPalette) {
   return StyleSheet.create({
     wrap: {
-      marginTop: 8,
+      marginTop: spacing.sm,
       width: '100%',
     },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: 10,
+      marginBottom: spacing.md,
     },
     monthTitle: {
-      fontSize: 16,
-      fontWeight: '700',
+      fontSize: text.callout,
+      fontWeight: weight.bold,
       color: c.text,
     },
     navBtn: {
       width: 40,
       height: 40,
-      borderRadius: 10,
+      borderRadius: radius.md,
       borderWidth: 1,
       borderColor: c.border,
       backgroundColor: c.background,
@@ -200,9 +201,9 @@ function createStyles(c: ColorPalette) {
       opacity: 0.85,
     },
     navBtnText: {
-      fontSize: 22,
+      fontSize: text.title,
       color: c.text,
-      fontWeight: '600',
+      fontWeight: weight.semibold,
       marginTop: -2,
     },
     navBtnTextDisabled: {
@@ -210,27 +211,27 @@ function createStyles(c: ColorPalette) {
     },
     weekRow: {
       flexDirection: 'row',
-      marginBottom: 4,
+      marginBottom: spacing.xs,
     },
     weekLabel: {
       flex: 1,
       minWidth: 0,
       textAlign: 'center',
-      fontSize: 11,
-      fontWeight: '700',
+      fontSize: text.caption,
+      fontWeight: weight.bold,
       color: c.textMuted,
-      letterSpacing: 0.2,
+      letterSpacing: tracking.wide,
     },
     dayRow: {
       flexDirection: 'row',
-      gap: 4,
-      marginBottom: 4,
+      gap: spacing.xs,
+      marginBottom: spacing.xs,
     },
     dayCell: {
       flex: 1,
       minWidth: 0,
       minHeight: 44,
-      borderRadius: 10,
+      borderRadius: radius.md,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -249,8 +250,8 @@ function createStyles(c: ColorPalette) {
       borderColor: c.primary,
     },
     dayText: {
-      fontSize: 15,
-      fontWeight: '600',
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
       color: c.text,
     },
     dayTextMuted: {
@@ -261,7 +262,7 @@ function createStyles(c: ColorPalette) {
     },
     dayTextSelected: {
       color: c.primary,
-      fontWeight: '800',
+      fontWeight: weight.heavy,
     },
   });
 }

@@ -32,6 +32,7 @@ import { formatRepRange } from '../lib/formatExerciseRepsDisplay';
 import { parseShareCodeFromUrl } from '../lib/shareLinks';
 import { apiErrorMessage } from '../lib/apiErrorMessage';
 
+import { leading, radius, spacing, text, tracking, weight } from '../theme';
 type Navigation = NativeStackNavigationProp<RootNavigatorParamList>;
 type Route = RouteProp<RootNavigatorParamList, 'ShareRedeem'>;
 
@@ -192,8 +193,8 @@ export default function ShareRedeemScreen() {
         backBar: {
           flexDirection: 'row',
           alignItems: 'center',
-          paddingHorizontal: 8,
-          paddingBottom: 10,
+          paddingHorizontal: spacing.sm,
+          paddingBottom: spacing.md,
           borderBottomWidth: StyleSheet.hairlineWidth,
           borderBottomColor: colors.border,
           backgroundColor: colors.surface,
@@ -201,89 +202,89 @@ export default function ShareRedeemScreen() {
         backButton: {
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 6,
-          paddingVertical: 10,
-          paddingHorizontal: 12,
+          gap: spacing.sm,
+          paddingVertical: spacing.md,
+          paddingHorizontal: spacing.md,
         },
-        backButtonText: { fontSize: 16, fontWeight: '600', color: colors.primary },
+        backButtonText: { fontSize: text.callout, fontWeight: weight.semibold, color: colors.primary },
         headerTitle: {
-          fontSize: 16,
-          fontWeight: '700',
+          fontSize: text.callout,
+          fontWeight: weight.bold,
           color: colors.text,
-          marginLeft: 4,
+          marginLeft: spacing.xs,
         },
-        content: { padding: 20, paddingBottom: 40, gap: 16 },
+        content: { padding: spacing.xl, paddingBottom: 40, gap: spacing.lg },
         promptText: {
-          fontSize: 15,
+          fontSize: text.callout,
           color: colors.textSecondary,
-          lineHeight: 21,
+          lineHeight: leading.callout,
         },
         codeInput: {
           borderWidth: 1,
           borderColor: colors.border,
-          borderRadius: 14,
+          borderRadius: radius.md,
           backgroundColor: colors.surface,
           color: colors.text,
-          fontSize: 28,
-          fontWeight: 'bold',
-          letterSpacing: 2,
+          fontSize: text.display,
+          fontWeight: weight.bold,
+          letterSpacing: tracking.widest,
           textAlign: 'center',
-          paddingVertical: 16,
+          paddingVertical: spacing.lg,
           fontVariant: ['tabular-nums'],
         },
         errorText: {
-          fontSize: 14,
+          fontSize: text.body,
           color: colors.error,
           textAlign: 'center',
         },
         loadingBox: { paddingVertical: 40, alignItems: 'center' },
-        sharedByText: { fontSize: 14, color: colors.textSecondary },
+        sharedByText: { fontSize: text.body, color: colors.textSecondary },
         previewTitle: {
-          fontSize: 24,
-          fontWeight: 'bold',
+          fontSize: text.title,
+          fontWeight: weight.bold,
           color: colors.text,
         },
-        previewMeta: { fontSize: 14, color: colors.textSecondary },
+        previewMeta: { fontSize: text.body, color: colors.textSecondary },
         warningBox: {
           borderWidth: 1,
           borderColor: colors.border,
-          borderRadius: 12,
+          borderRadius: radius.md,
           backgroundColor: colors.surface,
-          padding: 14,
+          padding: spacing.lg,
         },
-        warningText: { fontSize: 14, color: colors.text, lineHeight: 20 },
+        warningText: { fontSize: text.body, color: colors.text, lineHeight: leading.body },
         bannerText: {
-          fontSize: 14,
+          fontSize: text.body,
           color: colors.textSecondary,
           textAlign: 'center',
         },
         weekHeader: {
-          fontSize: 13,
-          fontWeight: '700',
+          fontSize: text.body,
+          fontWeight: weight.bold,
           color: colors.textMuted,
           textTransform: 'uppercase',
-          letterSpacing: 0.6,
-          marginTop: 8,
+          letterSpacing: tracking.wider,
+          marginTop: spacing.sm,
         },
         slotCard: {
           borderWidth: 1,
           borderColor: colors.border,
-          borderRadius: 12,
+          borderRadius: radius.md,
           backgroundColor: colors.surface,
-          padding: 14,
-          gap: 4,
+          padding: spacing.lg,
+          gap: spacing.xs,
         },
-        slotTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
-        slotMeta: { fontSize: 13, color: colors.textSecondary },
+        slotTitle: { fontSize: text.callout, fontWeight: weight.semibold, color: colors.text },
+        slotMeta: { fontSize: text.body, color: colors.textSecondary },
         exerciseRow: {
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
-          paddingVertical: 6,
+          paddingVertical: spacing.sm,
         },
-        exerciseName: { fontSize: 15, color: colors.text, flex: 1, paddingRight: 12 },
-        exerciseMeta: { fontSize: 14, color: colors.textSecondary },
-        acceptButton: { minHeight: 48, marginTop: 8 },
+        exerciseName: { fontSize: text.callout, color: colors.text, flex: 1, paddingRight: spacing.md },
+        exerciseMeta: { fontSize: text.body, color: colors.textSecondary },
+        acceptButton: { minHeight: 48, marginTop: spacing.sm },
       }),
     [colors],
   );
@@ -318,7 +319,7 @@ export default function ShareRedeemScreen() {
             {Array.from(
               new Set(preview.plan.slots.map((s) => s.weekNumber)),
             ).map((week) => (
-              <View key={week} style={{ gap: 8 }}>
+              <View key={week} style={{ gap: spacing.sm }}>
                 {(preview.plan?.weekCount ?? 0) > 1 ? (
                   <Text style={styles.weekHeader}>Week {week}</Text>
                 ) : null}

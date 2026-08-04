@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Workout } from '../types/workout';
 import { useTheme } from '../theme/ThemeContext';
 
+import { elevation, radius, spacing, text, weight } from '../theme';
 interface DayCardProps {
   day: string;
   workout?: Workout;
@@ -16,31 +17,28 @@ export default function DayCard({ day, workout, onPress }: DayCardProps) {
       StyleSheet.create({
         card: {
           backgroundColor: colors.surface,
-          margin: 12,
-          padding: 16,
-          borderRadius: 12,
+          margin: spacing.md,
+          padding: spacing.lg,
+          borderRadius: radius.md,
           shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 3.84,
-          elevation: 5,
+          ...elevation.level1,
         },
         header: {
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 8,
+          marginBottom: spacing.sm,
         },
-        dayName: { fontSize: 20, fontWeight: 'bold', color: colors.text },
+        dayName: { fontSize: text.title, fontWeight: weight.bold, color: colors.text },
         badge: {
           backgroundColor: colors.accent,
-          paddingHorizontal: 12,
-          paddingVertical: 4,
-          borderRadius: 12,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.xs,
+          borderRadius: radius.md,
         },
-        badgeText: { color: colors.background, fontSize: 12, fontWeight: '600' },
-        workoutName: { fontSize: 16, color: colors.textSecondary, marginTop: 4 },
-        noWorkout: { fontSize: 14, color: colors.textMuted, fontStyle: 'italic', marginTop: 4 },
+        badgeText: { color: colors.background, fontSize: text.footnote, fontWeight: weight.semibold },
+        workoutName: { fontSize: text.callout, color: colors.textSecondary, marginTop: spacing.xs },
+        noWorkout: { fontSize: text.body, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xs },
       }),
     [colors]
   );

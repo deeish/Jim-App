@@ -18,6 +18,7 @@ import { formatShareCode } from '../lib/shareCode';
 import { buildShareMessage, buildShareUrl } from '../lib/shareLinks';
 import { apiErrorMessage } from '../lib/apiErrorMessage';
 
+import { leading, radius, spacing, text, tracking, weight } from '../theme';
 interface ShareModalProps {
   visible: boolean;
   onClose: () => void;
@@ -100,12 +101,12 @@ export default function ShareModal({
         },
         container: {
           backgroundColor: colors.surface,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          paddingBottom: 28,
+          borderTopLeftRadius: radius.xl,
+          borderTopRightRadius: radius.xl,
+          paddingBottom: spacing.xxl,
         },
         header: {
-          padding: 20,
+          padding: spacing.xl,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           flexDirection: 'row',
@@ -113,50 +114,50 @@ export default function ShareModal({
           alignItems: 'center',
         },
         title: {
-          fontSize: 20,
-          fontWeight: 'bold',
+          fontSize: text.title,
+          fontWeight: weight.bold,
           color: colors.text,
           flex: 1,
         },
         closeButton: {
-          padding: 8,
+          padding: spacing.sm,
         },
         closeText: {
-          fontSize: 22,
+          fontSize: text.title,
           color: colors.textTertiary,
         },
         body: {
           alignItems: 'center',
-          paddingHorizontal: 24,
-          paddingTop: 24,
-          gap: 16,
+          paddingHorizontal: spacing.xxl,
+          paddingTop: spacing.xxl,
+          gap: spacing.lg,
         },
         codeText: {
-          fontSize: 32,
-          fontWeight: 'bold',
-          letterSpacing: 2,
+          fontSize: text.display,
+          fontWeight: weight.bold,
+          letterSpacing: tracking.widest,
           color: colors.text,
           fontVariant: ['tabular-nums'],
         },
         caption: {
-          fontSize: 14,
+          fontSize: text.body,
           color: colors.textSecondary,
           textAlign: 'center',
-          lineHeight: 20,
+          lineHeight: leading.body,
         },
         expiry: {
-          fontSize: 12,
+          fontSize: text.footnote,
           color: colors.textTertiary,
         },
         errorText: {
-          fontSize: 15,
+          fontSize: text.callout,
           color: colors.text,
           textAlign: 'center',
-          lineHeight: 21,
+          lineHeight: leading.callout,
         },
         footer: {
-          paddingHorizontal: 24,
-          paddingTop: 20,
+          paddingHorizontal: spacing.xxl,
+          paddingTop: spacing.xl,
         },
         footerButton: {
           minHeight: 48,

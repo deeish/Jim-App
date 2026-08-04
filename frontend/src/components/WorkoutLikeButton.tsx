@@ -3,6 +3,7 @@ import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 
+import { spacing } from '../theme';
 export interface WorkoutLikeButtonProps {
   /** Workout id from API; when undefined, button is disabled (e.g. preview workout). */
   workoutId: string | undefined;
@@ -64,6 +65,6 @@ export default function WorkoutLikeButton({
 
 const styles = StyleSheet.create({
   button: {
-    padding: 8,
+    padding: spacing.sm,
   },
 });

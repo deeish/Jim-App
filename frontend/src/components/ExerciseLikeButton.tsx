@@ -3,6 +3,7 @@ import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 
+import { spacing } from '../theme';
 export interface ExerciseLikeButtonProps {
   exerciseId: string;
   saved: boolean;
@@ -58,6 +59,6 @@ export default function ExerciseLikeButton({
 
 const styles = StyleSheet.create({
   button: {
-    padding: 8,
+    padding: spacing.sm,
   },
 });

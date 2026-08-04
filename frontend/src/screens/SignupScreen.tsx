@@ -7,6 +7,7 @@ import Button from '../components/Button';
 import AuthInput from '../components/AuthInput';
 import AuthNotice from '../components/AuthNotice';
 import AuthScreenLayout from '../components/AuthScreenLayout';
+import { spacing, text, weight } from '../theme';
 import {
   MIN_PASSWORD_LENGTH,
   validateEmail,
@@ -124,11 +125,11 @@ export default function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  field: { marginBottom: 14 },
-  passwordField: { marginBottom: 8 },
-  passwordHint: { fontSize: 12, marginBottom: 14 },
-  button: { marginTop: 4 },
-  footerText: { fontSize: 15 },
-  link: { fontSize: 15, fontWeight: '600' },
+  label: { fontSize: text.body, fontWeight: weight.semibold, marginBottom: spacing.sm },
+  field: { marginBottom: spacing.lg },
+  passwordField: { marginBottom: spacing.sm },
+  passwordHint: { fontSize: text.footnote, marginBottom: spacing.lg },
+  button: { marginTop: spacing.xs },
+  footerText: { fontSize: text.callout },
+  link: { fontSize: text.callout, fontWeight: weight.semibold },
 });

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Exercise } from '../types/workout';
 import { useTheme } from '../theme/ThemeContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { leading, radius, spacing, text, weight } from '../theme';
 import {
   formatExercisePrescriptionExerciseCard,
   profileGoalToPlanGoal,
@@ -40,8 +41,8 @@ export default function ExerciseCard({
       StyleSheet.create({
         card: {
           backgroundColor: colors.surface,
-          borderRadius: 14,
-          marginBottom: 10,
+          borderRadius: radius.md,
+          marginBottom: spacing.md,
           borderWidth: 1,
           borderColor: colors.border,
           overflow: 'hidden',
@@ -57,9 +58,9 @@ export default function ExerciseCard({
           flex: 1,
           flexDirection: 'row',
           alignItems: 'center',
-          paddingVertical: 14,
-          paddingLeft: 16,
-          paddingRight: 8,
+          paddingVertical: spacing.lg,
+          paddingLeft: spacing.lg,
+          paddingRight: spacing.sm,
           minHeight: 72,
         },
         mainPressPressed: {
@@ -72,38 +73,38 @@ export default function ExerciseCard({
         indexPill: {
           width: 28,
           height: 28,
-          borderRadius: 8,
+          borderRadius: radius.sm,
           backgroundColor: colors.primary + '22',
           alignItems: 'center',
           justifyContent: 'center',
-          marginRight: 12,
+          marginRight: spacing.md,
         },
         indexPillText: {
-          fontSize: 13,
-          fontWeight: '800',
+          fontSize: text.body,
+          fontWeight: weight.heavy,
           color: colors.primary,
         },
-        exerciseName: { fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 4 },
-        prescription: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
+        exerciseName: { fontSize: text.headline, fontWeight: weight.bold, color: colors.text, marginBottom: spacing.xs },
+        prescription: { fontSize: text.body, color: colors.textSecondary, fontWeight: weight.medium },
         hint: {
-          fontSize: 12,
+          fontSize: text.footnote,
           color: colors.textMuted,
-          marginTop: 6,
-          fontWeight: '500',
+          marginTop: spacing.sm,
+          fontWeight: weight.medium,
         },
-        notes: { fontSize: 13, color: colors.textTertiary, fontStyle: 'italic', marginTop: 8, lineHeight: 18 },
-        chevron: { alignSelf: 'center', marginLeft: 4, opacity: 0.5 },
+        notes: { fontSize: text.body, color: colors.textTertiary, fontStyle: 'italic', marginTop: spacing.sm, lineHeight: leading.body },
+        chevron: { alignSelf: 'center', marginLeft: spacing.xs, opacity: 0.5 },
         removeWrap: {
           justifyContent: 'center',
-          paddingRight: 10,
-          paddingLeft: 4,
+          paddingRight: spacing.md,
+          paddingLeft: spacing.xs,
         },
         removeBtn: {
           width: 40,
           height: 44,
           alignItems: 'center',
           justifyContent: 'center',
-          borderRadius: 10,
+          borderRadius: radius.md,
         },
       }),
     [colors]
@@ -148,7 +149,7 @@ export default function ExerciseCard({
             {body}
           </Pressable>
         ) : (
-          <View style={[styles.mainPress, { paddingRight: 16 }]}>{body}</View>
+          <View style={[styles.mainPress, { paddingRight: spacing.lg }]}>{body}</View>
         )}
         {onRemove ? (
           <View style={styles.removeWrap}>

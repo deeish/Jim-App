@@ -5,6 +5,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
+import { PRESS_SCALE, spring } from '../theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -25,11 +26,11 @@ export default function PressableScale({ style, children, onPressIn, onPressOut,
     <AnimatedPressable
       style={[style, animatedStyle]}
       onPressIn={(e) => {
-        scale.value = withSpring(0.97, { damping: 18, stiffness: 260 });
+        scale.value = withSpring(PRESS_SCALE, spring.snappy);
         onPressIn?.(e);
       }}
       onPressOut={(e) => {
-        scale.value = withSpring(1, { damping: 18, stiffness: 260 });
+        scale.value = withSpring(1, spring.snappy);
         onPressOut?.(e);
       }}
       {...rest}
