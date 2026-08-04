@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { radius, spacing, text, useTheme, weight } from '../theme';
+import GlassSurface, { glassAvailable } from './GlassSurface';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { kgToLb, lbToKg } from '../lib/weightDisplay';
 import { haptics } from '../lib/haptics';
@@ -84,11 +85,13 @@ export default function LogWeightSheet({
           paddingHorizontal: spacing.xxl,
         },
         sheet: {
-          backgroundColor: colors.surface,
+          // No backgroundColor here: GlassSurface owns the fill, either as the
+          // system glass material or as the opaque fallback it passes through.
           borderRadius: radius.lg,
           padding: spacing.xl,
-          borderWidth: 1,
+          borderWidth: glassAvailable ? 0 : 1,
           borderColor: colors.border,
+          overflow: 'hidden',
         },
         title: { fontSize: text.headline, fontWeight: weight.bold, color: colors.text },
         subtitle: {
@@ -173,7 +176,7 @@ export default function LogWeightSheet({
           activeOpacity={1}
           onPress={onClose}
         />
-        <View style={styles.sheet}>
+        <GlassSurface style={styles.sheet}>
           <Text style={styles.title}>Log your weight</Text>
           <Text style={styles.subtitle}>
             Recorded in {weightUnit === 'kg' ? 'kilograms' : 'pounds'}.
@@ -206,7 +209,7 @@ export default function LogWeightSheet({
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </GlassSurface>
       </KeyboardAvoidingView>
     </Modal>
   );

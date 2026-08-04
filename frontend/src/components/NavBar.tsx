@@ -1,5 +1,6 @@
 import React from 'react';
-import { Platform, Pressable } from 'react-native';
+import { Platform, Pressable, StyleSheet } from 'react-native';
+import GlassSurface, { glassAvailable } from './GlassSurface';
 import {
   createBottomTabNavigator,
   type BottomTabBarButtonProps,
@@ -46,15 +47,20 @@ export default function NavBar() {
         // like it had two competing active colors.)
         tabBarInactiveTintColor: colors.textMuted,
         tabBarHideOnKeyboard: true,
+        // On iOS 26 the bar's fill is the system glass material; everywhere else
+        // it stays the opaque surface it has always been. The border and the cast
+        // shadow are the fallback's job — glass carries its own edge treatment,
+        // and drawing ours on top of it reads as a seam.
+        tabBarBackground: () => <GlassSurface style={StyleSheet.absoluteFill} />,
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopWidth: 1,
+          backgroundColor: glassAvailable ? 'transparent' : colors.surface,
+          borderTopWidth: glassAvailable ? 0 : 1,
           borderTopColor: colors.border,
           paddingTop: spacing.md,
           paddingBottom: Platform.OS === 'ios' ? 20 : 12,
           height: Platform.OS === 'ios' ? 88 : 70,
           shadowColor: colors.shadow,
-          ...elevationUp,
+          ...(glassAvailable ? null : elevationUp),
         },
         tabBarLabelStyle: {
           fontSize: text.footnote,
