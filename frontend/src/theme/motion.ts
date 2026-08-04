@@ -40,15 +40,22 @@ export const easing = {
 /**
  * Spring configs for Reanimated's `withSpring`.
  *
- * `snappy` matches the existing `PressableScale` feel (damping 18 / stiffness 260)
- * so adopting these tokens does not change how any current press behaves.
+ * `snappy` carries the exact numbers `PressableScale` has always used (damping 18
+ * / stiffness 260), so moving that component onto the token did not change how
+ * any press in the app feels.
+ *
+ * All three are underdamped, i.e. all three overshoot — damping / 2√(stiffness ×
+ * mass) is 0.56, 0.79 and 0.42 respectively. The difference is how much and for
+ * how long, not whether. An earlier version of this comment claimed snappy and
+ * gentle did not bounce at all; that was simply wrong, and the guard test below
+ * only compared them to each other so it never caught the claim.
  */
 export const spring = {
-  /** Press feedback and snap-to-position. Settles fast, no visible overshoot. */
+  /** Press feedback and snap-to-position. Overshoot is small and settles fast. */
   snappy: { damping: 18, stiffness: 260, mass: 1 },
-  /** Layout shifts and sheet movement. Softer, still no bounce. */
+  /** Layout shifts and sheet movement. The most damped of the three. */
   gentle: { damping: 20, stiffness: 160, mass: 1 },
-  /** Reserved for reward moments — a completed set, a new PR. Overshoots once. */
+  /** Reward moments — a completed set, a new PR. Visibly bounces. */
   bouncy: { damping: 11, stiffness: 190, mass: 0.9 },
 } as const;
 

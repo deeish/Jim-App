@@ -5,7 +5,7 @@
  * re-exports `ThemeContext`, which pulls in `react-native` — and Jest runs this
  * project in a plain Node environment.
  */
-import { spacing, SCREEN_PADDING } from './spacing';
+import { spacing } from './spacing';
 import { radius } from './radius';
 import { text, leading, weight, tracking } from './typography';
 import { elevation, elevationUp } from './elevation';
@@ -27,9 +27,6 @@ describe('spacing', () => {
     expect(new Set(v).size).toBe(v.length);
   });
 
-  it('uses the grid for the screen gutter', () => {
-    expect(SCREEN_PADDING).toBe(spacing.lg);
-  });
 });
 
 describe('radius', () => {
@@ -140,12 +137,23 @@ describe('motion', () => {
     }
   });
 
-  it('only lets the reward spring overshoot', () => {
-    // damping/(2*sqrt(stiffness*mass)) < 1 is underdamped, i.e. it bounces.
+  it('orders the springs by how much they overshoot, bounciest first', () => {
+    // damping/(2*sqrt(stiffness*mass)) is the damping ratio: below 1 is
+    // underdamped, i.e. it overshoots. All three are underdamped here, so the
+    // assertion has to be about ORDER and MARGIN, not about which ones bounce.
+    // Comparing them only to each other (the first version of this test) passes
+    // even if every value drifts, which is how the file's comments ended up
+    // claiming two of these did not bounce at all.
     const ratio = (s: { damping: number; stiffness: number; mass: number }) =>
       s.damping / (2 * Math.sqrt(s.stiffness * s.mass));
+
     expect(ratio(spring.bouncy)).toBeLessThan(ratio(spring.snappy));
-    expect(ratio(spring.bouncy)).toBeLessThan(ratio(spring.gentle));
+    expect(ratio(spring.snappy)).toBeLessThan(ratio(spring.gentle));
+
+    // The reward spring must stay clearly the springiest, not drift into a tie.
+    expect(ratio(spring.snappy) - ratio(spring.bouncy)).toBeGreaterThan(0.1);
+    // And none of them may go so slack they visibly wobble.
+    for (const s of Object.values(spring)) expect(ratio(s)).toBeGreaterThan(0.35);
   });
 
   it('keeps press give subtle', () => {

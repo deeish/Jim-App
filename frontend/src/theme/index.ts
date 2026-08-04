@@ -17,7 +17,7 @@ export { palette, colors, muscleGroupColors, planSlotIconColors, SOFT_ALPHA } fr
 export type { PlanSlotIconColors } from './colors';
 export { ThemeProvider, useTheme } from './ThemeContext';
 
-export { spacing, SCREEN_PADDING } from './spacing';
+export { spacing } from './spacing';
 export type { SpacingToken } from './spacing';
 
 export { radius } from './radius';

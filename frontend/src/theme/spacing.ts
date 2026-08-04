@@ -37,6 +37,3 @@ export const spacing = {
 } as const;
 
 export type SpacingToken = keyof typeof spacing;
-
-/** The screen gutter. Every full-width screen pads its content by this much. */
-export const SCREEN_PADDING = spacing.lg;

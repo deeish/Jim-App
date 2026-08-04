@@ -90,7 +90,6 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
         },
         backBtn: { padding: spacing.sm, marginRight: spacing.sm },
         headerTitle: { fontSize: text.headline, fontWeight: weight.bold, color: colors.text },
-        loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
         list: { padding: spacing.lg },
         card: {
           backgroundColor: colors.surface,

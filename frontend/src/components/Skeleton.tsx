@@ -99,7 +99,10 @@ export function SkeletonList({ count = 4, style }: { count?: number; style?: Sty
         >
           <Skeleton width={40} height={40} borderRadius={radius.sm} />
           <View style={styles.rowText}>
-            <Skeleton width={`${70 - i * 6}%`} height={15} />
+            {/* Widths taper down the list so it reads as varied content rather
+              than a stack of identical bars. Floored so a long list cannot
+              produce a negative width. */}
+          <Skeleton width={`${Math.max(30, 70 - i * 6)}%`} height={15} />
             <Skeleton width="40%" height={11} style={styles.gapSm} />
           </View>
         </View>
