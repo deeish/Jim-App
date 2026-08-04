@@ -7,7 +7,6 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  ActivityIndicator,
   RefreshControl,
   Platform,
 } from 'react-native';
@@ -1071,12 +1070,12 @@ const styles = StyleSheet.create({
   dot: {
     width: 10,
     height: 10,
-    borderRadius: radius.xs,
+    borderRadius: radius.pill,
   },
   dotToday: {
     width: 13,
     height: 13,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
   restDash: {
     width: 12,

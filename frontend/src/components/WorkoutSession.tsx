@@ -2528,7 +2528,10 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   },
   activeBadge: {
     backgroundColor: palette.primary + '33',
-    paddingHorizontal: spacing.sm,
+    // xs, not sm: uppercase "ACTIVE" sits beside the exercise name in the
+    // collapsed card, and its type stepped up onto the scale. Any width this
+    // pill gains comes straight out of the name next to it.
+    paddingHorizontal: spacing.xs,
     paddingVertical: spacing.xxs,
     borderRadius: radius.sm,
     borderWidth: 1,
@@ -2895,7 +2898,7 @@ function createWorkoutSessionStyles(palette: ColorPalette) {
   setTrackerPill: {
     minWidth: 28,
     height: 28,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     backgroundColor: palette.background,
     borderWidth: 2,
     borderColor: palette.border,

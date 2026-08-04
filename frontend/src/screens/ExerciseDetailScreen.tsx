@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Linking,
   LayoutAnimation,
   Platform,
@@ -305,7 +304,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         instructionNumber: {
           width: 28,
           height: 28,
-          borderRadius: radius.md,
+          borderRadius: radius.pill,
           backgroundColor: colors.primary,
           justifyContent: 'center',
           alignItems: 'center',

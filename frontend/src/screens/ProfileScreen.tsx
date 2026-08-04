@@ -270,7 +270,7 @@ const layoutStyles = StyleSheet.create({
   avatarOptionOuter: {
     width: 46,
     height: 46,
-    borderRadius: radius.xl,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,

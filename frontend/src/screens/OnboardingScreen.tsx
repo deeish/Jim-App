@@ -940,7 +940,7 @@ function makeStyles(colors: ColorPalette) {
     chip: {
       flexDirection: 'row',
       alignItems: 'center',
-      borderRadius: radius.xl,
+      borderRadius: radius.pill,
       borderWidth: 1.5,
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.lg,

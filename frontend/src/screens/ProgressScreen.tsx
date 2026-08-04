@@ -2,8 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { leading, radius, spacing, text, tracking, useTheme, weight } from '../theme';
-import { useStackBackFallback } from '../navigation/headerOptions';
+import { radius, spacing, text, tracking, useTheme, weight } from '../theme';
 import { SkeletonCard } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
@@ -73,9 +72,8 @@ export default function ProgressScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   // Title, back button and scroll-edge treatment all come from the native header
-  // configured in PlanStackNavigator. This only covers the one case the platform
-  // cannot infer: arriving here with an empty stack behind us.
-  useStackBackFallback(navigation, 'PlanList', colors);
+  // configured in PlanStackNavigator. The back button relies on PlanList sitting
+  // beneath this route, which HomeScreen guarantees via `initial: false`.
 
   // With nothing fetched yet a placeholder is the only honest render, on the
   // first load and on retries alike. Once data exists, a focus refetch keeps
@@ -283,7 +281,7 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     streakIconWrap: {
       width: 46,
       height: 46,
-      borderRadius: radius.xl,
+      borderRadius: radius.pill,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.primarySoft,

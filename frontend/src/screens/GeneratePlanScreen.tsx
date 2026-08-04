@@ -3957,7 +3957,7 @@ function createGeneratePlanStyles(c: ColorPalette) {
   toggleSwitch: {
     width: 50,
     height: 28,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     backgroundColor: c.border,
     padding: spacing.xxs,
   },
@@ -3967,7 +3967,7 @@ function createGeneratePlanStyles(c: ColorPalette) {
   toggleThumb: {
     width: 24,
     height: 24,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     backgroundColor: c.background,
   },
   toggleThumbOn: {
@@ -4046,7 +4046,7 @@ function createGeneratePlanStyles(c: ColorPalette) {
   customToggleThumb: {
     width: 18,
     height: 18,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
     backgroundColor: c.background,
   },
   customToggleThumbOn: {
@@ -4177,7 +4177,7 @@ function createGeneratePlanStyles(c: ColorPalette) {
   planStyleRadio: {
     width: 18,
     height: 18,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
     borderWidth: 2,
     borderColor: c.border,
     justifyContent: 'center',
@@ -4205,7 +4205,11 @@ function createGeneratePlanStyles(c: ColorPalette) {
   splitOptionBadge: {
     alignSelf: 'flex-start',
     backgroundColor: c.primarySoft,
-    paddingHorizontal: spacing.sm,
+    // xs, not sm: this "Rec" badge shares a row with splitTileLabel, which is
+    // flex:1 + numberOfLines={2} inside a 47%-wide tile. The badge's own type
+    // stepped up onto the scale, so it gives the width back in padding rather
+    // than taking it from a label that has to fit "Push / Pull / Legs".
+    paddingHorizontal: spacing.xs,
     paddingVertical: spacing.xxs,
     borderRadius: radius.xs,
     borderWidth: 1,

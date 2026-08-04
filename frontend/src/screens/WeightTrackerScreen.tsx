@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { elevation, radius, spacing, text, tracking, useTheme, weight } from '../theme';
+import { elevation, leading, radius, spacing, text, tracking, useTheme, weight } from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatWeightFromLb, lbToKg } from '../lib/weightDisplay';
 import LogWeightSheet from '../components/LogWeightSheet';
@@ -130,6 +130,7 @@ export default function WeightTrackerScreen() {
         latestLabel: { fontSize: text.body, color: colors.textMuted },
         latestValue: {
           fontSize: text.hero,
+          lineHeight: leading.hero,
           fontWeight: weight.heavy,
           color: colors.text,
           marginTop: spacing.xxs,
@@ -181,7 +182,7 @@ export default function WeightTrackerScreen() {
           backgroundColor: colors.primary,
           paddingVertical: spacing.lg,
           paddingHorizontal: spacing.xl,
-          borderRadius: radius.xxl,
+          borderRadius: radius.pill,
           shadowColor: colors.shadow,
           ...elevation.level2,
         },
