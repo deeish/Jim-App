@@ -37,6 +37,7 @@ import { formatWeightCompactFromLb } from '../lib/weightDisplay';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
 import { leading, radius, spacing, text, tracking, weight } from '../theme';
+import { Skeleton, SkeletonCard } from '../components/Skeleton';
 // Enable LayoutAnimation on Android (same guard as SearchScreen)
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -161,11 +162,9 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     () =>
       StyleSheet.create({
         container: { flex: 1, backgroundColor: colors.background },
-        loadingContainer: {
+        skeletonWrap: {
           flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: colors.background,
+          padding: spacing.xl,
         },
         emptyContainer: {
           flex: 1,
@@ -435,8 +434,16 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={styles.skeletonWrap}>
+          <Skeleton width="65%" height={26} />
+          <Skeleton width="40%" height={14} style={{ marginTop: spacing.md }} />
+          <Skeleton
+            width="100%"
+            height={180}
+            borderRadius={radius.md}
+            style={{ marginTop: spacing.xl }}
+          />
+          <SkeletonCard lines={3} style={{ marginTop: spacing.xl }} />
         </View>
       </SafeAreaView>
     );

@@ -20,6 +20,8 @@ import type { ApiPlan } from '../services/planService';
 import type { Workout } from '../types/workout';
 
 import { radius, spacing, text, weight } from '../theme';
+import { SkeletonList } from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
 type NavProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
 
 function savedWorkoutDurationLabel(w: Workout, plan: ApiPlan | null): string | null {
@@ -90,13 +92,6 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
         headerTitle: { fontSize: text.headline, fontWeight: weight.bold, color: colors.text },
         loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
         list: { padding: spacing.lg },
-        empty: {
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: spacing.xxl,
-        },
-        emptyText: { fontSize: text.callout, color: colors.textSecondary, textAlign: 'center' },
         card: {
           backgroundColor: colors.surface,
           borderRadius: radius.md,
@@ -153,16 +148,13 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
       </View>
 
       {loading ? (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+        <SkeletonList count={4} style={styles.list} />
       ) : workouts.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="heart-outline" size={48} color={colors.textMuted} style={{ marginBottom: spacing.md }} />
-          <Text style={styles.emptyText}>
-            Workouts you like will appear here. Tap the heart on any workout to save it.
-          </Text>
-        </View>
+        <EmptyState
+          icon="heart-outline"
+          title="No saved workouts yet"
+          body="Tap the heart on any workout to keep it here."
+        />
       ) : (
         <ScrollView
           style={styles.list}

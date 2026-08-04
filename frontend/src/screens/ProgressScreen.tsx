@@ -1,16 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { leading, radius, spacing, text, tracking, useTheme, weight } from '../theme';
 import { useStackBackFallback } from '../navigation/headerOptions';
+import { SkeletonCard } from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { getWorkoutStats } from '../services/workoutService';
 import type { WorkoutStats } from '../types/workout';
@@ -82,14 +77,15 @@ export default function ProgressScreen() {
   // cannot infer: arriving here with an empty stack behind us.
   useStackBackFallback(navigation, 'PlanList', colors);
 
-  // With nothing fetched yet the spinner is the only honest render, on the
+  // With nothing fetched yet a placeholder is the only honest render, on the
   // first load and on retries alike. Once data exists, a focus refetch keeps
-  // the content on screen instead — never a spinner flash.
+  // the content on screen instead — never a loading flash.
   if (loading && !stats) {
     return (
       <View style={styles.container}>
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.primary} />
+        <View style={styles.skeletonWrap}>
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={3} style={{ marginTop: spacing.lg }} />
         </View>
       </View>
     );
@@ -101,16 +97,14 @@ export default function ProgressScreen() {
   if (failed && !stats) {
     return (
       <View style={styles.container}>
-        <View style={styles.centered}>
-          <Ionicons name="cloud-offline-outline" size={40} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>Could not load your progress</Text>
-          <Text style={styles.emptyBody}>
-            Check your connection and try again.
-          </Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => void load()}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Could not load your progress"
+          body="Check your connection and try again."
+          actionLabel="Retry"
+          onAction={() => void load()}
+          tone="error"
+        />
       </View>
     );
   }
@@ -122,14 +116,12 @@ export default function ProgressScreen() {
   if (summary.sessionCount === 0) {
     return (
       <View style={styles.container}>
-        <View style={styles.centered}>
-          <Ionicons name="trending-up-outline" size={44} color={colors.primary} />
-          <Text style={styles.emptyTitle}>No sessions logged yet</Text>
-          <Text style={styles.emptyBody}>
-            Finish a workout and this is where your streak, totals and weekly
-            trend will build up.
-          </Text>
-        </View>
+        <EmptyState
+          icon="trending-up-outline"
+          title="No sessions logged yet"
+          body="Finish a workout and this is where your streak, totals and weekly trend will build up."
+          tone="brand"
+        />
       </View>
     );
   }
@@ -273,35 +265,10 @@ function Tile({
 function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    centered: {
+    skeletonWrap: {
       flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: spacing.xxxl,
-      gap: spacing.md,
+      padding: spacing.lg,
     },
-    emptyTitle: {
-      fontSize: text.headline,
-      fontWeight: weight.bold,
-      color: colors.text,
-      textAlign: 'center',
-    },
-    emptyBody: {
-      fontSize: text.body,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      lineHeight: leading.body,
-    },
-    retryBtn: {
-      marginTop: spacing.xs,
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.xl,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-    },
-    retryText: { color: colors.primary, fontWeight: weight.semibold },
     scrollContent: { padding: spacing.lg, paddingBottom: spacing.xxxl },
     streakCard: {
       flexDirection: 'row',

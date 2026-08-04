@@ -48,6 +48,7 @@ import {
 } from '../lib/planCalendar';
 import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
 import { elevation, leading, radius, spacing, text, tracking, weight } from '../theme';
+import { SkeletonCard } from '../components/Skeleton';
 import {
   exercisesLikeFromPrescription,
   getPlanSlotDisplayMinutes,
@@ -465,10 +466,9 @@ export default function HomeScreen() {
         </Text>
 
         {loading ? (
-          <View style={styles.loadingBlock}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.loadingHint, { color: colors.textMuted }]}>Loading your day…</Text>
-          </View>
+          // Shaped like the today-card that replaces it, so the page does not
+          // jump when the plan lands.
+          <SkeletonCard lines={3} />
         ) : (
           <>
             {homeToday?.status !== 'no_plan' && (
@@ -870,15 +870,6 @@ const styles = StyleSheet.create({
   },
   sectionSpaced: {
     marginTop: spacing.xl,
-  },
-  loadingBlock: {
-    paddingVertical: 40,
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  loadingHint: {
-    fontSize: text.body,
-    fontWeight: weight.medium,
   },
   card: {
     borderRadius: radius.lg,
