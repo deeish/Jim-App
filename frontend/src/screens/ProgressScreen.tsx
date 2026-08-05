@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { radius, spacing, text, tracking, useTheme, weight } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 import { SkeletonCard } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
@@ -30,6 +31,8 @@ import { formatVolumeFromLb, groupThousands } from '../lib/weightDisplay';
 export default function ProgressScreen() {
   const navigation = useNavigation();
   const { colors } = useTheme();
+  // The tab bar floats over this screen; keep the trend chart clear of it.
+  const tabBarInset = useTabBarInset();
   const { weightUnit } = useUserPreferences();
   const [stats, setStats] = useState<WorkoutStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,7 +132,7 @@ export default function ProgressScreen() {
       {/* `automatic` is what lets the native large title collapse into the bar
           as this list scrolls. Without it the title stays fixed at full size. */}
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: spacing.xxxl + tabBarInset }]}
         contentInsetAdjustmentBehavior="automatic"
       >
         <View style={styles.streakCard}>
