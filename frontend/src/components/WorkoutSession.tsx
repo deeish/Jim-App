@@ -737,7 +737,7 @@ export default function WorkoutSession({
         focusedSetIndex,
         showAdvancedLogging,
       });
-      showToast('Saved. Resume anytime from the Workout tab.');
+      showToast('Saved. Resume anytime from the Train tab.');
       await Promise.resolve(onExitWithoutFinishing());
     } catch {
       showToast('Could not save progress');

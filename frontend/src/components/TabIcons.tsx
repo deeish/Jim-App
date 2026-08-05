@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 
-import { radius, spacing } from '../theme';
+import { radius } from '../theme';
 interface IconProps {
   color: string;
   size?: number;
@@ -10,22 +10,6 @@ interface IconProps {
 interface ProfileIconProps extends IconProps {
   /** Ring/border color; defaults to color. Use a contrasting color (e.g. primary) so ring is distinct. */
   ringColor?: string;
-}
-
-export function CalendarIcon({ color, size = 24 }: IconProps) {
-  return (
-    <View style={[styles.iconContainer, { width: size, height: size }]}>
-      {/* Calendar outline */}
-      <View style={[styles.calendarBase, { borderColor: color, borderWidth: 1.5 }]}>
-        <View style={[styles.calendarTop, { backgroundColor: color }]} />
-        <View style={styles.calendarLines}>
-          <View style={[styles.calendarLine, { backgroundColor: color }]} />
-          <View style={[styles.calendarLine, { backgroundColor: color }]} />
-          <View style={[styles.calendarLine, { backgroundColor: color }]} />
-        </View>
-      </View>
-    </View>
-  );
 }
 
 export function ProfileIcon({ color, size = 24, ringColor }: ProfileIconProps) {
@@ -58,33 +42,6 @@ const styles = StyleSheet.create({
   },
   profileRing: {
     overflow: 'hidden',
-  },
-  calendarBase: {
-    width: 20,
-    height: 20,
-    borderRadius: radius.xs,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  calendarTop: {
-    width: '100%',
-    height: 5,
-    position: 'absolute',
-    top: 0,
-  },
-  calendarLines: {
-    position: 'absolute',
-    bottom: 3,
-    left: 4,
-    right: 4,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    gap: spacing.xxs,
-  },
-  calendarLine: {
-    width: 2,
-    height: 5,
-    borderRadius: radius.xs,
   },
   profileHead: {
     width: 6,
