@@ -1855,6 +1855,11 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                                     name: ex.name ?? 'Exercise',
                                     sets: ex.sets,
                                     reps: ex.reps,
+                                    // Stored range/duration (role-aware prescription) —
+                                    // without these the sheet collapses "6–8" to "6".
+                                    repsMin: (ex as Exercise).repsMin,
+                                    repsMax: (ex as Exercise).repsMax,
+                                    durationSeconds: (ex as Exercise).durationSeconds,
                                     prescriptionType: (ex as Exercise).prescriptionType,
                                     primaryMuscleGroup: (ex as Exercise).primaryMuscleGroup,
                                   },
