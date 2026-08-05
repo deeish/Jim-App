@@ -31,9 +31,11 @@ export default function JimLogo({
   showTagline?: boolean;
   interactive?: boolean;
   /**
-   * Play a one-time staggered reveal (chip fades/scales in, then the wordmark and
-   * tagline rise in just after). Off by default so existing callers render exactly
-   * as before; the cold-start loader opts in.
+   * Play a one-time staggered reveal: the wordmark and tagline rise in under the
+   * chip. The chip itself is ALWAYS visible from the first frame — the native
+   * splash image is this chip at rest, so any chip fade/scale-in would read as a
+   * blink at the splash -> loader handoff. Off by default so existing callers
+   * render exactly as before; the cold-start loader opts in.
    */
   entrance?: boolean;
 }) {
@@ -49,16 +51,18 @@ export default function JimLogo({
 
   // One-time entrance progress (1 = fully shown). Initialised to 1 when `entrance`
   // is off so non-entrance callers skip the reveal and render at rest immediately.
-  const enterTile = useSharedValue(entrance ? 0 : 1);
+  // The tile is pinned at 1 even during the entrance: the native splash shows this
+  // exact chip, so the loader must take over with the chip already at rest —
+  // fading it in would blink the mark out right at the splash handoff.
+  const enterTile = useSharedValue(1);
   const enterWord = useSharedValue(entrance ? 0 : 1);
   const enterTag = useSharedValue(entrance ? 0 : 1);
 
   useEffect(() => {
     if (!entrance) return;
-    enterTile.value = withTiming(1, { duration: 460, easing: Easing.out(Easing.ease) });
     enterWord.value = withDelay(150, withTiming(1, { duration: 420, easing: Easing.out(Easing.ease) }));
     enterTag.value = withDelay(280, withTiming(1, { duration: 420, easing: Easing.out(Easing.ease) }));
-  }, [entrance, enterTile, enterWord, enterTag]);
+  }, [entrance, enterWord, enterTag]);
 
   useEffect(() => {
     breath.value = withRepeat(
