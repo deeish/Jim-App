@@ -385,6 +385,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     if (loadBalance.recovery) parts.push(`${loadBalance.recovery} Recovery`);
     return parts.length ? parts.join(' • ') : 'No sessions';
   }, [loadBalance.strength, loadBalance.cardio, loadBalance.recovery]);
+  // The stored plan name ("Strength · 4d/wk · 1 wk") outlives its sessions:
+  // removing the last slot leaves the record — and its generated name — behind,
+  // so an emptied plan read like a live one. Gate on the WHOLE plan, not the
+  // selected week: an empty week of a multi-week plan keeps the real name.
+  const headerTitle =
+    (currentPlan?.planWorkouts?.length ?? 0) > 0 ? (currentPlan?.name ?? 'My Plan') : 'My Plan';
   const isCurrentWeek = selectedWeek === 0;
 
   const weekSlots = resolvedProgramWeek !== null ? planByWeek[resolvedProgramWeek] : null;
@@ -1264,7 +1270,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     >
       {/* Dynamic header: plan name + optional subtitle from load balance */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Text style={styles.headerTitle} numberOfLines={1}>{currentPlan?.name ?? 'My Plan'}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
         {headerSubtitle || currentPlan?.id ? (
           <View style={styles.subtitleRow}>
             {headerSubtitle ? (
