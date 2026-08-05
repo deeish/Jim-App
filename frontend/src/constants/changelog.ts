@@ -24,6 +24,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    id: '2026-08-05',
+    version: '1.1.0',
+    date: '2026-08-05',
+    title: 'Ready-made training programs',
+    changes: [
+      { type: 'new', text: 'Workout templates: three coach-style 8 week programs, Strength Upper/Lower, Fat Loss Full Body, and Push/Pull/Legs. Find them on the Plan page and apply one in a couple of taps.' },
+      { type: 'improved', text: 'The tab bar now floats over your content with a glass look on iOS 26.' },
+    ],
+  },
   // One entry covering everything since build 14. The 2026-07-28 and 2026-08-03
   // entries were folded in here rather than shipped as their own cards: neither
   // ever reached a build, and three stacked cards for a single release would
