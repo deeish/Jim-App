@@ -330,7 +330,12 @@ export default function HomeScreen() {
             accessibilityLabel="Profile"
             accessibilityRole="button"
           >
-            <ProfileAvatarDisc avatarId={profileAvatarId} size={34} colors={colors} />
+            <ProfileAvatarDisc
+              avatarId={profileAvatarId}
+              size={34}
+              colors={colors}
+              initial={displayName}
+            />
           </TouchableOpacity>
         </View>
       </View>

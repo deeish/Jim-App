@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef, type ComponentProps } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,8 +18,6 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { ProfileIcon } from '../components/TabIcons';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -109,27 +107,6 @@ function fallbackAccountName(
     return email.split('@')[0] ?? email;
   }
   return email ?? 'Your name';
-}
-
-function PickerAvatarGlyph({
-  opt,
-  colors,
-}: {
-  opt: (typeof PROFILE_AVATARS)[number];
-  colors: ColorPalette;
-}) {
-  if (opt.mci == null) {
-    return (
-      <ProfileIcon color={colors.textSecondary} ringColor="transparent" size={24} />
-    );
-  }
-  return (
-    <MaterialCommunityIcons
-      name={opt.mci as ComponentProps<typeof MaterialCommunityIcons>['name']}
-      size={24}
-      color={opt.color}
-    />
-  );
 }
 
 const staticStyles = StyleSheet.create({
@@ -267,6 +244,7 @@ const layoutStyles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: radius.pill,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -607,7 +585,12 @@ export default function ProfileScreen() {
         <SectionHeader title="Account" colors={colors} />
         <View style={[styles.profileCard, themedStyles.profileCard]}>
           <View style={styles.avatarWrap}>
-            <ProfileAvatarDisc avatarId={profileAvatarId} size={64} colors={colors} />
+            <ProfileAvatarDisc
+              avatarId={profileAvatarId}
+              size={64}
+              colors={colors}
+              initial={nameDraft.trim() || namePlaceholder}
+            />
           </View>
           <View style={styles.nameFieldWrap}>
             <View style={{ width: '100%', maxWidth: 240 }}>
@@ -669,19 +652,13 @@ export default function ProfileScreen() {
                       onPress={() => setProfileAvatarId(opt.id)}
                       style={[
                         styles.avatarOptionOuter,
-                        {
-                          borderWidth: selected ? 3 : 2,
-                          borderColor: selected ? opt.color : colors.border,
-                          backgroundColor: selected
-                            ? opt.color + '22'
-                            : opt.color + '0C',
-                        },
+                        { borderColor: selected ? colors.primary : 'transparent' },
                       ]}
                       accessibilityRole="button"
-                      accessibilityLabel={`Profile picture ${opt.id}`}
+                      accessibilityLabel={`Avatar ${opt.name}`}
                       accessibilityState={{ selected }}
                     >
-                      <PickerAvatarGlyph opt={opt} colors={colors} />
+                      <ProfileAvatarDisc avatarId={opt.id} size={38} colors={colors} />
                     </TouchableOpacity>
                   );
                 })}
