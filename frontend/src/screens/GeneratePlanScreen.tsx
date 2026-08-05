@@ -1140,6 +1140,29 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           </View>
         ) : null}
 
+        {/* The other way to get a plan: coach-built templates. Lives here (and
+            in PlanScreen's no-plan hero) instead of the Plan header — choosing
+            a template is a creation-time decision, so the fork belongs at the
+            start of the creation flow. */}
+        {currentStep === 0 && (
+          <TouchableOpacity
+            style={styles.templateEntryCard}
+            onPress={() => navigation.navigate('Templates')}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Start from a template"
+          >
+            <View style={styles.templateEntryIcon}>
+              <Ionicons name="grid-outline" size={20} color={colors.primary} />
+            </View>
+            <View style={styles.templateEntryText}>
+              <Text style={styles.templateEntryTitle}>Start from a template</Text>
+              <Text style={styles.templateEntrySub}>Coach-built programs, ready to apply.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+        )}
+
         {/* Step 1: Plan basics — goal, training days, weeks, start date */}
         {currentStep === 0 && (
         <>
@@ -2850,6 +2873,27 @@ function createGeneratePlanStyles(c: ColorPalette) {
   contentContainer: {
     padding: spacing.lg,
   },
+  templateEntryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: c.surface,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  templateEntryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    backgroundColor: c.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  templateEntryText: { flex: 1, minWidth: 0 },
+  templateEntryTitle: { fontSize: text.callout, fontWeight: weight.semibold, color: c.text },
+  templateEntrySub: { fontSize: text.footnote, color: c.textMuted, marginTop: spacing.xxs },
   resumeCard: {
     backgroundColor: c.surface,
     borderRadius: radius.md,
