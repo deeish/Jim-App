@@ -6,6 +6,8 @@ import GeneratePlanScreen from '../screens/GeneratePlanScreen';
 import PlanPreviewScreen from '../screens/PlanPreviewScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import ProgressScreen from '../screens/ProgressScreen';
+import TemplatesScreen from '../screens/TemplatesScreen';
+import TemplateDetailScreen from '../screens/TemplateDetailScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
 import { useTheme } from '../theme';
 import { nativeHeaderOptions } from './headerOptions';
@@ -40,6 +42,22 @@ export default function PlanStackNavigator() {
         name="Progress"
         component={ProgressScreen}
         options={{ ...nativeHeader, title: 'Progress' }}
+      />
+      <Stack.Screen
+        name="Templates"
+        component={TemplatesScreen}
+        options={{ ...nativeHeader, title: 'Templates' }}
+      />
+      <Stack.Screen
+        name="TemplateDetail"
+        component={TemplateDetailScreen}
+        options={({ route }) => ({
+          ...nativeHeader,
+          // Program names run long — the standard title bar fits them better
+          // than a large title would.
+          headerLargeTitle: false,
+          title: route.params.templateName ?? 'Program',
+        })}
       />
       <Stack.Screen name="GeneratePlan" component={GeneratePlanScreen} />
       <Stack.Screen name="PlanPreview" component={PlanPreviewScreen} />

@@ -9,6 +9,7 @@ import { WorkoutsModule } from './workouts/workouts.module';
 import { ExercisesModule } from './exercises/exercises.module';
 import { WorkoutLogsModule } from './workout-logs/workout-logs.module';
 import { PlansModule } from './plans/plans.module';
+import { PlanTemplatesModule } from './plan-templates/plan-templates.module';
 import { HealthModule } from './health/health.module';
 import { UsersModule } from './users/users.module';
 import { BodyWeightModule } from './body-weight/body-weight.module';
@@ -108,6 +109,7 @@ import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
     ExercisesModule,
     WorkoutLogsModule,
     PlansModule,
+    PlanTemplatesModule,
     HealthModule,
     UsersModule,
     BodyWeightModule,
