@@ -89,6 +89,13 @@ export type RootStackParamList = {
   History: undefined;
   /** Streaks, totals and the weekly trend. Lives beside History in the Plan stack. */
   Progress: undefined;
+  /** Hand-authored 8-week program templates (browse cards). */
+  Templates: undefined;
+  /**
+   * One template's full week-by-week program + apply flow.
+   * `templateName` is display-only (native header title before the fetch lands).
+   */
+  TemplateDetail: { templateId: string; templateName?: string };
   PlanPreview: {
     /** Canonical snapshot when user taps Generate; use this downstream. */
     planInputs?: PlanInputs;

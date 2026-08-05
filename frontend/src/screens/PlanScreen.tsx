@@ -1295,6 +1295,13 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           >
             <Text style={[styles.historyLabelText, { color: colors.primary }]}>Saved workouts</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.historyLabelButton}
+            onPress={() => navigation.navigate('Templates')}
+            accessibilityLabel="Browse plan templates"
+          >
+            <Text style={[styles.historyLabelText, { color: colors.primary }]}>Templates</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.ctaCompact} onPress={handleAIGenerate} accessibilityLabel="AI Generate plan">
             <Ionicons name="sparkles-outline" size={16} color={colors.onPrimary} />
             <Text style={styles.ctaCompactText}>AI Generate</Text>
@@ -1433,6 +1440,16 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
             >
               <Ionicons name="flash-outline" size={18} color={colors.onPrimary} />
               <Text style={[styles.noPlanHeroCtaText, { color: colors.onPrimary }]}>Generate my plan</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.noPlanHeroLink}
+              onPress={() => navigation.navigate('Templates')}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityHint="Browse coach-written 8-week programs"
+            >
+              <Text style={[styles.noPlanHeroLinkText, { color: colors.primary }]}>Start from a template</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.primary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.noPlanHeroLink}
