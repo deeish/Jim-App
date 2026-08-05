@@ -11,6 +11,7 @@ import {
   Linking,
   TextInput,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -40,6 +41,7 @@ import { formatWeightFromLb } from '../lib/weightDisplay';
 import type { RootNavigatorParamList } from '../types/navigation';
 import { shareJsonExport } from '../lib/shareDataExport';
 import { PROFILE_AVATARS, type ProfileAvatarId } from '../constants/profileAvatars';
+import GlassDiagnostics from '../components/GlassDiagnostics';
 
 import { radius, spacing, text, tracking, weight } from '../theme';
 function SectionHeader({ title, colors }: { title: string; colors: ColorPalette }) {
@@ -382,6 +384,11 @@ export default function ProfileScreen() {
   const [dataExporting, setDataExporting] = useState(false);
   const [accountDeleting, setAccountDeleting] = useState(false);
   const [latestWeightLb, setLatestWeightLb] = useState<number | null>(null);
+  // Hidden support tool: long-press the App version row to toggle the Liquid
+  // Glass diagnostic. Deliberately undiscoverable — it exists so a TestFlight
+  // screenshot can report, from the device itself, whether the glass module is
+  // in the binary and which render path each surface took.
+  const [showGlassDiagnostics, setShowGlassDiagnostics] = useState(false);
 
   const appVersion =
     Constants.expoConfig?.version ??
@@ -850,7 +857,12 @@ export default function ProfileScreen() {
 
         <SectionHeader title="About" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
-          <Row label="App version" value={String(appVersion)} colors={colors} />
+          <Pressable
+            onLongPress={() => setShowGlassDiagnostics((v) => !v)}
+            delayLongPress={600}
+          >
+            <Row label="App version" value={String(appVersion)} colors={colors} />
+          </Pressable>
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
           <Row
             label="Privacy policy"
@@ -873,6 +885,8 @@ export default function ProfileScreen() {
             showChevron
           />
         </View>
+
+        {showGlassDiagnostics && <GlassDiagnostics />}
 
       </ScrollView>
 
