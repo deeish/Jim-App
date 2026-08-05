@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ProfileIcon } from '../components/TabIcons';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
@@ -40,6 +41,7 @@ import { listWeighIns } from '../services/bodyWeightService';
 import { formatWeightFromLb } from '../lib/weightDisplay';
 import type { RootNavigatorParamList } from '../types/navigation';
 import { shareJsonExport } from '../lib/shareDataExport';
+import { showConfirmDialog } from '../lib/confirmAlert';
 import { PROFILE_AVATARS, type ProfileAvatarId } from '../constants/profileAvatars';
 import GlassDiagnostics from '../components/GlassDiagnostics';
 
@@ -79,7 +81,7 @@ function Row({
         )}
         {right}
         {showChevron ? (
-          <Text style={[styles.chevron, { color: colors.textMuted }]}>›</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         ) : null}
       </View>
     </View>
@@ -161,17 +163,9 @@ const staticStyles = StyleSheet.create({
     textAlign: 'right',
     maxWidth: 200,
   },
-  chevron: {
-    fontSize: text.title,
-    fontWeight: weight.regular,
-    marginLeft: spacing.xs,
-  },
   rowDivider: {
     height: 1,
     marginLeft: spacing.lg,
-  },
-  bottomPad: {
-    height: 40,
   },
 });
 
@@ -181,23 +175,25 @@ const layoutStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
-    borderBottomWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  backButton: { minWidth: 72 },
-  backLabel: { fontSize: text.callout, fontWeight: weight.semibold },
-  headerTitle: { fontSize: text.headline, fontWeight: weight.bold, flex: 1, textAlign: 'center' },
+  backButton: { minWidth: 72, flexDirection: 'row', alignItems: 'center' },
+  backLabel: { fontSize: text.callout, fontWeight: weight.regular },
+  headerTitle: { fontSize: text.headline, fontWeight: weight.semibold, flex: 1, textAlign: 'center' },
   headerRight: { minWidth: 72 },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: spacing.xxl, paddingTop: spacing.xl },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xxxl,
+  },
   profileCard: {
     borderRadius: radius.md,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
     marginBottom: spacing.xl,
-    borderWidth: 1,
   },
   avatarWrap: { marginBottom: spacing.xs },
   nameFieldWrap: {
@@ -216,7 +212,6 @@ const layoutStyles = StyleSheet.create({
     paddingLeft: spacing.xxs,
   },
   profileNameInput: {
-    borderWidth: 1,
     borderRadius: radius.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
@@ -234,7 +229,6 @@ const layoutStyles = StyleSheet.create({
     gap: spacing.xxs,
   },
   profileEmail: { fontSize: text.body, textAlign: 'center' },
-  profileHint: { fontSize: text.footnote, textAlign: 'center' },
   profileCardDivider: {
     alignSelf: 'stretch',
     height: StyleSheet.hairlineWidth,
@@ -277,16 +271,15 @@ const layoutStyles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  deleteAccountRow: {
+  signOutRow: {
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
   },
-  deleteAccountRowText: { fontSize: text.callout, fontWeight: weight.semibold },
+  signOutText: { fontSize: text.callout, fontWeight: weight.semibold },
   sectionCard: {
     borderRadius: radius.md,
     marginBottom: spacing.xxl,
-    borderWidth: 1,
     overflow: 'hidden',
   },
   modalOverlay: {
@@ -437,25 +430,16 @@ export default function ProfileScreen() {
   const themedStyles = useMemo(
     () => ({
       container: { backgroundColor: colors.background },
-      header: { borderBottomColor: colors.border },
       backLabel: { color: colors.primary },
       headerTitle: { color: colors.text },
-      profileCard: {
-        backgroundColor: colors.surface,
-        borderColor: colors.border,
-      },
+      profileCard: { backgroundColor: colors.surface },
       profileNameInputThemed: {
         color: colors.text,
-        borderColor: colors.border,
-        /** Inset field: stay on the card surface family (avoid near-black `background`). */
-        backgroundColor: colors.primary + '14',
+        // Quiet grey inset on the white card — the standard form-field fill.
+        backgroundColor: colors.background,
       },
       profileEmail: { color: colors.textSecondary },
-      profileHint: { color: colors.textMuted },
-      sectionCard: {
-        backgroundColor: colors.surface,
-        borderColor: colors.border,
-      },
+      sectionCard: { backgroundColor: colors.surface },
       rowDivider: { backgroundColor: colors.border },
       modalSheet: { backgroundColor: colors.surface },
       modalTitle: { color: colors.text },
@@ -550,6 +534,15 @@ export default function ProfileScreen() {
     }
   }, [user, signOut]);
 
+  const handleSignOut = useCallback(() => {
+    showConfirmDialog({
+      title: 'Sign out?',
+      confirmText: 'Sign out',
+      destructive: true,
+      onConfirm: () => void signOut(),
+    });
+  }, [signOut]);
+
   const handleDeleteAccount = useCallback(() => {
     if (!user?.email) {
       Alert.alert('Unavailable', 'Sign in to delete your account.');
@@ -590,13 +583,16 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
-      <View style={[styles.header, themedStyles.header]}>
+      <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
         >
-          <Text style={[styles.backLabel, themedStyles.backLabel]}>← Back</Text>
+          <Ionicons name="chevron-back" size={22} color={colors.primary} />
+          <Text style={[styles.backLabel, themedStyles.backLabel]}>Back</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, themedStyles.headerTitle]}>Profile</Text>
         <View style={styles.headerRight} />
@@ -644,11 +640,8 @@ export default function ProfileScreen() {
             </View>
           </View>
           <View style={styles.profileEmailBlock}>
-            {user?.email ? (
-              <Text style={[styles.profileEmail, themedStyles.profileEmail]}>{user.email}</Text>
-            ) : null}
-            <Text style={[styles.profileHint, themedStyles.profileHint]}>
-              {user?.email ? 'Signed in with email' : 'Not signed in'}
+            <Text style={[styles.profileEmail, themedStyles.profileEmail]}>
+              {user?.email ?? 'Not signed in'}
             </Text>
           </View>
           <View
@@ -697,14 +690,11 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <SectionHeader title="Settings" colors={colors} />
+        <SectionHeader title="Weight" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
           <View style={styles.weightRow}>
             <View style={styles.weightRowLabelCol}>
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Weight units</Text>
-              <Text style={{ fontSize: text.body, color: colors.textMuted, marginTop: spacing.xs }}>
-                Tap to choose how weights are shown when you log workouts.
-              </Text>
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Units</Text>
             </View>
             <View
               style={[styles.weightSegment, { borderColor: colors.border }]}
@@ -728,7 +718,7 @@ export default function ProfileScreen() {
                   style={[
                     styles.weightSegmentBtnText,
                     {
-                      color: weightUnit === 'lb' ? colors.background : colors.textSecondary,
+                      color: weightUnit === 'lb' ? colors.onPrimary : colors.textSecondary,
                     },
                   ]}
                 >
@@ -752,7 +742,7 @@ export default function ProfileScreen() {
                   style={[
                     styles.weightSegmentBtnText,
                     {
-                      color: weightUnit === 'kg' ? colors.background : colors.textSecondary,
+                      color: weightUnit === 'kg' ? colors.onPrimary : colors.textSecondary,
                     },
                   ]}
                 >
@@ -785,7 +775,7 @@ export default function ProfileScreen() {
           />
         </View>
 
-        <SectionHeader title="Preferences" colors={colors} />
+        <SectionHeader title="Training" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
           <Row
             label="Goal"
@@ -886,6 +876,21 @@ export default function ProfileScreen() {
           />
         </View>
 
+        {/* Sign out moved here from Home's avatar menu — the avatar now opens
+            this screen directly, so this is its one home. Kept out of "Your
+            data": signing out is routine, deleting an account is not. */}
+        <View style={[styles.sectionCard, themedStyles.sectionCard]}>
+          <TouchableOpacity
+            style={styles.signOutRow}
+            onPress={handleSignOut}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+          >
+            <Text style={[styles.signOutText, { color: colors.primary }]}>Sign out</Text>
+          </TouchableOpacity>
+        </View>
+
         {showGlassDiagnostics && <GlassDiagnostics />}
 
       </ScrollView>
@@ -977,13 +982,13 @@ export default function ProfileScreen() {
             <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Your equipment</Text>
             <Text
               style={{
-                fontSize: text.body,
+                fontSize: text.footnote,
                 color: colors.textMuted,
                 paddingHorizontal: spacing.xl,
                 marginBottom: spacing.sm,
               }}
             >
-              Used as the default filter in Find Workouts. Toggle what you have access to.
+              Used to filter exercises and suggested workouts.
             </Text>
             <ScrollView keyboardShouldPersistTaps="handled">
               {EQUIPMENT_OPTIONS.map((opt) => {

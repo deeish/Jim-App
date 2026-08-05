@@ -4,11 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Modal,
-  Pressable,
   ScrollView,
   RefreshControl,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -19,12 +16,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import WhatsNewModal from '../components/WhatsNewModal';
-import LogWeightSheet from '../components/LogWeightSheet';
 import { LATEST_CHANGELOG_ID } from '../constants/changelog';
 import { getSeenChangelogId, setSeenChangelogId } from '../lib/whatsNewStorage';
 import type { RootNavigatorParamList } from '../types/navigation';
 import { RootTabParamList } from '../components/NavBar';
-import { showConfirmDialog } from '../lib/confirmAlert';
 import { getCurrentPlanWithWeekly, planSlotForWorkout } from '../services/planService';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import { getWorkoutLogs } from '../services/workoutService';
@@ -46,7 +41,7 @@ import {
   PLAN_WEEKDAY_NAMES_MONDAY_FIRST,
 } from '../lib/planCalendar';
 import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
-import { elevation, leading, radius, spacing, text, tracking, weight } from '../theme';
+import { leading, radius, spacing, text, tracking, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
 import { SkeletonCard } from '../components/Skeleton';
 import {
@@ -111,7 +106,7 @@ function homeLoadErrorMessage(err: unknown): string {
   const e = err as { response?: { status?: number }; message?: string };
   const status = e.response?.status;
   if (status === 401) {
-    return 'Session expired. Sign in again from the profile menu.';
+    return 'Session expired. Tap your avatar to sign in again.';
   }
   if (e.message === 'Network Error' || !e.response) {
     return 'Could not reach the server. Check your connection and try again.';
@@ -124,14 +119,10 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   // The tab bar floats over this screen; keep the last cards clear of it.
   const tabBarInset = useTabBarInset();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { profileAvatarId, profileDisplayName } = useUserPreferences();
   const displayName = (profileDisplayName || user?.email?.split('@')[0] || '').split(' ')[0];
 
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [pendingSignOutConfirm, setPendingSignOutConfirm] = useState(false);
-  const [logWeightOpen, setLogWeightOpen] = useState(false);
-  const [pendingLogWeight, setPendingLogWeight] = useState(false);
   const [whatsNewVisible, setWhatsNewVisible] = useState(false);
   const [hasUnseenNews, setHasUnseenNews] = useState(false);
   const [seenNewsId, setSeenNewsId] = useState<string | null>(null);
@@ -146,9 +137,6 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isFirstLoad = useRef(true);
-
-  const openMenu = () => setMenuVisible(true);
-  const closeMenu = () => setMenuVisible(false);
 
   const openWhatsNew = () => setWhatsNewVisible(true);
   const closeWhatsNew = useCallback(() => {
@@ -229,8 +217,9 @@ export default function HomeScreen() {
     }, [loadHomeData])
   );
 
+  // Avatar goes straight to the account screen (App Store pattern) — sign-out
+  // and weight logging live there, so Home no longer needs its own menu.
   const goToProfile = () => {
-    closeMenu();
     const parent = navigation.getParent();
     (parent as { navigate?: (name: keyof RootNavigatorParamList) => void })?.navigate?.('Profile');
   };
@@ -262,51 +251,10 @@ export default function HomeScreen() {
     navigation.navigate('Workout', { workoutId: workout.id });
   };
 
-  const confirmSignOut = () => {
-    showConfirmDialog({
-      title: 'Sign out?',
-      confirmText: 'Sign out',
-      destructive: true,
-      onConfirm: () => void signOut(),
-    });
-  };
-
-  const onSignOut = () => {
-    // iOS refuses to present an Alert while another modal (the menu) is still
-    // dismissing, so defer the confirm to the Modal's onDismiss instead of a
-    // fragile fixed delay. On Android/web there's no such conflict — show it now.
-    if (Platform.OS === 'ios') {
-      setPendingSignOutConfirm(true);
-      closeMenu();
-    } else {
-      closeMenu();
-      confirmSignOut();
-    }
-  };
-
-  const onLogWeight = () => {
-    // Same iOS modal-over-modal constraint as sign-out: defer presenting the
-    // log-weight sheet until the menu has fully dismissed.
-    if (Platform.OS === 'ios') {
-      setPendingLogWeight(true);
-      closeMenu();
-    } else {
-      closeMenu();
-      setLogWeightOpen(true);
-    }
-  };
-
   const themedStyles = useMemo(
     () => ({
       container: { backgroundColor: colors.background },
       title: { color: colors.text },
-      menuCard: {
-        backgroundColor: colors.surface,
-        borderColor: colors.border,
-        shadowColor: colors.shadow,
-      },
-      menuItemLabel: { color: colors.text },
-      menuDivider: { backgroundColor: colors.border },
       accentHairline: { backgroundColor: colors.primary },
       heroRing: { borderColor: colors.primary + '55' },
       resumeCard: {
@@ -377,9 +325,10 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.profileButton}
-            onPress={openMenu}
+            onPress={goToProfile}
             activeOpacity={0.7}
-            accessibilityLabel="Profile menu"
+            accessibilityLabel="Profile"
+            accessibilityRole="button"
           >
             <ProfileAvatarDisc avatarId={profileAvatarId} size={34} colors={colors} />
           </TouchableOpacity>
@@ -389,60 +338,6 @@ export default function HomeScreen() {
       <View style={[styles.accentBar, themedStyles.accentHairline]} />
 
       <WhatsNewModal visible={whatsNewVisible} onClose={closeWhatsNew} seenId={seenNewsId} />
-
-      <LogWeightSheet visible={logWeightOpen} onClose={() => setLogWeightOpen(false)} />
-
-      <Modal
-        visible={menuVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={closeMenu}
-        onDismiss={() => {
-          // iOS-only: fires once the menu has fully dismissed, so it's now safe
-          // to present the sign-out confirm Alert.
-          if (pendingSignOutConfirm) {
-            setPendingSignOutConfirm(false);
-            confirmSignOut();
-          }
-          if (pendingLogWeight) {
-            setPendingLogWeight(false);
-            setLogWeightOpen(true);
-          }
-        }}
-      >
-        {/* Backdrop and menu card are siblings — do not nest the card inside backdrop Pressable
-            or wrapping View with responder capture; that blocks menu row presses (Android / some web). */}
-        <View style={styles.menuModalRoot}>
-          <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.overlay }]}
-            onPress={closeMenu}
-            accessibilityLabel="Dismiss profile menu"
-            accessibilityRole="button"
-          />
-          <View
-            style={[styles.menuCardWrap, themedStyles.menuCard]}
-            pointerEvents="box-none"
-          >
-            <TouchableOpacity style={styles.menuItem} onPress={goToProfile} activeOpacity={0.7}>
-              <Ionicons name="person-outline" size={22} color={colors.text} />
-              <Text style={[styles.menuItemLabel, themedStyles.menuItemLabel]}>My profile</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-            <View style={[styles.menuDivider, themedStyles.menuDivider]} />
-            <TouchableOpacity style={styles.menuItem} onPress={onLogWeight} activeOpacity={0.7}>
-              <Ionicons name="scale-outline" size={22} color={colors.text} />
-              <Text style={[styles.menuItemLabel, themedStyles.menuItemLabel]}>Log weight</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-            <View style={[styles.menuDivider, themedStyles.menuDivider]} />
-            <TouchableOpacity style={styles.menuItem} onPress={onSignOut} activeOpacity={0.7}>
-              <Ionicons name="log-out-outline" size={22} color={colors.text} />
-              <Text style={[styles.menuItemLabel, themedStyles.menuItemLabel]}>Sign out</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       <ScrollView
         style={styles.scroll}
@@ -483,7 +378,7 @@ export default function HomeScreen() {
                 onPress={goToWorkout}
                 activeOpacity={0.88}
                 accessibilityRole="button"
-                accessibilityHint="Opens Workout tab to resume"
+                accessibilityHint="Opens Train tab to resume"
               >
                 <View style={[styles.cardIconCircle, { backgroundColor: colors.primary + '28' }]}>
                   <Ionicons name="play-circle" size={26} color={colors.primary} />
@@ -797,10 +692,6 @@ export default function HomeScreen() {
   );
 }
 
-const PROFILE_BUTTON_TOP = 24 + 16;
-const PROFILE_BUTTON_RIGHT = 24;
-const MENU_WIDTH = 200;
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flex: 1 },
@@ -1009,36 +900,6 @@ const styles = StyleSheet.create({
     fontSize: text.body,
     marginTop: spacing.xs,
     fontWeight: weight.medium,
-  },
-  menuModalRoot: {
-    flex: 1,
-  },
-  /** Same vertical offset as legacy layout: below header profile control */
-  menuCardWrap: {
-    position: 'absolute',
-    top: PROFILE_BUTTON_TOP + 36,
-    right: PROFILE_BUTTON_RIGHT,
-    width: MENU_WIDTH,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    overflow: 'hidden',
-    ...elevation.level3,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.lg,
-    gap: spacing.md,
-  },
-  menuItemLabel: {
-    flex: 1,
-    fontSize: text.callout,
-    fontWeight: weight.medium,
-  },
-  menuDivider: {
-    height: 1,
-    marginLeft: spacing.lg,
   },
   repeatBanner: {
     flexDirection: 'row',
