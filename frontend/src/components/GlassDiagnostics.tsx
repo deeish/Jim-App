@@ -41,15 +41,19 @@ export default function GlassDiagnostics() {
 
   // iOS accessibility setting that visually flattens glass while
   // isLiquidGlassAvailable stays true — the one case where "glass path taken"
-  // and "no glass visible" are both correct at once. Probed only on iOS:
-  // react-native-web ships a stub whose promise never settles, which left this
-  // row stuck on "…" forever.
-  const [reduceTransparency, setReduceTransparency] = useState<string>('…');
+  // and "no glass visible" are both correct at once. The setting only exists
+  // on iOS, so every other platform gets its final value at first render and
+  // never touches the probe (react-native-web stubs AccessibilityInfo with a
+  // promise that never settles, which would pin the row on "…" forever).
+  const [reduceTransparency, setReduceTransparency] = useState<string>(
+    Platform.OS === 'ios' ? '…' : 'n/a (iOS only)',
+  );
   useEffect(() => {
+    if (Platform.OS !== 'ios') return;
     let mounted = true;
     const probe = AccessibilityInfo.isReduceTransparencyEnabled;
-    if (Platform.OS !== 'ios' || typeof probe !== 'function') {
-      setReduceTransparency('n/a (iOS only)');
+    if (typeof probe !== 'function') {
+      setReduceTransparency('unknown');
       return;
     }
     probe
