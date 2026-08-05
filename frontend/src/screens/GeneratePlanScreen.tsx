@@ -18,6 +18,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { elevation, leading, radius, spacing, text, tracking, useTheme, weight } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 import type { ColorPalette } from '../theme/colors';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { storedInjuryTagsToAvoidList } from '../constants/injuryTags';
@@ -466,6 +467,10 @@ function resumePreviewSummary(d: PersistedPlanPreviewDraft): string {
 export default function GeneratePlanScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createGeneratePlanStyles(colors), [colors]);
+  // The tab bar floats over this screen; the wizard footer must sit above it.
+  // The inset (88pt iOS / 70 web) also covers the home-indicator area the
+  // footer's SafeAreaView used to pad, so it replaces that edge entirely.
+  const tabBarInset = useTabBarInset();
   const {
     hydrated: prefsHydrated,
     goal: prefGoal,
@@ -2675,7 +2680,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
 
         </ScrollView>
 
-        <SafeAreaView style={styles.footerContainer} edges={['bottom']}>
+        <View style={[styles.footerContainer, { paddingBottom: tabBarInset }]}>
           <View style={styles.footer}>
             {currentStep > 0 && (
               <TouchableOpacity
@@ -2711,7 +2716,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
               </TouchableOpacity>
             )}
           </View>
-        </SafeAreaView>
+        </View>
       </SafeAreaView>
 
       {/* Must stay outside `showAdvanced` — otherwise web modal never mounts when options are collapsed */}

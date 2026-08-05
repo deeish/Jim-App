@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Workout,
@@ -127,6 +128,9 @@ export default function WorkoutSession({
   const { colors } = useTheme();
   const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
   const { weightUnit } = useUserPreferences();
+  // The tab bar floats over the session; the action footer (and the toast that
+  // hovers above it) must clear the bar's height. 0 when no tab bar is present.
+  const tabBarInset = useTabBarInset();
   const snap = session.restoredSnapshot;
 
   const [exerciseSessions, setExerciseSessions] = useState<ExerciseSession[]>(() => {
@@ -975,7 +979,7 @@ export default function WorkoutSession({
         ))}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(16, 8 + insets.bottom) }]}>
+      <View style={[styles.footer, { paddingBottom: Math.max(16, 8 + insets.bottom, 8 + tabBarInset) }]}>
         <TouchableOpacity
           style={styles.footerAddLibraryCard}
           onPress={handleAddExerciseFromLibrary}
@@ -1162,7 +1166,7 @@ export default function WorkoutSession({
 
       {/* Toast: "Added set (4 total)" / "Removed set (3 total)" */}
       {toast && (
-        <View style={styles.toastContainer}>
+        <View style={[styles.toastContainer, { bottom: 100 + tabBarInset }]}>
           <Text style={styles.toastText}>{toast.msg}</Text>
         </View>
       )}
@@ -2140,6 +2144,8 @@ function WorkoutFinishScreen({
   // notched device its content would otherwise run under the status bar. The
   // rest of the app takes the top edge per screen the same way.
   const insets = useSafeAreaInsets();
+  // The floating tab bar overlaps the bottom; keep the final buttons clear of it.
+  const tabBarInset = useTabBarInset();
   const [isSaved, setIsSaved] = useState(false);
 
   const totals = useMemo(
@@ -2188,7 +2194,7 @@ function WorkoutFinishScreen({
         styles.finishContent,
         {
           paddingTop: Math.max(insets.top, 20),
-          paddingBottom: Math.max(insets.bottom, 20),
+          paddingBottom: Math.max(insets.bottom, 20) + tabBarInset,
         },
       ]}
     >

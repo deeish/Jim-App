@@ -16,6 +16,7 @@ import type { WorkoutLog, WorkoutLogEntry, WorkoutLogEntrySet } from '../types/w
 import { formatLocalYmd } from '../lib/planCalendar';
 
 import { leading, radius, spacing, text, weight } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'History'>;
 
 type Props = {
@@ -153,6 +154,8 @@ function DayDetailSection({
 
 export default function CalendarScreen({ navigation }: Props) {
   const { colors } = useTheme();
+  // The tab bar floats over this screen; keep the last history rows clear of it.
+  const tabBarInset = useTabBarInset();
   // Title and back button now come from the native header in PlanStackNavigator.
   // The back button relies on PlanList sitting beneath this route, which
   // HomeScreen guarantees by navigating here with `initial: false`.
@@ -264,7 +267,7 @@ export default function CalendarScreen({ navigation }: Props) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: spacing.xxxl + tabBarInset }]}
         showsVerticalScrollIndicator={true}
         contentInsetAdjustmentBehavior="automatic"
       >

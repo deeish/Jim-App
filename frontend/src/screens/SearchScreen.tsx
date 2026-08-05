@@ -42,6 +42,7 @@ import { EQUIPMENT_OPTIONS } from '../constants/equipment';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
 import { elevationUp, radius, spacing, text, weight } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 type SearchScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Search'>;
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 
@@ -346,6 +347,9 @@ const RefineSection = React.memo(function RefineSection({
 
 export default function SearchScreen({ navigation }: Props) {
   const route = useRoute<SearchScreenRouteProp>();
+  // The tab bar floats over this screen; lists and in-flow footers must both
+  // keep their last row / buttons clear of it.
+  const tabBarInset = useTabBarInset();
   const addToPlan = route.params?.addToPlan;
   const addToWorkout = route.params?.addToWorkout;
   const addMode = addToPlan ? 'plan' : addToWorkout ? 'workout' : null;
@@ -1337,7 +1341,7 @@ export default function SearchScreen({ navigation }: Props) {
         // and a plain .map would re-introduce the mount-everything jank FlatList fixed.
         <FlatList
           style={styles.content}
-          contentContainerStyle={styles.contentContainer}
+          contentContainerStyle={[styles.contentContainer, { paddingBottom: 100 + tabBarInset }]}
           showsVerticalScrollIndicator={false}
           data={savedGroups}
           keyExtractor={(group, index) => `saved-${group.baseName}-${index}`}
@@ -1419,7 +1423,7 @@ export default function SearchScreen({ navigation }: Props) {
       {/* Content */}
       <FlatList
         style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: 100 + tabBarInset }]}
         showsVerticalScrollIndicator={false}
         data={exerciseGroups}
         keyExtractor={(group, index) => `${group.baseName}-${index}`}
@@ -1623,7 +1627,7 @@ export default function SearchScreen({ navigation }: Props) {
 
       {/* Sticky Bottom Bar - Only show when no results or loading (and not viewing saved list) */}
       {(isLoading || resultCount === 0) && !addMode && activeTab === 'all' && (
-        <View style={styles.bottomBar}>
+        <View style={[styles.bottomBar, { paddingBottom: spacing.md + tabBarInset }]}>
           <View style={styles.resultCountContainer}>
             <Text style={styles.resultCountText}>
               {isLoading
@@ -1648,7 +1652,7 @@ export default function SearchScreen({ navigation }: Props) {
 
       {/* Add to plan / add to workout footer */}
       {addMode && (
-        <View style={styles.addToPlanFooter}>
+        <View style={[styles.addToPlanFooter, { paddingBottom: spacing.lg + tabBarInset }]}>
           <Text style={styles.addToPlanFooterText}>
             {selectedIds.size} selected
           </Text>

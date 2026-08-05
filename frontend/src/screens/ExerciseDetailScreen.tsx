@@ -36,6 +36,7 @@ import { formatWeightCompactFromLb } from '../lib/weightDisplay';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
 import { leading, radius, spacing, text, tracking, weight } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 import { Skeleton, SkeletonCard } from '../components/Skeleton';
 // Enable LayoutAnimation on Android (same guard as SearchScreen)
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -106,6 +107,8 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   const leaveExerciseForPlanFlow = returnToPlanExerciseContext != null;
   const { colors } = useTheme();
   const { weightUnit } = useUserPreferences();
+  // The tab bar floats over this screen; keep the last sections clear of it.
+  const tabBarInset = useTabBarInset();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -481,7 +484,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: spacing.xxl + tabBarInset }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Exercise Name + Like + Difficulty */}
         <View style={styles.titleSection}>
           <View style={styles.titleLeft}>

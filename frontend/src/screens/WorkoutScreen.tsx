@@ -34,6 +34,7 @@ import type { RootStackParamList } from '../types/navigation';
 import { RootTabParamList } from '../components/NavBar';
 
 import { leading, radius, spacing, text, weight } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 interface WorkoutSessionState {
   workout: Workout;
   currentExerciseIndex: number;
@@ -117,6 +118,8 @@ export default function WorkoutScreen() {
   const route = useRoute<WorkoutScreenRouteProp>();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  // The tab bar floats over this screen; the start/add footer must sit above it.
+  const tabBarInset = useTabBarInset();
   const workoutIdParam = route.params?.workoutId;
   const fromPlan = route.params?.fromPlan === true;
   const [todayWorkout, setTodayWorkout] = useState<Workout | null>(null);
@@ -840,9 +843,10 @@ export default function WorkoutScreen() {
       <View
         style={[
           styles.footer,
-          // Tab bar already sits above the home indicator; adding insets.bottom here
-          // doubled safe area on native and left a gap above the tab bar (web insets are 0).
-          { paddingBottom: spacing.lg },
+          // The floating tab bar overlaps the bottom of this screen now, so the
+          // footer clears it by the bar's height instead of insets.bottom (the
+          // bar itself already covers the home-indicator area).
+          { paddingBottom: spacing.lg + tabBarInset },
         ]}
       >
         {todayWorkout ? (
