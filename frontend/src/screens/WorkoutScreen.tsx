@@ -33,7 +33,7 @@ import { useTheme } from '../theme/ThemeContext';
 import type { RootStackParamList } from '../types/navigation';
 import { RootTabParamList } from '../components/NavBar';
 
-import { leading, radius, spacing, text, weight } from '../theme';
+import { elevation, leading, radius, SOFT_ALPHA, spacing, text, tracking, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
 interface WorkoutSessionState {
   workout: Workout;
@@ -48,6 +48,9 @@ type WorkoutScreenNavigationProp = CompositeNavigationProp<
 >;
 
 type WorkoutScreenRouteProp = RouteProp<RootTabParamList, 'Workout'>;
+
+/** Height of the floating Start CTA — the list's bottom padding must clear it. */
+const START_CTA_HEIGHT = 56;
 
 function workoutTabEmptyCopy(
   planToday: HomeTodayResult | null,
@@ -118,7 +121,7 @@ export default function WorkoutScreen() {
   const route = useRoute<WorkoutScreenRouteProp>();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  // The tab bar floats over this screen; the start/add footer must sit above it.
+  // The tab bar floats over this screen; the Start CTA and scroll padding clear it.
   const tabBarInset = useTabBarInset();
   const workoutIdParam = route.params?.workoutId;
   const fromPlan = route.params?.fromPlan === true;
@@ -157,154 +160,145 @@ export default function WorkoutScreen() {
     () =>
       StyleSheet.create({
         container: { flex: 1, backgroundColor: colors.background },
-        backBar: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.md,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-          backgroundColor: colors.surface,
-        },
-        backButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, paddingRight: spacing.md },
-        backButtonText: { fontSize: text.callout, fontWeight: weight.semibold },
         header: {
-          backgroundColor: colors.surface,
-          paddingHorizontal: spacing.xl,
-          paddingTop: spacing.lg,
-          paddingBottom: spacing.lg,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-        },
-        title: { fontSize: text.display, fontWeight: weight.bold, color: colors.text, marginBottom: spacing.xs },
-        workoutName: { fontSize: text.headline, color: colors.primary, fontWeight: weight.semibold, marginBottom: spacing.xs },
-        content: { flex: 1 },
-        exercisesContainer: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
-        emptyContainer: {
-          flex: 1,
-          justifyContent: 'flex-start',
-          alignItems: 'center',
-          paddingHorizontal: spacing.xxl,
-          paddingTop: spacing.xxl,
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          paddingHorizontal: spacing.lg,
           paddingBottom: spacing.md,
         },
-        emptyText: { fontSize: text.title, color: colors.textTertiary, marginBottom: spacing.sm, fontWeight: weight.semibold },
-        emptySubtext: { fontSize: text.callout, color: colors.textMuted, textAlign: 'center' },
-        noExercisesCard: {
+        backButton: { marginLeft: -spacing.sm, marginTop: spacing.xxs, paddingRight: spacing.xs },
+        headerText: { flex: 1, minWidth: 0 },
+        eyebrow: {
+          fontSize: text.caption,
+          fontWeight: weight.heavy,
+          letterSpacing: tracking.wider,
+          textTransform: 'uppercase',
+          color: colors.textMuted,
+          marginBottom: spacing.xs,
+        },
+        title: {
+          fontSize: text.display,
+          lineHeight: leading.display,
+          fontWeight: weight.bold,
+          letterSpacing: tracking.tight,
+          color: colors.text,
+        },
+        likeButton: { marginRight: -spacing.sm },
+        content: { flex: 1 },
+        listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
+        emptyContainer: {
+          flex: 1,
+          alignItems: 'center',
+          paddingHorizontal: spacing.xxl,
+          paddingTop: spacing.xxxl,
+        },
+        emptyIconCircle: {
+          width: 64,
+          height: 64,
+          borderRadius: radius.pill,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.textMuted + SOFT_ALPHA,
+          marginBottom: spacing.lg,
+        },
+        emptyText: { fontSize: text.title, color: colors.text, fontWeight: weight.semibold, textAlign: 'center' },
+        emptySubtext: {
+          fontSize: text.body,
+          lineHeight: leading.body,
+          color: colors.textMuted,
+          textAlign: 'center',
+          marginTop: spacing.sm,
+        },
+        emptyAction: {
+          marginTop: spacing.xl,
+          paddingVertical: spacing.sm,
+          paddingHorizontal: spacing.xl,
+          borderRadius: radius.pill,
+          backgroundColor: colors.primarySoft,
+        },
+        emptyActionText: { fontSize: text.callout, fontWeight: weight.semibold, color: colors.primary },
+        startCtaWrap: { position: 'absolute', left: spacing.lg, right: spacing.lg },
+        startButton: { minHeight: START_CTA_HEIGHT },
+        metaLine: {
+          fontSize: text.body,
+          lineHeight: leading.body,
+          color: colors.textSecondary,
+          fontWeight: weight.medium,
+          marginTop: spacing.xs,
+        },
+        sectionLabel: {
+          fontSize: text.caption,
+          fontWeight: weight.bold,
+          letterSpacing: tracking.wider,
+          textTransform: 'uppercase',
+          color: colors.textMuted,
+          marginBottom: spacing.md,
+        },
+        addRow: {
           flexDirection: 'row',
           alignItems: 'center',
           gap: spacing.md,
           paddingVertical: spacing.lg,
           paddingHorizontal: spacing.lg,
           borderRadius: radius.md,
-          borderWidth: 1,
-          borderStyle: 'dashed',
-          borderColor: colors.primary + '50',
-          backgroundColor: colors.primary + '08',
-          marginTop: spacing.sm,
-        },
-        noExercisesText: { fontSize: text.callout, fontWeight: weight.bold, color: colors.primary },
-        noExercisesHint: { fontSize: text.footnote, color: colors.textMuted, marginTop: spacing.xxs },
-        footer: {
-          paddingHorizontal: spacing.lg,
-          paddingTop: spacing.sm,
-          paddingBottom: spacing.lg,
-          gap: spacing.sm,
           backgroundColor: colors.surface,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
+          borderWidth: 1,
+          borderColor: colors.border,
         },
-        startButton: { minHeight: 56 },
-        metaLine: {
-          fontSize: text.body,
-          lineHeight: leading.body,
-          color: colors.textSecondary,
-          fontWeight: weight.medium,
-          marginTop: spacing.xxs,
-        },
-        exercisesSection: { paddingHorizontal: spacing.xs, paddingTop: spacing.xs },
-        exerciseSectionHeader: {
-          marginBottom: spacing.lg,
-        },
-        sectionTitleRow: { flex: 1, minWidth: 0 },
-        sectionTitle: { fontSize: text.title, fontWeight: weight.heavy, color: colors.text },
-        sectionSubtitle: { fontSize: text.body, color: colors.textMuted, marginTop: spacing.xxs, fontWeight: weight.medium },
-        footerAddCard: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: spacing.sm,
+        addRowText: { flex: 1, minWidth: 0, fontSize: text.callout, fontWeight: weight.semibold, color: colors.primary },
+        toastWrap: { position: 'absolute', left: spacing.lg, right: spacing.lg, alignItems: 'center' },
+        toastPill: {
           paddingVertical: spacing.sm,
-          paddingHorizontal: spacing.md,
-          borderRadius: radius.md,
-          borderWidth: 1,
-          borderColor: colors.primary + '40',
-          backgroundColor: colors.background,
-        },
-        footerAddCardText: { flex: 1, minWidth: 0 },
-        footerAddCardTitle: { fontSize: text.callout, fontWeight: weight.bold, color: colors.text },
-        footerAddCardSub: { fontSize: text.caption, color: colors.textMuted, marginTop: spacing.xxs, fontWeight: weight.medium },
-        toastBar: {
-          paddingVertical: spacing.md,
           paddingHorizontal: spacing.lg,
+          borderRadius: radius.pill,
           backgroundColor: colors.surface,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
+          borderWidth: 1,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+          ...elevation.level2,
         },
-        toastText: { fontSize: text.body, color: colors.textSecondary, textAlign: 'center', fontWeight: weight.semibold },
-        draftBanner: {
+        toastText: { fontSize: text.footnote, color: colors.textSecondary, textAlign: 'center', fontWeight: weight.semibold },
+        bannerCard: {
           marginHorizontal: spacing.lg,
           marginBottom: spacing.md,
           padding: spacing.lg,
-          borderRadius: radius.md,
-          backgroundColor: colors.primary + '18',
-          borderWidth: 1,
-          borderColor: colors.primary + '44',
-        },
-        draftBannerTitle: { fontSize: text.callout, fontWeight: weight.heavy, color: colors.text },
-        draftBannerWorkout: { fontSize: text.callout, fontWeight: weight.bold, color: colors.primary, marginTop: spacing.sm },
-        draftBannerMeta: { fontSize: text.body, color: colors.textMuted, marginTop: spacing.xs },
-        draftBannerActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
-        draftResumeBtn: {
-          flex: 1,
-          paddingVertical: spacing.md,
-          borderRadius: radius.md,
-          backgroundColor: colors.primary,
-          alignItems: 'center',
-        },
-        draftResumeBtnText: { fontSize: text.callout, fontWeight: weight.heavy, color: colors.background },
-        draftDiscardBtn: {
-          paddingVertical: spacing.md,
-          paddingHorizontal: spacing.lg,
-          borderRadius: radius.md,
+          borderRadius: radius.lg,
+          backgroundColor: colors.surface,
           borderWidth: 1,
           borderColor: colors.border,
-          backgroundColor: colors.surface,
-          alignItems: 'center',
-          justifyContent: 'center',
         },
-        draftDiscardBtnText: { fontSize: text.body, fontWeight: weight.bold, color: colors.textSecondary },
+        draftEyebrow: {
+          fontSize: text.caption,
+          fontWeight: weight.heavy,
+          letterSpacing: tracking.wider,
+          textTransform: 'uppercase',
+          color: colors.primary,
+        },
+        draftWorkoutName: {
+          fontSize: text.headline,
+          lineHeight: leading.headline,
+          fontWeight: weight.bold,
+          color: colors.text,
+          marginTop: spacing.xs,
+        },
+        draftMeta: { fontSize: text.footnote, color: colors.textMuted, marginTop: spacing.xxs },
+        draftActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
+        draftResumeBtn: {
+          paddingVertical: spacing.sm,
+          paddingHorizontal: spacing.xl,
+          borderRadius: radius.pill,
+          backgroundColor: colors.primary,
+        },
+        draftResumeBtnText: { fontSize: text.callout, fontWeight: weight.semibold, color: colors.onPrimary },
+        draftDiscardBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
+        draftDiscardBtnText: { fontSize: text.callout, fontWeight: weight.semibold, color: colors.textSecondary },
         completionBanner: {
           flexDirection: 'row',
           alignItems: 'center',
           gap: spacing.md,
-          backgroundColor: colors.success + '18',
-          borderWidth: 1,
-          borderColor: colors.success + '44',
-          marginHorizontal: spacing.lg,
-          marginBottom: spacing.md,
-          padding: spacing.lg,
-          borderRadius: radius.md,
         },
-        completionBannerTitle: {
-          fontSize: text.callout,
-          fontWeight: weight.bold,
-          color: colors.success,
-        },
-        completionBannerStats: {
-          fontSize: text.body,
-          color: colors.textSecondary,
-          marginTop: spacing.xxs,
-        },
+        completionBannerTitle: { fontSize: text.callout, fontWeight: weight.bold, color: colors.text },
+        completionBannerStats: { fontSize: text.body, color: colors.textSecondary, marginTop: spacing.xxs },
       }),
     [colors]
   );
@@ -702,64 +696,86 @@ export default function WorkoutScreen() {
     return <LoadingSpinner />;
   }
 
-  // Show workout with start button (today's or selected from Plan)
-  const headerTitle = workoutIdParam ? (todayWorkout?.name ?? 'Workout') : "Today's Workout";
+  // The workout name is the star: it takes the title slot, and "Today's Workout"
+  // becomes an eyebrow above it when this tab resolved today's session itself.
+  const headerTitle = todayWorkout
+    ? todayWorkout.name
+    : workoutIdParam
+      ? 'Workout'
+      : "Today's Workout";
+  const showEyebrow = !workoutIdParam && !!todayWorkout;
+  const startCtaVisible = !!todayWorkout && todayWorkout.exercises.length > 0;
   const emptyCopy = workoutTabEmptyCopy(planToday, Boolean(workoutIdParam));
   return (
     <View style={styles.container} testID="e2e-workout-root">
-      {fromPlan && (
-        <View style={[styles.backBar, { paddingTop: Math.max(insets.top, 10) }]}>
-          <TouchableOpacity style={styles.backButton} onPress={goBackToPlan} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={24} color={colors.primary} />
-            <Text style={[styles.backButtonText, { color: colors.primary }]}>Back</Text>
-          </TouchableOpacity>
-        </View>
-      )}
       <View
         style={[
           styles.header,
-          {
-            // Tab screens don't get automatic top safe area; fromPlan uses backBar for that.
-            paddingTop: fromPlan ? 16 : 8 + Math.max(insets.top, 8),
-          },
+          // Tab screens don't get automatic top safe area.
+          { paddingTop: Math.max(insets.top, spacing.md) + spacing.sm },
         ]}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs }}>
-          <Text style={styles.title}>{headerTitle}</Text>
-          {todayWorkout?.id && (
-            <WorkoutLikeButton
-              workoutId={todayWorkout.id}
-              saved={savedWorkoutIds.includes(todayWorkout.id)}
-              onSave={handleToggleLike}
-              onUnsave={handleToggleLike}
-              size={26}
-            />
-          )}
-        </View>
-        {todayWorkout && (
-          <>
-            {!workoutIdParam && <Text style={styles.workoutName}>{todayWorkout.name}</Text>}
-            <Text style={styles.metaLine} numberOfLines={3}>
+        {fromPlan && (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={goBackToPlan}
+            activeOpacity={0.7}
+            hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="chevron-back" size={28} color={colors.primary} />
+          </TouchableOpacity>
+        )}
+        <View style={styles.headerText}>
+          {showEyebrow && <Text style={styles.eyebrow}>Today's Workout</Text>}
+          <Text style={styles.title} numberOfLines={1}>
+            {headerTitle}
+          </Text>
+          {todayWorkout && workoutMetaLine ? (
+            <Text style={styles.metaLine} numberOfLines={1}>
               {workoutMetaLine}
             </Text>
-          </>
+          ) : null}
+        </View>
+        {todayWorkout?.id && (
+          <WorkoutLikeButton
+            workoutId={todayWorkout.id}
+            saved={savedWorkoutIds.includes(todayWorkout.id)}
+            onSave={handleToggleLike}
+            onUnsave={handleToggleLike}
+            size={26}
+            style={styles.likeButton}
+          />
         )}
       </View>
 
       {savedDraft ? (
-        <View style={styles.draftBanner}>
-          <Text style={styles.draftBannerTitle}>Workout in progress</Text>
-          <Text style={styles.draftBannerWorkout} numberOfLines={2}>
+        <View style={styles.bannerCard}>
+          <Text style={styles.draftEyebrow}>In progress</Text>
+          <Text style={styles.draftWorkoutName} numberOfLines={1}>
             {savedDraft.workout.name}
           </Text>
-          <Text style={styles.draftBannerMeta}>
+          <Text style={styles.draftMeta}>
             Started {new Date(savedDraft.startTimeIso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
           </Text>
-          <View style={styles.draftBannerActions}>
-            <TouchableOpacity style={styles.draftResumeBtn} onPress={handleResumeDraft} activeOpacity={0.85}>
+          <View style={styles.draftActions}>
+            <TouchableOpacity
+              style={styles.draftResumeBtn}
+              onPress={handleResumeDraft}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Resume workout"
+            >
               <Text style={styles.draftResumeBtnText}>Resume</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.draftDiscardBtn} onPress={handleDiscardDraft} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.draftDiscardBtn}
+              onPress={handleDiscardDraft}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Discard draft"
+            >
               <Text style={styles.draftDiscardBtnText}>Discard</Text>
             </TouchableOpacity>
           </View>
@@ -767,10 +783,10 @@ export default function WorkoutScreen() {
       ) : null}
 
       {completedLog ? (
-        <View style={styles.completionBanner}>
-          <Ionicons name="checkmark-circle" size={26} color={colors.success} />
+        <View style={[styles.bannerCard, styles.completionBanner]}>
+          <Ionicons name="checkmark-circle" size={24} color={colors.success} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.completionBannerTitle}>Workout Complete</Text>
+            <Text style={styles.completionBannerTitle}>Workout complete</Text>
             <Text style={styles.completionBannerStats}>
               {[
                 completedLog.totalTimeSeconds
@@ -786,98 +802,87 @@ export default function WorkoutScreen() {
       ) : null}
 
       {todayWorkout ? (
-        <ScrollView style={styles.content} contentContainerStyle={styles.exercisesContainer}>
-          <View style={styles.exercisesSection}>
-            <View style={styles.exerciseSectionHeader}>
-              <View style={styles.sectionTitleRow}>
-                <Text style={styles.sectionTitle}>Exercises</Text>
-                {todayWorkout.exercises.length > 0 && (
-                  <Text style={styles.sectionSubtitle}>
-                    Tap a row for details · trash removes from this workout
-                  </Text>
-                )}
-              </View>
-            </View>
-            {todayWorkout.exercises.length === 0 && (
-              <TouchableOpacity
-                style={styles.noExercisesCard}
-                onPress={handleAddExercises}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                accessibilityLabel="Add exercises from library"
-              >
-                <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.noExercisesText}>Add your first exercise</Text>
-                  <Text style={styles.noExercisesHint}>Browse the library below</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-              </TouchableOpacity>
-            )}
-            {todayWorkout.exercises.map((exercise, index) => (
-              <ExerciseCard
-                key={exercise.exerciseId ? `${exercise.exerciseId}-${index}` : `ex-${index}`}
-                exercise={exercise}
-                index={index}
-                showOrderBadge
-                showNotes={false}
-                onPress={() => handleOpenExerciseDetail(exercise)}
-                onRemove={() => handleRemoveExercise(index)}
-                removing={removingIndex === index}
-              />
-            ))}
-          </View>
-        </ScrollView>
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>{emptyCopy.title}</Text>
-          <Text style={styles.emptySubtext}>{emptyCopy.sub}</Text>
-        </View>
-      )}
-
-      {toast ? (
-        <View style={styles.toastBar}>
-          <Text style={styles.toastText}>{toast}</Text>
-        </View>
-      ) : null}
-      <View
-        style={[
-          styles.footer,
-          // The floating tab bar overlaps the bottom of this screen now, so the
-          // footer clears it by the bar's height instead of insets.bottom (the
-          // bar itself already covers the home-indicator area).
-          { paddingBottom: spacing.lg + tabBarInset },
-        ]}
-      >
-        {todayWorkout ? (
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.listContent,
+            // Content scrolls under the glass tab bar; the last row still has
+            // to clear the bar plus the floating Start CTA.
+            {
+              paddingBottom:
+                tabBarInset + spacing.xl + (startCtaVisible ? START_CTA_HEIGHT + spacing.md : 0),
+            },
+          ]}
+        >
+          <Text style={styles.sectionLabel}>Exercises</Text>
+          {todayWorkout.exercises.map((exercise, index) => (
+            <ExerciseCard
+              key={exercise.exerciseId ? `${exercise.exerciseId}-${index}` : `ex-${index}`}
+              exercise={exercise}
+              index={index}
+              showOrderBadge
+              showNotes={false}
+              onPress={() => handleOpenExerciseDetail(exercise)}
+              onRemove={() => handleRemoveExercise(index)}
+              removing={removingIndex === index}
+            />
+          ))}
           <TouchableOpacity
-            style={styles.footerAddCard}
+            style={styles.addRow}
             onPress={handleAddExercises}
             activeOpacity={0.75}
             accessibilityRole="button"
             accessibilityLabel="Add exercises from library"
           >
             <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
-            <View style={styles.footerAddCardText}>
-              <Text style={styles.footerAddCardTitle}>Add from library</Text>
-              <Text style={styles.footerAddCardSub}>Search library · attach to workout</Text>
-            </View>
+            <Text style={styles.addRowText}>
+              {todayWorkout.exercises.length === 0 ? 'Add your first exercise' : 'Add from library'}
+            </Text>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </TouchableOpacity>
-        ) : null}
-        <Button
-          title={
-            todayWorkout
-              ? todayWorkout.exercises.length === 0
-                ? 'Add an exercise to start'
-                : 'Start Workout'
-              : 'No Workout Available'
-          }
-          onPress={handleStartWorkout}
-          disabled={!todayWorkout || todayWorkout.exercises.length === 0}
-          style={styles.startButton}
-        />
-      </View>
+        </ScrollView>
+      ) : (
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="barbell-outline" size={30} color={colors.textMuted} />
+          </View>
+          <Text style={styles.emptyText}>{emptyCopy.title}</Text>
+          <Text style={styles.emptySubtext}>{emptyCopy.sub}</Text>
+          <TouchableOpacity
+            style={styles.emptyAction}
+            onPress={goBackToPlan}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Open the Plan tab"
+          >
+            <Text style={styles.emptyActionText}>Go to Plan</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {startCtaVisible && (
+        <View style={[styles.startCtaWrap, { bottom: tabBarInset + spacing.md }]}>
+          <Button title="Start Workout" onPress={handleStartWorkout} style={styles.startButton} />
+        </View>
+      )}
+
+      {toast ? (
+        <View
+          style={[
+            styles.toastWrap,
+            {
+              bottom:
+                tabBarInset + spacing.md + (startCtaVisible ? START_CTA_HEIGHT + spacing.md : 0),
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <View style={styles.toastPill}>
+            <Text style={styles.toastText}>{toast}</Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
