@@ -269,7 +269,7 @@ const dayB: TemplateExercise[] = [
     restSeconds: 60,
     supersetGroup: 'B',
     note: 'Reps per side. Press out slow, fight the twist.',
-    weekly: pairedAccessory(10, 12),
+    weekly: pairedAccessoryLight(10, 12),
   },
   {
     exerciseId: 'rowing_machine_intervals',

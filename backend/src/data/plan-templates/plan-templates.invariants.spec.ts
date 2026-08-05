@@ -171,6 +171,14 @@ describe.each(PLAN_TEMPLATES_V1.map((t) => [t.id, t] as const))(
           for (let i = 1; i < indices.length; i++) {
             expect(indices[i]).toBe(indices[i - 1] + 1);
           }
+          // Partners alternate sets, so their weekly set counts must match —
+          // a 2-set lift paired with a 3-set lift is not a superset.
+          for (let w = 0; w < 8; w++) {
+            const setCounts = new Set(
+              indices.map((i) => session.exercises[i].weekly[w].sets),
+            );
+            expect(setCounts.size).toBe(1);
+          }
         }
       }
     });
