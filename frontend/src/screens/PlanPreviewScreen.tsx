@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { leading, planSlotIconColors, radius, spacing, text, tracking, type ColorPalette, useTheme, weight } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 import BenchPressLoader from '../components/BenchPressLoader';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
@@ -259,6 +260,8 @@ function programTypeToTemplateId(programType: string): string | undefined {
 export default function PlanPreviewScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createPlanPreviewStyles(colors), [colors]);
+  // The tab bar floats over this screen; the apply/edit footer must sit above it.
+  const tabBarInset = useTabBarInset();
   const { weightUnit, goal } = useUserPreferences();
   const { inputs, draftId, planInputs, returnToPlanCard, fromOnboarding } = route.params;
   const goHome = () => {
@@ -1673,7 +1676,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         </View>
       </Modal>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: spacing.lg + tabBarInset }]}>
         <TouchableOpacity
           style={styles.secondaryButton}
           onPress={() => {

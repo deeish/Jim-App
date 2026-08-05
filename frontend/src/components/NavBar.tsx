@@ -55,21 +55,35 @@ export default function NavBar() {
           ? { tabBarBackground: () => <GlassSurface style={StyleSheet.absoluteFill} /> }
           : null),
         tabBarStyle: {
+          // The bar FLOATS over the screens instead of sitting in the layout
+          // flow, so list content scrolls underneath it. That moving content is
+          // what makes the iOS 26 material read as glass at all — in the layout
+          // flow the glass only ever sampled the flat page colour behind the
+          // navigator and was pixel-for-pixel indistinguishable from the opaque
+          // fallback. Floating on EVERY platform (not just where glass exists)
+          // keeps the geometry identical everywhere, so the web fallback
+          // verifies the same layout the iPhone renders.
+          //
+          // The contract this creates: every tab screen pads its scrollable
+          // bottom edge (or in-flow footer) by useTabBarInset() — see
+          // navigation/useTabBarInset.ts. An unpadded screen hides its last
+          // rows behind the bar.
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
           backgroundColor: glassAvailable ? 'transparent' : colors.surface,
-          // The border stays in BOTH branches. Glass carries its own edge only
-          // when it has something to refract, and this bar is not positioned
-          // absolutely — bottom-tabs keeps it in the layout flow, so content
-          // stops above it and never passes underneath. Without the hairline the
-          // glass samples a flat page background and the bar loses its boundary
-          // entirely. (Making it float needs every screen to pad by
-          // useBottomTabBarHeight(); until then, keep the separator.)
-          borderTopWidth: 1,
+          // Hairline and cast shadow exist only for the opaque fallback, where
+          // a white bar needs a drawn boundary. The glass branch drops both:
+          // now that content actually passes beneath it, the material carries
+          // its own edge — the previous "keep the border in both branches" rule
+          // existed precisely because the in-flow bar had nothing to refract.
+          borderTopWidth: glassAvailable ? 0 : 1,
           borderTopColor: colors.border,
           paddingTop: spacing.md,
           paddingBottom: Platform.OS === 'ios' ? 20 : 12,
           height: Platform.OS === 'ios' ? 88 : 70,
-          shadowColor: colors.shadow,
-          ...elevationUp,
+          ...(glassAvailable ? null : { shadowColor: colors.shadow, ...elevationUp }),
         },
         tabBarLabelStyle: {
           fontSize: text.footnote,

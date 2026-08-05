@@ -23,6 +23,7 @@ import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { isLinkableLibraryExerciseId, navigateFromWorkoutDetailToExerciseDetail } from '../lib/exerciseNavigation';
 import { resolveWorkoutEtaMinutes } from '../lib/estimateWorkoutMinutes';
 import { leading, radius, spacing, text, tracking, weight } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 import {
   formatExercisePrescriptionBulleted,
   profileGoalToPlanGoal,
@@ -41,6 +42,8 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const { weightUnit, goal } = useUserPreferences();
   const insets = useSafeAreaInsets();
+  // The tab bar floats over this screen; keep the last exercise rows clear of it.
+  const tabBarInset = useTabBarInset();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -425,7 +428,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
       <BackBar />
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 }}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 + tabBarInset }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>

@@ -47,6 +47,7 @@ import {
 } from '../lib/planCalendar';
 import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
 import { elevation, leading, radius, spacing, text, tracking, weight } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 import { SkeletonCard } from '../components/Skeleton';
 import {
   exercisesLikeFromPrescription,
@@ -121,6 +122,8 @@ function homeLoadErrorMessage(err: unknown): string {
 export default function HomeScreen() {
   const navigation = useNavigation<HomeNavigation>();
   const { colors } = useTheme();
+  // The tab bar floats over this screen; keep the last cards clear of it.
+  const tabBarInset = useTabBarInset();
   const { user, signOut } = useAuth();
   const { profileAvatarId, profileDisplayName } = useUserPreferences();
   const displayName = (profileDisplayName || user?.email?.split('@')[0] || '').split(' ')[0];
@@ -443,7 +446,7 @@ export default function HomeScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: spacing.xxl + tabBarInset }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

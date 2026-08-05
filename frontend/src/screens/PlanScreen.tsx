@@ -20,6 +20,7 @@ import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/nativ
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { elevation, leading, planSlotIconColors, radius, spacing, text, tracking, useTheme, weight } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot, movePlanSlot } from '../services/planService';
@@ -182,6 +183,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const navigation = navigationProp ?? navFromHook;
   const route = useRoute<RouteProp<RootStackParamList, 'PlanList'>>();
   const { colors } = useTheme();
+  // The tab bar floats over this screen; keep the last day rows clear of it.
+  const tabBarInset = useTabBarInset();
   const insets = useSafeAreaInsets();
   const { weightUnit, goal } = useUserPreferences();
   const [selectedWeek, setSelectedWeek] = useState(0);
@@ -1416,7 +1419,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       <ScrollView
         ref={contentScrollRef}
         style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: spacing.xxxl + tabBarInset }]}
         showsVerticalScrollIndicator={false}
         scrollEnabled={scrollEnabled}
         onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
