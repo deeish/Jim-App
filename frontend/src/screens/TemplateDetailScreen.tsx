@@ -15,6 +15,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { radius, spacing, text, tracking, useTheme, weight, type ColorPalette } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 import { SkeletonCard } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import { MonthCalendarPicker } from '../components/MonthCalendarPicker';
@@ -72,6 +73,8 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
   const { templateId } = route.params;
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // The tab bar floats over this screen; the CTA bar and last rows must clear it.
+  const tabBarInset = useTabBarInset();
 
   const [template, setTemplate] = useState<PlanTemplateDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -158,7 +161,7 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 96 + tabBarInset }]}
       >
         <Text style={styles.tagline}>{template.tagline}</Text>
         <View style={styles.chipRow}>
@@ -273,7 +276,7 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
         ))}
       </ScrollView>
 
-      <View style={styles.ctaBar}>
+      <View style={[styles.ctaBar, { paddingBottom: spacing.xxl + tabBarInset }]}>
         <TouchableOpacity
           style={[styles.ctaButton, { backgroundColor: colors.primary }]}
           onPress={() => setApplyOpen(true)}

@@ -4,6 +4,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { radius, spacing, text, tracking, useTheme, weight, type ColorPalette } from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
 import { SkeletonCard } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import type { RootStackParamList } from '../types/navigation';
@@ -36,6 +37,8 @@ export default function TemplatesScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // The tab bar floats over this screen; the last card must clear it.
+  const tabBarInset = useTabBarInset();
 
   const [templates, setTemplates] = useState<PlanTemplateCard[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,7 +93,7 @@ export default function TemplatesScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: spacing.xxxl + tabBarInset }]}
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
     >
