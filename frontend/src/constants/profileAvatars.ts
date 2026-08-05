@@ -22,24 +22,33 @@ export const PROFILE_AVATARS = [
   // Each base TRAVELS HUE top-left to bottom-right (sky->indigo, coral->wine),
   // which is what makes the disc read as aurora at 34px — a light->dark ramp
   // of one hue just reads as a shaded ball.
-  { id: 'default',   name: 'Jim',      base: ['#4BA8FF', '#2733B8'], veilA: '#7BE0FF', veilB: '#8E7BFF', spin: 0 },
-  { id: 'muscle',    name: 'Ember',    base: ['#FF6B5E', '#8A1538'], veilA: '#FFB36B', veilB: '#E052A0', spin: 1 },
-  { id: 'runner',    name: 'Lagoon',   base: ['#35D0C0', '#0A4E8F'], veilA: '#8FF7DE', veilB: '#3B9DFF', spin: 2 },
-  { id: 'cyclist',   name: 'Nebula',   base: ['#9B6BFF', '#2E1D8F'], veilA: '#E0A1FF', veilB: '#4FC3F7', spin: 3 },
-  { id: 'yoga',      name: 'Orchid',   base: ['#D46BC8', '#4A1D8F'], veilA: '#FF9ED8', veilB: '#7B8CFF', spin: 0 },
-  { id: 'lift',      name: 'Molten',   base: ['#FF9440', '#A11D3A'], veilA: '#FFD36B', veilB: '#FF5E8E', spin: 1 },
-  { id: 'swim',      name: 'Ocean',    base: ['#38B6E8', '#0A2E77'], veilA: '#6BEBFF', veilB: '#2BE8C8', spin: 2 },
-  { id: 'ball',      name: 'Cobalt',   base: ['#5677F0', '#151F8F'], veilA: '#8FB6FF', veilB: '#B388FF', spin: 3 },
-  { id: 'tennis',    name: 'Meadow',   base: ['#52C878', '#0A5E4A'], veilA: '#BFFF8F', veilB: '#2BD9C8', spin: 0 },
-  { id: 'fire',      name: 'Sunset',   base: ['#FF7E4A', '#7A1045'], veilA: '#FFC66B', veilB: '#FF6BAC', spin: 1 },
-  { id: 'star',      name: 'Magenta',  base: ['#F0559E', '#520F77'], veilA: '#FF9ED8', veilB: '#8F6BFF', spin: 2 },
-  { id: 'trophy',    name: 'Golden',   base: ['#F2B23D', '#8F4A0A'], veilA: '#FFE68F', veilB: '#FF9E5E', spin: 3 },
-  { id: 'lightning', name: 'Electric', base: ['#2FB1FF', '#3D1DA8'], veilA: '#8FFCFF', veilB: '#C4A1FF', spin: 1 },
-  { id: 'crown',     name: 'Royal',    base: ['#B588FF', '#3A1287'], veilA: '#F2BAFF', veilB: '#6BC8FF', spin: 2 },
-  { id: 'robot',     name: 'Graphite', base: ['#66788C', '#1A222E'], veilA: '#8FD6FF', veilB: '#9EFFB8', spin: 0 },
+  //
+  // `retired: true` = still renders for anyone who has it stored, but no
+  // longer offered in the picker. Nine on offer, chosen for maximum hue
+  // separation; the retired six were near-duplicates (three blues, second
+  // violet, second pink, second orange). Never DELETE an entry — stored ids
+  // must keep resolving.
+  { id: 'default',   name: 'Jim',      base: ['#4BA8FF', '#2733B8'], veilA: '#7BE0FF', veilB: '#8E7BFF', spin: 0, retired: false },
+  { id: 'muscle',    name: 'Ember',    base: ['#FF6B5E', '#8A1538'], veilA: '#FFB36B', veilB: '#E052A0', spin: 1, retired: true },
+  { id: 'runner',    name: 'Lagoon',   base: ['#35D0C0', '#0A4E8F'], veilA: '#8FF7DE', veilB: '#3B9DFF', spin: 2, retired: false },
+  { id: 'cyclist',   name: 'Nebula',   base: ['#9B6BFF', '#2E1D8F'], veilA: '#E0A1FF', veilB: '#4FC3F7', spin: 3, retired: false },
+  { id: 'yoga',      name: 'Orchid',   base: ['#D46BC8', '#4A1D8F'], veilA: '#FF9ED8', veilB: '#7B8CFF', spin: 0, retired: false },
+  { id: 'lift',      name: 'Molten',   base: ['#FF9440', '#A11D3A'], veilA: '#FFD36B', veilB: '#FF5E8E', spin: 1, retired: false },
+  { id: 'swim',      name: 'Ocean',    base: ['#38B6E8', '#0A2E77'], veilA: '#6BEBFF', veilB: '#2BE8C8', spin: 2, retired: false },
+  { id: 'ball',      name: 'Cobalt',   base: ['#5677F0', '#151F8F'], veilA: '#8FB6FF', veilB: '#B388FF', spin: 3, retired: true },
+  { id: 'tennis',    name: 'Meadow',   base: ['#52C878', '#0A5E4A'], veilA: '#BFFF8F', veilB: '#2BD9C8', spin: 0, retired: false },
+  { id: 'fire',      name: 'Sunset',   base: ['#FF7E4A', '#7A1045'], veilA: '#FFC66B', veilB: '#FF6BAC', spin: 1, retired: true },
+  { id: 'star',      name: 'Magenta',  base: ['#F0559E', '#520F77'], veilA: '#FF9ED8', veilB: '#8F6BFF', spin: 2, retired: true },
+  { id: 'trophy',    name: 'Golden',   base: ['#F2B23D', '#8F4A0A'], veilA: '#FFE68F', veilB: '#FF9E5E', spin: 3, retired: false },
+  { id: 'lightning', name: 'Electric', base: ['#2FB1FF', '#3D1DA8'], veilA: '#8FFCFF', veilB: '#C4A1FF', spin: 1, retired: true },
+  { id: 'crown',     name: 'Royal',    base: ['#B588FF', '#3A1287'], veilA: '#F2BAFF', veilB: '#6BC8FF', spin: 2, retired: true },
+  { id: 'robot',     name: 'Graphite', base: ['#66788C', '#1A222E'], veilA: '#8FD6FF', veilB: '#9EFFB8', spin: 0, retired: false },
 ] as const;
 
 export type ProfileAvatarId = (typeof PROFILE_AVATARS)[number]['id'];
+
+/** The picker's set: every non-retired aurora, in declaration order. */
+export const OFFERED_PROFILE_AVATARS = PROFILE_AVATARS.filter((a) => !a.retired);
 
 const AVATAR_BY_ID = new Map<ProfileAvatarId, (typeof PROFILE_AVATARS)[number]>(
   PROFILE_AVATARS.map((a) => [a.id, a]),
