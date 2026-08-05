@@ -7,6 +7,9 @@ import {
   type PlanTemplateCard,
 } from '../data/plan-templates';
 
+/** Full program plus the card's derived fields (e.g. sessionMinutes band). */
+export type PlanTemplateDetail = PlanTemplateCard & PlanTemplate;
+
 /**
  * Hand-authored plan templates. Static data only — no DB, no LLM. Applying a
  * template happens through the existing plan save flow: the client fetches
@@ -20,11 +23,13 @@ export class PlanTemplatesService {
     return { templates: PLAN_TEMPLATES_V1.map(toPlanTemplateCard) };
   }
 
-  getById(id: string): PlanTemplate {
+  getById(id: string): PlanTemplateDetail {
     const template = getPlanTemplateById(id);
     if (!template) {
       throw new NotFoundException(`Plan template "${id}" not found`);
     }
-    return template;
+    // Detail = card projection + full program, so clients get the derived
+    // card fields (sessionMinutes) without recomputing them.
+    return { ...toPlanTemplateCard(template), ...template };
   }
 }
