@@ -54,11 +54,28 @@ export function toggleTemplateWeekday(
   return orderWeekdays([...selected, day]);
 }
 
-/** Next Monday (local) — the natural week-1 start for an anchored program. */
-export function suggestedTemplateStartDateISO(today: Date = new Date()): string {
+/**
+ * Suggested start date for an anchored program. Week 1 anchors to the Monday
+ * of the start date, so "start today" is only clean when none of the selected
+ * training days in the CURRENT week have already passed — otherwise week 1
+ * would open with sessions sitting in the past. When today is clean, suggest
+ * today (nobody should wait until Monday to start training); when it isn't,
+ * next Monday keeps week 1 whole. Callers can always override via the picker.
+ */
+export function suggestedTemplateStartDateISO(
+  today: Date = new Date(),
+  weekdays?: readonly Weekday[],
+): string {
   const d = new Date(today);
   d.setHours(0, 0, 0, 0);
   const jsDay = d.getDay(); // 0 = Sunday
+  if (weekdays && weekdays.length > 0) {
+    const mondayFirstIndex = (jsDay + 6) % 7; // Monday = 0 … Sunday = 6
+    const earliestSelected = Math.min(
+      ...weekdays.map((w) => WEEKDAY_ORDER.indexOf(w)),
+    );
+    if (mondayFirstIndex <= earliestSelected) return formatLocalYmd(d);
+  }
   const daysUntilMonday = jsDay === 1 ? 0 : ((8 - jsDay) % 7 || 7);
   d.setDate(d.getDate() + daysUntilMonday);
   return formatLocalYmd(d);

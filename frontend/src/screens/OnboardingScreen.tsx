@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, ActivityIndicator } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -41,6 +41,8 @@ import JimLogo from '../components/JimLogo';
 import { haptics } from '../lib/haptics';
 import { kgToLb, type WeightUnit } from '../lib/weightDisplay';
 import { logWeighIn } from '../services/bodyWeightService';
+import { listPlanTemplates, type PlanTemplateCard } from '../services/templateService';
+import { recommendTemplate } from '../lib/templateRecommendation';
 import type { RootNavigatorParamList } from '../types/navigation';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -104,6 +106,11 @@ export default function OnboardingScreen({ navigation }: Props) {
 
   const [step, setStep] = useState(0);
   const [showWelcome, setShowWelcome] = useState(true);
+  // Post-review payoff: the recommended-program screen. Answers are persisted
+  // and onboarding is marked complete on entry, so all three exits are plain
+  // navigations and a killed app relaunches into Main, not back into questions.
+  const [showPayoff, setShowPayoff] = useState(false);
+  const [templates, setTemplates] = useState<PlanTemplateCard[] | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<GoalOption | null>(null);
   const [selectedSecondaryGoal, setSelectedSecondaryGoal] = useState<GoalOption | null>(null);
   const [selectedExperience, setSelectedExperience] = useState<ExperienceOption | null>(null);
@@ -122,6 +129,33 @@ export default function OnboardingScreen({ navigation }: Props) {
     progress.value = withTiming((step + 1) / TOTAL_STEPS, { duration: 300 });
   }, [step, progress]);
   const fillStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
+
+  // Prefetch the catalog while the user reviews their answers, so the payoff
+  // screen shows its recommendation instantly. Failure degrades to the
+  // browse-programs card — it must never block finishing onboarding.
+  useEffect(() => {
+    if (step !== LAST_STEP || templates !== null) return;
+    let active = true;
+    listPlanTemplates()
+      .then((list) => {
+        if (active) setTemplates(list);
+      })
+      .catch(() => {
+        if (active) setTemplates([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [step, templates]);
+
+  const recommended =
+    templates && templates.length
+      ? recommendTemplate(templates, {
+          goal: selectedGoal,
+          daysPerWeek: selectedFrequency,
+          experience: selectedExperience,
+        })
+      : null;
 
   const scheduleOk = flexibleDays || selectedWeekdays.length === selectedFrequency;
   const canProceed =
@@ -219,13 +253,44 @@ export default function OnboardingScreen({ navigation }: Props) {
       }
     }
     completeOnboarding();
+    // No more generate-and-wait finale: land on the payoff screen, which
+    // recommends a coach-built template (instant apply) with AI generation and
+    // free exploration as the other two exits.
+    setShowPayoff(true);
+  }
+
+  function openRecommendedTemplate(t: PlanTemplateCard) {
+    haptics.select();
     navigation.replace('Main', {
       screen: 'Plan',
       params: {
-        screen: 'GeneratePlan',
-        params: { autoGenerate: true, fromOnboarding: true },
+        screen: 'TemplateDetail',
+        params: { templateId: t.id, templateName: t.name },
+        // Keep PlanList beneath so the native header draws its back button.
+        initial: false,
       },
     });
+  }
+
+  function openTemplatesList() {
+    haptics.select();
+    navigation.replace('Main', {
+      screen: 'Plan',
+      params: { screen: 'Templates', initial: false },
+    });
+  }
+
+  function openAIGenerate() {
+    haptics.select();
+    navigation.replace('Main', {
+      screen: 'Plan',
+      params: { screen: 'GeneratePlan' },
+    });
+  }
+
+  function exploreApp() {
+    haptics.select();
+    navigation.replace('Main', { screen: 'Home' });
   }
 
   const heading = STEP_HEADINGS[step];
@@ -254,7 +319,7 @@ export default function OnboardingScreen({ navigation }: Props) {
       {/* Full-bleed backdrop behind the safe-area-inset content, so the welcome
           aurora reaches the very top/bottom edges instead of being boxed into the
           inset region. */}
-      {showWelcome ? <Aurora colors={colors} /> : null}
+      {showWelcome || showPayoff ? <Aurora colors={colors} /> : null}
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         {showWelcome ? (
           <View style={styles.welcomeContent}>
@@ -302,6 +367,60 @@ export default function OnboardingScreen({ navigation }: Props) {
                   setShowWelcome(false);
                 }}
               />
+            </Rise>
+          </View>
+        ) : showPayoff ? (
+          <View style={styles.payoffContent}>
+            <View style={styles.payoffTop}>
+              <Rise delay={60} style={styles.block}>
+                <Text style={styles.payoffTitle}>Here's your program</Text>
+                <Text style={styles.payoffSubtitle}>
+                  Matched to your answers. Ready in one tap.
+                </Text>
+              </Rise>
+              <Rise delay={180} style={styles.block}>
+                {templates === null ? (
+                  <View style={[styles.payoffCard, styles.payoffCardLoading]}>
+                    <ActivityIndicator color={colors.primary} />
+                  </View>
+                ) : recommended ? (
+                  <View style={styles.payoffCard}>
+                    <Text style={styles.payoffEyebrow}>Recommended for you</Text>
+                    <Text style={styles.payoffCardTitle}>{recommended.name}</Text>
+                    <Text style={styles.payoffCardTagline}>{recommended.tagline}</Text>
+                    <Text style={styles.payoffCardMeta}>
+                      {recommended.weeksCount} weeks · {recommended.daysPerWeek} days/week ·{' '}
+                      {recommended.sessionMinutes.min}–{recommended.sessionMinutes.max} min
+                    </Text>
+                    <Button
+                      title="View program"
+                      onPress={() => openRecommendedTemplate(recommended)}
+                      style={styles.payoffCta}
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.payoffCard}>
+                    <Text style={styles.payoffEyebrow}>Coach-built programs</Text>
+                    <Text style={styles.payoffCardTagline}>
+                      Eight-week plans with every set and rep already decided.
+                    </Text>
+                    <Button
+                      title="Browse programs"
+                      onPress={openTemplatesList}
+                      style={styles.payoffCta}
+                    />
+                  </View>
+                )}
+              </Rise>
+            </View>
+            <Rise delay={300} style={styles.payoffFooter}>
+              <PressableScale onPress={openAIGenerate} style={styles.payoffSecondaryBtn}>
+                <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
+                <Text style={styles.payoffSecondaryText}>Build a custom plan with AI</Text>
+              </PressableScale>
+              <PressableScale onPress={exploreApp} style={styles.payoffLink}>
+                <Text style={styles.payoffLinkText}>I'll explore the app first</Text>
+              </PressableScale>
             </Rise>
           </View>
         ) : (
@@ -619,7 +738,7 @@ export default function OnboardingScreen({ navigation }: Props) {
           style={[styles.nextBtn, !canProceed && styles.nextBtnDisabled]}
         >
           <Text style={[styles.nextBtnText, !canProceed && styles.nextBtnTextDisabled]}>
-            {step === LAST_STEP ? 'Get my plan' : 'Continue'}
+            {step === LAST_STEP ? 'Finish' : 'Continue'}
           </Text>
         </PressableScale>
       </View>
@@ -868,6 +987,77 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: spacing.md,
       color: colors.textMuted,
     },
+    payoffContent: {
+      flex: 1,
+      paddingHorizontal: spacing.xxl,
+      paddingBottom: spacing.lg,
+    },
+    payoffTop: { flex: 1, justifyContent: 'center' },
+    payoffTitle: {
+      fontSize: text.display,
+      lineHeight: leading.display,
+      fontWeight: weight.heavy,
+      letterSpacing: tracking.tight,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    payoffSubtitle: {
+      fontSize: text.callout,
+      lineHeight: leading.callout,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: spacing.sm,
+      marginBottom: spacing.xxl,
+    },
+    payoffCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      padding: spacing.xl,
+      shadowColor: colors.shadow,
+      ...elevation.level2,
+    },
+    payoffCardLoading: { alignItems: 'center', paddingVertical: spacing.xxxl },
+    payoffEyebrow: {
+      fontSize: text.caption,
+      fontWeight: weight.heavy,
+      letterSpacing: tracking.wider,
+      textTransform: 'uppercase',
+      color: colors.primary,
+    },
+    payoffCardTitle: {
+      fontSize: text.title,
+      lineHeight: leading.title,
+      fontWeight: weight.bold,
+      color: colors.text,
+      marginTop: spacing.sm,
+    },
+    payoffCardTagline: {
+      fontSize: text.body,
+      lineHeight: leading.body,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+    },
+    payoffCardMeta: {
+      fontSize: text.footnote,
+      color: colors.textMuted,
+      marginTop: spacing.md,
+    },
+    payoffCta: { marginTop: spacing.lg },
+    payoffFooter: { gap: spacing.xs },
+    payoffSecondaryBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      paddingVertical: spacing.lg,
+    },
+    payoffSecondaryText: {
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: colors.primary,
+    },
+    payoffLink: { alignItems: 'center', paddingVertical: spacing.md },
+    payoffLinkText: { fontSize: text.body, color: colors.textMuted },
     cardShadow: {
       shadowColor: colors.shadow,
       ...elevation.level1,

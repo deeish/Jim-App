@@ -11,7 +11,6 @@ import PlanStackNavigator from '../navigation/PlanStackNavigator';
 import WorkoutScreen from '../screens/WorkoutScreen';
 import SearchStackNavigator from '../navigation/SearchStackNavigator';
 import { Ionicons } from '@expo/vector-icons';
-import { CalendarIcon } from './TabIcons';
 import { useTheme } from '../theme/ThemeContext';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -115,7 +114,11 @@ export default function NavBar() {
         options={{
           tabBarButton: tabBarButton('e2e-tab-plan'),
           tabBarIcon: ({ color, focused }) => (
-            <CalendarIcon color={color} size={focused ? 26 : 24} />
+            <Ionicons
+              name={focused ? 'calendar' : 'calendar-outline'}
+              size={focused ? 26 : 24}
+              color={color}
+            />
           ),
         }}
         listeners={({ navigation }) => ({
@@ -160,10 +163,14 @@ export default function NavBar() {
           },
         })}
       />
-      <Tab.Screen 
-        name="Workout" 
+      <Tab.Screen
+        name="Workout"
         component={WorkoutScreen}
         options={{
+          // "Train" answers "where do I DO the workout?" — with Plan and
+          // Exercises both noun-labeled, the action tab reads clearest as a
+          // verb. Route name stays 'Workout'; this is display-only.
+          tabBarLabel: 'Train',
           tabBarButton: tabBarButton('e2e-tab-workout'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons

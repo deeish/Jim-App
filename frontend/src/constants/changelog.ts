@@ -24,48 +24,33 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  // One entry covering everything since build 13, the last build distributed to
+  // the Friends/Family group (confirmed against App Store Connect 2026-08-05:
+  // builds 14-17 were internal only). The former 2026-07-23, 2026-08-04 and
+  // 2026-08-05 cards were merged in here: external testers never saw them, and
+  // four stacked cards for one release would bury the headline changes.
   {
-    id: '2026-08-05',
+    id: '2026-08-06',
     version: '1.1.0',
-    date: '2026-08-05',
-    title: 'Ready-made training programs',
+    date: '2026-08-06',
+    title: 'The big redesign update',
     changes: [
-      { type: 'new', text: 'Workout templates: three coach-style 8 week programs, Strength Upper/Lower, Fat Loss Full Body, and Push/Pull/Legs. Find them on the Plan page and apply one in a couple of taps.' },
-      { type: 'improved', text: 'The tab bar now floats over your content with a glass look on iOS 26.' },
-    ],
-  },
-  // One entry covering everything since build 14. The 2026-07-28 and 2026-08-03
-  // entries were folded in here rather than shipped as their own cards: neither
-  // ever reached a build, and three stacked cards for a single release would
-  // have pushed the light theme and the Progress page behind "older".
-  {
-    id: '2026-08-04',
-    version: '1.1.0',
-    date: '2026-08-04',
-    title: 'A new look, and your numbers',
-    changes: [
-      { type: 'improved', text: 'A new look throughout the app, built around a single light theme. The dark mode setting has been removed.' },
-      { type: 'improved', text: 'A new app icon and launch screen to match.' },
-      { type: 'new', text: 'A Progress page showing your week streak, total sessions, sets and time, plus how many sessions you have done each week. Find it from the shortcuts on Home.' },
-      { type: 'new', text: 'Every exercise page now shows your own history with that lift: your best set, an estimated one-rep max, and your recent sessions.' },
-      { type: 'improved', text: 'The end of a workout now shows what you actually earned, including any personal best or lift you beat since last time, and your total volume.' },
-      { type: 'improved', text: 'Workouts now respond as you log. Sets confirm with a tap you can feel, and your progress fills in as you go.' },
-      { type: 'improved', text: 'Pages that are still loading now show the shape of what is coming instead of a spinner.' },
-      { type: 'fixed', text: 'Tapping the eye to show your password no longer shifts the sign in screen.' },
-    ],
-  },
-  {
-    id: '2026-07-23',
-    version: '1.0.0',
-    date: '2026-07-23',
-    title: 'Your last numbers, right where you lift',
-    changes: [
-      { type: 'new', text: 'Every exercise in a live workout now shows what you lifted last time, and your weight inputs start from it.' },
-      { type: 'new', text: 'A suggested next target for each lift, based on how your last set went.' },
-      { type: 'fixed', text: 'The back button now returns you to the page you came from, including when you open an exercise from your plan or a workout.' },
-      { type: 'fixed', text: 'Your plan settings are no longer lost if you tap the Plan tab while filling in the form.' },
-      { type: 'fixed', text: 'Exercises you selected to add now stay selected if you open one to read its details first.' },
-      { type: 'fixed', text: 'Plan header buttons now fit on one row.' },
+      { type: 'new', text: 'Templates: three coach-built 8 week programs, applied in a couple of taps.' },
+      { type: 'new', text: 'Setup now ends with a program matched to your answers.' },
+      { type: 'new', text: 'Progress page: week streak, totals, and weekly trend.' },
+      { type: 'new', text: 'Exercise history: your best set, estimated one rep max, and recent sessions.' },
+      { type: 'new', text: 'Workouts show your last numbers and suggest a next target.' },
+      { type: 'new', text: 'New profile avatars.' },
+      { type: 'improved', text: 'A cleaner look across the app, with a single light theme.' },
+      { type: 'improved', text: 'Floating glass tab bar on iOS 26.' },
+      { type: 'improved', text: 'The Workout tab is now Train, built around one Start button.' },
+      { type: 'improved', text: 'Redesigned plan builder and Profile pages.' },
+      { type: 'improved', text: 'Plans can start today instead of next Monday.' },
+      { type: 'improved', text: 'Workout summaries show personal bests and total volume.' },
+      { type: 'improved', text: 'New app icon and launch screen.' },
+      { type: 'fixed', text: 'Back buttons return you to the page you came from.' },
+      { type: 'fixed', text: 'Clearing a plan no longer leaves the old name in the header.' },
+      { type: 'fixed', text: 'Showing your password no longer shifts the sign in screen.' },
     ],
   },
   {

@@ -145,6 +145,29 @@ describe('suggestedTemplateStartDateISO', () => {
       '2026-08-10',
     );
   });
+
+  it('suggests today when no selected training day this week has passed', () => {
+    // Tuesday 2026-08-04 with a Tue/Thu/Sat program: nothing lost — start now.
+    expect(
+      suggestedTemplateStartDateISO(new Date(2026, 7, 4), ['Tuesday', 'Thursday', 'Saturday']),
+    ).toBe('2026-08-04');
+    // Monday is always clean, whatever the selection.
+    expect(
+      suggestedTemplateStartDateISO(new Date(2026, 7, 10), ['Wednesday', 'Friday']),
+    ).toBe('2026-08-10');
+    // Sunday with a Sunday-only program: the one session is still ahead.
+    expect(suggestedTemplateStartDateISO(new Date(2026, 7, 9), ['Sunday'])).toBe('2026-08-09');
+  });
+
+  it('keeps next Monday when a selected day already passed this week', () => {
+    // Wednesday 2026-08-05 with Monday in the program: week 1 would open with
+    // a missed session — wait for the clean Monday.
+    expect(
+      suggestedTemplateStartDateISO(new Date(2026, 7, 5), ['Monday', 'Tuesday', 'Thursday', 'Friday']),
+    ).toBe('2026-08-10');
+    // Sunday with a Monday program: next Monday is tomorrow anyway.
+    expect(suggestedTemplateStartDateISO(new Date(2026, 7, 9), ['Monday'])).toBe('2026-08-10');
+  });
 });
 
 describe('materializeTemplatePlan', () => {

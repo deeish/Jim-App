@@ -385,6 +385,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     if (loadBalance.recovery) parts.push(`${loadBalance.recovery} Recovery`);
     return parts.length ? parts.join(' • ') : 'No sessions';
   }, [loadBalance.strength, loadBalance.cardio, loadBalance.recovery]);
+  // The stored plan name ("Strength · 4d/wk · 1 wk") outlives its sessions:
+  // removing the last slot leaves the record — and its generated name — behind,
+  // so an emptied plan read like a live one. Gate on the WHOLE plan, not the
+  // selected week: an empty week of a multi-week plan keeps the real name.
+  const headerTitle =
+    (currentPlan?.planWorkouts?.length ?? 0) > 0 ? (currentPlan?.name ?? 'My Plan') : 'My Plan';
   const isCurrentWeek = selectedWeek === 0;
 
   const weekSlots = resolvedProgramWeek !== null ? planByWeek[resolvedProgramWeek] : null;
@@ -420,7 +426,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         detailsToggleContent: { flexDirection: 'row', alignItems: 'center' },
         detailsToggleText: { fontSize: text.footnote, color: colors.textSecondary, fontWeight: weight.semibold },
         detailsToggleIcon: { fontSize: text.footnote, color: colors.textSecondary, fontWeight: weight.semibold },
-        ctaRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginTop: spacing.md },
+        ctaRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', marginTop: spacing.md },
         historyLabelButton: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
         historyLabelText: { fontSize: text.body, fontWeight: weight.semibold },
         ctaCompact: {
@@ -432,6 +438,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           alignItems: 'center',
           flexDirection: 'row',
           gap: spacing.sm,
+          // Trailing anchor: links sit left, the one primary action sits right.
+          marginLeft: 'auto',
         },
         ctaSecondary: {
           backgroundColor: colors.surface,
@@ -1264,7 +1272,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     >
       {/* Dynamic header: plan name + optional subtitle from load balance */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Text style={styles.headerTitle} numberOfLines={1}>{currentPlan?.name ?? 'My Plan'}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
         {headerSubtitle || currentPlan?.id ? (
           <View style={styles.subtitleRow}>
             {headerSubtitle ? (
@@ -1283,6 +1291,10 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
             ) : null}
           </View>
         ) : null}
+        {/* Three items, one line, no wrap. Templates deliberately lives inside
+            the plan-creation flow (GeneratePlan's opening card + the no-plan
+            hero), not here — four items forced this row onto two ragged lines
+            on phones, and "use a template" is a creation-time decision anyway. */}
         <View style={styles.ctaRow}>
           <TouchableOpacity
             style={styles.historyLabelButton}
@@ -1296,14 +1308,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
             onPress={() => setSavedModalVisible(true)}
             accessibilityLabel="Saved workouts"
           >
-            <Text style={[styles.historyLabelText, { color: colors.primary }]}>Saved workouts</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.historyLabelButton}
-            onPress={() => navigation.navigate('Templates')}
-            accessibilityLabel="Browse plan templates"
-          >
-            <Text style={[styles.historyLabelText, { color: colors.primary }]}>Templates</Text>
+            <Text style={[styles.historyLabelText, { color: colors.primary }]}>Saved</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.ctaCompact} onPress={handleAIGenerate} accessibilityLabel="AI Generate plan">
             <Ionicons name="sparkles-outline" size={16} color={colors.onPrimary} />

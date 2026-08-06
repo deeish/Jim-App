@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef, type ComponentProps } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,8 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { ProfileIcon } from '../components/TabIcons';
+import { Ionicons } from '@expo/vector-icons';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -40,7 +39,8 @@ import { listWeighIns } from '../services/bodyWeightService';
 import { formatWeightFromLb } from '../lib/weightDisplay';
 import type { RootNavigatorParamList } from '../types/navigation';
 import { shareJsonExport } from '../lib/shareDataExport';
-import { PROFILE_AVATARS, type ProfileAvatarId } from '../constants/profileAvatars';
+import { showConfirmDialog } from '../lib/confirmAlert';
+import { getProfileAvatar, OFFERED_PROFILE_AVATARS } from '../constants/profileAvatars';
 import GlassDiagnostics from '../components/GlassDiagnostics';
 
 import { radius, spacing, text, tracking, weight } from '../theme';
@@ -79,7 +79,7 @@ function Row({
         )}
         {right}
         {showChevron ? (
-          <Text style={[styles.chevron, { color: colors.textMuted }]}>›</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         ) : null}
       </View>
     </View>
@@ -107,27 +107,6 @@ function fallbackAccountName(
     return email.split('@')[0] ?? email;
   }
   return email ?? 'Your name';
-}
-
-function PickerAvatarGlyph({
-  opt,
-  colors,
-}: {
-  opt: (typeof PROFILE_AVATARS)[number];
-  colors: ColorPalette;
-}) {
-  if (opt.mci == null) {
-    return (
-      <ProfileIcon color={colors.textSecondary} ringColor="transparent" size={24} />
-    );
-  }
-  return (
-    <MaterialCommunityIcons
-      name={opt.mci as ComponentProps<typeof MaterialCommunityIcons>['name']}
-      size={24}
-      color={opt.color}
-    />
-  );
 }
 
 const staticStyles = StyleSheet.create({
@@ -161,17 +140,9 @@ const staticStyles = StyleSheet.create({
     textAlign: 'right',
     maxWidth: 200,
   },
-  chevron: {
-    fontSize: text.title,
-    fontWeight: weight.regular,
-    marginLeft: spacing.xs,
-  },
   rowDivider: {
     height: 1,
     marginLeft: spacing.lg,
-  },
-  bottomPad: {
-    height: 40,
   },
 });
 
@@ -181,23 +152,25 @@ const layoutStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
-    borderBottomWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  backButton: { minWidth: 72 },
-  backLabel: { fontSize: text.callout, fontWeight: weight.semibold },
-  headerTitle: { fontSize: text.headline, fontWeight: weight.bold, flex: 1, textAlign: 'center' },
+  backButton: { minWidth: 72, flexDirection: 'row', alignItems: 'center' },
+  backLabel: { fontSize: text.callout, fontWeight: weight.regular },
+  headerTitle: { fontSize: text.headline, fontWeight: weight.semibold, flex: 1, textAlign: 'center' },
   headerRight: { minWidth: 72 },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: spacing.xxl, paddingTop: spacing.xl },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xxxl,
+  },
   profileCard: {
     borderRadius: radius.md,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
     marginBottom: spacing.xl,
-    borderWidth: 1,
   },
   avatarWrap: { marginBottom: spacing.xs },
   nameFieldWrap: {
@@ -216,7 +189,6 @@ const layoutStyles = StyleSheet.create({
     paddingLeft: spacing.xxs,
   },
   profileNameInput: {
-    borderWidth: 1,
     borderRadius: radius.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
@@ -234,59 +206,51 @@ const layoutStyles = StyleSheet.create({
     gap: spacing.xxs,
   },
   profileEmail: { fontSize: text.body, textAlign: 'center' },
-  profileHint: { fontSize: text.footnote, textAlign: 'center' },
-  profileCardDivider: {
-    alignSelf: 'stretch',
-    height: StyleSheet.hairlineWidth,
-    marginTop: spacing.lg,
-    marginBottom: spacing.xxs,
-  },
-  avatarPickerStrip: {
-    alignSelf: 'stretch',
-    width: '100%',
-    marginTop: spacing.md,
-  },
-  avatarPickerLabel: {
-    fontSize: text.footnote,
-    fontWeight: weight.semibold,
-    letterSpacing: tracking.wide,
-    marginBottom: spacing.sm,
-  },
-  avatarPickerClip: {
-    alignSelf: 'stretch',
-    overflow: 'hidden',
-    borderRadius: radius.sm,
-  },
-  avatarPickerScroll: {
-    flexGrow: 0,
-    width: '100%',
-  },
-  avatarPickerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.xxs,
-    paddingLeft: spacing.none,
-    paddingRight: spacing.sm,
-  },
-  avatarOptionOuter: {
-    width: 46,
-    height: 46,
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 22,
+    height: 22,
     borderRadius: radius.pill,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
   },
-  deleteAccountRow: {
+  avatarSheetPreview: {
+    alignItems: 'center',
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.lg,
+  },
+  avatarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: spacing.lg,
+    rowGap: spacing.lg,
+  },
+  avatarCell: {
+    width: '33.33%',
+    alignItems: 'center',
+  },
+  avatarCellRing: {
+    padding: 3,
+    borderWidth: 2,
+    borderRadius: radius.pill,
+  },
+  avatarCellName: {
+    fontSize: text.caption,
+    fontWeight: weight.semibold,
+    marginTop: spacing.xs,
+  },
+  signOutRow: {
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
   },
-  deleteAccountRowText: { fontSize: text.callout, fontWeight: weight.semibold },
+  signOutText: { fontSize: text.callout, fontWeight: weight.semibold },
   sectionCard: {
     borderRadius: radius.md,
     marginBottom: spacing.xxl,
-    borderWidth: 1,
     overflow: 'hidden',
   },
   modalOverlay: {
@@ -376,6 +340,7 @@ export default function ProfileScreen() {
     setProfileAvatarId,
   } = useUserPreferences();
   const [nameDraft, setNameDraft] = useState('');
+  const [avatarSheetOpen, setAvatarSheetOpen] = useState(false);
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false);
   const [equipmentDraft, setEquipmentDraft] = useState<EquipmentOption[]>([]);
   const [listPicker, setListPicker] = useState<
@@ -437,25 +402,16 @@ export default function ProfileScreen() {
   const themedStyles = useMemo(
     () => ({
       container: { backgroundColor: colors.background },
-      header: { borderBottomColor: colors.border },
       backLabel: { color: colors.primary },
       headerTitle: { color: colors.text },
-      profileCard: {
-        backgroundColor: colors.surface,
-        borderColor: colors.border,
-      },
+      profileCard: { backgroundColor: colors.surface },
       profileNameInputThemed: {
         color: colors.text,
-        borderColor: colors.border,
-        /** Inset field: stay on the card surface family (avoid near-black `background`). */
-        backgroundColor: colors.primary + '14',
+        // Quiet grey inset on the white card — the standard form-field fill.
+        backgroundColor: colors.background,
       },
       profileEmail: { color: colors.textSecondary },
-      profileHint: { color: colors.textMuted },
-      sectionCard: {
-        backgroundColor: colors.surface,
-        borderColor: colors.border,
-      },
+      sectionCard: { backgroundColor: colors.surface },
       rowDivider: { backgroundColor: colors.border },
       modalSheet: { backgroundColor: colors.surface },
       modalTitle: { color: colors.text },
@@ -550,6 +506,15 @@ export default function ProfileScreen() {
     }
   }, [user, signOut]);
 
+  const handleSignOut = useCallback(() => {
+    showConfirmDialog({
+      title: 'Sign out?',
+      confirmText: 'Sign out',
+      destructive: true,
+      onConfirm: () => void signOut(),
+    });
+  }, [signOut]);
+
   const handleDeleteAccount = useCallback(() => {
     if (!user?.email) {
       Alert.alert('Unavailable', 'Sign in to delete your account.');
@@ -588,15 +553,24 @@ export default function ProfileScreen() {
       ? 'All equipment'
       : equipment.join(', ');
 
+  // The sheet's grid: the nine on-offer auroras, plus the user's current one
+  // pinned first if it's retired — a stored choice must never look deselected.
+  const avatarChoices = OFFERED_PROFILE_AVATARS.some((o) => o.id === profileAvatarId)
+    ? OFFERED_PROFILE_AVATARS
+    : [getProfileAvatar(profileAvatarId), ...OFFERED_PROFILE_AVATARS];
+
   return (
     <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
-      <View style={[styles.header, themedStyles.header]}>
+      <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
         >
-          <Text style={[styles.backLabel, themedStyles.backLabel]}>← Back</Text>
+          <Ionicons name="chevron-back" size={22} color={colors.primary} />
+          <Text style={[styles.backLabel, themedStyles.backLabel]}>Back</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, themedStyles.headerTitle]}>Profile</Text>
         <View style={styles.headerRight} />
@@ -610,9 +584,24 @@ export default function ProfileScreen() {
       >
         <SectionHeader title="Account" colors={colors} />
         <View style={[styles.profileCard, themedStyles.profileCard]}>
-          <View style={styles.avatarWrap}>
-            <ProfileAvatarDisc avatarId={profileAvatarId} size={64} colors={colors} />
-          </View>
+          {/* Contacts/Apple ID pattern: the avatar itself is the edit affordance. */}
+          <TouchableOpacity
+            style={styles.avatarWrap}
+            onPress={() => setAvatarSheetOpen(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Edit avatar"
+          >
+            <ProfileAvatarDisc
+              avatarId={profileAvatarId}
+              size={64}
+              colors={colors}
+              initial={nameDraft.trim() || namePlaceholder}
+            />
+            <View style={[styles.avatarEditBadge, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
+              <Ionicons name="pencil" size={11} color={colors.onPrimary} />
+            </View>
+          </TouchableOpacity>
           <View style={styles.nameFieldWrap}>
             <View style={{ width: '100%', maxWidth: 240 }}>
               <Text style={[styles.profileFieldLabel, { color: colors.textMuted }]}>
@@ -644,67 +633,17 @@ export default function ProfileScreen() {
             </View>
           </View>
           <View style={styles.profileEmailBlock}>
-            {user?.email ? (
-              <Text style={[styles.profileEmail, themedStyles.profileEmail]}>{user.email}</Text>
-            ) : null}
-            <Text style={[styles.profileHint, themedStyles.profileHint]}>
-              {user?.email ? 'Signed in with email' : 'Not signed in'}
+            <Text style={[styles.profileEmail, themedStyles.profileEmail]}>
+              {user?.email ?? 'Not signed in'}
             </Text>
-          </View>
-          <View
-            style={[styles.profileCardDivider, { backgroundColor: colors.border }]}
-            accessible={false}
-          />
-          <View style={styles.avatarPickerStrip}>
-            <Text style={[styles.avatarPickerLabel, { color: colors.textMuted }]}>
-              Avatar
-            </Text>
-            <View style={styles.avatarPickerClip}>
-              <ScrollView
-                horizontal
-                nestedScrollEnabled
-                showsHorizontalScrollIndicator={false}
-                style={styles.avatarPickerScroll}
-                contentContainerStyle={styles.avatarPickerContent}
-                keyboardShouldPersistTaps="handled"
-              >
-                {PROFILE_AVATARS.map((opt) => {
-                  const selected = profileAvatarId === opt.id;
-                  return (
-                    <TouchableOpacity
-                      key={opt.id}
-                      onPress={() => setProfileAvatarId(opt.id)}
-                      style={[
-                        styles.avatarOptionOuter,
-                        {
-                          borderWidth: selected ? 3 : 2,
-                          borderColor: selected ? opt.color : colors.border,
-                          backgroundColor: selected
-                            ? opt.color + '22'
-                            : opt.color + '0C',
-                        },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Profile picture ${opt.id}`}
-                      accessibilityState={{ selected }}
-                    >
-                      <PickerAvatarGlyph opt={opt} colors={colors} />
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
           </View>
         </View>
 
-        <SectionHeader title="Settings" colors={colors} />
+        <SectionHeader title="Weight" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
           <View style={styles.weightRow}>
             <View style={styles.weightRowLabelCol}>
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Weight units</Text>
-              <Text style={{ fontSize: text.body, color: colors.textMuted, marginTop: spacing.xs }}>
-                Tap to choose how weights are shown when you log workouts.
-              </Text>
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Units</Text>
             </View>
             <View
               style={[styles.weightSegment, { borderColor: colors.border }]}
@@ -728,7 +667,7 @@ export default function ProfileScreen() {
                   style={[
                     styles.weightSegmentBtnText,
                     {
-                      color: weightUnit === 'lb' ? colors.background : colors.textSecondary,
+                      color: weightUnit === 'lb' ? colors.onPrimary : colors.textSecondary,
                     },
                   ]}
                 >
@@ -752,7 +691,7 @@ export default function ProfileScreen() {
                   style={[
                     styles.weightSegmentBtnText,
                     {
-                      color: weightUnit === 'kg' ? colors.background : colors.textSecondary,
+                      color: weightUnit === 'kg' ? colors.onPrimary : colors.textSecondary,
                     },
                   ]}
                 >
@@ -785,7 +724,7 @@ export default function ProfileScreen() {
           />
         </View>
 
-        <SectionHeader title="Preferences" colors={colors} />
+        <SectionHeader title="Training" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
           <Row
             label="Goal"
@@ -886,6 +825,21 @@ export default function ProfileScreen() {
           />
         </View>
 
+        {/* Sign out moved here from Home's avatar menu — the avatar now opens
+            this screen directly, so this is its one home. Kept out of "Your
+            data": signing out is routine, deleting an account is not. */}
+        <View style={[styles.sectionCard, themedStyles.sectionCard]}>
+          <TouchableOpacity
+            style={styles.signOutRow}
+            onPress={handleSignOut}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+          >
+            <Text style={[styles.signOutText, { color: colors.primary }]}>Sign out</Text>
+          </TouchableOpacity>
+        </View>
+
         {showGlassDiagnostics && <GlassDiagnostics />}
 
       </ScrollView>
@@ -962,6 +916,74 @@ export default function ProfileScreen() {
       </Modal>
 
       <Modal
+        visible={avatarSheetOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setAvatarSheetOpen(false)}
+      >
+        <View style={[styles.modalOverlay, themedStyles.modalOverlay]}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setAvatarSheetOpen(false)}
+          />
+          <View style={[styles.modalSheet, themedStyles.modalSheet]}>
+            <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Avatar</Text>
+            <View style={styles.avatarSheetPreview}>
+              <ProfileAvatarDisc
+                avatarId={profileAvatarId}
+                size={72}
+                colors={colors}
+                initial={nameDraft.trim() || namePlaceholder}
+              />
+            </View>
+            <View style={styles.avatarGrid}>
+              {avatarChoices.map((opt) => {
+                const selected = profileAvatarId === opt.id;
+                return (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={styles.avatarCell}
+                    onPress={() => setProfileAvatarId(opt.id)}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Avatar ${opt.name}`}
+                    accessibilityState={{ selected }}
+                  >
+                    <View
+                      style={[
+                        styles.avatarCellRing,
+                        { borderColor: selected ? colors.primary : 'transparent' },
+                      ]}
+                    >
+                      <ProfileAvatarDisc avatarId={opt.id} size={56} colors={colors} />
+                    </View>
+                    <Text
+                      style={[
+                        styles.avatarCellName,
+                        { color: selected ? colors.primary : colors.textMuted },
+                      ]}
+                    >
+                      {opt.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={() => setAvatarSheetOpen(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Done"
+              >
+                <Text style={[styles.modalBtnText, { color: colors.primary }]}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={equipmentModalOpen}
         animationType="slide"
         transparent
@@ -977,13 +999,13 @@ export default function ProfileScreen() {
             <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Your equipment</Text>
             <Text
               style={{
-                fontSize: text.body,
+                fontSize: text.footnote,
                 color: colors.textMuted,
                 paddingHorizontal: spacing.xl,
                 marginBottom: spacing.sm,
               }}
             >
-              Used as the default filter in Find Workouts. Toggle what you have access to.
+              Used to filter exercises and suggested workouts.
             </Text>
             <ScrollView keyboardShouldPersistTaps="handled">
               {EQUIPMENT_OPTIONS.map((opt) => {

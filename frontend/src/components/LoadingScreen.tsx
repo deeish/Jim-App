@@ -12,9 +12,12 @@ import JimLogo from './JimLogo';
  * startup — it just brands the wait. Reusing `JimLogo` keeps the cold start, auth,
  * and onboarding on one identity instead of inventing a separate launch visual.
  *
- * `entrance` plays a one-time staggered reveal (chip, then wordmark). The mark
- * stands on its own — no status line — and `App.tsx` cross-fades the whole screen
- * out once the app is ready, so launch ends on a dissolve rather than a hard cut.
+ * `entrance` plays a one-time staggered reveal (wordmark, then tagline) UNDER an
+ * already-visible chip: the native splash image is this chip at rest, so the
+ * loader takes over with the mark in place and the wordmark rising beneath it —
+ * the splash "comes alive" instead of re-introducing itself. The mark stands on
+ * its own — no status line — and `App.tsx` cross-fades the whole screen out once
+ * the app is ready, so launch ends on a dissolve rather than a hard cut.
  */
 export default function LoadingScreen() {
   const { colors } = useTheme();
