@@ -22,7 +22,7 @@ import { resolveHomeToday, type HomeTodayResult } from '../lib/homeToday';
 import { resolveWorkoutEtaMinutes } from '../lib/estimateWorkoutMinutes';
 import { Workout, Exercise, type WorkoutSessionRestoredSnapshot, type WorkoutLog } from '../types/workout';
 import { formatLocalYmd } from '../lib/planCalendar';
-import { loadWorkoutDraft, clearWorkoutDraft } from '../lib/workoutDraftStorage';
+import { loadWorkoutDraft, clearWorkoutDraft, resumedSessionStartTime } from '../lib/workoutDraftStorage';
 import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from '../components/Button';
@@ -607,7 +607,9 @@ export default function WorkoutScreen() {
     setSession({
       workout: d.workout,
       currentExerciseIndex: d.currentExerciseIndex,
-      startTime: new Date(d.startTimeIso),
+      // Re-based, not the original start: idle time between the draft's last
+      // save and this resume must not count toward the saved duration.
+      startTime: resumedSessionStartTime(d),
       restoredSnapshot: {
         exerciseSessions: d.exerciseSessions,
         exerciseNotes: d.exerciseNotes,
