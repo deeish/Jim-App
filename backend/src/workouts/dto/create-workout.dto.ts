@@ -26,8 +26,10 @@ export class CreateExerciseDto {
    * Target rep range (role-aware prescription); `reps` stays the working
    * default (= repsMin when a range is set). Clients editing a workout must
    * round-trip these or the range collapses to the scalar — the exact bug
-   * that flattened "4 x 6-8" to "4 x 6" when adding exercises from the
-   * library, because this DTO rejected the fields under forbidNonWhitelisted.
+   * that flattened "4 x 6-8" to "4 x 6" on every workout edit. (The collapse
+   * came from hand-rolled frontend payloads plus the service's own field
+   * lists dropping them; on the validated POST route this DTO also rejected
+   * the fields outright under forbidNonWhitelisted.)
    */
   @IsOptional()
   @IsNumber()
@@ -110,4 +112,27 @@ export class CreateWorkoutDto {
   /** Optional cardio finisher (not in exercises[]). Used when focus includes "+ run" or "+ cardio". */
   @IsOptional()
   cardioFinisher?: { suggestion: string };
+}
+
+/**
+ * PATCH /workouts/:id body. Deliberately hand-written rather than
+ * PartialType(CreateWorkoutDto): `Partial<CreateWorkoutDto>` as a parameter
+ * type erases to Object, so the global ValidationPipe silently skipped PATCH
+ * entirely — junk like `repsMin: "abc"` flowed straight into Prisma as a 500.
+ * Only the three fields the service actually honors are accepted.
+ */
+export class UpdateWorkoutDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  day?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateExerciseDto)
+  exercises?: CreateExerciseDto[];
 }
