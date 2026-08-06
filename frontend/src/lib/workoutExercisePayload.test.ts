@@ -49,6 +49,15 @@ describe('toWorkoutExercisePayloads', () => {
     expect(rows.map((r) => r.orderIndex)).toEqual([5, 6]);
   });
 
+  it('omits literal zeros, which the validated create route rejects at Min(1)', () => {
+    const [row] = toWorkoutExercisePayloads([
+      { name: 'Odd Row', sets: 3, reps: 10, repsMin: 0, repsMax: 0, durationSeconds: 0 },
+    ]);
+    expect(row.repsMin).toBeUndefined();
+    expect(row.repsMax).toBeUndefined();
+    expect(row.durationSeconds).toBeUndefined();
+  });
+
   it('leaves absent optionals undefined so JSON omits them', () => {
     const [row] = toWorkoutExercisePayloads([{ name: 'Push-Up', sets: 2, reps: 12 }]);
     expect(row.repsMin).toBeUndefined();

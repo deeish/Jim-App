@@ -48,9 +48,12 @@ export function toWorkoutExercisePayloads(
     name: ex.name,
     sets: ex.sets,
     reps: ex.reps,
-    repsMin: ex.repsMin ?? undefined,
-    repsMax: ex.repsMax ?? undefined,
-    durationSeconds: ex.durationSeconds ?? undefined,
+    // `|| undefined` on purpose: the validated POST route rejects these at
+    // @Min(1), so a literal 0 (meaningless for all three) must be omitted
+    // rather than 400 the whole request.
+    repsMin: ex.repsMin || undefined,
+    repsMax: ex.repsMax || undefined,
+    durationSeconds: ex.durationSeconds || undefined,
     prescriptionType: ex.prescriptionType ?? undefined,
     weight: ex.weight ?? undefined,
     notes: ex.notes ?? undefined,
