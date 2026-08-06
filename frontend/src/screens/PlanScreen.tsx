@@ -1714,6 +1714,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                 name: ex.name ?? 'Exercise',
                 sets: ex.sets,
                 reps: ex.reps,
+                // Without these the sheet shows "4 x 6" for a stored "6-8"
+                // whenever the slot has no linked workout yet.
+                repsMin: (ex as ApiPlanExercise).repsMin ?? undefined,
+                repsMax: (ex as ApiPlanExercise).repsMax ?? undefined,
+                durationSeconds: (ex as ApiPlanExercise).durationSeconds ?? undefined,
+                prescriptionType: (ex as ApiPlanExercise).prescriptionType ?? undefined,
                 weight: ex.weight ?? undefined,
                 notes: ex.notes ?? undefined,
                 orderIndex: ex.orderIndex ?? idx,

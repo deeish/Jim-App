@@ -116,6 +116,10 @@ export class WorkoutsService {
           name: e.name,
           sets: e.sets,
           reps: e.reps,
+          repsMin: e.repsMin ?? null,
+          repsMax: e.repsMax ?? null,
+          durationSeconds: e.durationSeconds ?? null,
+          prescriptionType: e.prescriptionType ?? null,
           weight: e.weight,
           notes: e.notes,
           exerciseId: e.exerciseId ?? undefined,
@@ -184,10 +188,19 @@ export class WorkoutsService {
           planWorkoutId: pw.id,
           userId,
           exercises: {
+            // Carry the full prescription: this map used to keep only the
+            // scalar `reps`, so a lazily materialized workout was born flat
+            // and the next edit's plan sync copied the flattening back over
+            // the slot's real ranges (mirror of ensureWorkoutFromPlanSlot-
+            // Exercises in plans.service, which always carried them).
             create: pw.exercises.map((e, i) => ({
               name: e.name ?? 'Exercise',
               sets: e.sets,
               reps: e.reps,
+              repsMin: e.repsMin ?? null,
+              repsMax: e.repsMax ?? null,
+              durationSeconds: e.durationSeconds ?? null,
+              prescriptionType: e.prescriptionType ?? null,
               weight: e.weight ?? undefined,
               notes: e.notes ?? undefined,
               exerciseId:
@@ -352,10 +365,17 @@ export class WorkoutsService {
         ...(newPlanDetail !== undefined && { focus: newPlanDetail }),
         ...(updateWorkoutDto.exercises && {
           exercises: {
+            // Full prescription fidelity: this delete-and-recreate used to keep
+            // only the scalar `reps`, silently flattening every range in the
+            // workout (and, via the plan sync below, in the plan) on any edit.
             create: updateWorkoutDto.exercises.map((e, i) => ({
               name: e.name,
               sets: e.sets,
               reps: e.reps,
+              repsMin: e.repsMin ?? null,
+              repsMax: e.repsMax ?? null,
+              durationSeconds: e.durationSeconds ?? null,
+              prescriptionType: e.prescriptionType ?? null,
               weight: e.weight,
               notes: e.notes,
               exerciseId: e.exerciseId ?? undefined,

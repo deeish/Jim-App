@@ -23,6 +23,7 @@ import { resolveWorkoutEtaMinutes } from '../lib/estimateWorkoutMinutes';
 import { Workout, Exercise, type WorkoutSessionRestoredSnapshot, type WorkoutLog } from '../types/workout';
 import { formatLocalYmd } from '../lib/planCalendar';
 import { loadWorkoutDraft, clearWorkoutDraft } from '../lib/workoutDraftStorage';
+import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from '../components/Button';
 import ExerciseCard from '../components/ExerciseCard';
@@ -354,15 +355,9 @@ export default function WorkoutScreen() {
     setRemovingIndex(index);
     try {
       const updated = await updateWorkout(todayWorkout.id, {
-        exercises: next.map((ex, idx) => ({
-          name: ex.name,
-          sets: ex.sets,
-          reps: ex.reps,
-          weight: ex.weight,
-          notes: ex.notes,
-          exerciseId: ex.exerciseId,
-          orderIndex: idx,
-        })),
+        // Full-fidelity payload — a hand-rolled field list here once flattened
+        // every remaining row's rep range on a single removal.
+        exercises: toWorkoutExercisePayloads(next),
       });
       setTodayWorkout(updated);
       showToast(`Removed ${name}`);

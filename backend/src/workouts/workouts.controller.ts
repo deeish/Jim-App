@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { AiThrottlerGuard } from '../common/ai-throttler.guard';
 import { WorkoutsService } from './workouts.service';
-import { CreateWorkoutDto } from './dto/create-workout.dto';
+import { CreateWorkoutDto, UpdateWorkoutDto } from './dto/create-workout.dto';
 import { GenerateWorkoutDto } from './dto/generate-workout.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
@@ -93,7 +93,7 @@ export class WorkoutsController {
   @Patch(':id')
   update(
     @Param('id') id: string,
-    @Body() updateWorkoutDto: Partial<CreateWorkoutDto>,
+    @Body() updateWorkoutDto: UpdateWorkoutDto,
     @UserId() userId: string,
   ) {
     return this.workoutsService.update(id, updateWorkoutDto, userId);

@@ -1352,7 +1352,16 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                 style={[styles.optionButton, inputs.experienceLevel === level && styles.optionButtonSelected]}
                 onPress={() => setInputs(prev => ({ ...prev, experienceLevel: level }))}
               >
-                <Text style={[styles.optionButtonText, inputs.experienceLevel === level && styles.optionButtonTextSelected]}>
+                <Text
+                  style={[styles.optionButtonText, inputs.experienceLevel === level && styles.optionButtonTextSelected]}
+                  // "Intermediate" is wider under iOS SF than under web font
+                  // metrics, so on-device it broke mid-word ("Intermediat/e").
+                  // Single line + shrink-to-fit is how a segmented label
+                  // handles a chip it cannot widen.
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
                   {level.charAt(0).toUpperCase() + level.slice(1)}
                 </Text>
               </TouchableOpacity>
@@ -1443,7 +1452,15 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                       cardioEquipment: prev.cardioEquipment === cardio ? null : cardio,
                     }))}
                   >
-                    <Text style={[styles.optionButtonText, inputs.cardioEquipment === cardio && styles.optionButtonTextSelected]}>
+                    <Text
+                      style={[styles.optionButtonText, inputs.cardioEquipment === cardio && styles.optionButtonTextSelected]}
+                      // Same single-word overflow risk as the Experience row,
+                      // but four-across: "Treadmill" on a 375pt phone needs a
+                      // deeper shrink floor than the three-across rows.
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.65}
+                    >
                       {cardio.charAt(0).toUpperCase() + cardio.slice(1)}
                     </Text>
                   </TouchableOpacity>
@@ -2084,7 +2101,14 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                   style={[styles.optionButton, inputs.hybridGoalRatio === ratio && styles.optionButtonSelected]}
                   onPress={() => setInputs(prev => ({ ...prev, hybridGoalRatio: ratio }))}
                 >
-                  <Text style={[styles.optionButtonText, inputs.hybridGoalRatio === ratio && styles.optionButtonTextSelected]}>
+                  <Text
+                    style={[styles.optionButtonText, inputs.hybridGoalRatio === ratio && styles.optionButtonTextSelected]}
+                    // "Strength-leaning" is the longest chip label in this file
+                    // — wider than the "Intermediate" that broke on device.
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                  >
                     {ratio === 'more strength' ? 'Strength-leaning' : ratio === 'balanced' ? 'Balanced' : 'Cardio-leaning'}
                   </Text>
                 </TouchableOpacity>
@@ -2132,7 +2156,14 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                       }));
                     }}
                   >
-                    <Text style={[styles.optionButtonText, inputs.progressionStyle === style && styles.optionButtonTextSelected]}>
+                    <Text
+                      style={[styles.optionButtonText, inputs.progressionStyle === style && styles.optionButtonTextSelected]}
+                      // Keeps "Build + Deload" on one line instead of wrapping
+                      // into a taller chip than its two neighbors.
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                    >
                       {style === 'build' ? 'Build' : style === 'build + deload' ? 'Build + Deload' : 'Maintain'}
                     </Text>
                   </TouchableOpacity>

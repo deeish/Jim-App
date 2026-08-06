@@ -22,6 +22,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { isLinkableLibraryExerciseId, navigateFromWorkoutDetailToExerciseDetail } from '../lib/exerciseNavigation';
 import { resolveWorkoutEtaMinutes } from '../lib/estimateWorkoutMinutes';
+import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
 import { leading, radius, spacing, text, tracking, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
 import {
@@ -336,17 +337,11 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
         style: 'destructive',
         onPress: async () => {
           try {
-            const next = workout.exercises
-              .filter((_, i) => i !== index)
-              .map((e, i) => ({
-                name: e.name,
-                sets: e.sets,
-                reps: e.reps,
-                weight: e.weight,
-                notes: e.notes,
-                exerciseId: e.exerciseId,
-                orderIndex: i,
-              }));
+            // Full-fidelity payload — a hand-rolled field list here once
+            // flattened every remaining row's rep range on a single removal.
+            const next = toWorkoutExercisePayloads(
+              workout.exercises.filter((_, i) => i !== index),
+            );
             const updated = await updateWorkout(workout.id, { exercises: next });
             setWorkout(updated);
           } catch (e) {

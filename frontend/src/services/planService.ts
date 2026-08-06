@@ -39,6 +39,11 @@ export interface ApiPlanExercise {
   name: string | null;
   sets: number;
   reps: number;
+  /** Target rep range; the API has always returned these, the type just hid them. */
+  repsMin?: number | null;
+  repsMax?: number | null;
+  durationSeconds?: number | null;
+  prescriptionType?: 'reps' | 'time' | 'distance' | null;
   weight: number | null;
   notes: string | null;
   orderIndex: number;

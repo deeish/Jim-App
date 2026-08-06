@@ -7,6 +7,7 @@ import {
   WorkoutStats,
 } from '../types/workout';
 import type { ExerciseHistory } from '../lib/exerciseHistory';
+import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
 import { api } from '../api/client';
 
 /** Create (or return) a Workout row from a plan slot’s stored exercises. */
@@ -158,14 +159,10 @@ export const saveWorkoutLog = async (params: SaveWorkoutLogParams): Promise<Work
       day: workout.day,
       estimatedDuration: workout.estimatedDuration,
       focus: workout.focus,
-      exercises: workout.exercises.map((e) => ({
-        name: e.name,
-        sets: e.sets,
-        reps: e.reps,
-        weight: e.weight,
-        notes: e.notes,
-        exerciseId: e.exerciseId,
-      })),
+      // Full-fidelity payload (see lib/workoutExercisePayload): ad-hoc field
+      // lists like the one that used to live here are how rep ranges got
+      // silently flattened on every workout edit.
+      exercises: toWorkoutExercisePayloads(workout.exercises),
     });
     workoutId = created.id;
   }
