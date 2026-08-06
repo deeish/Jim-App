@@ -488,7 +488,7 @@ export default function ProfileScreen() {
         await new Promise<void>((resolve) => {
           Alert.alert(
             'Data removed',
-            'Your app data was deleted. Sign-in may still work until the server is configured with SUPABASE_SERVICE_ROLE_KEY for full removal, or you delete the user in the Supabase dashboard.',
+            'Your workout data was deleted. Your sign-in may remain active a while longer while account removal completes. If you can still sign in later, contact support to finish removing it.',
             [{ text: 'OK', onPress: () => resolve() }],
           );
         });
