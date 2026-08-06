@@ -627,12 +627,17 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     trainingFrequency,
   ]);
 
+  // Track the suggested start (next selected training day, today included)
+  // as the user toggles days — but only until they pick a date themselves;
+  // after that, retoggling days must not silently stomp their choice.
+  const startDateTouched = useRef(false);
   const isFirstRender = useRef(true);
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
+    if (startDateTouched.current) return;
     setInputs((prev) => ({
       ...prev,
       startDateISO: nextTrainingDayIsoFromToday(prev.trainingDays),
@@ -833,6 +838,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
       const year = selectedDate.getFullYear();
       const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
       const day = String(selectedDate.getDate()).padStart(2, '0');
+      startDateTouched.current = true;
       setInputs((prev) => ({ ...prev, startDateISO: `${year}-${month}-${day}` }));
     }
     if (Platform.OS !== 'ios') setShowStartDatePicker(false);
@@ -856,6 +862,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
       Alert.alert('Past date', 'Choose today or a future date.');
       return false;
     }
+    startDateTouched.current = true;
     setInputs((prev) => ({ ...prev, startDateISO: toIsoDate(parsed) }));
     setShowStartDatePicker(false);
     return true;
