@@ -63,8 +63,13 @@ testers every build as soon as it finishes processing, and rejects an explicit
 assignment with HTTP 422. Passing an internal group is harmless — the script
 reports it and skips it — but the build is already available to them.
 
-Adding a build to an **external** group is what triggers Beta App Review (the
-demo review account is already configured in ASC).
+Adding a build to an **external** group does **not** start Beta App Review by
+itself — the build sits at `externalBuildState=READY_FOR_BETA_SUBMISSION`
+until a review submission is created (discovered on build 18, which needed a
+manual submission). After assigning external groups, the script now makes
+that submission automatically, and skips it when the build is already in or
+past review. The demo review account is already configured in ASC.
+`status` shows each build's external review state.
 
 ### How the build gets picked
 
