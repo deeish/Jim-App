@@ -24,7 +24,12 @@
  *     ASC_API_KEY_PATH=./AuthKey_XXXXXXXXXX.p8   (gitignored via *.p8)
  *
  * No dependencies: the ES256 token is signed with Node's built-in WebCrypto.
- * Adding a build to an EXTERNAL group triggers Beta App Review automatically.
+ *
+ * Adding a build to an EXTERNAL group does NOT start Beta App Review by
+ * itself — the build sits at READY_FOR_BETA_SUBMISSION until a separate
+ * review submission is created (build 18 sat unreviewed until a manual POST).
+ * After assigning external groups, the script therefore also submits the
+ * build for Beta App Review when it still needs one.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -150,9 +155,24 @@ const fetchBuilds = (token, appId, { buildNumber, limit = 8 } = {}) =>
     `/builds?filter[app]=${appId}` +
       (buildNumber ? `&filter[version]=${encodeURIComponent(buildNumber)}` : '') +
       `&sort=-uploadedDate&limit=${limit}` +
-      '&fields[builds]=version,processingState,uploadedDate,expired,preReleaseVersion' +
-      '&include=preReleaseVersion&fields[preReleaseVersions]=version',
+      '&fields[builds]=version,processingState,uploadedDate,expired,preReleaseVersion,buildBetaDetail' +
+      '&include=preReleaseVersion,buildBetaDetail' +
+      '&fields[preReleaseVersions]=version&fields[buildBetaDetails]=externalBuildState',
   );
+
+/**
+ * Where the build stands with EXTERNAL testers, e.g. READY_FOR_BETA_SUBMISSION
+ * (in a group but review never requested), WAITING_FOR_BETA_REVIEW,
+ * IN_BETA_REVIEW, BETA_APPROVED, BETA_REJECTED, IN_BETA_TESTING. This is the
+ * only trustworthy signal: GET /builds/{id}/betaGroups returns "(none)" even
+ * for builds that were definitely distributed.
+ */
+const fetchExternalBuildState = (token, buildId) =>
+  asc(
+    token,
+    'GET',
+    `/builds/${buildId}/buildBetaDetail?fields[buildBetaDetails]=externalBuildState`,
+  ).then((j) => j?.data?.attributes?.externalBuildState);
 
 /** Rough "how long ago was this uploaded", for messages about build recency. */
 function describeAge(build) {
@@ -165,14 +185,16 @@ function describeAge(build) {
 }
 
 function describeBuild(build, included) {
-  const pre = (included ?? []).find(
-    (x) =>
-      x.type === 'preReleaseVersions' &&
-      x.id === build.relationships?.preReleaseVersion?.data?.id,
-  );
-  const appVersion = pre?.attributes?.version ?? '?';
+  const rel = (name, type) =>
+    (included ?? []).find(
+      (x) => x.type === type && x.id === build.relationships?.[name]?.data?.id,
+    );
+  const appVersion =
+    rel('preReleaseVersion', 'preReleaseVersions')?.attributes?.version ?? '?';
+  const external = rel('buildBetaDetail', 'buildBetaDetails')?.attributes
+    ?.externalBuildState;
   const a = build.attributes;
-  return `${appVersion} (${a.version})  ${a.processingState}${a.expired ? '  EXPIRED' : ''}  uploaded ${a.uploadedDate}`;
+  return `${appVersion} (${a.version})  ${a.processingState}${a.expired ? '  EXPIRED' : ''}${external ? `  external: ${external}` : ''}  uploaded ${a.uploadedDate}`;
 }
 
 // ---------- commands ----------
@@ -348,9 +370,49 @@ async function cmdDistribute(cfg, args) {
     await asc(token, 'POST', `/betaGroups/${g.id}/relationships/builds`, {
       data: [{ type: 'builds', id: build.id }],
     });
+    console.log(`Added to "${g.attributes.name}" (external group).`);
+  }
+
+  // Group membership alone does NOT put the build in front of external
+  // testers: it stays at READY_FOR_BETA_SUBMISSION until a Beta App Review
+  // submission exists (build 18 sat that way until one was POSTed by hand).
+  // So finish the job here, but only when the build actually needs it — a
+  // build already in or past review must not be re-submitted.
+  const state = await fetchExternalBuildState(token, build.id);
+  if (state === 'READY_FOR_BETA_SUBMISSION') {
+    await asc(token, 'POST', '/betaAppReviewSubmissions', {
+      data: {
+        type: 'betaAppReviewSubmissions',
+        relationships: { build: { data: { type: 'builds', id: build.id } } },
+      },
+    });
+    const after = await fetchExternalBuildState(token, build.id);
     console.log(
-      `Added to "${g.attributes.name}" — external group: Apple runs Beta App Review before testers see it.`,
+      `Submitted build ${build.attributes.version} for Beta App Review` +
+        `${after ? ` — externalBuildState is now ${after}` : ''}. External testers get it once Apple approves.`,
     );
+  } else if (state === 'WAITING_FOR_BETA_REVIEW' || state === 'IN_BETA_REVIEW') {
+    console.log(
+      `Beta App Review already underway (externalBuildState ${state}) — nothing to submit.`,
+    );
+  } else if (
+    state === 'BETA_APPROVED' ||
+    state === 'READY_FOR_BETA_TESTING' ||
+    state === 'IN_BETA_TESTING'
+  ) {
+    console.log(
+      `Build already cleared Beta App Review (externalBuildState ${state}) — external testers can install it now.`,
+    );
+  } else {
+    console.error(
+      `Build was added to the group(s) but NOT submitted for Beta App Review: ` +
+        `externalBuildState is ${state ?? 'unknown'}${
+          state === 'BETA_REJECTED'
+            ? ' — Apple rejected this build; resolve the rejection in App Store Connect.'
+            : ' — check the build in App Store Connect.'
+        }`,
+    );
+    process.exitCode = 1;
   }
 }
 
