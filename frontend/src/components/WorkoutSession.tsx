@@ -67,6 +67,7 @@ import {
   weight,
 } from '../theme';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { useAuth } from '../contexts/AuthContext';
 import {
   formatAtWeightFromLb,
   formatVolumeFromLb,
@@ -129,6 +130,10 @@ export default function WorkoutSession({
   const { colors } = useTheme();
   const styles = useMemo(() => createWorkoutSessionStyles(colors), [colors]);
   const { weightUnit } = useUserPreferences();
+  // Drafts are keyed per account so another sign-in on this device can never
+  // resume (or overwrite) this user's workout.
+  const { user } = useAuth();
+  const draftUserId = user?.id;
   // The tab bar floats over the session; the action footer (and the toast that
   // hovers above it) must clear the bar's height. 0 when no tab bar is present.
   const tabBarInset = useTabBarInset();
@@ -199,7 +204,7 @@ export default function WorkoutSession({
 
   // Save an initial draft immediately on session start so the workout survives an unexpected app kill.
   useEffect(() => {
-    saveWorkoutDraft({
+    saveWorkoutDraft(draftUserId, {
       workout: session.workout,
       startTimeIso: session.startTime.toISOString(),
       currentExerciseIndex,
@@ -360,14 +365,14 @@ export default function WorkoutSession({
   };
   useEffect(() => {
     const interval = setInterval(() => {
-      saveWorkoutDraft({
+      saveWorkoutDraft(draftUserId, {
         workout: session.workout,
         startTimeIso: session.startTime.toISOString(),
         ...draftStateRef.current,
       }).catch(() => {});
     }, 30_000);
     return () => clearInterval(interval);
-  }, [session.workout, session.startTime]);
+  }, [session.workout, session.startTime, draftUserId]);
 
   const formatTime = (seconds: number) => {
     if (seconds < 3600) {
@@ -730,7 +735,7 @@ export default function WorkoutSession({
     setShowSessionMenu(false);
     if (!onExitWithoutFinishing) return;
     try {
-      await saveWorkoutDraft({
+      await saveWorkoutDraft(draftUserId, {
         workout: session.workout,
         startTimeIso: session.startTime.toISOString(),
         currentExerciseIndex,

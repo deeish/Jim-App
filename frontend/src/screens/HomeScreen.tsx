@@ -182,7 +182,7 @@ export default function HomeScreen() {
     else if (isFirstLoad.current) setLoading(true);
     try {
       try {
-        const d = await loadWorkoutDraft();
+        const d = await loadWorkoutDraft(user?.id);
         setDraft(d);
       } catch {
         setDraft(null);
@@ -209,7 +209,7 @@ export default function HomeScreen() {
       setRefreshing(false);
       isFirstLoad.current = false;
     }
-  }, []);
+  }, [user?.id]);
 
   useFocusEffect(
     useCallback(() => {

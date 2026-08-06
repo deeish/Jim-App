@@ -23,6 +23,7 @@ import { resolveWorkoutEtaMinutes } from '../lib/estimateWorkoutMinutes';
 import { Workout, Exercise, type WorkoutSessionRestoredSnapshot, type WorkoutLog } from '../types/workout';
 import { formatLocalYmd } from '../lib/planCalendar';
 import { loadWorkoutDraft, clearWorkoutDraft, resumedSessionStartTime } from '../lib/workoutDraftStorage';
+import { useAuth } from '../contexts/AuthContext';
 import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
 import { navigateFromWorkoutToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import Button from '../components/Button';
@@ -122,6 +123,9 @@ export default function WorkoutScreen() {
   const route = useRoute<WorkoutScreenRouteProp>();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  // Drafts are stored per account; see workoutDraftStorage.
+  const { user } = useAuth();
+  const draftUserId = user?.id;
   // The tab bar floats over this screen; the Start CTA and scroll padding clear it.
   const tabBarInset = useTabBarInset();
   const workoutIdParam = route.params?.workoutId;
@@ -503,13 +507,13 @@ export default function WorkoutScreen() {
     useCallback(() => {
       if (session) return;
       let cancelled = false;
-      loadWorkoutDraft().then((d) => {
+      loadWorkoutDraft(draftUserId).then((d) => {
         if (!cancelled) setSavedDraft(d);
       });
       return () => {
         cancelled = true;
       };
-    }, [session])
+    }, [session, draftUserId])
   );
 
   const loadWorkoutById = async (id: string) => {
@@ -589,7 +593,7 @@ export default function WorkoutScreen() {
     }
 
     setCompletedLog(null);
-    void clearWorkoutDraft();
+    void clearWorkoutDraft(draftUserId);
     setSavedDraft(null);
     setSession({
       workout: todayWorkout,
@@ -599,7 +603,7 @@ export default function WorkoutScreen() {
   };
 
   const handleResumeDraft = async () => {
-    const d = await loadWorkoutDraft();
+    const d = await loadWorkoutDraft(draftUserId);
     if (!d) {
       setSavedDraft(null);
       return;
@@ -623,7 +627,7 @@ export default function WorkoutScreen() {
   };
 
   const handleDiscardDraft = async () => {
-    await clearWorkoutDraft();
+    await clearWorkoutDraft(draftUserId);
     setSavedDraft(null);
     showToast('Draft discarded');
   };
@@ -645,7 +649,7 @@ export default function WorkoutScreen() {
           exerciseNotes: sessionData.exerciseNotes,
         });
         setCompletedLog(log);
-        await clearWorkoutDraft();
+        await clearWorkoutDraft(draftUserId);
         setSavedDraft(null);
       } catch (err) {
         console.error('Failed to save workout log:', err);
@@ -670,7 +674,7 @@ export default function WorkoutScreen() {
   const handleExitWithoutFinishing = async () => {
     setSession(null);
     setLiveServerWorkout(null);
-    const d = await loadWorkoutDraft();
+    const d = await loadWorkoutDraft(draftUserId);
     setSavedDraft(d);
   };
 

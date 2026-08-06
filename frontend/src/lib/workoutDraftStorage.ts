@@ -1,7 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Workout, ExerciseSession, WorkoutSessionRestoredSnapshot } from '../types/workout';
 
-const STORAGE_KEY = 'jim_workout_draft_v1';
+/**
+ * Drafts were briefly stored under this device-global key, which let whoever
+ * signed in next resume the previous account's workout. Anything still there
+ * cannot be attributed to an owner, so it is deleted on sight, never resumed.
+ */
+const LEGACY_SHARED_KEY = 'jim_workout_draft_v1';
+const storageKeyFor = (userId: string) => `jim_workout_draft_v1:${userId}`;
 
 export type PersistedWorkoutDraft = {
   version: 1;
@@ -20,19 +26,25 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 export async function saveWorkoutDraft(
+  userId: string | null | undefined,
   payload: Omit<PersistedWorkoutDraft, 'version' | 'savedAtIso'>,
 ): Promise<void> {
+  if (!userId) return;
   const full: PersistedWorkoutDraft = {
     version: 1,
     savedAtIso: new Date().toISOString(),
     ...payload,
   };
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(full));
+  await AsyncStorage.setItem(storageKeyFor(userId), JSON.stringify(full));
 }
 
-export async function loadWorkoutDraft(): Promise<PersistedWorkoutDraft | null> {
+export async function loadWorkoutDraft(
+  userId: string | null | undefined,
+): Promise<PersistedWorkoutDraft | null> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    AsyncStorage.removeItem(LEGACY_SHARED_KEY).catch(() => {});
+    if (!userId) return null;
+    const raw = await AsyncStorage.getItem(storageKeyFor(userId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
     if (!isRecord(parsed) || parsed.version !== 1) return null;
@@ -70,9 +82,9 @@ export function resumedSessionStartTime(
   return new Date(nowMs - activeMs);
 }
 
-export async function clearWorkoutDraft(): Promise<void> {
+export async function clearWorkoutDraft(userId: string | null | undefined): Promise<void> {
   try {
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    if (userId) await AsyncStorage.removeItem(storageKeyFor(userId));
   } catch {
     /* ignore */
   }

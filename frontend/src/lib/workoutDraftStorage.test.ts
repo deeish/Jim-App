@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Workout } from '../types/workout';
 import {
+  clearWorkoutDraft,
   loadWorkoutDraft,
   resumedSessionStartTime,
   saveWorkoutDraft,
@@ -27,30 +28,60 @@ const payload: Omit<PersistedWorkoutDraft, 'version' | 'savedAtIso'> = {
   showAdvancedLogging: false,
 };
 
+const USER_A = 'user-a';
+const USER_B = 'user-b';
+const KEY_A = `jim_workout_draft_v1:${USER_A}`;
+const LEGACY_KEY = 'jim_workout_draft_v1';
+
 describe('workoutDraftStorage', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
   });
 
   it('stamps savedAtIso on write and round-trips it', async () => {
-    await saveWorkoutDraft(payload);
-    const loaded = await loadWorkoutDraft();
+    await saveWorkoutDraft(USER_A, payload);
+    const loaded = await loadWorkoutDraft(USER_A);
     expect(loaded).not.toBeNull();
     expect(typeof loaded?.savedAtIso).toBe('string');
     expect(Number.isFinite(Date.parse(loaded!.savedAtIso!))).toBe(true);
   });
 
-  it('still loads legacy drafts that predate savedAtIso', async () => {
-    await saveWorkoutDraft(payload);
-    const raw = JSON.parse((await AsyncStorage.getItem('jim_workout_draft_v1')) ?? '{}') as Record<
-      string,
-      unknown
-    >;
+  it('still loads drafts that predate savedAtIso', async () => {
+    await saveWorkoutDraft(USER_A, payload);
+    const raw = JSON.parse((await AsyncStorage.getItem(KEY_A)) ?? '{}') as Record<string, unknown>;
     delete raw.savedAtIso;
-    await AsyncStorage.setItem('jim_workout_draft_v1', JSON.stringify(raw));
-    const loaded = await loadWorkoutDraft();
+    await AsyncStorage.setItem(KEY_A, JSON.stringify(raw));
+    const loaded = await loadWorkoutDraft(USER_A);
     expect(loaded).not.toBeNull();
     expect(loaded?.savedAtIso).toBeUndefined();
+  });
+
+  it("never serves one account's draft to another", async () => {
+    await saveWorkoutDraft(USER_A, payload);
+    expect(await loadWorkoutDraft(USER_B)).toBeNull();
+    expect(await loadWorkoutDraft(USER_A)).not.toBeNull();
+  });
+
+  it('discards drafts left under the old shared key instead of resuming them', async () => {
+    // A pre-fix draft has no owner on record; resuming it into whoever signs
+    // in next is exactly the leak, so it is deleted on sight.
+    await AsyncStorage.setItem(LEGACY_KEY, JSON.stringify({ version: 1, ...payload }));
+    expect(await loadWorkoutDraft(USER_A)).toBeNull();
+    expect(await AsyncStorage.getItem(LEGACY_KEY)).toBeNull();
+  });
+
+  it('is inert without a signed-in user', async () => {
+    await saveWorkoutDraft(undefined, payload);
+    expect(await loadWorkoutDraft(undefined)).toBeNull();
+    await expect(clearWorkoutDraft(undefined)).resolves.toBeUndefined();
+  });
+
+  it('clears only the given account', async () => {
+    await saveWorkoutDraft(USER_A, payload);
+    await saveWorkoutDraft(USER_B, payload);
+    await clearWorkoutDraft(USER_B);
+    expect(await loadWorkoutDraft(USER_B)).toBeNull();
+    expect(await loadWorkoutDraft(USER_A)).not.toBeNull();
   });
 });
 
