@@ -14,6 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { getWorkoutLogs } from '../services/workoutService';
 import type { WorkoutLog, WorkoutLogEntry, WorkoutLogEntrySet } from '../types/workout';
 import { formatLocalYmd } from '../lib/planCalendar';
+import { formatLoggedSetDetail } from '../lib/loggedSetDisplay';
+import type { WeightUnit } from '../lib/weightDisplay';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
 import { leading, radius, spacing, text, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
@@ -36,13 +39,22 @@ function formatDuration(seconds: number): string {
   return secs > 0 ? `${mins}m ${secs}s` : `${mins} min`;
 }
 
-function SetRow({ set, colors }: { set: WorkoutLogEntrySet; colors: Record<string, string> }) {
-  const weightStr = set.weight != null && set.weight > 0 ? `${set.weight} lb` : '—';
+function SetRow({
+  set,
+  exerciseName,
+  unit,
+  colors,
+}: {
+  set: WorkoutLogEntrySet;
+  exerciseName: string | null;
+  unit: WeightUnit;
+  colors: Record<string, string>;
+}) {
   return (
     <View style={styles.setRow}>
       <Text style={[styles.setNumber, { color: colors.textMuted }]}>Set {set.setNumber}</Text>
       <Text style={[styles.setDetail, { color: colors.text }]}>
-        {set.reps} × {weightStr}
+        {formatLoggedSetDetail(set, exerciseName, unit)}
         {set.rpe != null ? ` · RPE ${set.rpe}` : ''}
       </Text>
       {set.notes ? (
@@ -54,9 +66,11 @@ function SetRow({ set, colors }: { set: WorkoutLogEntrySet; colors: Record<strin
 
 function LogEntryBlock({
   entry,
+  unit,
   colors,
 }: {
   entry: WorkoutLogEntry;
+  unit: WeightUnit;
   colors: Record<string, string>;
 }) {
   const sets = (entry.completedSets ?? []) as WorkoutLogEntrySet[];
@@ -68,7 +82,7 @@ function LogEntryBlock({
       ) : null}
       <View style={styles.setsList}>
         {sets.map((s) => (
-          <SetRow key={s.setNumber} set={s} colors={colors} />
+          <SetRow key={s.setNumber} set={s} exerciseName={entry.name} unit={unit} colors={colors} />
         ))}
       </View>
     </View>
@@ -78,11 +92,13 @@ function LogEntryBlock({
 function DayDetailSection({
   dateLabel,
   logs,
+  unit,
   colors,
   onClearSelection,
 }: {
   dateLabel: string;
   logs: WorkoutLog[];
+  unit: WeightUnit;
   colors: Record<string, string>;
   onClearSelection: () => void;
 }) {
@@ -143,7 +159,7 @@ function DayDetailSection({
           ) : null}
           <View style={styles.entriesList}>
             {(log.entries ?? []).map((entry) => (
-              <LogEntryBlock key={entry.id} entry={entry} colors={colors} />
+              <LogEntryBlock key={entry.id} entry={entry} unit={unit} colors={colors} />
             ))}
           </View>
         </View>
@@ -154,6 +170,7 @@ function DayDetailSection({
 
 export default function CalendarScreen({ navigation }: Props) {
   const { colors } = useTheme();
+  const { weightUnit } = useUserPreferences();
   // The tab bar floats over this screen; keep the last history rows clear of it.
   const tabBarInset = useTabBarInset();
   // Title and back button now come from the native header in PlanStackNavigator.
@@ -369,6 +386,7 @@ export default function CalendarScreen({ navigation }: Props) {
             <DayDetailSection
               dateLabel={selectedDateLabel}
               logs={selectedDayLogs}
+              unit={weightUnit}
               colors={colors}
               onClearSelection={() => setSelectedDate(null)}
             />
