@@ -25,10 +25,10 @@ const session = (
   name: string,
   exerciseId: string | undefined,
   sets: Array<{ reps: number; weight?: number; completed?: boolean }>,
-  opts: { skipped?: boolean } = {},
+  opts: { skipped?: boolean; prescriptionType?: Exercise['prescriptionType'] } = {},
 ): ExerciseSession => ({
   exerciseIndex: 0,
-  exercise: exercise(name, exerciseId),
+  exercise: { ...exercise(name, exerciseId), prescriptionType: opts.prescriptionType },
   skipped: opts.skipped,
   completedSets: sets.map((s, i) => ({
     setNumber: i + 1,
@@ -103,6 +103,35 @@ describe('summarizeSessionTotals', () => {
       volumeLb: 2100,
       hasWeightedWork: true,
     });
+  });
+
+  it('books no volume for timed weighted rows (seconds live in the reps field)', () => {
+    const totals = summarizeSessionTotals([
+      // Detected by name: a 45 s @ 70 lb carry must not become 3,150 lb.
+      session('Farmer Carry', 'ex-carry', [
+        { reps: 45, weight: 70 },
+        { reps: 45, weight: 70 },
+      ]),
+      // Detected by prescriptionType.
+      session('Custom Drill', 'ex-drill', [{ reps: 60, weight: 25 }], {
+        prescriptionType: 'time',
+      }),
+      session('Bench Press', 'ex-bench', [{ reps: 8, weight: 100 }]),
+    ]);
+    expect(totals.volumeLb).toBe(800);
+    expect(totals.completedSets).toBe(4);
+    expect(totals.exercisesWorked).toBe(3);
+    expect(totals.hasWeightedWork).toBe(true);
+  });
+
+  it('reports no weighted work for a session of only timed loaded rows', () => {
+    const totals = summarizeSessionTotals([
+      session('Suitcase Carry', 'ex-suitcase', [{ reps: 45, weight: 70 }]),
+    ]);
+    expect(totals.volumeLb).toBe(0);
+    // The finish screen hides the volume tile off this flag; a carries-only
+    // session must hide it rather than show "0 lb".
+    expect(totals.hasWeightedWork).toBe(false);
   });
 
   it('excludes skipped exercises entirely', () => {
