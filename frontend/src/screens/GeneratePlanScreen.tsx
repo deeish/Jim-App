@@ -1352,7 +1352,16 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                 style={[styles.optionButton, inputs.experienceLevel === level && styles.optionButtonSelected]}
                 onPress={() => setInputs(prev => ({ ...prev, experienceLevel: level }))}
               >
-                <Text style={[styles.optionButtonText, inputs.experienceLevel === level && styles.optionButtonTextSelected]}>
+                <Text
+                  style={[styles.optionButtonText, inputs.experienceLevel === level && styles.optionButtonTextSelected]}
+                  // "Intermediate" is wider under iOS SF than under web font
+                  // metrics, so on-device it broke mid-word ("Intermediat/e").
+                  // Single line + shrink-to-fit is how a segmented label
+                  // handles a chip it cannot widen.
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
                   {level.charAt(0).toUpperCase() + level.slice(1)}
                 </Text>
               </TouchableOpacity>
@@ -1443,7 +1452,14 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                       cardioEquipment: prev.cardioEquipment === cardio ? null : cardio,
                     }))}
                   >
-                    <Text style={[styles.optionButtonText, inputs.cardioEquipment === cardio && styles.optionButtonTextSelected]}>
+                    <Text
+                      style={[styles.optionButtonText, inputs.cardioEquipment === cardio && styles.optionButtonTextSelected]}
+                      // Same single-word overflow risk as the Experience row:
+                      // "Treadmill" in a four-across row on narrow phones.
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
                       {cardio.charAt(0).toUpperCase() + cardio.slice(1)}
                     </Text>
                   </TouchableOpacity>
