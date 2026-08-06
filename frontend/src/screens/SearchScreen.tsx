@@ -345,6 +345,61 @@ const RefineSection = React.memo(function RefineSection({
   );
 });
 
+// ——— Result row, hoisted + memoized ———
+// Selecting an exercise in add-mode replaces the `selectedIds` Set, which
+// recreates `renderItem` and makes the FlatList re-render every mounted cell
+// (~50 with windowSize 7). ExerciseGroupCard is memoized, but it used to get
+// four fresh arrow functions per cell per render, so the memo never bailed and
+// every visible card re-rendered on each tap — a perceptible checkmark delay.
+// This wrapper takes only primitives + stable callbacks and builds the
+// per-exercise closures itself, so a toggle re-renders exactly one row.
+const ResultRow = React.memo(function ResultRow({
+  group,
+  inAddMode,
+  selected,
+  disabled,
+  saved,
+  onToggleSelect,
+  onOpenDetail,
+  onToggleLike,
+}: {
+  group: ExerciseGroup;
+  inAddMode: boolean;
+  /** Whether any exercise in the group is selected (only meaningful in add-mode). */
+  selected: boolean;
+  disabled: boolean;
+  saved: boolean;
+  onToggleSelect: (exercise: Exercise) => void;
+  onOpenDetail: (exerciseId: string) => void;
+  onToggleLike: (exerciseId: string) => void;
+}) {
+  const primaryId = group.primaryExercise.id;
+  const handleLike = useCallback(() => onToggleLike(primaryId), [onToggleLike, primaryId]);
+  const handlePress = useCallback(
+    (exercise: Exercise) => {
+      if (inAddMode) onToggleSelect(exercise);
+      else onOpenDetail(exercise.id);
+    },
+    [inAddMode, onToggleSelect, onOpenDetail],
+  );
+  const handleInfo = useCallback(
+    (exercise: Exercise) => onOpenDetail(exercise.id),
+    [onOpenDetail],
+  );
+  return (
+    <ExerciseGroupCard
+      group={group}
+      isSelected={inAddMode ? selected : undefined}
+      isDisabled={disabled}
+      saved={saved}
+      onLikePress={handleLike}
+      onPress={handlePress}
+      onPressVariation={handlePress}
+      onPressInfo={handleInfo}
+    />
+  );
+});
+
 export default function SearchScreen({ navigation }: Props) {
   const route = useRoute<SearchScreenRouteProp>();
   // The tab bar floats over this screen; lists and in-flow footers must both
@@ -827,45 +882,56 @@ export default function SearchScreen({ navigation }: Props) {
   // Saved tab data, grouped the same way as search results.
   const savedGroups = useMemo(() => groupExercises(savedExercisesList), [savedExercisesList]);
 
+  // Stable per-item callbacks for ResultRow. `navigation` is stable. The like
+  // handler is recreated whenever saved state changes, so route it through a
+  // ref — otherwise one heart tap would change the `onToggleLike` prop of every
+  // row and re-render the whole list (same class of bug as the selection Set).
+  const openExerciseDetail = useCallback(
+    (exerciseId: string) => navigation.navigate('ExerciseDetail', { exerciseId }),
+    [navigation],
+  );
+  const toggleLikeRef = useRef(handleToggleExerciseLike);
+  useEffect(() => {
+    toggleLikeRef.current = handleToggleExerciseLike;
+  }, [handleToggleExerciseLike]);
+  const onToggleLike = useCallback((exerciseId: string) => {
+    toggleLikeRef.current(exerciseId);
+  }, []);
+
+  // Set lookups so renderItem stays O(1) per row instead of scanning arrays.
+  const savedIdSet = useMemo(() => new Set(savedExerciseIds), [savedExerciseIds]);
+  const existingIdSet = useMemo(
+    () => new Set(addToWorkout?.existingExerciseIds ?? []),
+    [addToWorkout],
+  );
+
   // Render a single exercise card for the virtualized results FlatList. The list used to
   // be a non-virtualized ScrollView that mounted every card (~hundreds) at once, which
   // caused multi-second jank on broad filters. The FlatList now renders only the cards
-  // near the viewport and recycles the rest.
+  // near the viewport and recycles the rest. This callback is still recreated when
+  // `selectedIds` changes (so the tapped row can flip), but it hands ResultRow only
+  // primitives + stable callbacks, so React.memo skips every card except the tapped one.
   const renderExerciseCard = useCallback(
-    ({ item: group }: { item: ExerciseGroup }) => {
-      const isAnyInGroupSelected = group.exercises.some((e) => selectedIds.has(e.id));
-      const existingIds = addToWorkout?.existingExerciseIds ?? [];
-      const isAlreadyInWorkout =
-        existingIds.length > 0 && group.exercises.some((e) => existingIds.includes(e.id));
-      return (
-        <ExerciseGroupCard
-          group={group}
-          isSelected={addMode ? isAnyInGroupSelected : undefined}
-          isDisabled={isAlreadyInWorkout}
-          saved={savedExerciseIds.includes(group.primaryExercise.id)}
-          onLikePress={() => handleToggleExerciseLike(group.primaryExercise.id)}
-          onPress={(exercise) => {
-            if (addMode) toggleSelectForAddToPlan(exercise);
-            else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-          }}
-          onPressVariation={(exercise) => {
-            if (addMode) toggleSelectForAddToPlan(exercise);
-            else navigation.navigate('ExerciseDetail', { exerciseId: exercise.id });
-          }}
-          onPressInfo={(exercise) =>
-            navigation.navigate('ExerciseDetail', { exerciseId: exercise.id })
-          }
-        />
-      );
-    },
+    ({ item: group }: { item: ExerciseGroup }) => (
+      <ResultRow
+        group={group}
+        inAddMode={addMode != null}
+        selected={group.exercises.some((e) => selectedIds.has(e.id))}
+        disabled={existingIdSet.size > 0 && group.exercises.some((e) => existingIdSet.has(e.id))}
+        saved={savedIdSet.has(group.primaryExercise.id)}
+        onToggleSelect={toggleSelectForAddToPlan}
+        onOpenDetail={openExerciseDetail}
+        onToggleLike={onToggleLike}
+      />
+    ),
     [
       selectedIds,
       addMode,
-      addToWorkout,
-      savedExerciseIds,
-      handleToggleExerciseLike,
+      existingIdSet,
+      savedIdSet,
       toggleSelectForAddToPlan,
-      navigation,
+      openExerciseDetail,
+      onToggleLike,
     ],
   );
 
@@ -945,11 +1011,12 @@ export default function SearchScreen({ navigation }: Props) {
       clearSelection();
       const tabNav = (navigation as any)?.getParent?.();
       if (tabNav) tabNav.navigate('Plan');
+      const exerciseNoun = `exercise${selectedExercises.length === 1 ? '' : 's'}`;
       const successMsg =
         anchorYmd != null
-          ? `Added ${selectedExercises.length} exercise(s) to ${day} for this calendar week.`
+          ? `Added ${selectedExercises.length} ${exerciseNoun} to ${day} for this calendar week.`
           : weekNumber === 1
-            ? `Added ${selectedExercises.length} exercise(s) to ${day}.`
+            ? `Added ${selectedExercises.length} ${exerciseNoun} to ${day}.`
             : `Added "${slotTitle}" to ${day} (program week ${weekNumber}).`;
       Alert.alert('Done', successMsg);
     } catch (err: any) {
@@ -1015,7 +1082,10 @@ export default function SearchScreen({ navigation }: Props) {
         if (returnToPlan) tabNav.navigate('Plan');
         else tabNav.navigate('Workout', { workoutId: addToWorkout.workoutId });
       }
-      Alert.alert('Done', `Added ${selectedExercises.length} exercise(s) to ${addToWorkout.workoutName}.`);
+      Alert.alert(
+        'Done',
+        `Added ${selectedExercises.length} exercise${selectedExercises.length === 1 ? '' : 's'} to ${addToWorkout.workoutName}.`,
+      );
     } catch (err: any) {
       console.error('Add to workout failed:', err);
       const status = err.response?.status;
