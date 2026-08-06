@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   ActivityIndicator,
@@ -86,6 +86,16 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
   const [startDateISO, setStartDateISO] = useState(suggestedTemplateStartDateISO());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  // Once the user picks a date themselves, stop auto-suggesting over it.
+  const dateTouched = useRef(false);
+
+  // Keep the suggested start in step with the selected training days: today
+  // whenever no chosen day this week has passed (start now, not next Monday),
+  // else the clean Monday. See suggestedTemplateStartDateISO for the why.
+  useEffect(() => {
+    if (dateTouched.current || weekdays.length === 0) return;
+    setStartDateISO(suggestedTemplateStartDateISO(new Date(), weekdays));
+  }, [weekdays]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -402,6 +412,7 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
               minIso={formatLocalYmd(new Date())}
               colors={colors}
               onSelectDay={(iso) => {
+                dateTouched.current = true;
                 setStartDateISO(iso);
                 setDatePickerOpen(false);
               }}
