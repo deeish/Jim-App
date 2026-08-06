@@ -73,6 +73,7 @@ import {
   formatWeightCompactFromLb,
   kgToLb,
   lbToKg,
+  roundLb,
 } from '../lib/weightDisplay';
 import { formatPlanTargetRepDisplay, profileGoalToPlanGoal } from '../lib/workoutExerciseDisplay';
 import type { ColorPalette } from '../theme/colors';
@@ -524,8 +525,11 @@ export default function WorkoutSession({
         const v = (set.reps ?? 0) + delta;
         updated[exerciseIndex].completedSets[setIndex].reps = Math.max(1, v);
       } else {
+        // Deltas arrive in canonical pounds but can be fractional (a kg step
+        // converts to 5.5115… lb); round like the typed-in path so repeated
+        // steps can't accumulate float noise into the stored weight.
         const v = (set.weight ?? 0) + delta;
-        updated[exerciseIndex].completedSets[setIndex].weight = Math.max(0, v);
+        updated[exerciseIndex].completedSets[setIndex].weight = Math.max(0, roundLb(v));
       }
       return updated;
     });
@@ -1614,10 +1618,20 @@ function ExerciseCard({
         </View>
       </View>
 
-      {/* Row 4: Reps / Weight steppers — tap value to type, long-press +/- to repeat, weight step 5/2.5/10 */}
+      {/* Row 4: Reps / Weight steppers — tap value to type, long-press +/- to repeat, weight step 5/2.5/10 in the user's unit */}
       {isCurrent && nextSet != null && (() => {
         const stepReps = (delta: number) => onSetUpdateDelta(index, nextSetIdx, 'reps', delta);
-        const stepWeight = (delta: number) => onSetUpdateDelta(index, nextSetIdx, 'weight', delta);
+        // The step chips read in the display unit ("+2.5" means 2.5 kg to a kg
+        // user), but stored weights are canonical pounds — convert the delta or
+        // a kg user's "+5" silently adds 5 lb (+2.27 kg), the one path that
+        // skipped the conversion the typed-in value and edit modal both do.
+        const stepWeight = (delta: number) =>
+          onSetUpdateDelta(
+            index,
+            nextSetIdx,
+            'weight',
+            weightUnit === 'kg' ? kgToLb(delta) : delta,
+          );
         const startRepeat = (delta: number, field: 'reps' | 'weight') => {
           const step = () => (field === 'reps' ? stepReps(delta) : stepWeight(delta));
           step();

@@ -3,6 +3,9 @@ import {
   formatVolumeFromLb,
   formatWeightCompactFromLb,
   formatWeightFromLb,
+  kgToLb,
+  lbToKg,
+  roundLb,
 } from './weightDisplay';
 
 describe('formatVolumeFromLb', () => {
@@ -58,5 +61,23 @@ describe('single-load formatting', () => {
 
   it('formats the prescription fragment with a leading separator', () => {
     expect(formatAtWeightFromLb(185, 'lb')).toBe(' @ 185 lb');
+  });
+});
+
+describe('stepper delta round-trip', () => {
+  // The session weight stepper's chips read in the display unit, so a kg
+  // user's "+2.5" must move the stored (lb) weight by kgToLb(2.5), then round
+  // like every other write path. This pins the arithmetic the stepper relies
+  // on: 20 kg stored as 44.1 lb, plus a 2.5 kg step, must display as 22.5 kg.
+  it('a kg step converts to pounds and lands back on the expected kg display', () => {
+    const storedLb = roundLb(kgToLb(20)); // typed-in path stores 44.1
+    const stepped = Math.max(0, roundLb(storedLb + kgToLb(2.5)));
+    expect(stepped).toBe(49.6);
+    expect(Math.round(lbToKg(stepped) * 10) / 10).toBe(22.5);
+  });
+
+  it('lb steps stay exact under the same rounding', () => {
+    expect(roundLb(145 + 2.5)).toBe(147.5);
+    expect(roundLb(145 - 5)).toBe(140);
   });
 });
