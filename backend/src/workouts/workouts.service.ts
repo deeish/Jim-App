@@ -116,6 +116,10 @@ export class WorkoutsService {
           name: e.name,
           sets: e.sets,
           reps: e.reps,
+          repsMin: e.repsMin ?? null,
+          repsMax: e.repsMax ?? null,
+          durationSeconds: e.durationSeconds ?? null,
+          prescriptionType: e.prescriptionType ?? null,
           weight: e.weight,
           notes: e.notes,
           exerciseId: e.exerciseId ?? undefined,
@@ -352,10 +356,17 @@ export class WorkoutsService {
         ...(newPlanDetail !== undefined && { focus: newPlanDetail }),
         ...(updateWorkoutDto.exercises && {
           exercises: {
+            // Full prescription fidelity: this delete-and-recreate used to keep
+            // only the scalar `reps`, silently flattening every range in the
+            // workout (and, via the plan sync below, in the plan) on any edit.
             create: updateWorkoutDto.exercises.map((e, i) => ({
               name: e.name,
               sets: e.sets,
               reps: e.reps,
+              repsMin: e.repsMin ?? null,
+              repsMax: e.repsMax ?? null,
+              durationSeconds: e.durationSeconds ?? null,
+              prescriptionType: e.prescriptionType ?? null,
               weight: e.weight,
               notes: e.notes,
               exerciseId: e.exerciseId ?? undefined,

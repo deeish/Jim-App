@@ -22,6 +22,29 @@ export class CreateExerciseDto {
   @Min(1)
   reps: number;
 
+  /**
+   * Target rep range (role-aware prescription); `reps` stays the working
+   * default (= repsMin when a range is set). Clients editing a workout must
+   * round-trip these or the range collapses to the scalar — the exact bug
+   * that flattened "4 x 6-8" to "4 x 6" when adding exercises from the
+   * library, because this DTO rejected the fields under forbidNonWhitelisted.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  repsMin?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  repsMax?: number;
+
+  /** Time-based rows (e.g. cardio bouts): duration instead of a rep range. */
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  durationSeconds?: number;
+
   @IsOptional()
   @IsNumber()
   weight?: number;

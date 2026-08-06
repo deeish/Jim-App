@@ -38,6 +38,7 @@ import {
   normalizePlanAnchorYmd,
   programWeekNumberForSlotWeek,
 } from '../lib/planCalendar';
+import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
 import { EQUIPMENT_OPTIONS } from '../constants/equipment';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
@@ -1055,18 +1056,12 @@ export default function SearchScreen({ navigation }: Props) {
     setAddingToPlan(true);
     try {
       const workout = await getWorkoutById(addToWorkout.workoutId);
-      const existingExercises = (workout.exercises || []).map((ex, idx) => ({
-        name: ex.name,
-        sets: ex.sets,
-        reps: ex.reps,
-        weight: ex.weight,
-        notes: ex.notes,
-        exerciseId: ex.exerciseId,
-        orderIndex: idx,
-      }));
+      // Full-fidelity payload: hand-rolled 7-field mappings here used to drop
+      // repsMin/repsMax/durationSeconds and flatten every range in the workout.
+      const existingExercises = toWorkoutExercisePayloads(workout.exercises || []);
       const merged = [
         ...existingExercises,
-        ...newExercises.map((e, i) => ({ ...e, orderIndex: existingExercises.length + i })),
+        ...toWorkoutExercisePayloads(newExercises, existingExercises.length),
       ];
       await updateWorkout(addToWorkout.workoutId, { exercises: merged });
 
