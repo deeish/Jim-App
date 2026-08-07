@@ -96,9 +96,12 @@ expect filler and near-duplicates, especially in the big groups.
       muscle groups — retire calls decide group homes, incl. deadlifts);
       81 rows with invalid `glutes` secondary; 8 unknown equipment ids;
       5 alias-driven wrong timed verdicts; the only video mapping is dead.
-- [x] **Task 1 — Chest** (48 rows — by far the smallest group for one of
+- [ ] **Task 1 — Chest** (48 rows — by far the smallest group for one of
       the most popular muscle groups; expect an add-heavy session; also
-      owns the bench-gating decision from Section 4) — done 2026-08-07.
+      owns the bench-gating decision from Section 4) — PARTIAL 2026-08-07,
+      NOT fully done: still open are the cable_pullover retire (needs the
+      non-cardio retire mechanism) and Dylan's four §1.3 decisions
+      (pullover home, landmine home, dip/rings mapping, bench gating).
       Healthiest slice: rows all legit, gating honest, difficulty sane.
       1 firm retire (cable_pullover = straight-arm pulldown dup), 8 metadata
       fixes, 7 draft adds (knee/wall push-up, squeeze press, TRX press+fly,
@@ -132,6 +135,14 @@ expect filler and near-duplicates, especially in the big groups.
 - [ ] **Task 12 — Consolidation** (merge per-group findings, cross-group
       consistency + dedup pass, final decisions list for Dylan, then the
       Section 7 apply plan: 3 eval-gated PRs)
+- [ ] **Task 13 — Exercise quality ranking** (added by Dylan 2026-08-07,
+      runs AFTER everything else): give every exercise row an overall
+      how-good-is-it ranking. Scope to define with Dylan when we get
+      there: field name + scale, criteria (effectiveness, safety,
+      accessibility, popularity), and what consumes it (browse ordering,
+      generation pool priority, replace-picker bias — likely interacts
+      with/supersedes the common-exercise-ids tiers). Rows added during
+      earlier tasks (e.g. the 15 chest adds) get ranked here too.
 
 ## 1. Ground truth — the files
 
