@@ -17851,7 +17851,9 @@
     "subMuscleIds": [
       "chest_mid"
     ],
-    "secondaryMuscleGroupIds": [],
+    "secondaryMuscleGroupIds": [
+      "shoulders"
+    ],
     "equipmentIds": [
       "cable_machine"
     ],
@@ -18076,8 +18078,7 @@
     "id": "chest_dip",
     "name": "Chest Dip",
     "aliases": [
-      "Dip",
-      "Parallel Bar Dip"
+      "Dip"
     ],
     "description": "A compound bodyweight dip with forward lean to heavily recruit the lower chest and triceps.",
     "primaryMuscleGroupId": "chest",
@@ -18149,7 +18150,10 @@
     "name": "Machine Chest Press",
     "aliases": [
       "Chest Press Machine",
-      "Seated Chest Press"
+      "Seated Chest Press",
+      "Hammer Strength Chest Press",
+      "Plate-Loaded Chest Press",
+      "Iso-Lateral Chest Press"
     ],
     "description": "A compound chest press performed on a guided machine for stable loading and beginner-friendly setup.",
     "primaryMuscleGroupId": "chest",
@@ -18182,7 +18186,8 @@
     "id": "incline_machine_chest_press",
     "name": "Incline Machine Chest Press",
     "aliases": [
-      "Incline Chest Press Machine"
+      "Incline Chest Press Machine",
+      "Hammer Strength Incline Press"
     ],
     "description": "A machine chest press on an incline angle targeting the upper chest with guided stability.",
     "primaryMuscleGroupId": "chest",
@@ -18427,6 +18432,7 @@
       "chest_upper"
     ],
     "secondaryMuscleGroupIds": [
+      "back",
       "shoulders"
     ],
     "equipmentIds": [
@@ -18460,6 +18466,7 @@
       "chest_upper"
     ],
     "secondaryMuscleGroupIds": [
+      "back",
       "shoulders"
     ],
     "equipmentIds": [
@@ -18545,13 +18552,14 @@
     "instructions": [
       "Set rings just above the floor and grip with palms facing in.",
       "Extend legs into a plank and keep the body rigid.",
-      "Lower the chest toward the rings while turning palms outward at the bottom.",
-      "Push back up and rotate palms inward at the top, squeezing the chest."
+      "Lower the chest toward the rings keeping the palms neutral.",
+      "Push back up and turn the rings out slightly at the top, squeezing the chest."
     ]
   },
   {
     "id": "svend_press",
     "name": "Svend Press",
+    "prescriptionType": "reps",
     "aliases": [
       "Plate Pinch Press",
       "Plate Press"
@@ -18767,9 +18775,7 @@
     "equipmentIds": [
       "barbell"
     ],
-    "equipmentAlternativeIds": [
-      "dumbbells"
-    ],
+    "equipmentAlternativeIds": [],
     "movementPatternIds": [
       "horizontal_push"
     ],
@@ -44234,6 +44240,522 @@
       "Use a clock or coach cues; equal work at each station keeps rounds comparable.",
       "Modify impact (step vs jump) to survive multiple rounds.",
       "One to three total rounds is plenty for beginners; add rounds gradually."
+    ]
+  },
+  {
+    "id": "knee_push_up",
+    "name": "Knee Push-Up",
+    "aliases": [
+      "Kneeling Push-Up",
+      "Modified Push-Up"
+    ],
+    "description": "A push-up regression performed from the knees that builds pressing strength with a lighter load.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Kneeling",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Start in a plank position with knees resting on the floor and hands under the shoulders.",
+      "Keep a straight line from head to knees with the core braced.",
+      "Lower the chest toward the floor by bending the elbows.",
+      "Press back up to the start position and repeat."
+    ]
+  },
+  {
+    "id": "wall_push_up",
+    "name": "Wall Push-Up",
+    "aliases": [
+      "Wall Press-Up",
+      "Standing Push-Up"
+    ],
+    "description": "A standing push-up against a wall that introduces the pressing pattern with minimal load.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stand an arm's length from a wall and place both palms on it at shoulder height.",
+      "Keep the body in one straight line from head to heels.",
+      "Bend the elbows to bring the chest toward the wall.",
+      "Press back to the start position and repeat."
+    ]
+  },
+  {
+    "id": "dumbbell_squeeze_press",
+    "name": "Dumbbell Squeeze Press",
+    "aliases": [
+      "Crush Press",
+      "Hex Press",
+      "Dumbbell Crush Press"
+    ],
+    "description": "A flat dumbbell press with the dumbbells pressed together throughout, keeping constant inner-chest tension.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [
+      "dumbbells",
+      "bench"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lie on a flat bench holding two dumbbells pressed together over the chest with neutral grips.",
+      "Squeeze the dumbbells into each other as hard as possible.",
+      "Lower the dumbbells to the chest while maintaining the inward squeeze.",
+      "Press back to lockout without letting the dumbbells separate and repeat."
+    ]
+  },
+  {
+    "id": "wide_grip_bench_press",
+    "name": "Wide-Grip Bench Press",
+    "aliases": [
+      "Wide-Grip Barbell Bench Press",
+      "Wide Bench Press"
+    ],
+    "description": "A barbell bench press with a wider-than-standard grip that shortens the range and biases the chest over the triceps.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [
+      "barbell",
+      "bench"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Lie on a flat bench and grip the bar well outside shoulder width.",
+      "Unrack the bar and hold it over the chest with arms extended.",
+      "Lower the bar to the mid chest keeping the forearms vertical.",
+      "Press back to lockout and repeat."
+    ]
+  },
+  {
+    "id": "dumbbell_floor_fly",
+    "name": "Dumbbell Floor Fly",
+    "aliases": [
+      "Floor Fly",
+      "Floor Dumbbell Fly"
+    ],
+    "description": "A dumbbell fly performed lying on the floor, where the limited range keeps the shoulders safe while training the chest.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders"
+    ],
+    "equipmentIds": [
+      "dumbbells"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_adduction"
+    ],
+    "type": "Isolation",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lie on the floor with knees bent, holding dumbbells above the chest with palms facing in.",
+      "Keep a slight bend in the elbows throughout.",
+      "Open the arms in a wide arc until the upper arms lightly touch the floor.",
+      "Squeeze the chest to bring the dumbbells back together and repeat."
+    ]
+  },
+  {
+    "id": "weighted_push_up",
+    "name": "Weighted Push-Up",
+    "aliases": [
+      "Plate-Loaded Push-Up",
+      "Weight Vest Push-Up"
+    ],
+    "description": "A push-up loaded with a plate or weight vest to keep building chest strength beyond bodyweight.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "weight_plate"
+    ],
+    "equipmentAlternativeIds": [
+      "weight_vest"
+    ],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Have a partner place a plate on the upper back, or wear a weight vest.",
+      "Set up in a strong plank with hands under the shoulders.",
+      "Lower the chest to just above the floor keeping the body rigid.",
+      "Press back to the start position and repeat."
+    ]
+  },
+  {
+    "id": "band_resisted_push_up",
+    "name": "Band-Resisted Push-Up",
+    "aliases": [
+      "Banded Push-Up",
+      "Resistance Band Push-Up"
+    ],
+    "description": "A push-up with a resistance band across the back that adds accommodating resistance toward lockout.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "resistance_band"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Loop a resistance band across the upper back and anchor an end under each hand.",
+      "Set up in a plank with the band taut at the bottom position.",
+      "Lower the chest to just above the floor under control.",
+      "Press up against the band's growing resistance to full lockout and repeat."
+    ]
+  },
+  {
+    "id": "deficit_push_up",
+    "name": "Deficit Push-Up",
+    "aliases": [
+      "Push-Up on Dumbbells",
+      "Deep Push-Up"
+    ],
+    "description": "A push-up with hands elevated on dumbbells or handles so the chest can travel below hand level for a deeper stretch.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "dumbbells"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Place two dumbbells or handles on the floor at shoulder width and grip them in a plank.",
+      "Keep the body in one rigid line from head to heels.",
+      "Lower the chest below hand level until a deep stretch is felt.",
+      "Press back to full extension and repeat."
+    ]
+  },
+  {
+    "id": "plyo_push_up",
+    "name": "Plyo Push-Up",
+    "aliases": [
+      "Clap Push-Up",
+      "Explosive Push-Up",
+      "Plyometric Push-Up"
+    ],
+    "description": "An explosive push-up where the hands leave the floor at the top, building pressing power and rate of force.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Start in a strong plank with hands under the shoulders.",
+      "Lower the chest quickly toward the floor under control.",
+      "Drive up explosively so the hands briefly leave the ground.",
+      "Land with soft elbows, absorb, and flow into the next rep."
+    ]
+  },
+  {
+    "id": "one_arm_push_up",
+    "name": "One-Arm Push-Up",
+    "aliases": [
+      "Single-Arm Push-Up"
+    ],
+    "description": "An advanced push-up performed on one arm that demands major pressing strength and full-body tension.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": true,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Set a plank with feet wider than shoulder width and one hand centered under the chest.",
+      "Place the free hand behind the back or hip.",
+      "Lower the chest toward the floor keeping the hips square.",
+      "Press back to full extension and complete all reps before switching arms."
+    ]
+  },
+  {
+    "id": "dive_bomber_push_up",
+    "name": "Dive Bomber Push-Up",
+    "aliases": [
+      "Hindu Push-Up"
+    ],
+    "description": "A flowing push-up that sweeps the chest low from a pike into an upward arc, training the chest and shoulders through a long range.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Start in a pike position with hips high and hands shoulder-width apart.",
+      "Sweep the chest forward and low between the hands in one smooth arc.",
+      "Finish with the chest up and hips near the floor.",
+      "Reverse the arc back to the pike position and repeat."
+    ]
+  },
+  {
+    "id": "trx_chest_press",
+    "name": "TRX Chest Press",
+    "aliases": [
+      "Suspension Push-Up",
+      "TRX Push-Up",
+      "Suspension Chest Press"
+    ],
+    "description": "A suspension-trainer press where body angle sets the load, training the chest with a free range of motion.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "trx"
+    ],
+    "equipmentAlternativeIds": [
+      "gymnastic_rings"
+    ],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Face away from the anchor holding the handles at chest height with arms extended.",
+      "Lean forward into a straight-body plank angle; step back to make it harder.",
+      "Lower the chest between the handles by bending the elbows.",
+      "Press back to full extension keeping the body rigid and repeat."
+    ]
+  },
+  {
+    "id": "trx_chest_fly",
+    "name": "TRX Chest Fly",
+    "aliases": [
+      "Suspension Fly",
+      "TRX Fly"
+    ],
+    "description": "A suspension-trainer fly that adducts the arms against bodyweight for a deep chest stretch and contraction.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "core"
+    ],
+    "equipmentIds": [
+      "trx"
+    ],
+    "equipmentAlternativeIds": [
+      "gymnastic_rings"
+    ],
+    "movementPatternIds": [
+      "horizontal_adduction"
+    ],
+    "type": "Isolation",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Face away from the anchor with arms extended forward at chest height, body in a forward lean.",
+      "Open the arms wide in an arc while the body lowers as one rigid line.",
+      "Keep a slight elbow bend and stop at a comfortable chest stretch.",
+      "Squeeze the chest to draw the arms back together and repeat."
+    ]
+  },
+  {
+    "id": "kettlebell_floor_press",
+    "name": "Kettlebell Floor Press",
+    "aliases": [
+      "KB Floor Press",
+      "Double Kettlebell Floor Press"
+    ],
+    "description": "A floor press using kettlebells whose offset load challenges the chest and pressing stability through a shoulder-friendly range.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [
+      "kettlebell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lie on the floor with knees bent, holding a kettlebell in each hand at the chest with wrists straight.",
+      "Press the kettlebells up to full lockout over the chest.",
+      "Lower under control until the upper arms rest lightly on the floor.",
+      "Pause briefly, then press again."
+    ]
+  },
+  {
+    "id": "single_arm_kettlebell_floor_press",
+    "name": "Single-Arm Kettlebell Floor Press",
+    "aliases": [
+      "One-Arm KB Floor Press"
+    ],
+    "description": "A one-arm kettlebell floor press whose offset load builds pressing strength and side-to-side stability.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "kettlebell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": true,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Lie on the floor with knees bent, holding one kettlebell at the chest with the wrist straight.",
+      "Press the kettlebell to full lockout over the chest.",
+      "Lower under control until the upper arm rests lightly on the floor.",
+      "Complete all reps before switching sides."
     ]
   }
 ]
