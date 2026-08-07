@@ -15,11 +15,12 @@ import { nativeHeaderOptions } from './headerOptions';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 /**
- * History and Progress use the real native header (large title, native back,
- * scroll-edge treatment). The other three keep hand-rolled headers for now:
- * PlanList carries a share control and a plan switcher, GeneratePlan a step
- * indicator, and PlanPreview a pair of apply/discard actions — each needs its
- * header row rebuilt around `headerRight` before it can move across.
+ * PlanList, History and Progress use the real native header (large title,
+ * native back, scroll-edge treatment). PlanList's toolbar icons (History /
+ * Saved / Share) are set from the screen via `navigation.setOptions` since
+ * they need screen state. GeneratePlan and PlanPreview keep hand-rolled
+ * headers for now: a step indicator and a pair of apply/discard actions —
+ * each needs its header row rebuilt around `headerRight` before moving across.
  */
 export default function PlanStackNavigator() {
   const { colors } = useTheme();
@@ -32,7 +33,13 @@ export default function PlanStackNavigator() {
         contentStyle: { backgroundColor: colors.background },
       }}
     >
-      <Stack.Screen name="PlanList" component={PlanScreen} />
+      {/* Stack root: never shows a back button, so the native-header
+          first-route invariant documented in headerOptions doesn't apply. */}
+      <Stack.Screen
+        name="PlanList"
+        component={PlanScreen}
+        options={{ ...nativeHeader, title: 'Plan' }}
+      />
       <Stack.Screen
         name="History"
         component={CalendarScreen}

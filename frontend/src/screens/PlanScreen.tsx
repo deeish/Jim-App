@@ -13,7 +13,6 @@ import {
 import type { LayoutChangeEvent } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS, withTiming } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
@@ -193,14 +192,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const { colors } = useTheme();
   // The tab bar floats over this screen; keep the last day rows clear of it.
   const tabBarInset = useTabBarInset();
-  const insets = useSafeAreaInsets();
   const { weightUnit, goal } = useUserPreferences();
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [planByWeek, setPlanByWeek] = useState<Record<number, Record<string, PlanWorkout[]>>>({});
   const [planLoading, setPlanLoading] = useState(true);
   const [planError, setPlanError] = useState<string | null>(null);
   const [contextWorkout, setContextWorkout] = useState<{ workout: PlanWorkout; day: string } | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
   const [savedModalVisible, setSavedModalVisible] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
@@ -387,20 +384,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
 
   const weekRange = getCalendarWeekRange(selectedWeek);
   const loadBalance = computeLoadBalance(plan);
-  const headerSubtitle = useMemo(() => {
-    const parts: string[] = [];
-    if (loadBalance.strength) parts.push(`${loadBalance.strength} strength`);
-    if (loadBalance.cardio) parts.push(`${loadBalance.cardio} cardio`);
-    if (loadBalance.recovery) parts.push(`${loadBalance.recovery} recovery`);
-    return parts.length ? parts.join(', ') : null;
-  }, [loadBalance.strength, loadBalance.cardio, loadBalance.recovery]);
-  const detailsLoadSummary = useMemo(() => {
-    const parts: string[] = [];
-    if (loadBalance.strength) parts.push(`${loadBalance.strength} Strength`);
-    if (loadBalance.cardio) parts.push(`${loadBalance.cardio} Cardio`);
-    if (loadBalance.recovery) parts.push(`${loadBalance.recovery} Recovery`);
-    return parts.length ? parts.join(' • ') : 'No sessions';
-  }, [loadBalance.strength, loadBalance.cardio, loadBalance.recovery]);
   // The stored plan name ("Strength · 4d/wk · 1 wk") outlives its sessions:
   // removing the last slot leaves the record — and its generated name — behind,
   // so an emptied plan read like a live one. Gate on the WHOLE plan, not the
@@ -420,6 +403,44 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     maxPlanWeek > 1
       ? `Week ${programWeekResolution.week} of ${maxPlanWeek}`
       : null;
+
+  // Native-header toolbar: History / Saved / Share as icon buttons. Set from
+  // the screen rather than the navigator because they open screen-owned
+  // modals and Share needs the loaded plan id.
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('History')}
+            accessibilityLabel="Workout history"
+            hitSlop={8}
+            style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.xs }}
+          >
+            <Ionicons name="time-outline" size={22} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setSavedModalVisible(true)}
+            accessibilityLabel="Saved workouts"
+            hitSlop={8}
+            style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.xs }}
+          >
+            <Ionicons name="heart-outline" size={22} color={colors.primary} />
+          </TouchableOpacity>
+          {currentPlan?.id ? (
+            <TouchableOpacity
+              onPress={() => setShareModalVisible(true)}
+              accessibilityLabel="Share plan"
+              hitSlop={8}
+              style={{ paddingLeft: spacing.sm, paddingVertical: spacing.xs }}
+            >
+              <Ionicons name="share-outline" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ),
+    });
+  }, [navigation, colors.primary, currentPlan?.id]);
 
   // A just-applied program that starts next Monday should read as anticipation
   // ("starts Monday, Aug 10"), not as this week being somehow wrong.
@@ -443,30 +464,24 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           flex: 1,
           backgroundColor: colors.background,
         },
-        header: {
+        errorTitle: { fontSize: text.title, fontWeight: weight.bold, color: colors.text },
+        planIdentityRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.md,
           backgroundColor: colors.surface,
-          padding: spacing.md,
-          paddingTop: spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
         },
-        headerTop: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: spacing.md,
+        planIdentityName: {
+          flex: 1,
+          minWidth: 0,
+          fontSize: text.body,
+          fontWeight: weight.semibold,
+          color: colors.textSecondary,
         },
-        headerTitles: { flex: 1 },
-        headerTitle: { fontSize: text.title, fontWeight: weight.bold, color: colors.text },
-        subtitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginTop: spacing.xxs },
-        goalContext: { fontSize: text.footnote, color: colors.primary, fontWeight: weight.semibold, flex: 1 },
-        detailsToggle: { marginTop: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
-        detailsToggleContent: { flexDirection: 'row', alignItems: 'center' },
-        detailsToggleText: { fontSize: text.footnote, color: colors.textSecondary, fontWeight: weight.semibold },
-        detailsToggleIcon: { fontSize: text.footnote, color: colors.textSecondary, fontWeight: weight.semibold },
-        ctaRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', marginTop: spacing.md },
-        historyLabelButton: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
-        historyLabelText: { fontSize: text.body, fontWeight: weight.semibold },
         ctaCompact: {
           backgroundColor: colors.primary,
           paddingVertical: spacing.sm,
@@ -479,13 +494,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           // Trailing anchor: links sit left, the one primary action sits right.
           marginLeft: 'auto',
         },
-        ctaSecondary: {
-          backgroundColor: colors.surface,
-          borderWidth: 1,
-          borderColor: colors.border,
-        },
         ctaCompactText: { fontSize: text.body, fontWeight: weight.semibold, color: colors.onPrimary },
-        ctaCompactTextSecondary: { fontSize: text.body, fontWeight: weight.semibold, color: colors.textSecondary },
         weekRow: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -1292,7 +1301,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         testID="e2e-plan-root"
         style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: spacing.xl }]}
       >
-        <Text style={[styles.headerTitle, { color: colors.text, marginBottom: spacing.sm }]}>{planError}</Text>
+        <Text style={[styles.errorTitle, { marginBottom: spacing.sm }]}>{planError}</Text>
         <TouchableOpacity onPress={loadPlan} style={{ padding: spacing.md, backgroundColor: colors.primary, borderRadius: radius.sm }}>
           <Text style={{ color: colors.onPrimary, fontWeight: weight.semibold }}>Retry</Text>
         </TouchableOpacity>
@@ -1311,66 +1320,25 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         });
       }}
     >
-      {/* Dynamic header: plan name + optional subtitle from load balance */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
-        {headerSubtitle || currentPlan?.id ? (
-          <View style={styles.subtitleRow}>
-            {headerSubtitle ? (
-              <Text style={styles.goalContext} numberOfLines={1}>{headerSubtitle}</Text>
-            ) : (
-              <View style={{ flex: 1 }} />
-            )}
-            {currentPlan?.id ? (
-              <TouchableOpacity
-                onPress={() => setShareModalVisible(true)}
-                accessibilityLabel="Share plan"
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="share-outline" size={18} color={colors.primary} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : null}
-        {/* Three items, one line, no wrap. Templates deliberately lives inside
-            the plan-creation flow (GeneratePlan's opening card + the no-plan
-            hero), not here — four items forced this row onto two ragged lines
-            on phones, and "use a template" is a creation-time decision anyway. */}
-        <View style={styles.ctaRow}>
+      {/* The screen's name is the native header's ("Plan"). The plan's own
+          generated name ("Strength · Upper/Lower") is data, not the room's
+          name, so it lives here in content — beside the one action that
+          replaces it. History/Saved/Share are native toolbar icons. */}
+      {currentPlan ? (
+        <View style={styles.planIdentityRow}>
+          <Text style={styles.planIdentityName} numberOfLines={1}>
+            {headerTitle}
+          </Text>
           <TouchableOpacity
-            style={styles.historyLabelButton}
-            onPress={() => navigation.navigate('History')}
-            accessibilityLabel="Workout history"
+            style={styles.ctaCompact}
+            onPress={handleAIGenerate}
+            accessibilityLabel="AI Generate plan"
           >
-            <Text style={[styles.historyLabelText, { color: colors.primary }]}>History</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.historyLabelButton}
-            onPress={() => setSavedModalVisible(true)}
-            accessibilityLabel="Saved workouts"
-          >
-            <Text style={[styles.historyLabelText, { color: colors.primary }]}>Saved</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.ctaCompact} onPress={handleAIGenerate} accessibilityLabel="AI Generate plan">
             <Ionicons name="sparkles-outline" size={16} color={colors.onPrimary} />
             <Text style={styles.ctaCompactText}>AI Generate</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Collapsible Details section */}
-        <TouchableOpacity
-          style={styles.detailsToggle}
-          onPress={() => setShowDetails(!showDetails)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.detailsToggleContent}>
-            <Text style={styles.detailsToggleText}>
-              Details ({detailsLoadSummary})
-            </Text>
-            <Text style={styles.detailsToggleIcon}>{showDetails ? ' ▾' : ' ▸'}</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+      ) : null}
 
       {/* Tight week navigation: ‹ Week of Jan 26 – Feb 1 › */}
       <View style={styles.weekRow}>
