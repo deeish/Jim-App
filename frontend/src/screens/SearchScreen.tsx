@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
+import { useRoute, useFocusEffect, useScrollToTop, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
@@ -437,6 +437,16 @@ export default function SearchScreen({ navigation }: Props) {
   // against a double-fire doesn't re-render the row and drop the next tap.
   const inFlightLikeIds = useRef<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'all' | 'saved'>('all');
+
+  // Re-tapping the Exercises tab scrolls the visible list back to the top —
+  // standard iOS muscle memory for escaping a deep scroll. One ref per list;
+  // the hook no-ops on whichever list isn't mounted.
+  const allListRef = useRef<FlatList>(null);
+  const savedListRef = useRef<FlatList>(null);
+  // The hook's type rejects nullable refs, but a null current is exactly the
+  // unmounted-list no-op we rely on; FlatList satisfies it structurally.
+  useScrollToTop(allListRef as React.RefObject<FlatList>);
+  useScrollToTop(savedListRef as React.RefObject<FlatList>);
   const [savedExercisesList, setSavedExercisesList] = useState<Exercise[]>([]);
   const [loadingSavedList, setLoadingSavedList] = useState(false);
 
@@ -1413,6 +1423,7 @@ export default function SearchScreen({ navigation }: Props) {
         // Virtualized like the main results list — the saved list can grow unbounded,
         // and a plain .map would re-introduce the mount-everything jank FlatList fixed.
         <FlatList
+          ref={savedListRef}
           style={styles.content}
           contentContainerStyle={[styles.contentContainer, { paddingBottom: 100 + tabBarInset }]}
           showsVerticalScrollIndicator={false}
@@ -1495,6 +1506,7 @@ export default function SearchScreen({ navigation }: Props) {
 
       {/* Content */}
       <FlatList
+        ref={allListRef}
         style={styles.content}
         contentContainerStyle={[styles.contentContainer, { paddingBottom: 100 + tabBarInset }]}
         showsVerticalScrollIndicator={false}
