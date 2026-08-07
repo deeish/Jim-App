@@ -143,6 +143,10 @@ function makeStyles(
       fontWeight: weight.bold,
       color: colors.textMuted,
       letterSpacing: tracking.wide,
+      // Web only (native ignores it): selectable row text lets a quick
+      // press-and-move start a browser text-selection drag that swallows the
+      // long-press pan, so a card can seem impossible to pick up again.
+      userSelect: 'none',
     },
     statusCell: {
       width: 28,
@@ -175,6 +179,7 @@ function makeStyles(
       fontSize: text.callout,
       fontWeight: weight.semibold,
       color: isCompleted ? colors.textTertiary : isEmpty ? colors.primary : colors.text,
+      userSelect: 'none',
     },
     todayPill: {
       paddingHorizontal: spacing.sm,
@@ -192,6 +197,7 @@ function makeStyles(
       fontSize: text.body,
       fontWeight: weight.semibold,
       color: colors.textSecondary,
+      userSelect: 'none',
     },
     moreSlot: {
       width: 44,

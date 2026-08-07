@@ -44,6 +44,7 @@ import {
   shiftWeekWorkouts,
 } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
+import { formatPlanDisplayName } from '../lib/planDisplayName';
 import {
   exercisesLikeFromPrescription,
   getPlanSlotDisplayMinutes,
@@ -388,8 +389,11 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   // removing the last slot leaves the record — and its generated name — behind,
   // so an emptied plan read like a live one. Gate on the WHOLE plan, not the
   // selected week: an empty week of a multi-week plan keeps the real name.
+  // Generated machine names render through the display humanizer.
   const headerTitle =
-    (currentPlan?.planWorkouts?.length ?? 0) > 0 ? (currentPlan?.name ?? 'My Plan') : 'My Plan';
+    (currentPlan?.planWorkouts?.length ?? 0) > 0
+      ? formatPlanDisplayName(currentPlan?.name)
+      : 'My Plan';
   const isCurrentWeek = selectedWeek === 0;
 
   // The program's arc ("Week 3 of 8") is the identity of a multi-week plan;
@@ -1243,10 +1247,19 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       };
     });
 
-    // Persist in background — revert on failure and re-fetch to ensure UI matches server
-    movePlanSlot(planId, slot.workout.id, { dayOfWeek: target }).catch(() => {
+    // Persist in background — revert on failure and re-fetch to ensure UI
+    // matches the server. The revert must never be silent: a card snapping
+    // back with no explanation reads as "the app won't let me move it".
+    movePlanSlot(planId, slot.workout.id, { dayOfWeek: target }).catch((err) => {
       setPlanByWeek(snapshot);
       void loadPlan();
+      Alert.alert(
+        'Could not move workout',
+        (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
+          ?.message ??
+          (err as { message?: string })?.message ??
+          'Check your connection and try again.',
+      );
     });
   }, [currentPlan?.id, loadPlan]);
 
