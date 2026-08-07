@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  TextInput,
   TouchableOpacity,
   Pressable,
   Modal,
@@ -22,7 +23,7 @@ import { elevation, leading, planSlotIconColors, radius, spacing, text, tracking
 import { useTabBarInset } from '../navigation/useTabBarInset';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
-import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot, movePlanSlot } from '../services/planService';
+import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot, movePlanSlot, renamePlan } from '../services/planService';
 import type { ApiPlan, ApiPlanExercise, ApiPlanWorkout } from '../services/planService';
 import type { Exercise, Workout, WorkoutLog } from '../types/workout';
 import { materializePlanSlotWorkout, getWorkoutLogs } from '../services/workoutService';
@@ -209,8 +210,11 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState<{ slotId: string; day: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [clearingWeek, setClearingWeek] = useState(false);
-  /** ⋯ menu on the week row (shift week / clear week). */
+  /** ⋯ menu on the week row (rename / shift week / clear week). */
   const [weekMenuOpen, setWeekMenuOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<ApiPlan | null>(null);
   const [startWorkoutLoading, setStartWorkoutLoading] = useState(false);
   const [detailSheetGuideExpanded, setDetailSheetGuideExpanded] = useState(false);
@@ -408,6 +412,35 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       ? `Week ${programWeekResolution.week} of ${maxPlanWeek}`
       : null;
 
+  /**
+   * Save the new plan name. Optimistic — the identity row updates at once and
+   * reverts (with an alert) if the PATCH fails. Uses the dedicated rename
+   * endpoint; the general plan PATCH rebuilds every slot.
+   */
+  const handleRenameSave = useCallback(async () => {
+    const planId = currentPlan?.id;
+    const trimmed = renameValue.trim();
+    if (!planId || !trimmed || renaming) return;
+    const previous = currentPlan;
+    setRenaming(true);
+    setCurrentPlan((prev) => (prev ? { ...prev, name: trimmed } : prev));
+    setRenameOpen(false);
+    try {
+      await renamePlan(planId, trimmed);
+    } catch (err) {
+      setCurrentPlan(previous);
+      Alert.alert(
+        'Could not rename plan',
+        (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
+          ?.message ??
+          (err as { message?: string })?.message ??
+          'Check your connection and try again.',
+      );
+    } finally {
+      setRenaming(false);
+    }
+  }, [currentPlan, renameValue, renaming]);
+
   // Native-header toolbar: History / Saved / Share as icon buttons. Set from
   // the screen rather than the navigator because they open screen-owned
   // modals and Share needs the loaded plan id.
@@ -595,6 +628,19 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         menuItemText: { fontSize: text.callout, color: colors.text },
         menuItemTextMuted: { fontSize: text.callout, color: colors.textMuted },
         menuItemDanger: { color: colors.error },
+        renameInput: {
+          marginHorizontal: spacing.lg,
+          marginBottom: spacing.sm,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.md,
+          borderRadius: radius.sm,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.background,
+          fontSize: text.callout,
+          color: colors.text,
+        },
+        renameSaveText: { fontSize: text.callout, color: colors.primary, fontWeight: weight.semibold },
         moveOverlay: {
           flex: 1,
           backgroundColor: colors.scrim,
@@ -1400,7 +1446,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           <Text style={styles.weekNavArrowText}>›</Text>
         </TouchableOpacity>
         <View style={styles.weekNavSideSlot}>
-          {hasWorkoutsThisWeek ? (
+          {currentPlan ? (
             <TouchableOpacity
               style={styles.weekNavSideBtn}
               onPress={() => setWeekMenuOpen(true)}
@@ -1672,44 +1718,102 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           <View style={styles.menuBox}>
             <TouchableOpacity
               style={styles.menuItem}
-              disabled={!canShiftBack || shifting}
               onPress={() => {
                 setWeekMenuOpen(false);
-                void handleShiftWeek(-1);
+                setRenameValue(headerTitle);
+                setRenameOpen(true);
               }}
             >
-              <Text style={!canShiftBack || shifting ? styles.menuItemTextMuted : styles.menuItemText}>
-                Shift all workouts back a day
-              </Text>
+              <Text style={styles.menuItemText}>Rename plan</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              disabled={!canShiftForward || shifting}
-              onPress={() => {
-                setWeekMenuOpen(false);
-                void handleShiftWeek(1);
-              }}
-            >
-              <Text style={!canShiftForward || shifting ? styles.menuItemTextMuted : styles.menuItemText}>
-                Shift all workouts forward a day
-              </Text>
-            </TouchableOpacity>
-            {!(programWeekResolution.status === 'in_program' && programWeekResolution.repeatingLastWeek) ? (
-              <TouchableOpacity
-                style={styles.menuItem}
-                disabled={clearingWeek}
-                onPress={() => {
-                  setWeekMenuOpen(false);
-                  handleClearWeek();
-                }}
-              >
-                <Text style={[styles.menuItemText, styles.menuItemDanger]}>Clear week</Text>
-              </TouchableOpacity>
+            {hasWorkoutsThisWeek ? (
+              <>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  disabled={!canShiftBack || shifting}
+                  onPress={() => {
+                    setWeekMenuOpen(false);
+                    void handleShiftWeek(-1);
+                  }}
+                >
+                  <Text style={!canShiftBack || shifting ? styles.menuItemTextMuted : styles.menuItemText}>
+                    Shift all workouts back a day
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  disabled={!canShiftForward || shifting}
+                  onPress={() => {
+                    setWeekMenuOpen(false);
+                    void handleShiftWeek(1);
+                  }}
+                >
+                  <Text style={!canShiftForward || shifting ? styles.menuItemTextMuted : styles.menuItemText}>
+                    Shift all workouts forward a day
+                  </Text>
+                </TouchableOpacity>
+                {!(programWeekResolution.status === 'in_program' && programWeekResolution.repeatingLastWeek) ? (
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    disabled={clearingWeek}
+                    onPress={() => {
+                      setWeekMenuOpen(false);
+                      handleClearWeek();
+                    }}
+                  >
+                    <Text style={[styles.menuItemText, styles.menuItemDanger]}>Clear week</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </>
             ) : null}
             <TouchableOpacity style={styles.menuItem} onPress={() => setWeekMenuOpen(false)}>
               <Text style={styles.menuItemTextMuted}>Cancel</Text>
             </TouchableOpacity>
           </View>
+        </Pressable>
+      </Modal>
+
+      {/* Rename sheet (in-app modal — Alert.prompt is iOS-only and a no-op on web) */}
+      <Modal visible={renameOpen} transparent animationType="fade">
+        <Pressable style={styles.menuOverlay} onPress={() => setRenameOpen(false)}>
+          <Pressable style={styles.menuBox} onPress={(e) => e.stopPropagation()}>
+            <Text style={[styles.menuItemText, { padding: spacing.lg, paddingBottom: spacing.sm }]}>
+              Rename plan
+            </Text>
+            <TextInput
+              style={styles.renameInput}
+              value={renameValue}
+              onChangeText={setRenameValue}
+              maxLength={80}
+              autoFocus
+              selectTextOnFocus
+              returnKeyType="done"
+              onSubmitEditing={() => void handleRenameSave()}
+              accessibilityLabel="Plan name"
+            />
+            <View style={{ flexDirection: 'row', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md }}>
+              <TouchableOpacity
+                style={[styles.menuItem, { flex: 1 }]}
+                onPress={() => setRenameOpen(false)}
+                disabled={renaming}
+              >
+                <Text style={styles.menuItemTextMuted}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.menuItem, { flex: 1 }]}
+                onPress={() => void handleRenameSave()}
+                disabled={renaming || !renameValue.trim()}
+              >
+                <Text
+                  style={
+                    renameValue.trim() && !renaming ? styles.renameSaveText : styles.menuItemTextMuted
+                  }
+                >
+                  Save
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
         </Pressable>
       </Modal>
 

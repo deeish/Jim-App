@@ -134,6 +134,14 @@ export async function updatePlan(id: string, body: CreatePlanBody): Promise<ApiP
   return response.data;
 }
 
+/**
+ * Rename only. Never route a title edit through `updatePlan` — that endpoint
+ * rebuilds the plan from `slots` (deletes and recreates every planWorkout).
+ */
+export async function renamePlan(id: string, name: string): Promise<void> {
+  await api.patch(`/plans/${id}/name`, { name });
+}
+
 /** Per-week intensity/volume target sent to the LLM for structured progression. */
 export interface WeekProgressionEntry {
   weekIndex: number;
