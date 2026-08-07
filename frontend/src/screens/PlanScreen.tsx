@@ -396,6 +396,18 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     (currentPlan?.planWorkouts?.length ?? 0) > 0 ? (currentPlan?.name ?? 'My Plan') : 'My Plan';
   const isCurrentWeek = selectedWeek === 0;
 
+  // The program's arc ("Week 3 of 8") is the identity of a multi-week plan;
+  // the calendar range is detail. Repeated weeks past the program end keep the
+  // dates-only label — claiming "Week 8 of 8" there would be a lie the
+  // repeating banner already explains. One-week plans gain nothing from
+  // "Week 1 of 1", so they stay dates-only too.
+  const programWeekLabel =
+    programWeekResolution.status === 'in_program' &&
+    !programWeekResolution.repeatingLastWeek &&
+    maxPlanWeek > 1
+      ? `Week ${programWeekResolution.week} of ${maxPlanWeek}`
+      : null;
+
   const weekSlots = resolvedProgramWeek !== null ? planByWeek[resolvedProgramWeek] : null;
   const canShiftBack = !!weekSlots && !weekSlots['Monday']?.length;
   const canShiftForward = !!weekSlots && !weekSlots['Sunday']?.length;
@@ -472,7 +484,9 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         weekNavArrowDisabled: { opacity: 0.35 },
         weekNavArrowText: { fontSize: text.title, color: colors.primary, fontWeight: weight.semibold },
         weekNavCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+        weekNavLabels: { alignItems: 'center' },
         weekNavLabel: { fontSize: text.body, color: colors.text, fontWeight: weight.semibold },
+        weekNavSubLabel: { fontSize: text.footnote, color: colors.textSecondary, marginTop: 1 },
         shiftRow: {
           flexDirection: 'row',
           flexWrap: 'wrap',
@@ -1350,7 +1364,18 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           <Text style={styles.weekNavArrowText}>‹</Text>
         </TouchableOpacity>
         <View style={styles.weekNavCenter}>
-          <Text style={styles.weekNavLabel}>Week of {formatWeekRange(weekRange.start, weekRange.end)}</Text>
+          {programWeekLabel ? (
+            <View style={styles.weekNavLabels}>
+              <Text style={styles.weekNavLabel}>{programWeekLabel}</Text>
+              <Text style={styles.weekNavSubLabel}>
+                {formatWeekRange(weekRange.start, weekRange.end)}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.weekNavLabel}>
+              Week of {formatWeekRange(weekRange.start, weekRange.end)}
+            </Text>
+          )}
         </View>
         <TouchableOpacity
           style={[styles.weekNavArrow, selectedWeek >= weekNavBounds.max && styles.weekNavArrowDisabled]}
