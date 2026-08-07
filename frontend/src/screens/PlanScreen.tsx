@@ -32,6 +32,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import WorkoutDayRow, { pickWorkoutIcon, pickWorkoutAccent, workoutEyebrow } from '../components/WorkoutDayRow';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
 import ShareModal from '../components/ShareModal';
+import SheetModal from '../components/SheetModal';
 import {
   formatLocalYmd,
   getCalendarWeekRange,
@@ -665,11 +666,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         moveCancelText: { fontSize: text.callout, color: colors.textMuted },
         // Bottom sheet, not a centered dialog — matches the template scheduler
         // and the avatar picker, and puts Start workout in thumb reach.
-        detailSheetOverlay: {
-          flex: 1,
-          backgroundColor: colors.overlay,
-          justifyContent: 'flex-end',
-        },
+        // Presented via SheetModal (scrim fades while the card slides).
         detailSheetBox: {
           backgroundColor: colors.surface,
           borderTopLeftRadius: radius.xl,
@@ -1896,9 +1893,13 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       </Modal>
 
       {/* Workout detail sheet: reasoning, exercises, and actions */}
-      <Modal visible={!!detailSheetWorkout} transparent animationType="slide">
-        <Pressable style={styles.detailSheetOverlay} onPress={closeDetailSheet}>
-          {detailSheetWorkout && (() => {
+      <SheetModal
+        visible={!!detailSheetWorkout}
+        onClose={closeDetailSheet}
+        scrimColor={colors.overlay}
+      >
+        {detailSheetWorkout &&
+          (() => {
             const linked = resolveWorkoutForPlanSlot(detailSheetWorkout.workout.id);
             const isRestDay = isRestPlanSlotTitle(detailSheetWorkout.workout.title);
             const apiSlot = currentPlan?.planWorkouts?.find((p) => p.id === detailSheetWorkout.workout.id);
@@ -2151,13 +2152,15 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               </Pressable>
             );
           })()}
-        </Pressable>
-      </Modal>
+      </SheetModal>
 
       {/* Rest day sheet — compact, with "Make this a workout day" CTA */}
-      <Modal visible={!!restSheetWorkout} transparent animationType="slide">
-        <Pressable style={styles.detailSheetOverlay} onPress={closeRestSheet}>
-          {restSheetWorkout && (
+      <SheetModal
+        visible={!!restSheetWorkout}
+        onClose={closeRestSheet}
+        scrimColor={colors.overlay}
+      >
+        {restSheetWorkout && (
             <Pressable style={styles.restSheetBox} onPress={(e) => e.stopPropagation()}>
               <TouchableOpacity
                 style={styles.detailSheetCloseBtn}
@@ -2211,8 +2214,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               </View>
             </Pressable>
           )}
-        </Pressable>
-      </Modal>
+      </SheetModal>
 
       {/* Saved workouts as a pop-up modal (not a stack screen) so switching tabs shows Plan again */}
       <Modal
