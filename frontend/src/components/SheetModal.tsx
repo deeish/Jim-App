@@ -8,11 +8,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 type Props = {
   visible: boolean;
   /** Dismiss request (scrim tap, Android back). The parent clears its state. */
   onClose: () => void;
-  /** Scrim color, e.g. `colors.overlay`. */
+  /** Scrim color, e.g. `colors.overlay` / `colors.scrim`. */
   scrimColor: string;
   children: React.ReactNode;
 };
@@ -24,9 +26,15 @@ type Props = {
  * the grey backdrop visibly rode down the screen together with the card on
  * dismiss.
  *
- * The modal stays mounted through the exit animation, rendering a snapshot of
- * the last visible children — parents can clear their sheet state immediately
- * on close without the content vanishing mid-slide.
+ * The slide transform lives on the flex positioner itself — inserting wrapper
+ * views between it and the sheet card breaks percentage `maxHeight` styles on
+ * cards (they resolve against a definite-height parent). For the same reason
+ * the card must handle its own tap-guard: make the card a Pressable that
+ * calls `e.stopPropagation()` so only true scrim taps dismiss.
+ *
+ * Stays mounted through the exit animation, rendering a snapshot of the last
+ * visible children — parents can clear their sheet state immediately on close
+ * without the content vanishing mid-slide.
  */
 export default function SheetModal({ visible, onClose, scrimColor, children }: Props) {
   const { height } = useWindowDimensions();
@@ -54,7 +62,7 @@ export default function SheetModal({ visible, onClose, scrimColor, children }: P
   }, [visible, progress]);
 
   const scrimStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
-  const cardStyle = useAnimatedStyle(() => ({
+  const slideStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: (1 - progress.value) * height }],
   }));
 
@@ -65,11 +73,14 @@ export default function SheetModal({ visible, onClose, scrimColor, children }: P
         pointerEvents="none"
         style={[StyleSheet.absoluteFillObject, { backgroundColor: scrimColor }, scrimStyle]}
       />
-      <Pressable style={styles.positioner} onPress={onClose} accessibilityRole="button" accessibilityLabel="Dismiss">
-        <Animated.View style={cardStyle}>
-          {visible ? children : lastChildrenRef.current}
-        </Animated.View>
-      </Pressable>
+      <AnimatedPressable
+        style={[styles.positioner, slideStyle]}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss"
+      >
+        {visible ? children : lastChildrenRef.current}
+      </AnimatedPressable>
     </Modal>
   );
 }
