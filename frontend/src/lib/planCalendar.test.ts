@@ -91,6 +91,39 @@ describe('getPlanCalendarWeekNavigationBounds', () => {
       max: PLAN_CALENDAR_LOOKAHEAD_WEEKS,
     });
   });
+
+  it('extends max so the final week of a program starting next Monday is reachable', () => {
+    // Anchor next Monday (+1); an 8-week program's final week sits at offset 1 + 7 = 8,
+    // one past the flat 7-week lookahead that used to strand it.
+    expect(getPlanCalendarWeekNavigationBounds('2026-04-13', 8)).toEqual({
+      min: 0,
+      max: 8,
+    });
+  });
+
+  it('keeps the flat lookahead when the program end is already within it', () => {
+    // Anchor 6 weeks back: week 8 sits at offset -6 + 7 = 1, well inside the default 7.
+    expect(getPlanCalendarWeekNavigationBounds('2026-02-23', 8)).toEqual({
+      min: -6,
+      max: PLAN_CALENDAR_LOOKAHEAD_WEEKS,
+    });
+  });
+
+  it('reaches the end of a long program anchored this week', () => {
+    // 16-week program starting this Monday: final week at offset 15.
+    expect(getPlanCalendarWeekNavigationBounds('2026-04-06', 16)).toEqual({
+      min: 0,
+      max: 15,
+    });
+  });
+
+  it('extends the legacy (anchorless) strip to the final program week', () => {
+    // Legacy mapping is offset + 1 → week, so a 10-week plan needs offset 9.
+    expect(getPlanCalendarWeekNavigationBounds(null, 10)).toEqual({
+      min: 0,
+      max: 9,
+    });
+  });
 });
 
 describe('resolveProgramWeekForCalendarOffset', () => {

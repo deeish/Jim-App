@@ -320,7 +320,10 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     [currentPlan?.weekAnchorMonday],
   );
 
-  const weekNavBounds = useMemo(() => getPlanCalendarWeekNavigationBounds(anchorYmd), [anchorYmd]);
+  const weekNavBounds = useMemo(
+    () => getPlanCalendarWeekNavigationBounds(anchorYmd, maxPlanWeek),
+    [anchorYmd, maxPlanWeek],
+  );
 
   useEffect(() => {
     setSelectedWeek((w) => Math.max(weekNavBounds.min, Math.min(weekNavBounds.max, w)));
