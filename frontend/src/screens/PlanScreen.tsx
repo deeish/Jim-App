@@ -204,6 +204,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState<{ slotId: string; day: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [clearingWeek, setClearingWeek] = useState(false);
+  /** ⋯ menu on the week row (shift week / clear week). */
+  const [weekMenuOpen, setWeekMenuOpen] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<ApiPlan | null>(null);
   const [startWorkoutLoading, setStartWorkoutLoading] = useState(false);
   const [detailSheetGuideExpanded, setDetailSheetGuideExpanded] = useState(false);
@@ -498,31 +500,19 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         weekNavLabels: { alignItems: 'center' },
         weekNavLabel: { fontSize: text.body, color: colors.text, fontWeight: weight.semibold },
         weekNavSubLabel: { fontSize: text.footnote, color: colors.textSecondary, marginTop: 1 },
-        shiftRow: {
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-          gap: spacing.md,
-          backgroundColor: colors.surface,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-          paddingVertical: spacing.md,
-          paddingHorizontal: spacing.md,
-        },
-        shiftBtn: {
-          flex: 1,
-          minHeight: 48,
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
-          borderRadius: radius.md,
-          borderWidth: 2,
-          borderColor: colors.primary,
+        weekNavSideSlot: {
+          width: 48,
+          minHeight: 44,
           alignItems: 'center',
           justifyContent: 'center',
         },
-        shiftBtnDisabled: { opacity: 0.35 },
-        shiftBtnText: { fontSize: text.body, color: colors.primary, fontWeight: weight.bold },
-        clearWeekBtnText: { fontSize: text.body, color: colors.error, fontWeight: weight.bold },
+        weekNavSideBtn: {
+          minWidth: 44,
+          minHeight: 44,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        weekNavTodayText: { fontSize: text.footnote, color: colors.primary, fontWeight: weight.semibold },
         outOfProgramWeekBanner: {
           paddingVertical: spacing.sm,
           paddingHorizontal: spacing.md,
@@ -1366,6 +1356,20 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           headerBottomRef.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
         }}
       >
+        {/* Fixed-width side slots keep the label centered whether or not
+            Today / ⋯ are showing. */}
+        <View style={styles.weekNavSideSlot}>
+          {!isCurrentWeek ? (
+            <TouchableOpacity
+              style={styles.weekNavSideBtn}
+              onPress={() => setSelectedWeek(0)}
+              accessibilityRole="button"
+              accessibilityLabel="Go to the current week"
+            >
+              <Text style={styles.weekNavTodayText}>Today</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <TouchableOpacity
           style={[styles.weekNavArrow, selectedWeek <= weekNavBounds.min && styles.weekNavArrowDisabled]}
           disabled={selectedWeek <= weekNavBounds.min}
@@ -1396,42 +1400,19 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         >
           <Text style={styles.weekNavArrowText}>›</Text>
         </TouchableOpacity>
-      </View>
-
-      {hasWorkoutsThisWeek ? (
-        <View style={styles.shiftRow}>
-          <TouchableOpacity
-            style={[styles.shiftBtn, (!canShiftBack || shifting) && styles.shiftBtnDisabled]}
-            disabled={!canShiftBack || shifting}
-            onPress={() => handleShiftWeek(-1)}
-            accessibilityLabel="Shift all workouts back one day"
-          >
-            <Text style={styles.shiftBtnText}>← Shift back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.shiftBtn, (!canShiftForward || shifting) && styles.shiftBtnDisabled]}
-            disabled={!canShiftForward || shifting}
-            onPress={() => handleShiftWeek(1)}
-            accessibilityLabel="Shift all workouts forward one day"
-          >
-            <Text style={styles.shiftBtnText}>Shift forward →</Text>
-          </TouchableOpacity>
-          {!(programWeekResolution.status === 'in_program' && programWeekResolution.repeatingLastWeek) ? (
+        <View style={styles.weekNavSideSlot}>
+          {hasWorkoutsThisWeek ? (
             <TouchableOpacity
-              style={[styles.shiftBtn, clearingWeek && styles.shiftBtnDisabled]}
-              disabled={clearingWeek}
-              onPress={handleClearWeek}
-              accessibilityLabel="Remove all workouts from this week"
+              style={styles.weekNavSideBtn}
+              onPress={() => setWeekMenuOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Week actions"
             >
-              {clearingWeek ? (
-                <ActivityIndicator size="small" color={colors.error} />
-              ) : (
-                <Text style={styles.clearWeekBtnText}>Clear week</Text>
-              )}
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           ) : null}
         </View>
-      ) : null}
+      </View>
 
       {programWeekResolution.status === 'in_program' && programWeekResolution.repeatingLastWeek ? (
         <TouchableOpacity
@@ -1677,6 +1658,54 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               <Text style={[styles.menuItemText, styles.menuItemDanger]}>Delete</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.menuItem} onPress={closeContextMenu}>
+              <Text style={styles.menuItemTextMuted}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Week actions menu (⋯ on the week row): shift/clear are rare power
+          actions — a permanent toolbar overweighted them against the schedule. */}
+      <Modal visible={weekMenuOpen} transparent animationType="fade">
+        <Pressable style={styles.menuOverlay} onPress={() => setWeekMenuOpen(false)}>
+          <View style={styles.menuBox}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              disabled={!canShiftBack || shifting}
+              onPress={() => {
+                setWeekMenuOpen(false);
+                void handleShiftWeek(-1);
+              }}
+            >
+              <Text style={!canShiftBack || shifting ? styles.menuItemTextMuted : styles.menuItemText}>
+                Shift all workouts back a day
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              disabled={!canShiftForward || shifting}
+              onPress={() => {
+                setWeekMenuOpen(false);
+                void handleShiftWeek(1);
+              }}
+            >
+              <Text style={!canShiftForward || shifting ? styles.menuItemTextMuted : styles.menuItemText}>
+                Shift all workouts forward a day
+              </Text>
+            </TouchableOpacity>
+            {!(programWeekResolution.status === 'in_program' && programWeekResolution.repeatingLastWeek) ? (
+              <TouchableOpacity
+                style={styles.menuItem}
+                disabled={clearingWeek}
+                onPress={() => {
+                  setWeekMenuOpen(false);
+                  handleClearWeek();
+                }}
+              >
+                <Text style={[styles.menuItemText, styles.menuItemDanger]}>Clear week</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={styles.menuItem} onPress={() => setWeekMenuOpen(false)}>
               <Text style={styles.menuItemTextMuted}>Cancel</Text>
             </TouchableOpacity>
           </View>
