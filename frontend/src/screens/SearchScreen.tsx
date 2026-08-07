@@ -1192,6 +1192,14 @@ export default function SearchScreen({ navigation }: Props) {
         sectionBadgeText: { color: colors.onPrimary, fontSize: text.caption, fontWeight: weight.bold },
         sectionDescription: { fontSize: text.body, color: colors.textMuted, marginBottom: spacing.md },
         chipsContainer: { flexDirection: 'row', gap: spacing.sm, paddingRight: spacing.lg },
+        chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+        resultsFooterNote: {
+          fontSize: text.footnote,
+          color: colors.textMuted,
+          textAlign: 'center',
+          paddingVertical: spacing.xl,
+          paddingHorizontal: spacing.lg,
+        },
         chip: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -1511,6 +1519,17 @@ export default function SearchScreen({ navigation }: Props) {
             </View>
           ) : null
         }
+        // The cap note lives at the END of the list — a reader 300 rows deep is
+        // the only person it concerns. Announcing it above the first row made
+        // the page open on an apology.
+        ListFooterComponent={
+          !isLoading && !error && resultsCapped && activeTab === 'all' ? (
+            <Text style={styles.resultsFooterNote}>
+              Showing the {exercises.length} most popular of {totalMatchCount} — search or refine
+              to see the rest.
+            </Text>
+          ) : null
+        }
         ListHeaderComponent={
           <>
         {/* Primary Filters - Most Important */}
@@ -1525,11 +1544,10 @@ export default function SearchScreen({ navigation }: Props) {
               </View>
             )}
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsContainer}
-          >
+          {/* Wrapped, not horizontally scrolled: seven fixed categories fit in
+              two rows on a phone, and a flush-edged scroll row reads as
+              complete — users never learned Arms/Cardio/Core existed. */}
+          <View style={styles.chipsWrap}>
             {MAIN_MUSCLE_GROUPS.map((group) => {
               const state = getMuscleGroupState(group);
               const subMuscles = getSubMuscles(group);
@@ -1546,7 +1564,7 @@ export default function SearchScreen({ navigation }: Props) {
                 />
               );
             })}
-          </ScrollView>
+          </View>
         </View>
 
         {/* Refine Sections - Show when a parent group is selected */}
@@ -1655,11 +1673,7 @@ export default function SearchScreen({ navigation }: Props) {
             {isBrowsingAll ? (
               <>
                 <Text style={styles.resultsHeaderText}>Popular exercises</Text>
-                <Text style={styles.resultsSubtext}>
-                  {resultsCapped
-                    ? `Showing the top ${exercises.length} of ${totalMatchCount}. Search or filter to see the rest.`
-                    : 'Search or filter to narrow the list.'}
-                </Text>
+                <Text style={styles.resultsSubtext}>Search or filter to narrow the list.</Text>
               </>
             ) : (
               <>
@@ -1673,13 +1687,6 @@ export default function SearchScreen({ navigation }: Props) {
                       </Text>
                     )}
                 </Text>
-                {/* Chip-driven searches are capped like browse mode; say so instead of
-                    silently truncating. (Text search is uncapped, so this never shows.) */}
-                {resultsCapped && (
-                  <Text style={styles.resultsSubtext}>
-                    Showing the top {exercises.length}. Narrow further or search to see the rest.
-                  </Text>
-                )}
               </>
             )}
           </View>

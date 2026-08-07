@@ -247,7 +247,7 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
             hitSlop={{ top: 8, bottom: 8, left: 4, right: 16 }}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={`${showVariations ? 'Hide' : 'Show'} ${variationNames.length} variants of ${exercise.name}`}
+            accessibilityLabel={`${showVariations ? 'Hide' : 'Show'} ${variationNames.length} variations of ${exercise.name}`}
           >
             <Ionicons
               name={showVariations ? 'chevron-down' : 'chevron-forward'}
@@ -255,7 +255,7 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
               color={colors.primary}
             />
             <Text style={styles.variationsToggleText}>
-              {variationNames.length} variant{variationNames.length !== 1 ? 's' : ''}
+              {variationNames.length} variation{variationNames.length !== 1 ? 's' : ''}
             </Text>
           </TouchableOpacity>
         )}
