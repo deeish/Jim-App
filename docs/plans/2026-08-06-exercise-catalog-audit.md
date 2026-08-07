@@ -104,6 +104,9 @@ expect filler and near-duplicates, especially in the big groups.
       fixes, 7 draft adds (knee/wall push-up, squeeze press, TRX press+fly,
       KB floor press, plyo push-up), 4 decisions for Dylan (pullover home,
       landmine home, dip/rings equipment mapping, bench gating).
+      **APPLIED 2026-08-07 (`3be3d41`)**: metadata fixes + video rekey +
+      15 adds (48 → 63 chest rows; expanded list per Dylan) — all gates
+      green. Retire + the 4 decisions remain open.
 - [ ] **Task 2 — Back A: lats & upper back** (~115 rows: `back_lats` and
       `back_lats+back_upper` combos)
 - [ ] **Task 3 — Back B: mid/lower back & traps** (~109 rows; shares the

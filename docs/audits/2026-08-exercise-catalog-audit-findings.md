@@ -215,6 +215,18 @@ a new render path ever bypasses the service layer.
 
 ## Task 1 — Chest (2026-08-07)
 
+> **APPLIED 2026-08-07** (commit `3be3d41`, Dylan approved applying the
+> chest package directly): all §1.2 metadata corrections, the Task-0 video
+> rekey, and an add list EXPANDED from the 7 drafts below to **15 rows**
+> (48 → 63 chest) — the drafts plus One-Arm Push-Up, Dive Bomber Push-Up,
+> Weighted Push-Up, Band-Resisted Push-Up, Deficit Push-Up, Wide-Grip
+> Bench Press, Dumbbell Floor Fly, and Single-Arm Kettlebell Floor Press
+> (all verified missing, existing ids only, both regex twins infer reps,
+> gating smoke-tested). Gates: integrity sweep clean, 49/49 backend suites
+> (588 tests), eval:captures:report byte-identical before/after.
+> **Still pending:** the `cable_pullover` retire (§1.1 — waits on decision
+> 1.3-A and the retire mechanism slice) and decisions 1.3 A–D.
+
 **Scope.** All 48 `primaryMuscleGroupId: chest` rows, judged row-by-row
 against the plan §3 criteria. Valid chest subs: `chest_upper`, `chest_mid`,
 `chest_lower`.
