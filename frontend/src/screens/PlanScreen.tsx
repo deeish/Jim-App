@@ -160,17 +160,24 @@ type Props = {
   navigation?: PlanScreenNavigationProp;
 };
 
-function findDayAtY(
-  screenY: number,
-  containerOffsetY: number,
-  headerBottom: number,
-  scrollOffset: number,
-  dayLayouts: Record<string, { y: number; height: number }>,
+/**
+ * Which day group the pointer is over, in WINDOW coordinates. The rects are
+ * snapshotted with `measureInWindow` when a drag starts (scrolling is disabled
+ * for the whole drag, so they stay valid), and the gesture's `absoluteY` is in
+ * the same space. The previous approach cached content-relative `onLayout`
+ * rects and reconstructed the pointer position from container/header/scroll
+ * offsets — but after a drop moved rows between days, siblings whose position
+ * (not size) changed never re-fired `onLayout`, so the cache went stale and
+ * the NEXT drag resolved drops against wrong rectangles. That is exactly the
+ * "card can't be dragged again after it was dragged once" bug.
+ */
+function findDayAtWindowY(
+  windowY: number,
+  dayRects: Record<string, { top: number; height: number }>,
 ): string | null {
-  const contentY = screenY - containerOffsetY - headerBottom + scrollOffset;
   for (const day of DAYS_OF_WEEK) {
-    const l = dayLayouts[day];
-    if (l && contentY >= l.y && contentY <= l.y + l.height) return day;
+    const r = dayRects[day];
+    if (r && windowY >= r.top && windowY <= r.top + r.height) return day;
   }
   return null;
 }
@@ -228,9 +235,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
 
   const containerRef       = useRef<View>(null);
   const containerOffsetRef = useRef({ x: 0, y: 0 });
-  const headerBottomRef    = useRef(0);
-  const scrollOffsetRef    = useRef(0);
+  /** Content-relative day rects — used only by scroll-to-today, never by drag. */
   const dayLayoutsRef      = useRef<Record<string, { y: number; height: number }>>({});
+  /** Per-day group refs so drag start can measure fresh window rects. */
+  const dayNodeRefs        = useRef<Record<string, View | null>>({});
+  /** Window-space day rects snapshotted at drag start; see findDayAtWindowY. */
+  const dayWindowRectsRef  = useRef<Record<string, { top: number; height: number }>>({});
   const draggingSlotRef        = useRef<{ workout: PlanWorkout; day: string } | null>(null);
   const hoveredDayRef          = useRef<string | null>(null);
   const planByWeekRef          = useRef(planByWeek);
@@ -537,10 +547,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         contentContainer: { padding: spacing.md, paddingBottom: spacing.xxxl, gap: spacing.sm },
         dayGroup: {
           borderRadius: radius.md,
+          // Constant border so the drop-target highlight is layout-neutral: a
+          // border appearing mid-drag used to shift every row below by 2px,
+          // invalidating the drag's day-rect snapshot.
+          borderWidth: 1,
+          borderColor: 'transparent',
         },
         dayGroupDropTarget: {
           backgroundColor: colors.primary + '14',
-          borderWidth: 1,
           borderColor: colors.primary,
         },
         moreButton: {
@@ -1166,14 +1180,23 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   }, [currentPlan?.id, resolvedProgramWeek, planByWeek, loadPlan]);
 
   // --- Drag-and-drop callbacks ---
-  const updateHoveredDay = useCallback((screenY: number) => {
-    const day = findDayAtY(
-      screenY,
-      containerOffsetRef.current.y,
-      headerBottomRef.current,
-      scrollOffsetRef.current,
-      dayLayoutsRef.current,
-    );
+  /**
+   * Fresh window rects for every day group, taken when a drag starts. Scrolling
+   * is disabled for the duration of the drag, so these stay valid until drop —
+   * and unlike cached onLayout values they can never be stale from a previous
+   * move (the root cause of repeat drags landing nowhere).
+   */
+  const snapshotDayWindowRects = useCallback(() => {
+    dayWindowRectsRef.current = {};
+    for (const day of DAYS_OF_WEEK) {
+      dayNodeRefs.current[day]?.measureInWindow((_x, y, _w, h) => {
+        dayWindowRectsRef.current[day] = { top: y, height: h };
+      });
+    }
+  }, []);
+
+  const updateHoveredDay = useCallback((windowY: number) => {
+    const day = findDayAtWindowY(windowY, dayWindowRectsRef.current);
     hoveredDayRef.current = day; // update ref immediately — don't wait for useEffect
     setHoveredDay(day);          // update state for visual highlight
   }, []);
@@ -1350,12 +1373,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       </View>
 
       {/* Tight week navigation: ‹ Week of Jan 26 – Feb 1 › */}
-      <View
-        style={styles.weekRow}
-        onLayout={(e: LayoutChangeEvent) => {
-          headerBottomRef.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
-        }}
-      >
+      <View style={styles.weekRow}>
         {/* Fixed-width side slots keep the label centered whether or not
             Today / ⋯ are showing. */}
         <View style={styles.weekNavSideSlot}>
@@ -1447,8 +1465,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         contentContainerStyle={[styles.contentContainer, { paddingBottom: spacing.xxxl + tabBarInset }]}
         showsVerticalScrollIndicator={false}
         scrollEnabled={scrollEnabled}
-        onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
-        scrollEventThrottle={16}
       >
         {currentPlan === null ? (
           <View style={styles.noPlanHero}>
@@ -1499,6 +1515,9 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           return (
             <View
               key={day}
+              ref={(node) => {
+                dayNodeRefs.current[day] = node;
+              }}
               style={[styles.dayGroup, isDropTarget && styles.dayGroupDropTarget]}
               onLayout={(e: LayoutChangeEvent) => {
                 dayLayoutsRef.current[day] = {
@@ -1570,6 +1589,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                       dragX.value = e.absoluteX;
                       dragY.value = e.absoluteY;
                       ghostOpacity.value = withTiming(1, { duration: 120 });
+                      runOnJS(snapshotDayWindowRects)();
                       runOnJS(setDraggingSlot)({ workout, day });
                       runOnJS(setScrollEnabled)(false);
                     })
