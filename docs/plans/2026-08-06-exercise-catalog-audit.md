@@ -3,9 +3,10 @@
 **Written 2026-08-06 for a future Claude agent.** Dylan's brief: the exercise
 catalog was originally generated with a weaker model. Before authoring more
 plan templates on top of it, audit every row for correctness, fold in the
-known cleanup backlog, and add exercises **only** where the template roadmap
-shows a real gap. Templates hard-reference catalog ids, generation draws from
-the catalog pools, and History attributes logs to catalog ids — quality here
+known cleanup backlog, and add exercises where coverage demands it
+(**policy updated 2026-08-06 — adds are coverage-driven, see Sections 0.5
+and 5**). Templates hard-reference catalog ids, generation draws from the
+catalog pools, and History attributes logs to catalog ids — quality here
 compounds into everything.
 
 **Weighting: ~70% verify-and-fix existing rows, ~30% targeted adds.** A
@@ -43,6 +44,83 @@ maps). A missing exercise hurts nobody. Do not bulk-add.
 
 ---
 
+## 0.5 Session roadmap & checklist (added 2026-08-06 — Dylan's decisions)
+
+Dylan locked these four decisions on 2026-08-06; they supersede anything
+below that conflicts:
+
+1. **Adds are coverage-driven, not template-gap-only.** Each group session
+   proposes popular / clearly-good exercises the catalog is missing across
+   the equipment spectrum (machines, barbell, dumbbell, cable, kettlebell,
+   bodyweight/calisthenics). Every add still states its reason and passes
+   the full Section 6 checklist at apply time. The template-gap matrix is
+   suspended — no template roadmap exists yet (Dylan, 2026-08-06).
+2. **The work is split into per-muscle-group sessions** (big groups
+   sub-split by sub-muscle), run one at a time in separate conversations —
+   deliberately NOT all at once, so each slice gets full attention.
+3. **Each session is end-to-end for its slice**: verify existing rows'
+   metadata, propose removals (retire/unmap — NEVER delete ids), propose
+   adds. One findings section per group; Dylan approves per group.
+4. **Audit is decoupled from templates.** Revisit templates after the
+   catalog is clean.
+
+### Standard session procedure (applies to every unchecked task below)
+
+1. Read this plan top-to-bottom first — prime directives, Section 3
+   criteria, and Section 6 especially.
+2. Re-verify the slice's row list live from the JSON (counts below are
+   2026-08-06 snapshots; the catalog may have moved on).
+3. Phase-2 judgment pass on **every** row in the slice (Section 3).
+4. Removal candidates: id + reason + retire mechanism (Section 0 rule 1).
+5. Add candidates: name + draft row sketch + coverage/popularity reason
+   (Section 5 quality bar).
+6. Adversarially re-check the slice's proposed corrections before they
+   enter the report (Section 3, final paragraph).
+7. Append a `## <Group>` section to the findings report at
+   `docs/audits/2026-08-exercise-catalog-audit-findings.md` (the first
+   session to produce findings creates the file), then tick the box below.
+8. **Nothing is applied to the catalog until Dylan approves that group's
+   findings.** Application happens later in eval-gated slices (Section 7).
+
+### Task checklist
+
+Row counts from the live catalog 2026-08-06 (1,299 total). The suspiciously
+round per-sub-muscle counts (biceps 100, triceps 100, rotator cuff 100,
+quads 103) suggest the original weak model generated ~100 rows per bucket —
+expect filler and near-duplicates, especially in the big groups.
+
+- [ ] **Task 0 — Automated integrity sweep** (Phase 1 / Section 2 scripts
+      across all groups; mechanical checks only, no judgment; its output
+      feeds every later session)
+- [ ] **Task 1 — Chest** (48 rows — by far the smallest group for one of
+      the most popular muscle groups; expect an add-heavy session; also
+      owns the bench-gating decision from Section 4)
+- [ ] **Task 2 — Back A: lats & upper back** (~115 rows: `back_lats` and
+      `back_lats+back_upper` combos)
+- [ ] **Task 3 — Back B: mid/lower back & traps** (~109 rows; shares the
+      Deadlift muscle-group-home decision with Task 5)
+- [ ] **Task 4 — Legs A: quads** (~103 rows)
+- [ ] **Task 5 — Legs B: hamstrings & glutes** (~91 rows; Deadlift-home
+      decision touchpoint)
+- [ ] **Task 6 — Legs C: calves + inner/outer thighs** (~100 rows: calves
+      34, inner 33, outer 33)
+- [ ] **Task 7 — Shoulders** (194 rows; ⚠️ 100 of 194 are tagged
+      `shoulders_rotator_cuff` — likely bulk mis-tagging by the weak
+      model; scrutinize every rotator-cuff assignment)
+- [ ] **Task 8 — Arms A: biceps & triceps** (200 rows, 100 each —
+      homogeneous isolation work; sub-batch internally, watch for
+      near-duplicate curl/extension variants)
+- [ ] **Task 9 — Arms B: forearms & grip** (~100 rows; retire-heavy —
+      owns the ~12 grip-sport specialty rows from Section 4)
+- [ ] **Task 10 — Core** (189 rows; ⚠️ 94 tagged `core_deep` — same
+      bulk-tagging suspicion as shoulders)
+- [ ] **Task 11 — Cardio** (50 rows; ALL 50 empty-subMuscle rows in the
+      catalog are cardio — decide by-design vs backfill here; also check
+      `cardio-catalog-exclusions.ts` / `cardio-display-order.ts`)
+- [ ] **Task 12 — Consolidation** (merge per-group findings, cross-group
+      consistency + dedup pass, final decisions list for Dylan, then the
+      Section 7 apply plan: 3 eval-gated PRs)
+
 ## 1. Ground truth — the files
 
 **The catalog itself:**
@@ -60,7 +138,7 @@ maps). A missing exercise hurts nobody. Do not bulk-add.
   "aliases": [],                        // search synonyms
   "description": "…",                   // one sentence
   "primaryMuscleGroupId": "arms",       // chest|back|legs|shoulders|arms|core|cardio
-  "subMuscleIds": ["arms_biceps"],      // see SUB_MUSCLE_MAP; 50 rows currently empty
+  "subMuscleIds": ["arms_biceps"],      // see SUB_MUSCLE_MAP; 50 rows empty (ALL cardio — likely by design)
   "secondaryMuscleGroupIds": ["shoulders"],
   "equipmentIds": ["barbell"],          // REQUIRED gear — this list gates generation pools
   "equipmentAlternativeIds": ["ez_bar", "cable_machine"],  // substitutes; NOT gating
@@ -112,9 +190,10 @@ Every check outputs violating row ids. Expected checks:
 4. **Naming lint**: em-dash qualifiers (standard is parentheses — future.md:
    "Swimming — Easy Laps" class), trailing whitespace, inconsistent
    capitalization, id↔name drift (id says incline, name says flat).
-5. **subMuscle coverage**: rows with empty `subMuscleIds` (50 as of today) —
-   these fall back to whole-group body-map highlights and are invisible to
-   sub-muscle filter chips.
+5. **subMuscle coverage**: rows with empty `subMuscleIds` (50 as of today —
+   verified 2026-08-06: ALL 50 are cardio, so this is likely by design) —
+   non-cardio empties, if any appear, fall back to whole-group body-map
+   highlights and are invisible to sub-muscle filter chips.
 6. **Sanity crosses**: `primaryMuscleGroupId: cardio` rows with rep-style
    patterns; timed-name rows (`plank|hold|carry|hang…`) whose inferred
    prescription type comes out `reps` (run them through
@@ -128,8 +207,8 @@ Every check outputs violating row ids. Expected checks:
 
 ## 3. Phase 2 — model review sweep (the judgment pass)
 
-Batch rows by `primaryMuscleGroupId` (7 batches, ~50–350 rows each; split
-Legs/Back further if needed). For each row, judge:
+Batching is defined by the Section 0.5 task checklist (one session per
+task; arms/legs/back sub-split by sub-muscle). For each row, judge:
 
 - **Required equipment realism** — the load-bearing check. `equipmentIds` is
   what gates generation pools (required-only filtering, fixed 2026-07-09).
@@ -172,23 +251,38 @@ current code, then include in the report with proposed dispositions:
 - ~12 grip-sport specialty rows (axle bar, blobs, grippers) reachable via
   equipment alternatives → retag/unmap.
 - Deadlift muscle-group home (see above).
-- subMuscles backfill for the 50 empty rows (prioritize popular exercises).
+- subMuscles backfill for the 50 empty rows — verified 2026-08-06: all 50
+  are cardio, so this is probably by design, not a backlog. Decide in the
+  Cardio session (Task 11), don't backfill blindly.
 - Display-name qualifier standardization (parentheses, not em-dashes).
 - Bench-not-modeled-as-equipment: `SETUP_EQUIPMENT_IDS` deliberately never
   gates benches, so home plans can prescribe Flat DB Bench Press (floor press
   is the coach-true sub). This is a DECISION for Dylan, not a silent fix —
   present options.
 
-## 5. Phase 4 — gap analysis (the ONLY source of adds)
+## 5. Phase 4 — gap analysis (the source of adds)
 
-Build the demand matrix from, in order: (1) the template roadmap Dylan names
-when kicking this off (ask; e.g. dumbbell-only home, kettlebell block,
-bodyweight progression program), (2) generation's needs (anchor pools,
-pattern fill-ins, cardio modalities per equipment), (3) nothing else.
+**Policy updated 2026-08-06 (Dylan): adds are coverage-driven.** No template
+roadmap exists yet, so the original template-gap matrix is suspended. Each
+group session instead proposes exercises the catalog is missing that are
+popular or clearly high-quality, surveyed across the equipment spectrum:
+machines (pin-loaded and plate-loaded), barbell, dumbbell, cable, smith,
+kettlebell, and bodyweight/calisthenics.
 
-For each planned program: movement pattern × equipment × difficulty grid.
-A cell lacking a quality, correctly-tagged option = a candidate add. The
-report lists candidates with the cell they fill. No cell, no add.
+Quality bar per candidate add:
+
+- **Names its reason**: a widely-known staple whose absence would surprise a
+  gym-goer, or it fills a real movement-pattern × equipment × difficulty
+  cell that has no quality, correctly-tagged option today.
+- Uses EXISTING equipment ids and subMuscle ids wherever possible — new ones
+  are cross-stack changes (Section 6 rules 3–4).
+- The ~70/30 verify-vs-add weighting still holds overall. A missing exercise
+  hurts nobody; do not bulk-add.
+
+Generation's needs (anchor pools, pattern fill-ins, cardio modalities per
+equipment) remain a valid demand source alongside popularity. If/when Dylan
+defines a template roadmap, re-run this phase as the original per-program
+matrix on top of the coverage adds.
 
 ## 6. Adding an exercise — the complete checklist
 
