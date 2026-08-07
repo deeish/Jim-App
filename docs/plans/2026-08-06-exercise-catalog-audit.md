@@ -96,9 +96,14 @@ expect filler and near-duplicates, especially in the big groups.
       muscle groups — retire calls decide group homes, incl. deadlifts);
       81 rows with invalid `glutes` secondary; 8 unknown equipment ids;
       5 alias-driven wrong timed verdicts; the only video mapping is dead.
-- [ ] **Task 1 — Chest** (48 rows — by far the smallest group for one of
+- [x] **Task 1 — Chest** (48 rows — by far the smallest group for one of
       the most popular muscle groups; expect an add-heavy session; also
-      owns the bench-gating decision from Section 4)
+      owns the bench-gating decision from Section 4) — done 2026-08-07.
+      Healthiest slice: rows all legit, gating honest, difficulty sane.
+      1 firm retire (cable_pullover = straight-arm pulldown dup), 8 metadata
+      fixes, 7 draft adds (knee/wall push-up, squeeze press, TRX press+fly,
+      KB floor press, plyo push-up), 4 decisions for Dylan (pullover home,
+      landmine home, dip/rings equipment mapping, bench gating).
 - [ ] **Task 2 — Back A: lats & upper back** (~115 rows: `back_lats` and
       `back_lats+back_upper` combos)
 - [ ] **Task 3 — Back B: mid/lower back & traps** (~109 rows; shares the

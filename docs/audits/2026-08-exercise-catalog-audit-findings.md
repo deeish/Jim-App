@@ -210,3 +210,264 @@ sessions, …) would render as reps in any frontend fallback path that lacks
 `primaryMuscleGroup`. Informational — the API sends `prescriptionType`, and
 the belt-and-suspenders group check covers the rest. No action; re-check if
 a new render path ever bypasses the service layer.
+
+---
+
+## Task 1 — Chest (2026-08-07)
+
+**Scope.** All 48 `primaryMuscleGroupId: chest` rows, judged row-by-row
+against the plan §3 criteria. Valid chest subs: `chest_upper`, `chest_mid`,
+`chest_lower`.
+
+**Verdict: the healthiest slice we could have hoped for.** Every row is a
+real, sensible exercise; equipment gating is honest; difficulty grades are
+sane (Archer Push-Up and Weighted Dip correctly Advanced, dips correctly
+Intermediate); the tricky incline/decline push-up inversion (hands-elevated
+= *lower* chest, feet-elevated = *upper*) is tagged **correctly** on all
+counts; descriptions and instructions are clean imperative copy. The
+problems are: chest is badly under-covered (48 rows vs 300 for arms —
+add-heavy list below), the pullover family is fragmented across groups, and
+one equipment-mapping design issue affects the dip/ring rows.
+
+### 1.1 Retire candidates (1 firm, 1 pending decision 1.3-A)
+
+| Row | Reason | Mechanism |
+| --- | --- | --- |
+| `cable_pullover` ("Cable Pullover", chest) | Same movement as back's `straight_arm_cable_pulldown` ("Straight-Arm Cable Pulldown") — a standing straight-arm cable pull; the chest row even aliases itself "Straight-Arm Cable Pullover". Family key misses it (pullover ≠ pulldown), so both can appear in one plan. Keep the back row (canonical gym name). | Exclusion list per `cardio-catalog-exclusions.ts` precedent |
+| `pullover_dumbbell` (back twin of `dumbbell_pullover`) | Task 0 pair 0.1 — resolved by decision 1.3-A below | same |
+
+### 1.2 Metadata corrections proposed
+
+| Id | Field | Current → proposed | Why | Severity |
+| --- | --- | --- | --- | --- |
+| `svend_press` | `prescriptionType` | (absent) → `"reps"` explicit | Task 0 §0.4 — alias "Plate Pinch Press" trips the carry regex; served as timed today | user-visible |
+| `chest_dip` | `aliases` | drop "Parallel Bar Dip" | Exactly collides with arms' `parallel_bar_dip` row name (upright triceps dip — a genuinely distinct exercise); search surfaces both as the same thing | user-visible |
+| `dumbbell_pullover`, `barbell_pullover` | `secondaryMuscleGroupIds` | `[shoulders]` → `[back, shoulders]` | Lats are a primary mover in any pullover — missing credit regardless of decision 1.3-A | user-visible |
+| `machine_chest_press` | `aliases` | + "Hammer Strength Chest Press", "Plate-Loaded Chest Press", "Iso-Lateral Chest Press" | Plate-loaded stations are what many gym users search for; cheaper than a new row | cosmetic |
+| `incline_machine_chest_press` | `aliases` | + "Hammer Strength Incline Press" | same | cosmetic |
+| `floor_press` | `equipmentAlternativeIds` | drop `dumbbells` | Dedicated `dumbbell_floor_press` row exists; the alt only muddies browse display and the alternatives channel (axle-bar-leak class) | cosmetic |
+| `mid_cable_fly` | `secondaryMuscleGroupIds` | `[]` → `[shoulders]` | Every sibling fly lists shoulders; front delts genuinely assist | cosmetic |
+| `ring_push_up` | `instructions[3]` | palm-rotation cue is inverted (says turn out at bottom / in at top; standard is rings turned out at top lockout) | copy accuracy | cosmetic |
+
+Not proposed (adversarially self-rejected): retagging `landmine_press`
+rows' difficulty or subs (45° press → `chest_upper` is defensible);
+"fixing" `bodyweight_chest_fly` to Advanced (from-knees regression keeps it
+Intermediate — added to the skill watch list instead); position-value
+cleanups (`incline_push_up`: Standing, `chest_dip`: Standing vs Supported)
+— display-only metadata, churn not worth it, noted for a future position
+audit if the field ever becomes functional.
+
+### 1.3 Decisions needed from Dylan
+
+**A. Pullover home (resolves Task 0 pair + family fragmentation).** The
+pullover family lives in three groups today: chest holds `dumbbell_pullover`
+/ `barbell_pullover` / `cable_pullover`; back holds NINE pullover rows
+(`pullover_dumbbell`, `ez_bar_pullover`, `incline_dumbbell_pullover`,
+`machine_pullover_nautilus`, `straight_arm_cable_pulldown`, …); arms holds
+the PJR pullover-extension family (correct — those are triceps moves).
+Recommendation: **home = back** (lats dominate; matches where 9 of 12 rows
+already live): retag `dumbbell_pullover` + `barbell_pullover` to
+back/`back_lats` with chest secondary, retire `pullover_dumbbell` (worse
+id) and `cable_pullover` (dup, §1.1). Alternative: old-school chest home —
+then the back twins retire instead, and the other 7 back-family rows retag
+to chest, which is far more churn.
+
+**B. Landmine press home (cross-group consistency).** Four landmine press
+rows sit in three groups: standing + single-arm → chest (`chest_upper`),
+tall-kneeling + half-kneeling-single-arm → shoulders, half-kneeling → CORE
+(clearly wrong — it's a press). Gym convention programs landmine presses as
+a shoulder-press variant. Recommendation: **all five → shoulders**
+(front delts primary, chest + core secondary). Defensible alternative: keep
+standing variants as upper-chest builders (current tagging) and move only
+the core row to shoulders. Owning sessions (Shoulders/Core) will execute
+whichever way this lands.
+
+**C. Dip/ring equipment mapping.** `dip_bars`, `parallel_bars`, AND
+`gymnastic_rings` all map to display/gate **"Pull-up Bar"** in
+`EQUIPMENT_MAP`. A home user with a doorframe pull-up bar is told they can
+do Chest Dips and Ring Push-Ups. Options: (1) accept the power-tower
+approximation (status quo, zero work); (2) new "Dip Station" / "Rings"
+equipment ids — honest but a cross-stack picker change (bug-4.7 class);
+(3) cheap middle: remap `gymnastic_rings` → TRX (rings ≈ suspension
+trainer for pushing movements; TRX already exists in the picker), keep
+dip bars ≈ pull-up bar. Recommendation: **option 3 now**, option 2 only if
+a calisthenics template lands later. Affects chest rows `chest_dip`,
+`weighted_chest_dip`, `ring_push_up` + the arms dip family.
+
+**D. Bench gating (plan §4 carry-over).** `SETUP_EQUIPMENT_IDS`
+deliberately never gates benches, so bench-press rows are prescribable to
+bench-less home users. The coach-true subs already exist (`floor_press`,
+`dumbbell_floor_press`, and the Knee Push-Up add below strengthens the
+no-equipment pool). Options: (1) status quo — accept "bench" rows in home
+plans; (2) model bench as gated equipment + picker entry (cross-stack,
+bug-4.7 class); (3) generation-side preference for floor-press variants
+when the user's equipment set implies no bench. Recommendation: **1 now**,
+revisit 3 alongside the future skill/impact gating work. No catalog edit
+either way.
+
+### 1.4 Coverage gaps — proposed adds (7 drafts + runners-up)
+
+Chest is the thinnest group in the catalog (48 rows; arms has 300) yet the
+most popular. Verified-missing against the full catalog (several candidates
+were dropped because they already exist in arms: Ring Dip, Diamond/
+Close-Grip Push-Ups, Close-Grip Bench, assisted dips). No new equipment or
+subMuscle ids needed by any draft; all names/aliases verified against both
+prescription-regex twins (all infer `reps`); family keys checked — the TRX/
+kettlebell drafts intentionally group with their existing equipment-variant
+families in the browse UI. Tiering: propose all adds stay untiered
+(deliberate — none belongs in the top-staple common list; revisit if browse
+popularity says otherwise).
+
+**#1 Knee Push-Up** — the missing beginner regression. Today the easiest
+no-equipment chest row is the full Push-Up; the easiest scaled one needs a
+bench. Beginner/home onboarding plans need this rung.
+
+```jsonc
+{ "id": "knee_push_up", "name": "Knee Push-Up",
+  "aliases": ["Kneeling Push-Up", "Modified Push-Up"],
+  "description": "A push-up regression performed from the knees that builds pressing strength with a lighter load.",
+  "primaryMuscleGroupId": "chest", "subMuscleIds": ["chest_mid"],
+  "secondaryMuscleGroupIds": ["shoulders", "arms", "core"],
+  "equipmentIds": [], "equipmentAlternativeIds": [],
+  "movementPatternIds": ["horizontal_push"],
+  "type": "Compound", "position": "Kneeling", "isUnilateral": false,
+  "difficulty": "Beginner",
+  "instructions": [
+    "Start in a plank position with knees resting on the floor and hands under the shoulders.",
+    "Keep a straight line from head to knees with the core braced.",
+    "Lower the chest toward the floor by bending the elbows.",
+    "Press back up to the start position and repeat." ] }
+```
+
+**#2 Dumbbell Squeeze Press** — hypertrophy staple (crush/hex press),
+shoulder-friendly, no equivalent row exists.
+
+```jsonc
+{ "id": "dumbbell_squeeze_press", "name": "Dumbbell Squeeze Press",
+  "aliases": ["Crush Press", "Hex Press", "Dumbbell Crush Press"],
+  "description": "A flat dumbbell press with the dumbbells pressed together throughout, keeping constant inner-chest tension.",
+  "primaryMuscleGroupId": "chest", "subMuscleIds": ["chest_mid"],
+  "secondaryMuscleGroupIds": ["shoulders", "arms"],
+  "equipmentIds": ["dumbbells", "bench"], "equipmentAlternativeIds": [],
+  "movementPatternIds": ["horizontal_push"],
+  "type": "Compound", "position": "Lying", "isUnilateral": false,
+  "difficulty": "Beginner",
+  "instructions": [
+    "Lie on a flat bench holding two dumbbells pressed together over the chest with neutral grips.",
+    "Squeeze the dumbbells into each other as hard as possible.",
+    "Lower the dumbbells to the chest while maintaining the inward squeeze.",
+    "Press back to lockout without letting the dumbbells separate and repeat." ] }
+```
+
+**#3 TRX Chest Press** — TRX is a supported picker equipment with ZERO
+chest rows in the catalog (the entire catalog holds one TRX row).
+
+```jsonc
+{ "id": "trx_chest_press", "name": "TRX Chest Press",
+  "aliases": ["Suspension Push-Up", "TRX Push-Up", "Suspension Chest Press"],
+  "description": "A suspension-trainer press where body angle sets the load, training the chest with a free range of motion.",
+  "primaryMuscleGroupId": "chest", "subMuscleIds": ["chest_mid"],
+  "secondaryMuscleGroupIds": ["shoulders", "arms", "core"],
+  "equipmentIds": ["trx"], "equipmentAlternativeIds": ["gymnastic_rings"],
+  "movementPatternIds": ["horizontal_push"],
+  "type": "Compound", "position": "Standing", "isUnilateral": false,
+  "difficulty": "Beginner",
+  "instructions": [
+    "Face away from the anchor holding the handles at chest height with arms extended.",
+    "Lean forward into a straight-body plank angle; step back to make it harder.",
+    "Lower the chest between the handles by bending the elbows.",
+    "Press back to full extension keeping the body rigid and repeat." ] }
+```
+
+**#4 TRX Chest Fly** — the suspension fly companion; meaningfully harder,
+graded accordingly.
+
+```jsonc
+{ "id": "trx_chest_fly", "name": "TRX Chest Fly",
+  "aliases": ["Suspension Fly", "TRX Fly"],
+  "description": "A suspension-trainer fly that adducts the arms against bodyweight for a deep chest stretch and contraction.",
+  "primaryMuscleGroupId": "chest", "subMuscleIds": ["chest_mid"],
+  "secondaryMuscleGroupIds": ["shoulders", "core"],
+  "equipmentIds": ["trx"], "equipmentAlternativeIds": ["gymnastic_rings"],
+  "movementPatternIds": ["horizontal_adduction"],
+  "type": "Isolation", "position": "Standing", "isUnilateral": false,
+  "difficulty": "Intermediate",
+  "instructions": [
+    "Face away from the anchor with arms extended forward at chest height, body in a forward lean.",
+    "Open the arms wide in an arc while the body lowers as one rigid line.",
+    "Keep a slight elbow bend and stop at a comfortable chest stretch.",
+    "Squeeze the chest to draw the arms back together and repeat." ] }
+```
+
+**#5 Kettlebell Floor Press** — the catalog has zero kettlebell chest work;
+this is the standard KB pressing staple for home KB owners.
+
+```jsonc
+{ "id": "kettlebell_floor_press", "name": "Kettlebell Floor Press",
+  "aliases": ["KB Floor Press", "Double Kettlebell Floor Press"],
+  "description": "A floor press using kettlebells whose offset load challenges the chest and pressing stability through a shoulder-friendly range.",
+  "primaryMuscleGroupId": "chest", "subMuscleIds": ["chest_mid"],
+  "secondaryMuscleGroupIds": ["shoulders", "arms"],
+  "equipmentIds": ["kettlebell"], "equipmentAlternativeIds": [],
+  "movementPatternIds": ["horizontal_push"],
+  "type": "Compound", "position": "Lying", "isUnilateral": false,
+  "difficulty": "Beginner",
+  "instructions": [
+    "Lie on the floor with knees bent, holding a kettlebell in each hand at the chest with wrists straight.",
+    "Press the kettlebells up to full lockout over the chest.",
+    "Lower under control until the upper arms rest lightly on the floor.",
+    "Pause briefly, then press again." ] }
+```
+
+**#6 Plyo Push-Up** — the missing power/explosive push; popular and a
+natural Advanced progression. High-impact — flag for the future skill/
+impact gating tag.
+
+```jsonc
+{ "id": "plyo_push_up", "name": "Plyo Push-Up",
+  "aliases": ["Clap Push-Up", "Explosive Push-Up", "Plyometric Push-Up"],
+  "description": "An explosive push-up where the hands leave the floor at the top, building pressing power and rate of force.",
+  "primaryMuscleGroupId": "chest", "subMuscleIds": ["chest_mid"],
+  "secondaryMuscleGroupIds": ["shoulders", "arms", "core"],
+  "equipmentIds": [], "equipmentAlternativeIds": [],
+  "movementPatternIds": ["horizontal_push"],
+  "type": "Compound", "position": "Lying", "isUnilateral": false,
+  "difficulty": "Intermediate",
+  "instructions": [
+    "Start in a strong plank with hands under the shoulders.",
+    "Lower the chest quickly toward the floor under control.",
+    "Drive up explosively so the hands briefly leave the ground.",
+    "Land with soft elbows, absorb, and flow into the next rep." ] }
+```
+
+**#7 Wall Push-Up** — the absolute-beginner/rehab rung below Knee Push-Up;
+gives onboarding a true zero-floor progression (wall → knee → full).
+
+```jsonc
+{ "id": "wall_push_up", "name": "Wall Push-Up",
+  "aliases": ["Wall Press-Up", "Standing Push-Up"],
+  "description": "A standing push-up against a wall that introduces the pressing pattern with minimal load.",
+  "primaryMuscleGroupId": "chest", "subMuscleIds": ["chest_mid"],
+  "secondaryMuscleGroupIds": ["shoulders", "arms"],
+  "equipmentIds": [], "equipmentAlternativeIds": [],
+  "movementPatternIds": ["horizontal_push"],
+  "type": "Compound", "position": "Standing", "isUnilateral": false,
+  "difficulty": "Beginner",
+  "instructions": [
+    "Stand an arm's length from a wall and place both palms on it at shoulder height.",
+    "Keep the body in one straight line from head to heels.",
+    "Bend the elbows to bring the chest toward the wall.",
+    "Press back to the start position and repeat." ] }
+```
+
+**Runners-up (no drafts; add only if Dylan wants deeper calisthenics
+coverage):** One-Arm Push-Up (Advanced milestone; Archer Push-Up already
+covers the progression path), Dive-Bomber Push-Up (Hindu Push-Up), Pseudo
+Planche Push-Up. Rejected: Guillotine Press (risk), board/pin/Spoto presses
+(powerlifting-niche), Med Ball Chest Pass (needs a throwing wall).
+
+### 1.5 Skill/impact watch list (for the future gating tag)
+
+`bodyweight_chest_fly` (slider fly — sneaky-hard at full extension),
+`archer_push_up`, `ring_push_up`, `weighted_chest_dip`, proposed
+`plyo_push_up` (impact).
