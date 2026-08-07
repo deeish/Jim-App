@@ -1,28 +1,29 @@
 import { formatPlanDisplayName } from './planDisplayName';
 
 describe('formatPlanDisplayName', () => {
-  it('rewrites the generated machine pattern into people-speak', () => {
-    expect(formatPlanDisplayName('Strength · 4d/wk · 1 wk')).toBe(
-      'Strength · 4 days a week',
-    );
-    expect(formatPlanDisplayName('Hypertrophy · 3d/wk · 4 wks')).toBe(
-      'Hypertrophy · 3 days a week',
-    );
-    // Goal labels can carry punctuation of their own.
+  it('reduces generated machine names to the goal — the only part that cannot rot', () => {
+    // "4 days a week" would lie as soon as the user edits the plan; the day
+    // list below the title is the live truth, so the title claims nothing.
+    expect(formatPlanDisplayName('Strength · 4d/wk · 1 wk')).toBe('Strength Plan');
+    expect(formatPlanDisplayName('Hypertrophy · 3d/wk · 4 wks')).toBe('Hypertrophy Plan');
+  });
+
+  it('drops goal parentheticals', () => {
     expect(formatPlanDisplayName('Balanced (Strength + Cardio) · 5d/wk · 2 wks')).toBe(
-      'Balanced (Strength + Cardio) · 5 days a week',
+      'Balanced Plan',
     );
   });
 
-  it('singularizes one training day', () => {
-    expect(formatPlanDisplayName('Strength · 1d/wk · 1 wk')).toBe(
-      'Strength · 1 day a week',
-    );
+  it('rewrites the manual-create date default', () => {
+    expect(formatPlanDisplayName('Plan 8/6/2026')).toBe('My Plan');
+    expect(formatPlanDisplayName('Plan 12/31/26')).toBe('My Plan');
   });
 
-  it('passes template and custom names through verbatim', () => {
+  it('passes template and user-chosen names through verbatim', () => {
     expect(formatPlanDisplayName('Strength · Upper/Lower')).toBe('Strength · Upper/Lower');
-    expect(formatPlanDisplayName('My summer block')).toBe('My summer block');
+    expect(formatPlanDisplayName('Summer Cut')).toBe('Summer Cut');
+    // A user name that happens to end in "plan" is not doubled.
+    expect(formatPlanDisplayName('My strength plan')).toBe('My strength plan');
   });
 
   it('falls back for missing names', () => {

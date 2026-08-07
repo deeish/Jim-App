@@ -1,22 +1,27 @@
 /**
  * Human display form of a plan's stored name.
  *
- * Generated plans are named with a machine pattern derived at apply time
- * (`Strength · 4d/wk · 1 wk` — see PlanPreviewScreen's derivedName), which
- * reads as config tokens when used as the plan's visible identity. This
- * rewrites that one pattern into people-speak and drops the weeks token —
- * the Plan tab's week header ("Week 3 of 8") owns program length now.
- * Any other name (template programs, user-renamed plans) passes through
+ * A plan's visible title is an identity, not a self-description: any fact it
+ * states (training frequency, week count) can rot the moment the user edits
+ * the plan, and the day list below always shows the live truth. So generated
+ * machine names ("Strength · 4d/wk · 1 wk" — see PlanPreviewScreen's
+ * derivedName) reduce to their one durable part, the goal: "Strength Plan".
+ * The backend's manual-create default ("Plan 8/6/2026") reads as "My Plan".
+ * Anything else — template programs, user-chosen names — passes through
  * verbatim; a display transform must never mangle a real name.
  */
-const GENERATED_NAME = /^(.+?) · (\d+)d\/wk · \d+ wks?$/;
+const GENERATED_NAME = /^(.+?) · \d+d\/wk · \d+ wks?$/;
+const DATE_DEFAULT_NAME = /^Plan \d{1,2}\/\d{1,2}\/\d{2,4}$/;
 
 export function formatPlanDisplayName(name: string | null | undefined): string {
   const raw = (name ?? '').trim();
   if (!raw) return 'My Plan';
+  if (DATE_DEFAULT_NAME.test(raw)) return 'My Plan';
   const m = raw.match(GENERATED_NAME);
   if (!m) return raw;
-  const goal = m[1];
-  const days = Number(m[2]);
-  return `${goal} · ${days} ${days === 1 ? 'day' : 'days'} a week`;
+  // Goal labels can carry a parenthetical ("Balanced (Strength + Cardio)");
+  // the title keeps just the headline word(s).
+  const goal = m[1].replace(/\s*\(.*\)\s*$/, '').trim();
+  if (!goal) return 'My Plan';
+  return /\bplan$/i.test(goal) ? goal : `${goal} Plan`;
 }
