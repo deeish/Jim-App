@@ -89,9 +89,13 @@ round per-sub-muscle counts (biceps 100, triceps 100, rotator cuff 100,
 quads 103) suggest the original weak model generated ~100 rows per bucket —
 expect filler and near-duplicates, especially in the big groups.
 
-- [ ] **Task 0 — Automated integrity sweep** (Phase 1 / Section 2 scripts
+- [x] **Task 0 — Automated integrity sweep** (Phase 1 / Section 2 scripts
       across all groups; mechanical checks only, no judgment; its output
-      feeds every later session)
+      feeds every later session) — done 2026-08-07, findings in the report.
+      Headline: 14 cross-group duplicate pairs (every pair straddles two
+      muscle groups — retire calls decide group homes, incl. deadlifts);
+      81 rows with invalid `glutes` secondary; 8 unknown equipment ids;
+      5 alias-driven wrong timed verdicts; the only video mapping is dead.
 - [ ] **Task 1 — Chest** (48 rows — by far the smallest group for one of
       the most popular muscle groups; expect an add-heavy session; also
       owns the bench-gating decision from Section 4)
