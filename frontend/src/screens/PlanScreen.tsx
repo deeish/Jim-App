@@ -40,6 +40,7 @@ import {
   normalizePlanDayOfWeek,
   normalizeProgramWeekNumber,
   isRestPlanSlotTitle,
+  parseLocalYmd,
   resolveProgramWeekForCalendarOffset,
   shiftWeekWorkouts,
 } from '../lib/planCalendar';
@@ -407,6 +408,16 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     maxPlanWeek > 1
       ? `Week ${programWeekResolution.week} of ${maxPlanWeek}`
       : null;
+
+  // A just-applied program that starts next Monday should read as anticipation
+  // ("starts Monday, Aug 10"), not as this week being somehow wrong.
+  const programStartsLine = useMemo(() => {
+    if (!anchorYmd) return null;
+    const d = parseLocalYmd(anchorYmd);
+    if (Number.isNaN(d.getTime())) return null;
+    const when = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    return `Your program starts ${when}.`;
+  }, [anchorYmd]);
 
   const weekSlots = resolvedProgramWeek !== null ? planByWeek[resolvedProgramWeek] : null;
   const canShiftBack = !!weekSlots && !weekSlots['Monday']?.length;
@@ -1442,7 +1453,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         <View style={styles.outOfProgramWeekBanner}>
           <Text style={styles.outOfProgramWeekText}>
             {programWeekResolution.status === 'before_program'
-              ? 'No workouts for this calendar week — it is before your program starts.'
+              ? programStartsLine ?? 'Your program has not started yet.'
               : 'No workouts mapped to this week for your plan.'}
           </Text>
         </View>
@@ -1516,19 +1527,40 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               }}
             >
               {workouts.length === 0 ? (
-                <TouchableOpacity
-                  onPress={() => handleAddWorkoutForDay(day)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Add workout for ${day}`}
-                >
-                  <WorkoutDayRow
-                    dayLabel={dayLabel}
-                    kind="empty"
-                    title={`Add workout for ${day}`}
-                    isToday={isToday}
-                  />
-                </TouchableOpacity>
+                // On a week that has scheduled workouts, an empty day is the
+                // program's rest day — labeling it "Add workout" reframes
+                // planned recovery as an omission. It stays tappable to add;
+                // the quiet + in the trailing slot keeps that discoverable.
+                hasWorkoutsThisWeek ? (
+                  <TouchableOpacity
+                    onPress={() => handleAddWorkoutForDay(day)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Rest day. Add a workout for ${day}`}
+                  >
+                    <WorkoutDayRow
+                      dayLabel={dayLabel}
+                      kind="rest"
+                      title="Rest day"
+                      isToday={isToday}
+                      moreButton={<Ionicons name="add" size={18} color={colors.textMuted} />}
+                    />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => handleAddWorkoutForDay(day)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add workout for ${day}`}
+                  >
+                    <WorkoutDayRow
+                      dayLabel={dayLabel}
+                      kind="empty"
+                      title={`Add workout for ${day}`}
+                      isToday={isToday}
+                    />
+                  </TouchableOpacity>
+                )
               ) : (
                 workouts.map((workout, idx) => {
                   const isRestDay = isRestPlanSlotTitle(workout.title);
