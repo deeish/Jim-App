@@ -17,6 +17,7 @@ import { runWithGenerationSignal } from '../common/generation-abort.context';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { RemoveSlotDto } from './dto/remove-slot.dto';
 import { MoveSlotDto } from './dto/move-slot.dto';
+import { RenamePlanDto } from './dto/rename-plan.dto';
 import { PlanSlotDto } from './dto/create-plan.dto';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
@@ -118,6 +119,21 @@ export class PlansController {
     @UserId() userId: string,
   ) {
     return this.plansService.update(id, dto, userId);
+  }
+
+  /**
+   * Rename only. Never route a title edit through PATCH /plans/:id — that
+   * endpoint rebuilds the plan from `slots` (unlinks workouts, deletes and
+   * recreates every planWorkout).
+   */
+  @Patch(':id/name')
+  @HttpCode(HttpStatus.OK)
+  rename(
+    @Param('id') id: string,
+    @Body() dto: RenamePlanDto,
+    @UserId() userId: string,
+  ) {
+    return this.plansService.renamePlan(id, dto.name, userId);
   }
 
   /** Append one slot (and optional exercises) without rebuilding the whole plan — faster than PATCH /plans/:id. */
