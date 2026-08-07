@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -194,6 +195,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const { colors } = useTheme();
   // The tab bar floats over this screen; keep the last day rows clear of it.
   const tabBarInset = useTabBarInset();
+  // Bottom sheets pad their footer past the home indicator.
+  const insets = useSafeAreaInsets();
   const { weightUnit, goal } = useUserPreferences();
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [planByWeek, setPlanByWeek] = useState<Record<number, Record<string, PlanWorkout[]>>>({});
@@ -660,29 +663,46 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         moveDayText: { fontSize: text.callout, color: colors.text },
         moveCancel: { padding: spacing.lg, alignItems: 'center' },
         moveCancelText: { fontSize: text.callout, color: colors.textMuted },
+        // Bottom sheet, not a centered dialog — matches the template scheduler
+        // and the avatar picker, and puts Start workout in thumb reach.
         detailSheetOverlay: {
           flex: 1,
           backgroundColor: colors.overlay,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: spacing.xl,
+          justifyContent: 'flex-end',
         },
         detailSheetBox: {
           backgroundColor: colors.surface,
-          borderRadius: radius.xl,
+          borderTopLeftRadius: radius.xl,
+          borderTopRightRadius: radius.xl,
           width: '100%',
-          maxWidth: 400,
+          maxWidth: 480,
+          alignSelf: 'center',
           maxHeight: '88%',
           overflow: 'hidden',
           borderWidth: 1,
+          borderBottomWidth: 0,
           borderColor: colors.border,
           shadowColor: colors.shadow,
           ...elevation.level3,
+        },
+        detailSheetCloseBtn: {
+          position: 'absolute',
+          top: spacing.md,
+          right: spacing.md,
+          width: 32,
+          height: 32,
+          borderRadius: 16,
+          backgroundColor: colors.background,
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2,
         },
         detailSheetScroll: { flexGrow: 0, maxHeight: 420 },
         detailSheetScrollContent: { paddingBottom: spacing.md },
         detailSheetTitleRow: {
           paddingHorizontal: spacing.xl,
+          // Clears the absolute ✕ in the sheet's top-right corner.
+          paddingRight: 56,
           paddingTop: spacing.xl,
           paddingBottom: spacing.lg,
           borderBottomWidth: 1,
@@ -776,47 +796,33 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           backgroundColor: colors.surface,
           gap: spacing.md,
         },
-        detailSheetLinkRow: {
+        // Navigation, not an action: a quiet row keeps Start workout as the
+        // sheet's one button.
+        detailSheetDetailsRow: {
           flexDirection: 'row',
-          justifyContent: 'center',
-          alignItems: 'stretch',
-          gap: spacing.md,
-          paddingTop: spacing.xxs,
-        },
-        detailSheetFooterBtnSecondary: {
-          minHeight: 48,
-          paddingVertical: spacing.lg,
-          paddingHorizontal: spacing.lg,
-          borderRadius: radius.md,
-          backgroundColor: colors.background,
-          borderWidth: 1,
-          borderColor: colors.border,
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: spacing.xl,
+          paddingVertical: spacing.lg,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          backgroundColor: colors.surface,
         },
-        detailSheetFooterBtnFlex: { flex: 1 },
-        detailSheetFooterBtnOutline: {
-          backgroundColor: colors.primary + '14',
-          borderColor: colors.primary,
-          borderWidth: 2,
-        },
-        detailSheetFooterBtnSecondaryText: {
+        detailSheetDetailsRowText: {
           fontSize: text.callout,
-          fontWeight: weight.bold,
+          fontWeight: weight.semibold,
           color: colors.text,
-        },
-        detailSheetFooterBtnOutlineText: {
-          fontSize: text.callout,
-          fontWeight: weight.bold,
-          color: colors.primary,
         },
         restSheetBox: {
           backgroundColor: colors.surface,
-          borderRadius: radius.xl,
+          borderTopLeftRadius: radius.xl,
+          borderTopRightRadius: radius.xl,
           width: '100%',
-          maxWidth: 360,
+          maxWidth: 480,
+          alignSelf: 'center',
           overflow: 'hidden',
           borderWidth: 1,
+          borderBottomWidth: 0,
           borderColor: colors.border,
           shadowColor: colors.shadow,
           ...elevation.level3,
@@ -1890,7 +1896,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       </Modal>
 
       {/* Workout detail sheet: reasoning, exercises, and actions */}
-      <Modal visible={!!detailSheetWorkout} transparent animationType="fade">
+      <Modal visible={!!detailSheetWorkout} transparent animationType="slide">
         <Pressable style={styles.detailSheetOverlay} onPress={closeDetailSheet}>
           {detailSheetWorkout && (() => {
             const linked = resolveWorkoutForPlanSlot(detailSheetWorkout.workout.id);
@@ -1922,6 +1928,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               linked?.exercises?.length ? linked.exercises : fromPlanRows;
             return (
               <Pressable style={styles.detailSheetBox} onPress={(e) => e.stopPropagation()}>
+                <TouchableOpacity
+                  style={styles.detailSheetCloseBtn}
+                  onPress={closeDetailSheet}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
                 <ScrollView
                   style={styles.detailSheetScroll}
                   contentContainerStyle={styles.detailSheetScrollContent}
@@ -1961,7 +1975,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                         </Text>
                       ) : null}
                       <Text style={styles.detailSheetSubLine}>
-                        {detailSheetWorkout.day} • {detailSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {detailSheetWorkout.day},{' '}
+                        {detailSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </Text>
                     </View>
                   </View>
@@ -2092,54 +2107,45 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                     <Text style={[styles.detailSheetDetail, { marginTop: spacing.md }]}>Off / Optional walk</Text>
                   ) : null}
                 </ScrollView>
-                <View style={styles.detailSheetFooter}>
+                {!isRestDay && linked ? (
+                  <TouchableOpacity
+                    style={styles.detailSheetDetailsRow}
+                    onPress={() => {
+                      closeDetailSheet();
+                      navigation.navigate('WorkoutDetail', { workoutId: linked.id });
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Workout details"
+                  >
+                    <Text style={styles.detailSheetDetailsRowText}>Workout details</Text>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                ) : null}
+                <View
+                  style={[
+                    styles.detailSheetFooter,
+                    { paddingBottom: Math.max(insets.bottom + spacing.sm, spacing.xl) },
+                  ]}
+                >
                   {isRestDay ? (
                     <TouchableOpacity style={styles.detailSheetPrimaryFull} onPress={closeDetailSheet}>
-                      <Text style={styles.detailSheetPrimaryText}>OK</Text>
+                      <Text style={styles.detailSheetPrimaryText}>Done</Text>
                     </TouchableOpacity>
                   ) : (
-                    <>
-                      <TouchableOpacity
-                        style={[
-                          styles.detailSheetPrimaryFull,
-                          (startWorkoutLoading || displayExercises.length === 0) && { opacity: 0.55 },
-                        ]}
-                        onPress={() => void handleStartWorkout()}
-                        disabled={startWorkoutLoading || displayExercises.length === 0}
-                      >
-                        {startWorkoutLoading ? (
-                          <ActivityIndicator color={colors.onPrimary} />
-                        ) : (
-                          <Text style={styles.detailSheetPrimaryText}>Start workout</Text>
-                        )}
-                      </TouchableOpacity>
-                      <View style={styles.detailSheetLinkRow}>
-                        <TouchableOpacity
-                          style={[styles.detailSheetFooterBtnSecondary, styles.detailSheetFooterBtnFlex]}
-                          onPress={closeDetailSheet}
-                          accessibilityRole="button"
-                          accessibilityLabel="Close"
-                        >
-                          <Text style={styles.detailSheetFooterBtnSecondaryText}>Close</Text>
-                        </TouchableOpacity>
-                        {linked ? (
-                          <TouchableOpacity
-                            style={[
-                              styles.detailSheetFooterBtnSecondary,
-                              styles.detailSheetFooterBtnFlex,
-                              styles.detailSheetFooterBtnOutline,
-                            ]}
-                            onPress={() => {
-                              closeDetailSheet();
-                              navigation.navigate('WorkoutDetail', { workoutId: linked.id });
-                            }}
-                            accessibilityRole="button"
-                          >
-                            <Text style={styles.detailSheetFooterBtnOutlineText}>Workout details</Text>
-                          </TouchableOpacity>
-                        ) : null}
-                      </View>
-                    </>
+                    <TouchableOpacity
+                      style={[
+                        styles.detailSheetPrimaryFull,
+                        (startWorkoutLoading || displayExercises.length === 0) && { opacity: 0.55 },
+                      ]}
+                      onPress={() => void handleStartWorkout()}
+                      disabled={startWorkoutLoading || displayExercises.length === 0}
+                    >
+                      {startWorkoutLoading ? (
+                        <ActivityIndicator color={colors.onPrimary} />
+                      ) : (
+                        <Text style={styles.detailSheetPrimaryText}>Start workout</Text>
+                      )}
+                    </TouchableOpacity>
                   )}
                 </View>
               </Pressable>
@@ -2149,10 +2155,18 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       </Modal>
 
       {/* Rest day sheet — compact, with "Make this a workout day" CTA */}
-      <Modal visible={!!restSheetWorkout} transparent animationType="fade">
+      <Modal visible={!!restSheetWorkout} transparent animationType="slide">
         <Pressable style={styles.detailSheetOverlay} onPress={closeRestSheet}>
           {restSheetWorkout && (
             <Pressable style={styles.restSheetBox} onPress={(e) => e.stopPropagation()}>
+              <TouchableOpacity
+                style={styles.detailSheetCloseBtn}
+                onPress={closeRestSheet}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
               <View style={styles.detailSheetTitleRow}>
                 <View
                   style={[
@@ -2166,7 +2180,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                   <Text style={styles.detailSheetEyebrow}>REST</Text>
                   <Text style={styles.detailSheetTitle}>Rest Day</Text>
                   <Text style={styles.detailSheetSubLine}>
-                    {restSheetWorkout.day} • {restSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {restSheetWorkout.day},{' '}
+                    {restSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </Text>
                 </View>
               </View>
@@ -2175,7 +2190,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                   Recovery — optional easy walk or mobility today.
                 </Text>
               </View>
-              <View style={styles.detailSheetFooter}>
+              <View
+                style={[
+                  styles.detailSheetFooter,
+                  { paddingBottom: Math.max(insets.bottom + spacing.sm, spacing.xl) },
+                ]}
+              >
                 <TouchableOpacity
                   style={styles.detailSheetPrimaryFull}
                   onPress={() => {
@@ -2188,16 +2208,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                 >
                   <Text style={styles.detailSheetPrimaryText}>Make this a workout day</Text>
                 </TouchableOpacity>
-                <View style={styles.detailSheetLinkRow}>
-                  <TouchableOpacity
-                    style={[styles.detailSheetFooterBtnSecondary, styles.detailSheetFooterBtnFlex]}
-                    onPress={closeRestSheet}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close"
-                  >
-                    <Text style={styles.detailSheetFooterBtnSecondaryText}>Close</Text>
-                  </TouchableOpacity>
-                </View>
               </View>
             </Pressable>
           )}
