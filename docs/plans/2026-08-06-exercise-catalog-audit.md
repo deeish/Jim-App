@@ -234,8 +234,28 @@ expect filler and near-duplicates, especially in the big groups.
       alternating long tail + curl-position matrix; Task 12
       single_handle/single_handle_attachment id twins. Both gates
       byte-identical/green. Catalog 1,336; retired 64; visible 1,272.
-- [ ] **Task 9 — Arms B: forearms & grip** (~100 rows; retire-heavy —
-      owns the ~12 grip-sport specialty rows from Section 4)
+- [x] **Task 9 — Arms B: forearms & grip** — done + APPLIED 2026-08-10
+      (`86983ad`). 100 rows; ARMS GROUP COMPLETE. The predicted
+      retire-heavy slice delivered the audit's largest batch: 21
+      retires closing the §4 grip-sport specialty class — 6
+      sledgehammer-lever rows (the `hammer` equipment id was never in
+      EQUIPMENT_MAP = dead at runtime; retired, not revived), 3
+      pinch-block rows (deliberately unmodeled), blob/hub (falsely
+      gated 'Dumbbell'), wrist wrench (falsely FREE 'Bodyweight'),
+      rolling-handle/loading-pin (falsely 'Cable'+'Barbell'),
+      thick-handle farmer carry, plus 2 twins:
+      axle_bar_deadlift_hold → barbell_static_hold (absorbs name) and
+      dumbbell_farmer_carry → core's farmer_carry (identical eq+alt;
+      Task 3 keeper's second twin win). Gym-real grip work all stays
+      (plate pinches, hex head hold, fat-grip/thick-bar, towel, rice
+      bucket, grippers, hangs, carries). T8 handoff closed: hammer
+      curls ×4 + Zottman gain arms_biceps sub (biceps browse showed
+      ZERO hammer curls; forearms stays first), reverse curls stay
+      forearms-only. Common tier + dead_hang (no grip entry existed).
+      Zero adds — second consecutive saturated slice. Handoffs: Task
+      10 carry-family home (one twin fewer); Task 12 id trivia. Both
+      gates byte-identical/green. Catalog 1,336; retired 85; visible
+      1,251.
 - [ ] **Task 10 — Core** (189 rows; ⚠️ 94 tagged `core_deep` — same
       bulk-tagging suspicion as shoulders)
 - [ ] **Task 11 — Cardio** (50 rows; ALL 50 empty-subMuscle rows in the

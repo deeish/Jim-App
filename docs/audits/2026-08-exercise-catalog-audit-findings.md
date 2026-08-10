@@ -1536,3 +1536,94 @@ position tiers (standing/bench-supported/incline-supported — the
 | Cross-stack | EQUIPMENT_MAP + iso_lateral_curl_machine, + seated_dip_machine; common tier + parallel_bar_dip, + close_grip_push_up |
 | Eval gate | report byte-identical; 50/50 suites (595 tests) |
 | Visible after slice | catalog-wide 1,272 (1,336 − 64 retired) |
+
+## Task 9 — Arms B: forearms & grip (2026-08-10)
+
+> **APPLIED 2026-08-10** (commit `86983ad`, same session as the findings,
+> same widened Dylan brief as Tasks 4–8). 21 retires (retired list 85 —
+> the predicted retire-heavy slice), 5 sub enrichments, 1 alias absorb,
+> 0 adds, 1 common-tier add (catalog 1,336; visible 1,251). Gates:
+> 50/50 suites (595 tests), eval captures report **byte-identical** —
+> sixth perfect gate in a row.
+
+**Scope.** All 100 rows sub-tagged `arms_forearms` and/or `arms_grip`.
+This closes the **arms group** and the plan §4 grip-sport backlog.
+
+**Verdict: two catalogs in one.** A genuinely excellent consumer
+forearm/grip library (wrist flexion/extension/deviations/rotations ×
+every implement, finger curls/extensions, grippers, rice bucket, wrist
+rollers, towel work, hangs, carries — saturated, zero adds needed)
+had a **grip-sport competition catalog** embedded in it: blob lifts,
+hub lifts, wrist wrenches, pinch blocks, rolling handles on loading
+pins, sledgehammer levering. Every specialty implement was gated
+dishonestly — unmapped (dead rows) or mapped to a false label.
+
+### 9.1 Retires (21) — the grip-sport specialty class, closed
+
+| Group | Rows | Gating truth |
+| --- | --- | --- |
+| Sledgehammer levers | `hammer_front_lever`, `…_hold`, `hammer_lever_pronation`, `…_supination`, `hammer_rear_lever`, `…_hold` | `hammer` was **never in EQUIPMENT_MAP** → all six were dead at runtime (Unmodeled). Retired rather than revived: competition implement, zero consumer reach |
+| Pinch blocks | `pinch_block_carry`, `_hold`, `_lift` | `pinch_block` deliberately unmodeled (the map's own comment cites a live incident); plate pinches + hex head hold keep the pattern on real gym gear |
+| Blob / hub | `blob_hold`, `blob_lift`, `hub_hold`, `hub_lift` | implements falsely mapped to **'Dumbbell'** — any dumbbell user could be served York-blob competition lifts; `hex_dumbbell_head_hold` IS the dumbbell version and stays |
+| Wrist wrench | `wrist_wrench_hold`, `_lift` | falsely mapped to free **'Bodyweight'** — served to users with no equipment at all |
+| Rolling handle / pin | `rolling_handle_hold`, `rolling_handle_deadlift`, `loading_pin_grip_lift` | pin setups gating as 'Cable'+'Barbell'; nobody owning those labels owns the implement |
+| Thick-handle farmer | `thick_handle_farmer_carry` | falsely 'Dumbbell'; `farmer_handle_carry` + fat-grip rows cover |
+| Twins | `axle_bar_deadlift_hold` → `barbell_static_hold` (absorbs the name; axle already in keeper's alternatives); `dumbbell_farmer_carry` → core's `farmer_carry` (**identical** equipment+alternatives — the Task 3 keeper wins its second twin battle) | |
+
+Kept-after-scrutiny: `thick_bar_pull_up` / `thick_bar_hang` (their
+alternatives advertise the real consumer path — Fat Gripz on a normal
+bar); `fat_grip_barbell_hold` (fat grips are consumer gear);
+`rope_pull_up` / `rope_hang` (distinct hardware, athletic audience);
+all plate pinch rows; `rice_bucket` trio (household-improvisable,
+Beginner rehab value); `plate_rim_hold`; both bottoms-up KB rows; the
+carry set (`suitcase_carry`, `waiter_carry`, `trap_bar_carry`,
+`farmer_handle_carry`, `towel_farmer_carry`) — **full carry-family
+home decision remains Task 10's**, now with one fewer twin in play.
+
+### 9.2 The Task 8 handoff — hammer/biceps split verified, then fixed
+
+The biceps/forearms tagging convention is real (hammer, reverse, and
+Zottman curls all live under `arms_forearms` — brachioradialis
+identity), but it produced a user-facing absurdity: **a biceps browse
+showed zero hammer curls** while every training resource on earth
+programs them as biceps work. Appended `arms_biceps` (forearms stays
+first — the Task 4/6 append precedent) to `dumbbell_hammer_curl` (a
+common-tier staple!), `alternating_dumbbell_hammer_curl`,
+`cross_body_hammer_curl` ("Pinwheel Curl"), `rope_cable_hammer_curl`,
+and `zottman_curl` (half the movement is a supinated curl). Reverse
+curls stay forearms-only — extensor/brachioradialis work is their
+honest identity, and the biceps browse already has 100 rows.
+
+### 9.3 Common tier + prescriptions
+
+- **+ `dead_hang`** — the grip staple (Beginner, bar-only, doubles as
+  shoulder-health work); the common list had no grip entry at all.
+- Prescription spot-check: the grip library leans on the "hold" /
+  "carry" / "hang"-family name rules and serves correctly timed
+  throughout — including the absorbed "Axle Bar Deadlift Hold" alias
+  landing on an already-"Hold"-named keeper. No regex changes needed.
+
+### 9.4 Handoffs
+
+- **Task 10 (core)**: carry-family home — arms:grip holds suitcase/
+  waiter/trap-bar/farmer-handle/towel-farmer/bottoms-up carries; core
+  holds `farmer_carry` (now the undisputed farmer keeper) plus its
+  march/hold/zercher/overhead cousins. One considered decision, not
+  piecemeal moves.
+- **Task 12**: `hammer` id can be deleted from catalog rows entirely
+  once retired rows are archived (currently only on retired rows);
+  `rubber_band` vs `resistance_band` and `finger_extensor_band` map
+  correctly but are id-twin trivia.
+
+### Counts summary (Arms B)
+
+| Item | Count |
+| --- | --- |
+| Rows reviewed | 100 (78 forearms-tagged / 22 grip-only) |
+| Retired | 21 (retired list 64 → 85) — the audit's largest retire batch |
+| Row fixes | 5 sub enrichments + 1 alias absorb |
+| Adds | 0 — second consecutive zero-add slice |
+| Cross-stack | common tier + `dead_hang` |
+| Decisions closed | grip-sport specialty class OUT (plan §4); hammer/Zottman get biceps visibility; farmer-carry twin settled toward core's keeper |
+| Eval gate | report byte-identical; 50/50 suites (595 tests) |
+| Visible after slice | catalog-wide 1,251 (1,336 − 85); arms group complete |
