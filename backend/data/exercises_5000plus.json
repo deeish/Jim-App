@@ -18427,16 +18427,18 @@
     "id": "dumbbell_pullover",
     "name": "Dumbbell Pullover",
     "aliases": [
-      "DB Pullover"
+      "DB Pullover",
+      "Across-Bench Pullover"
     ],
     "description": "A unique chest and lat stretch exercise where a dumbbell is lowered behind the head in a sweeping arc.",
-    "primaryMuscleGroupId": "chest",
+    "primaryMuscleGroupId": "back",
     "subMuscleIds": [
-      "chest_upper"
+      "back_lats"
     ],
     "secondaryMuscleGroupIds": [
-      "back",
-      "shoulders"
+      "chest",
+      "shoulders",
+      "core"
     ],
     "equipmentIds": [
       "dumbbell",
@@ -18464,13 +18466,14 @@
       "Straight Bar Pullover"
     ],
     "description": "A pullover variation using a barbell for increased loading across the chest and lats.",
-    "primaryMuscleGroupId": "chest",
+    "primaryMuscleGroupId": "back",
     "subMuscleIds": [
-      "chest_upper"
+      "back_lats"
     ],
     "secondaryMuscleGroupIds": [
-      "back",
-      "shoulders"
+      "chest",
+      "shoulders",
+      "core"
     ],
     "equipmentIds": [
       "barbell",
@@ -18598,12 +18601,13 @@
       "Landmine Chest Press"
     ],
     "description": "A compound press using a landmine-anchored barbell that provides a natural arc ideal for upper chest development.",
-    "primaryMuscleGroupId": "chest",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "chest_upper"
+      "shoulders_front_delts",
+      "shoulders_side_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders",
+      "chest",
       "arms",
       "core"
     ],
@@ -18634,12 +18638,13 @@
       "Unilateral Landmine Press"
     ],
     "description": "A unilateral landmine press that builds upper chest strength and anti-rotation core stability.",
-    "primaryMuscleGroupId": "chest",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "chest_upper"
+      "shoulders_front_delts",
+      "shoulders_side_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders",
+      "chest",
       "arms",
       "core"
     ],
@@ -21568,14 +21573,15 @@
     "name": "Half-Kneeling Landmine Press",
     "aliases": [],
     "description": "A half-kneeling landmine press that trains trunk stiffness while the load moves on an arc.",
-    "primaryMuscleGroupId": "core",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "core_deep"
+      "shoulders_front_delts",
+      "shoulders_side_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders",
-      "legs",
-      "back"
+      "chest",
+      "arms",
+      "core"
     ],
     "equipmentIds": [
       "landmine"

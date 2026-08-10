@@ -117,9 +117,11 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   slider: 'Bodyweight',
   furniture_sliders: 'Bodyweight',
   // Rings / suspension
-  gymnastic_rings: 'Pull-up Bar',
-  gymnastics_rings: 'Pull-up Bar',
-  rings: 'Pull-up Bar',
+  // Rings gate as TRX (rings ≈ suspension trainer for pushing/pulling work;
+  // decision 1.3-C 2026-08-09). Dip bars keep the pull-up-bar approximation.
+  gymnastic_rings: 'TRX',
+  gymnastics_rings: 'TRX',
+  rings: 'TRX',
   // Cable attachments (count as Cable)
   rope_attachment: 'Cable',
   straight_bar_attachment: 'Cable',

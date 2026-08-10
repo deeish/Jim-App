@@ -16,6 +16,7 @@
 export const RETIRED_EXERCISE_IDS: readonly string[] = [
   // Task 1 — Chest (2026-08-07)
   'cable_pullover', // dup of straight_arm_cable_pulldown (chest-vs-back twin of the same standing cable pull)
+  'pullover_dumbbell', // decision 1.3-A (pullover home = back): worse-id twin of dumbbell_pullover, which moved to back/lats
 
   // Task 2 — Back A (2026-08-09): exact in-slice duplicates
   'banded_pull_up_overhand', // dup of band_assisted_pull_up
