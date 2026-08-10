@@ -104,6 +104,34 @@ export const RETIRED_EXERCISE_IDS: readonly string[] = [
   'wall_strict_ez_bar_curl', // dup of standing_ez_bar_curl; only the barbell row survives as the competed Strict Curl
   'wall_strict_cable_curl', // dup of standing_straight_bar_cable_curl
   'ring_triceps_extension', // rings gate as TRX (decision 1.3-C): gating-identical to suspension_trainer_triceps_extension, verbatim instructions
+
+  // Task 9 — Arms B (2026-08-10): the grip-sport specialty class (plan §4).
+  // Competition implements the app cannot model honestly: `hammer` is unmapped
+  // (rows were dead), and blob/hub/wrist-wrench/thick-handle/pinch-block map to
+  // labels (Dumbbell/Bodyweight) that falsely serve them to users without the
+  // implement. Gym-real grip work (plate pinches, hex head hold, fat-grip,
+  // thick-bar, towel, rice bucket, grippers, carries) stays.
+  'hammer_front_lever', // sledgehammer levering; `hammer` equipment id was never in EQUIPMENT_MAP
+  'hammer_front_lever_hold',
+  'hammer_lever_pronation',
+  'hammer_lever_supination',
+  'hammer_rear_lever',
+  'hammer_rear_lever_hold',
+  'pinch_block_carry', // pinch_block is deliberately unmodeled (see EQUIPMENT_MAP comment); plate_pinch_carry covers the pattern
+  'pinch_block_hold', // plate_pinch_hold / hex_dumbbell_head_hold cover
+  'pinch_block_lift', // plate pinch lifts cover
+  'blob_hold', // blob_implement falsely gates as 'Dumbbell'; hex_dumbbell_head_hold IS the dumbbell version
+  'blob_lift',
+  'hub_hold', // hub_lift_implement falsely gates as 'Dumbbell'
+  'hub_lift',
+  'wrist_wrench_hold', // wrist_wrench falsely maps to free 'Bodyweight' — served to users with no equipment
+  'wrist_wrench_lift',
+  'rolling_handle_hold', // rolling_handle+loading_pin gates as 'Cable'+'Barbell' — neither owns the implement
+  'rolling_handle_deadlift',
+  'loading_pin_grip_lift', // loading-pin specialty; barbell/plate holds cover top-position grip work
+  'thick_handle_farmer_carry', // thick_handle_implement falsely gates as 'Dumbbell'; farmer_handle_carry + fat-grip rows cover
+  'axle_bar_deadlift_hold', // gating-identical twin of barbell_static_hold (axle_bar → 'Barbell'); keeper absorbs the name and offers axle_bar as an alternative
+  'dumbbell_farmer_carry', // gating-identical cross-group twin of core's farmer_carry (identical eq+alt; Task 3 keeper wins again); full carry-family home = Task 10
 ];
 
 const RETIRED = new Set(RETIRED_EXERCISE_IDS);

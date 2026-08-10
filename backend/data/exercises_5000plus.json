@@ -4892,7 +4892,8 @@
     "description": "A hammer curl that trains the brachioradialis and forearms with a neutral grip.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
-      "arms_forearms"
+      "arms_forearms",
+      "arms_biceps"
     ],
     "secondaryMuscleGroupIds": [],
     "equipmentIds": [
@@ -4924,7 +4925,8 @@
     "description": "An alternating hammer curl that lets each forearm work independently.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
-      "arms_forearms"
+      "arms_forearms",
+      "arms_biceps"
     ],
     "secondaryMuscleGroupIds": [],
     "equipmentIds": [
@@ -4958,7 +4960,8 @@
     "description": "A cross-body hammer curl that changes the arm path while keeping a strong neutral grip.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
-      "arms_forearms"
+      "arms_forearms",
+      "arms_biceps"
     ],
     "secondaryMuscleGroupIds": [],
     "equipmentIds": [
@@ -4990,7 +4993,8 @@
     "description": "A rope hammer curl that keeps continuous tension on the neutral-grip curl pattern.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
-      "arms_forearms"
+      "arms_forearms",
+      "arms_biceps"
     ],
     "secondaryMuscleGroupIds": [],
     "equipmentIds": [
@@ -5023,7 +5027,8 @@
     "description": "A curl that combines a supinated lift with a pronated lowering phase for extra forearm demand.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
-      "arms_forearms"
+      "arms_forearms",
+      "arms_biceps"
     ],
     "secondaryMuscleGroupIds": [],
     "equipmentIds": [
@@ -5715,7 +5720,9 @@
   {
     "id": "barbell_static_hold",
     "name": "Barbell Static Hold",
-    "aliases": [],
+    "aliases": [
+      "Axle Bar Deadlift Hold"
+    ],
     "description": "A barbell top hold that lets you challenge the hands with heavier straight-bar loading.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [

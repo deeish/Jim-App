@@ -97,6 +97,7 @@ export const COMMON_EXERCISE_IDS: string[] = [
   'close_grip_bench_press',
   'parallel_bar_dip',
   'close_grip_push_up',
+  'dead_hang',
   // Core
   'front_plank',
   'side_plank',
