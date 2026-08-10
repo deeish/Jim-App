@@ -256,8 +256,28 @@ expect filler and near-duplicates, especially in the big groups.
       10 carry-family home (one twin fewer); Task 12 id trivia. Both
       gates byte-identical/green. Catalog 1,336; retired 85; visible
       1,251.
-- [ ] **Task 10 — Core** (189 rows; ⚠️ 94 tagged `core_deep` — same
-      bulk-tagging suspicion as shoulders)
+- [x] **Task 10 — Core** — done + APPLIED 2026-08-10 (`11a444a`). 188
+      rows. core_deep fear WRONG (like shoulders): the 93 rows are a
+      coherent anti-movement/motor-control library. CARRY-FAMILY HOME
+      CLOSED (identity-based): trunk carries → core (suitcase_carry +
+      waiter_carry retagged arms→core to rejoin hold/march siblings,
+      copy de-gripped), implement/grip carries → arms:grip, unique
+      overhead bottoms-up → shoulders; the bottoms-up KB carry existed
+      THREE times → core keeper absorbs both dups. 5 retires
+      (kneeling_ab_wheel_rollout — keeper's own instructions say
+      "Kneel…"; ring_fallout — rings=TRX; trap_bar_hold — grip twin;
+      2 bottoms-up dups). PLANK-HYBRID PRESCRIPTION FIX in both twins
+      + spec parity: 9 rep rows (incl. Task 6's two legs handoffs) no
+      longer serve as timed holds; base planks stay timed;
+      quadruped_hover now timed via isometric_hold. Revival #3:
+      rotary_torso_machine unmapped=dead → 'Machine'. Adds:
+      weighted_plank + plank_up_down (alias set kept minimal — backend
+      scans aliases for time inference). Common + bird_dog. Handoffs:
+      Task 11 mountain_climber check; Task 12 sliders/slider id twins;
+      Task 13 carry-matrix + breathing-drill ranking. Gates:
+      backend 50/50 (596), frontend twin + tsc green, eval
+      byte-identical (7th in a row). Catalog 1,338; retired 90;
+      visible 1,248.
 - [ ] **Task 11 — Cardio** (50 rows; ALL 50 empty-subMuscle rows in the
       catalog are cardio — decide by-design vs backfill here; also check
       `cardio-catalog-exclusions.ts` / `cardio-display-order.ts`)

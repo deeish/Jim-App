@@ -1627,3 +1627,118 @@ honest identity, and the biceps browse already has 100 rows.
 | Decisions closed | grip-sport specialty class OUT (plan §4); hammer/Zottman get biceps visibility; farmer-carry twin settled toward core's keeper |
 | Eval gate | report byte-identical; 50/50 suites (595 tests) |
 | Visible after slice | catalog-wide 1,251 (1,336 − 85); arms group complete |
+
+## Task 10 — Core (2026-08-10)
+
+> **APPLIED 2026-08-10** (commit `11a444a`, same session as the findings,
+> same widened Dylan brief as Tasks 4–9). 5 retires (retired list 90),
+> 2 group-home retags, a two-sided prescription-code fix, 1 revival,
+> 2 adds, 1 common-tier add (catalog 1,338; visible 1,248). Gates:
+> backend 50/50 (596 tests — one new spec), frontend prescription test
+> + tsc clean, eval captures report **byte-identical** — seventh
+> perfect gate in a row.
+
+**Scope.** All 188 primary-core rows (93 core_deep / 33 upper_abs /
+53 lower_abs / 42 obliques) plus the all-groups carry inventory this
+task owned.
+
+**Verdict: the core_deep fear was wrong — same shape as shoulders.**
+The 93 deep rows are a coherent anti-extension / anti-rotation /
+anti-lateral-flexion / motor-control library (carries, planks,
+rollouts, dead bugs, pallof work, breathing drills, get-ups), honestly
+tagged. Flexion (60 rows), raises/hangs, and rotation families are
+saturated — the only true adds were two mainstream plank variants.
+
+### 10.1 Carry-family home — CLOSED
+
+The decision the audit deferred since Task 3, settled as
+**identity-based homes**:
+
+- **Core** owns trunk-identity carries: farmer (+offset), suitcase
+  hold/march/**carry**, waiter march/**carry**, front-rack ×4,
+  overhead ×2, zercher ×2, bear-hug/sandbag ×4, bottoms-up
+  carry/march/hold, pallof march, tabletop march.
+- **Arms:grip** owns implement/grip-limited carries: farmer-handle,
+  towel-farmer, plate-pinch, trap-bar.
+- **Shoulders:cuff** keeps only the unique overhead bottoms-up carry.
+
+Moves that implemented it: `suitcase_carry` and `waiter_carry`
+retagged arms → core (their hold/march siblings were already here;
+copy de-gripped per the retag-residue lesson; arms kept as secondary).
+The **bottoms-up KB carry existed three times** — core, arms, and
+shoulders, identical kettlebell gating — so core's `bottoms_up_carry`
+keeps the family and absorbs both names.
+
+### 10.2 Retires (5)
+
+| Retire | Keeper | Why |
+| --- | --- | --- |
+| `kneeling_ab_wheel_rollout` | `ab_wheel_rollout` | Exact dup: the keeper's own instructions begin "Kneel with the wheel…", and this row's alias literally WAS the keeper's name |
+| `ring_fallout` | `suspension_trainer_fallout` | Rings gate as TRX (1.3-C) — the Task 8 ring-extension precedent |
+| `trap_bar_hold` (core) | arms' `trap_bar_static_hold` | Same bar, same top hold; grip is the limiting factor, so the grip row keeps the family |
+| `bottoms_up_kettlebell_carry` (arms) | `bottoms_up_carry` | Copy #2 of the same carry |
+| `single_arm_bottoms_up_kettlebell_carry` (shoulders) | `bottoms_up_carry` | Copy #3 (T7 flagged it for exactly this decision) |
+
+Kept-after-scrutiny: the 90/90 breathing pair (the wall version
+genuinely changes the drill — hamstring anchoring — not a cue-twin);
+all five breathing/PRI drills; bear crawl direction variants; the
+dead-bug ×6 and leg-lower ×4 progression ladders; both pikes
+(Medicine Ball vs TRX labels differ); `overhead_hold`.
+
+### 10.3 The plank-hybrid prescription fix (both twins + spec parity)
+
+The Task 6 handoff, closed properly: plank-HYBRID names are rep
+movements performed from a plank position, but `\bplank\b` in
+TIME_NAME served them as timed holds. The exclusion alternation
+(`row|rotation|reach|drag|dumbbell`) gained
+`clamshell|abduction|hip dip|shoulder tap|knee tuck|bird dog|leg
+raise|up-down|walkout` in **both** `backend/src/data/
+exercise-prescription.ts` and `frontend/src/lib/
+exercisePrescription.ts`, with new parity assertions on both sides.
+
+Now reps: legs' `side_plank_clamshell` + `side_plank_hip_abduction`,
+core's `side_plank_hip_dip`, `plank_shoulder_tap`,
+`bear_plank_shoulder_tap`, `side_plank_knee_tuck`,
+`high_plank_bird_dog`, `side_plank_top_leg_raise`, `walkout_to_plank`
+(9 rows). Still timed: every base plank (front/side/star/RKC/long-
+lever/bear/Copenhagen/stability-ball/weighted). `quadruped_hover`
+(a hold served as reps — the opposite miss) gained the
+`isometric_hold` pattern.
+
+### 10.4 Revival #3 + adds + common tier
+
+- **`rotary_torso_machine` was dead** — its equipment id was missing
+  from EQUIPMENT_MAP (the third unmapped-machine find in three
+  slices). Now `'Machine'`.
+- Adds: **Weighted Plank** (plate-gated honestly, timed) and **Plank
+  Up-Down** ("Up-Down Plank"; reps via the new exclusion — its alias
+  set was deliberately kept minimal because the backend scans aliases
+  for time inference). Renegade row already exists in back — no add.
+- Common tier: **+ `bird_dog`** (dead_bug's equal partner was
+  missing; the rehab-staple pair is now complete).
+
+### 10.5 Handoffs
+
+- **Task 11 (cardio)**: `mountain_climber` base row presumably lives
+  there (core has only the cross-body variant) — confirm.
+- **Task 12**: `sliders` vs `slider` id twins (both → Bodyweight);
+  `ab_wheel` maps to free 'Bodyweight' (light-accessory convention —
+  reviewed, deliberate); marches serve as reps (no carry-regex word)
+  — acceptable, documented.
+- **Task 13**: rank the carry matrix (22 core rows) and breathing
+  drills for consumer-app depth.
+
+### Counts summary (Core)
+
+| Item | Count |
+| --- | --- |
+| Rows reviewed | 188 + cross-group carry inventory |
+| Retired | 5 (retired list 85 → 90) |
+| Group-home retags (arriving) | 2 (suitcase_carry, waiter_carry → core) |
+| Revived | 1 (rotary_torso_machine mapped) |
+| Prescription-code fix | 9 plank-hybrid rows reps-ified across both twins; 1 hover timed |
+| Adds | 2 (catalog 1,336 → 1,338) |
+| Cross-stack | EQUIPMENT_MAP +1; common tier + bird_dog; prescription twins + specs |
+| Decisions closed | carry-family home (identity-based); core_deep tagging legitimate; 90/90 breathing pair distinct |
+| Eval gate | report byte-identical; backend 50/50 (596), frontend twin green |
+| Visible after slice | catalog-wide 1,248 (1,338 − 90) |
