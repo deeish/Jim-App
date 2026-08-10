@@ -278,9 +278,26 @@ expect filler and near-duplicates, especially in the big groups.
       backend 50/50 (596), frontend twin + tsc green, eval
       byte-identical (7th in a row). Catalog 1,338; retired 90;
       visible 1,248.
-- [ ] **Task 11 — Cardio** (50 rows; ALL 50 empty-subMuscle rows in the
-      catalog are cardio — decide by-design vs backfill here; also check
-      `cardio-catalog-exclusions.ts` / `cardio-display-order.ts`)
+- [x] **Task 11 — Cardio** — done + APPLIED 2026-08-10 (`3d104b5`).
+      50 rows; LAST CONTENT SLICE — every muscle group now audited.
+      Cleanest slice in the catalog (hand-authored copy, honest
+      difficulties): 0 retires, the audit's only retire-free slice.
+      All conventions confirmed and closed: empty subMuscleIds ×50 BY
+      DESIGN (display order governs cardio, no muscle browse); the 9
+      session-template rows browse-hidden by design (longer
+      instructions fit the template role — no trimming);
+      swing-conditioning + farmer-brisk-walk = deliberate modality
+      rows; sled section correct post-T4; mountain_climber_cardio is
+      the base row; skater split stands; bicycle+pool = correct
+      Unmodeled behavior, now documented in the EQUIPMENT_MAP comment.
+      11 em-dash names renamed to house parenthetical/plain style
+      (same tokens, no alias churn) — the name-parity spec caught the
+      fat-loss template's hardcoded battle-rope name, synced same
+      commit. 3 adds (all queued gap candidates were real gaps):
+      wall_ball (existed in NO form), jumping_lunge, broad_jump — all
+      slotted into cardio-display-order. Both gates green, eval
+      byte-identical (8th consecutive). Catalog 1,341; retired 90;
+      visible 1,251.
 - [ ] **Task 12 — Consolidation** (merge per-group findings, cross-group
       consistency + dedup pass, final decisions list for Dylan, then the
       Section 7 apply plan: 3 eval-gated PRs)

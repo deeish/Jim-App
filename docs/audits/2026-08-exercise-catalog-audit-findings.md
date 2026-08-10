@@ -1742,3 +1742,92 @@ lever/bear/Copenhagen/stability-ball/weighted). `quadruped_hover`
 | Decisions closed | carry-family home (identity-based); core_deep tagging legitimate; 90/90 breathing pair distinct |
 | Eval gate | report byte-identical; backend 50/50 (596), frontend twin green |
 | Visible after slice | catalog-wide 1,248 (1,338 − 90) |
+
+## Task 11 — Cardio (2026-08-10)
+
+> **APPLIED 2026-08-10** (commit `3d104b5`, same session as the findings,
+> same widened Dylan brief as Tasks 4–10). 0 retires, 11 renames, 3
+> adds, 1 template-name sync (catalog 1,341; visible 1,251). Gates:
+> 50/50 suites (596 tests), eval captures report **byte-identical** —
+> eighth perfect gate in a row. **This closes the last content slice:
+> every muscle group is now audited.**
+
+**Scope.** All 50 primary-cardio rows, `cardio-display-order.ts`, and
+`cardio-catalog-exclusions.ts`.
+
+**Verdict: the cleanest content in the catalog — clearly
+hand-authored.** Detailed real coaching, safety escapes ("stop if…"),
+honest difficulty grades, generous alias sets (12-3-30, LISS, MetCon,
+Norwegian 4×4). Zero invented movements, zero twins, zero retires —
+the audit's only retire-free slice.
+
+### 11.1 Conventions confirmed (all queued handoffs closed)
+
+- **Empty `subMuscleIds` on all 50 rows is BY DESIGN** — cardio has no
+  muscle-map browse; `cardio-display-order.ts` governs presentation
+  and `secondaryMuscleGroupIds` carries the "works legs/arms" display.
+  No backfill.
+- **The 9 session-template rows** (Zone 2, AMRAP, EMOM, general HIIT,
+  Tabata, Norwegian 4×4, SIT, circuit, hybrid-race) are browse-hidden
+  via `cardio-catalog-exclusions` by design — they stay resolvable for
+  deep links and saved items. Their longer instruction lists (5–7
+  steps) fit their template role; no trimming.
+- **Conditioning-modality rows confirmed**:
+  `kettlebell_swing_conditioning` and `farmers_carry_brisk_walk` are
+  deliberate cardio-format twins of strength rows, like Sled Push —
+  the Task 5/9 question is settled as a convention, not duplication.
+- **Sled section post-Task-4 retire is correct**: `sled_push` (cardio,
+  conditioning identity) + `sled_drag_backward` retired with its
+  display-order line already removed; drags live in legs.
+- **`mountain_climber_cardio` is the base row** (Task 10's question) —
+  core keeps only the cross-body variant. Skater-jump split confirmed
+  (`lateral_bound` = legs power; `lateral_shuffle_conditioning` =
+  cardio).
+- **`bicycle` and `pool` unmapped = correct Unmodeled behavior** (a
+  bike and a pool are unassumable), but it was undocumented — both now
+  cited in the EQUIPMENT_MAP deliberately-unmapped comment block so a
+  future audit doesn't "fix" them.
+
+### 11.2 Renames (11) — em-dash names → house style
+
+The catalog's separator convention is parenthetical/plain ("Arc
+Trainer (Steady)"); eleven rows used " — ". Renamed with identical
+tokens (no alias churn needed): Battle Rope Alternating Waves, Battle
+Rope Double Slams, Farmer's Carry Brisk Walk (Conditioning), Swimming
+Laps (Easy), Jump Rope Single/Double Unders, Circuit Training (Cardio
+Focus), AMRAP Conditioning Circuit, EMOM Conditioning (Cardio or
+Mixed), HIIT (General High-Intensity Intervals), Hybrid Race Prep
+(Run + Station Circuits). The **name-parity spec caught** the
+`fat-loss-full-body` template's hardcoded battle-rope name — synced in
+the same commit (templates render these names to users).
+
+### 11.3 Coverage adds (3) — the queued gap candidates, all real gaps
+
+1. **Wall Ball** (`wall_ball`) — the CrossFit/HIIT staple existed in
+   no form; medicine_ball + wall, Intermediate.
+2. **Jumping Lunge** (`jumping_lunge`) — bodyweight, Advanced
+   (high-impact unilateral plyo); joins jump squat in the plyo block.
+3. **Broad Jump** (`broad_jump`) — bodyweight, Intermediate.
+
+All three slotted into `cardio-display-order.ts` (plyo/implement
+sections) so they don't hash-sort to the list's end. All serve timed
+via the cardio group gate, consistent with the modality convention.
+
+### 11.4 Handoffs
+
+- **Task 12**: none new — the cardio slice adds nothing to the
+  consolidation backlog.
+- **Task 13**: session-template rows should probably be exempt from
+  ranking (they are formats, not exercises).
+
+### Counts summary (Cardio)
+
+| Item | Count |
+| --- | --- |
+| Rows reviewed | 50 + both cardio data files |
+| Retired | 0 — the audit's only retire-free slice (list stays 90) |
+| Renames | 11 (+1 template name sync) |
+| Adds | 3 (catalog 1,338 → 1,341) |
+| Decisions closed | empty-subs by design; session templates by design; modality-row convention; sled/skater/mountain-climber splits; bicycle+pool Unmodeled documented |
+| Eval gate | report byte-identical; 50/50 suites (596 tests) |
+| Visible after slice | catalog-wide 1,251 (1,341 − 90); **all muscle groups audited** |
