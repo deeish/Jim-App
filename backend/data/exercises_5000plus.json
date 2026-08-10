@@ -11449,7 +11449,7 @@
     "aliases": [
       "Upright Row"
     ],
-    "description": "A barbell pull from the hips to chin-height with elbows leading, targeting the upper traps and rear deltoids.",
+    "description": "A barbell pull from the hips to chin-height with elbows leading, targeting the upper traps and side delts.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -11467,12 +11467,12 @@
       "cable_machine"
     ],
     "movementPatternIds": [
-      "vertical_pull"
+      "upright_row"
     ],
     "type": "Compound",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Beginner",
+    "difficulty": "Intermediate",
     "instructions": [
       "Grip a barbell with a close pronated grip, hands 6–8 inches apart.",
       "Stand tall with the bar resting at your hips.",
@@ -11501,12 +11501,12 @@
     ],
     "equipmentAlternativeIds": [],
     "movementPatternIds": [
-      "vertical_pull"
+      "upright_row"
     ],
     "type": "Compound",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Beginner",
+    "difficulty": "Intermediate",
     "instructions": [
       "Hold a dumbbell in each hand in front of your thighs with palms facing you.",
       "Stand tall with shoulders relaxed.",
@@ -26878,7 +26878,7 @@
     "type": "Compound",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Beginner",
+    "difficulty": "Intermediate",
     "instructions": [
       "Start in a pike position with your hips high and hands under your shoulders.",
       "Brace your core and keep your torso stacked.",
@@ -28314,7 +28314,7 @@
     "type": "Compound",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Beginner",
+    "difficulty": "Intermediate",
     "instructions": [
       "Stand on a resistance band and hold the handles in front of your thighs.",
       "Keep your torso steady and lead with your elbows.",
@@ -39482,7 +39482,8 @@
     "id": "band_standing_external_rotation",
     "name": "Band Standing External Rotation",
     "aliases": [
-      "Band External Rotation"
+      "Band External Rotation",
+      "Towel Roll External Rotation"
     ],
     "description": "A standing band drill that strengthens the rotator cuff through external rotation at the side.",
     "primaryMuscleGroupId": "shoulders",
@@ -39514,7 +39515,8 @@
     "id": "cable_standing_external_rotation",
     "name": "Cable Standing External Rotation",
     "aliases": [
-      "Cable External Rotation"
+      "Cable External Rotation",
+      "Towel Roll Cable External Rotation"
     ],
     "description": "A standing cable drill that loads shoulder external rotation with a smooth resistance curve.",
     "primaryMuscleGroupId": "shoulders",
@@ -40665,7 +40667,8 @@
     "id": "band_standing_internal_rotation",
     "name": "Band Standing Internal Rotation",
     "aliases": [
-      "Band Internal Rotation"
+      "Band Internal Rotation",
+      "Towel Roll Internal Rotation"
     ],
     "description": "A standing band drill that strengthens the cuff through internal rotation at the side.",
     "primaryMuscleGroupId": "shoulders",
@@ -40697,7 +40700,8 @@
     "id": "cable_standing_internal_rotation",
     "name": "Cable Standing Internal Rotation",
     "aliases": [
-      "Cable Internal Rotation"
+      "Cable Internal Rotation",
+      "Towel Roll Cable Internal Rotation"
     ],
     "description": "A standing cable exercise that loads shoulder internal rotation with smooth tension.",
     "primaryMuscleGroupId": "shoulders",
@@ -42513,7 +42517,8 @@
     "id": "single_arm_stability_ball_wall_circles",
     "name": "Single-Arm Stability Ball Wall Circles",
     "aliases": [
-      "Ball on Wall Circles"
+      "Ball on Wall Circles",
+      "Medicine Ball Wall Circles"
     ],
     "description": "A ball-on-wall drill that builds cuff endurance and shoulder stability through controlled circles.",
     "primaryMuscleGroupId": "shoulders",
@@ -45554,6 +45559,79 @@
       "Keep your toes pulled up toward your shins.",
       "Walk forward with short controlled steps.",
       "Stay tall and continue for distance or time."
+    ]
+  },
+  {
+    "id": "incline_pike_push_up",
+    "name": "Incline Pike Push-Up",
+    "aliases": [
+      "Hands-Elevated Pike Push-Up"
+    ],
+    "description": "A pike push-up with the hands elevated to reduce the load, making the vertical pressing pattern accessible.",
+    "primaryMuscleGroupId": "shoulders",
+    "subMuscleIds": [
+      "shoulders_front_delts",
+      "shoulders_side_delts"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [
+      "bench",
+      "box"
+    ],
+    "movementPatternIds": [
+      "bodyweight_press"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Place your hands on a bench or sturdy surface and walk your feet in.",
+      "Lift your hips high into a pike position.",
+      "Lower the top of your head toward the surface between your hands.",
+      "Press back up under control and repeat."
+    ]
+  },
+  {
+    "id": "kettlebell_push_press",
+    "name": "Kettlebell Push Press",
+    "aliases": [
+      "Single-Arm Kettlebell Push Press"
+    ],
+    "description": "An explosive kettlebell press that uses leg drive to send the bell overhead, building shoulder power.",
+    "primaryMuscleGroupId": "shoulders",
+    "subMuscleIds": [
+      "shoulders_front_delts",
+      "shoulders_side_delts"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "kettlebell"
+    ],
+    "equipmentAlternativeIds": [
+      "dumbbell"
+    ],
+    "movementPatternIds": [
+      "push_press"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Rack the kettlebell at your shoulder with a braced trunk.",
+      "Dip slightly at the knees, keeping your torso upright.",
+      "Drive through your legs and press the bell overhead in one motion.",
+      "Lower it back to the rack position under control and repeat."
     ]
   }
 ]

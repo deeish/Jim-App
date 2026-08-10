@@ -84,6 +84,19 @@ export const RETIRED_EXERCISE_IDS: readonly string[] = [
   // Task 6 — Legs C (2026-08-10)
   'barbell_donkey_calf_raise', // a free bar cannot be secured across the hips in a 90° hinge; the donkey family keeps machine/Smith/dip-belt/bodyweight loading
   'bench_copenhagen_plank', // core dup of legs' copenhagen_knee_plank (same knee-on-bench short-lever hold; aliases absorbed there)
+
+  // Task 7 — Shoulders (2026-08-10): rotator-cuff cue-twins — each pairs with a
+  // keeper that is gating-identical (towel/wall map to the free Bodyweight
+  // label, pads are setup gear) and differs only by a coaching cue
+  'band_towel_roll_external_rotation', // dup of band_standing_external_rotation (towel between elbow and ribs is a cue, not an exercise)
+  'band_towel_roll_internal_rotation', // dup of band_standing_internal_rotation
+  'cable_towel_roll_external_rotation', // dup of cable_standing_external_rotation
+  'cable_towel_roll_internal_rotation', // dup of cable_standing_internal_rotation
+  'wall_supported_band_45_degree_external_rotation', // dup of band_45_degree_external_rotation (wall = posture cue)
+  'wall_supported_band_90_90_external_rotation', // dup of band_90_90_external_rotation
+  'pad_supported_cable_90_90_external_rotation', // dup of seated_supported_cable_90_90_external_rotation (same cable+pad setup, near-verbatim copy)
+  'single_arm_medicine_ball_wall_stabilization_circles', // dup of single_arm_stability_ball_wall_circles (both ball ids map to 'Medicine Ball'; mutual alternatives)
+  'single_arm_forearm_wall_slide', // dup of single_arm_serratus_wall_slide (near-verbatim copy; keeper already aliased "Single-Arm Wall Slide")
 ];
 
 const RETIRED = new Set(RETIRED_EXERCISE_IDS);
