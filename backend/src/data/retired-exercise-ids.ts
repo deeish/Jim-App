@@ -75,6 +75,11 @@ export const RETIRED_EXERCISE_IDS: readonly string[] = [
 
   // Task 4 — Legs A (2026-08-10)
   'sled_drag_backward', // cardio twin of legs' backward_sled_drag (same movement, both aliased "Reverse Sled Drag"; muscle-true home = legs, matching lateral_sled_drag)
+
+  // Task 5 — Legs B (2026-08-10): implement twins (towel and slider map to the same
+  // Bodyweight equipment label, so the pairs are gating-identical duplicates)
+  'towel_leg_curl', // dup of slider_leg_curl (mutual equipment alternatives; keeper absorbs the alias)
+  'single_leg_towel_leg_curl', // dup of single_leg_slider_leg_curl
 ];
 
 const RETIRED = new Set(RETIRED_EXERCISE_IDS);

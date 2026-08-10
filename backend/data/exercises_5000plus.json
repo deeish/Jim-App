@@ -11379,12 +11379,13 @@
       "Reverse Hyper"
     ],
     "description": "A lower back and glute exercise where the legs are raised while the upper body stays fixed on a bench.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_glutes",
+      "legs_hamstrings"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core"
     ],
     "equipmentIds": [
@@ -11394,7 +11395,7 @@
       "flat_bench"
     ],
     "movementPatternIds": [
-      "hinge"
+      "hip_extension"
     ],
     "type": "Compound",
     "position": "Prone",
@@ -11429,7 +11430,7 @@
     ],
     "equipmentAlternativeIds": [],
     "movementPatternIds": [
-      "hinge"
+      "leg_curl"
     ],
     "type": "Compound",
     "position": "Prone",
@@ -12150,7 +12151,7 @@
       "Pull-Through",
       "Hip Hinge Pull-Through"
     ],
-    "description": "A cable hip-hinge movement where the rope is pulled between the legs to train the lower back and glutes.",
+    "description": "A cable hip-hinge movement where the rope is pulled between the legs to train the glutes and hamstrings.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
       "legs_glutes",
@@ -12178,7 +12179,7 @@
       "Set a cable to the lowest pulley and attach a rope.",
       "Stand facing away from the machine, straddle the cable, and grip the rope between your legs.",
       "Hinge forward at the hips, letting the cable pull the rope back through.",
-      "Drive hips forward to stand, squeezing glutes and lower back at the top."
+      "Drive hips forward to stand, squeezing your glutes at the top."
     ]
   },
   {
@@ -12395,7 +12396,7 @@
       "KB Swing",
       "Two-Hand Swing"
     ],
-    "description": "A dynamic hip-hinge movement using a kettlebell to train the posterior chain with an emphasis on the lower back and glutes.",
+    "description": "A dynamic hip-hinge movement using a kettlebell to train the posterior chain with an emphasis on the glutes and hips.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
       "legs_glutes",
@@ -12409,7 +12410,9 @@
     "equipmentIds": [
       "kettlebell"
     ],
-    "equipmentAlternativeIds": [],
+    "equipmentAlternativeIds": [
+      "dumbbell"
+    ],
     "movementPatternIds": [
       "hinge",
       "explosive"
@@ -31536,7 +31539,8 @@
     "id": "slider_leg_curl",
     "name": "Slider Leg Curl",
     "aliases": [
-      "Sliding Leg Curl"
+      "Sliding Leg Curl",
+      "Towel Leg Curl"
     ],
     "description": "A floor hamstring curl that uses sliders for smooth bilateral knee flexion.",
     "primaryMuscleGroupId": "legs",
@@ -31570,7 +31574,9 @@
   {
     "id": "single_leg_slider_leg_curl",
     "name": "Single-Leg Slider Leg Curl",
-    "aliases": [],
+    "aliases": [
+      "Single-Leg Towel Leg Curl"
+    ],
     "description": "A unilateral sliding curl that builds hamstring strength and pelvic control.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -31782,10 +31788,10 @@
       "core"
     ],
     "equipmentIds": [
-      "bodyweight",
-      "nordic_bench"
+      "bodyweight"
     ],
     "equipmentAlternativeIds": [
+      "nordic_bench",
       "partner_assist"
     ],
     "movementPatternIds": [
@@ -31796,7 +31802,7 @@
     "isUnilateral": false,
     "difficulty": "Advanced",
     "instructions": [
-      "Kneel with your ankles secured and your body tall.",
+      "Kneel with your ankles secured under a sturdy pad, low bar, or partner.",
       "Brace your glutes and lower yourself forward slowly.",
       "Catch yourself lightly with your hands if needed.",
       "Pull back up using your hamstrings as much as possible."
@@ -32081,8 +32087,11 @@
   },
   {
     "id": "back_extension_machine",
-    "name": "Back Extension Machine",
-    "aliases": [],
+    "name": "Machine Back Extension",
+    "aliases": [
+      "Back Extension Machine",
+      "Seated Back Extension"
+    ],
     "description": "A machine hip extension that strengthens the glutes and hamstrings with guided resistance.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -45311,6 +45320,150 @@
       "Drive up hard and use the momentum to press the weights overhead.",
       "Lock out overhead, then lower back to your shoulders.",
       "Keep your heels down and trunk braced throughout."
+    ]
+  },
+  {
+    "id": "cable_glute_kickback",
+    "name": "Cable Glute Kickback",
+    "aliases": [
+      "Cable Hip Extension",
+      "Standing Glute Kickback"
+    ],
+    "description": "A standing cable hip extension using an ankle strap to isolate the glutes through a controlled kick back.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_glutes",
+      "legs_hamstrings"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "cable_machine",
+      "ankle_strap"
+    ],
+    "equipmentAlternativeIds": [
+      "resistance_band"
+    ],
+    "movementPatternIds": [
+      "hip_extension"
+    ],
+    "type": "Isolation",
+    "position": "Standing",
+    "isUnilateral": true,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Attach an ankle strap to a low cable and face the machine.",
+      "Hold the frame lightly and soften the standing knee.",
+      "Kick the working leg back by squeezing the glute, without arching your lower back.",
+      "Return under control and finish the set before switching sides."
+    ]
+  },
+  {
+    "id": "machine_glute_kickback",
+    "name": "Machine Glute Kickback",
+    "aliases": [
+      "Glute Kickback Machine",
+      "Machine Hip Extension"
+    ],
+    "description": "A guided hip extension on a kickback or multi-hip machine that loads the glutes through a fixed path.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_glutes",
+      "legs_hamstrings"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "multi_hip_machine"
+    ],
+    "equipmentAlternativeIds": [
+      "cable_machine"
+    ],
+    "movementPatternIds": [
+      "hip_extension"
+    ],
+    "type": "Isolation",
+    "position": "Standing",
+    "isUnilateral": true,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Set the pad or platform against the working leg and hold the handles.",
+      "Brace your trunk and keep your hips square.",
+      "Drive the leg back by extending the hip fully.",
+      "Return slowly to the start and repeat on the same side."
+    ]
+  },
+  {
+    "id": "kas_glute_bridge",
+    "name": "Kas Glute Bridge",
+    "aliases": [
+      "KAS Glute Bridge"
+    ],
+    "description": "A short-range, constant-tension hip thrust variation that keeps the glutes loaded without momentum.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "barbell",
+      "bench"
+    ],
+    "equipmentAlternativeIds": [
+      "dumbbell"
+    ],
+    "movementPatternIds": [
+      "hip_thrust"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Set up like a barbell hip thrust with your upper back on a bench.",
+      "Start from the locked-out top position with glutes squeezed.",
+      "Lower your hips only a few inches, keeping constant tension.",
+      "Drive back to lockout slowly without bouncing or losing position."
+    ]
+  },
+  {
+    "id": "assisted_nordic_hamstring_curl",
+    "name": "Assisted Nordic Hamstring Curl",
+    "aliases": [
+      "Band-Assisted Nordic Curl",
+      "Assisted Nordic Curl"
+    ],
+    "description": "A band-assisted Nordic curl that makes eccentric hamstring training accessible before the full movement.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_hamstrings"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "resistance_band"
+    ],
+    "equipmentAlternativeIds": [
+      "nordic_bench",
+      "partner_assist"
+    ],
+    "movementPatternIds": [
+      "leg_curl"
+    ],
+    "type": "Isolation",
+    "position": "Kneeling",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Anchor a band high in front of you and hold it at your chest while kneeling with ankles secured.",
+      "Keep your hips extended and your body in one line.",
+      "Lower forward slowly while the band takes part of your weight.",
+      "Pull back up with your hamstrings, using the band only as needed."
     ]
   }
 ]
