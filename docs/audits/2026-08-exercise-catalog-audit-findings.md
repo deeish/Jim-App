@@ -1006,3 +1006,135 @@ Intermediate).
 | Anchor pools | +`bodyweight_squat` × 4 focuses |
 | Eval gate | report byte-identical; 50/50 suites (595 tests) |
 | Visible legs rows after slice | 309 of 309 (no legs retires) |
+
+---
+
+## Task 5 — Legs B: hamstrings & glutes (2026-08-10)
+
+> **APPLIED 2026-08-10** (commit `aa4719c`, same session as the findings,
+> same widened Dylan brief as Task 4). 2 retires (retired list 48), 1
+> group-home retag ARRIVING (back's reverse hyper → legs), 7 row fixes,
+> 4 coverage adds (catalog 1,332; legs in-group 314 / visible 312; back
+> visible 177). Gates: 50/50 suites (595 tests), eval captures report
+> **byte-identical** to baseline — second perfect gate in a row.
+
+**Scope.** All 98 rows matching the post-Task-4 slice definition
+(`legs_hamstrings`, or `legs_glutes` without `legs_quads`) — 97 live
+plus the already-retired `seated_good_morning_band`. Every row judged
+per plan §3 with full copy reads, including all Task 3 hinge arrivals.
+
+**Verdict: healthy and saturated, with cross-group seams.** The
+RDL (×8) / SLDL (×3) / deadlift (×5) / good-morning (×6) hinge keeper
+families all verified clean — honest equipment, correct tags, and
+Beginner-friendly home options in every family. Hip thrusts (×10),
+glute bridges (×10), and leg curls (×20 across machine / cable / band /
+DB / ball / slider / towel / TRX) are saturated with legitimate
+variants. The problems were seams: a reverse-hyper family split across
+back and legs, one implement-twin pair, Task 3 retag residue in copy,
+and the quintessential home hamstring exercise gated behind a machine
+label.
+
+### 5.1 The equipment-id twin question — resolved as NON-gating
+
+The slice exposed catalog-wide id twins Task 0's referential check
+could not flag (both sides resolve): `cable` (33 rows) vs
+`cable_machine` (197), `bench` (89) vs `flat_bench` (59), `safety_bar`
+(1) vs `safety_squat_bar` (3). **Verified harmless at runtime**:
+`EQUIPMENT_MAP` normalizes both sides of each pair to the same display
+label ('Cable' / 'Machine' / 'Barbell'), `equipmentSatisfies` matches
+at the label level, and both bench ids sit in `SETUP_EQUIPMENT_IDS`
+(never gate). A migration would produce zero behavior change, so none
+was done — logged as a Task 12 hygiene consideration only.
+
+### 5.2 Retires (2) — implement twins
+
+| Retire | Keeper |
+| --- | --- |
+| `towel_leg_curl` | `slider_leg_curl` — same movement, mutual equipment alternatives, and `towel`/`slider` both map to the 'Bodyweight' label, so the rows are gating-identical duplicates at runtime. Keeper absorbs the "Towel Leg Curl" alias (towels stay mentioned as the improvised implement) |
+| `single_leg_towel_leg_curl` | `single_leg_slider_leg_curl` — same reasoning; alias absorbed |
+
+Kept-after-scrutiny: the stability-ball and TRX curl families (distinct
+feel and different gating labels); `forty_five_degree_back_extension`
+vs `glute_ham_developer_hip_extension` (different apparatus, both
+coherent); `bench_reverse_hyperextension` (bench is non-gating, so this
+is the reachable home reverse hyper); the four B-stance RDL rows (real
+trend, already niche-sorted by the `b.?stance` regex);
+`kettlebell_swing_conditioning` (cardio) — NOT a twin of legs'
+`kettlebell_swing` but a deliberate conditioning-format row like Sled
+Push, per the cardio modality convention (Task 11 confirms).
+
+### 5.3 Group-home retag — reverse hyper family unified in legs
+
+`reverse_hyperextension` (the bilateral machine row) sat in back while
+`single_leg_reverse_hyperextension` (same machine) and
+`bench_reverse_hyperextension` sat in legs — one family, two homes.
+Its own copy leads "A lower back **and glute** exercise…", and the
+coaching consensus for reverse hypers is glute/ham-primary with
+isometric erectors. Retagged → legs (`legs_glutes`+`legs_hamstrings`,
+sec back+core) with pattern `hinge` → `hip_extension` to match its
+family. This *refines* Task 3's blanket "back extensions / reverse
+hyper / superman stay back" call with family-level evidence — the
+bench back-extension and superman families DO stay in back
+(erector-primary, unchanged). The 45°-bench **glute-vs-erector split
+stays** (Task 3's handoff decision, now closed): legs'
+`forty_five_degree_back_extension` is coherently hip-dominant coached,
+back's `hyperextension_back_extension` is erector-coached, names no
+longer collide.
+
+### 5.4 Fixes
+
+| Id | Fix | Why |
+| --- | --- | --- |
+| `glute_ham_raise` | Pattern `hinge` → `leg_curl` | Knee-flexion eccentric by mechanics (Task 3 said so when retagging it to legs, but left the pattern); `razor_curl` precedent. Keeps GHR out of hinge pattern-stacking logic |
+| `nordic_hamstring_curl` | eq `[bodyweight, nordic_bench]` → `[bodyweight]`; alt → `[nordic_bench, partner_assist]`; instruction names the improvised anchor | `nordic_bench` maps to the 'Machine' label and is not setup gear, so bodyweight-only users could NEVER receive the quintessential home hamstring exercise. Ankle anchoring is improvisable (pad/low bar/partner) — same philosophy as the setup-gear rule. Difficulty stays Advanced |
+| `kettlebell_swing` | Description "emphasis on the lower back and glutes" → "glutes and hips"; alt += `dumbbell` | Task 3 retagged the row to legs but the copy still coached it back-first; DB swing is a genuine coached substitute |
+| `cable_pull_through` | Description + final instruction de-back-ified ("squeezing your glutes at the top") | Same Task 3 residue |
+| `back_extension_machine` | Rename → "Machine Back Extension"; aliases ["Back Extension Machine", "Seated Back Extension"] | Name described the equipment, not the exercise (Machine Hack Squat / Machine Hip Thrust style). Tags stay legs/glutes+hams — its copy is coherently hip-extension coached, mirroring the 45° split |
+| `slider_leg_curl`, `single_leg_slider_leg_curl` | Alias absorbs from the retired towel twins | Keeps the search terms alive |
+
+### 5.5 Coverage adds (4 rows)
+
+The glaring one: **every "kickback" in the catalog was a triceps row**
+— the glute kickback, one of the most popular gym movements of the
+era, did not exist in any form beyond kneeling donkey kicks.
+
+1. **Cable Glute Kickback** (`cable_glute_kickback`) — standing ankle-
+   strap hip extension; aliases Cable Hip Extension, Standing Glute
+   Kickback. Beginner.
+2. **Machine Glute Kickback** (`machine_glute_kickback`) — the
+   lever/multi-hip machine version; uses the EXISTING
+   `multi_hip_machine` equipment id (no cross-stack change needed).
+   Beginner.
+3. **Kas Glute Bridge** (`kas_glute_bridge`) — the trendy short-range
+   constant-tension hip thrust variation; barbell+bench, Intermediate,
+   deliberately glutes-only sub emphasis.
+4. **Assisted Nordic Hamstring Curl** (`assisted_nordic_hamstring_curl`)
+   — band-assisted regression filling the gap below the Advanced-only
+   Nordic family; Intermediate.
+
+Rejected after survey: standing banded kickback (donkey-kick family
+covers home hip extension), snatch-grip RDL (niche), frog pump variants
+beyond the existing two, single-leg good morning loaded variants
+(bodyweight row + DB alt covers), machine erector back-extension for
+the BACK group (real gap, but back's slice is closed — Task 12 note).
+
+### 5.6 Skill/impact watch list additions
+
+`nordic_hamstring_curl` (now home-reachable — brutal eccentric,
+Advanced ✓ honest), `glute_ham_raise` + `razor_curl` (GHD family),
+`barbell_single_leg_romanian_deadlift` (balance under bar),
+`seated_good_morning` (loaded seated hinge, Advanced ✓), the
+single-leg walkout / ball / slider / TRX curl tier (all Advanced ✓).
+
+### Counts summary (Legs B)
+
+| Item | Count |
+| --- | --- |
+| Rows reviewed | 98 (97 live + 1 already retired) |
+| Retired | 2 (retired list 46 → 48) |
+| Group-home retags (arriving) | 1 (`reverse_hyperextension` back → legs) |
+| Row fixes | 7 (1 pattern, 1 gating, 2 copy, 1 rename, 2 alias absorbs) |
+| Adds | 4 (catalog 1,328 → 1,332) |
+| Decisions closed | 45° glute-vs-erector split STAYS; hinge keepers verified; equipment-id twins non-gating; swing-conditioning is a modality row |
+| Eval gate | report byte-identical; 50/50 suites (595 tests) |
+| Visible legs rows after slice | 312 (314 in-group − 2 towel retires); back visible 177 |

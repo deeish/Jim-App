@@ -151,8 +151,24 @@ expect filler and near-duplicates, especially in the big groups.
       Handoffs: Task 11 (cardio sled section; jumping lunge / wall
       ball / broad jump gaps), Task 13 (rank the
       front-rack/landmine/smith/cable permutation families).
-- [ ] **Task 5 — Legs B: hamstrings & glutes** (~91 rows; Deadlift-home
-      decision touchpoint)
+- [x] **Task 5 — Legs B: hamstrings & glutes** — done + APPLIED
+      2026-08-10 (`aa4719c`). 98 rows (post-Task-4 slice: hamstrings,
+      or glutes-without-quads). All hinge keeper families verified
+      clean (RDL/SLDL/deadlift/GM + Task 3 arrivals). 2 retires
+      (towel-curl implement twins of the slider rows —
+      gating-identical labels), 1 retag ARRIVING (back's
+      `reverse_hyperextension` → legs, unifying the reverse-hyper
+      family; bench/superman erector rows stay back), Nordic curl made
+      home-reachable (nordic_bench was gating it behind 'Machine'),
+      GHR pattern hinge→leg_curl, Task 3 copy residue fixed, Machine
+      Back Extension renamed. 4 adds — headline: the glute kickback
+      existed in NO form (cable + machine versions added, machine via
+      existing multi_hip_machine id) + Kas Glute Bridge + Assisted
+      Nordic. DECISIONS CLOSED: 45° glute-vs-erector split stays;
+      cable/cable_machine + bench/flat_bench + safety_bar id twins are
+      label-normalized and non-gating (no migration; Task 12 hygiene
+      note); kettlebell_swing_conditioning is a cardio modality row,
+      not a twin (Task 11 confirms). Both gates byte-identical/green.
 - [ ] **Task 6 — Legs C: calves + inner/outer thighs** (~100 rows: calves
       34, inner 33, outer 33)
 - [ ] **Task 7 — Shoulders** (194 rows; ⚠️ 100 of 194 are tagged
