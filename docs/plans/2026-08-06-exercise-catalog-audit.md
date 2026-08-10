@@ -214,9 +214,26 @@ expect filler and near-duplicates, especially in the big groups.
       Task 13 (rank the ~50-row ER/IR matrix). Both gates
       byte-identical/green. Shoulders visible 194 (203 in-group);
       catalog 1,336, retired 59.
-- [ ] **Task 8 — Arms A: biceps & triceps** (200 rows, 100 each —
-      homogeneous isolation work; sub-batch internally, watch for
-      near-duplicate curl/extension variants)
+- [x] **Task 8 — Arms A: biceps & triceps** — done + APPLIED 2026-08-10
+      (`3bafb8b`). 200 rows (100/100). Most saturated slice audited —
+      zero invented movements, zero coverage gaps, FIRST slice with no
+      adds (PJR/JM/Tate/rolling/Bayesian all real). HEADLINE: 2 rows
+      were DEAD at runtime — iso_lateral_curl_machine +
+      seated_dip_machine were missing from EQUIPMENT_MAP (→ Unmodeled
+      sentinel, never available to anyone); both now map 'Machine',
+      reviving the rows. 5 retires: single_arm_face_away_cable_curl
+      (IS the Bayesian curl), 3 wall-strict clones (wall = free
+      anti-cheat cue, verbatim instructions; barbell row survives as
+      the competed Strict Curl + aliases), ring_triceps_extension
+      (rings gate as TRX, 1.3-C). Gate fixes: weighted dips ×2 +plate
+      (in-slice dip_belt class members; Task 12 list now
+      weighted_pull_up + chin_up_weighted_belt + cable_belt_squat).
+      Common tier + parallel_bar_dip + close_grip_push_up (bodyweight
+      triceps staples missing). Handoffs: Task 9 verifies the
+      hammer/reverse/Zottman→forearms split; Task 13 ranks the
+      alternating long tail + curl-position matrix; Task 12
+      single_handle/single_handle_attachment id twins. Both gates
+      byte-identical/green. Catalog 1,336; retired 64; visible 1,272.
 - [ ] **Task 9 — Arms B: forearms & grip** (~100 rows; retire-heavy —
       owns the ~12 grip-sport specialty rows from Section 4)
 - [ ] **Task 10 — Core** (189 rows; ⚠️ 94 tagged `core_deep` — same

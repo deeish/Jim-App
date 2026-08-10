@@ -1432,3 +1432,107 @@ permutations.
 | Decisions closed | rotator-cuff tagging is LEGITIMATE (plan's bulk-mis-tag fear wrong); cue-twin rule extended to PT library; upright rows normalized Intermediate/upright_row; Task 1/3 arrivals verified |
 | Eval gate | report byte-identical; 50/50 suites (595 tests) |
 | Visible after slice | shoulders 194 (203 in-group), catalog-wide 1,277 |
+
+## Task 8 — Arms A: biceps & triceps (2026-08-10)
+
+> **APPLIED 2026-08-10** (commit `3bafb8b`, same session as the findings,
+> same widened Dylan brief as Tasks 4–7). 5 retires (retired list 64),
+> 2 equipment-map revivals, 2 gate fixes, 0 adds, 2 common-tier adds
+> (catalog 1,336; visible 1,272; arms biceps/triceps visible 195/200
+> in-slice). Gates: 50/50 suites (595 tests), eval captures report
+> **byte-identical** to baseline — fifth perfect gate in a row.
+
+**Scope.** All 200 rows sub-tagged `arms_biceps` (100) or
+`arms_triceps` (100). Hammer/reverse/Zottman curls are tagged
+`arms_forearms` by catalog convention — Task 9's slice verifies that
+split. Cross-group sweep found nothing misfiled (leg curls, close-grip
+pulldowns, and chest dips all live in their correct homes; the Task 1
+`chest_dip` alias-collision fix is holding).
+
+**Verdict: the most saturated slice of the audit — and the first with
+zero coverage adds.** The curl matrix (implement × position × style)
+and the triceps families (pushdowns ×9, overhead extensions ×17,
+lying/skull crushers ×16, kickbacks ×7, dips ×10, close-grip presses
+×6, PJR pullovers ×4, JM ×2, Tate, press-aways ×4) contain zero
+invented movements — even the exotic entries (PJR pullover, Tate
+press, rolling extensions, Bayesian curl) are real, correctly-coached
+lifter movements. Depth is a Task 13 ranking question, not a defect.
+
+### 8.1 The headline: two rows were dead at runtime
+
+`iso_lateral_biceps_curl_machine` and `seated_dip_machine` required
+equipment ids (`iso_lateral_curl_machine`, `seated_dip_machine`)
+**missing from `EQUIPMENT_MAP`** — unmapped required ids resolve to the
+`Unmodeled` sentinel, which never matches any user's equipment, so
+these two legitimate machine rows were invisible to every user in every
+flow that applies an equipment filter. Their sibling ids
+(`iso_lateral_triceps_machine`, `plate_loaded_dip_machine`,
+`assisted_dip_machine`…) were all mapped; these two were simply missed.
+Both now map to `'Machine'`. Same bug class as Task 5's Nordic
+machine-label gating — found by the per-slice equipment-map audit that
+is now standard methodology.
+
+### 8.2 Retires (5) — twins under the cue-twin rule
+
+| Retire | Keeper | Why |
+| --- | --- | --- |
+| `single_arm_face_away_cable_curl` | `bayesian_cable_curl` | They ARE the same exercise — the Bayesian curl is the single-arm face-away cable curl (identical equipment, unilateral flag, near-verbatim copy). Keeper carries the name people actually search |
+| `wall_strict_dumbbell_curl` | `standing_dumbbell_curl` | The wall-strict quartet shares **verbatim instructions**; the wall (free Bodyweight label) is an anti-cheat cue, so each clone is gating-identical to its standing base row |
+| `wall_strict_ez_bar_curl` | `standing_ez_bar_curl` | 〃 |
+| `wall_strict_cable_curl` | `standing_straight_bar_cable_curl` | 〃 |
+| `ring_triceps_extension` | `suspension_trainer_triceps_extension` | Rings gate as TRX (decision 1.3-C): same label, same movement, verbatim instructions — the asserted Advanced-vs-Intermediate split had no structural basis |
+
+**`wall_strict_barbell_curl` deliberately survives** — the
+back-against-wall barbell curl is the competed "Strict Curl" with
+independent identity; it gains the "Strict Curl" / "Wall Curl" aliases.
+
+Kept-after-scrutiny: the **alternating** rows (rep-scheme-adjacent but
+standard app-catalog entries with real logging semantics — Task 13
+ranks the long-tail ones); `bodyweight_triceps_extension_on_bar`
+(Intermediate) vs `incline_bench_bodyweight_triceps_extension`
+(Beginner) — same movement on different fixed objects, but the height
+difference makes an honest difficulty ladder (the incline-pike
+precedent), and the bar row carries the "Bodyweight Skull Crusher"
+name; `leaning_dumbbell_curl` (the DB stretch-curl — distinct
+implement from the cable Bayesian); `face_away_dual_cable_curl` (the
+bilateral version); `ring_dip` (gates on TRX ≠ parallel bars' Pull-up
+Bar label — not a twin of `parallel_bar_dip`); the kickback
+position tiers (standing/bench-supported/incline-supported — the
+90/90-vs-45° class).
+
+### 8.3 Gate fixes + common tier
+
+- `weighted_parallel_bar_dip` and `weighted_ring_dip` now also require
+  `plate` — the in-slice members of Task 6's dip_belt under-gating
+  class (dip_belt → free 'Bodyweight' label meant plate-less users
+  could be served "weighted" dips). The weighted push-up rows already
+  required `weight_plate` — the catalog was internally inconsistent.
+  Task 12's remaining class list: `weighted_pull_up`,
+  `chin_up_weighted_belt`, `cable_belt_squat`.
+- Common tier: **+ `parallel_bar_dip`** and **+ `close_grip_push_up`**
+  — the arms common block had 11 entries but no bodyweight triceps
+  staple (the bodyweight_squat / pike_push_up pattern from Tasks 4/7).
+
+### 8.4 Handoffs
+
+- **Task 9 (Arms B)**: verify the biceps/forearms split convention
+  (hammer/reverse/Zottman tagged `arms_forearms`) and confirm those
+  rows carry biceps visibility where warranted.
+- **Task 13**: rank the alternating-style long tail and the
+  curl-position matrix (spider/preacher/incline/chest-supported ×
+  implement × single-arm ≈ 60 rows of the biceps 100).
+- **Task 12**: `single_handle` vs `single_handle_attachment` id twins
+  spotted in-slice (both → 'Cable'; same non-gating class).
+
+### Counts summary (Arms A)
+
+| Item | Count |
+| --- | --- |
+| Rows reviewed | 200 (100 biceps / 100 triceps) |
+| Retired | 5 (retired list 59 → 64) |
+| Revived | 2 (equipment-map additions un-deadened iso-lateral curl machine + seated dip machine) |
+| Row fixes | 3 (2 equipment gates, 1 alias set) + absorbs onto 5 keepers |
+| Adds | 0 — first slice with zero coverage gaps |
+| Cross-stack | EQUIPMENT_MAP + iso_lateral_curl_machine, + seated_dip_machine; common tier + parallel_bar_dip, + close_grip_push_up |
+| Eval gate | report byte-identical; 50/50 suites (595 tests) |
+| Visible after slice | catalog-wide 1,272 (1,336 − 64 retired) |
