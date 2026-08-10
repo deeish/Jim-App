@@ -1946,6 +1946,8 @@ describe('enrichGeneratedSession prescriptionType', () => {
           'barbell_sumo_deadlift',
           'goblet_squat',
           'dumbbell_romanian_deadlift',
+          // Catalog audit Task 4 added the bodyweight fallback anchor.
+          'bodyweight_squat',
         ],
       },
     );

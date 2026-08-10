@@ -72,6 +72,9 @@ export const RETIRED_EXERCISE_IDS: readonly string[] = [
   'landmine_row_bilateral', // same movement as t_bar_row (which carries the Landmine Row alias)
   'cable_straight_arm_row', // pulley-height variant of straight_arm_cable_pulldown
   'cable_high_row_elbows_wide', // copy is a face pull; face_pull is the keeper
+
+  // Task 4 — Legs A (2026-08-10)
+  'sled_drag_backward', // cardio twin of legs' backward_sled_drag (same movement, both aliased "Reverse Sled Drag"; muscle-true home = legs, matching lateral_sled_drag)
 ];
 
 const RETIRED = new Set(RETIRED_EXERCISE_IDS);

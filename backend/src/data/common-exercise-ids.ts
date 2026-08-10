@@ -57,6 +57,7 @@ export const COMMON_EXERCISE_IDS: string[] = [
   'back_squat',
   'front_squat',
   'goblet_squat',
+  'bodyweight_squat',
   'forty_five_degree_leg_press',
   'machine_hack_squat',
   'walking_lunge',

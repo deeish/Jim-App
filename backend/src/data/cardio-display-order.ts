@@ -53,7 +53,6 @@ const CARDIO_LIBRARY_ORDER: readonly string[] = [
   'battle_rope_double_slams',
   // Sled / carry / boxing
   'sled_push',
-  'sled_drag_backward',
   'farmers_carry_brisk_walk',
   'shadow_boxing_rounds',
 ];

@@ -36118,17 +36118,18 @@
     "id": "back_squat",
     "name": "Back Squat",
     "aliases": [
-      "Barbell Back Squat"
+      "Barbell Back Squat",
+      "Barbell Squat"
     ],
     "description": "A classic barbell squat that heavily loads the quads through a full standing squat pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "barbell"
@@ -36158,12 +36159,12 @@
     "description": "A back squat performed to a box, teaching depth control and building explosive hip drive out of the hole.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "barbell",
@@ -36194,12 +36195,12 @@
     "description": "A back squat with a deliberate pause in the bottom position to build positional strength and control.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "barbell"
@@ -36285,7 +36286,7 @@
     "type": "Compound",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Advanced",
+    "difficulty": "Intermediate",
     "instructions": [
       "Front squat to full depth with the bar in the rack position.",
       "Drive up hard and use the momentum to press the bar overhead.",
@@ -36338,12 +36339,12 @@
     "description": "A front-loaded squat that emphasizes knee flexion and quad demand.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "barbell"
@@ -36370,11 +36371,11 @@
     "description": "A simple front-loaded squat that keeps the torso upright and the quads working hard.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "dumbbell"
@@ -36403,12 +36404,12 @@
     "description": "A squat performed with the bar held in the elbows for a demanding front-loaded quad pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "barbell"
@@ -36435,12 +36436,12 @@
     "description": "A safety bar squat performed with hand support that allows stable deep quad-focused loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "safety_squat_bar",
@@ -36472,12 +36473,12 @@
     "description": "A squat variation using a safety bar that lets many lifters stay more upright and quad-focused.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "safety_squat_bar"
@@ -36504,11 +36505,11 @@
     "description": "A guided bar squat that provides extra stability while still training the quads hard.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "smith_machine"
@@ -36535,11 +36536,11 @@
     "description": "A front-loaded squat using a landmine that naturally encourages an upright torso.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "landmine"
@@ -36568,11 +36569,10 @@
     "description": "A supported machine squat that allows heavy quad loading with a fixed path.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "hack_squat_machine"
     ],
@@ -36600,10 +36600,10 @@
     "description": "A barbell squat from behind the legs that shifts tension strongly into the quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "back"
     ],
     "equipmentIds": [
@@ -36631,11 +36631,10 @@
     "description": "A machine squat with a swinging arm that creates a very strong quad-biased resistance curve.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "pendulum_squat_machine"
     ],
@@ -36657,15 +36656,16 @@
   {
     "id": "belt_squat",
     "name": "Belt Squat",
-    "aliases": [],
+    "aliases": [
+      "Hip Belt Squat"
+    ],
     "description": "A squat loaded at the hips that trains the quads hard with less spinal loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "belt_squat_machine"
     ],
@@ -36693,11 +36693,10 @@
     "description": "A belt squat done on a cable stack that provides smooth constant tension to the quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "cable_machine",
       "dip_belt"
@@ -36726,11 +36725,10 @@
     "description": "A plate-loaded squat machine that combines stability with heavy quad-focused loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "lever_squat_machine"
     ],
@@ -36758,10 +36756,10 @@
     "description": "A one-leg belt squat that challenges the quads with high stability and reduced spinal loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -36794,11 +36792,11 @@
     "description": "A front squat with two kettlebells that challenges the quads and trunk together.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "kettlebell"
@@ -36825,11 +36823,11 @@
     "description": "A front-loaded squat with dumbbells that keeps the movement upright and quad-dominant.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "dumbbell"
@@ -36856,11 +36854,11 @@
     "description": "A front squat using a sandbag that adds an unstable front-loaded challenge to the quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "glutes",
       "back"
     ],
     "equipmentIds": [
@@ -36952,10 +36950,10 @@
     "description": "A stationary staggered-stance squat that loads the front leg quads heavily.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -36983,10 +36981,10 @@
     "description": "A split squat loaded at the sides to build quad strength one leg at a time.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37014,10 +37012,10 @@
     "description": "A barbell split squat that allows heavier unilateral quad loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37046,10 +37044,10 @@
     "description": "A front-loaded split squat that helps keep posture upright and the quads engaged.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37079,10 +37077,10 @@
     "description": "A split squat with the load racked in front to increase trunk demand and quad bias.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37109,17 +37107,19 @@
   },
   {
     "id": "rear_foot_elevated_split_squat",
-    "name": "Rear-Foot-Elevated Split Squat",
+    "name": "Bulgarian Split Squat",
     "aliases": [
-      "Bulgarian Split Squat"
+      "Rear-Foot-Elevated Split Squat",
+      "RFESS",
+      "Bodyweight Bulgarian Split Squat"
     ],
     "description": "A rear-foot-supported split squat that strongly challenges the front leg quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37148,10 +37148,10 @@
     "description": "A loaded Bulgarian split squat that builds strong quads with a simple setup.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37180,10 +37180,10 @@
     "description": "A barbell Bulgarian split squat for heavier unilateral quad work.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37213,10 +37213,10 @@
     "description": "A guided Bulgarian split squat that adds stability and consistent loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37245,10 +37245,10 @@
     "description": "A split squat using a landmine to create a stable front-loaded quad pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37276,10 +37276,10 @@
     "description": "A split squat with the front foot raised to increase knee travel and quad range.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37308,10 +37308,10 @@
     "description": "A loaded front-foot-elevated split squat that emphasizes deep quad loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37340,10 +37340,10 @@
     "description": "A split squat against cable resistance that keeps constant tension on the quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37373,10 +37373,10 @@
     "description": "A supported split squat that helps beginners train quad-dominant single-leg strength.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37404,10 +37404,10 @@
     "description": "A split squat using a safety bar to allow heavy loading with stable upper-body position.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37421,7 +37421,7 @@
     "type": "Compound",
     "position": "Split Stance",
     "isUnilateral": true,
-    "difficulty": "Advanced",
+    "difficulty": "Intermediate",
     "instructions": [
       "Set the safety bar across your shoulders and take a split stance.",
       "Lower down until the front leg reaches a deep bend.",
@@ -37436,10 +37436,10 @@
     "description": "A basic stepping lunge that trains quad strength and control one side at a time.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37467,10 +37467,10 @@
     "description": "A forward lunge loaded at the sides for straightforward quad-focused unilateral work.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37498,10 +37498,10 @@
     "description": "A barbell forward lunge that allows heavier loading through the quad-dominant front leg.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37532,10 +37532,10 @@
     "description": "A lunge stepping backward that trains the front leg quads with controlled balance demands.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37563,10 +37563,10 @@
     "description": "A reverse lunge with dumbbells that is easy to load and simple to perform.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37594,10 +37594,10 @@
     "description": "A reverse lunge with a barbell that supports heavier unilateral quad loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37626,10 +37626,10 @@
     "description": "A reverse lunge with the weight racked in front to increase trunk stiffness and quad demand.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37661,10 +37661,10 @@
     "description": "A reverse lunge using a landmine for a stable front-loaded resistance path.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37692,10 +37692,10 @@
     "description": "A guided reverse lunge that adds balance support and steady loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37723,10 +37723,10 @@
     "description": "A continuous lunge pattern that trains the quads while moving forward with each step.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37754,10 +37754,10 @@
     "description": "A loaded walking lunge that combines quad strength with coordination and control.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37785,10 +37785,10 @@
     "description": "A barbell walking lunge that allows heavy quad-focused loading over repeated steps.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37817,10 +37817,10 @@
     "description": "A walking lunge with the load in front that keeps the torso upright and quads engaged.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37852,10 +37852,10 @@
     "description": "A reverse lunge from a small platform that increases knee range and front-leg quad demand.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37885,10 +37885,10 @@
     "description": "A reverse lunge with the rear foot on a slider for smooth constant tension on the front leg.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37918,10 +37918,10 @@
     "description": "A classic unilateral leg exercise that targets the quads by stepping onto a raised surface.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37951,10 +37951,10 @@
     "description": "A loaded step-up that makes the front leg quads work hard through the ascent.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37983,10 +37983,10 @@
     "description": "A barbell step-up for heavier unilateral quad training on a box or bench.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -38018,10 +38018,10 @@
     "description": "A front-loaded step-up that helps maintain upright posture while training the quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38052,10 +38052,10 @@
     "description": "A step-up with the load racked in front to add trunk demand and quad emphasis.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -38088,10 +38088,10 @@
     "description": "A step-up using kettlebells that challenges single-leg control and quad strength.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38120,10 +38120,10 @@
     "description": "A step-up onto a taller box that increases knee flexion and quad demand.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38153,10 +38153,10 @@
     "description": "A step-up that finishes with the free knee driving up for extra balance and control demand.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38184,10 +38184,10 @@
     "description": "A guided step-up that adds stability while allowing steady loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38216,10 +38216,10 @@
     "description": "A step-up against cable resistance that keeps tension on the quads throughout the movement.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38248,10 +38248,10 @@
     "description": "A front-loaded step-up using a landmine for a stable and easy-to-control resistance path.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38280,10 +38280,10 @@
     "description": "A controlled lowering drill from a box that strengthens the quads through eccentric knee control.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38311,10 +38311,10 @@
     "description": "A loaded step-down that challenges the quads through a longer controlled lowering phase.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38343,10 +38343,10 @@
     "description": "A forward-facing step-down that builds strong quad control during descent.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38400,7 +38400,9 @@
   {
     "id": "poliquin_step_up",
     "name": "Poliquin Step-Up",
-    "aliases": [],
+    "aliases": [
+      "Petersen Step-Up"
+    ],
     "description": "A high-knee-over-toe step-up variation designed to target the quads through a long range.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -38436,11 +38438,11 @@
     "description": "A full-range single-leg squat that places a very high demand on the working leg quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight"
@@ -38467,11 +38469,11 @@
     "description": "A supported pistol squat that helps lifters learn single-leg quad strength and balance.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight",
@@ -38503,11 +38505,11 @@
     "description": "A single-leg squat to a box that reduces range while preserving the quad-focused pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight",
@@ -38537,11 +38539,11 @@
     "description": "A rear-reaching single-leg squat that trains the quads with a compact bodyweight setup.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight"
@@ -38568,11 +38570,11 @@
     "description": "A supported skater squat that makes single-leg quad training more accessible.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight",
@@ -38602,11 +38604,11 @@
     "description": "A challenging single-leg squat with the rear foot held behind the body.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight"
@@ -38633,11 +38635,11 @@
     "description": "A supported shrimp squat that lets you practice deep single-leg quad loading safely.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight",
@@ -38669,11 +38671,10 @@
     "description": "A one-leg hack squat machine variation that isolates the working quad with a fixed path.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "hack_squat_machine"
     ],
@@ -38701,11 +38702,11 @@
     "description": "A pistol squat using straps for balance assistance and cleaner reps.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "suspension_trainer"
@@ -38732,11 +38733,11 @@
     "description": "A pistol squat holding a light weight forward to improve balance and keep the torso upright.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "weight_plate"
@@ -39134,11 +39135,10 @@
     "description": "A classic angled leg press machine that lets you load the quads heavily.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "leg_press_machine"
     ],
@@ -39160,15 +39160,16 @@
   {
     "id": "horizontal_leg_press",
     "name": "Horizontal Leg Press",
-    "aliases": [],
+    "aliases": [
+      "Seated Leg Press"
+    ],
     "description": "A horizontal leg press that trains the quads through a stable machine pressing pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "horizontal_leg_press_machine"
     ],
@@ -39194,11 +39195,10 @@
     "description": "A vertical leg press that loads the quads through a straight up-and-down pressing path.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "vertical_leg_press_machine"
     ],
@@ -39226,10 +39226,10 @@
     "description": "A one-leg leg press that builds quad strength and exposes side-to-side differences.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -39346,15 +39346,16 @@
     "id": "backward_sled_drag",
     "name": "Backward Sled Drag",
     "aliases": [
-      "Reverse Sled Drag"
+      "Reverse Sled Drag",
+      "Sled Drag (Backward)"
     ],
     "description": "A backward drag that strongly loads the quads through repeated knee extension steps.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -39384,10 +39385,10 @@
     "description": "A one-leg pendulum squat that creates a strong quad-biased resistance curve on the working side.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -39415,10 +39416,10 @@
     "description": "A forward lunge with the load racked in front that keeps the torso upright and quads heavily involved.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -45066,6 +45067,250 @@
       "Grip both handles, keeping your weight balanced.",
       "Row one bell to your ribs while pushing the other into the floor.",
       "Lower it, then row the opposite side, alternating while holding the hinge."
+    ]
+  },
+  {
+    "id": "bodyweight_squat",
+    "name": "Bodyweight Squat",
+    "aliases": [
+      "Air Squat",
+      "BW Squat"
+    ],
+    "description": "The foundational unloaded squat that builds leg strength, mobility, and control anywhere.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads",
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stand with your feet about shoulder-width apart and toes slightly out.",
+      "Sit your hips down and back while keeping your chest tall.",
+      "Lower until your thighs are near parallel or as deep as comfortable.",
+      "Drive through your whole foot to stand back up."
+    ]
+  },
+  {
+    "id": "bodyweight_box_squat",
+    "name": "Bodyweight Box Squat",
+    "aliases": [
+      "Chair Squat",
+      "Sit-to-Stand Squat"
+    ],
+    "description": "A squat down to a box or bench that teaches depth control and builds confidence for newer lifters.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads",
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight",
+      "flat_bench"
+    ],
+    "equipmentAlternativeIds": [
+      "step_platform"
+    ],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stand in front of a box or bench with feet shoulder-width apart.",
+      "Sit back slowly until you touch the box with control.",
+      "Keep your chest up and avoid dropping onto the surface.",
+      "Stand back up by driving through your feet."
+    ]
+  },
+  {
+    "id": "dumbbell_squat",
+    "name": "Dumbbell Squat",
+    "aliases": [
+      "DB Squat"
+    ],
+    "description": "A squat holding dumbbells at your sides for simple, joint-friendly loading at home or in the gym.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads",
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "dumbbell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Hold a dumbbell in each hand at your sides.",
+      "Squat down while keeping your chest tall and arms relaxed.",
+      "Keep your whole foot planted as your knees bend.",
+      "Stand back up without shrugging the weights."
+    ]
+  },
+  {
+    "id": "heels_elevated_goblet_squat",
+    "name": "Heels-Elevated Goblet Squat",
+    "aliases": [
+      "Cyclist Squat",
+      "Cyclist Goblet Squat"
+    ],
+    "description": "A goblet squat with the heels raised on plates or a wedge to bias the quads through deeper knee bend.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "dumbbell",
+      "weight_plate"
+    ],
+    "equipmentAlternativeIds": [
+      "kettlebell"
+    ],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Set your heels on small plates or a wedge and hold one weight at your chest.",
+      "Squat straight down while staying as upright as possible.",
+      "Let your knees travel forward to load the quads deeply.",
+      "Drive back up through the balls and midfoot."
+    ]
+  },
+  {
+    "id": "suspension_trainer_squat",
+    "name": "Suspension Trainer Squat",
+    "aliases": [
+      "TRX Squat",
+      "TRX Assisted Squat"
+    ],
+    "description": "A squat holding suspension straps for balance support, ideal for learning depth and control.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads",
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "suspension_trainer"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Hold the straps with light tension and stand tall.",
+      "Squat down while using the straps only for balance.",
+      "Keep your feet flat and chest lifted at the bottom.",
+      "Stand back up with as little arm help as possible."
+    ]
+  },
+  {
+    "id": "resistance_band_squat",
+    "name": "Resistance Band Squat",
+    "aliases": [
+      "Banded Squat"
+    ],
+    "description": "A squat standing on a band with the other end racked at the shoulders for simple home resistance.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads",
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "resistance_band"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stand on the band with both feet and bring the top over your shoulders.",
+      "Squat down under control while the band stays secure.",
+      "Keep your chest tall as the tension increases on the way up.",
+      "Stand fully upright against the band resistance."
+    ]
+  },
+  {
+    "id": "dumbbell_thruster",
+    "name": "Dumbbell Thruster",
+    "aliases": [
+      "DB Thruster"
+    ],
+    "description": "A front squat with dumbbells flowing straight into an overhead press for full-body strength and conditioning.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "core",
+      "arms"
+    ],
+    "equipmentIds": [
+      "dumbbell"
+    ],
+    "equipmentAlternativeIds": [
+      "kettlebell"
+    ],
+    "movementPatternIds": [
+      "squat",
+      "overhead_press"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Hold dumbbells at your shoulders and squat to full depth.",
+      "Drive up hard and use the momentum to press the weights overhead.",
+      "Lock out overhead, then lower back to your shoulders.",
+      "Keep your heels down and trunk braced throughout."
     ]
   }
 ]
