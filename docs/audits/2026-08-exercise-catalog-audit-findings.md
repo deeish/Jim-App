@@ -484,6 +484,23 @@ Planche Push-Up. Rejected: Guillotine Press (risk), board/pin/Spoto presses
 `archer_push_up`, `ring_push_up`, `weighted_chest_dip`, proposed
 `plyo_push_up` (impact).
 
+### 1.6 Decisions A–D closed (2026-08-09, commit `f32dcc2`) — Task 1 DONE
+
+Dylan took all four recommendations: **A** pullover home = back
+(`dumbbell_pullover` + `barbell_pullover` retagged to back/`back_lats`
+with chest+shoulders+core secondaries; back's worse-id twin
+`pullover_dumbbell` retired, aliases absorbed). **B** all five landmine
+press rows → shoulders (front+side delts, chest secondary) — including
+`half_kneeling_landmine_press` out of its wrong CORE home. **C** the three
+ring equipment ids gate as TRX instead of Pull-up Bar; dip bars keep the
+pull-up-bar approximation (new Dip Station equipment only if a calisthenics
+template ever demands it). **D** bench stays non-gating (status quo);
+revisit generation-side floor-press preference with the future skill/impact
+gating work. Gates: sweep clean, 50/50 suites, eval capture scores and
+validator-ok rate identical (two advisory findings-pattern shifts are the
+corrected metadata re-scoring old captures — see commit message).
+Group counts after: chest 59, back 231, shoulders 197, core 188.
+
 ---
 
 ## Task 2 — Back A: lats & upper back (2026-08-09)

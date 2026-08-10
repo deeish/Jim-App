@@ -96,12 +96,12 @@ expect filler and near-duplicates, especially in the big groups.
       muscle groups — retire calls decide group homes, incl. deadlifts);
       81 rows with invalid `glutes` secondary; 8 unknown equipment ids;
       5 alias-driven wrong timed verdicts; the only video mapping is dead.
-- [ ] **Task 1 — Chest** (48 rows — by far the smallest group for one of
-      the most popular muscle groups; expect an add-heavy session; also
-      owns the bench-gating decision from Section 4) — PARTIAL: only
-      Dylan's four §1.3 decisions remain (pullover home, landmine home,
-      dip/rings mapping, bench gating). The cable_pullover retire LANDED
-      2026-08-09 with Task 2's retire mechanism (`ccef300`).
+- [x] **Task 1 — Chest** — DONE 2026-08-09. Applied in `3be3d41` (15 adds
+      + 9 fixes), `ccef300` (cable_pullover retire via the new mechanism),
+      and `f32dcc2` (Dylan's §1.3 decisions, all per recommendation:
+      A pullover home = back, B landmine presses = shoulders, C rings
+      gate as TRX, D bench stays non-gating). Findings §1.6 has the
+      close-out details.
       Healthiest slice: rows all legit, gating honest, difficulty sane.
       1 firm retire (cable_pullover = straight-arm pulldown dup), 8 metadata
       fixes, 7 draft adds (knee/wall push-up, squeeze press, TRX press+fly,
