@@ -690,6 +690,17 @@ Advanced grades are honest but both need the future skill tag),
 
 ## Task 3 — Back B: mid/lower back & traps (2026-08-09)
 
+> **APPLIED 2026-08-09** (commit `a7e1019`, same session as the findings;
+> Dylan's three decisions taken live, all per recommendation): 21 retires
+> (retired list now 45 ids), 11 group-home retags, 2 rebuilds, renames +
+> 12 keeper alias absorbs, common-tier + anchor re-points, Ring Row and
+> Gorilla Row added (catalog 1,321 rows; visible back 178 of 221; legs
+> 302, shoulders 201). Search goldens + one enrichment fixture updated
+> for the re-pointed ids. Gates: touched-row sweep clean, 50/50 suites
+> (595 tests), eval mean/median/validator-rate identical with three
+> ±1-point capture shifts fully explained by stacking advisories
+> re-firing under corrected group tags.
+
 **Scope.** All 110 back rows without `back_lats` (109 from the plan snapshot
 + `barbell_lat_row_elbows_wide`, re-subbed in from Back A). Every row judged
 per plan §3 with full copy reads.
@@ -745,6 +756,7 @@ In-slice / cross-slice dups and incoherents:
 
 | Retire | Reason |
 | --- | --- |
+| `seated_good_morning_band` | "Banded Good Morning" — exact dup of legs' `resistance_band_good_morning` (same band, same subs; their aliases pointed at each other). Surfaced when the hinge retag landed it next to its twin; keeper absorbs the "Banded Good Morning" alias |
 | `barbell_row_supine` | Copy is verbatim the Inverted Row (bar low in rack, pronated, body rigid) — Back A's keeper `overhand_bodyweight_row` |
 | `landmine_row_bilateral` | Same movement as `t_bar_row` (straddle landmine, hinge, row the end); T-Bar already carries the "Landmine Row" alias (+ "Bilateral Landmine Row" absorbed) |
 | `cable_straight_arm_row` | Chest-height straight-arm pull to hips = pulley-height variant of `straight_arm_cable_pulldown` — the exact dup class retired in Back A |
@@ -758,9 +770,9 @@ swings keep shoulders credit; suitcase keeps arms/grip credit):
 `kettlebell_swing` ⚠C/T, `single_arm_kettlebell_swing`,
 `cable_pull_through` ⚠C (band twin already lives in legs),
 `glute_ham_raise` (a hamstring exercise by mechanics — knee-flexion
-eccentric), `seated_good_morning_band` ("Banded Good Morning" — standing,
-per its own copy), `suitcase_deadlift`, `trap_bar_deadlift` ⚠C/T,
-`deficit_deadlift`. Kept in back deliberately: `rack_pull`,
+eccentric), `suitcase_deadlift`, `trap_bar_deadlift` ⚠C/T,
+`deficit_deadlift` (7 — the eighth, `seated_good_morning_band`, turned
+out to duplicate a legs-native row and retired instead, see §3.1). Kept in back deliberately: `rack_pull`,
 `deadlift_snatch_grip_rack_pull`, `snatch_grip_deadlift` (their programming
 identity is trap/upper-back loading), `power_clean`, `high_pull`,
 `dumbbell_high_pull` (explosive trap family), `tire_flip` (strongman
@@ -784,6 +796,8 @@ rows: side+front delts per family convention), back secondary:
 | `kroc_row` | Drop alias "Renegade Row Heavy" | Renegade row is a different exercise with its own row (`renegade_row`) — search pollution |
 | `barbell_deadrow` | Aliases → "Dead Row", "Deadlift Row Combo" (drop "Dead-Stop Row") | It is a deadlift+row combo per its copy — KEPT as distinct; but "Dead-Stop Row" is Pendlay's territory |
 | `superman_hold` | + alias "Superman" | The searched name; rep-supermans are covered by this row's existing rep-hold pattern |
+| `hyperextension_back_extension` | Drop alias "45-Degree Back Extension" | That is the exact name of legs' glute-focused `forty_five_degree_back_extension` — a cross-group near-twin of this row. **Handoff to Legs B/C:** decide whether the erector-vs-glute back-extension split stays (coached differently) or one retires |
+| `resistance_band_good_morning` (legs, alias-merge only) | + alias "Banded Good Morning" | Absorbs the retired duplicate's name |
 | `t_bar_row`, `conventional_deadlift`, `barbell_sumo_deadlift`, `barbell_good_morning`, `dumbbell_single_leg_romanian_deadlift`, `barbell_hip_thrust`, `farmer_carry`, `bent_over_dumbbell_reverse_fly`, `incline_bench_rear_delt_fly`, `band_pull_apart` | Alias absorbs per §3.1 tables | Keeps every retired row's search terms alive on its keeper |
 | `common-exercise-ids.ts` | Remove `romanian_deadlift`; `good_morning` → `barbell_good_morning`; `sumo_deadlift` → `barbell_sumo_deadlift` | Retired rows must leave the tier list (spec-enforced); keepers inherit the pool/browse priority |
 | `anchor-exercises.ts` | `sumo_deadlift` → `barbell_sumo_deadlift` | Anchor pool follows the keeper |
@@ -826,14 +840,14 @@ shoulders session).
 | Item | Count |
 | --- | --- |
 | Rows reviewed | 110 |
-| Retired | 20 |
+| Retired | 21 |
 | — Task 0 twin pairs closed | 8 |
 | — shoulders-family dups | 8 |
-| — in/cross-slice dups | 4 |
-| Retagged to legs | 8 |
+| — in/cross-slice dups | 5 |
+| Retagged to legs | 7 |
 | Retagged to shoulders | 4 |
 | Rebuilt (wrong movement) | 2 |
-| Renames / alias fixes | 4 (+11 keeper alias absorbs) |
+| Renames / alias fixes | 5 (+12 keeper alias absorbs) |
 | Reference re-points | 4 entries (3 common, 1 anchor) |
 | Adds | 2 |
-| Back rows after slice | ~199 of 231 (−20 retired −12 retagged +2 adds) |
+| Visible back rows after slice | 178 (of 221 in-group; 43 back-tagged rows now retired across Tasks 1–3) |

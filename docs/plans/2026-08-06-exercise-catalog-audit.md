@@ -123,8 +123,19 @@ expect filler and near-duplicates, especially in the big groups.
       Ring Row / Gorilla Row / Elbow-Out DB Row adds,
       barbell_lat_row_elbows_wide arrives re-subbed) and Arms B
       (Barbell Dead Hang grip-vs-back home).
-- [ ] **Task 3 — Back B: mid/lower back & traps** (~109 rows; shares the
-      Deadlift muscle-group-home decision with Task 5)
+- [x] **Task 3 — Back B: mid/lower back & traps** — done + APPLIED
+      2026-08-09 (`a7e1019`). 110 rows (incl. the re-subbed elbows-wide
+      row). Low filler, high mis-homing: 21 retires closing ALL eight
+      Task 0 deadlift/GM/hip-thrust/carry twin pairs (Dylan: hinge home =
+      legs, sumo keeps the legs twin with refs re-pointed, face pulls =
+      shoulders) plus eight shoulders-family dups; 11 retags (7 hinge
+      rows → legs, 4 rear-delt/upright rows → shoulders); bear_row +
+      monkey_row rebuilt (described wrong movements); adds Ring Row +
+      Gorilla Row. The Deadlift-home decision is now CLOSED for Legs B —
+      its remaining work is verifying the legs-side keepers. Handoffs:
+      Legs B/C owns the 45° back-extension glute-vs-erector twin call;
+      Shoulders re-verifies the four retagged arrivals; Core/Arms B
+      settle the carry-family home (back's third twin retired).
 - [ ] **Task 4 — Legs A: quads** (~103 rows)
 - [ ] **Task 5 — Legs B: hamstrings & glutes** (~91 rows; Deadlift-home
       decision touchpoint)
