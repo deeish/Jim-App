@@ -5198,14 +5198,13 @@
     "id": "suitcase_carry",
     "name": "Suitcase Carry",
     "aliases": [],
-    "description": "A one-arm carry that challenges grip while forcing the trunk to resist side bending.",
-    "primaryMuscleGroupId": "arms",
+    "description": "A one-arm carry that forces the trunk to resist side bending while you walk tall.",
+    "primaryMuscleGroupId": "core",
     "subMuscleIds": [
-      "arms_grip",
-      "arms_forearms"
+      "core_deep"
     ],
     "secondaryMuscleGroupIds": [
-      "core"
+      "arms"
     ],
     "equipmentIds": [
       "dumbbell"
@@ -5443,15 +5442,14 @@
     "id": "waiter_carry",
     "name": "Waiter Carry",
     "aliases": [],
-    "description": "An overhead carry that challenges grip endurance while the arm stabilizes a vertical load.",
-    "primaryMuscleGroupId": "arms",
+    "description": "An overhead single-arm carry that challenges shoulder stability and trunk control under a vertical load.",
+    "primaryMuscleGroupId": "core",
     "subMuscleIds": [
-      "arms_grip",
-      "arms_forearms"
+      "core_deep"
     ],
     "secondaryMuscleGroupIds": [
       "shoulders",
-      "core"
+      "arms"
     ],
     "equipmentIds": [
       "dumbbell"
@@ -5469,10 +5467,10 @@
     "isUnilateral": true,
     "difficulty": "Intermediate",
     "instructions": [
-      "Pick the load up on one side and stand tall.",
-      "Brace the trunk and grip hard without leaning.",
-      "Walk under control with even steps.",
-      "Set the load down carefully when the carry is done."
+      "Press the load overhead and lock the arm.",
+      "Brace your trunk and keep your ribs stacked.",
+      "Walk under control without arching or leaning.",
+      "Lower the load carefully when the carry is done."
     ]
   },
   {
@@ -5757,7 +5755,9 @@
   {
     "id": "trap_bar_static_hold",
     "name": "Trap Bar Static Hold",
-    "aliases": [],
+    "aliases": [
+      "Trap Bar Hold"
+    ],
     "description": "A trap-bar hold that allows heavy symmetrical loading for grip endurance.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
@@ -20183,7 +20183,8 @@
     "id": "suspension_trainer_fallout",
     "name": "Suspension Trainer Fallout",
     "aliases": [
-      "TRX Fallout"
+      "TRX Fallout",
+      "Ring Fallout"
     ],
     "description": "A suspended fallout that trains anti-extension while the hands move away from the body.",
     "primaryMuscleGroupId": "core",
@@ -20495,7 +20496,8 @@
     "movementPatternIds": [
       "hover",
       "anti_extension",
-      "brace"
+      "brace",
+      "isometric_hold"
     ],
     "type": "Compound",
     "position": "Quadruped",
@@ -21884,7 +21886,10 @@
   {
     "id": "bottoms_up_carry",
     "name": "Bottoms-Up Carry",
-    "aliases": [],
+    "aliases": [
+      "Bottoms-Up Kettlebell Carry",
+      "Single-Arm Bottoms-Up Kettlebell Carry"
+    ],
     "description": "A bottoms-up kettlebell carry that adds grip and shoulder stability to the core challenge.",
     "primaryMuscleGroupId": "core",
     "subMuscleIds": [
@@ -24739,7 +24744,9 @@
   {
     "id": "ab_wheel_rollout",
     "name": "Ab Wheel Rollout",
-    "aliases": [],
+    "aliases": [
+      "Kneeling Ab Wheel Rollout"
+    ],
     "description": "An ab-wheel rollout that challenges the abs by resisting spinal extension through a long range.",
     "primaryMuscleGroupId": "core",
     "subMuscleIds": [
@@ -45652,6 +45659,78 @@
       "Dip slightly at the knees, keeping your torso upright.",
       "Drive through your legs and press the bell overhead in one motion.",
       "Lower it back to the rack position under control and repeat."
+    ]
+  },
+  {
+    "id": "weighted_plank",
+    "name": "Weighted Plank",
+    "aliases": [
+      "Plate-Loaded Plank"
+    ],
+    "description": "A front plank with a plate on the back that raises the bracing demand without changing the position.",
+    "primaryMuscleGroupId": "core",
+    "subMuscleIds": [
+      "core_deep"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders"
+    ],
+    "equipmentIds": [
+      "bodyweight",
+      "weight_plate"
+    ],
+    "equipmentAlternativeIds": [
+      "weight_vest",
+      "sandbag"
+    ],
+    "movementPatternIds": [
+      "plank",
+      "anti_extension"
+    ],
+    "type": "Compound",
+    "position": "Plank",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Set up in a forearm plank and have a partner place a plate on your upper back.",
+      "Brace hard and keep your hips level.",
+      "Hold the position without sagging or hiking.",
+      "Remove the plate carefully before lowering down."
+    ]
+  },
+  {
+    "id": "plank_up_down",
+    "name": "Plank Up-Down",
+    "aliases": [
+      "Up-Down Plank"
+    ],
+    "description": "A plank where you move from forearms to hands one arm at a time, training the trunk to resist rotation.",
+    "primaryMuscleGroupId": "core",
+    "subMuscleIds": [
+      "core_deep"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "plank",
+      "anti_rotation",
+      "push_up"
+    ],
+    "type": "Compound",
+    "position": "Plank",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Start in a forearm plank with your feet slightly wide.",
+      "Press up onto one hand, then the other, reaching a high plank.",
+      "Lower back to your forearms one arm at a time.",
+      "Keep your hips as still as possible and alternate the leading arm."
     ]
   }
 ]

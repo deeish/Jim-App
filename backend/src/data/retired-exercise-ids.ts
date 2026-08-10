@@ -132,6 +132,13 @@ export const RETIRED_EXERCISE_IDS: readonly string[] = [
   'thick_handle_farmer_carry', // thick_handle_implement falsely gates as 'Dumbbell'; farmer_handle_carry + fat-grip rows cover
   'axle_bar_deadlift_hold', // gating-identical twin of barbell_static_hold (axle_bar → 'Barbell'); keeper absorbs the name and offers axle_bar as an alternative
   'dumbbell_farmer_carry', // gating-identical cross-group twin of core's farmer_carry (identical eq+alt; Task 3 keeper wins again); full carry-family home = Task 10
+
+  // Task 10 — Core (2026-08-10)
+  'kneeling_ab_wheel_rollout', // exact dup of ab_wheel_rollout — the keeper's own instructions start "Kneel…", and this row's alias was the keeper's name
+  'ring_fallout', // rings gate as TRX (decision 1.3-C): gating-identical to suspension_trainer_fallout
+  'trap_bar_hold', // core twin of arms' trap_bar_static_hold (same bar, same top hold); grip is the limiting factor, so the grip row keeps the family
+  'bottoms_up_kettlebell_carry', // the bottoms-up KB carry existed THREE times (core/arms/shoulders, identical equipment); core's bottoms_up_carry is the keeper
+  'single_arm_bottoms_up_kettlebell_carry', // third copy of the same carry (shoulders); the unique overhead bottoms-up row stays in shoulders
 ];
 
 const RETIRED = new Set(RETIRED_EXERCISE_IDS);

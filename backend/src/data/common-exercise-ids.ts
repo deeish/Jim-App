@@ -107,6 +107,7 @@ export const COMMON_EXERCISE_IDS: string[] = [
   'hanging_leg_raise',
   'russian_twist',
   'dead_bug',
+  'bird_dog',
   'standing_pallof_press',
 ];
 
