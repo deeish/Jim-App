@@ -178,7 +178,7 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   t_bar_row_machine: 'Machine',
   pullover_machine: 'Machine',
   shrug_machine: 'Machine',
-  functional_trainer: 'Machine',
+  functional_trainer: 'Cable',
   hip_thrust_machine: 'Machine',
   glute_ham_developer: 'Machine',
   ghd_machine: 'Machine',

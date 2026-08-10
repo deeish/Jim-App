@@ -10715,7 +10715,10 @@
     "name": "Yates Row",
     "aliases": [
       "Reverse-Grip Bent-Over Row",
-      "Dorian Row"
+      "Dorian Row",
+      "Underhand Barbell Row",
+      "Supinated Barbell Row",
+      "Reverse-Grip Barbell Row"
     ],
     "description": "A bentover barbell row with a supinated grip and more upright torso, popularized by Dorian Yates for upper back thickness.",
     "primaryMuscleGroupId": "back",
@@ -32336,7 +32339,9 @@
     "id": "band_assisted_pull_up",
     "name": "Band-Assisted Pull-Up",
     "aliases": [
-      "Resistance Band Pull-Up"
+      "Resistance Band Pull-Up",
+      "Assisted Pull-Up",
+      "Banded Pull-Up"
     ],
     "description": "A pull-up using a resistance band looped around the bar to reduce bodyweight load for beginners or high-rep sets.",
     "primaryMuscleGroupId": "back",
@@ -32510,7 +32515,8 @@
     "name": "Single-Arm Cable Pulldown",
     "aliases": [
       "One-Arm Lat Pulldown",
-      "Unilateral Pulldown"
+      "Unilateral Pulldown",
+      "D-Handle Pulldown"
     ],
     "description": "A unilateral lat pulldown using a single cable handle to address side-to-side imbalances.",
     "primaryMuscleGroupId": "back",
@@ -32545,7 +32551,8 @@
     "name": "Straight-Arm Cable Pulldown",
     "aliases": [
       "Cable Pullover",
-      "Straight-Arm Pullover"
+      "Straight-Arm Pullover",
+      "Rope Straight-Arm Pulldown"
     ],
     "description": "A cable isolation movement keeping the arms straight to isolate the lats through a large arc of motion.",
     "primaryMuscleGroupId": "back",
@@ -33439,11 +33446,12 @@
   },
   {
     "id": "suspension_trainer_pullup_prone",
-    "name": "Suspension Trainer Pull-Up",
+    "name": "Feet-Elevated Suspension Trainer Row",
     "aliases": [
-      "TRX Pull-Up"
+      "TRX Feet-Elevated Row",
+      "Suspension Row Feet Elevated"
     ],
-    "description": "A pull-up performed on a suspension trainer with feet elevated, allowing adjustable bodyweight loading.",
+    "description": "A suspension trainer row with the feet elevated on a bench to increase the bodyweight load on the back.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
       "back_lats",
@@ -33459,7 +33467,7 @@
     ],
     "equipmentAlternativeIds": [],
     "movementPatternIds": [
-      "vertical_pull"
+      "horizontal_pull"
     ],
     "type": "Compound",
     "position": "Hanging",
@@ -33642,8 +33650,9 @@
   {
     "id": "active_hang_scapular_pull",
     "name": "Scapular Pull-Up",
+    "prescriptionType": "reps",
     "aliases": [
-      "Active Hang",
+      "Scap Pull-Up",
       "Scapular Depression Pull"
     ],
     "description": "A lat activation drill from a dead hang where only the shoulder blades depress without bending the elbows.",
@@ -33854,7 +33863,8 @@
     "id": "lat_prayer_cable",
     "name": "Cable Lat Prayer",
     "aliases": [
-      "Kneeling Cable Pullover Crunch"
+      "Kneeling Cable Pullover Crunch",
+      "Kneeling Cable Pullover"
     ],
     "description": "A kneeling cable exercise pulling a rope attachment downward in a prayer-like arc to engage the lats and serratus.",
     "primaryMuscleGroupId": "back",
@@ -33953,6 +33963,7 @@
   {
     "id": "pike_pullup",
     "name": "Pike Pull-Up",
+    "prescriptionType": "reps",
     "aliases": [
       "L-Sit Pull-Up"
     ],
@@ -34091,8 +34102,10 @@
   },
   {
     "id": "stir_the_pot_lat",
-    "name": "Cable Lat Arc Pull",
+    "name": "Cable Lat Pull-Around",
     "aliases": [
+      "Lat Pull-Around",
+      "Cable Lat Arc Pull",
       "Circular Cable Lat Pull"
     ],
     "description": "A standing cable exercise where the arm sweeps in a large downward arc to recruit the lat through both adduction and extension.",
@@ -34293,9 +34306,12 @@
   },
   {
     "id": "smith_machine_lat_pulldown",
-    "name": "Smith Machine Underhand Row-Pulldown",
-    "aliases": [],
-    "description": "A creative Smith machine exercise where the bar is pulled from overhead in a pulldown pattern from a seated floor position.",
+    "name": "Smith Machine Seated Pull-Up",
+    "aliases": [
+      "Seated Pull-Up",
+      "Smith Machine Pull-Up"
+    ],
+    "description": "A seated pull-up regression using a fixed Smith machine bar, pulling the chest up to the bar from the floor.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
       "back_lats"
@@ -34314,7 +34330,7 @@
     "type": "Compound",
     "position": "Seated",
     "isUnilateral": false,
-    "difficulty": "Intermediate",
+    "difficulty": "Beginner",
     "instructions": [
       "Set a Smith machine bar at overhead height and sit on the floor beneath it.",
       "Grip the bar with a supinated grip and lie back partially.",
@@ -34693,9 +34709,10 @@
   },
   {
     "id": "hip_width_feet_elevated_chin_up",
-    "name": "Feet-Elevated Suspension Chin-Up",
+    "name": "Feet-Assisted Chin-Up",
     "aliases": [
-      "Inclined Chin-Up"
+      "Inclined Chin-Up",
+      "Bench-Assisted Chin-Up"
     ],
     "description": "A modified chin-up with feet elevated on a surface to reduce load for beginners working toward full chin-ups.",
     "primaryMuscleGroupId": "back",
@@ -34894,6 +34911,7 @@
   {
     "id": "hanging_lat_shrug",
     "name": "Hanging Lat Shrug",
+    "prescriptionType": "reps",
     "aliases": [
       "Dead Hang Lat Depression"
     ],
@@ -34992,11 +35010,12 @@
   },
   {
     "id": "suspension_trainer_single_arm_pull",
-    "name": "Single-Arm Suspension Trainer Pull-Up",
+    "name": "Single-Arm Suspension Trainer Row",
     "aliases": [
-      "TRX Single-Arm Row"
+      "TRX Single-Arm Row",
+      "TRX Power Pull"
     ],
-    "description": "A unilateral suspension trainer pull-up challenging each lat independently with anti-rotation demands.",
+    "description": "A unilateral suspension trainer pull that challenges each side of the back with anti-rotation control.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
       "back_lats",
@@ -35011,7 +35030,7 @@
     ],
     "equipmentAlternativeIds": [],
     "movementPatternIds": [
-      "vertical_pull"
+      "horizontal_pull"
     ],
     "type": "Compound",
     "position": "Hanging",
@@ -35201,15 +35220,16 @@
     "aliases": [
       "Lat-Focused Barbell Row"
     ],
-    "description": "A bent-over barbell row with elbows flared wide and bar pulled to the upper chest to target the lats.",
+    "description": "A bent-over barbell row with elbows flared wide and the bar pulled to the upper chest to target the upper back and rear delts.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
-      "back_lats",
-      "back_upper"
+      "back_upper",
+      "back_mid"
     ],
     "secondaryMuscleGroupIds": [
       "arms",
-      "core"
+      "core",
+      "shoulders"
     ],
     "equipmentIds": [
       "barbell"
@@ -35265,8 +35285,10 @@
   },
   {
     "id": "overhand_bodyweight_row",
-    "name": "Pronated Bodyweight Row",
+    "name": "Inverted Row",
     "aliases": [
+      "Australian Pull-Up",
+      "Bodyweight Row",
       "Overhand Inverted Row"
     ],
     "description": "A bodyweight row using a pronated grip to increase lat involvement compared to a supinated row.",
@@ -35302,7 +35324,7 @@
   },
   {
     "id": "single_arm_lat_stretch_cable",
-    "name": "Overhead Single-Arm Lat Stretch Cable",
+    "name": "Single-Arm Cable Lat Stretch",
     "aliases": [
       "Cable Lat Stretch"
     ],
@@ -35400,6 +35422,7 @@
   {
     "id": "wall_lat_stretch_active",
     "name": "Wall-Assisted Active Lat Stretch",
+    "prescriptionType": "time",
     "aliases": [
       "Corner Lat Stretch"
     ],
@@ -35431,7 +35454,8 @@
     "id": "crossover_lat_pulldown",
     "name": "Crossover Cable Lat Pull",
     "aliases": [
-      "Cross-Body Cable Pull"
+      "Cross-Body Cable Pull",
+      "Cross-Body Lat Pulldown"
     ],
     "description": "A cable pull where one arm reaches across the body overhead and pulls to the opposite hip, creating a diagonal lat activation.",
     "primaryMuscleGroupId": "back",
@@ -35558,9 +35582,10 @@
   },
   {
     "id": "bar_pulldown_seated_hammer",
-    "name": "Neutral-Grip Bar Pulldown",
+    "name": "Wide Neutral-Grip Pulldown",
     "aliases": [
-      "Hammer-Grip Bar Pulldown"
+      "Hammer-Grip Bar Pulldown",
+      "Neutral-Grip Bar Pulldown"
     ],
     "description": "A lat pulldown using a bar with neutral-grip handles, reducing wrist and elbow stress while targeting the lats.",
     "primaryMuscleGroupId": "back",
@@ -44756,6 +44781,188 @@
       "Press the kettlebell to full lockout over the chest.",
       "Lower under control until the upper arm rests lightly on the floor.",
       "Complete all reps before switching sides."
+    ]
+  },
+  {
+    "id": "jumping_pull_up",
+    "name": "Jumping Pull-Up",
+    "aliases": [
+      "Jump Pull-Up",
+      "Jumping Chin-Up"
+    ],
+    "description": "A pull-up regression using leg drive from the floor to jump into the pull and control the descent.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lats",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core",
+      "legs"
+    ],
+    "equipmentIds": [
+      "pull_up_bar"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "vertical_pull"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stand below a pull-up bar low enough to reach with a small jump.",
+      "Grip the bar, then drive through the legs to jump as you pull your chin over the bar.",
+      "Use only as much leg drive as needed to complete the pull.",
+      "Lower yourself as slowly as possible, then reset and repeat."
+    ]
+  },
+  {
+    "id": "one_arm_pull_up",
+    "name": "One-Arm Pull-Up",
+    "aliases": [
+      "Single-Arm Pull-Up",
+      "OAP"
+    ],
+    "description": "An elite pull-up performed with one arm, demanding exceptional lat, arm, and grip strength.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lats",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "pull_up_bar"
+    ],
+    "equipmentAlternativeIds": [
+      "gymnastics_rings"
+    ],
+    "movementPatternIds": [
+      "vertical_pull"
+    ],
+    "type": "Compound",
+    "position": "Hanging",
+    "isUnilateral": true,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Grip the bar with one hand and hang with the arm fully extended.",
+      "Brace the core and keep the free arm by your side or behind your back.",
+      "Pull until your chin clears the bar without swinging.",
+      "Lower under full control and complete all reps before switching arms."
+    ]
+  },
+  {
+    "id": "machine_high_row",
+    "name": "Machine High Row",
+    "aliases": [
+      "Iso-Lateral High Row",
+      "Hammer Strength High Row",
+      "Plate-Loaded High Row"
+    ],
+    "description": "A plate-loaded machine row pulling from high to low that trains the lats through a deep overhead stretch.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lats",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "shoulders"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_pull"
+    ],
+    "type": "Compound",
+    "position": "Seated",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Set the seat so the handles sit overhead at a comfortable reach and load the machine.",
+      "Grip the handles with the chest against the pad and arms fully extended.",
+      "Pull the handles down and back toward your ribs by driving the elbows to your hips.",
+      "Return with control to the overhead stretch and repeat."
+    ]
+  },
+  {
+    "id": "front_lever",
+    "name": "Front Lever",
+    "prescriptionType": "time",
+    "aliases": [
+      "Tuck Front Lever",
+      "Front Lever Hold"
+    ],
+    "description": "An advanced calisthenics hold keeping the body horizontal under a bar with straight arms.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lats",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core",
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [
+      "pull_up_bar"
+    ],
+    "equipmentAlternativeIds": [
+      "gymnastics_rings"
+    ],
+    "movementPatternIds": [
+      "isometric"
+    ],
+    "type": "Isolation",
+    "position": "Hanging",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Hang from a pull-up bar with straight arms and a tight, hollow body.",
+      "Depress the shoulder blades and pull the body up until it is horizontal, face up.",
+      "Hold the horizontal line with straight arms, tucking the knees to regress if needed.",
+      "Hold for the target time, then lower with control."
+    ]
+  },
+  {
+    "id": "kettlebell_pullover",
+    "name": "Kettlebell Pullover",
+    "aliases": [
+      "KB Pullover"
+    ],
+    "description": "A pullover performed lying on the floor with a kettlebell, training the lats through a long overhead arc.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lats"
+    ],
+    "secondaryMuscleGroupIds": [
+      "chest",
+      "shoulders",
+      "core"
+    ],
+    "equipmentIds": [
+      "kettlebell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "pullover"
+    ],
+    "type": "Isolation",
+    "position": "Supine",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lie on your back with knees bent, holding the kettlebell by the horns above your chest.",
+      "With arms slightly bent, lower the bell in an arc overhead toward the floor.",
+      "Stop at a comfortable lat stretch before the bell touches down.",
+      "Pull the bell back over your chest using the lats and repeat."
     ]
   }
 ]

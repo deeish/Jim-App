@@ -18,6 +18,7 @@ import {
 } from '../data/common-exercise-ids';
 import { cardioLibrarySortKey } from '../data/cardio-display-order';
 import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
+import { isRetiredExercise } from '../data/retired-exercise-ids';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 import {
@@ -97,7 +98,7 @@ export class ExercisesService implements OnModuleInit {
     await this.loadExercises();
     this.loadVideoMap();
     this.memoFindAll = this.exercises
-      .filter((e) => !isExcludedFromExerciseCatalog(e.id))
+      .filter((e) => this.isCatalogVisible(e.id))
       .map((e) => this.withDerived(e));
     this.memoStats = this.computeStats();
   }
@@ -257,10 +258,19 @@ export class ExercisesService implements OnModuleInit {
     return best ?? { results: [], tokens: queryTokens, normalizedQuery };
   }
 
+  /**
+   * Forward-looking visibility: false for cardio session templates and rows the
+   * catalog audit retired. Everything that offers exercises to a user (browse,
+   * search, generator pools, chunk repair, replace candidates) flows through
+   * this via search()/memoFindAll; id-resolution paths (findOne, findByIds,
+   * resolveByName) deliberately do NOT, so history and saved items still work.
+   */
+  private isCatalogVisible(id: string): boolean {
+    return !isExcludedFromExerciseCatalog(id) && !isRetiredExercise(id);
+  }
+
   search(searchDto: SearchExercisesDto): TransformedExercise[] {
-    let results = this.exercises.filter(
-      (e) => !isExcludedFromExerciseCatalog(e.id),
-    );
+    let results = this.exercises.filter((e) => this.isCatalogVisible(e.id));
 
     // Text search: tokenized, order-independent, equipment/movement-aware match,
     // with forgiving rewrites (compound joins) when they strictly beat the
