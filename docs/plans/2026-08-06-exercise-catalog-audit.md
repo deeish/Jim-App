@@ -191,9 +191,29 @@ expect filler and near-duplicates, especially in the big groups.
       clamshell/abduction rep rows served timed by the plank regex),
       Task 12 (dip_belt class + pattern-vocab sprawl), Task 11
       (skater-jump convention). Both gates byte-identical/green.
-- [ ] **Task 7 — Shoulders** (194 rows; ⚠️ 100 of 194 are tagged
-      `shoulders_rotator_cuff` — likely bulk mis-tagging by the weak
-      model; scrutinize every rotator-cuff assignment)
+- [x] **Task 7 — Shoulders** — done + APPLIED 2026-08-10 (`fea347c`).
+      201 rows (100 cuff / 52 front / 26 side / 23 rear; the 194
+      estimate predated the Task 1/3 arrivals). The bulk-mis-tag fear
+      was WRONG: all 100 rotator_cuff rows are genuine PT/prehab
+      movements — the disease was cue-twin farming. 9 retires (4
+      towel-roll ER/IR, 2 wall-supported band ER, pad-supported cable
+      90/90, medicine-ball wall circles, forearm wall slide — each
+      gating-identical to its keeper; aliases absorbed). Upright-row
+      family normalized: all 10 rows Intermediate (impingement flag
+      from Task 3 closed), barbell/DB patterns vertical_pull →
+      upright_row, barbell copy de-rear-delted. Pike ladder built:
+      pike_push_up → Intermediate + incline_pike_push_up added
+      (Beginner regression); kettlebell_push_press added (KB power
+      press existed in NO form). Common tier + dumbbell_shoulder_press
+      (standing staple was missing!) + pike_push_up. Task 1/3 arrivals
+      (face_pull, low_cable_pull_apart, both upright rows, 5 landmine
+      presses) all re-verified in place. Shoulders-focus has no anchor
+      pool by design → zero anchor churn. Handoffs: Task 10 (bottoms-up
+      carries in the carry-home decision), Task 12
+      (landmine/landmine_attachment id twins; description templating),
+      Task 13 (rank the ~50-row ER/IR matrix). Both gates
+      byte-identical/green. Shoulders visible 194 (203 in-group);
+      catalog 1,336, retired 59.
 - [ ] **Task 8 — Arms A: biceps & triceps** (200 rows, 100 each —
       homogeneous isolation work; sub-batch internally, watch for
       near-duplicate curl/extension variants)

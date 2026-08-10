@@ -1291,3 +1291,144 @@ not a separate row).
 | Decisions closed | sumo keeper healthy; lateral sled/step + cossack + multi-hip handoffs verified; single-sub specialty tagging kept for frontal-plane isolations |
 | Eval gate | report byte-identical; 50/50 suites (595 tests) |
 | Visible after slice | legs 312 (316 in-group), core 187, catalog-wide 1,284 |
+
+## Task 7 — Shoulders (2026-08-10)
+
+> **APPLIED 2026-08-10** (commit `fea347c`, same session as the findings,
+> same widened Dylan brief as Tasks 4–6). 9 retires (retired list 59),
+> 15 keeper/fix row touches, 2 coverage adds, 2 common-tier adds
+> (catalog 1,336; visible 1,277; shoulders in-group 203 / visible 194).
+> Gates: 50/50 suites (595 tests), eval captures report
+> **byte-identical** to baseline — fourth perfect gate in a row.
+
+**Scope.** All 201 primary-shoulders rows (the plan's 194 estimate
+predated the Task 1/3 arrivals): 100 rotator_cuff, 52 front-delt, 26
+side-delt, 23 rear-delt, plus a cross-group sweep (which found only the
+seven already-retired Task 3 twins and back's live
+`cable_lat_ext_rotation_combo` — Task 2 territory, untouched).
+
+**Verdict: the plan's fear was wrong, in an interesting way.** The
+⚠️ "100 rows tagged rotator_cuff — likely bulk mis-tagging" warning
+assumed presses and raises had been dumped into the cuff sub. In fact
+every one of the 100 is a genuine rotator-cuff/scapular-health movement
+— a complete physical-therapy library (ER/IR at every angle and
+position, Cubans, full-cans, T/W/Y/trap-3 raises, serratus punches and
+wall slides, Gerber lift-offs, belly presses, bottoms-up carries, ball
+circles). The tagging is honest. The real disease was **cue-twin
+farming**: variants that differ from a base row only by a coaching cue
+whose "equipment" is free at runtime. The press/raise/rear-delt
+families are healthy and near-complete.
+
+### 7.1 Task 1/3 arrivals — all re-verified in place, closed
+
+- `face_pull` (⚠C/T): Beginner, honest copy, common-tier and template
+  refs intact.
+- `low_cable_pull_apart`: healthy.
+- `barbell_upright_row` (⚠C) + `dumbbell_upright_row`: healthy rows,
+  but they exposed the upright-row normalization below.
+- Landmine presses (Task 1 home = shoulders): all five rows
+  (`landmine_press`, `single_arm_landmine_press`, `tall_kneeling…`,
+  `half_kneeling…`, `half_kneeling_single_arm…`) verified. The
+  `landmine` vs `landmine_attachment` id split is another non-gating
+  twin pair (both → 'Machine') — Task 12 hygiene note.
+
+### 7.2 Retires (9) — rotator-cuff cue-twins
+
+Task 5's towel/slider rule applied to the PT library: retire rows that
+are **gating-identical** to a keeper (cue gear maps to the free
+'Bodyweight' label or is setup equipment) and differ only by a coaching
+cue. Keepers absorb the retired aliases.
+
+| Retire | Keeper | Cue |
+| --- | --- | --- |
+| `band_towel_roll_external_rotation` | `band_standing_external_rotation` | towel pinned at ribs |
+| `band_towel_roll_internal_rotation` | `band_standing_internal_rotation` | 〃 |
+| `cable_towel_roll_external_rotation` | `cable_standing_external_rotation` | 〃 |
+| `cable_towel_roll_internal_rotation` | `cable_standing_internal_rotation` | 〃 |
+| `wall_supported_band_45_degree_external_rotation` | `band_45_degree_external_rotation` | back against wall |
+| `wall_supported_band_90_90_external_rotation` | `band_90_90_external_rotation` | 〃 |
+| `pad_supported_cable_90_90_external_rotation` | `seated_supported_cable_90_90_external_rotation` | same cable+pad setup, near-verbatim copy, standing vs seated |
+| `single_arm_medicine_ball_wall_stabilization_circles` | `single_arm_stability_ball_wall_circles` | both ball ids → 'Medicine Ball' label; mutual alternatives |
+| `single_arm_forearm_wall_slide` | `single_arm_serratus_wall_slide` | near-verbatim copy; keeper already aliased "Single-Arm Wall Slide" |
+
+Kept-after-scrutiny: the **90/90 vs 45° vs neutral ER angle tiers**
+(real PT loading distinctions), half-kneeling variants (position
+convention kept catalog-wide), all isometric holds (correctly served as
+timed via "hold"/"isometric" name rules), the five-row Gerber lift-off
+family, quarterback/thrower's ER (athletic patterns), bottoms-up
+carries (correctly timed via the carry rule; their cuff home is
+defensible — flagged for Task 10's carry-family-home decision, not
+moved), full-can/T/W/Y/trap-3 raises (the unilateral thumb-up PT
+versions of scaption — distinct from the front-delt scaption rows),
+and the remaining ~50-deep ER/IR × implement × position matrix — real
+but deep, handed to **Task 13** to rank (the common tier already
+protects typical generation picks).
+
+### 7.3 Upright-row normalization
+
+The family (10 rows) was inconsistent on exactly the axes Task 3
+flagged when it sent the two stragglers here:
+
+| Row | Fix |
+| --- | --- |
+| `barbell_upright_row`, `dumbbell_upright_row`, `resistance_band_upright_row` | Difficulty Beginner → **Intermediate** — the movement is impingement-sensitive and the other seven rows already said Intermediate; beginners still get lateral raises as the priority side-delt pick |
+| `barbell_upright_row`, `dumbbell_upright_row` | Pattern `vertical_pull` → `upright_row` — vertical_pull is the pull-up/pulldown stacking family (76 rows); an upright row does not belong in pull-day pattern caps |
+| `barbell_upright_row` | Copy "…upper traps and rear deltoids" → "…and side delts" — description contradicted its own (correct) side-delt tags |
+
+Eval stayed byte-identical through the pattern retag (no capture
+exercised the vertical_pull cap on these rows).
+
+### 7.4 Difficulty fix + regression-ladder add
+
+`pike_push_up` was **Beginner** — it is meaningfully harder than a
+push-up (which is Beginner). Raised to Intermediate, and the gap below
+it filled with the classic regression, so the bodyweight vertical-press
+ladder now reads **incline pike (B) → pike (I) → handstand push-up
+(A)** — the assisted-Nordic pattern from Task 5.
+
+### 7.5 Coverage adds (2 rows) + common tier
+
+1. **Incline Pike Push-Up** (`incline_pike_push_up`) — hands-elevated
+   Beginner regression; bodyweight-gated (bench/box are alternatives).
+2. **Kettlebell Push Press** (`kettlebell_push_press`) — the KB power
+   press existed in no form despite `dumbbell_push_press` offering
+   kettlebell as its alternative; Intermediate.
+
+Common tier: **+ `dumbbell_shoulder_press`** (the standing DB press —
+the single most standard home shoulder staple — was missing while its
+seated version was common) and **+ `pike_push_up`** (bodyweight press
+staple; mirrors Task 4's `bodyweight_squat` common-tiering).
+Shoulders-focus sessions have **no anchor pool by design**
+(`anchor-exercises.ts` returns `[]` for single-group focuses), so no
+anchor or enrichment-spec changes.
+
+Rejected after survey: behind-the-neck press (impingement, deliberate
+absence), standing DB external rotation (physics-wrong standing —
+the catalog correctly has only band/cable/side-lying ER), bilateral
+W/full-can rows (the DB scaption row is the bilateral version),
+seated lateral-raise machine (machine row covers), KB seated press
+permutations.
+
+### 7.6 Handoffs discovered
+
+- **Task 10 (core)**: bottoms-up KB carries live here under
+  rotator_cuff — include them in the carry-family-home decision.
+- **Task 12**: `landmine` vs `landmine_attachment` id twins (both →
+  'Machine'); description templating (several rows share verbatim
+  boilerplate descriptions, e.g. three presses with identical copy).
+- **Task 13**: rank the ~50-row ER/IR matrix and the wall-slide/
+  serratus micro-family — real PT content, but consumer-app depth
+  should be a deliberate ranking decision.
+
+### Counts summary (Shoulders)
+
+| Item | Count |
+| --- | --- |
+| Rows reviewed | 201 (100 cuff / 52 front / 26 side / 23 rear) |
+| Retired | 9 (retired list 50 → 59) |
+| Row fixes | 6 (3 difficulty, 2 pattern, 1 copy) + alias absorbs onto 9 keepers |
+| Adds | 2 (catalog 1,334 → 1,336) |
+| Cross-stack | common tier + `dumbbell_shoulder_press`, + `pike_push_up` |
+| Decisions closed | rotator-cuff tagging is LEGITIMATE (plan's bulk-mis-tag fear wrong); cue-twin rule extended to PT library; upright rows normalized Intermediate/upright_row; Task 1/3 arrivals verified |
+| Eval gate | report byte-identical; 50/50 suites (595 tests) |
+| Visible after slice | shoulders 194 (203 in-group), catalog-wide 1,277 |
