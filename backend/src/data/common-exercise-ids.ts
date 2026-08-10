@@ -44,14 +44,13 @@ export const COMMON_EXERCISE_IDS: string[] = [
   'dumbbell_shrug',
   // Hinge
   'conventional_deadlift',
-  'sumo_deadlift',
+  'barbell_sumo_deadlift',
   'trap_bar_deadlift',
-  'romanian_deadlift',
   'barbell_romanian_deadlift',
   'dumbbell_romanian_deadlift',
   'barbell_hip_thrust',
   'glute_bridge',
-  'good_morning',
+  'barbell_good_morning',
   'kettlebell_swing',
   'cable_pull_through',
   // Legs – squat, lunge, machines

@@ -18,8 +18,10 @@ describe('ExercisesService.search (real catalog)', () => {
 
   it('finds Romanian Deadlifts regardless of word order or equipment placement', () => {
     const found = ids('romanian deadlift barbell');
-    expect(found).toContain('romanian_deadlift');
     expect(found).toContain('barbell_romanian_deadlift');
+    // The back-side twin was retired by the catalog audit (Task 3) and must
+    // no longer surface in search.
+    expect(found).not.toContain('romanian_deadlift');
   });
 
   it('finds the machine leg extension despite "machine" + plural', () => {
@@ -29,13 +31,13 @@ describe('ExercisesService.search (real catalog)', () => {
 
   it('ranks a name match above a result that only matched another field', () => {
     const found = ids('romanian deadlift');
-    const rdlIndex = found.indexOf('romanian_deadlift');
+    const rdlIndex = found.indexOf('barbell_romanian_deadlift');
     expect(rdlIndex).toBeGreaterThanOrEqual(0);
     // Should sit at/near the top, well above the long tail of variants/related hits.
     expect(rdlIndex).toBeLessThan(5);
   });
 
   it('resolves an alias', () => {
-    expect(ids('rdl')).toContain('romanian_deadlift');
+    expect(ids('rdl')).toContain('barbell_romanian_deadlift');
   });
 });

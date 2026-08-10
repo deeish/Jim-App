@@ -45,6 +45,33 @@ export const RETIRED_EXERCISE_IDS: readonly string[] = [
   'cable_single_arm_pulldown_behind', // single-arm pulldown to behind the ear — impingement-prone permutation
   'barbell_behind_neck_pull_up', // feet-assisted behind-neck pull-up graded Advanced; concept survives as Smith Machine Seated Pull-Up
   'dumbbell_row_lat_focused', // backwards coaching (elbow flare ≠ lat bias); one_arm_dumbbell_row_lat_bias is the keeper
+
+  // Task 3 — Back B (2026-08-09): Task 0 twin pairs (keepers live in legs/core; aliases absorbed)
+  'deadlift_conventional', // twin of legs' conventional_deadlift (deadlift home = legs, Dylan)
+  'romanian_deadlift', // twin of legs' barbell_romanian_deadlift (removed from common tier with the retire)
+  'sumo_deadlift', // twin of legs' barbell_sumo_deadlift; anchor + common refs re-pointed (Dylan 2026-08-09)
+  'good_morning', // twin of legs' barbell_good_morning (common entry re-pointed)
+  'barbell_good_morning_seated', // twin of legs' seated_good_morning (same name, same equipment)
+  'single_leg_rdl', // twin of legs' dumbbell_single_leg_romanian_deadlift
+  'barbell_hip_thrust_back_ext', // twin of legs' barbell_hip_thrust
+  'farmers_carry', // third carry twin; core's farmer_carry is the keeper (core/arms sessions settle the family home)
+
+  // Task 3 — dups of the complete shoulders rear-delt / face-pull / upright-row families
+  'band_face_pull', // dup of shoulders' resistance_band_face_pull (face-pull home = shoulders, Dylan)
+  'cable_face_pull_single_arm', // dup of shoulders' single_arm_cable_face_pull
+  'scapular_retraction_band', // dup of shoulders' band_pull_apart
+  'cable_rear_delt_fly', // dup of shoulders' cable_reverse_fly (their aliases cross-referenced each other)
+  'dumbbell_reverse_fly', // dup of shoulders' bent_over_dumbbell_reverse_fly
+  'incline_reverse_fly', // dup of shoulders' incline_bench_rear_delt_fly
+  'machine_upright_row', // copy is a low-cable upright row = shoulders' cable_upright_row
+  'wide_grip_seated_cable_row_single', // seated single-arm rear-delt row; shoulders' single_arm_rear_delt_cable_row is the keeper
+
+  // Task 3 — in/cross-slice dups
+  'seated_good_morning_band', // "Banded Good Morning" — exact dup of legs' resistance_band_good_morning (surfaced by the hinge retag)
+  'barbell_row_supine', // verbatim the Inverted Row (overhand_bodyweight_row)
+  'landmine_row_bilateral', // same movement as t_bar_row (which carries the Landmine Row alias)
+  'cable_straight_arm_row', // pulley-height variant of straight_arm_cable_pulldown
+  'cable_high_row_elbows_wide', // copy is a face pull; face_pull is the keeper
 ];
 
 const RETIRED = new Set(RETIRED_EXERCISE_IDS);

@@ -10533,7 +10533,8 @@
     "name": "T-Bar Row",
     "aliases": [
       "Landmine Row",
-      "T-Bar Bent-Over Row"
+      "T-Bar Bent-Over Row",
+      "Bilateral Landmine Row"
     ],
     "description": "A barbell row using one end of a barbell in a landmine or floor corner to train the mid-back through a fixed arc.",
     "primaryMuscleGroupId": "back",
@@ -10752,8 +10753,7 @@
     "id": "kroc_row",
     "name": "Kroc Row",
     "aliases": [
-      "High-Rep Dumbbell Row",
-      "Renegade Row Heavy"
+      "High-Rep Dumbbell Row"
     ],
     "description": "A high-rep, heavy single-arm dumbbell row performed with controlled momentum for maximum lat and mid-back hypertrophy.",
     "primaryMuscleGroupId": "back",
@@ -11307,8 +11307,7 @@
     "id": "hyperextension_back_extension",
     "name": "Back Extension",
     "aliases": [
-      "Hyperextension",
-      "45-Degree Back Extension"
+      "Hyperextension"
     ],
     "description": "A spinal erector and glute exercise performed on a back extension bench by hinging through the hips.",
     "primaryMuscleGroupId": "back",
@@ -11416,12 +11415,13 @@
       "Natural Leg Curl"
     ],
     "description": "A glute-ham developer exercise that eccentrically loads the hamstrings and isometrically loads the lower back.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_hamstrings",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core"
     ],
     "equipmentIds": [
@@ -11449,13 +11449,13 @@
       "Upright Row"
     ],
     "description": "A barbell pull from the hips to chin-height with elbows leading, targeting the upper traps and rear deltoids.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "back_traps",
-      "back_upper"
+      "shoulders_side_delts",
+      "shoulders_front_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders",
+      "back",
       "arms"
     ],
     "equipmentIds": [
@@ -11486,13 +11486,13 @@
       "DB Upright Row"
     ],
     "description": "A dumbbell version of the upright row allowing each arm to move independently for more natural shoulder mechanics.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "back_traps",
-      "back_upper"
+      "shoulders_side_delts",
+      "shoulders_front_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders",
+      "back",
       "arms"
     ],
     "equipmentIds": [
@@ -11520,13 +11520,13 @@
       "Cable Face Pull"
     ],
     "description": "A cable pull to the face using a rope attachment that targets the rear deltoids, upper traps, and external rotators.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "back_traps",
-      "back_upper"
+      "shoulders_rear_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders"
+      "back",
+      "arms"
     ],
     "equipmentIds": [
       "cable_machine",
@@ -11865,7 +11865,8 @@
     "id": "barbell_deadrow",
     "name": "Barbell Dead-Row",
     "aliases": [
-      "Dead-Stop Row"
+      "Dead Row",
+      "Deadlift Row Combo"
     ],
     "description": "A combination deadlift and bent-over row where each rep starts from a dead stop on the floor.",
     "primaryMuscleGroupId": "back",
@@ -12041,14 +12042,15 @@
       "Hex Bar Deadlift"
     ],
     "description": "A deadlift performed with a trap bar allowing a more upright torso position and reduced lower back stress.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower",
-      "back_upper"
+      "legs_glutes",
+      "legs_quads"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
-      "core"
+      "back",
+      "core",
+      "arms"
     ],
     "equipmentIds": [
       "trap_bar"
@@ -12075,13 +12077,13 @@
       "Elevated Deadlift"
     ],
     "description": "A conventional deadlift performed while standing on plates to increase range of motion and lower back demand.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower",
-      "back_mid"
+      "legs_hamstrings",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core"
     ],
     "equipmentIds": [
@@ -12110,13 +12112,14 @@
       "Lateral Deadlift"
     ],
     "description": "A unilateral deadlift with the load held at one side to train anti-lateral-flexion strength of the lower back and core.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_glutes",
+      "legs_hamstrings"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "legs",
+      "back",
       "arms"
     ],
     "equipmentIds": [
@@ -12148,12 +12151,13 @@
       "Hip Hinge Pull-Through"
     ],
     "description": "A cable hip-hinge movement where the rope is pulled between the legs to train the lower back and glutes.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_glutes",
+      "legs_hamstrings"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core"
     ],
     "equipmentIds": [
@@ -12392,12 +12396,13 @@
       "Two-Hand Swing"
     ],
     "description": "A dynamic hip-hinge movement using a kettlebell to train the posterior chain with an emphasis on the lower back and glutes.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_glutes",
+      "legs_hamstrings"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core",
       "shoulders"
     ],
@@ -12427,13 +12432,14 @@
       "One-Arm KB Swing"
     ],
     "description": "A unilateral kettlebell swing challenging the lower back and core with anti-rotation demands.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_glutes",
+      "legs_hamstrings"
     ],
     "secondaryMuscleGroupIds": [
+      "back",
       "core",
-      "legs",
       "shoulders"
     ],
     "equipmentIds": [
@@ -13142,13 +13148,12 @@
       "Cable Rear Delt Pull-Apart"
     ],
     "description": "A cable pull-apart from a low pulley for targeted upper mid-back and rear delt activation.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "back_upper",
-      "back_traps"
+      "shoulders_rear_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders"
+      "back"
     ],
     "equipmentIds": [
       "cable_machine",
@@ -13203,9 +13208,10 @@
   },
   {
     "id": "bent_over_dumbbell_shrug",
-    "name": "Bent-Over Dumbbell Shrug",
+    "name": "Prone Incline Dumbbell Shrug",
     "aliases": [
-      "Prone Trap Shrug"
+      "Prone Trap Shrug",
+      "Bent-Over Dumbbell Shrug"
     ],
     "description": "A shrug performed in a bent-over or prone position to isolate the mid and lower trapezius fibers.",
     "primaryMuscleGroupId": "back",
@@ -13273,7 +13279,8 @@
     "name": "Superman Hold",
     "aliases": [
       "Prone Back Extension Hold",
-      "Aquaman"
+      "Aquaman",
+      "Superman"
     ],
     "description": "A bodyweight prone isometric hold lifting arms and legs off the floor simultaneously to activate the spinal erectors.",
     "primaryMuscleGroupId": "back",
@@ -13308,12 +13315,13 @@
       "Resistance Band Good Morning"
     ],
     "description": "A good morning using a resistance band anchored underfoot for hip-hinge lower back training without a barbell.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_hamstrings",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core"
     ],
     "equipmentIds": [
@@ -13406,7 +13414,7 @@
       "Quadruped Row",
       "Bear Crawl Row"
     ],
-    "description": "A quadruped barbell row pulling from the bear crawl position to train the mid-back with core stability.",
+    "description": "An alternating single-arm dumbbell row from the bear-plank position that trains the mid-back under heavy core stability demand.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
       "back_mid"
@@ -13416,23 +13424,23 @@
       "arms"
     ],
     "equipmentIds": [
-      "barbell"
+      "dumbbell"
     ],
     "equipmentAlternativeIds": [
-      "dumbbell"
+      "kettlebell"
     ],
     "movementPatternIds": [
       "horizontal_pull"
     ],
     "type": "Compound",
     "position": "Kneeling",
-    "isUnilateral": false,
+    "isUnilateral": true,
     "difficulty": "Intermediate",
     "instructions": [
-      "Start in a bear crawl position over a barbell with knees hovering slightly off the floor.",
-      "Grip the bar with a pronated grip.",
-      "Row the bar toward your chest by pulling elbows up and back.",
-      "Lower and repeat while maintaining the bear crawl position."
+      "Start in a bear-plank position with knees hovering just off the floor and a dumbbell in one hand.",
+      "Brace the core and keep the hips level.",
+      "Row the dumbbell to your ribs without letting the torso rotate.",
+      "Lower it under control and alternate sides each rep."
     ]
   },
   {
@@ -14059,9 +14067,9 @@
     "id": "monkey_row",
     "name": "Monkey Row",
     "aliases": [
-      "Dumbbell Spider Row"
+      "Dumbbell Monkey Row"
     ],
-    "description": "A unique row where both elbows swing wide simultaneously on each rep to target the upper-back and posterior shoulder.",
+    "description": "A standing dumbbell pull dragging the elbows up along the sides, blending a shrug and upright row to hit the traps with less shoulder stress.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
       "back_upper",
@@ -14072,22 +14080,21 @@
       "arms"
     ],
     "equipmentIds": [
-      "dumbbell",
-      "incline_bench"
+      "dumbbell"
     ],
     "equipmentAlternativeIds": [],
     "movementPatternIds": [
-      "horizontal_pull"
+      "vertical_pull"
     ],
     "type": "Compound",
-    "position": "Prone",
+    "position": "Standing",
     "isUnilateral": false,
     "difficulty": "Intermediate",
     "instructions": [
-      "Lie prone on an incline bench with a dumbbell in each hand.",
-      "Row both dumbbells outward with elbows flaring at 90 degrees to the torso.",
-      "Retract the scapulas hard at the top.",
-      "Lower to the hanging position and repeat."
+      "Stand tall holding a dumbbell at each side.",
+      "Drag both elbows straight up along your sides, letting the wrists trail.",
+      "Stop when the elbows reach roughly armpit height and squeeze the traps.",
+      "Lower under control and repeat."
     ]
   },
   {
@@ -15508,7 +15515,8 @@
     "id": "barbell_sumo_deadlift",
     "name": "Barbell Sumo Deadlift",
     "aliases": [
-      "Sumo Deadlift"
+      "Sumo Deadlift",
+      "Wide-Stance Deadlift"
     ],
     "description": "A wide-stance barbell deadlift that heavily recruits the inner thighs along with the hips and trunk.",
     "primaryMuscleGroupId": "legs",
@@ -21645,7 +21653,10 @@
   {
     "id": "farmer_carry",
     "name": "Farmer Carry",
-    "aliases": [],
+    "aliases": [
+      "Farmer's Carry",
+      "Farmer's Walk"
+    ],
     "description": "A bilateral carry that builds full-body bracing and deep-core stiffness under load.",
     "primaryMuscleGroupId": "core",
     "subMuscleIds": [
@@ -28566,7 +28577,9 @@
     "id": "bent_over_dumbbell_reverse_fly",
     "name": "Bent-Over Dumbbell Reverse Fly",
     "aliases": [
-      "Bent-Over Rear Delt Fly"
+      "Bent-Over Rear Delt Fly",
+      "Dumbbell Reverse Fly",
+      "Bent-Over Lateral Raise"
     ],
     "description": "A rear-delt isolation movement that opens the arms against resistance.",
     "primaryMuscleGroupId": "shoulders",
@@ -28636,7 +28649,8 @@
     "id": "incline_bench_rear_delt_fly",
     "name": "Incline Bench Rear Delt Fly",
     "aliases": [
-      "Prone Rear Delt Fly"
+      "Prone Rear Delt Fly",
+      "Incline Bench Reverse Fly"
     ],
     "description": "A rear-delt isolation movement that opens the arms against resistance.",
     "primaryMuscleGroupId": "shoulders",
@@ -29027,7 +29041,8 @@
     "id": "band_pull_apart",
     "name": "Band Pull-Apart",
     "aliases": [
-      "Resistance Band Pull-Apart"
+      "Resistance Band Pull-Apart",
+      "Band Scapular Retraction"
     ],
     "description": "A rear-delt isolation movement that opens the arms against resistance.",
     "primaryMuscleGroupId": "shoulders",
@@ -29444,7 +29459,9 @@
     "id": "conventional_deadlift",
     "name": "Conventional Deadlift",
     "aliases": [
-      "Barbell Deadlift"
+      "Barbell Deadlift",
+      "Deadlift",
+      "Standard Deadlift"
     ],
     "description": "A classic pull from the floor that builds the hamstrings, glutes, and entire posterior chain.",
     "primaryMuscleGroupId": "legs",
@@ -29614,7 +29631,9 @@
   {
     "id": "barbell_good_morning",
     "name": "Barbell Good Morning",
-    "aliases": [],
+    "aliases": [
+      "Good Morning"
+    ],
     "description": "A loaded hinge that trains the hamstrings and glutes through torso control.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -29752,7 +29771,8 @@
     "id": "resistance_band_good_morning",
     "name": "Resistance Band Good Morning",
     "aliases": [
-      "Band Good Morning"
+      "Band Good Morning",
+      "Banded Good Morning"
     ],
     "description": "A banded hinge that builds glute and hamstring strength with accommodating resistance.",
     "primaryMuscleGroupId": "legs",
@@ -29821,7 +29841,10 @@
     "id": "dumbbell_single_leg_romanian_deadlift",
     "name": "Dumbbell Single-Leg Romanian Deadlift",
     "aliases": [
-      "Single-Leg DB RDL"
+      "Single-Leg DB RDL",
+      "Single-Leg RDL",
+      "SLRDL",
+      "Single-Leg Romanian Deadlift"
     ],
     "description": "A unilateral hinge that challenges balance while loading one hamstring and glute at a time.",
     "primaryMuscleGroupId": "legs",
@@ -30336,7 +30359,10 @@
   {
     "id": "barbell_hip_thrust",
     "name": "Barbell Hip Thrust",
-    "aliases": [],
+    "aliases": [
+      "Hip Thrust",
+      "Hip Bridge"
+    ],
     "description": "A heavy hip extension exercise that strongly targets the glutes and hamstrings.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -44969,6 +44995,77 @@
       "With arms slightly bent, lower the bell in an arc overhead toward the floor.",
       "Stop at a comfortable lat stretch before the bell touches down.",
       "Pull the bell back over your chest using the lats and repeat."
+    ]
+  },
+  {
+    "id": "ring_row",
+    "name": "Ring Row",
+    "aliases": [
+      "Gymnastic Ring Row",
+      "Australian Ring Row"
+    ],
+    "description": "A bodyweight row on gymnastic rings whose difficulty scales with body angle, building the mid-back and grip.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_mid",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "gymnastics_rings"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_pull"
+    ],
+    "type": "Compound",
+    "position": "Supine",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Set rings to about waist height and grip one in each hand.",
+      "Walk your feet forward and hang below the rings with a straight body.",
+      "Pull your chest to the rings by driving the elbows back.",
+      "Lower under control to full arm extension and repeat."
+    ]
+  },
+  {
+    "id": "gorilla_row",
+    "name": "Gorilla Row",
+    "aliases": [
+      "Kettlebell Gorilla Row",
+      "Alternating Kettlebell Row"
+    ],
+    "description": "An alternating kettlebell row from a deep hinge with the bells on the floor, combining a heavy row with hip-hinge endurance.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_mid",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core",
+      "legs"
+    ],
+    "equipmentIds": [
+      "kettlebell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_pull"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": true,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Set two kettlebells on the floor between your feet and hinge at the hips with a flat back.",
+      "Grip both handles, keeping your weight balanced.",
+      "Row one bell to your ribs while pushing the other into the floor.",
+      "Lower it, then row the opposite side, alternating while holding the hinge."
     ]
   }
 ]
