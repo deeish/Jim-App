@@ -43398,7 +43398,7 @@
   },
   {
     "id": "jump_rope_single_under",
-    "name": "Jump Rope — Single Unders",
+    "name": "Jump Rope Single Unders",
     "aliases": [
       "Skipping Rope",
       "Basic Jump Rope"
@@ -43429,7 +43429,7 @@
   },
   {
     "id": "jump_rope_double_under",
-    "name": "Jump Rope — Double Unders",
+    "name": "Jump Rope Double Unders",
     "aliases": [
       "DU",
       "Double-Unders"
@@ -43737,7 +43737,7 @@
   },
   {
     "id": "battle_rope_alternating_waves",
-    "name": "Battle Rope — Alternating Waves",
+    "name": "Battle Rope Alternating Waves",
     "aliases": [
       "Rope Waves"
     ],
@@ -43768,7 +43768,7 @@
   },
   {
     "id": "battle_rope_double_slams",
-    "name": "Battle Rope — Double Slams",
+    "name": "Battle Rope Double Slams",
     "aliases": [
       "Rope Power Slams"
     ],
@@ -43861,7 +43861,7 @@
   },
   {
     "id": "farmers_carry_brisk_walk",
-    "name": "Farmer's Carry — Brisk Walk (Conditioning)",
+    "name": "Farmer's Carry Brisk Walk (Conditioning)",
     "aliases": [
       "Heavy Carry Walk",
       "Farmer Walk Metcon"
@@ -43926,7 +43926,7 @@
   },
   {
     "id": "swimming_laps_easy",
-    "name": "Swimming — Easy Laps",
+    "name": "Swimming Laps (Easy)",
     "aliases": [
       "Pool Swim Aerobic"
     ],
@@ -44020,7 +44020,7 @@
   },
   {
     "id": "hiit_high_intensity_interval_session",
-    "name": "HIIT — General High-Intensity Intervals",
+    "name": "HIIT (General High-Intensity Intervals)",
     "aliases": [
       "HIIT",
       "High Intensity Interval Training",
@@ -44100,7 +44100,7 @@
   },
   {
     "id": "hiit_emom_cardio",
-    "name": "EMOM — Cardio or Mixed Conditioning",
+    "name": "EMOM Conditioning (Cardio or Mixed)",
     "aliases": [
       "EMOM MetCon",
       "Every Minute on the Minute Cardio"
@@ -44137,7 +44137,7 @@
   },
   {
     "id": "hiit_amrap_conditioning",
-    "name": "AMRAP — Conditioning Circuit",
+    "name": "AMRAP Conditioning Circuit",
     "aliases": [
       "AMRAP HIIT",
       "AMRAP MetCon",
@@ -44292,7 +44292,7 @@
   },
   {
     "id": "hybrid_hyrox_style_training",
-    "name": "Hybrid Race Prep — Run + Station Circuits",
+    "name": "Hybrid Race Prep (Run + Station Circuits)",
     "aliases": [
       "HYROX Style Training",
       "Hybrid Running MetCon",
@@ -44330,7 +44330,7 @@
   },
   {
     "id": "circuit_training_cardio",
-    "name": "Circuit Training — Cardio Focus",
+    "name": "Circuit Training (Cardio Focus)",
     "aliases": [
       "Cardio Circuit",
       "Rotation Circuit",
@@ -45731,6 +45731,101 @@
       "Press up onto one hand, then the other, reaching a high plank.",
       "Lower back to your forearms one arm at a time.",
       "Keep your hips as still as possible and alternate the leading arm."
+    ]
+  },
+  {
+    "id": "wall_ball",
+    "name": "Wall Ball",
+    "aliases": [
+      "Wall Ball Shots",
+      "Med Ball Wall Throw"
+    ],
+    "description": "A squat into an upward medicine-ball throw against a wall target for full-body conditioning.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs",
+      "shoulders"
+    ],
+    "equipmentIds": [
+      "medicine_ball",
+      "wall"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Hold the ball at your chest facing a wall with a target spot overhead.",
+      "Squat to comfortable depth, then drive up and throw the ball to the target.",
+      "Catch the ball softly as it comes down, absorbing into the next squat.",
+      "Keep a steady rhythm and stop before form breaks down."
+    ]
+  },
+  {
+    "id": "jumping_lunge",
+    "name": "Jumping Lunge",
+    "aliases": [
+      "Split Squat Jump",
+      "Lunge Jump"
+    ],
+    "description": "An explosive lunge where you switch legs mid-air, building leg power and fast conditioning.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": true,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Start in a lunge with both knees at comfortable angles.",
+      "Jump up and switch legs in the air.",
+      "Land softly into the opposite lunge with control.",
+      "Keep your chest tall and stop when landings get heavy."
+    ]
+  },
+  {
+    "id": "broad_jump",
+    "name": "Broad Jump",
+    "aliases": [
+      "Standing Long Jump"
+    ],
+    "description": "A maximal forward jump from standing that builds explosive hip power.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs",
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Stand with feet hip-width and swing your arms back as you dip.",
+      "Drive your arms forward and jump as far ahead as you can.",
+      "Land softly with bent knees and your chest over your feet.",
+      "Walk back to the start and reset fully between jumps."
     ]
   }
 ]

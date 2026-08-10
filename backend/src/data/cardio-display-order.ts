@@ -46,9 +46,12 @@ const CARDIO_LIBRARY_ORDER: readonly string[] = [
   // Plyo / power
   'plyo_box_jump',
   'jump_squat_bodyweight',
+  'jumping_lunge',
+  'broad_jump',
   // Implements
   'kettlebell_swing_conditioning',
   'medicine_ball_slam',
+  'wall_ball',
   'battle_rope_alternating_waves',
   'battle_rope_double_slams',
   // Sled / carry / boxing

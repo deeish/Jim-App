@@ -245,6 +245,10 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   // tire deliberately unmapped: flipping requires an actual tire — mapping it
   // to 'Bodyweight' made Tire Flip always-available (a live dumbbell/band
   // plan prescribed it). Unmapped required ids read as Unmodeled.
+  // bicycle and pool are deliberately unmapped for the same reason (catalog
+  // audit Task 11): outdoor cycling and lap swimming need gear/facilities the
+  // app cannot assume, so their rows stay browseable but never pass an
+  // equipment filter.
   sled: 'Machine',
   heavy_bag: 'Bodyweight',
   climbing_rope: 'Pull-up Bar',

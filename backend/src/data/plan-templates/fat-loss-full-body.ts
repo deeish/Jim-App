@@ -353,7 +353,7 @@ const dayC: TemplateExercise[] = [
   },
   {
     exerciseId: 'battle_rope_alternating_waves',
-    name: 'Battle Rope — Alternating Waves',
+    name: 'Battle Rope Alternating Waves',
     prescriptionType: 'time',
     restSeconds: 30,
     note: 'Finisher — all-out waves, then ~30s rest. Hips low, arms fast.',
