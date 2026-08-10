@@ -1138,3 +1138,156 @@ single-leg walkout / ball / slider / TRX curl tier (all Advanced ✓).
 | Decisions closed | 45° glute-vs-erector split STAYS; hinge keepers verified; equipment-id twins non-gating; swing-conditioning is a modality row |
 | Eval gate | report byte-identical; 50/50 suites (595 tests) |
 | Visible legs rows after slice | 312 (314 in-group − 2 towel retires); back visible 177 |
+
+## Task 6 — Legs C: calves + inner/outer thighs (2026-08-10)
+
+> **APPLIED 2026-08-10** (commit `b2df0f4`, same session as the findings,
+> same widened Dylan brief as Tasks 4–5). 2 retires (retired list 50),
+> 14 row fixes, 2 coverage adds (catalog 1,334; visible 1,284; legs
+> in-group 316 / visible 312; core visible 187). Gates: 50/50 suites
+> (595 tests), eval captures report **byte-identical** to baseline —
+> third perfect gate in a row.
+
+**Scope.** All 100 rows tagged `legs_calves` (34), `legs_inner_thighs`
+(33), or `legs_outer_thighs` (33) — zero overlap with the Task 4/5
+slices (the weak model tagged every sumo/cossack/lateral compound
+inner-only, so nothing here was pre-audited), plus a cross-group name
+sweep that caught the one out-of-group family member
+(`bench_copenhagen_plank`, core).
+
+**Verdict: the cleanest slice of the audit.** Calves are saturated
+across every implement (standing/seated/donkey/leg-press/hack/Smith
+machines, barbell, dumbbell + singles, kettlebell, plate, cable, band,
+belt-squat, dip-belt, trap bar, bodyweight + stair + toe walks) and the
+adductor/abductor coverage is genuinely complete (machines + multi-hip,
+cable cuff work, five distinct band walks, clamshell/fire-hydrant
+families, Copenhagens, ball squeezes, side planks, the full sumo /
+lateral-lunge / cossack / curtsy / lateral-step complex). Only one
+invented movement and one cross-group dup — the real work was
+sub-muscle truth and one gating bug class.
+
+### 6.1 Task handoff items — all verified and closed
+
+- **`barbell_sumo_deadlift` keeper (Task 3 re-point)**: healthy. Name,
+  absorbed aliases ("Sumo Deadlift", "Wide-Stance Deadlift"), copy,
+  difficulty, and the anchor/common re-points all check out. Only nit:
+  `trap_bar` sat in its alternatives — a trap bar's frame physically
+  blocks a wide stance (fixed → `dumbbell`).
+- **Sumo squat family** (5 rows) + **sumo deadlift family** (4): all
+  real, all honestly equipped, Beginner entries exist (BW/DB/KB).
+- **Cossack family** (4): bodyweight/goblet/landmine + a Beginner
+  TRX-assisted regression — a complete difficulty ladder.
+- **`lateral_sled_drag`**: correctly lives in legs (matches Task 4's
+  `backward_sled_drag` decision); `sled` word correctly triggers the
+  carry/timed prescription.
+- **Lateral step family** (5: step-up, DB step-up, step-down, crossover
+  step-up, box step-over): five distinct, real movements — kept intact.
+- **`multi_hip_machine` rows** (2, standing ab/adduction): fine, and now
+  share their equipment id with Task 5's `machine_glute_kickback` as
+  intended.
+
+### 6.2 Retires (2)
+
+| Retire | Why |
+| --- | --- |
+| `barbell_donkey_calf_raise` | Physically incoherent: a free barbell cannot be secured across the hips/lower back in a 90° hinge (its own instructions hedge "securely… in the donkey setup"). Real donkey loading = machine, partner, dip belt, or the fixed-path Smith row — all of which the family keeps |
+| `bench_copenhagen_plank` (core) | Cross-group dup of legs' `copenhagen_knee_plank`: both are the knee-on-bench short-lever hold (the core row is even aliased "Short-Lever Copenhagen Plank"). Copenhagen family home = legs/inner (the adductor identity is the point); keeper absorbs both aliases. Core keeps its side-plank families |
+
+Kept-after-scrutiny: `smith_machine_donkey_calf_raise` (fixed path makes
+the bent-over setup real, unlike the free-bar version); the single-leg
+seated ab/adductor-machine rows (machine-dependent but practiced; the
+multi-hip rows are the canonical unilateral machine path); the
+ball-squeeze quartet (`exercise_ball` → 'Medicine Ball' gating is
+conservative-but-honest, and the rows themselves advertise pillow/foam
+alternatives); the two ankle-weight rows (`ankle_weights` maps to the
+free 'Bodyweight' label by deliberate light-accessory convention —
+served unloaded they are legitimate standing leg raises); toe walks;
+cable calf raises; all five band walks.
+
+### 6.3 Sub-muscle enrichment (12 rows) — the slice's systemic issue
+
+The weak model gave every row exactly one sub tag, which misfiles the
+big compounds: a user browsing **glutes** (176 rows) would never see a
+sumo deadlift, and one browsing **quads** would never see a sumo squat.
+Appended (specialty sub stays first — Task 4 precedent):
+
+| Rows | Sub change |
+| --- | --- |
+| 4 sumo deadlifts (barbell/DB/KB/landmine) | `+legs_glutes` (a sumo pull is a glute/hip hinge first) |
+| 5 sumo squats (barbell/DB/KB/landmine/BW) | `+legs_quads +legs_glutes` (a sumo squat is still a squat) |
+| 3 curtsy lunges (BW/DB/barbell) | `+legs_glutes` (glute-focused in every coaching context) |
+
+**Deliberately left single-sub**: lateral lunges, cossacks, and the
+lateral-step family — their frontal-plane/adductor-or-abductor specialty
+tagging is the reason those subs have content, and their training
+identity genuinely is the specialty. Documented so Task 13's ranking
+doesn't "fix" it backwards.
+
+### 6.4 Fixes
+
+| Id | Fix | Why |
+| --- | --- | --- |
+| `dip_belt_calf_raise` | eq `[dip_belt]` → `[dip_belt, plate]`; difficulty Advanced → Intermediate | `dip_belt` maps to the free 'Bodyweight' label, so the row was **served to users with no equipment at all** — the tire-flip/pinch-block bug class. Requiring `plate` ('Barbell' label) gates it honestly. The movement itself is a simple calf raise |
+| `barbell_sumo_deadlift` | alt `trap_bar` → `dumbbell` | Trap bar frame blocks a sumo stance |
+| `sumo_squat` | aliases += "Plie Squat", "Plié Squat" | The plié squat IS the wide-stance squat; only the KB row carried the name. Accented + plain forms cover diacritic-sensitive search |
+| `dumbbell_sumo_squat` | aliases += "Dumbbell Plie Squat" | The DB version is the canonical gym "plié squat" |
+| `copenhagen_knee_plank` | aliases += "Bench Copenhagen Plank", "Short-Lever Copenhagen Plank" | Absorb from the core retire ("plank" already in the keeper's name → no prescription-type change) |
+
+### 6.5 Coverage adds (2 rows) + cross-stack
+
+The gap survey found the ad/abductor and calf families complete — the
+one true hole: **the anterior lower leg existed in no form** (zero
+tibialis/shin rows catalog-wide, in the knees-over-toes era).
+
+1. **Tibialis Raise** (`tibialis_raise`) — wall-lean toe raise; aliases
+   Tib Raise / Wall Tibialis Raise / Shin Raise; Beginner, bodyweight,
+   new `dorsiflexion` pattern (mapped to the 'Squat' filter bucket
+   alongside `plantar_flexion` in `MOVEMENT_PATTERN_MAP`).
+2. **Heel Walk** (`heel_walk`) — the toe-walk mirror for shin endurance;
+   Beginner, bodyweight, `gait` pattern.
+
+Cross-stack: **`adductor_machine` added to the common tier** — the
+abductor machine was already common; the pair are equally staple gym
+machines and the asymmetry was arbitrary.
+
+Rejected after survey: seated tib-raise machine (niche gear), KB
+standing calf raise (DB row + alt covers), single-leg Smith calf raise,
+seated band adduction (ball squeezes own the seated isometric slot),
+weighted Copenhagen (load progression is plate-on-hip coaching detail,
+not a separate row).
+
+### 6.6 Handoffs discovered
+
+- **Task 10 (core)**: `side_plank_clamshell` and
+  `side_plank_hip_abduction` are rep movements but the `\bplank\b`
+  TIME_HOLD rule serves them as timed holds (both prescription twins).
+  The plank-hybrid exclusion list (`row|rotation|reach|drag|dumbbell`)
+  needs one considered extension when core settles the plank family —
+  not piecemeal edits per slice.
+- **Task 12 (consolidation)**: the `dip_belt` under-gating class found
+  here has 5 more live members — `weighted_pull_up`,
+  `chin_up_weighted_belt`, `weighted_parallel_bar_dip`,
+  `weighted_ring_dip`, `cable_belt_squat` — all gate only on their
+  bar/rings/cable id while the belt maps to free 'Bodyweight', so
+  plate-less users can be served "weighted" rows. Same one-line
+  `+plate` fix each, deferred to keep closed slices closed (eval
+  re-gate needed when applied).
+- **Task 12**: movement-pattern vocabulary sprawl (355 distinct ids,
+  dozens of singletons like `short_lever`, `hip_dip`) — inert at
+  runtime but worth a normalization pass decision.
+- **Task 11 (cardio)**: `lateral_bound` ("Skater Jump") stays a legs
+  power row by the same logic that keeps `sled_push` in cardio —
+  confirm the jump-family convention when cardio is audited.
+
+### Counts summary (Legs C)
+
+| Item | Count |
+| --- | --- |
+| Rows reviewed | 100 (34 calves / 33 inner / 33 outer) + 1 cross-group (core Copenhagen) |
+| Retired | 2 (retired list 48 → 50) |
+| Row fixes | 14 (12 sub enrichments, 1 equipment gate + difficulty, 1 alt list) + 6 alias additions across 4 rows |
+| Adds | 2 (catalog 1,332 → 1,334) |
+| Cross-stack | `adductor_machine` → common tier; `dorsiflexion` → MOVEMENT_PATTERN_MAP |
+| Decisions closed | sumo keeper healthy; lateral sled/step + cossack + multi-hip handoffs verified; single-sub specialty tagging kept for frontal-plane isolations |
+| Eval gate | report byte-identical; 50/50 suites (595 tests) |
+| Visible after slice | legs 312 (316 in-group), core 187, catalog-wide 1,284 |

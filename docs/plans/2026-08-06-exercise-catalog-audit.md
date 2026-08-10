@@ -169,8 +169,28 @@ expect filler and near-duplicates, especially in the big groups.
       label-normalized and non-gating (no migration; Task 12 hygiene
       note); kettlebell_swing_conditioning is a cardio modality row,
       not a twin (Task 11 confirms). Both gates byte-identical/green.
-- [ ] **Task 6 — Legs C: calves + inner/outer thighs** (~100 rows: calves
-      34, inner 33, outer 33)
+- [x] **Task 6 — Legs C: calves + inner/outer thighs** — done + APPLIED
+      2026-08-10 (`b2df0f4`). 100 rows (34/33/33, zero overlap with
+      Tasks 4–5 — the compounds were all tagged inner-only). Cleanest
+      slice yet: calves saturated across every implement, ad/abductor
+      coverage complete. All handoffs closed: sumo keeper verified
+      (alt trap_bar→dumbbell nit), cossack + lateral-step + multi-hip
+      + lateral-sled families all real and kept. 2 retires
+      (`barbell_donkey_calf_raise` — free bar can't be secured in a
+      hinge; `bench_copenhagen_plank` — core dup of legs'
+      copenhagen_knee_plank, aliases absorbed). 12 sub enrichments
+      (sumo DLs +glutes, sumo squats +quads+glutes, curtsy +glutes —
+      append-only; lateral/cossack/step stay specialty-tagged),
+      dip_belt_calf_raise +plate gate fix (dip_belt maps to free
+      Bodyweight — tire-flip class; 5 more class members deferred to
+      Task 12: weighted pull-up/chin-up/dips ×2/cable belt squat),
+      plié aliases. 2 adds — headline: anterior lower leg existed in
+      NO form (tibialis_raise + heel_walk; dorsiflexion pattern
+      mapped); adductor_machine joins the common tier beside the
+      already-common abductor. Handoffs: Task 10 (side-plank
+      clamshell/abduction rep rows served timed by the plank regex),
+      Task 12 (dip_belt class + pattern-vocab sprawl), Task 11
+      (skater-jump convention). Both gates byte-identical/green.
 - [ ] **Task 7 — Shoulders** (194 rows; ⚠️ 100 of 194 are tagged
       `shoulders_rotator_cuff` — likely bulk mis-tagging by the weak
       model; scrutinize every rotator-cuff assignment)
