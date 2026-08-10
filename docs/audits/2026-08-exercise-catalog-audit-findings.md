@@ -685,3 +685,155 @@ Advanced grades are honest but both need the future skill tag),
 | Other metadata fixes | 8 (incl. 1 equipment-map line) |
 | Adds | 5 |
 | Back A rows visible after slice | 97 (115 − 22 retired − 1 re-subbed + 5 adds) |
+
+---
+
+## Task 3 — Back B: mid/lower back & traps (2026-08-09)
+
+**Scope.** All 110 back rows without `back_lats` (109 from the plan snapshot
++ `barbell_lat_row_elbows_wide`, re-subbed in from Back A). Every row judged
+per plan §3 with full copy reads.
+
+**Verdict: low filler, high mis-homing.** The row/shrug/back-extension core
+of this slice is genuinely excellent — the popular staples are all present
+(Pendlay, Yates, Meadows, Seal, Kroc, T-Bar, chest-supported family, eight
+shrug variants, four back-extension variants) with honest equipment and
+sane difficulty. The problems are structural, all inherited from per-group
+generation: (1) the **posterior-chain hinge family** was duplicated into
+back — seven Task 0 twin pairs live here plus eight un-twinned hinge
+stragglers whose family home (legs) already holds every keeper; (2) the
+**rear-delt / upright-row / face-pull families** are split against a
+complete, correctly-tagged shoulders family, producing seven more dup-class
+rows; (3) three rows describe wrong or impossible movements (a bilateral
+barbell "Bear Row" from bear crawl — nothing would hold you up; "Monkey
+Row" describing a prone incline row; "Machine Upright Row" that is a cable
+exercise). **Dylan's three calls this session (all per recommendation):
+hinge singletons → legs; sumo keeps the legs twin with refs re-pointed;
+face pulls home in shoulders.**
+
+### 3.1 Retires (20 rows)
+
+Task 0 §0.1 twin pairs resolved this session (keeper in parens — all
+keepers verified live; aliases absorbed onto keepers):
+
+| Retire | Keeper |
+| --- | --- |
+| `deadlift_conventional` | legs `conventional_deadlift` (+ "Deadlift", "Standard Deadlift" aliases). The template scan hit was a false positive — an invariants-spec assertion already *forbids* templates using this twin; no template edit needed |
+| `romanian_deadlift` ⚠C | legs `barbell_romanian_deadlift` (also common-tiered; the retired entry is removed from the common list). Its "Stiff-Leg Deadlift" alias was WRONG (SLDL is a different exercise legs already has) and dies with the row |
+| `sumo_deadlift` ⚠A/C | legs `barbell_sumo_deadlift` (+ "Wide-Stance Deadlift" alias); anchor + common entries re-pointed — decision, Dylan 2026-08-09 |
+| `good_morning` ⚠C | legs `barbell_good_morning` (+ "Good Morning" alias); common entry re-pointed |
+| `barbell_good_morning_seated` | legs `seated_good_morning` (same name, same equipment) |
+| `single_leg_rdl` | legs `dumbbell_single_leg_romanian_deadlift` (+ "Single-Leg RDL", "SLRDL", "Single-Leg Romanian Deadlift" aliases) |
+| `barbell_hip_thrust_back_ext` | legs `barbell_hip_thrust` (+ "Hip Thrust", "Hip Bridge" aliases) |
+| `farmers_carry` | core `farmer_carry` (+ "Farmer's Carry", "Farmer's Walk" aliases) — this was a THIRD twin Task 0 missed (its pair was core-vs-arms); core/arms sessions still decide the carry family's final home |
+
+Cross-group dups against the complete shoulders families (Task 0 caught
+two of these as name-pairs; the rest have different names):
+
+| Retire | Shoulders keeper |
+| --- | --- |
+| `band_face_pull` | `resistance_band_face_pull` (Task 0 pair; home decision) |
+| `cable_face_pull_single_arm` | `single_arm_cable_face_pull` (Task 0 pair) |
+| `scapular_retraction_band` | `band_pull_apart` (Task 0 pair; + "Band Scapular Retraction" alias) |
+| `cable_rear_delt_fly` | `cable_reverse_fly` (aliases already cross-referenced each other) |
+| `dumbbell_reverse_fly` | `bent_over_dumbbell_reverse_fly` (+ "Dumbbell Reverse Fly", "Bent-Over Lateral Raise" aliases) |
+| `incline_reverse_fly` | `incline_bench_rear_delt_fly` (+ "Incline Bench Reverse Fly" alias) |
+| `machine_upright_row` | `cable_upright_row` — copy is a low-cable + short-bar upright row, i.e. the shoulders row verbatim |
+| `wide_grip_seated_cable_row_single` | `single_arm_rear_delt_cable_row` — "Unilateral Rear Delt Row" was its own alias |
+
+In-slice / cross-slice dups and incoherents:
+
+| Retire | Reason |
+| --- | --- |
+| `barbell_row_supine` | Copy is verbatim the Inverted Row (bar low in rack, pronated, body rigid) — Back A's keeper `overhand_bodyweight_row` |
+| `landmine_row_bilateral` | Same movement as `t_bar_row` (straddle landmine, hinge, row the end); T-Bar already carries the "Landmine Row" alias (+ "Bilateral Landmine Row" absorbed) |
+| `cable_straight_arm_row` | Chest-height straight-arm pull to hips = pulley-height variant of `straight_arm_cable_pulldown` — the exact dup class retired in Back A |
+| `cable_high_row_elbows_wide` | Copy: "pull the rope toward your face with elbows flaring wide" — it IS a face pull (`face_pull` keeper) |
+
+### 3.2 Group-home retags (12 rows; ids unchanged, so all refs survive)
+
+**To legs (decision: hinge home = legs, Dylan 2026-08-09)** — glutes/
+hamstrings primary, back+core secondaries (trap-bar gets glutes+quads;
+swings keep shoulders credit; suitcase keeps arms/grip credit):
+`kettlebell_swing` ⚠C/T, `single_arm_kettlebell_swing`,
+`cable_pull_through` ⚠C (band twin already lives in legs),
+`glute_ham_raise` (a hamstring exercise by mechanics — knee-flexion
+eccentric), `seated_good_morning_band` ("Banded Good Morning" — standing,
+per its own copy), `suitcase_deadlift`, `trap_bar_deadlift` ⚠C/T,
+`deficit_deadlift`. Kept in back deliberately: `rack_pull`,
+`deadlift_snatch_grip_rack_pull`, `snatch_grip_deadlift` (their programming
+identity is trap/upper-back loading), `power_clean`, `high_pull`,
+`dumbbell_high_pull` (explosive trap family), `tire_flip` (strongman
+full-body; unmodeled equipment), all back extensions / reverse hyper /
+superman / GHD work (erector-primary).
+
+**To shoulders (decision: face-pull home = shoulders + the two upright-row
+stragglers of an 8-row shoulders family)** — rear-delts primary (upright
+rows: side+front delts per family convention), back secondary:
+`face_pull` ⚠C/T (refs survive), `low_cable_pull_apart`,
+`barbell_upright_row` ⚠C, `dumbbell_upright_row`. The Shoulders session
+(Task 7) re-verifies all four in place.
+
+### 3.3 Fixes
+
+| Id | Fix | Why |
+| --- | --- | --- |
+| `bear_row` | Rebuilt: equipment barbell→dumbbell (alt kettlebell), isUnilateral true, instructions/description rewritten | Copy described a BILATERAL BARBELL row from bear-crawl — impossible (no support); the real bear row is an alternating single-dumbbell row from bear plank |
+| `monkey_row` | Rebuilt: standing, dumbbells only (incline bench dropped), instructions/description rewritten to the real elbows-drag-up-the-sides movement; alias "Dumbbell Spider Row" dropped | Copy described a prone incline wide row — not a monkey row, and that movement is already covered by the chest-supported and rear-delt row families |
+| `bent_over_dumbbell_shrug` | Rename → "Prone Incline Dumbbell Shrug" | Copy (and its own alias) describe the prone-on-incline-bench version, not a standing bent-over shrug |
+| `kroc_row` | Drop alias "Renegade Row Heavy" | Renegade row is a different exercise with its own row (`renegade_row`) — search pollution |
+| `barbell_deadrow` | Aliases → "Dead Row", "Deadlift Row Combo" (drop "Dead-Stop Row") | It is a deadlift+row combo per its copy — KEPT as distinct; but "Dead-Stop Row" is Pendlay's territory |
+| `superman_hold` | + alias "Superman" | The searched name; rep-supermans are covered by this row's existing rep-hold pattern |
+| `t_bar_row`, `conventional_deadlift`, `barbell_sumo_deadlift`, `barbell_good_morning`, `dumbbell_single_leg_romanian_deadlift`, `barbell_hip_thrust`, `farmer_carry`, `bent_over_dumbbell_reverse_fly`, `incline_bench_rear_delt_fly`, `band_pull_apart` | Alias absorbs per §3.1 tables | Keeps every retired row's search terms alive on its keeper |
+| `common-exercise-ids.ts` | Remove `romanian_deadlift`; `good_morning` → `barbell_good_morning`; `sumo_deadlift` → `barbell_sumo_deadlift` | Retired rows must leave the tier list (spec-enforced); keepers inherit the pool/browse priority |
+| `anchor-exercises.ts` | `sumo_deadlift` → `barbell_sumo_deadlift` | Anchor pool follows the keeper |
+
+Not proposed (adversarially self-rejected): moving `power_clean`/high
+pulls to legs (their trap-focused tagging is the reason a coach picks
+them); renaming `barbell_row_45_degree_hip_pad` (coherent supported-row
+niche, Task 13 will rank it); difficulty churn on upright rows
+(shoulders session's call now); sub tweaks on `inverted_row_supinated`
+(mid+traps is defensible for the supinated pull).
+
+### 3.4 Coverage adds (2 rows)
+
+The row/shrug/extension staples survey came back saturated (everything
+from Pendlay to Helms-row-adjacent chest-supported variants exists), so
+only two genuine gaps — both Back A handoffs confirmed missing
+catalog-wide:
+
+1. **Ring Row** (`ring_row`) — the fundamental ring pull; only Wide-Grip
+   and Weighted variants existed. Beginner, rings, reps.
+2. **Gorilla Row** (`gorilla_row`) — the trendy KB staple: two bells on
+   the floor, hinge held, alternating rows. Intermediate, kettlebells,
+   unilateral, reps.
+
+Runners-up (not added): Helms Row (chest-braced DB row — niche),
+Hang Clean (Olympic-lift depth beyond the app's lane; `power_clean`
+covers the pattern), Batwing Row (isometric niche).
+
+### 3.5 Skill/impact watch list additions
+
+`power_clean`, `high_pull`, `dumbbell_high_pull` (explosive barbell/DB
+technique), `glute_ham_raise` (now legs — brutal eccentric graded Advanced
+✓), `tire_flip` (impact + equipment), `barbell_row_legs_drive` (the
+"cheat row" — Advanced ✓, coaching-sensitive), `kroc_row` (controlled
+momentum), upright rows (impingement-sensitive — flagged for the
+shoulders session).
+
+### Counts summary (Back B)
+
+| Item | Count |
+| --- | --- |
+| Rows reviewed | 110 |
+| Retired | 20 |
+| — Task 0 twin pairs closed | 8 |
+| — shoulders-family dups | 8 |
+| — in/cross-slice dups | 4 |
+| Retagged to legs | 8 |
+| Retagged to shoulders | 4 |
+| Rebuilt (wrong movement) | 2 |
+| Renames / alias fixes | 4 (+11 keeper alias absorbs) |
+| Reference re-points | 4 entries (3 common, 1 anchor) |
+| Adds | 2 |
+| Back rows after slice | ~199 of 231 (−20 retired −12 retagged +2 adds) |
