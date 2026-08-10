@@ -488,6 +488,17 @@ Planche Push-Up. Rejected: Guillotine Press (risk), board/pin/Spoto presses
 
 ## Task 2 — Back A: lats & upper back (2026-08-09)
 
+> **APPLIED 2026-08-09** (commit `ccef300`, Dylan's standing apply-as-we-go
+> directive): everything below — the new retire mechanism
+> (`src/data/retired-exercise-ids.ts` + spec, wired into the
+> `ExercisesService` visibility choke point), all 22 Back A retires plus
+> the Task 1 `cable_pullover` rider, all §2.2 corrections including the
+> `functional_trainer → Cable` map fix, and the 5 §2.4 adds (catalog
+> 1,314 → 1,319 rows; back 224 → 229). Gates: integrity sweep clean on
+> all touched rows, 50/50 backend suites (595 tests incl. the new retire
+> spec), search goldens green, eval:captures:report byte-identical.
+> Decisions 1.3 A–D remain the only Task 1 leftovers.
+
 **Scope.** All 115 back rows whose `subMuscleIds` include `back_lats`
 (75 pure `back_lats` + 40 `back_lats+back_upper` — exactly the plan's ~115).
 Row-by-row judgment per plan §3; copy read in full for every row.

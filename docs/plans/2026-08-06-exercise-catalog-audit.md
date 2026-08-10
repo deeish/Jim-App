@@ -98,10 +98,10 @@ expect filler and near-duplicates, especially in the big groups.
       5 alias-driven wrong timed verdicts; the only video mapping is dead.
 - [ ] **Task 1 — Chest** (48 rows — by far the smallest group for one of
       the most popular muscle groups; expect an add-heavy session; also
-      owns the bench-gating decision from Section 4) — PARTIAL 2026-08-07,
-      NOT fully done: still open are the cable_pullover retire (needs the
-      non-cardio retire mechanism) and Dylan's four §1.3 decisions
-      (pullover home, landmine home, dip/rings mapping, bench gating).
+      owns the bench-gating decision from Section 4) — PARTIAL: only
+      Dylan's four §1.3 decisions remain (pullover home, landmine home,
+      dip/rings mapping, bench gating). The cable_pullover retire LANDED
+      2026-08-09 with Task 2's retire mechanism (`ccef300`).
       Healthiest slice: rows all legit, gating honest, difficulty sane.
       1 firm retire (cable_pullover = straight-arm pulldown dup), 8 metadata
       fixes, 7 draft adds (knee/wall push-up, squeeze press, TRX press+fly,
@@ -110,8 +110,19 @@ expect filler and near-duplicates, especially in the big groups.
       **APPLIED 2026-08-07 (`3be3d41`)**: metadata fixes + video rekey +
       15 adds (48 → 63 chest rows; expanded list per Dylan) — all gates
       green. Retire + the 4 decisions remain open.
-- [ ] **Task 2 — Back A: lats & upper back** (~115 rows: `back_lats` and
-      `back_lats+back_upper` combos)
+- [x] **Task 2 — Back A: lats & upper back** (115 rows: `back_lats` and
+      `back_lats+back_upper` combos) — done + APPLIED 2026-08-09
+      (`ccef300`). The padding hotspot: 22 retires (9 in-slice dups, 3
+      cross-group/sub dups, 10 incoherent), 4 prescription fixes, 8
+      renames (Inverted Row, Cable Lat Pull-Around, …), 5 adds (Jumping/
+      One-Arm Pull-Up, Machine High Row, Front Lever, KB Pullover).
+      Built the NON-CARDIO RETIRE MECHANISM (`retired-exercise-ids.ts` +
+      spec — hidden from browse/search/generation/replace, still resolve
+      by id for history) and remapped functional_trainer → Cable.
+      Handoffs recorded in findings §2.3: Back B (yates_row audit +
+      Ring Row / Gorilla Row / Elbow-Out DB Row adds,
+      barbell_lat_row_elbows_wide arrives re-subbed) and Arms B
+      (Barbell Dead Hang grip-vs-back home).
 - [ ] **Task 3 — Back B: mid/lower back & traps** (~109 rows; shares the
       Deadlift muscle-group-home decision with Task 5)
 - [ ] **Task 4 — Legs A: quads** (~103 rows)
