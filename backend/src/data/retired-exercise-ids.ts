@@ -80,6 +80,10 @@ export const RETIRED_EXERCISE_IDS: readonly string[] = [
   // Bodyweight equipment label, so the pairs are gating-identical duplicates)
   'towel_leg_curl', // dup of slider_leg_curl (mutual equipment alternatives; keeper absorbs the alias)
   'single_leg_towel_leg_curl', // dup of single_leg_slider_leg_curl
+
+  // Task 6 — Legs C (2026-08-10)
+  'barbell_donkey_calf_raise', // a free bar cannot be secured across the hips in a 90° hinge; the donkey family keeps machine/Smith/dip-belt/bodyweight loading
+  'bench_copenhagen_plank', // core dup of legs' copenhagen_knee_plank (same knee-on-bench short-lever hold; aliases absorbed there)
 ];
 
 const RETIRED = new Set(RETIRED_EXERCISE_IDS);

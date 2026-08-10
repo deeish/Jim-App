@@ -70,6 +70,7 @@ export const COMMON_EXERCISE_IDS: string[] = [
   'seated_calf_raise_machine',
   'bodyweight_calf_raise',
   'hip_abductor_machine',
+  'adductor_machine',
   // Shoulders
   'barbell_overhead_press',
   'seated_barbell_overhead_press',

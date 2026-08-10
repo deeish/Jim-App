@@ -431,6 +431,7 @@ export const MOVEMENT_PATTERN_MAP: Record<string, string> = {
   isometric_hold: 'Core',
   isometric_rotation: 'Core',
   plantar_flexion: 'Squat',
+  dorsiflexion: 'Squat',
   calf_raise: 'Squat',
 };
 

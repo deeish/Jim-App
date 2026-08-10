@@ -15256,7 +15256,8 @@
       "core"
     ],
     "equipmentIds": [
-      "dip_belt"
+      "dip_belt",
+      "plate"
     ],
     "equipmentAlternativeIds": [
       "belt_squat_machine",
@@ -15268,7 +15269,7 @@
     "type": "Isolation",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Advanced",
+    "difficulty": "Intermediate",
     "instructions": [
       "Attach the dip belt and stand on sturdy blocks.",
       "Balance on the balls of your feet.",
@@ -15524,7 +15525,8 @@
     "description": "A wide-stance barbell deadlift that heavily recruits the inner thighs along with the hips and trunk.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
@@ -15534,7 +15536,7 @@
       "barbell"
     ],
     "equipmentAlternativeIds": [
-      "trap_bar",
+      "dumbbell",
       "landmine"
     ],
     "movementPatternIds": [
@@ -15586,7 +15588,10 @@
   {
     "id": "copenhagen_knee_plank",
     "name": "Copenhagen Knee Plank",
-    "aliases": [],
+    "aliases": [
+      "Bench Copenhagen Plank",
+      "Short-Lever Copenhagen Plank"
+    ],
     "description": "A shortened Copenhagen plank variation that trains the adductors with reduced leverage.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -15722,7 +15727,8 @@
     "description": "A dumbbell sumo deadlift that trains the inner thighs through a wide-stance deadlift pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
@@ -15923,7 +15929,8 @@
     "description": "A kettlebell sumo deadlift that loads the inner thighs and hips from a wide pulling stance.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
@@ -16053,12 +16060,16 @@
     "id": "sumo_squat",
     "name": "Sumo Squat",
     "aliases": [
-      "Wide Squat"
+      "Wide Squat",
+      "Plie Squat",
+      "Plié Squat"
     ],
     "description": "A wide-stance squat that places extra demand on the inner thighs during the squat pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -16087,11 +16098,15 @@
   {
     "id": "dumbbell_sumo_squat",
     "name": "Dumbbell Sumo Squat",
-    "aliases": [],
+    "aliases": [
+      "Dumbbell Plie Squat"
+    ],
     "description": "A dumbbell-loaded sumo squat that strengthens the inner thighs with simple loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -16126,7 +16141,9 @@
     "description": "A kettlebell sumo squat that loads the inner thighs and legs from a wide stance.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -16158,7 +16175,9 @@
     "description": "A barbell sumo squat that adds heavier loading to the inner-thigh-focused squat pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -16191,7 +16210,9 @@
     "description": "A landmine sumo squat that offers a stable front-loaded option for wide-stance squatting.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -16224,7 +16245,8 @@
     "description": "A landmine sumo deadlift that provides a stable arc while training the inner thighs in a wide-stance pull.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
@@ -17083,7 +17105,8 @@
     "description": "A cross-behind lunge that places extra demand on the outer thigh of the front leg.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_outer_thighs"
+      "legs_outer_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -17116,7 +17139,8 @@
     "description": "A loaded curtsy lunge that strengthens the outer thighs with additional resistance.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_outer_thighs"
+      "legs_outer_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -17149,7 +17173,8 @@
     "description": "A barbell curtsy lunge that adds heavier loading to the cross-behind lunge pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_outer_thighs"
+      "legs_outer_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -45464,6 +45489,71 @@
       "Keep your hips extended and your body in one line.",
       "Lower forward slowly while the band takes part of your weight.",
       "Pull back up with your hamstrings, using the band only as needed."
+    ]
+  },
+  {
+    "id": "tibialis_raise",
+    "name": "Tibialis Raise",
+    "aliases": [
+      "Tib Raise",
+      "Wall Tibialis Raise",
+      "Shin Raise"
+    ],
+    "description": "A wall-supported raise of the toes and forefeet that strengthens the muscles along the front of the shin.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_calves"
+    ],
+    "secondaryMuscleGroupIds": [],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [
+      "ankle_weights",
+      "dumbbell"
+    ],
+    "movementPatternIds": [
+      "dorsiflexion"
+    ],
+    "type": "Isolation",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lean your back against a wall with your heels about a foot from it.",
+      "Keep your legs straight and your hips against the wall.",
+      "Raise your toes and forefeet as high as you can toward your shins.",
+      "Lower under control and repeat."
+    ]
+  },
+  {
+    "id": "heel_walk",
+    "name": "Heel Walk",
+    "aliases": [
+      "Walking on Heels"
+    ],
+    "description": "A bodyweight walk performed on the heels to build endurance in the front of the shins.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_calves"
+    ],
+    "secondaryMuscleGroupIds": [],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "gait"
+    ],
+    "type": "Isolation",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lift the balls of your feet so you are standing on your heels.",
+      "Keep your toes pulled up toward your shins.",
+      "Walk forward with short controlled steps.",
+      "Stay tall and continue for distance or time."
     ]
   }
 ]
