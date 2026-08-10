@@ -851,3 +851,158 @@ shoulders session).
 | Reference re-points | 4 entries (3 common, 1 anchor) |
 | Adds | 2 |
 | Visible back rows after slice | 178 (of 221 in-group; 43 back-tagged rows now retired across Tasks 1–3) |
+
+---
+
+## Task 4 — Legs A: quads (2026-08-10)
+
+> **APPLIED 2026-08-10** (commit `a75b32e`, same session as the findings;
+> Dylan's brief this session: "don't be shy to add and remove workouts …
+> really look into what I have, what I am missing, and what should be
+> removed"). 81-row glutes-credit fix (closes Task 0 §0.2 in full), 1
+> retire (retired list 46), 1 rename, 2 difficulty fixes, 5 alias adds,
+> 7 coverage adds (catalog 1,328 rows; legs 309, all visible; cardio
+> visible 49). `bodyweight_squat` tiered into common and added to the
+> legs/lower/lower-body/full-body anchor pools. Gates: touched-row sweep
+> clean, 50/50 suites (595 tests; one enrichment spec extended for the
+> new anchor, same maintenance Task 3's re-point required), eval
+> captures report **byte-identical** to baseline.
+
+**Scope.** All 104 legs rows carrying `legs_quads` (103 pure + the
+glutes+quads `trap_bar_deadlift`, which is Legs B's hinge-keeper to
+verify and was left untouched). Every row judged per plan §3 with full
+copy reads.
+
+**Verdict: the healthiest big slice yet.** Zero invented movements, zero
+in-slice duplicates, honest equipment gating throughout, difficulty
+almost entirely sane. The weak model's ~100-per-bucket padding
+materialized here as a large but *legitimate* variant matrix
+(front-rack/landmine/smith/cable permutations of split squats, lunges,
+and step-ups — all real, coached variants; Task 13 ranking will sort
+their pool priority). The slice's real problems were structural: the
+entire catalog-wide 81-row invalid-`glutes`-secondary class lives here,
+the single most fundamental exercise in fitness (the bodyweight squat)
+was missing from the catalog entirely, and one cross-group sled twin
+escaped Task 0's name-matcher.
+
+### 4.1 The 81-row glutes-credit fix (Task 0 §0.2 — closed)
+
+All 81 rows catalog-wide with the invalid `glutes` entry in
+`secondaryMuscleGroupIds` turned out to sit in this slice (squats, split
+squats, lunges, step-ups/downs, pistols, leg presses, sled drag). Task
+0's proposed disposition ("delete the invalid entry, let `legs_glutes`
+in subs carry the emphasis") assumed the sub was already present — the
+spot-check showed it was NOT on any of the 81. Applied fix: remove the
+invalid secondary AND append `legs_glutes` to `subMuscleIds`, so the
+glute credit finally reaches body maps, filter chips, and previews.
+`legs_quads` stays first (lead emphasis). **Slice-boundary consequence
+for Legs B**: its slice is now "legs rows with `legs_hamstrings`, or
+`legs_glutes` without `legs_quads`" — the 81 expanded rows are already
+audited.
+
+### 4.2 Retire (1) — cross-group sled twin Task 0 missed
+
+| Retire | Keeper |
+| --- | --- |
+| `sled_drag_backward` (cardio, "Sled Drag (Backward)") | legs `backward_sled_drag` — same movement, both already aliased "Reverse Sled Drag"; name difference is why Task 0's matcher missed the pair. Muscle-true home = legs, matching `lateral_sled_drag` (legs) while `sled_push` stays cardio (conditioning identity). Keeper absorbs the "Sled Drag (Backward)" name as alias; the retired id's line removed from `cardio-display-order.ts`. Task 11 re-reviews the cardio sled section |
+
+That is the only retire — nothing else in the slice met the bar
+(dup / incoherent / harmful). Kept-after-scrutiny: `cable_step_up`,
+`landmine_step_up`, `smith_machine_step_up` (rare but real and
+coherently coached — niche is Task 13's problem, not a retire);
+`step_down` vs `forward_step_down` (copies genuinely distinguish
+edge-lowering vs anterior lowering; `lateral_step_down` lives in Legs
+C); `clean_and_jerk` (real, honestly Advanced, unreferenced);
+`barbell_hack_squat`, `hatfield_squat`, `vertical_leg_press` (real
+niche equipment/variants).
+
+### 4.3 Fixes
+
+| Id | Fix | Why |
+| --- | --- | --- |
+| `rear_foot_elevated_split_squat` | Rename → **"Bulgarian Split Squat"**; aliases → [Rear-Foot-Elevated Split Squat, RFESS, Bodyweight Bulgarian Split Squat] | It already carried the Bulgarian alias; the swap puts the searched-for name first and lets `exerciseFamily` group it with the Dumbbell/Barbell/Smith Bulgarian rows instead of standing as a lone RFESS family |
+| `barbell_thruster` | Difficulty Advanced → Intermediate | Squat+press with no oly-lift technical barrier; group-fitness staple |
+| `safety_bar_split_squat` | Difficulty Advanced → Intermediate | Family consistency: `barbell_split_squat` is Intermediate and the SSB version is no harder (`safety_bar_squat` = `back_squat` = Intermediate already agree) |
+| `back_squat` | + alias "Barbell Squat" | Top search term for the row |
+| `horizontal_leg_press` | + alias "Seated Leg Press" | The pin-loaded machine every commercial gym labels this way |
+| `poliquin_step_up` | + alias "Petersen Step-Up" | The two names are used interchangeably in the wild |
+| `belt_squat` | + alias "Hip Belt Squat" | Common synonym |
+| `backward_sled_drag` | + alias "Sled Drag (Backward)" | Absorbs the retired twin's display name |
+
+Prescription types verified, no fixes needed: both regex twins catch
+`\bwall\s+sit\b` (name) and `\bsled\b` (carry), so Weighted/Single-Leg
+Wall Sit and Backward Sled Drag already serve as timed — consistent
+with Task 0's clean bill for these rows.
+
+### 4.4 Coverage adds (7 rows) — the "what am I missing" pass
+
+Catalog-wide survey of quad staples across machines / barbell /
+dumbbell / cable / kettlebell / bodyweight found the machine, barbell,
+and permutation coverage already saturated — but the **bodyweight/home
+tier had the single biggest hole in the entire catalog**:
+
+1. **Bodyweight Squat** (`bodyweight_squat`, aliases Air Squat, BW
+   Squat) — was missing everywhere. Beginner. Tiered into
+   `COMMON_EXERCISE_IDS` (after `goblet_squat`) and appended to the
+   legs/lower/lower-body/full-body **anchor pools**, closing a real
+   generation gap: those pools' stated design ("home users always have
+   a reachable anchor") was false for bodyweight-only users, whose leg
+   days had NO reachable anchor.
+2. **Bodyweight Box Squat** (`bodyweight_box_squat`, aliases Chair
+   Squat, Sit-to-Stand Squat) — THE true-beginner regression;
+   bench-gated (non-gating for home per Task 1 decision D), groups
+   with `box_squat`.
+3. **Dumbbell Squat** (`dumbbell_squat`) — the basic DBs-at-sides home
+   staple. ⚠ Deliberately NOT aliased "Dumbbell Suitcase Squat": the
+   word "suitcase" trips the carry regex in both prescription twins
+   and would have served a rep squat as timed — the exact §0.4 alias
+   bug class. Future adds must screen alias wording against both
+   twins.
+4. **Heels-Elevated Goblet Squat** (`heels_elevated_goblet_squat`,
+   aliases Cyclist Squat, Cyclist Goblet Squat) — the popular modern
+   quad-bias variant; gates dumbbell + weight_plate (the elevation is
+   the exercise's identity).
+5. **Suspension Trainer Squat** (`suspension_trainer_squat`, TRX
+   Squat) — the basic assisted squat (only split-squat/pistol TRX
+   variants existed); beginner/rehab accessibility.
+6. **Resistance Band Squat** (`resistance_band_squat`, Banded Squat) —
+   band-only home users had no loadable bilateral squat.
+7. **Dumbbell Thruster** (`dumbbell_thruster`) — hugely popular
+   conditioning staple; `barbell_thruster` listed dumbbells only as
+   non-gating alternatives, so DB-only users could never receive a
+   thruster.
+
+Rejected after survey (with reasons, for Task 13 context): Anderson/pin
+squat (box squat owns dead-stop), Jefferson squat (obscure), duck
+walk/squat pulse (novelty), ATG split squat (FFESS + deficit rows cover
+the concept), Smith front squat (niche), weighted pistol
+(counterbalance row covers), single-KB front squat (goblet covers).
+Missing-but-cardio-lane (handoff to Task 11): Jumping Lunge, Wall
+Ball, Broad Jump — the plyo/conditioning convention puts them with
+`jump_squat_bodyweight`/`plyo_box_jump`, not legs.
+
+### 4.5 Skill/impact watch list additions
+
+`overhead_squat` (mobility ceiling), `clean_and_jerk` (oly technique —
+instructions already say "learn with a coach"), `pistol_squat` /
+`shrimp_squat` (Advanced ✓ honest), `barbell_walking_lunge` /
+`front_rack_walking_lunge` (Advanced ✓ — balance under load),
+`barbell_hack_squat` (awkward bar path behind the legs),
+`barbell_thruster` / `dumbbell_thruster` (complexes — now
+Intermediate).
+
+### Counts summary (Legs A)
+
+| Item | Count |
+| --- | --- |
+| Rows reviewed | 104 |
+| Data-corrupting fixes (glutes credit) | 81 |
+| Retired | 1 (retired list 45 → 46) |
+| Renamed | 1 |
+| Difficulty fixes | 2 |
+| Alias adds | 5 rows |
+| Adds | 7 (catalog 1,321 → 1,328) |
+| Common tier | +1 (`bodyweight_squat`) |
+| Anchor pools | +`bodyweight_squat` × 4 focuses |
+| Eval gate | report byte-identical; 50/50 suites (595 tests) |
+| Visible legs rows after slice | 309 of 309 (no legs retires) |

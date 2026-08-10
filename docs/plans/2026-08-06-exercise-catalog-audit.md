@@ -136,7 +136,21 @@ expect filler and near-duplicates, especially in the big groups.
       Legs B/C owns the 45° back-extension glute-vs-erector twin call;
       Shoulders re-verifies the four retagged arrivals; Core/Arms B
       settle the carry-family home (back's third twin retired).
-- [ ] **Task 4 — Legs A: quads** (~103 rows)
+- [x] **Task 4 — Legs A: quads** — done + APPLIED 2026-08-10 (`a75b32e`).
+      104 rows (103 pure quads + trap_bar_deadlift, untouched for Legs
+      B). Healthiest big slice: zero invented movements, zero in-slice
+      dups. Closed Task 0 §0.2 in full (all 81 invalid-glutes rows were
+      quads rows: secondary removed + `legs_glutes` sub added, so Legs
+      B's slice = hamstrings, or glutes-without-quads). 1 retire
+      (`sled_drag_backward`, an uncaught cardio twin of
+      `backward_sled_drag`), RFESS renamed "Bulgarian Split Squat",
+      2 difficulty fixes, 5 alias adds, 7 coverage adds — headline:
+      `bodyweight_squat` (missing catalog-wide!) tiered common + added
+      to legs/lower/lower-body/full-body anchor pools, giving
+      bodyweight-only users their first reachable leg-day anchor.
+      Handoffs: Task 11 (cardio sled section; jumping lunge / wall
+      ball / broad jump gaps), Task 13 (rank the
+      front-rack/landmine/smith/cable permutation families).
 - [ ] **Task 5 — Legs B: hamstrings & glutes** (~91 rows; Deadlift-home
       decision touchpoint)
 - [ ] **Task 6 — Legs C: calves + inner/outer thighs** (~100 rows: calves
