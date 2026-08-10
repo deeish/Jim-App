@@ -161,6 +161,8 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   ab_crunch_machine: 'Machine',
   oblique_crunch_machine: 'Machine',
   biceps_curl_machine: 'Machine',
+  iso_lateral_curl_machine: 'Machine',
+  seated_dip_machine: 'Machine',
   preacher_curl_machine: 'Machine',
   lever_curl_machine: 'Machine',
   plate_loaded_curl_machine: 'Machine',

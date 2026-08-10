@@ -95,6 +95,8 @@ export const COMMON_EXERCISE_IDS: string[] = [
   'lying_ez_bar_triceps_extension',
   'standing_dumbbell_overhead_triceps_extension',
   'close_grip_bench_press',
+  'parallel_bar_dip',
+  'close_grip_push_up',
   // Core
   'front_plank',
   'side_plank',

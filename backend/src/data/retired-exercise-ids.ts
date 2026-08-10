@@ -97,6 +97,13 @@ export const RETIRED_EXERCISE_IDS: readonly string[] = [
   'pad_supported_cable_90_90_external_rotation', // dup of seated_supported_cable_90_90_external_rotation (same cable+pad setup, near-verbatim copy)
   'single_arm_medicine_ball_wall_stabilization_circles', // dup of single_arm_stability_ball_wall_circles (both ball ids map to 'Medicine Ball'; mutual alternatives)
   'single_arm_forearm_wall_slide', // dup of single_arm_serratus_wall_slide (near-verbatim copy; keeper already aliased "Single-Arm Wall Slide")
+
+  // Task 8 — Arms A (2026-08-10)
+  'single_arm_face_away_cable_curl', // IS the Bayesian curl (bayesian_cable_curl keeper: identical eq/uni, near-verbatim copy)
+  'wall_strict_dumbbell_curl', // wall = free anti-cheat cue; gating-identical to standing_dumbbell_curl (verbatim instructions across the wall-strict clones)
+  'wall_strict_ez_bar_curl', // dup of standing_ez_bar_curl; only the barbell row survives as the competed Strict Curl
+  'wall_strict_cable_curl', // dup of standing_straight_bar_cable_curl
+  'ring_triceps_extension', // rings gate as TRX (decision 1.3-C): gating-identical to suspension_trainer_triceps_extension, verbatim instructions
 ];
 
 const RETIRED = new Set(RETIRED_EXERCISE_IDS);

@@ -37,7 +37,8 @@
     "id": "standing_ez_bar_curl",
     "name": "Standing EZ-Bar Curl",
     "aliases": [
-      "EZ Curl"
+      "EZ Curl",
+      "Wall Strict EZ-Bar Curl"
     ],
     "description": "A joint-friendly curl that uses an angled bar to train the biceps through a full range.",
     "primaryMuscleGroupId": "arms",
@@ -72,7 +73,9 @@
   {
     "id": "standing_dumbbell_curl",
     "name": "Standing Dumbbell Curl",
-    "aliases": [],
+    "aliases": [
+      "Wall Strict Dumbbell Curl"
+    ],
     "description": "A standard dumbbell curl that trains both arms evenly with a natural wrist position.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
@@ -410,7 +413,9 @@
   {
     "id": "standing_straight_bar_cable_curl",
     "name": "Standing Straight-Bar Cable Curl",
-    "aliases": [],
+    "aliases": [
+      "Wall Strict Cable Curl"
+    ],
     "description": "A low-cable curl with a straight bar that keeps tension on the biceps through the rep.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
@@ -892,7 +897,10 @@
   {
     "id": "wall_strict_barbell_curl",
     "name": "Wall Strict Barbell Curl",
-    "aliases": [],
+    "aliases": [
+      "Strict Curl",
+      "Wall Curl"
+    ],
     "description": "A strict barbell curl done against a wall to reduce body English and momentum.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
@@ -1281,7 +1289,8 @@
     "id": "bayesian_cable_curl",
     "name": "Bayesian Cable Curl",
     "aliases": [
-      "Bayesian Curl"
+      "Bayesian Curl",
+      "Single-Arm Face-Away Cable Curl"
     ],
     "description": "A behind-the-body cable curl that keeps the biceps loaded hard in the stretched position.",
     "primaryMuscleGroupId": "arms",
@@ -9058,7 +9067,8 @@
     ],
     "equipmentIds": [
       "parallel_bars",
-      "dip_belt"
+      "dip_belt",
+      "plate"
     ],
     "equipmentAlternativeIds": [
       "weight_vest",
@@ -9199,7 +9209,8 @@
     ],
     "equipmentIds": [
       "gymnastic_rings",
-      "dip_belt"
+      "dip_belt",
+      "plate"
     ],
     "equipmentAlternativeIds": [
       "weight_vest",
@@ -10068,7 +10079,9 @@
   {
     "id": "suspension_trainer_triceps_extension",
     "name": "Suspension Trainer Triceps Extension",
-    "aliases": [],
+    "aliases": [
+      "Ring Triceps Extension"
+    ],
     "description": "A suspension triceps extension that adds instability to a bodyweight elbow-extension pattern.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
