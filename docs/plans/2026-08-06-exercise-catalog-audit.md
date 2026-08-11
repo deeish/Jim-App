@@ -318,14 +318,22 @@ expect filler and near-duplicates, especially in the big groups.
       documented conventions remain). Findings §12. Gates: 50/50 suites
       (609 tests), eval report byte-identical — ninth consecutive.
       Catalog 1,342; retired 90; visible 1,252.
-- [ ] **Task 13 — Exercise quality ranking** (added by Dylan 2026-08-07,
-      runs AFTER everything else): give every exercise row an overall
-      how-good-is-it ranking. Scope to define with Dylan when we get
-      there: field name + scale, criteria (effectiveness, safety,
-      accessibility, popularity), and what consumes it (browse ordering,
-      generation pool priority, replace-picker bias — likely interacts
-      with/supersedes the common-exercise-ids tiers). Rows added during
-      earlier tasks (e.g. the 15 chest adds) get ranked here too.
+- [ ] **Task 13 — Exercise quality ranking** (added by Dylan 2026-08-07;
+      **scope LOCKED with Dylan 2026-08-11**): every visible row gets one
+      overall grade. Decisions: **sidecar file**
+      `backend/src/data/exercise-tiers.ts` (id → tier map + enforcing
+      spec — catalog JSON untouched); **scale S/A/B/C/D** (S rare by
+      design, ≤10% spec-enforced); **phased rollout** — Phase A data +
+      specs only (eval byte-identical), Phase B browse ordering (tier
+      first, common-rank tiebreak), Phase C replace-picker + generation
+      pool priority (deliberate eval-diff review). Rubric: effectiveness,
+      accessibility, safety, popularity, redundancy — written into the
+      file header with cross-group S exemplars. Spec invariants: full
+      coverage per completed group, no retired/session-template ids,
+      COMMON_EXERCISE_IDS ⊆ S∪A, no stray grades in unfinished groups.
+      1,243 gradable rows (1,342 − 90 retired − 9 session templates).
+      Phase A progress: **chest (58) + cardio (43) graded** — remaining
+      slices: shoulders 193, arms 271, core 188, back 178, legs 312.
 
 ## 1. Ground truth — the files
 
