@@ -62,6 +62,17 @@ export const SUB_MUSCLE_MAP: Record<string, string> = {
 };
 
 // Equipment ID → Display Name (must map to VALID_EQUIPMENT for filter UI)
+//
+// ID-TWIN CONVENTION (catalog audit Task 12, 2026-08-11): the catalog uses
+// several spelling variants for the same physical implement (e.g. cable /
+// cable_machine, slider / sliders, plate / weight_plate / weight_plates).
+// Catalog ids are immutable, so twins are NEVER migrated — both spellings
+// stay mapped to the SAME display label, which is all that matters at
+// runtime (gating compares labels, not ids). The twin groups are pinned by
+// a drift guard in exercise-mappings.spec.ts; if you add a spelling
+// variant, add it to an existing group there rather than inventing a new
+// label. NOT a twin: ez_bar ('Barbell', the free bar) vs ez_bar_attachment
+// ('Cable', the cable attachment) — different implements on purpose.
 export const EQUIPMENT_MAP: Record<string, string> = {
   bodyweight: 'Bodyweight',
   dumbbell: 'Dumbbell',

@@ -4082,7 +4082,6 @@
       "bench"
     ],
     "equipmentAlternativeIds": [
-      "hammer",
       "cable_machine"
     ],
     "movementPatternIds": [
@@ -4114,7 +4113,6 @@
       "bench"
     ],
     "equipmentAlternativeIds": [
-      "hammer",
       "cable_machine"
     ],
     "movementPatternIds": [
@@ -4342,7 +4340,6 @@
       "bench"
     ],
     "equipmentAlternativeIds": [
-      "hammer",
       "cable_machine"
     ],
     "movementPatternIds": [
@@ -4374,7 +4371,6 @@
       "bench"
     ],
     "equipmentAlternativeIds": [
-      "hammer",
       "cable_machine"
     ],
     "movementPatternIds": [
@@ -5244,7 +5240,6 @@
       "weight_plate"
     ],
     "equipmentAlternativeIds": [
-      "pinch_block",
       "hex_dumbbell"
     ],
     "movementPatternIds": [
@@ -5874,7 +5869,6 @@
       "weight_plate"
     ],
     "equipmentAlternativeIds": [
-      "pinch_block",
       "hex_dumbbell"
     ],
     "movementPatternIds": [
@@ -5906,7 +5900,6 @@
       "weight_plate"
     ],
     "equipmentAlternativeIds": [
-      "pinch_block",
       "loading_pin"
     ],
     "movementPatternIds": [
@@ -5938,7 +5931,6 @@
       "weight_plate"
     ],
     "equipmentAlternativeIds": [
-      "pinch_block",
       "hex_dumbbell"
     ],
     "movementPatternIds": [
@@ -6211,8 +6203,7 @@
       "weight_plate"
     ],
     "equipmentAlternativeIds": [
-      "hub_lift_implement",
-      "pinch_block"
+      "hub_lift_implement"
     ],
     "movementPatternIds": [
       "rim_hold",
@@ -9816,8 +9807,7 @@
       "assistance_band"
     ],
     "equipmentAlternativeIds": [
-      "assisted_dip_machine",
-      "parallel_bars"
+      "assisted_dip_machine"
     ],
     "movementPatternIds": [
       "assisted_dip",
@@ -9922,7 +9912,6 @@
       "box"
     ],
     "equipmentAlternativeIds": [
-      "bench",
       "weight_plate"
     ],
     "movementPatternIds": [
@@ -25852,7 +25841,7 @@
       "Military Press",
       "OHP"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "The classic standing barbell press that builds the delts along with total-body bracing strength.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -25889,7 +25878,7 @@
     "aliases": [
       "Seated Barbell Shoulder Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A back-supported barbell press that isolates the vertical push by taking leg drive out of the movement.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -25927,7 +25916,7 @@
     "aliases": [
       "Standing Dumbbell Overhead Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A standing dumbbell press that lets each shoulder work through its own natural pressing arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -25964,7 +25953,7 @@
     "aliases": [
       "Seated Dumbbell Overhead Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A seated dumbbell press that trades leg and trunk assistance for a stricter delt stimulus.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26000,7 +25989,7 @@
     "id": "single_arm_dumbbell_shoulder_press",
     "name": "Single-Arm Dumbbell Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm standing press that builds the delts while the trunk fights the offset load.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26035,7 +26024,7 @@
     "id": "single_arm_seated_dumbbell_shoulder_press",
     "name": "Single-Arm Seated Dumbbell Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm seated press that combines strict delt work with an anti-lean challenge for the core.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26071,7 +26060,7 @@
     "id": "arnold_press",
     "name": "Arnold Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A rotating dumbbell press that sweeps from palms-in to overhead for a longer front-delt stretch.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26105,7 +26094,7 @@
     "id": "seated_arnold_press",
     "name": "Seated Arnold Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A seated version of the rotating press that keeps the delts under strict control through the twist.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26140,7 +26129,7 @@
     "id": "barbell_push_press",
     "name": "Barbell Push Press",
     "aliases": [],
-    "description": "An explosive pressing movement that uses leg drive to move the weight overhead.",
+    "description": "A barbell press that uses a quick leg dip and drive to send heavier weight overhead than a strict press allows.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26175,7 +26164,7 @@
     "id": "dumbbell_push_press",
     "name": "Dumbbell Push Press",
     "aliases": [],
-    "description": "An explosive pressing movement that uses leg drive to move the weight overhead.",
+    "description": "A dumbbell push press that pairs leg drive with independent arms for explosive overhead power.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26209,7 +26198,7 @@
     "id": "single_arm_dumbbell_push_press",
     "name": "Single-Arm Dumbbell Push Press",
     "aliases": [],
-    "description": "An explosive pressing movement that uses leg drive to move the weight overhead.",
+    "description": "A one-arm push press that drives a single dumbbell overhead while the trunk resists side lean.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26245,7 +26234,7 @@
     "aliases": [
       "Kettlebell Shoulder Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A kettlebell press whose offset handle load makes the shoulder stabilizers work overtime on the way up.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26280,7 +26269,7 @@
     "id": "single_arm_kettlebell_overhead_press",
     "name": "Single-Arm Kettlebell Overhead Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm kettlebell press that pairs the bell's offset load with a strong side-bracing demand.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26315,7 +26304,7 @@
     "id": "seated_kettlebell_press",
     "name": "Seated Kettlebell Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A seated kettlebell press that isolates the delts against the bell's shifting center of mass.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26352,7 +26341,7 @@
     "aliases": [
       "Bottoms Up Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "An upside-down kettlebell press that demands crushing grip and pinpoint shoulder control to keep the bell balanced.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26386,7 +26375,7 @@
     "id": "half_kneeling_single_arm_kettlebell_press",
     "name": "Half-Kneeling Single-Arm Kettlebell Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A half-kneeling one-arm kettlebell press that locks the hips square while the shoulder presses overhead.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26458,7 +26447,7 @@
     "aliases": [
       "Machine Shoulder Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A guided machine press that keeps the delts loaded on a fixed path with minimal balance demand.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26493,7 +26482,7 @@
     "id": "single_arm_machine_shoulder_press",
     "name": "Single-Arm Machine Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm machine press that isolates each delt on a guided path and evens out side-to-side strength.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26528,7 +26517,7 @@
     "id": "smith_machine_shoulder_press",
     "name": "Smith Machine Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A Smith machine press that fixes the bar path so the delts can be loaded heavy with less stabilizer demand.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26564,7 +26553,7 @@
     "id": "cable_shoulder_press",
     "name": "Cable Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A cable press that keeps constant tension on the delts from the bottom of the press to lockout.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26599,7 +26588,7 @@
     "id": "single_arm_cable_shoulder_press",
     "name": "Single-Arm Cable Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm cable press that combines constant tension with an anti-rotation demand on the trunk.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26634,7 +26623,7 @@
     "id": "half_kneeling_single_arm_cable_press",
     "name": "Half-Kneeling Single-Arm Cable Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A half-kneeling cable press that drives one arm overhead while the kneeling base keeps the ribs stacked.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26671,7 +26660,7 @@
     "aliases": [
       "Band Overhead Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A band press that loads the delts progressively, getting hardest right at lockout.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26706,7 +26695,7 @@
     "id": "single_arm_resistance_band_overhead_press",
     "name": "Single-Arm Resistance Band Overhead Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm band press that ramps up resistance to lockout while the trunk resists side lean.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26741,7 +26730,7 @@
     "id": "z_press",
     "name": "Z Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A floor-seated barbell press with no back support that exposes any missing trunk stiffness or overhead mobility.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26776,7 +26765,7 @@
     "id": "dumbbell_z_press",
     "name": "Dumbbell Z Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A floor-seated dumbbell press that demands upright posture and honest overhead mobility from each shoulder.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26811,7 +26800,7 @@
     "id": "viking_press",
     "name": "Viking Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A neutral-grip lever press on machine handles that suits cranky shoulders while still allowing heavy overhead work.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26848,7 +26837,7 @@
     "aliases": [
       "HSPU"
     ],
-    "description": "A bodyweight pressing movement that heavily challenges the delts and upper-body control.",
+    "description": "An inverted wall press that turns a handstand into the hardest bodyweight shoulder press there is.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26883,7 +26872,7 @@
     "id": "pike_push_up",
     "name": "Pike Push-Up",
     "aliases": [],
-    "description": "A bodyweight pressing movement that heavily challenges the delts and upper-body control.",
+    "description": "A folded-hips push-up that shifts the load onto the shoulders as a scalable step toward handstand work.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -27093,7 +27082,7 @@
     "aliases": [
       "Side Lateral Raise"
     ],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "The staple dumbbell raise that isolates the side delts to build shoulder width.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27126,7 +27115,7 @@
     "id": "seated_dumbbell_lateral_raise",
     "name": "Seated Dumbbell Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A seated dumbbell raise that removes body english so the side delts do all the lifting.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27160,7 +27149,7 @@
     "id": "single_arm_dumbbell_lateral_raise",
     "name": "Single-Arm Dumbbell Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A one-arm dumbbell raise that lets you focus fully on each side delt and fix imbalances.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27193,7 +27182,7 @@
     "id": "lean_away_dumbbell_lateral_raise",
     "name": "Lean-Away Dumbbell Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A dumbbell raise performed leaning away from a support to load the side delt hardest at the bottom.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27225,7 +27214,7 @@
     "id": "incline_dumbbell_lateral_raise",
     "name": "Incline Dumbbell Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A lateral raise lying against an incline bench that keeps tension on the side delt through the stretch.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27258,7 +27247,7 @@
     "id": "side_lying_dumbbell_lateral_raise",
     "name": "Side-Lying Dumbbell Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A raise performed lying on your side that loads the side delt hardest at the very start of the arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27291,7 +27280,7 @@
     "id": "cable_lateral_raise",
     "name": "Cable Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A cable raise that keeps smooth, constant tension on the side delt through the whole arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27324,7 +27313,7 @@
     "id": "single_arm_cable_lateral_raise",
     "name": "Single-Arm Cable Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A one-arm cable raise that isolates each side delt with tension that never drops off.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27357,7 +27346,7 @@
     "id": "behind_the_back_cable_lateral_raise",
     "name": "Behind-the-Back Cable Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A cable raise with the arm starting behind the body to bias the side delt from a deeper stretch.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27389,7 +27378,7 @@
     "id": "lean_away_cable_lateral_raise",
     "name": "Lean-Away Cable Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A cable raise performed leaning away from the stack to work the side delt through a longer arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27421,7 +27410,7 @@
     "id": "seated_cable_lateral_raise",
     "name": "Seated Cable Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A seated cable raise that pins posture in place so the side delt lifts without momentum.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27456,7 +27445,7 @@
     "aliases": [
       "Lateral Raise Machine"
     ],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A machine raise that guides the arc so the side delts can be trained hard without balancing a weight.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27491,7 +27480,7 @@
     "aliases": [
       "Band Lateral Raise"
     ],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A band raise that builds the side delts anywhere, with resistance rising toward the top.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27524,7 +27513,7 @@
     "id": "single_arm_resistance_band_lateral_raise",
     "name": "Single-Arm Resistance Band Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A one-arm band raise that tunes resistance per side and peaks right where the delt works hardest.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27557,7 +27546,7 @@
     "id": "dumbbell_y_raise",
     "name": "Dumbbell Y Raise",
     "aliases": [],
-    "description": "A diagonal raise that trains the upper shoulders through a Y-shaped path.",
+    "description": "A dumbbell raise along a Y path that trains the upper shoulders and healthy shoulder-blade rotation.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -27591,7 +27580,7 @@
     "id": "cable_y_raise",
     "name": "Cable Y Raise",
     "aliases": [],
-    "description": "A diagonal raise that trains the upper shoulders through a Y-shaped path.",
+    "description": "A cable Y raise that keeps constant tension on the shoulders as the arms sweep up and out.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -27627,7 +27616,7 @@
     "aliases": [
       "Prone Y Raise"
     ],
-    "description": "A diagonal raise that trains the upper shoulders through a Y-shaped path.",
+    "description": "A chest-supported Y raise on an incline bench that strictly targets the rear and side delts along the Y line.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts",
@@ -27661,7 +27650,7 @@
     "id": "dumbbell_front_raise",
     "name": "Dumbbell Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "The classic dumbbell raise to the front that isolates the front delts one controlled rep at a time.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27760,7 +27749,7 @@
     "id": "barbell_front_raise",
     "name": "Barbell Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A barbell raise to the front that loads both front delts together through a strict arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27793,7 +27782,7 @@
     "id": "ez_bar_front_raise",
     "name": "EZ-Bar Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A front raise with the EZ bar's angled grip that eases wrist strain while the front delts work.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27826,7 +27815,7 @@
     "id": "single_arm_cable_front_raise",
     "name": "Single-Arm Cable Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A one-arm cable raise to the front that keeps tension on the front delt from the very bottom.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27859,7 +27848,7 @@
     "id": "dual_cable_front_raise",
     "name": "Dual Cable Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A two-handle cable raise that keeps both front delts under constant tension through the arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27892,7 +27881,7 @@
     "id": "rope_front_raise",
     "name": "Rope Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A rope-attachment front raise with a neutral grip that keeps the front-delt path shoulder-friendly.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27926,7 +27915,7 @@
     "id": "plate_front_raise",
     "name": "Plate Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A front raise holding a weight plate with both hands that adds a squeeze element to front-delt work.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27959,7 +27948,7 @@
     "id": "landmine_front_raise",
     "name": "Landmine Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A front raise on the landmine's rising arc that loads the front delts with a friendly bar path.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27995,7 +27984,7 @@
     "aliases": [
       "Band Front Raise"
     ],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A band front raise that trains the front delts anywhere with resistance that grows toward the top.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -28030,7 +28019,7 @@
     "aliases": [
       "Scaption Raise"
     ],
-    "description": "A shoulder raise performed in the scapular plane for smooth front-and-side delt work.",
+    "description": "A dumbbell raise angled slightly forward of sideways that loads the delts in the shoulder's most natural plane.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -28064,7 +28053,7 @@
     "id": "cable_scaption_raise",
     "name": "Cable Scaption Raise",
     "aliases": [],
-    "description": "A shoulder raise performed in the scapular plane for smooth front-and-side delt work.",
+    "description": "A cable raise through the scapular plane that keeps steady tension on the delts in their friendliest path.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -28098,7 +28087,7 @@
     "id": "ez_bar_upright_row",
     "name": "EZ-Bar Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "An upright row with the EZ bar's angled grip that pulls to the chest with less wrist stress.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28134,7 +28123,7 @@
     "id": "cable_upright_row",
     "name": "Cable Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A cable upright row that keeps steady tension on the side delts and traps through the pull.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28170,7 +28159,7 @@
     "id": "rope_upright_row",
     "name": "Rope Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A rope upright row whose free hand path lets the elbows lead at a comfortable width.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28207,7 +28196,7 @@
     "id": "single_arm_cable_upright_row",
     "name": "Single-Arm Cable Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A one-arm cable upright row that lets each side pull along its own comfortable path.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28243,7 +28232,7 @@
     "id": "kettlebell_upright_row",
     "name": "Kettlebell Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A kettlebell upright row whose hanging bell keeps the pull close to the body.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28279,7 +28268,7 @@
     "id": "smith_machine_upright_row",
     "name": "Smith Machine Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A Smith machine upright row that fixes the bar path for consistent side-delt and trap loading.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28317,7 +28306,7 @@
     "aliases": [
       "Band Upright Row"
     ],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A band upright row that loads the side delts and traps with resistance that rises toward the chin.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28353,7 +28342,7 @@
     "id": "landmine_upright_row",
     "name": "Landmine Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "An upright row on the landmine arc that guides the pull while the side delts and traps do the work.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28369,8 +28358,7 @@
       "barbell"
     ],
     "equipmentAlternativeIds": [
-      "cable",
-      "barbell"
+      "cable"
     ],
     "movementPatternIds": [
       "upright_row"
@@ -28390,7 +28378,7 @@
     "id": "single_arm_cable_face_pull",
     "name": "Single-Arm Cable Face Pull",
     "aliases": [],
-    "description": "A pull-to-face movement that builds the rear delts and upper shoulders.",
+    "description": "A one-arm face pull that trains each rear delt and the rotator cuff through a fuller range.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28425,7 +28413,7 @@
     "aliases": [
       "Band Face Pull"
     ],
-    "description": "A pull-to-face movement that builds the rear delts and upper shoulders.",
+    "description": "A band face pull to the bridge of the nose that builds the rear delts and shoulder health anywhere.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28495,7 +28483,7 @@
     "aliases": [
       "Pec Deck Reverse Fly"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A machine fly performed facing the pad that isolates the rear delts on a fixed arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28529,7 +28517,7 @@
     "id": "single_arm_reverse_pec_deck",
     "name": "Single-Arm Reverse Pec Deck",
     "aliases": [],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A one-arm machine fly that lets each rear delt work through the arc without the stronger side helping.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28564,7 +28552,7 @@
     "aliases": [
       "Cable Rear Delt Fly"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A crossed-cable fly that keeps constant tension on the rear delts as the arms sweep open.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28598,7 +28586,7 @@
     "id": "single_arm_cable_reverse_fly",
     "name": "Single-Arm Cable Reverse Fly",
     "aliases": [],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A one-arm cable fly that isolates each rear delt with steady tension across the body.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28636,7 +28624,7 @@
       "Dumbbell Reverse Fly",
       "Bent-Over Lateral Raise"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A hip-hinged dumbbell fly that opens the arms wide to hit the rear delts and upper back.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28670,7 +28658,7 @@
     "id": "seated_bent_over_dumbbell_reverse_fly",
     "name": "Seated Bent-Over Dumbbell Reverse Fly",
     "aliases": [],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A seated bent-over fly that braces the torso on the thighs so the rear delts move the weight, not momentum.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28707,7 +28695,7 @@
       "Prone Rear Delt Fly",
       "Incline Bench Reverse Fly"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A chest-supported fly on an incline bench that removes all cheating from the rear-delt arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28741,7 +28729,7 @@
     "id": "chest_supported_cable_rear_delt_fly",
     "name": "Chest-Supported Cable Rear Delt Fly",
     "aliases": [],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A chest-supported cable fly that pairs strict positioning with tension that never leaves the rear delts.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28778,7 +28766,7 @@
     "aliases": [
       "Band Reverse Fly"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A band fly that opens the arms against rising resistance for rear-delt work anywhere.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28814,7 +28802,7 @@
     "aliases": [
       "Suspension Reverse Fly"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A bodyweight fly on suspension straps that trains the rear delts by sweeping the arms wide as you rise.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28884,7 +28872,7 @@
     "aliases": [
       "Wide-Elbow Rear Delt Row"
     ],
-    "description": "A high-elbow row that emphasizes the rear delts over the lats.",
+    "description": "A wide, high-elbow dumbbell row that pulls toward the chest to bias the rear delts over the lats.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28919,7 +28907,7 @@
     "id": "chest_supported_rear_delt_row",
     "name": "Chest-Supported Rear Delt Row",
     "aliases": [],
-    "description": "A high-elbow row that emphasizes the rear delts over the lats.",
+    "description": "A chest-supported high-elbow row that removes momentum so the rear delts drive the pull.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28955,7 +28943,7 @@
     "id": "single_arm_rear_delt_cable_row",
     "name": "Single-Arm Rear Delt Cable Row",
     "aliases": [],
-    "description": "A high-elbow row that emphasizes the rear delts over the lats.",
+    "description": "A one-arm cable row pulled high and wide to keep each rear delt under constant tension.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28990,7 +28978,7 @@
     "id": "rope_rear_delt_row",
     "name": "Rope Rear Delt Row",
     "aliases": [],
-    "description": "A high-elbow row that emphasizes the rear delts over the lats.",
+    "description": "A high rope row whose split handles let the elbows flare for a clean rear-delt line.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -29026,7 +29014,7 @@
     "id": "high_cable_rear_delt_row",
     "name": "High Cable Rear Delt Row",
     "aliases": [],
-    "description": "A high-elbow row that emphasizes the rear delts over the lats.",
+    "description": "A row from a high pulley that pulls down and back to load the rear delts through their strongest line.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -29061,7 +29049,7 @@
     "id": "prone_t_raise",
     "name": "Prone T Raise",
     "aliases": [],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A face-down raise into a T shape that wakes up the rear delts and mid-back with light or no weight.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -29099,7 +29087,7 @@
       "Resistance Band Pull-Apart",
       "Band Scapular Retraction"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A simple band stretch across the chest that hits the rear delts and is a staple shoulder-health drill.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -32409,7 +32397,8 @@
     ],
     "equipmentIds": [
       "pull_up_bar",
-      "dip_belt"
+      "dip_belt",
+      "plate"
     ],
     "equipmentAlternativeIds": [
       "weighted_vest"
@@ -35187,7 +35176,8 @@
     ],
     "equipmentIds": [
       "pull_up_bar",
-      "dip_belt"
+      "dip_belt",
+      "plate"
     ],
     "equipmentAlternativeIds": [
       "weighted_vest"
@@ -41280,9 +41270,7 @@
       "foam_roller",
       "wall"
     ],
-    "equipmentAlternativeIds": [
-      "wall"
-    ],
+    "equipmentAlternativeIds": [],
     "movementPatternIds": [
       "scapular_stability"
     ],
@@ -45826,6 +45814,42 @@
       "Drive your arms forward and jump as far ahead as you can.",
       "Land softly with bent knees and your chest over your feet.",
       "Walk back to the start and reset fully between jumps."
+    ]
+  },
+  {
+    "id": "machine_lumbar_extension",
+    "name": "Machine Lumbar Extension",
+    "aliases": [
+      "Lumbar Extension Machine",
+      "Seated Lumbar Extension",
+      "Lower Back Extension Machine"
+    ],
+    "description": "A seated machine extension that isolates the spinal erectors with guided resistance.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lower"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "back_extension_machine"
+    ],
+    "equipmentAlternativeIds": [
+      "back_extension_bench"
+    ],
+    "movementPatternIds": [
+      "back_extension"
+    ],
+    "type": "Isolation",
+    "position": "Seated",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Sit in the machine with the pad against your upper back and your hips anchored.",
+      "Start slightly bent forward with your trunk resting into the pad.",
+      "Extend your lower back to press the pad through the working range.",
+      "Pause briefly, then return slowly to the start position."
     ]
   }
 ]
