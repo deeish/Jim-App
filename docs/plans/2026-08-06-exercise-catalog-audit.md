@@ -339,10 +339,21 @@ expect filler and near-duplicates, especially in the big groups.
       S 34 (2.7%) / A 111 (8.9%) / B 399 (32.1%) / C 647 (52.1%) /
       D 52 (4.2%). Every gate byte-identical (through 13 consecutive);
       the spec's completeness check caught 2 authoring typos
-      (transposed/skipped ids) — exactly its job. NEXT: **Phase B**
-      (browse ordering: tier primary, common-rank tiebreak — touches
-      exercises.service popularity/sort), then **Phase C** (replace
-      picker + generation pool priority, deliberate eval-diff review).
+      (transposed/skipped ids) — exactly its job.
+      **Phase B DONE 2026-08-11** (`ec5b7e8` + global-S rule `66418c3`):
+      search() sorts tier-first for browse/typed-query ties; typed
+      relevance and the curated all-cardio order stay above tier; the 3
+      cap-sliced internal callers (pickReplacement,
+      getCandidatesForGenerator, chunk-repair scavenge) pin
+      `legacyOrdering: true` until Phase C. 4 ordering tests added (621
+      total), search goldens green, eval byte-identical, 24-category
+      acceptance preview reviewed. Standing rule codified in the tiers
+      header: S is GLOBAL (7 categories cap at A, cuff at B) and
+      consumers must never hard-filter by absolute tier. NEXT:
+      **Phase C** — flip the three pinned callers to tier ordering
+      (replace picker + generation pool priority + scavenge), one at a
+      time, each with a deliberate eval-diff review; consider whether
+      common-exercise-ids keeps its pool role or becomes tiebreak-only.
 
 ## 1. Ground truth — the files
 
