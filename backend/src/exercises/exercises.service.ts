@@ -495,14 +495,13 @@ export class ExercisesService implements OnModuleInit {
     usedFamilies.delete(''); // an empty family must never exclude everything
 
     const equipment = dto.location === 'home' ? [...HOME_EQUIPMENT] : undefined;
-    // search() returns same-muscle candidates already quality-sorted (common first).
-    const sameMuscle = this.search(
-      {
-        muscleGroups: [target.primaryMuscleGroup],
-        equipment,
-      },
-      { legacyOrdering: true },
-    );
+    // search() returns same-muscle candidates quality-sorted: tier first
+    // (Task 13 Phase C), common rank as the within-tier tiebreak — so the
+    // top-12 randomization pool below is drawn from the best replacements.
+    const sameMuscle = this.search({
+      muscleGroups: [target.primaryMuscleGroup],
+      equipment,
+    });
 
     const avoid = (dto.avoid ?? [])
       .map((a) => a.trim().toLowerCase())
