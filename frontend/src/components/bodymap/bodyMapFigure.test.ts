@@ -20,7 +20,7 @@ describe('buildBodyMapFigure', () => {
     expect(figure.view).toBe('back');
   });
 
-  it('colors highlighted regions with alpha-scaled hue and leaves the rest quiet', () => {
+  it('colors primaries in their group hue, assists in the single muted tone, rest quiet', () => {
     const figure = buildBodyMapFigure({
       highlights: [{ region: 'Upper Chest', intensity: 1 }, { region: 'Front Delts', intensity: 0.4 }],
       view: 'front',
@@ -30,7 +30,8 @@ describe('buildBodyMapFigure', () => {
     // Derived from the theme rather than hardcoded, so a palette change restyles
     // the body map without failing this test — only the alpha scaling is asserted.
     expect(byKey['Upper Chest']).toBe(`${muscleGroupColors.chest}ff`); // full intensity
-    expect(byKey['Front Delts']).toBe(`${muscleGroupColors.shoulders}66`); // 0.4 -> 0x66
+    // Assisting muscles never take their own group hue — one gray tone for all.
+    expect(byKey['Front Delts']).toBe(`${palette.bodyMapAssist}66`); // 0.4 -> 0x66
     expect(byKey['Quads']).toBe(palette.bodyMapQuiet);
   });
 

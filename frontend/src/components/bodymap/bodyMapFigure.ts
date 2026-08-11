@@ -202,8 +202,13 @@ export function buildBodyMapFigure(opts: {
       return {
         key,
         path: region.path,
+        // Primaries glow in their group hue; assisting muscles share ONE muted
+        // tone so the figure reads "colored = target, gray = assists" instead
+        // of a multi-hue legend (a chest press no longer purples the arms).
         color: intensity
-          ? withIntensity(getMuscleGroupVisual(region.group).color, intensity)
+          ? intensity >= 1
+            ? withIntensity(getMuscleGroupVisual(region.group).color, intensity)
+            : withIntensity(palette.bodyMapAssist, intensity)
           : quietColor,
       };
     },
