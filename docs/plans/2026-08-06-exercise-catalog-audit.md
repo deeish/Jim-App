@@ -332,8 +332,17 @@ expect filler and near-duplicates, especially in the big groups.
       coverage per completed group, no retired/session-template ids,
       COMMON_EXERCISE_IDS ⊆ S∪A, no stray grades in unfinished groups.
       1,243 gradable rows (1,342 − 90 retired − 9 session templates).
-      Phase A progress: **chest (58) + cardio (43) graded** — remaining
-      slices: shoulders 193, arms 271, core 188, back 178, legs 312.
+      **Phase A COMPLETE 2026-08-11** (commits a177014 chest+cardio →
+      2431da5 shoulders → 6786c43 arms → 10a5e4a core → 32bb4b6 back →
+      c780d0f legs): all 1,243 rows graded, all 7 groups
+      coverage-complete under the spec. Catalog-wide distribution:
+      S 34 (2.7%) / A 111 (8.9%) / B 399 (32.1%) / C 647 (52.1%) /
+      D 52 (4.2%). Every gate byte-identical (through 13 consecutive);
+      the spec's completeness check caught 2 authoring typos
+      (transposed/skipped ids) — exactly its job. NEXT: **Phase B**
+      (browse ordering: tier primary, common-rank tiebreak — touches
+      exercises.service popularity/sort), then **Phase C** (replace
+      picker + generation pool priority, deliberate eval-diff review).
 
 ## 1. Ground truth — the files
 
