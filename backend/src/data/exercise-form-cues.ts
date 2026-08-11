@@ -21,7 +21,12 @@
  */
 
 /** Groups whose S/A/B rows are fully covered. Grown one slice at a time. */
-export const CUE_COMPLETED_GROUPS: string[] = ['chest', 'cardio', 'shoulders'];
+export const CUE_COMPLETED_GROUPS: string[] = [
+  'chest',
+  'cardio',
+  'shoulders',
+  'arms',
+];
 
 export const FORM_CUES: Record<string, string[]> = {
   // ─── chest (41) ───────────────────────────────────────────────────────
@@ -633,6 +638,375 @@ export const FORM_CUES: Record<string, string[]> = {
   single_arm_full_can_raise: [
     'Turning the thumb down, which is the impingement position; keep the thumb up as if holding a full can.',
     'Raising past shoulder height with a shrug.',
+  ],
+
+  // ─── arms (88) ────────────────────────────────────────────────────────
+  // Biceps: standing curls
+  standing_barbell_curl: [
+    'Swinging the bar up with your hips; if you have to lean back, the bar is too heavy.',
+    'Elbows drifting forward and up, which turns it into a front raise; keep them pinned at your sides.',
+    'Dropping the bar down fast; the lowering builds as much as the lift.',
+  ],
+  standing_dumbbell_curl: [
+    'Rocking your torso to start each rep; stand tall and curl strictly.',
+    'Half-lowering between reps; take the weights all the way down.',
+    'Elbows creeping forward; keep them at your ribs.',
+  ],
+  standing_ez_bar_curl: [
+    'Swinging with your lower back; brace and let only your forearms move.',
+    'Cutting the bottom of the range; full extension, then curl.',
+  ],
+  standing_alternating_dumbbell_curl: [
+    'Swinging the resting arm side to side for rhythm; keep both sides quiet.',
+    'Racing the alternation; finish each curl fully before starting the other.',
+  ],
+  single_arm_standing_dumbbell_curl: [
+    'Leaning away from the working arm; stay tall.',
+    'Turning the elbow into a hinge point that drifts; pin it to your side.',
+  ],
+  standing_band_curl: [
+    'Stepping on the band unevenly so tension differs side to side; center your feet.',
+    'Letting the band snap your arms down; resist the whole descent.',
+  ],
+  standing_straight_bar_cable_curl: [
+    'Standing so close the cable goes slack at the bottom; step back for constant tension.',
+    'Leaning back as the set gets heavy; keep your ribs stacked.',
+  ],
+  standing_ez_bar_cable_curl: [
+    'Letting the cable pull your elbows forward; keep them pinned as you curl.',
+    'Rushing the lowering to chase reps; the cable rewards a slow negative.',
+  ],
+  single_arm_standing_cable_curl: [
+    'Rotating your torso toward the stack; stay square and let the arm work alone.',
+    'Curling across your body; keep the path straight up.',
+  ],
+  bayesian_cable_curl: [
+    'Standing too close to the pulley, which kills the behind-the-body stretch; step forward until your arm is drawn slightly back.',
+    'Letting the elbow travel forward as you curl; the stretch position is the point.',
+  ],
+  dual_high_cable_curl: [
+    'Letting your elbows drop as you fatigue; keep upper arms level with your shoulders.',
+    'Pulling your fists behind your head; curl toward your ears and stop.',
+  ],
+  standing_barbell_drag_curl: [
+    'Letting the bar swing away from your body; drag it up your torso with elbows traveling back.',
+    'Chasing height; the bar stops lower than a normal curl.',
+  ],
+  wall_strict_barbell_curl: [
+    'Letting your upper back or hips leave the wall; every point of contact stays.',
+    'Bouncing out of the bottom; pause, then curl.',
+  ],
+  // Biceps: supported curls
+  incline_dumbbell_curl: [
+    'Setting the bench too upright, which loses the stretch; keep it around 45 to 60 degrees.',
+    'Letting your elbows drift forward off the line of your torso; let them hang straight down.',
+    'Shortening the bottom; let your arms hang fully before each curl.',
+  ],
+  preacher_ez_bar_curl: [
+    'Lifting your armpits off the pad to heave the weight; stay glued to it.',
+    'Slamming into full extension at the bottom; control the last few degrees.',
+  ],
+  preacher_barbell_curl: [
+    'Bouncing out of the stretched bottom; the preacher pad gives your elbows no help there.',
+    'Scooting your elbows down the pad mid set; reset them high and centered.',
+  ],
+  preacher_dumbbell_curl: [
+    'Letting the wrist break backward at the bottom; keep it neutral.',
+    'Half reps at the top of the pad; curl until your forearm is vertical.',
+  ],
+  machine_preacher_curl: [
+    'Seat set so your elbows sit below the pivot; line them up with the machine cam.',
+    'Letting the stack yank your arms into extension; resist the negative.',
+  ],
+  seated_biceps_curl_machine: [
+    'Gripping the handles before setting your elbows; anchor your upper arms on the pad first.',
+    'Leaning back for the last reps; keep your chest against the support.',
+  ],
+  iso_lateral_biceps_curl_machine: [
+    'Letting the stronger arm finish first every rep; move both sides together.',
+    'Shrugging as the handles rise.',
+  ],
+  chest_supported_dumbbell_curl: [
+    'Pushing your chest off the pad to cheat; the support exists to stop that.',
+    'Swinging the dumbbells forward at the bottom; hang, then curl.',
+  ],
+  spider_dumbbell_curl: [
+    'Letting your arms drift back under the bench; keep them hanging straight down.',
+    'Cutting the top short; squeeze at full flexion since this angle loads it hardest.',
+  ],
+  spider_ez_bar_curl: [
+    'Sliding down the bench until your chest loses support; set up high on the pad.',
+    'Swinging the bar toward the bench legs; curl straight up.',
+  ],
+  seated_dumbbell_curl: [
+    'Rocking your torso off the bench back; sit tall and curl strictly.',
+    'Resting the weights on your thighs between reps; keep tension through the set.',
+  ],
+  seated_concentration_curl: [
+    'Pushing the elbow into your thigh and prying the weight up; the thigh is a shelf, not a lever.',
+    'Rotating your wrist mid curl; keep your palm up throughout.',
+  ],
+  // Hammer / reverse / forearm curls
+  dumbbell_hammer_curl: [
+    'Swinging the weights with your shoulders; pin your elbows and curl.',
+    'Letting the thumbs tilt inward at the top; keep the neutral grip honest.',
+  ],
+  alternating_dumbbell_hammer_curl: [
+    'Using the alternation as a rest to swing each side; stay strict both arms.',
+    'Racing the tempo; finish each rep before the next begins.',
+  ],
+  cross_body_hammer_curl: [
+    'Curling to your shoulder instead of across to the opposite pec; the cross-body path is the exercise.',
+    'Twisting your torso toward the working arm.',
+  ],
+  rope_cable_hammer_curl: [
+    'Letting the rope ends collapse together; keep pulling them slightly apart.',
+    'Leaning back to finish the top of the curl.',
+  ],
+  zottman_curl: [
+    'Rotating at the bottom instead of the top; curl palms up, turn palms down, then lower.',
+    'Dropping the lowering phase; the palms-down descent is the whole point.',
+  ],
+  barbell_reverse_curl: [
+    'Letting your wrists break backward under the bar; keep knuckles up and wrists straight.',
+    'Swinging with the hips like a heavy curl; go lighter and stricter than your normal curl.',
+  ],
+  ez_bar_reverse_curl: [
+    'Gripping wide of the angled sections; hands on the downward slopes, knuckles up.',
+    'Elbows drifting forward at the top; keep them pinned.',
+  ],
+  dumbbell_reverse_curl: [
+    'Letting the dumbbells tilt thumb-up mid rep, which turns it into a hammer curl; keep palms down.',
+    'Curling higher by shrugging; stop where your forearms are vertical.',
+  ],
+  seated_barbell_wrist_curl: [
+    'Lifting your forearms off your thighs; only your wrists move.',
+    'Cutting the stretch; let the bar roll to your fingertips at the bottom.',
+  ],
+  seated_dumbbell_wrist_curl: [
+    'Bouncing the weight at the bottom of the stretch; roll it down slowly to your fingers.',
+    'Forearms sliding off your thighs mid set; reset so wrists hang just past your knees.',
+  ],
+  seated_barbell_wrist_extension: [
+    'Gripping too tight, which limits the range; hold the bar loose enough to hinge fully.',
+    'Lifting your elbows to raise the bar higher; only the wrists extend.',
+  ],
+  seated_dumbbell_wrist_extension: [
+    'Using the same weight as wrist curls; extension is much weaker, go lighter.',
+    'Forearms lifting off your thighs; keep them planted.',
+  ],
+  behind_the_back_barbell_wrist_curl: [
+    'Letting the bar drift away from your body; keep it brushing the back of your thighs.',
+    'Bending your elbows to help; arms stay long.',
+  ],
+  wrist_roller_palms_up: [
+    'Dropping your arms as you roll; keep them near shoulder height throughout.',
+    'Spinning the roller with loose half turns; grip and turn deliberately, all the way up and all the way down.',
+  ],
+  // Triceps: pushdowns + kickbacks
+  rope_cable_pushdown: [
+    'Elbows flaring and drifting forward as you push; pin them to your sides.',
+    'Leaning your whole torso over the cable to shove it down; stay tall.',
+    'Skipping the spread at the bottom; pull the rope ends apart as you lock out.',
+  ],
+  straight_bar_cable_pushdown: [
+    'Letting the bar ride up fast and drag your shoulders forward; control the return.',
+    'Elbows winging out; keep them tucked and still.',
+  ],
+  ez_bar_cable_pushdown: [
+    'Leaning onto the bar with bodyweight; if you need to lean, drop the stack a pin.',
+    'Wrists collapsing at lockout; keep them straight.',
+  ],
+  single_arm_cable_pushdown: [
+    'Rotating your shoulder into the press; only the elbow opens and closes.',
+    'Standing square to the stack so the cable rubs your body; angle slightly away.',
+  ],
+  band_pushdown: [
+    'Anchoring the band so low there is no tension up top; anchor overhead height.',
+    'Letting the band throw your hands up; resist the return.',
+  ],
+  dumbbell_kickback: [
+    'Dropping your upper arm as you extend; keep it locked parallel to the floor.',
+    'Swinging the weight back with momentum; pause at full extension.',
+  ],
+  cable_kickback: [
+    'Standing too upright; hinge until your torso is near parallel.',
+    'Letting the cable pull your elbow down between reps; the upper arm stays frozen.',
+  ],
+  // Triceps: lying + overhead extensions
+  lying_ez_bar_triceps_extension: [
+    'Flaring the elbows wide as the bar lowers; keep them pointing at the ceiling.',
+    'Lowering to your face; aim just past the top of your head.',
+    'Letting the upper arms rock back and forth; they stay still, only elbows bend.',
+  ],
+  lying_dumbbell_triceps_extension: [
+    'Letting the dumbbells drift toward your face; lower them beside your ears.',
+    'Elbows sliding apart on the way down; keep them shoulder width.',
+  ],
+  lying_barbell_triceps_extension: [
+    'Bouncing the bar off your forehead line; lower slowly to just behind your head.',
+    'Turning it into a pullover by moving your shoulders; only the elbows hinge.',
+  ],
+  rolling_dumbbell_triceps_extension: [
+    'Skipping the roll-back; let the weights drift behind your head before pressing.',
+    'Rushing; the roll works because it is smooth, not fast.',
+  ],
+  floor_dumbbell_triceps_extension: [
+    'Bouncing your upper arms off the floor at the bottom; touch softly and press.',
+    'Letting the weights wander over your face; keep them tracking beside your head.',
+  ],
+  standing_dumbbell_overhead_triceps_extension: [
+    'Flaring your elbows wide; keep them close beside your ears.',
+    'Arching your lower back as the weight drops behind you; brace your ribs down.',
+    'Cutting the stretch short; lower until your forearms touch your biceps.',
+  ],
+  seated_dumbbell_overhead_triceps_extension: [
+    'Sliding your hips forward to arch under the weight; sit tall against the pad.',
+    'Elbows drifting apart behind your head; keep them narrow.',
+  ],
+  standing_barbell_overhead_triceps_extension: [
+    'Gripping too wide; hands about shoulder width keeps the elbows honest.',
+    'Letting your ribs flare as the bar lowers; brace before every rep.',
+  ],
+  seated_barbell_overhead_triceps_extension: [
+    'Arching off the backrest to press; keep contact and let the triceps work.',
+    'Half lockouts overhead; finish with arms straight.',
+  ],
+  standing_ez_bar_overhead_triceps_extension: [
+    'Elbows flaring as the bar drops behind your head; squeeze them inward.',
+    'Rushing out of the deep stretch; pause, then extend.',
+  ],
+  standing_rope_cable_overhead_extension: [
+    'Standing too upright with slack cable; hinge slightly forward and step away from the stack.',
+    'Skipping the rope split at lockout; pull the ends apart as your arms straighten.',
+  ],
+  seated_rope_cable_overhead_extension: [
+    'Setting up so the cable pulls you off the bench; anchor your feet and brace.',
+    'Elbows drifting wide; keep them beside your head.',
+  ],
+  single_arm_cable_overhead_extension: [
+    'Letting the cable rotate your torso; brace against the pull.',
+    'Dropping the elbow as you extend; it stays pointed at the ceiling.',
+  ],
+  standing_band_overhead_extension: [
+    'Anchoring the band so it pulls sideways; stand so the pull is straight down your back.',
+    'Letting the band fold you backward; brace your core.',
+  ],
+  seated_triceps_extension_machine: [
+    'Seat set so the pivot sits at your wrists; line the machine hinge up with your elbows.',
+    'Letting the stack slam on the return.',
+  ],
+  bodyweight_triceps_extension_on_bar: [
+    'Letting your hips break the plank line; keep your body one straight lever.',
+    'Flaring elbows sideways; they point down the bar.',
+  ],
+  dumbbell_pjr_pullover_extension: [
+    'Turning it into a pure pullover; the elbows bend and extend, not just the shoulders.',
+    'Losing the elbow tuck at the stretch; keep them tracking narrow.',
+  ],
+  tate_press: [
+    'Letting the dumbbells drift toward your face on the descent; the plates land on your chest, elbows out.',
+    'Pressing the weights apart at the top; finish with them together over your chest.',
+  ],
+  jm_press: [
+    'Treating it like a close-grip bench; the bar lowers toward your chin, elbows tucked and forward.',
+    'Going heavy before the groove is second nature; this lift punishes guessing.',
+  ],
+  // Triceps: presses + dips
+  close_grip_bench_press: [
+    'Gripping so narrow your wrists cave inward; hands just inside shoulder width is enough.',
+    'Flaring your elbows off your ribs; keep them tucked.',
+    'Bouncing the bar off your chest.',
+  ],
+  close_grip_barbell_floor_press: [
+    'Bouncing your triceps off the floor; pause softly at the bottom.',
+    'Letting the bar drift toward your face; touch low on the chest.',
+  ],
+  smith_machine_close_grip_bench_press: [
+    'Lying where the fixed path forces your wrists to bend; line the bar over your lower chest.',
+    'Letting the rails do the balance and rushing the lowering.',
+  ],
+  close_grip_push_up: [
+    'Hands so narrow your wrists hurt; just inside shoulder width works.',
+    'Elbows flaring out; keep them brushing your ribs.',
+  ],
+  diamond_push_up: [
+    'Hips sagging as fatigue sets in; hold the plank line.',
+    'Placing the diamond up near your face; keep your hands under your chest.',
+  ],
+  weighted_close_grip_push_up: [
+    'Plate resting on your neck; center it over your mid back.',
+    'Losing the elbow tuck under the extra load.',
+  ],
+  parallel_bar_dip: [
+    'Shrugging your shoulders up at the bottom; press them down away from your ears.',
+    'Half reps; lower until your upper arms are about parallel.',
+    'Flaring elbows wide; keep them tracking back.',
+  ],
+  weighted_parallel_bar_dip: [
+    'Adding weight before your bodyweight dips are crisp.',
+    'Letting the belt swing you; slow the descent until the chain hangs quiet.',
+  ],
+  ring_dip: [
+    'Letting the rings drift away from your body; keep them pinned to your sides.',
+    'Rushing reps; stabilizing the turnout at the top is part of the work.',
+  ],
+  assisted_parallel_bar_dip: [
+    'Letting the band throw you out of the bottom; control the stretch anyway.',
+    'Keeping the same assistance forever; drop band tension as you get stronger.',
+  ],
+  assisted_dip_machine: [
+    'Kneeling on the pad with all your weight and just riding it; use only as much help as you need.',
+    'Short pumps at the top; take the full dip range.',
+  ],
+  seated_dip_machine: [
+    'Shrugging as you press down; lock your shoulders down first.',
+    'Letting the handles fly up between reps; control the return.',
+  ],
+  bench_dip: [
+    'Dipping deep with your hands behind you; stop where your shoulders feel stacked, this position is unforgiving.',
+    'Scooting your hips far from the bench; keep them brushing it.',
+  ],
+  // Grip
+  dead_hang: [
+    'Hanging with shrugged, slack shoulders; pull them gently down and back.',
+    'Death-gripping with fingertips only; wrap the bar deep in your palm.',
+  ],
+  towel_dead_hang: [
+    'Towels of different thickness or grip width; match them so both hands work evenly.',
+    'Dropping off at failure from height; step down while you still have grip.',
+  ],
+  towel_pull_up: [
+    'Jumping into towel pull-ups before towel hangs are solid; grip goes before back here.',
+    'Uneven grips creeping in; set both fists at the same height.',
+  ],
+  dumbbell_static_hold: [
+    'Letting the weights rest against your thighs; hold them just clear at your sides.',
+    'Shrugging up to hold on; stand tall with shoulders set.',
+  ],
+  barbell_static_hold: [
+    'Snatching the bar off the rack; set your grip, then stand tall with it.',
+    'Letting your lower back round as grip fades; put the bar down before posture goes.',
+  ],
+  farmer_handle_carry: [
+    'Leaning forward into a shuffle; walk tall with short quick steps.',
+    'Letting the handles tilt front-down; level them like a suitcase.',
+  ],
+  trap_bar_carry: [
+    'Standing up unevenly and letting the bar seesaw; center your grip before you walk.',
+    'Long strides that swing the load; keep steps short.',
+  ],
+  plate_pinch_hold: [
+    'Letting the plates slide to your fingertips; keep them deep against your palm pads.',
+    'Bending your wrist to cradle the plates; pinch with a straight wrist.',
+  ],
+  plate_pinch_carry: [
+    'Walking fast enough to swing the plates; smooth short steps.',
+    'Dropping plates from height when grip fails; set them down or walk over turf.',
+  ],
+  hand_gripper_close: [
+    'Half closes count for little; set the gripper so you can fully touch the handles.',
+    'Recruiting your whole arm and shoulder; the squeeze lives in your hand.',
   ],
 };
 
