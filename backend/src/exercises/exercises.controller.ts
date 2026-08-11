@@ -15,6 +15,7 @@ import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { ExercisesService } from './exercises.service';
 import { getExerciseProgressions } from '../data/exercise-progressions';
 import { getFormCues } from '../data/exercise-form-cues';
+import { getJointDemands, JOINT_LABELS } from '../data/exercise-joint-demands';
 import { SavedExercisesService } from './saved-exercises.service';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
@@ -125,7 +126,11 @@ export class ExercisesController {
     // "Watch Out For" form cues.
     const ladder = getExerciseProgressions(id);
     const formCues = getFormCues(id);
-    if (!ladder && !formCues) return exercise;
+    const joints = getJointDemands(id);
+    const jointDemands = joints?.length
+      ? joints.map((j) => JOINT_LABELS[j])
+      : undefined;
+    if (!ladder && !formCues && !jointDemands) return exercise;
     const resolve = (ids: string[]) =>
       ids
         .map((pid) => this.exercisesService.findOne(pid))
@@ -134,6 +139,7 @@ export class ExercisesController {
     return {
       ...exercise,
       ...(formCues ? { formCues } : {}),
+      ...(jointDemands ? { jointDemands } : {}),
       ...(ladder
         ? {
             progressions: {

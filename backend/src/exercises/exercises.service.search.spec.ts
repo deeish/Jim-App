@@ -1,6 +1,7 @@
 import { ExercisesService } from './exercises.service';
 import { EXERCISE_TIERS, TIER_ORDER } from '../data/exercise-tiers';
 import { isCommonExercise } from '../data/common-exercise-ids';
+import { getJointDemands } from '../data/exercise-joint-demands';
 
 /**
  * End-to-end search against the real catalog (data/exercises_5000plus.json),
@@ -94,5 +95,16 @@ describe('ExercisesService.search tier ordering (Task 13 Phase B)', () => {
     // Common staples are the within-tier tiebreak, so the head of the pool
     // is still recognizable gym canon.
     expect(isCommonExercise(pool[0].id)).toBe(true);
+  });
+
+  it('joint-naming avoid phrases exclude joint-tagged replacement candidates', () => {
+    for (let i = 0; i < 10; i++) {
+      const replacement = service.pickReplacement({
+        targetName: 'Barbell Overhead Press',
+        avoid: ['bad shoulder'],
+      } as Parameters<ExercisesService['pickReplacement']>[0]);
+      if (!replacement) continue;
+      expect(getJointDemands(replacement.id) ?? []).not.toContain('shoulder');
+    }
   });
 });

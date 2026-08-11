@@ -18,6 +18,10 @@ import {
 } from '../data/common-exercise-ids';
 import { cardioLibrarySortKey } from '../data/cardio-display-order';
 import { EXERCISE_TIERS, TIER_ORDER } from '../data/exercise-tiers';
+import {
+  getJointDemands,
+  jointsFromAvoidPhrases,
+} from '../data/exercise-joint-demands';
 import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
 import { isRetiredExercise } from '../data/retired-exercise-ids';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
@@ -494,8 +498,18 @@ export class ExercisesService implements OnModuleInit {
     const avoid = (dto.avoid ?? [])
       .map((a) => a.trim().toLowerCase())
       .filter((a) => a.length >= 2);
+    // Avoid phrases that name a joint ("shoulder", "knee pain") also
+    // exclude candidates tagged with outsized demand on that joint —
+    // structural avoidance on top of the free-text match below.
+    const avoidJoints = new Set(jointsFromAvoidPhrases(avoid));
     const isAvoided = (e: TransformedExercise): boolean => {
       if (!avoid.length) return false;
+      if (
+        avoidJoints.size &&
+        getJointDemands(e.id)?.some((j) => avoidJoints.has(j))
+      ) {
+        return true;
+      }
       const hay = [
         e.name,
         e.primaryMuscleGroup,
