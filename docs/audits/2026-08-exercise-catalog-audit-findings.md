@@ -1972,3 +1972,57 @@ the front-rack/landmine/smith/cable permutation families.
 | Decisions closed | id-twins document-only; pattern sprawl left as-is; lumbar row untiered; tire_flip already-documented Unmodeled |
 | Eval gate | report byte-identical (9th consecutive); 50/50 suites |
 | Visible after slice | 1,252 (1,342 − 90) |
+
+## Task 13 — Exercise quality tiers (2026-08-11)
+
+> **COMPLETE 2026-08-11**, all three phases, scope locked with Dylan
+> (sidecar file / S–D scale / phased rollout — all three recommendations
+> accepted). Commits: scaffold+chest+cardio `a177014`, shoulders
+> `2431da5`, arms `6786c43`, core `10a5e4a`, back `32bb4b6`, legs
+> `c780d0f`, global-S rule `66418c3`, Phase B browse `ec5b7e8`, Phase C
+> replace `2528b04`, Phase C generation `dcf4bcb` (+docs commits).
+
+### 13.1 The data (Phase A)
+
+`backend/src/data/exercise-tiers.ts`: every visible non-session-template
+row graded S/A/B/C/D against a five-criterion rubric (effectiveness,
+accessibility, safety, popularity, redundancy) written into the file
+header. **1,243 rows: S 34 (2.7%) / A 111 (8.9%) / B 399 (32.1%) /
+C 647 (52.1%) / D 52 (4.2%).** An 8-test spec enforces: real ids only,
+no retired/session-template rows, full coverage per completed group, no
+stray grades, COMMON_EXERCISE_IDS ⊆ S∪A, S ≤ 10% per group. The
+completeness check caught two authoring typos in the act — its job.
+
+### 13.2 Global-S semantics (Dylan's review question)
+
+Seven categories deliberately have no S (calves, forearms, grip, traps,
+obliques, inner/outer thighs cap at A; rotator cuff at B): S means
+program-anchoring canon, not best-of-category. Verified all 24 category
+browse lists still lead with their true leaders. Standing consumer rule
+codified in the header: tiers are relative weights within a filtered
+pool — never hard-filter by absolute tier.
+
+### 13.3 The consumers (Phases B–C)
+
+One discovery shaped the rollout: `ExercisesService.search()` feeds
+browse, the replace picker, AND the cap-sliced generation pools, so the
+flip went in three gated steps. Browse + typed-query ties first (typed
+relevance and the curated all-cardio order stay above tier), replace
+picker second (its top-12 randomization pool now draws from the
+best-graded candidates), generation pools last (`getCandidatesForGenerator`
++ chunk-repair scavenge) — every focus pool now leads with its S canon
+in both gym and home modes, reviewed via pool-head previews. The
+`legacyOrdering` shim was deleted once all callers flipped; common rank
+stays as the within-tier tiebreak everywhere.
+
+### 13.4 Gates + follow-ups
+
+51/51 suites (621 tests, +12 over the audit's end) with the full
+plans/eval harness green on tier-ordered pools; captures report
+byte-identical throughout (it scores stored outputs — pool ordering has
+no surface there). **Follow-up before/at deploy: fresh `eval:drive`
+generation runs to observe live LLM behavior with the re-ordered
+candidate pools.** Pre-existing quirks noted, deliberately untouched:
+the legs focus mapping includes Core rows; an unmapped focus string
+pools the whole catalog. Future lever: common-exercise-ids could become
+tiebreak-only documentation once tiers prove out in production.

@@ -318,7 +318,10 @@ expect filler and near-duplicates, especially in the big groups.
       documented conventions remain). Findings §12. Gates: 50/50 suites
       (609 tests), eval report byte-identical — ninth consecutive.
       Catalog 1,342; retired 90; visible 1,252.
-- [ ] **Task 13 — Exercise quality ranking** (added by Dylan 2026-08-07;
+- [x] **Task 13 — Exercise quality ranking** — COMPLETE 2026-08-11, all
+      three phases (findings §13). THE AUDIT IS FULLY CLOSED: Tasks 0–13
+      all ticked. (Scope details below preserved as written.)
+      (added by Dylan 2026-08-07;
       **scope LOCKED with Dylan 2026-08-11**): every visible row gets one
       overall grade. Decisions: **sidecar file**
       `backend/src/data/exercise-tiers.ts` (id → tier map + enforcing
@@ -349,11 +352,17 @@ expect filler and near-duplicates, especially in the big groups.
       total), search goldens green, eval byte-identical, 24-category
       acceptance preview reviewed. Standing rule codified in the tiers
       header: S is GLOBAL (7 categories cap at A, cuff at B) and
-      consumers must never hard-filter by absolute tier. NEXT:
-      **Phase C** — flip the three pinned callers to tier ordering
-      (replace picker + generation pool priority + scavenge), one at a
-      time, each with a deliberate eval-diff review; consider whether
-      common-exercise-ids keeps its pool role or becomes tiebreak-only.
+      consumers must never hard-filter by absolute tier.
+      **Phase C DONE 2026-08-11** (`2528b04` replace picker, `dcf4bcb`
+      generation pools + scavenge + legacyOrdering shim deleted): all
+      consumers tier-first, common rank = within-tier tiebreak
+      everywhere; pool-head previews reviewed (every focus pool leads
+      with its S canon, gym and home); full plans/eval harness green on
+      tier-ordered pools; captures report byte-identical (it scores
+      stored outputs). Follow-up at deploy: fresh `eval:drive` runs to
+      observe live LLM behavior on the re-ordered pools. Pre-existing
+      quirks logged, not changed: legs focus includes Core; unmapped
+      focus strings pool the whole catalog.
 
 ## 1. Ground truth — the files
 
