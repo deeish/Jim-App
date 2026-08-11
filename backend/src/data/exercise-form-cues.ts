@@ -26,6 +26,7 @@ export const CUE_COMPLETED_GROUPS: string[] = [
   'cardio',
   'shoulders',
   'arms',
+  'core',
 ];
 
 export const FORM_CUES: Record<string, string[]> = {
@@ -1007,6 +1008,352 @@ export const FORM_CUES: Record<string, string[]> = {
   hand_gripper_close: [
     'Half closes count for little; set the gripper so you can fully touch the handles.',
     'Recruiting your whole arm and shoulder; the squeeze lives in your hand.',
+  ],
+
+  // ─── core (80) ────────────────────────────────────────────────────────
+  // Planks + anti-extension
+  front_plank: [
+    'Hips sagging toward the floor; squeeze your glutes and tuck your ribs.',
+    'Hips piked up to make it easier; hold one straight line from head to heels.',
+    'Holding your breath; breathe steadily behind the brace.',
+  ],
+  rkc_plank: [
+    'Treating it like a normal plank; drive elbows toward toes and squeeze everything at maximum.',
+    'Chasing minutes; ten hard seconds beats a soft sixty.',
+  ],
+  long_lever_plank: [
+    'Elbows only an inch forward; set them under your eyes, not your shoulders.',
+    'Letting the hips sag as the lever lengthens; brace harder than a normal plank.',
+  ],
+  weighted_plank: [
+    'Plate placed on your neck or low back; center it over your mid back.',
+    'Letting your hips drop under the load; if the line breaks, go lighter.',
+  ],
+  plank_shoulder_tap: [
+    'Hips rocking side to side with each tap; widen your feet and slow down.',
+    'Rushing the taps; a quiet body is the exercise.',
+  ],
+  plank_up_down: [
+    'Hips swiveling as you climb; brace and keep your belt line level.',
+    'Always leading with the same arm; alternate which arm climbs first.',
+  ],
+  side_plank: [
+    'Hips dropping toward the floor; push them up in line with your body.',
+    'Rolling your chest toward the ground; stack your shoulders and hips.',
+    'Supporting elbow drifting from under your shoulder.',
+  ],
+  side_plank_hip_dip: [
+    'Dropping the hip fast and bouncing off the bottom; lower with control.',
+    'Rolling forward as you dip; the hips travel straight down and up.',
+  ],
+  bear_plank: [
+    'Knees hovering high; keep them an inch off the floor.',
+    'Rounding or arching your back; keep it table flat.',
+  ],
+  bear_crawl: [
+    'Hips swaying and knees flaring wide; crawl with knees under hips, an inch off the floor.',
+    'Big lunging steps; move hand and opposite foot a few inches at a time.',
+  ],
+  quadruped_hover: [
+    'Shrugging into your shoulders as you hover; press the floor away.',
+    'Letting the back round when the knees lift; keep it flat.',
+  ],
+  slider_body_saw: [
+    'Sliding further than your brace can hold; lengthen the saw gradually.',
+    'Piking the hips to make the return easier.',
+  ],
+  ab_wheel_rollout: [
+    'Leading with your hips so your lower back arches; tuck your ribs and roll out only as far as you stay flat.',
+    'Bending your arms to pull back in; drag with your abs and lats.',
+    'Kneeling on a hard floor; pad your knees so pain does not cut the set short.',
+  ],
+  barbell_rollout: [
+    'Letting your lower back sag mid rollout; shorten the range until your brace holds.',
+    'Uneven plates that steer the bar; load both sides the same.',
+  ],
+  stability_ball_rollout: [
+    'Sinking your chest into the ball at full stretch; keep tension through your trunk.',
+    'Rolling out on your fists; forearms on the ball.',
+  ],
+  slider_rollout: [
+    'Reaching the arms without moving the hips; the whole body slides forward as one line.',
+    'Collapsing at the shoulders in the stretch; press the floor away.',
+  ],
+  walkout_to_plank: [
+    'Bending your knees on the walk out; keep legs long and let your hamstrings stretch.',
+    'Racing your hands out and back; slow steps keep tension on.',
+  ],
+  // Motor control
+  dead_bug: [
+    'Lower back popping off the floor as the leg lowers; press it flat before each rep.',
+    'Moving arm and leg on the same side; it is opposite arm, opposite leg.',
+    'Holding your breath; exhale as the limbs lower.',
+  ],
+  wall_press_dead_bug: [
+    'Pressing the wall softly; push hard enough to feel your abs switch on.',
+    'Letting the ribs flare as the leg reaches; keep them stacked.',
+  ],
+  bird_dog: [
+    'Lifting the leg so high your back arches; reach long, not up.',
+    'Tipping sideways as the limbs float; keep your belt line level.',
+    'Rushing reps; pause with fingertips and heel reaching apart.',
+  ],
+  // Hollow family
+  hollow_body_hold: [
+    'Lower back arching off the floor; tuck harder or raise your legs until it presses flat.',
+    'Chin jammed to chest; keep your gaze past your knees.',
+  ],
+  tuck_hollow_hold: [
+    'Shoulders resting on the floor; curl them up and hold.',
+    'Losing the flat lower back even in the tuck; that contact is the whole drill.',
+  ],
+  hollow_body_rock: [
+    'Breaking the banana shape to create the rock; the shape stays rigid and momentum does the rocking.',
+    'Rocking so big you slap the floor; small and smooth.',
+  ],
+  hollow_flutter_kick: [
+    'Kicking from the knees; the legs stay long and the flutter is small.',
+    'Lower back peeling off the floor as the legs drop; keep the kicks higher.',
+  ],
+  // Anti-rotation
+  standing_pallof_press: [
+    'Letting the cable rotate you as your arms extend; press dead straight out.',
+    'Standing tall and narrow; soften your knees and set a shoulder-width stance.',
+    'Rushing; hold each press out for a beat before returning.',
+  ],
+  standing_pallof_hold: [
+    'Drifting toward the stack as you fatigue; pick a spot and stay planted.',
+    'Shrugging into the hold; arms long, shoulders down.',
+  ],
+  split_stance_pallof_press: [
+    'Wobbling on a tightrope stance; split front-to-back with hip-width tracks.',
+    'Letting the back hip open toward the cable; both hips face forward.',
+  ],
+  standing_single_arm_cable_press: [
+    'Letting the cable twist your shoulders open; press as if both hands were working.',
+    'Leaning away from the stack for leverage; stay tall.',
+  ],
+  // Carries + KB flow
+  farmer_carry: [
+    'Leaning forward into a shuffle; walk tall with short quick steps.',
+    'Letting the shoulders slump into the weights; set them down and back before you walk.',
+    'Gripping unevenly matched weights; balance the load unless offset is the goal.',
+  ],
+  suitcase_carry: [
+    'Leaning away from the weight; the fight to stay dead level is the exercise.',
+    'Letting the free arm windmill; keep it quiet at your side.',
+  ],
+  suitcase_hold: [
+    'Hitching the hip toward the load; stand tall as if carrying nothing.',
+    'Holding your breath through the hold; breathe behind the brace.',
+  ],
+  front_rack_carry: [
+    'Elbows dropping so the bells drag you forward; keep elbows up and ribs down.',
+    'Arching your back under the rack; brace like a plank.',
+  ],
+  overhead_carry: [
+    'Elbow bending as you walk; lock the arm and push tall into the weight.',
+    'Ribs flaring as the arm drifts back; keep the weight stacked over your shoulder.',
+  ],
+  sandbag_bear_hug_carry: [
+    'Hugging the bag low on your hips; hold it high on your chest.',
+    'Leaning back to counterweight; stay tall and let your trunk fight.',
+  ],
+  turkish_get_up: [
+    'Taking your eyes off the bell; watch it until you are standing.',
+    'Skipping steps to hurry; every position earns the next one.',
+    'Starting heavy; own the empty-hand get-up first.',
+  ],
+  half_turkish_get_up: [
+    'Rolling straight up with a crunch; drive through your elbow, then your palm.',
+    'Bell arm bending; it stays locked and vertical throughout.',
+  ],
+  kettlebell_windmill: [
+    'Bending the front knee and turning it into a lunge; hinge your hips back and keep legs long.',
+    'Losing sight of the bell; eyes on it the whole way down and up.',
+  ],
+  // Crunch family
+  floor_crunch: [
+    'Yanking your neck with your hands; fingertips behind ears, elbows wide.',
+    'Sitting all the way up; a crunch lifts your shoulder blades, no more.',
+    'Holding your breath; exhale as you curl up.',
+  ],
+  weighted_floor_crunch: [
+    'Holding the plate at arms length to make it easier; keep it on your chest.',
+    'Jerking the plate up with momentum; curl slow.',
+  ],
+  stability_ball_crunch: [
+    'Sliding down the ball until it is a sit-up on a bouncy floor; keep your lower back on the ball.',
+    'Feet dancing; plant them wide and still.',
+  ],
+  toe_touch_crunch: [
+    'Swinging your arms to reach; curl your torso and let the reach follow.',
+    'Dropping your legs toward you; the legs stay vertical and still.',
+  ],
+  kneeling_cable_crunch: [
+    'Pulling with your arms; anchor your hands by your head and crunch your ribs to your hips.',
+    'Hinging at the hips like a bow; the spine rounds, the hips stay still.',
+    'Standing the stack up between reps; keep tension and stay in the crunch range.',
+  ],
+  ab_crunch_machine: [
+    'Setting the pads at your collarbones; they should sit on your upper chest and shins comfortably.',
+    'Driving the machine with your arms pulling the handles; the ribs do the folding.',
+  ],
+  oblique_crunch_machine: [
+    'Twisting from your hips instead of your waist; the pelvis stays planted.',
+    'Slamming the stack; control both directions.',
+  ],
+  sit_up: [
+    'Anchoring your feet and yanking with your hip flexors; slow the rep and curl your spine up.',
+    'Pulling your head forward with your hands.',
+    'Flopping back down; lower with the same control you came up with.',
+  ],
+  weighted_sit_up: [
+    'Holding the plate overhead before your bodyweight sit-ups are strict; chest hold first.',
+    'Bouncing off the floor between reps.',
+  ],
+  decline_sit_up: [
+    'Grabbing the bench behind your head for leverage; arms stay crossed or reaching.',
+    'Setting a steep decline on day one; add angle gradually.',
+  ],
+  abmat_sit_up: [
+    'Placing the mat under your hips; it goes under the arch of your lower back.',
+    'Slamming your shoulders into the floor on the way down; the mat is not a crash pad.',
+  ],
+  bicycle_crunch: [
+    'Pedaling fast with tiny twists; slow down and touch elbow to opposite knee each rep.',
+    'Yanking your neck as you rotate; the elbow reaches, the hands stay light.',
+  ],
+  heel_touch: [
+    'Lifting only your head to reach; curl the shoulder blade off the floor toward each heel.',
+    'Rushing side to side; pause at each touch.',
+  ],
+  side_crunch: [
+    'Rolling onto your back mid rep; stay on your side and crunch laterally.',
+    'Pulling your head with the top hand.',
+  ],
+  // V-ups + tucks
+  v_up: [
+    'Bending your knees to meet your hands; legs stay long, meet in the middle.',
+    'Slamming back to the floor; lower your shoulders and heels together with control.',
+  ],
+  tuck_up: [
+    'Rocking off your tailbone with momentum; balance, tuck, and extend with control.',
+    'Feet slapping down between reps; hover them just off the floor.',
+  ],
+  seated_knee_tuck: [
+    'Gripping the bench and pulling with your arms; hands are for balance only.',
+    'Letting your torso stay upright; lean back as the legs extend.',
+  ],
+  slider_knee_tuck: [
+    'Hips piking as the knees come in; keep the plank line until the tuck itself.',
+    'Sliding back out fast; resist the return.',
+  ],
+  // Reverse crunch + raises
+  reverse_crunch: [
+    'Swinging your legs for momentum; curl your hips off the floor with your abs.',
+    'Only the legs moving; if your hips never lift, it is a leg raise, not a reverse crunch.',
+  ],
+  bench_reverse_crunch: [
+    'Yanking on the bench so hard your shoulders shrug; grip lightly for anchor only.',
+    'Dropping the legs past control on the way down.',
+  ],
+  lying_knee_raise: [
+    'Arching your lower back as the knees lower; press it into the floor.',
+    'Resting your feet between reps; hover them.',
+  ],
+  lying_leg_raise: [
+    'Lower back peeling off the floor as the legs descend; stop the descent where it stays pressed down.',
+    'Swinging the legs up with a bounce off the floor.',
+    'Hands wedged under your hips forever; wean off them as you get stronger.',
+  ],
+  leg_lower: [
+    'Both legs crashing down together past your brace; lower only as far as the back stays flat.',
+    'Holding your breath on the way down; exhale through the lower.',
+  ],
+  bent_knee_leg_lower: [
+    'Straightening the legs and turning it into the harder version; keep the 90 degree bend.',
+    'Tapping the floor hard with your heels; touch silently.',
+  ],
+  hip_raise: [
+    'Kicking your legs to throw the hips up; press them up with your abs, straight toward the ceiling.',
+    'Rolling onto your neck; the lift comes from the hips, small and controlled.',
+  ],
+  flutter_kick: [
+    'Kicks so big your back arches; small fast scissors just off the floor.',
+    'Holding your breath; keep a steady rhythm.',
+  ],
+  // Hanging
+  hanging_knee_raise: [
+    'Swinging your body to launch the knees; kill the sway between reps.',
+    'Stopping at 90 degrees; keep curling until knees reach chest height.',
+  ],
+  hanging_leg_raise: [
+    'Kipping the legs up with a swing; dead hang, then raise.',
+    'Arching your back at the bottom; keep a slight hollow between reps.',
+    'Bending the knees as you tire; that turns it into a knee raise, rest instead.',
+  ],
+  weighted_hanging_knee_raise: [
+    'Gripping the dumbbell loosely between your feet; squeeze it or it drops.',
+    'Adding weight while your strict raises still swing.',
+  ],
+  toes_to_bar: [
+    'Pure hip swing with no lat pressure; push the bar away as the toes rise.',
+    'Legs flailing between reps; control the backswing or step down.',
+  ],
+  captains_chair_knee_raise: [
+    'Shoulders shrugging up off the pads; press down into the armrests.',
+    'Swinging the knees with momentum; pause at the bottom of every rep.',
+  ],
+  captains_chair_leg_raise: [
+    'Leaning way back into the pad to lever the legs up; stay tall and lift with your abs.',
+    'Bending the knees halfway up; keep the legs long or do knee raises.',
+  ],
+  // Rotation + side work
+  russian_twist: [
+    'Swinging your arms side to side while the chest stays square; rotate your whole torso.',
+    'Rounding into a slump; lean back with a long spine.',
+    'Feet anchored and heaving; elevate them only when your twist is strict.',
+  ],
+  weighted_russian_twist: [
+    'Tapping the weight to the floor as the goal; rotate your chest, the touch is a bonus.',
+    'Speeding up until it is all arms; the weight travels because your torso turns.',
+  ],
+  cable_torso_rotation: [
+    'Arms bending and turning it into a row; arms stay long, torso does the turning.',
+    'Hips spinning with the shoulders; keep them quiet so your waist does the work.',
+  ],
+  landmine_rotation: [
+    'Bending your elbows to steer the bar; arms stay long in a wide arc.',
+    'Feet planted flat while your knees twist; pivot the trailing foot like a golf swing.',
+  ],
+  standing_cable_wood_chop: [
+    'Chopping with just your arms; turn your torso and let your arms carry the handle.',
+    'Keeping both feet nailed flat; pivot the trailing foot as you rotate.',
+  ],
+  half_kneeling_cable_chop: [
+    'Wobbling on a narrow base; set the down knee and front foot on separate tracks.',
+    'Rocking your weight forward and back with the chop; the kneel stays still.',
+  ],
+  standing_band_wood_chop: [
+    'Standing so close there is no band tension at the start; step out until it pulls.',
+    'Letting the band snap you back up the diagonal; resist the return.',
+  ],
+  dumbbell_side_bend: [
+    'Holding a weight in each hand, which cancels the exercise; load one side only.',
+    'Leaning forward as you bend; travel straight down the side seam of your shorts.',
+  ],
+  medicine_ball_oblique_slam: [
+    'Slamming straight down the middle; rotate and drive the ball outside your foot.',
+    'Arms-only slams; wind up through your hips and trunk.',
+  ],
+  cross_body_mountain_climber: [
+    'Hips riding up as you speed up; keep the plank flat while the knee crosses.',
+    'Tapping the knee short of the opposite elbow; drive it all the way across.',
+  ],
+  rotary_torso_machine: [
+    'Setting a big range and spinning freely; work a controlled arc your waist actually owns.',
+    'Pushing with your arms on the pads; they only rest there.',
   ],
 };
 
