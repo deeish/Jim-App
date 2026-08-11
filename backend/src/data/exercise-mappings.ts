@@ -535,6 +535,12 @@ export interface TransformedExercise {
    * ExercisesService, not present in the raw data.
    */
   groupKey?: string;
+  /**
+   * Set for quality-tier S/A rows (the curated staples): drives the
+   * "Recommended" badge and filter. Derived per response by
+   * ExercisesService; the letter tiers themselves stay backend-private.
+   */
+  recommended?: boolean;
   [key: string]: any; // Preserve other fields
 }
 

@@ -1389,3 +1389,13 @@ export const EXERCISE_TIERS: Record<string, ExerciseTier> = {
   kettlebell_sumo_squat: 'C',
   landmine_sumo_squat: 'C',
 };
+
+/**
+ * The user-facing "Recommended" badge maps to tiers S and A — the curated
+ * staples (~12% of the catalog). Letter tiers themselves never leave the
+ * backend; clients get this boolean.
+ */
+export function isRecommendedExercise(id: string): boolean {
+  const tier = EXERCISE_TIERS[id];
+  return tier === 'S' || tier === 'A';
+}

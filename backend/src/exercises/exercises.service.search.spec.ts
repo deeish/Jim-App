@@ -97,6 +97,27 @@ describe('ExercisesService.search tier ordering (Task 13 Phase B)', () => {
     expect(isCommonExercise(pool[0].id)).toBe(true);
   });
 
+  it('recommendedOnly returns only S/A rows and flags them recommended', () => {
+    const found = service.search({
+      muscleGroups: ['Chest'],
+      recommendedOnly: true,
+    });
+    expect(found.length).toBeGreaterThan(0);
+    for (const e of found) {
+      expect(['S', 'A']).toContain(EXERCISE_TIERS[e.id]);
+      expect(e.recommended).toBe(true);
+    }
+  });
+
+  it('marks S/A rows recommended in normal browse and leaves the tail unmarked', () => {
+    const found = service.search({ muscleGroups: ['Chest'] });
+    const flat = found.find((e) => e.id === 'flat_barbell_bench_press');
+    const tail = found.find((e) => e.id === 'svend_press'); // C tier
+    expect(flat?.recommended).toBe(true);
+    expect(tail).toBeDefined();
+    expect(tail?.recommended).toBeUndefined();
+  });
+
   it('joint-naming avoid phrases exclude joint-tagged replacement candidates', () => {
     for (let i = 0; i < 10; i++) {
       const replacement = service.pickReplacement({

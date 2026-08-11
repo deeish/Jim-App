@@ -17,7 +17,11 @@ import {
   isNicheExercise,
 } from '../data/common-exercise-ids';
 import { cardioLibrarySortKey } from '../data/cardio-display-order';
-import { EXERCISE_TIERS, TIER_ORDER } from '../data/exercise-tiers';
+import {
+  EXERCISE_TIERS,
+  TIER_ORDER,
+  isRecommendedExercise,
+} from '../data/exercise-tiers';
 import {
   getJointDemands,
   jointsFromAvoidPhrases,
@@ -133,9 +137,11 @@ export class ExercisesService implements OnModuleInit {
     const youtubeId = this.videoMap.get(exercise.id);
     const groupKey =
       this.exerciseFamily(exercise.name) || exercise.name.trim().toLowerCase();
-    return youtubeId
+    const out: TransformedExercise = youtubeId
       ? { ...exercise, youtubeId, groupKey }
       : { ...exercise, groupKey };
+    if (isRecommendedExercise(exercise.id)) out.recommended = true;
+    return out;
   }
 
   private async loadExercises() {
@@ -276,6 +282,11 @@ export class ExercisesService implements OnModuleInit {
 
   search(searchDto: SearchExercisesDto): TransformedExercise[] {
     let results = this.exercises.filter((e) => this.isCatalogVisible(e.id));
+
+    // "Recommended" scope: explicit user intent for the curated staples only.
+    if (searchDto.recommendedOnly) {
+      results = results.filter((e) => isRecommendedExercise(e.id));
+    }
 
     // Text search: tokenized, order-independent, equipment/movement-aware match,
     // with forgiving rewrites (compound joins) when they strictly beat the
