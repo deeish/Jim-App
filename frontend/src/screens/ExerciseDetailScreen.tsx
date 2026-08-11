@@ -232,6 +232,9 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         sectionTitle: { fontSize: text.headline, fontWeight: weight.semibold, color: colors.text, marginBottom: spacing.md },
         progressionLabel: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
         progressionGroup: { marginTop: spacing.md },
+        cueRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginBottom: spacing.sm },
+        cueIcon: { marginTop: 2 },
+        cueText: { flex: 1, fontSize: text.body, color: colors.textSecondary, lineHeight: 21 },
         description: { fontSize: text.callout, color: colors.textSecondary, lineHeight: leading.callout },
         tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
         bodyMapRow: {
@@ -775,6 +778,24 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                 ))}
               </View>
             )}
+          </View>
+        )}
+
+        {/* Watch Out For — common mistakes with the fix */}
+        {exercise.formCues && exercise.formCues.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Watch Out For</Text>
+            {exercise.formCues.map((cue, index) => (
+              <View key={index} style={styles.cueRow}>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={18}
+                  color={colors.textSecondary}
+                  style={styles.cueIcon}
+                />
+                <Text style={styles.cueText}>{cue}</Text>
+              </View>
+            ))}
           </View>
         )}
 

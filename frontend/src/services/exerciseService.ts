@@ -27,6 +27,11 @@ export interface Exercise {
     easier: { id: string; name: string }[];
     harder: { id: string; name: string }[];
   };
+  /**
+   * "Watch Out For" coaching cues (common mistake; fix). Present only on
+   * GET /exercises/:id for rows with authored cues.
+   */
+  formCues?: string[];
   [key: string]: any; // Allow other fields
 }
 
