@@ -24,6 +24,19 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    id: '2026-08-11',
+    version: '1.1.0',
+    date: '2026-08-11',
+    title: 'A smarter exercise library',
+    changes: [
+      { type: 'improved', text: 'Every exercise was reviewed and ranked, so browsing, replacements, and generated plans now lead with the best options.' },
+      { type: 'new', text: 'Exercise pages suggest easier and harder variations you can jump between.' },
+      { type: 'new', text: 'Watch Out For: the common mistakes on each exercise, with the fix.' },
+      { type: 'new', text: 'Joint Demand shows which joints a movement is heavy on, and replacements respect limitations like a sore shoulder or knee.' },
+      { type: 'improved', text: 'A refreshed Plan tab with week progress, rest days, and quick actions.' },
+    ],
+  },
   // One entry covering everything since build 13, the last build distributed to
   // the Friends/Family group (confirmed against App Store Connect 2026-08-05:
   // builds 14-17 were internal only). The former 2026-07-23, 2026-08-04 and
