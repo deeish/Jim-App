@@ -1,4 +1,6 @@
 import { ExercisesService } from './exercises.service';
+import { EXERCISE_TIERS, TIER_ORDER } from '../data/exercise-tiers';
+import { isCommonExercise } from '../data/common-exercise-ids';
 
 /**
  * End-to-end search against the real catalog (data/exercises_5000plus.json),
@@ -39,5 +41,58 @@ describe('ExercisesService.search (real catalog)', () => {
 
   it('resolves an alias', () => {
     expect(ids('rdl')).toContain('barbell_romanian_deadlift');
+  });
+});
+
+describe('ExercisesService.search tier ordering (Task 13 Phase B)', () => {
+  let service: ExercisesService;
+
+  beforeAll(async () => {
+    service = new ExercisesService();
+    await service.onModuleInit();
+  });
+
+  const tierOf = (id: string): string => EXERCISE_TIERS[id] ?? '?';
+  const tierRank = (id: string): number => TIER_ORDER[EXERCISE_TIERS[id]] ?? 5;
+
+  it('browse lists are non-increasing in tier (default ordering)', () => {
+    for (const filter of [
+      { subMuscles: ['Calves'] },
+      { subMuscles: ['Forearms'] },
+      { muscleGroups: ['Chest'] },
+      { muscleGroups: ['Back'] },
+    ]) {
+      const ranks = service.search(filter).map((e) => tierRank(e.id));
+      expect(ranks.length).toBeGreaterThan(0);
+      const sorted = [...ranks].sort((a, b) => a - b);
+      expect(ranks).toEqual(sorted);
+    }
+  });
+
+  it('a capped category still surfaces its own leaders first (calves has no S)', () => {
+    const found = service.search({ subMuscles: ['Calves'] });
+    expect(found.length).toBeGreaterThan(0);
+    expect(tierOf(found[0].id)).toBe('A');
+    expect(
+      [
+        'standing_calf_raise_machine',
+        'seated_calf_raise_machine',
+        'bodyweight_calf_raise',
+      ].includes(found[0].id),
+    ).toBe(true);
+  });
+
+  it('group browse leads with an S-tier row', () => {
+    const found = service.search({ muscleGroups: ['Chest'] });
+    expect(tierOf(found[0].id)).toBe('S');
+  });
+
+  it('legacyOrdering keeps the pre-tier common-first order for generator/replace pools', () => {
+    const legacy = service.search(
+      { muscleGroups: ['Back'] },
+      { legacyOrdering: true },
+    );
+    // Legacy ordering leads with the common staples list, not the tier map.
+    expect(isCommonExercise(legacy[0].id)).toBe(true);
   });
 });
