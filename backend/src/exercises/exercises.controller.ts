@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { ExercisesService } from './exercises.service';
+import { getExerciseProgressions } from '../data/exercise-progressions';
 import { SavedExercisesService } from './saved-exercises.service';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
@@ -118,6 +119,21 @@ export class ExercisesController {
     if (!exercise) {
       throw new NotFoundException(`Exercise '${id}' not found`);
     }
-    return exercise;
+    // Progression-ladder neighbors, resolved to names for the detail
+    // screen's Easier/Harder chips. Omitted entirely off-ladder.
+    const ladder = getExerciseProgressions(id);
+    if (!ladder) return exercise;
+    const resolve = (ids: string[]) =>
+      ids
+        .map((pid) => this.exercisesService.findOne(pid))
+        .filter((e): e is NonNullable<typeof e> => !!e)
+        .map((e) => ({ id: e.id, name: e.name }));
+    return {
+      ...exercise,
+      progressions: {
+        easier: resolve(ladder.easier),
+        harder: resolve(ladder.harder),
+      },
+    };
   }
 }
