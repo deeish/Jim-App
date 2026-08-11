@@ -27,6 +27,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { palette, type ColorPalette } from '../theme/colors';
 import Button from '../components/Button';
 import { searchExercises, Exercise, getSavedExerciseIds, getSavedExercises, saveExercise, unsaveExercise } from '../services/exerciseService';
+import { RECOMMENDED_INFO } from '../constants/recommendedInfo';
 import ExerciseGroupCard from '../components/ExerciseGroupCard';
 import { groupExercises, ExerciseGroup } from '../utils/exerciseGrouping';
 import { getCurrentPlan, createPlan, addPlanSlotToCurrent } from '../services/planService';
@@ -1226,10 +1227,12 @@ export default function SearchScreen({ navigation }: Props) {
         },
         recommendedRow: {
           flexDirection: 'row',
+          alignItems: 'center',
           paddingHorizontal: spacing.lg,
           paddingBottom: spacing.sm,
         },
         recommendedStar: { marginRight: 5 },
+        recommendedInfoBtn: { marginLeft: spacing.sm },
         chip: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -1515,6 +1518,15 @@ export default function SearchScreen({ navigation }: Props) {
           <Text style={[styles.chipText, filters.recommendedOnly && styles.chipTextSelected]}>
             Recommended
           </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => Alert.alert(RECOMMENDED_INFO.title, RECOMMENDED_INFO.body)}
+          hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="What does Recommended mean?"
+          style={styles.recommendedInfoBtn}
+        >
+          <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
 

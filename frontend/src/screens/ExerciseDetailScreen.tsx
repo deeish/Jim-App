@@ -9,6 +9,7 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +24,7 @@ import MuscleBodyMap from '../components/bodymap/MuscleBodyMap';
 import { exerciseToHighlights } from '../lib/exerciseToHighlights';
 import ExerciseLikeButton from '../components/ExerciseLikeButton';
 import { getExerciseHistory } from '../services/workoutService';
+import { RECOMMENDED_INFO } from '../constants/recommendedInfo';
 import { isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import {
   formatBestSetValue,
@@ -541,13 +543,20 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         </View>
 
         {/* Recommended — the curated staples carry a full badge here; list rows
-            show the same signal as a bare star. */}
+            show the same signal as a bare star. Tapping explains the mark. */}
         {!!exercise.recommended && (
           <View style={styles.recommendedRow}>
-            <View style={styles.recommendedBadge}>
+            <TouchableOpacity
+              style={styles.recommendedBadge}
+              onPress={() => Alert.alert(RECOMMENDED_INFO.title, RECOMMENDED_INFO.body)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Recommended. Tap to learn what this means."
+            >
               <Ionicons name="star" size={12} color={colors.primary} />
               <Text style={styles.recommendedText}>Recommended</Text>
-            </View>
+              <Ionicons name="information-circle-outline" size={13} color={colors.primary} />
+            </TouchableOpacity>
           </View>
         )}
 
