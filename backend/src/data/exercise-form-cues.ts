@@ -28,6 +28,7 @@ export const CUE_COMPLETED_GROUPS: string[] = [
   'arms',
   'core',
   'back',
+  'legs',
 ];
 
 export const FORM_CUES: Record<string, string[]> = {
@@ -1703,6 +1704,651 @@ export const FORM_CUES: Record<string, string[]> = {
   prone_scapular_squeeze: [
     'Lifting your chest off the floor to raise the arms higher; only the arms and shoulder blades move.',
     'Rushing the letters; hold each Y, T, and W position for a beat.',
+  ],
+
+  // ─── legs (151) ───────────────────────────────────────────────────────
+  // Squats: barbell + machine + loaded
+  back_squat: [
+    'Knees caving inward out of the bottom; push them out over your toes.',
+    'Chest collapsing forward so the bar drifts over your toes; brace and keep the bar over mid-foot.',
+    'Cutting depth as weight climbs; hit the same depth every set.',
+    'Heels lifting; if they do, widen your stance slightly or slow the descent.',
+  ],
+  front_squat: [
+    'Elbows dropping so the bar rolls onto your wrists; keep elbows high through the whole rep.',
+    'Letting the upper back round under the rack; the front squat is won by staying tall.',
+  ],
+  goblet_squat: [
+    'Holding the weight away from your chest; hug it under your chin.',
+    'Elbows swinging outside your knees at the bottom; let them slide inside.',
+    'Leaning forward like a hinge; the goblet wants an upright drop between your heels.',
+  ],
+  bodyweight_squat: [
+    'Knees diving inward; track them over your toes.',
+    'Half squats; sit until your thighs reach at least parallel.',
+    'Rocking onto your toes; keep your whole foot planted.',
+  ],
+  bodyweight_box_squat: [
+    'Plopping down onto the box; touch it under control and stand.',
+    'Rocking forward off the box for momentum; drive straight up.',
+  ],
+  dumbbell_squat: [
+    'Shrugging the weights up as you stand; let them hang, the legs do the lifting.',
+    'Leaning forward as the dumbbells pull down; stay tall through your chest.',
+  ],
+  dumbbell_front_squat: [
+    'Letting the dumbbells slide off your shoulders; keep them racked with elbows up.',
+    'Dropping your chest under the front load; brace and ride your heels.',
+  ],
+  double_kettlebell_front_squat: [
+    'Racking the bells on your biceps with wrists bent; stack them on your forearms, wrists straight.',
+    'Elbows flaring wide out of the rack; keep them tucked toward your midline.',
+  ],
+  heels_elevated_goblet_squat: [
+    'Elevating your heels then still leaning forward; the wedge is there to let you sit straight down.',
+    'Knees shooting so far forward you tip; control the descent.',
+  ],
+  box_squat: [
+    'Crashing onto the box and bouncing off it; sit back, pause dead, then drive.',
+    'Rocking forward to build momentum off the box; stand straight up.',
+  ],
+  pause_back_squat: [
+    'Counting the pause fast; own a full beat, dead still, at the bottom.',
+    'Relaxing into the pause; stay braced and spring from tension, not bounce.',
+  ],
+  safety_bar_squat: [
+    'Letting the bar pitch you forward; the camber pulls that way, fight for an upright chest.',
+    'Yanking on the handles to stand up; they are for balance, not rowing.',
+  ],
+  smith_machine_squat: [
+    'Standing directly under the bar like a free squat; set your feet slightly forward of the rail line.',
+    'Letting the fixed path push your knees past comfort; adjust foot position until the track feels natural.',
+  ],
+  landmine_squat: [
+    'Holding the bar end at arms length; keep it at your chest.',
+    'Fighting the arc; let the landmine path guide you slightly back as you stand.',
+  ],
+  machine_hack_squat: [
+    'Feet too low on the platform, driving your knees far past your toes; set them mid to high.',
+    'Bouncing out of the bottom against the sled; control the turnaround.',
+  ],
+  pendulum_squat: [
+    'Riding the machine to lockout and resting; stop just short to keep tension.',
+    'Cutting depth because the arc gets hard; the bottom is where this machine earns its keep.',
+  ],
+  belt_squat: [
+    'Standing off-center on the platform; center your feet or the belt drags you sideways.',
+    'Folding forward at the hips; the belt frees your spine, stay tall and squat deep.',
+  ],
+  forty_five_degree_leg_press: [
+    'Lowering so deep your hips roll off the pad; stop before your lower back rounds.',
+    'Slamming the sled to lockout with locked knees; finish soft, knees just short of locked.',
+    'Feet low and narrow with knees diving in; set them mid-platform, hip width.',
+  ],
+  horizontal_leg_press: [
+    'Seat set so your knees start jammed at your chest; adjust until the start feels strong.',
+    'Half pressing with a big stack; pick a weight that allows full range.',
+  ],
+  single_leg_leg_press: [
+    'Letting the working knee wander inward; track it over your toes.',
+    'Hips twisting on the pad as you press; keep both cheeks planted.',
+  ],
+  resistance_band_squat: [
+    'Letting the band pull your knees inward; that inward drag is the cue to push them out.',
+    'Standing on the band unevenly; center it under both arches.',
+  ],
+  suspension_trainer_squat: [
+    'Hauling yourself up with your arms; the straps assist balance, your legs do the work.',
+    'Leaning back against the straps like a row; stay over your own feet.',
+  ],
+  barbell_thruster: [
+    'Pausing between the squat and the press; the leg drive should flow straight into the punch overhead.',
+    'Pressing the bar around your face; move your head back, bar path stays vertical.',
+  ],
+  dumbbell_thruster: [
+    'Curling the weights up instead of riding the leg drive; the squat launches the press.',
+    'Letting the dumbbells drift wide overhead; finish with them stacked over your shoulders.',
+  ],
+  spanish_squat: [
+    'Band set above your knees; it anchors behind the knees to let you sit back.',
+    'Leaning forward; the band exists so you can stay bolt upright.',
+  ],
+  machine_sissy_squat: [
+    'Bending at the hips; the machine wants one straight line from knees to shoulders.',
+    'Dropping into the deep knee bend fast; lower with control, this range is unforgiving.',
+  ],
+  wall_sit: [
+    'Sliding up until your knees are barely bent; hold thighs parallel, knees at 90 degrees.',
+    'Hands braced on your thighs; arms crossed or at your sides.',
+  ],
+  // Split squats + lunges
+  split_squat: [
+    'Stance so short your front knee dives over your toes; lengthen the split.',
+    'Pushing off the back foot; it is a kickstand, the front leg works.',
+    'Wobbling on a tightrope; keep your feet on separate tracks.',
+  ],
+  dumbbell_split_squat: [
+    'Leaning over the front knee as the weights pull you down; stay tall between the legs.',
+    'Bouncing the back knee off the floor; kiss it down lightly.',
+  ],
+  goblet_split_squat: [
+    'Letting the goblet pull your chest down; hug it high and stay upright.',
+    'Front heel floating; drive through the whole front foot.',
+  ],
+  rear_foot_elevated_split_squat: [
+    'Standing too close to the bench, which cramps the front knee; hop the front foot forward.',
+    'Loading the back foot; it rests, the front leg squats.',
+    'Chasing depth with a twisted pelvis; square your hips first.',
+  ],
+  dumbbell_bulgarian_split_squat: [
+    'Front foot too close to the bench; step out until your shin stays near vertical.',
+    'Wobbling side to side; widen your stance tracks before adding weight.',
+    'Bouncing off the back knee at the bottom.',
+  ],
+  barbell_bulgarian_split_squat: [
+    'Taking a barbell to a stance you have not mastered with dumbbells; earn it light.',
+    'Tipping forward under the bar; brace tall, the bar punishes balance errors.',
+  ],
+  smith_machine_bulgarian_split_squat: [
+    'Setting your front foot directly under the bar; place it forward so the fixed path tracks your hips.',
+    'Letting the rail catch your balance every rep; stay centered as if the bar were free.',
+  ],
+  forward_lunge: [
+    'Stepping so short your knee shoots past your toes; take a full stride.',
+    'Crashing onto the front foot; land soft and controlled.',
+    'Pushing back off the toes with a wobble; drive through the front heel.',
+  ],
+  dumbbell_forward_lunge: [
+    'Letting the weights swing with each step; keep them quiet at your sides.',
+    'Shortening the stride as fatigue builds; same step length every rep.',
+  ],
+  barbell_forward_lunge: [
+    'Lunging with a soft brace under the bar; tighten up, the return step is the hard part.',
+    'Looking down at your feet; eyes ahead keeps the bar stable.',
+  ],
+  reverse_lunge: [
+    'Stepping back so short the front knee jams forward; reach the step well behind you.',
+    'Pushing off the back toes to stand; drive up through the front heel.',
+  ],
+  dumbbell_reverse_lunge: [
+    'Rocking the torso forward as you step back; stay tall over the front leg.',
+    'Clipping the floor with a lazy back step; place it deliberately.',
+  ],
+  barbell_reverse_lunge: [
+    'Letting the bar shift as you step; move slow enough that the bar never tips.',
+    'Uneven step lengths side to side; match them.',
+  ],
+  landmine_reverse_lunge: [
+    'Holding the bar at arms length; rack the end at your chest.',
+    'Fighting the arc; let the landmine guide you slightly back as you stand.',
+  ],
+  deficit_reverse_lunge: [
+    'Dropping off the deficit edge fast; lower into the deeper range under control.',
+    'Losing balance reaching too far back; the deficit already adds depth, keep your normal step.',
+  ],
+  walking_lunge: [
+    'Stumbling steps strung together; pause briefly at the top between strides.',
+    'Knees brushing inward as you travel; each knee tracks over its toes.',
+    'Leaning into every step; torso stays tall as you walk.',
+  ],
+  dumbbell_walking_lunge: [
+    'Weights swinging you side to side; smaller steps, quiet dumbbells.',
+    'Grip dying before your legs; use straps or lighter bells rather than cutting the set.',
+  ],
+  barbell_walking_lunge: [
+    'Walking a bar before dumbbell lunges are stable; the bar amplifies every wobble.',
+    'Rushing steps; plant, lower, drive, then travel.',
+  ],
+  curtsy_lunge: [
+    'Crossing so far behind that your hips twist; step back and across just enough to feel the outer hip.',
+    'Front knee caving as you cross; keep it tracking over the toes.',
+  ],
+  lateral_lunge: [
+    'Both knees bending; the stepping leg bends, the trailing leg stays straight.',
+    'Knee rolling inward over the stepping foot; sit back into the hip.',
+    'Leaning forward to reach the floor; chest tall, hips back.',
+  ],
+  dumbbell_lateral_lunge: [
+    'Swinging the weight between your legs; hold it at your chest or hanging quiet.',
+    'Shallow side steps; step wide enough to sit into the working hip.',
+  ],
+  cossack_squat: [
+    'Forcing depth with a rounded back and lifted heel; go only as low as flat-foot mobility allows.',
+    'Knee of the working leg diving in; push it out over the toes.',
+  ],
+  goblet_cossack_squat: [
+    'Using the counterweight to crash into the bottom; the goblet earns depth slowly.',
+    'Letting the trailing-leg toes point down; keep that foot flexed, heel on the floor.',
+  ],
+  // Step-ups
+  step_up: [
+    'Springing off the bottom leg; the top leg drags you up unassisted.',
+    'Stepping down with a thud; lower under control.',
+  ],
+  dumbbell_step_up: [
+    'Kicking off the floor leg to launch each rep; dead-leg the bottom foot.',
+    'Box so high your hips twist to climb; pick a height your knee can own.',
+  ],
+  barbell_step_up: [
+    'Taking a barbell to a box you wobble on; master dumbbells there first.',
+    'Drifting sideways under the bar; step straight up and down.',
+  ],
+  goblet_step_up: [
+    'Letting the goblet pull you into the box; stay tall off the top leg.',
+    'Rushing the descent; the slow step-down is half the value.',
+  ],
+  step_down: [
+    'Dropping fast off the edge; lower until the heel kisses the floor, slow the whole way.',
+    'Knee collapsing inward as you lower; track it over the middle toes.',
+  ],
+  // Single-leg skill
+  assisted_pistol_squat: [
+    'Hauling yourself up by the support; fingertip help only.',
+    'Free leg dropping and dragging; hold it out in front through the rep.',
+  ],
+  pistol_squat_to_box: [
+    'Plopping onto the box; touch it silently and stand back up.',
+    'Knee wobbling inward through the middle range; slow down and track it.',
+  ],
+  skater_squat: [
+    'Reaching the back knee to the floor with a rounded slump; hinge tall as you lower.',
+    'Arms flailing; reach them forward as a counterbalance from the start.',
+  ],
+  assisted_skater_squat: [
+    'Gripping the support with both hands and rowing up; lighten the assist as you improve.',
+    'Back knee slamming the floor; touch a pad softly.',
+  ],
+  // Hinges: deadlifts
+  conventional_deadlift: [
+    'Rounding your lower back off the floor; brace and set a flat spine before you pull.',
+    'Jerking the bar off the ground; squeeze the slack out, then drive.',
+    'Bar drifting away from your shins; drag it up your legs.',
+    'Leaning back and hyperextending at lockout; stand tall and stop.',
+  ],
+  trap_bar_deadlift: [
+    'Squatting it so low your knees do all the work; it is still a hinge, hips back.',
+    'Standing up unevenly so the bar seesaws; center your grip on both handles.',
+  ],
+  deficit_deadlift: [
+    'Adding a deficit while floor pulls still round your back; the extra range magnifies it.',
+    'Losing tightness at the deeper start; brace harder than a normal pull.',
+  ],
+  kettlebell_deadlift: [
+    'Squatting the bell up; push your hips back and hinge over it.',
+    'Rounding down to grab it between reps; hinge down the same way you stood up.',
+  ],
+  dumbbell_deadlift: [
+    'Letting the weights drift in front of you; keep them brushing your legs.',
+    'Turning it into a squat; hips travel back, shins stay near vertical.',
+  ],
+  barbell_sumo_deadlift: [
+    'Knees caving as you break the floor; screw them out over your toes.',
+    'Hips shooting up first; chest and hips rise together.',
+    'Rushing the wedge; pull the slack out and get tight before the drive.',
+  ],
+  dumbbell_sumo_deadlift: [
+    'Stance wide but toes forward; turn your toes out so the knees can track.',
+    'Rounding over the weight; sit between your legs with a proud chest.',
+  ],
+  kettlebell_sumo_deadlift: [
+    'Letting the bell swing forward; it travels straight up between your ankles.',
+    'Knees rolling in on the stand; push them out along your toes.',
+  ],
+  sumo_squat: [
+    'Stance wide with toes still forward; angle your toes out 30 to 45 degrees.',
+    'Leaning forward out of the upright line; sumo wants your torso tall.',
+  ],
+  dumbbell_sumo_squat: [
+    'Swinging the dumbbell between your legs; let it hang dead still.',
+    'Knees caving on the way up; drive them out over your angled toes.',
+  ],
+  barbell_sumo_squat: [
+    'Taking the wide stance under a bar without warming up your hips; groin strains love cold sumo squats.',
+    'Bouncing depth; control into and out of the bottom.',
+  ],
+  // Hinges: RDL + good mornings
+  barbell_romanian_deadlift: [
+    'Rounding your lower back as the bar passes your knees; push your hips back and stop where your back stays flat.',
+    'Bending your knees more and more until it becomes a deadlift; keep a soft, fixed knee bend.',
+    'Bar swinging away from your legs; drag it down your thighs.',
+  ],
+  dumbbell_romanian_deadlift: [
+    'Letting the weights drift forward; keep them brushing your legs the whole way.',
+    'Chasing floor touches; depth ends where your hamstrings stop your flat back.',
+  ],
+  kettlebell_romanian_deadlift: [
+    'Letting the bell hang between reps and yanking it up; stay tight through the turnaround.',
+    'Hinging with a soft chest; proud chest, long spine.',
+  ],
+  resistance_band_romanian_deadlift: [
+    'Standing on the band with slack at the bottom; grip lower or widen your stance for full-range tension.',
+    'Letting the band snap you upright; resist it both ways.',
+  ],
+  barbell_stiff_leg_deadlift: [
+    'Locking the knees dead straight; keep a whisper of bend to protect your back.',
+    'Pulling from the floor with a rounded spine; treat every rep like a max-stretch RDL.',
+  ],
+  dumbbell_single_leg_romanian_deadlift: [
+    'Hips opening toward the free leg; keep both hip points square to the floor.',
+    'Reaching the weight down fast; slow hinge, the balance is the exercise.',
+    'Standing leg locked straight; soften the knee.',
+  ],
+  bodyweight_single_leg_romanian_deadlift: [
+    'Rushing the reps; slow is the whole point without load.',
+    'Free leg drooping; drive it long behind you as a counterweight.',
+  ],
+  dumbbell_b_stance_romanian_deadlift: [
+    'Loading the kickstand foot; it carries a fifth of your weight at most.',
+    'Kickstand toes creeping level with the front foot; keep them at its heel.',
+  ],
+  barbell_good_morning: [
+    'Rounding your upper back under the bar; brace and hinge with a flat spine.',
+    'Bending into a squat; hips travel back, knees stay soft.',
+    'Loading it like a squat; this lift takes a fraction of that weight.',
+  ],
+  bodyweight_good_morning: [
+    'Folding at the waist with a rounded back; push your hips back until your hamstrings pull.',
+    'Rushing the reps; slow hinges teach the pattern.',
+  ],
+  cable_pull_through: [
+    'Pulling with your arms; they are hooks, your hips do the work.',
+    'Standing too close to the pulley; walk out until the cable stays taut at lockout.',
+    'Overextending your back at the top; squeeze your glutes and stand tall, no lean-back.',
+  ],
+  resistance_band_pull_through: [
+    'Anchoring the band too high; it runs low between your legs.',
+    'Letting the band drag you back onto your heels mid rep; brace and control the return.',
+  ],
+  kettlebell_swing: [
+    'Squatting the swing; it is a hinge, hips back and snap forward.',
+    'Lifting the bell with your arms and shoulders; the hips launch it, arms just steer.',
+    'Letting the bell pull you into a rounded back at the bottom; keep a flat spine as it passes your knees.',
+  ],
+  single_arm_kettlebell_swing: [
+    'Letting the bell twist your shoulders; square your chest every swing.',
+    'Switching hands mid-air before you own the catch; swap on the floor first.',
+  ],
+  // Hip thrusts + bridges
+  barbell_hip_thrust: [
+    'Overarching at the top; finish flat like a tabletop with ribs down and a chin tuck.',
+    'Pushing through your toes; drive through your heels.',
+    'Half range under a big bar; full lockout with a squeeze beats ego loading.',
+  ],
+  dumbbell_hip_thrust: [
+    'Letting the dumbbell slide off your hips; hold it on your hip crease.',
+    'Neck craned forward at the top; tuck your chin and look forward.',
+  ],
+  machine_hip_thrust: [
+    'Belt or pad set on your stomach; it sits across your hip crease.',
+    'Stopping short of lockout; the machine makes full range easy, use it.',
+  ],
+  smith_machine_hip_thrust: [
+    'Bar path landing on your thighs or stomach; set the bench so it tracks over your hips.',
+    'Bouncing the bar off the rails; smooth lockouts, no crash.',
+  ],
+  bodyweight_hip_thrust: [
+    'Racing through reps; pause and squeeze a full beat at the top.',
+    'Feet too far out so the hamstrings cramp; heels under your knees at lockout.',
+  ],
+  single_leg_hip_thrust: [
+    'Hips tilting toward the free leg; keep your belt line level.',
+    'Free leg swinging for momentum; hold it still at 90 degrees.',
+  ],
+  glute_bridge: [
+    'Arching your lower back instead of lifting your hips; tuck your pelvis and squeeze up.',
+    'Pushing through your toes; drive your heels into the floor.',
+    'Skipping the top squeeze; hold a beat at lockout.',
+  ],
+  barbell_glute_bridge: [
+    'No pad on the bar; pad it before your hip bones complain.',
+    'Rolling the bar to your stomach between reps; keep it seated on your hip crease.',
+  ],
+  dumbbell_glute_bridge: [
+    'Holding the weight on your thighs; it belongs on your hip crease.',
+    'Bouncing reps off the floor; touch down soft and squeeze back up.',
+  ],
+  resistance_band_glute_bridge: [
+    'Letting the band pull your knees in; press them out against it the whole time.',
+    'Small pulses at the top; take the full range from floor to lockout.',
+  ],
+  single_leg_glute_bridge: [
+    'Hips sagging on the free-leg side; level your belt line before you lift.',
+    'Pushing off a bent free leg that sneaks help; keep it lifted and quiet.',
+  ],
+  feet_elevated_glute_bridge: [
+    'Bench so high your back does the lifting; shins near vertical at the top is the sweet spot.',
+    'Toes pulling off the bench edge; plant your whole heel.',
+  ],
+  marching_glute_bridge: [
+    'Hips dipping every time a foot lifts; brace so your belt line never moves.',
+    'Racing the march; slow deliberate knee lifts.',
+  ],
+  kas_glute_bridge: [
+    'Turning it into a full hip thrust; the range is deliberately short and slow.',
+    'Losing the constant tension by resting at the top or bottom.',
+  ],
+  frog_pump: [
+    'Feet drifting away from your hips; keep soles together and heels close.',
+    'Flopping through fast reps; squeeze each lockout.',
+  ],
+  donkey_kick: [
+    'Arching your lower back to kick higher; squeeze the glute and keep your spine still.',
+    'Kicking fast; slow lifts with a squeeze at the top.',
+  ],
+  resistance_band_donkey_kick: [
+    'Letting the band snap your knee back down; resist the return.',
+    'Shifting all your weight onto one wrist; stay square over both hands.',
+  ],
+  cable_glute_kickback: [
+    'Swinging the leg back with an arched back; the glute moves the leg, the spine stays still.',
+    'Standing bolt upright; hinge slightly forward at the hips to give the leg room.',
+    'Chasing height behind you; stop where your glute, not your lower back, finishes the rep.',
+  ],
+  machine_glute_kickback: [
+    'Pad placement mid-sole so it slips; set it against your heel or mid-foot per the machine.',
+    'Hammering the stack with momentum; push back slow and squeeze.',
+  ],
+  // Erectors + posterior accessories
+  forty_five_degree_back_extension: [
+    'Rounding up and over the pad; hinge at the hips with a long spine.',
+    'Hyperextending at the top; stop when your body makes one line.',
+    'Pad set too high; the edge belongs at your hip crease so your hips can fold.',
+  ],
+  back_extension_machine: [
+    'Setting the pad at your shoulder blades; it sits across your upper back per the machine, hips anchored.',
+    'Throwing the weight back with momentum; extend smooth and controlled.',
+  ],
+  reverse_hyperextension: [
+    'Swinging the legs high with a slam of the pad; lift to level with a squeeze, no whip.',
+    'Gripping the handles and yanking; hold on lightly, hips do the work.',
+  ],
+  glute_ham_raise: [
+    'Breaking at the hips on the way down; keep your body straight from knees to shoulders.',
+    'Collapsing into the bottom; lower under control and use a push-off only as needed.',
+  ],
+  nordic_hamstring_curl: [
+    'Folding at the hips as you lower; keep hips extended so the hamstrings take it all.',
+    'Free-falling past control; fight every inch down and catch softly.',
+    'Skipping the push-back-up; use your hands lightly and curl back as much as you can.',
+  ],
+  assisted_nordic_hamstring_curl: [
+    'Holding band tension that does everything; assist just enough to control the descent.',
+    'Bending at the waist; the line from knees to head stays straight.',
+  ],
+  hamstring_walkout: [
+    'Walking your heels out until your hips drop; keep the bridge up the whole walk.',
+    'Giant steps; small heel walks keep tension on the hamstrings.',
+  ],
+  // Leg curls + extensions
+  lying_leg_curl: [
+    'Hips popping off the pad as you curl; press them down the entire set.',
+    'Half curls; bring your heels all the way to your glutes.',
+    'Letting the stack yank your legs straight; the lowering builds the muscle.',
+  ],
+  seated_leg_curl: [
+    'Thigh pad loose so your knees lift; clamp it snug before the set.',
+    'Cutting the stretch at the top; let your legs extend fully each rep.',
+  ],
+  standing_leg_curl: [
+    'Swinging the hip to help the curl; the thigh stays pinned to the pad.',
+    'Half range; heel to glute, then all the way long.',
+  ],
+  lying_resistance_band_leg_curl: [
+    'Band anchored where it drags sideways; line the pull straight down your leg.',
+    'Hips lifting as you curl; press them into the floor.',
+  ],
+  dumbbell_leg_curl: [
+    'Loose feet dropping the dumbbell; squeeze it between your arches and test before curling.',
+    'Arching your back to lift the weight; hips stay pressed into the bench.',
+  ],
+  stability_ball_leg_curl: [
+    'Hips sagging as the ball rolls in; bridge high through the whole curl.',
+    'Rolling the ball in fast and letting it fly out; slow both directions.',
+  ],
+  slider_leg_curl: [
+    'Hips resting on the floor mid rep; stay bridged from curl to extension.',
+    'Letting the sliders shoot out; resist the slide back to long legs.',
+  ],
+  seated_leg_extension: [
+    'Seat set so your knees hang past the pivot; line your knee joint up with the machine axis.',
+    'Kicking the weight up with a jerk; lift smooth and lower slower.',
+    'Stopping short of lockout; squeeze the top, that is where the quads finish.',
+  ],
+  single_leg_leg_extension: [
+    'Letting the working hip hike as you kick; stay planted in the seat.',
+    'Skipping the slow negative; one leg means nowhere to hide.',
+  ],
+  resistance_band_leg_extension: [
+    'Anchoring the band in line with your shin instead of behind; the pull should come from behind the ankle.',
+    'Letting the band whip the leg back; control the bend.',
+  ],
+  terminal_knee_extension: [
+    'Working the whole knee bend; this drill lives in the last 30 degrees to lockout.',
+    'Letting the band rotate your leg; keep your knee tracking straight over your foot.',
+  ],
+  reverse_nordic_curl: [
+    'Breaking at the hips as you lean back; keep hips locked so the quads lengthen.',
+    'Leaning past where you can return; short range, grow it slowly.',
+  ],
+  assisted_reverse_nordic_curl: [
+    'Yanking on the assist; use the lightest touch that lets you control the lean.',
+    'Arching your lower back as you go back; keep your ribs tucked.',
+  ],
+  // Calves + lower leg
+  standing_calf_raise_machine: [
+    'Bouncing out of the stretch; pause at the bottom, then drive to full tiptoe.',
+    'Tiny pulses at the top; use the full range from deep stretch to full rise.',
+    'Bent knees turning it into a leg press; stay tall.',
+  ],
+  seated_calf_raise_machine: [
+    'Bouncing reps off the stretch; a beat at the bottom, a squeeze at the top.',
+    'Pad set so high your legs wedge; snug on your lower thighs, not jammed.',
+  ],
+  bodyweight_calf_raise: [
+    'Fast pumping half reps; slow down and use the whole range.',
+    'Rolling onto the outside of your feet at the top; rise straight over your big toes.',
+  ],
+  single_leg_bodyweight_calf_raise: [
+    'Hopping to finish reps; when strict reps end, the set ends.',
+    'Leaning into the wall; fingertips for balance only.',
+  ],
+  dumbbell_standing_calf_raise: [
+    'Holding dumbbells in both hands and nothing for balance; load one side, hold on with the other.',
+    'Skipping the stretch; drop your heels below the step each rep.',
+  ],
+  dumbbell_seated_calf_raise: [
+    'Balancing the dumbbell on your toes-end of thigh; seat it just behind your knee.',
+    'Bouncing the weight; strict pauses at both ends.',
+  ],
+  smith_machine_standing_calf_raise: [
+    'Standing flat on the floor with no block; elevate your toes so the heels can drop.',
+    'Bouncing the bar off the catches; smooth full reps.',
+  ],
+  donkey_calf_raise: [
+    'Rounding your back over the pad; hinge flat and let your heels travel.',
+    'Short pumps; the bent-over stretch is the reason this exercise exists.',
+  ],
+  leg_press_calf_raise: [
+    'Sliding your feet so low they can slip off the plate; keep the balls of your feet planted low but secure.',
+    'Bouncing the sled; pause the stretch, squeeze the press.',
+  ],
+  stair_calf_raise: [
+    'Dropping your heel fast off the step; lower slow into the stretch.',
+    'Holding the rail with your weight; fingertips for balance.',
+  ],
+  tibialis_raise: [
+    'Standing too far from the wall; lean back far enough that lifting your toes is hard.',
+    'Curling only your toes; pull your whole forefoot up toward your shins.',
+  ],
+  backward_sled_drag: [
+    'Leaning back and yanking with your arms; sit slightly and push the floor away with each step.',
+    'Long strides that pull you off balance; short quick steps.',
+  ],
+  // Abductors / adductors
+  hip_abductor_machine: [
+    'Slamming the pads out and letting them crash back; push out slow, resist the return.',
+    'Leaning far back to move more weight; sit tall or slightly forward.',
+  ],
+  standing_cable_hip_abduction: [
+    'Swinging the leg with momentum; small controlled sweep to the side.',
+    'Leaning away from the working leg; stay tall and let the hip do it.',
+  ],
+  side_lying_hip_abduction: [
+    'Rolling your hips backward so the front of the thigh takes over; stack your hips and lead with your heel.',
+    'Swinging the leg high and fast; slow to just past hip height.',
+  ],
+  side_lying_banded_hip_abduction: [
+    'Letting the band snap the leg down; fight the lowering.',
+    'Hips rolling back mid set; keep them stacked vertically.',
+  ],
+  clamshell: [
+    'Rolling your pelvis backward as the knee opens; pin your hips stacked and move only the knee.',
+    'Feet drifting apart; heels stay glued together.',
+  ],
+  banded_clamshell: [
+    'Letting the band slam the knee shut; resist the closing.',
+    'Cheating the opening with a torso rock; hips stay still.',
+  ],
+  fire_hydrant: [
+    'Tilting your torso away to lift higher; stay square over your hands.',
+    'Arching your back as the leg lifts; brace and move only the hip.',
+  ],
+  lateral_band_walk: [
+    'Standing tall between steps; stay in a quarter squat the whole way.',
+    'Dragging the trailing foot so the band goes slack; keep constant tension with every step.',
+    'Knees caving in; press them out against the band.',
+  ],
+  monster_walk: [
+    'Walking upright; hold the athletic crouch through every step.',
+    'Steps so big you stumble; short, wide, deliberate steps.',
+  ],
+  lateral_step_up: [
+    'Pushing off the floor leg; the top leg drags you up sideways.',
+    'Knee diving in as you climb; drive it over your toes.',
+  ],
+  glute_bridge_with_band_abduction: [
+    'Letting the band pull your knees together at the top; press out as you squeeze up.',
+    'Bridging with an arch; tuck your pelvis and lift with the glutes.',
+  ],
+  adductor_machine: [
+    'Starting at a painful stretch on rep one; open the range gradually as you warm up.',
+    'Letting the pads fly apart; resist the opening.',
+  ],
+  standing_cable_hip_adduction: [
+    'Swinging the leg across with momentum; sweep slow and controlled.',
+    'Twisting your hips into the pull; stay square and let the inner thigh work.',
+  ],
+  side_lying_hip_adduction: [
+    'Lifting an inch and calling it done; raise the bottom leg as high as it goes, pause, lower slow.',
+    'Rolling backward; keep your hips stacked.',
+  ],
+  copenhagen_knee_plank: [
+    'Hips sagging toward the floor; lift until your body is one line.',
+    'Bench edge digging mid-shin; set your knee and lower leg on the pad.',
+  ],
+  copenhagen_plank: [
+    'Jumping to the long-lever version before the knee version is solid; adductor strains punish rushing.',
+    'Top leg doing a lazy hang; press down into the bench hard.',
   ],
 };
 
