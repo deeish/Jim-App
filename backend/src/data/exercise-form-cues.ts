@@ -27,6 +27,7 @@ export const CUE_COMPLETED_GROUPS: string[] = [
   'shoulders',
   'arms',
   'core',
+  'back',
 ];
 
 export const FORM_CUES: Record<string, string[]> = {
@@ -1354,6 +1355,354 @@ export const FORM_CUES: Record<string, string[]> = {
   rotary_torso_machine: [
     'Setting a big range and spinning freely; work a controlled arc your waist actually owns.',
     'Pushing with your arms on the pads; they only rest there.',
+  ],
+
+  // ─── back (82) ────────────────────────────────────────────────────────
+  // Pull-ups + chin-ups
+  pull_up_pronated: [
+    'Kipping and half reps; dead hang at the bottom, chin clearly over the bar at the top.',
+    'Shrugging up without pulling your shoulder blades down first; start every rep by setting your shoulders.',
+    'Craning your chin over the bar; pull your chest toward it instead.',
+  ],
+  chin_up: [
+    'Half reps that never reach a straight-arm hang; full stretch every time.',
+    'Curling into it with arms only; drive your elbows down and back.',
+  ],
+  wide_grip_pull_up: [
+    'Gripping so wide your range collapses; go just beyond shoulder width.',
+    'Struggling the chin up with a shrug; if range dies, narrow the grip.',
+  ],
+  neutral_grip_pull_up: [
+    'Letting the friendlier grip hide short reps; full hang to chin over hands.',
+    'Elbows flaring forward at the top; keep pulling them down.',
+  ],
+  close_grip_chin_up_neutral: [
+    'Turning the close grip into a biceps-only pull; drive the elbows down along your ribs.',
+    'Bouncing out of the bottom hang.',
+  ],
+  weighted_pull_up: [
+    'Adding load while your strict pull-ups still shake; earn crisp bodyweight sets first.',
+    'Letting the belt swing you; pause the dead hang until the plate goes quiet.',
+  ],
+  chin_up_weighted_belt: [
+    'Cutting the top short as the weight grows; chin clearly over, every rep.',
+    'Dropping from the top rep into a swinging hang; lower under control.',
+  ],
+  band_assisted_pull_up: [
+    'Letting the band fire you out of the bottom; control the stretch it wants to skip.',
+    'Staying on the same band forever; step down tension as reps come.',
+  ],
+  machine_assisted_pull_up: [
+    'Riding the pad with maximum help; use the least assistance that allows full reps.',
+    'Leaning way back and rowing the handles; stay vertical and pull down.',
+  ],
+  jumping_pull_up: [
+    'Jumping past the work; jump to the top, then lower as slowly as you can.',
+    'Landing stiff between reps; bend your knees softly.',
+  ],
+  negative_pull_up: [
+    'Dropping fast through the middle; fight for three to five seconds down.',
+    'Skipping the top hold; start each negative with your chin over the bar.',
+  ],
+  hip_width_feet_elevated_chin_up: [
+    'Pushing through your feet so hard your arms coast; use the lightest leg assist that lets you finish.',
+    'Legs doing more each rep without noticing; keep the assist honest and shrink it over time.',
+  ],
+  active_hang_scapular_pull: [
+    'Bending the elbows into a mini pull-up; arms stay straight, only the shoulder blades pull down.',
+    'Tiny shrugs with no pause; hold the proud-chest bottom for a beat.',
+  ],
+  ring_pull_up: [
+    'Fighting the rings from turning; let them rotate naturally as you pull.',
+    'Swinging between reps; kill the sway before the next pull.',
+  ],
+  // Pulldowns
+  lat_pulldown_wide: [
+    'Leaning far back and rowing the bar down; a slight lean is fine, momentum is not.',
+    'Pulling the bar to your belly; it meets the top of your chest.',
+    'Half-stretching at the top; let your arms fully lengthen each rep.',
+  ],
+  lat_pulldown_neutral_grip: [
+    'Elbows drifting behind you at the bottom; drive them straight down.',
+    'Standing the stack up between reps; keep tension at the stretch.',
+  ],
+  close_grip_lat_pulldown: [
+    'Rocking your torso for the last reps; lock your chest tall.',
+    'Wrists curling at the bottom; pull with the elbows, hands are hooks.',
+  ],
+  lat_pulldown_supinated: [
+    'Turning it into a big biceps curl; drive the elbows down and back.',
+    'Bouncing at the stretch with straight arms and a supine grip; ease into the top.',
+  ],
+  lat_pulldown_rope: [
+    'Pulling the rope to one collarbone; split the ends evenly to both sides.',
+    'Losing the tall chest as the rope splits; stay proud through the pull.',
+  ],
+  wide_grip_lat_pulldown_front: [
+    'Pulling behind your neck; to the top of the chest, always.',
+    'Grip so wide the bar barely moves; just beyond shoulders.',
+  ],
+  single_arm_cable_pulldown: [
+    'Rotating your torso to help the pull; stay square, elbow to your hip.',
+    'Shrugging at the stretch; keep the shoulder blade set.',
+  ],
+  machine_lat_pulldown_selectorized: [
+    'Thigh pads loose so your hips lift with the stack; lock them down first.',
+    'Slamming the stack at the stretch.',
+  ],
+  seated_pulldown_machine_close: [
+    'Sitting too far from the handles so the pull angles forward; sit where the cable runs vertical.',
+    'Rocking for momentum; the seat and pads are there to keep you strict.',
+  ],
+  hammer_strength_pulldown: [
+    'Pulling both handles unevenly; move them together or work one side deliberately.',
+    'Shrugging as the handles rise; set your shoulders down before each pull.',
+  ],
+  bar_pulldown_seated_hammer: [
+    'Wrist-curling the wide neutral handles; elbows drive down, hands hang on.',
+    'Cutting the stretch to protect the stack from clanking; use a controlled full range.',
+  ],
+  banded_pulldown_standing: [
+    'Anchoring the band so low the pull is a row; anchor high overhead.',
+    'Letting the band jerk your arms up; resist the return.',
+  ],
+  jm_row_pulldown_hybrid: [
+    'Standing square, which loses the lean-away stretch; angle your body so the lat starts lengthened.',
+    'Yanking from the stretched position; ease out of the bottom.',
+  ],
+  straight_arm_cable_pulldown: [
+    'Bending the elbows into a pushdown; arms stay long, the shoulder does the arc.',
+    'Hunching over the cable at the bottom; hinge slightly and keep a proud chest.',
+  ],
+  single_arm_straight_arm_pulldown: [
+    'Twisting toward the stack mid sweep; stay square.',
+    'Whipping the handle down; the long-arm arc rewards a slow pull.',
+  ],
+  lat_prayer_cable: [
+    'Praying with bent elbows; the arms stay long as they sweep down.',
+    'Rounding your back to reach further; hinge and keep your spine long.',
+  ],
+  stir_the_pot_lat: [
+    'Turning the pull-around into a row; keep the arm long as it sweeps across.',
+    'Rotating your hips with the arm; the torso stays square while the lat drags the cable around.',
+  ],
+  // Pullovers
+  dumbbell_pullover: [
+    'Bending and straightening the elbows; lock a soft bend and move only at the shoulders.',
+    'Dropping the weight far behind your head fast; lower to a strong stretch you control.',
+    'Hips sagging off the bench; keep them level with your shoulders.',
+  ],
+  machine_pullover_nautilus: [
+    'Setting the seat so your shoulders sit below the cam; line them up with the pivot.',
+    'Riding the stack up fast; the long arc deserves a slow return.',
+  ],
+  // Barbell + heavy rows
+  barbell_bent_over_row: [
+    'Standing tall as the set gets heavy; hold your hinge near 45 degrees or lower.',
+    'Yanking the bar with your lower back; if your torso heaves, drop weight.',
+    'Pulling to your chest; the bar lands between belly button and lower ribs.',
+  ],
+  pendlay_row: [
+    'Letting the bar drift off the floor between reps; every rep starts dead on the ground.',
+    'Losing the flat parallel back; reset your hinge before each pull.',
+  ],
+  t_bar_row: [
+    'Standing up with the weight as you fatigue; keep your torso angle fixed.',
+    'Loading plates so large they block the range; smaller plates row deeper.',
+  ],
+  yates_row: [
+    'Confusing the upright style for permission to heave; the 70 degree torso stays still.',
+    'Pulling to your chest; the underhand bar rows to your belt line.',
+  ],
+  seal_row: [
+    'Bouncing your chest off the bench for momentum; only your arms and shoulder blades move.',
+    'Short-stroking; let the bar hang fully before each pull.',
+  ],
+  chest_supported_barbell_row: [
+    'Pushing your chest off the pad on the pull; the support is the exercise contract.',
+    'Shrugging at the top; finish by squeezing the shoulder blades, not lifting them.',
+  ],
+  chest_supported_dumbbell_row: [
+    'Lifting your chest off the pad to heave the weights; stay glued to it.',
+    'Rowing straight up to your armpits; drive the elbows back toward your hips.',
+    'Dropping the dumbbells into a dead hang bounce; control the stretch.',
+  ],
+  meadows_row: [
+    'Facing the wrong way down the bar; stand perpendicular with the sleeve at your feet.',
+    'Letting your torso twist open with each pull; square your hips and stay hinged.',
+  ],
+  kroc_row: [
+    'Turning controlled body english into flailing; momentum is allowed, losing the hinge is not.',
+    'Skipping the stretch at the bottom to bounce reps; let the lat lengthen.',
+  ],
+  dumbbell_bent_over_row_bilateral: [
+    'Standing up out of the hinge rep by rep; set your angle and hold it.',
+    'Rowing the weights to your armpits with flared elbows; pull to your hips at about 45 degrees.',
+  ],
+  smith_machine_bent_over_row: [
+    'Letting the fixed path drag you forward or back; set your feet where the bar meets your lower ribs.',
+    'Standing tall to shorten the pull; hold the hinge.',
+  ],
+  trap_bar_row: [
+    'Squatting the weight up instead of rowing; hinge, then pull the handles to your hips.',
+    'Letting the bar tip forward; grip the handles at their centers.',
+  ],
+  resistance_band_bent_over_row: [
+    'Standing on too little band; take up slack so the row starts with tension.',
+    'Losing the hinge as the band fights back; brace like a barbell row.',
+  ],
+  // Single-arm + bodyweight rows
+  single_arm_dumbbell_row: [
+    'Twisting your torso open to hoist the weight; keep your shoulders square to the bench.',
+    'Rowing with a shrug to your armpit; drive your elbow back toward your hip.',
+    'Rounding over the bench; keep a long flat spine.',
+  ],
+  single_arm_kettlebell_row: [
+    'Letting the bell swing under you; pause each rep so it hangs dead.',
+    'Twisting to lift higher; square shoulders, elbow to hip.',
+  ],
+  gorilla_row: [
+    'Standing too tall so the bells never leave the floor cleanly; hinge deep with a flat back.',
+    'Rotating hard off the planted bell; keep your hips level as you alternate.',
+  ],
+  renegade_row: [
+    'Hips swinging open with each row; widen your feet and freeze your plank.',
+    'Rushing rows on soft wobbling dumbbells; use flat-sided bells on a stable floor.',
+  ],
+  overhand_bodyweight_row: [
+    'Hips sagging into a banana; hold a plank as you pull your chest to the bar.',
+    'Half pulls; touch your chest to the bar or raise it to make that possible.',
+  ],
+  inverted_row_supinated: [
+    'Letting the hips drop as the biceps tire; body stays one line.',
+    'Yanking your chin to the bar; lead with your chest.',
+  ],
+  feet_elevated_row_lat: [
+    'Elevating your feet before flat rows are strict; earn the angle.',
+    'Piking at the hips to make the pull shorter.',
+  ],
+  ring_row: [
+    'Sagging hips; squeeze glutes and hold the plank line.',
+    'Letting the rings wobble apart at the top; pull them to your lower chest together.',
+  ],
+  trx_row: [
+    'Walking your feet forward past your strength; the steeper you lie, the harder it is.',
+    'Shrugging at the top; finish with shoulder blades pinched, shoulders down.',
+  ],
+  table_lat_row: [
+    'Using a table that slides or tips; test it with a hard pull first.',
+    'Half range because the table is low; bend your knees and get your chest to the edge.',
+  ],
+  // Cable + machine rows
+  seated_cable_row_close_neutral: [
+    'Rocking your torso back and forth to move the stack; sit tall and row with your back.',
+    'Rounding forward at the stretch and yanking; hinge slightly and pull smooth.',
+    'Shrugging as the handle lands; drive elbows back, shoulders down.',
+  ],
+  seated_cable_row_wide_pronated: [
+    'Pulling the wide bar to your belly like a close row; row higher, toward the lower chest, elbows wide.',
+    'Leaning way back to finish; small controlled lean only.',
+  ],
+  seated_row_overhand: [
+    'Elbows dropping to your sides, which turns it into a lat row; keep them at 45 degrees.',
+    'Rocking for momentum; the torso holds still.',
+  ],
+  lat_focused_seated_row_narrow: [
+    'Turning the underhand grip into a curl; elbows sweep back along your ribs.',
+    'Slumping at the stretch; keep your chest tall as your arms lengthen.',
+  ],
+  seated_row_machine_wide: [
+    'Chest pad set so you reach for the handles fully stretched; adjust so the plates just clear the stack.',
+    'Pulling unevenly; both elbows travel together.',
+  ],
+  iso_row_machine_neutral: [
+    'Shrugging into the neutral handles; set the shoulder blades down first.',
+    'Slamming the weight home between reps; control the release.',
+  ],
+  machine_row_chest_pad: [
+    'Pushing off the chest pad for extra pull; the pad keeps you honest, stay on it.',
+    'Grabbing the handles with the seat too low or high; your hands should travel level with your elbows.',
+  ],
+  cable_row_rope_attachment: [
+    'Letting the rope ends collapse together; pull them apart toward your ribs.',
+    'Standing the stack up between reps; keep the stretch under tension.',
+  ],
+  seated_cable_row_single_arm: [
+    'Rotating open with each pull; keep both shoulders facing the stack.',
+    'Letting the cable drag your shoulder forward at the stretch; keep it set.',
+  ],
+  banded_row_seated: [
+    'Band looped where it can slip off your feet mid row; anchor it around both arches and check it.',
+    'Rounding your back at the stretch; hinge tall like a cable row.',
+  ],
+  machine_high_row: [
+    'Pulling the handles to your shoulders with flared elbows; drive them down and back toward your ribs.',
+    'Rising off the seat as the stack gets heavy.',
+  ],
+  // Traps + pulls
+  barbell_shrug: [
+    'Rolling your shoulders in circles; shrug straight up toward your ears and straight down.',
+    'Bending your elbows to lift higher; arms stay long, traps do the lifting.',
+    'Nodding your head forward under load; keep your neck tall.',
+  ],
+  dumbbell_shrug: [
+    'Swinging the weights forward and back; shrug them straight up.',
+    'Cutting the top; pause a beat at full height.',
+  ],
+  cable_shrug: [
+    'Standing so far back the cable pulls you forward; stand over the pulley line.',
+    'Rushing the lowering; the constant tension rewards a slow negative.',
+  ],
+  trap_bar_shrug: [
+    'Letting the bar drift forward of your body; the neutral handles should ride your sides.',
+    'Bouncing reps off knee bend; legs stay quiet.',
+  ],
+  seated_machine_shrug: [
+    'Setting the seat so the handles start at your fingertips with locked arms; you want slack to shrug through.',
+    'Leaning back to heave the stack; sit tall.',
+  ],
+  bent_over_trap_raise: [
+    'Lifting with a shrug toward your ears; sweep the arms up and out in a Y.',
+    'Standing up out of the hinge to raise higher; the angle is the exercise.',
+  ],
+  high_pull: [
+    'Pulling with arms before the hips fire; jump first, then the elbows travel.',
+    'Catching the bar high with wrists curled; the pull peaks at chest height, no catch.',
+  ],
+  power_clean: [
+    'Curling the bar up with your arms; the hips launch it, arms guide it.',
+    'Catching upright on straight legs with a soft chest; rack it on shoulders with elbows whipped through.',
+    'Learning heavy; own the empty bar pattern first.',
+  ],
+  rack_pull: [
+    'Setting the pins so low it becomes a bad deadlift; start at or just below the knees.',
+    'Leaning back and yanking at lockout; stand up tall, squeeze, done.',
+  ],
+  snatch_grip_deadlift: [
+    'Grabbing the wide grip with a rounded upper back; wedge in tight, chest proud.',
+    'Treating it like your normal deadlift weight; the wide grip cuts your leverage, load lighter.',
+  ],
+  // Erectors + posture
+  hyperextension_back_extension: [
+    'Rocketing up past straight into a big arch; stop when your body forms one line.',
+    'Dropping down loose; lower under control to a full stretch.',
+    'Pad set at your thighs; the pad edge sits at your hip crease.',
+  ],
+  weighted_back_extension: [
+    'Hugging the plate at your chin where it strains your neck; hold it to your chest.',
+    'Adding weight while bodyweight reps still bounce; smooth first, heavy later.',
+  ],
+  machine_lumbar_extension: [
+    'Pushing through your legs; anchor them and extend with your lower back only.',
+    'Slamming into the full arch; press back smoothly to a strong finish.',
+  ],
+  superman_hold: [
+    'Cranking your neck up to look forward; keep your gaze down, neck long.',
+    'Kicking and flailing to stay up; lift arms and legs together and hold still.',
+  ],
+  prone_scapular_squeeze: [
+    'Lifting your chest off the floor to raise the arms higher; only the arms and shoulder blades move.',
+    'Rushing the letters; hold each Y, T, and W position for a beat.',
   ],
 };
 
