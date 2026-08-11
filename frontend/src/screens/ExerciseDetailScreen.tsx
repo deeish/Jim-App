@@ -214,6 +214,27 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           justifyContent: 'space-between',
           alignItems: 'flex-start',
         },
+        recommendedRow: {
+          flexDirection: 'row',
+          paddingHorizontal: spacing.xl,
+          paddingTop: spacing.md,
+        },
+        recommendedBadge: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 5,
+          backgroundColor: colors.primarySoft,
+          borderWidth: 1,
+          borderColor: colors.primary,
+          borderRadius: radius.pill,
+          paddingHorizontal: spacing.md,
+          paddingVertical: 4,
+        },
+        recommendedText: {
+          fontSize: text.footnote,
+          fontWeight: weight.semibold,
+          color: colors.primary,
+        },
         exerciseName: { fontSize: text.display, fontWeight: weight.bold, color: colors.text, flex: 1, marginRight: spacing.md },
         titleLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
         difficultyBadge: {
@@ -518,6 +539,17 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
             )}
           </View>
         </View>
+
+        {/* Recommended — the curated staples carry a full badge here; list rows
+            show the same signal as a bare star. */}
+        {!!exercise.recommended && (
+          <View style={styles.recommendedRow}>
+            <View style={styles.recommendedBadge}>
+              <Ionicons name="star" size={12} color={colors.primary} />
+              <Text style={styles.recommendedText}>Recommended</Text>
+            </View>
+          </View>
+        )}
 
         {/* Description */}
         {exercise.description && (

@@ -112,6 +112,8 @@ interface FilterState {
   subMuscles: string[]; // Specific muscles (Upper Chest, Lower Chest, etc.)
   equipment: string[];
   movementPatterns: string[];
+  /** Only the curated staples (rows carrying the Recommended star). */
+  recommendedOnly: boolean;
 }
 
 // ——— Filter chip UI, hoisted to module scope ———
@@ -417,6 +419,7 @@ export default function SearchScreen({ navigation }: Props) {
     subMuscles: [],
     equipment: [],
     movementPatterns: [],
+    recommendedOnly: false,
   });
 
   // Equipment + movement patterns live behind ONE collapsed row: equipment is a
@@ -675,6 +678,7 @@ export default function SearchScreen({ navigation }: Props) {
       // equipment they don't own.
       equipment: [...profileEquipment],
       movementPatterns: [],
+      recommendedOnly: false,
     });
   };
 
@@ -688,12 +692,18 @@ export default function SearchScreen({ navigation }: Props) {
     filters.muscleGroups.length === 0 &&
     filters.subMuscles.length === 0 &&
     filters.movementPatterns.length === 0 &&
+    !filters.recommendedOnly &&
     equipmentSetsEqual(filters.equipment, profileEquipment);
 
   // Chips for the active-filter row. The header badge is this list's length —
   // one source of truth, so the badge can never disagree with the rendered chips.
   const getActiveFilters = () => {
     const active: Array<{ label: string; category: string; value: string; isParent?: boolean }> = [];
+
+    // Recommended scope leads the row — it narrows everything below it.
+    if (filters.recommendedOnly) {
+      active.push({ label: 'Recommended', category: 'recommended', value: 'recommended' });
+    }
 
     // Selected parent groups (each searches the whole group unless narrowed by sub-muscles below).
     filters.muscleGroups.forEach(g => {
@@ -742,7 +752,8 @@ export default function SearchScreen({ navigation }: Props) {
       currentFilters.muscleGroups.length +
       currentFilters.subMuscles.length +
       (equipmentNarrowed ? 1 : 0) +
-      currentFilters.movementPatterns.length;
+      currentFilters.movementPatterns.length +
+      (currentFilters.recommendedOnly ? 1 : 0);
     const hasSearch = currentFilters.searchQuery.trim().length > 0;
 
     setIsLoading(true);
@@ -763,6 +774,7 @@ export default function SearchScreen({ navigation }: Props) {
               subMuscles: currentFilters.subMuscles.length > 0 ? currentFilters.subMuscles : undefined,
               equipment: equipmentNarrowed ? currentFilters.equipment : undefined,
               movementPatterns: currentFilters.movementPatterns.length > 0 ? currentFilters.movementPatterns : undefined,
+              recommendedOnly: currentFilters.recommendedOnly || undefined,
               limit: BROWSE_LIMIT,
             };
 
@@ -832,6 +844,8 @@ export default function SearchScreen({ navigation }: Props) {
         updated.equipment = [...EQUIPMENT_OPTIONS];
       } else if (category === 'movementPatterns') {
         updated.movementPatterns = prev.movementPatterns.filter(v => v !== value);
+      } else if (category === 'recommended') {
+        updated.recommendedOnly = false;
       }
       return updated;
     });
@@ -1210,6 +1224,12 @@ export default function SearchScreen({ navigation }: Props) {
           paddingVertical: spacing.xl,
           paddingHorizontal: spacing.lg,
         },
+        recommendedRow: {
+          flexDirection: 'row',
+          paddingHorizontal: spacing.lg,
+          paddingBottom: spacing.sm,
+        },
+        recommendedStar: { marginRight: 5 },
         chip: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -1471,6 +1491,31 @@ export default function SearchScreen({ navigation }: Props) {
             </TouchableOpacity>
           )}
         </View>
+      </View>
+
+      {/* Recommended scope — our vetted staples. Dimmed while a search term is
+          active, matching the chips-never-narrow-text-search convention. */}
+      <View style={[styles.recommendedRow, searchActive && styles.activeFiltersDimmed]}>
+        <TouchableOpacity
+          style={[styles.chip, filters.recommendedOnly && styles.chipSelected]}
+          onPress={() =>
+            setFilters(prev => ({ ...prev, recommendedOnly: !prev.recommendedOnly }))
+          }
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Recommended filter${filters.recommendedOnly ? ', selected' : ''}`}
+          accessibilityState={{ selected: filters.recommendedOnly }}
+        >
+          <Ionicons
+            name={filters.recommendedOnly ? 'star' : 'star-outline'}
+            size={13}
+            color={filters.recommendedOnly ? colors.onPrimary : colors.textSecondary}
+            style={styles.recommendedStar}
+          />
+          <Text style={[styles.chipText, filters.recommendedOnly && styles.chipTextSelected]}>
+            Recommended
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Active Filters — dimmed while a search term is active: text search

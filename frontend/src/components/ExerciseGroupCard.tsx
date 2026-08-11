@@ -86,6 +86,14 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
         titleCol: {
           flex: 1,
         },
+        nameRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 5,
+        },
+        nameFlex: {
+          flexShrink: 1,
+        },
         exerciseName: {
           fontSize: text.callout,
           fontWeight: weight.semibold,
@@ -191,9 +199,19 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
                 read a word. */}
             <MuscleBodyTile exercise={exercise} size={TILE_SIZE} style={styles.muscleDisc} />
             <View style={styles.titleCol}>
-              <Text style={styles.exerciseName} numberOfLines={1}>
-                {exercise.name}
-              </Text>
+              <View style={styles.nameRow}>
+                <Text style={[styles.exerciseName, styles.nameFlex]} numberOfLines={1}>
+                  {exercise.name}
+                </Text>
+                {!!exercise.recommended && (
+                  <Ionicons
+                    name="star"
+                    size={12}
+                    color={colors.primary}
+                    accessibilityLabel="Recommended"
+                  />
+                )}
+              </View>
               {!!subtitle && (
                 <Text style={styles.subtitle} numberOfLines={1}>
                   {subtitle}

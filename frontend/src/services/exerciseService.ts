@@ -37,6 +37,8 @@ export interface Exercise {
    * "Shoulders"). Present only on GET /exercises/:id when non-empty.
    */
   jointDemands?: string[];
+  /** True for the curated staples — drives the Recommended star and filter. */
+  recommended?: boolean;
   [key: string]: any; // Allow other fields
 }
 
@@ -46,6 +48,8 @@ export interface SearchExercisesParams {
   subMuscles?: string[];
   equipment?: string[];
   movementPatterns?: string[];
+  /** Only the curated staples (the rows carrying the Recommended badge). */
+  recommendedOnly?: boolean;
   /** Cap the exercises array (browse mode). `count` still reports total matches. */
   limit?: number;
 }
