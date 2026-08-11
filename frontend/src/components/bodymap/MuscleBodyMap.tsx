@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import {
+  BlurMask,
   Canvas,
   Group,
   LinearGradient,
@@ -13,7 +14,11 @@ import {
 } from '@shopify/react-native-skia';
 import { BodyMapHighlight } from '../../lib/exerciseToHighlights';
 import { BodyMapView } from './bodyMapPaths';
-import { buildBodyMapFigure, WINDOW_FADE_UNITS } from './bodyMapFigure';
+import {
+  BODY_VIEWBOX_HEIGHT,
+  buildBodyMapFigure,
+  WINDOW_FADE_UNITS,
+} from './bodyMapFigure';
 
 /**
  * Human silhouette with the target muscles glowing in their group hue —
@@ -70,7 +75,29 @@ function MuscleBodyMap({
     <Group
       transform={[{ translateX: -win.x * scale }, { translateY: -win.y * scale }, { scale }]}
     >
-      {outline && <Path path={outline} style="fill" color={figure.bodyColor} />}
+      {/* Vertical light-to-shade falloff over the full figure height, so the
+          silhouette reads as a form (and every crop shows consistent lighting). */}
+      {outline && (
+        <Path path={outline} style="fill">
+          <LinearGradient
+            start={vec(0, 0)}
+            end={vec(0, BODY_VIEWBOX_HEIGHT)}
+            colors={[figure.bodyColor, figure.bodyColorShade]}
+          />
+        </Path>
+      )}
+      {/* Soft halo under each primary highlight — the target muscle emits
+          light. Drawn before the fills so the glow sits behind the anatomy. */}
+      {figure.regions.map((region) => {
+        if (!region.glowColor) return null;
+        const path = getSkPath(`${figure.view}:${region.key}`, region.path);
+        if (!path) return null;
+        return (
+          <Path key={`glow-${region.key}`} path={path} style="fill" color={region.glowColor}>
+            <BlurMask blur={6} style="normal" />
+          </Path>
+        );
+      })}
       {figure.regions.map((region) => {
         const path = getSkPath(`${figure.view}:${region.key}`, region.path);
         if (!path) return null;

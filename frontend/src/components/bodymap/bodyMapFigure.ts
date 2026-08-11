@@ -18,6 +18,11 @@ export type BodyMapFigureRegion = {
   path: string;
   /** Final fill color (highlight hue at intensity, or the quiet tone). */
   color: string;
+  /**
+   * Soft halo behind PRIMARY highlights only (the hue at low alpha) — the
+   * target muscle emits light; assists and quiet regions never glow.
+   */
+  glowColor?: string;
 };
 
 export type BodyMapWindow = {
@@ -41,10 +46,20 @@ export type BodyMapFigure = {
   outlinePath: string;
   /** Silhouette fill — a step off `surface` so the figure reads on cards. */
   bodyColor: string;
+  /**
+   * Bottom stop of the silhouette's vertical shading gradient (top stop is
+   * `bodyColor`) — the subtle light-to-shade falloff that keeps the figure
+   * from reading sticker-flat. Spans the full viewbox height so every crop
+   * shows a consistent slice of the same lighting.
+   */
+  bodyColorShade: string;
   /** Hairline outline stroke color (stroke width 1.5 in viewbox units). */
   outlineColor: string;
   regions: BodyMapFigureRegion[];
 };
+
+/** Full-figure viewbox height — gradient/glow geometry in both renderers keys off this. */
+export const BODY_VIEWBOX_HEIGHT = 440;
 
 // Focus-frame guardrails, all in viewbox units. Min window height caps zoom at
 // ~1.75x so a single small region never becomes an unrecognizable close-up;
@@ -199,17 +214,22 @@ export function buildBodyMapFigure(opts: {
   const regions: BodyMapFigureRegion[] = Object.entries(BODY_MAP_REGIONS[view]).map(
     ([key, region]) => {
       const intensity = intensityByRegion.get(key);
+      // Primaries glow in their group hue; assisting muscles share ONE muted
+      // tone so the figure reads "colored = target, gray = assists" instead
+      // of a multi-hue legend (a chest press no longer purples the arms).
+      if (intensity && intensity >= 1) {
+        const hue = getMuscleGroupVisual(region.group).color;
+        return {
+          key,
+          path: region.path,
+          color: withIntensity(hue, intensity),
+          glowColor: withIntensity(hue, 0.35),
+        };
+      }
       return {
         key,
         path: region.path,
-        // Primaries glow in their group hue; assisting muscles share ONE muted
-        // tone so the figure reads "colored = target, gray = assists" instead
-        // of a multi-hue legend (a chest press no longer purples the arms).
-        color: intensity
-          ? intensity >= 1
-            ? withIntensity(getMuscleGroupVisual(region.group).color, intensity)
-            : withIntensity(palette.bodyMapAssist, intensity)
-          : quietColor,
+        color: intensity ? withIntensity(palette.bodyMapAssist, intensity) : quietColor,
       };
     },
   );
@@ -222,6 +242,7 @@ export function buildBodyMapFigure(opts: {
     window,
     outlinePath: BODY_OUTLINE_PATH,
     bodyColor: palette.bodyMapBody,
+    bodyColorShade: palette.bodyMapBodyShade,
     outlineColor: palette.bodyMapOutline,
     regions,
   };

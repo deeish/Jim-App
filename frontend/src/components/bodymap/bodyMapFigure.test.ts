@@ -33,6 +33,11 @@ describe('buildBodyMapFigure', () => {
     // Assisting muscles never take their own group hue — one gray tone for all.
     expect(byKey['Front Delts']).toBe(`${palette.bodyMapAssist}66`); // 0.4 -> 0x66
     expect(byKey['Quads']).toBe(palette.bodyMapQuiet);
+    // Only the primary emits a glow halo; assists and quiet regions never do.
+    const glowByKey = Object.fromEntries(figure.regions.map((r) => [r.key, r.glowColor]));
+    expect(glowByKey['Upper Chest']).toBe(`${muscleGroupColors.chest}59`); // 0.35 -> 0x59
+    expect(glowByKey['Front Delts']).toBeUndefined();
+    expect(glowByKey['Quads']).toBeUndefined();
   });
 
   it('emits every region of the requested view exactly once', () => {

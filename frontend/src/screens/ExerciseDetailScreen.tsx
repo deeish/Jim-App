@@ -25,6 +25,7 @@ import { exerciseToHighlights } from '../lib/exerciseToHighlights';
 import ExerciseLikeButton from '../components/ExerciseLikeButton';
 import { getExerciseHistory } from '../services/workoutService';
 import { RECOMMENDED_INFO } from '../constants/recommendedInfo';
+import { palette } from '../theme/colors';
 import { isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import {
   formatBestSetValue,
@@ -236,6 +237,26 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           fontSize: text.footnote,
           fontWeight: weight.semibold,
           color: colors.primary,
+        },
+        legendRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          marginBottom: spacing.md,
+        },
+        legendDot: {
+          width: 10,
+          height: 10,
+          borderRadius: radius.pill,
+        },
+        legendDotAssist: {
+          backgroundColor: palette.bodyMapAssist,
+          marginLeft: spacing.md,
+        },
+        legendLabel: {
+          fontSize: text.footnote,
+          color: colors.textSecondary,
         },
         exerciseName: { fontSize: text.display, fontWeight: weight.bold, color: colors.text, flex: 1, marginRight: spacing.md },
         titleLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -662,20 +683,33 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Target Muscles</Text>
           {bodyMap && (
-            <View style={styles.bodyMapRow}>
-              {/* Lead with the view holding the primary work so the lit figure is read first. */}
-              {(bodyMap.view === 'back' ? (['back', 'front'] as const) : (['front', 'back'] as const)).map(
-                (mapView) => (
-                  <MuscleBodyMap
-                    key={mapView}
-                    highlights={bodyMap.highlights}
-                    view={mapView}
-                    size={180}
-                    frame="focus"
-                  />
-                ),
-              )}
-            </View>
+            <>
+              <View style={styles.bodyMapRow}>
+                {/* Lead with the view holding the primary work so the lit figure is read first. */}
+                {(bodyMap.view === 'back' ? (['back', 'front'] as const) : (['front', 'back'] as const)).map(
+                  (mapView) => (
+                    <MuscleBodyMap
+                      key={mapView}
+                      highlights={bodyMap.highlights}
+                      view={mapView}
+                      size={180}
+                      frame="focus"
+                    />
+                  ),
+                )}
+              </View>
+              {/* Decoder for the figure's two tones — no interaction needed. */}
+              <View style={styles.legendRow}>
+                <View style={[styles.legendDot, { backgroundColor: muscleVisual.color }]} />
+                <Text style={styles.legendLabel}>Target</Text>
+                {(exercise.secondaryMuscleGroups?.length ?? 0) > 0 && (
+                  <>
+                    <View style={[styles.legendDot, styles.legendDotAssist]} />
+                    <Text style={styles.legendLabel}>Assists</Text>
+                  </>
+                )}
+              </View>
+            </>
           )}
           <View style={styles.tagsContainer}>
             <View
