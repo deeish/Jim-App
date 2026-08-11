@@ -21,7 +21,7 @@
  */
 
 /** Groups whose S/A/B rows are fully covered. Grown one slice at a time. */
-export const CUE_COMPLETED_GROUPS: string[] = ['chest', 'cardio'];
+export const CUE_COMPLETED_GROUPS: string[] = ['chest', 'cardio', 'shoulders'];
 
 export const FORM_CUES: Record<string, string[]> = {
   // ─── chest (41) ───────────────────────────────────────────────────────
@@ -334,6 +334,305 @@ export const FORM_CUES: Record<string, string[]> = {
     'Standing tall and stiff; sit into a quarter squat.',
     'Making waves from your shoulders only; drive from your hips.',
     'White-knuckling the rope ends; hold firm but relaxed.',
+  ],
+
+  // ─── shoulders (70) ───────────────────────────────────────────────────
+  // Overhead presses
+  barbell_overhead_press: [
+    'Leaning way back and turning it into an incline press; squeeze your glutes and keep your ribs down.',
+    'Pressing the bar around your face; tuck your chin and push your head through at the top.',
+    'Cutting the lockout short; finish with the bar over the back of your head.',
+  ],
+  seated_barbell_overhead_press: [
+    'Arching hard off the backrest to press more weight; keep your back against the pad.',
+    'Lowering only to eye level; bring the bar down near your collarbones.',
+  ],
+  dumbbell_shoulder_press: [
+    'Arching your lower back as the weights go up; brace your core like a plank.',
+    'Stopping short of lockout; press all the way up without shrugging.',
+    'Letting the dumbbells drift forward; keep them stacked over your elbows.',
+  ],
+  seated_dumbbell_shoulder_press: [
+    'Sliding down into the backrest so the press turns into an incline; sit tall against the pad.',
+    'Clanging the weights overhead; stop just short of touching.',
+    'Dropping your elbows far below 90 degrees and bouncing out of the bottom.',
+  ],
+  single_arm_dumbbell_shoulder_press: [
+    'Leaning away from the working arm; brace and stay tall.',
+    'Letting the weight drift out to the side; press straight up.',
+  ],
+  arnold_press: [
+    'Rushing the rotation; turn the palms smoothly as you press, not all at once.',
+    'Starting the twist with your elbows winged out; begin palms-in at shoulder height.',
+  ],
+  seated_arnold_press: [
+    'Rushing the rotation; turn smoothly through the whole press.',
+    'Arching off the backrest as the weight passes your head.',
+  ],
+  barbell_push_press: [
+    'Turning the dip into a squat; it is a shallow, quick knee bend.',
+    'Dipping forward onto your toes; keep the dip straight down through your heels.',
+    'Pressing before the legs finish; let the drive launch the bar past your forehead.',
+  ],
+  dumbbell_push_press: [
+    'A slow, deep dip; keep it short and snappy.',
+    'Letting the dumbbells crash back down; lower with control between reps.',
+  ],
+  single_arm_dumbbell_push_press: [
+    'Leaning sideways during the dip; keep your trunk vertical.',
+    'Losing the rhythm of dip, drive, press; sequence it every rep.',
+  ],
+  kettlebell_overhead_press: [
+    'Letting the bell fold your wrist back; keep your wrist straight and knuckles up.',
+    'Pressing with the elbow flared wide; keep it under the bell.',
+  ],
+  single_arm_kettlebell_overhead_press: [
+    'Leaning away from the bell; brace your side and stay tall.',
+    'Letting the bell drag your arm behind your head at lockout.',
+  ],
+  kettlebell_push_press: [
+    'Turning the dip into a slow squat; short and snappy wins.',
+    'Letting the bell crash onto your forearm between reps; control the drop to the rack.',
+  ],
+  seated_machine_shoulder_press: [
+    'Seat set so the handles start above your ears; they should start near shoulder height.',
+    'Shrugging into the press; keep your shoulders down as you drive up.',
+  ],
+  single_arm_machine_shoulder_press: [
+    'Twisting off the pad toward the working arm; stay square.',
+    'Letting the stack slam between reps; stop just short.',
+  ],
+  smith_machine_shoulder_press: [
+    'Sitting where the fixed path forces the bar into your face; line it up just in front of your nose.',
+    'Relying on the rails for balance and rushing the negative.',
+  ],
+  cable_shoulder_press: [
+    'Letting the cables pull your arms backward at the bottom; control the stretch.',
+    'Pressing while leaning back; stagger your stance and keep your ribs down.',
+  ],
+  single_arm_cable_shoulder_press: [
+    'Letting the cable twist your torso; brace against the pull.',
+    'Losing the path; keep the handle stacked over your elbow.',
+  ],
+  resistance_band_overhead_press: [
+    'Standing on the band unevenly so one side is heavier; center your feet.',
+    'Letting the band yank your arms down; resist the descent.',
+  ],
+  z_press: [
+    'Rounding your back to sit flat; if you cannot sit tall with legs out, elevate your hips slightly.',
+    'Leaning back to press; the floor seat takes away your cheat, honor it.',
+  ],
+  viking_press: [
+    'Pressing with your back arched; stack ribs over hips before the drive.',
+    'Half lockouts; finish each press with arms straight.',
+  ],
+  landmine_press: [
+    'Standing too upright; lean slightly into the bar so you press along its arc.',
+    'Letting your shoulder shrug into your ear at the top.',
+  ],
+  single_arm_landmine_press: [
+    'Rotating your torso open as you press; stay square to the bar.',
+    'Starting the bar too low on your chest; rack it at your shoulder.',
+  ],
+  pike_push_up: [
+    'Bending at the knees instead of holding the pike; keep your hips high.',
+    'Lowering your chest instead of the top of your head; aim your crown at the floor.',
+    'Flaring the elbows straight out; keep them tracking at about 45 degrees.',
+  ],
+  incline_pike_push_up: [
+    'Losing the pike and turning it into an incline push-up; keep your hips over your shoulders.',
+    'Dropping your head between your arms; keep your neck neutral.',
+  ],
+  handstand_push_up: [
+    'Kicking up before your wall handstand hold is solid.',
+    'Banana back against the wall; stack ribs over hips and squeeze your glutes.',
+    'Diving the head down off-line; lower to a tripod position with control.',
+  ],
+  // Lateral raises
+  dumbbell_lateral_raise: [
+    'Swinging the weights up with momentum; raise them under control.',
+    'Shrugging as you lift; lead with your elbows, not your traps.',
+    'Raising far above shoulder height; stop around parallel.',
+  ],
+  seated_dumbbell_lateral_raise: [
+    'Rocking your torso to start the rep; the seat is there to stop that.',
+    'Shrugging into your ears; keep your shoulders down.',
+  ],
+  single_arm_dumbbell_lateral_raise: [
+    'Leaning into the working side to hoist the weight; stay tall.',
+    'Rushing the lowering; the negative is half the exercise.',
+  ],
+  lean_away_dumbbell_lateral_raise: [
+    'Losing the lean mid set; keep your holding arm straight and your body angle fixed.',
+    'Swinging from the bottom; the lean loads the start, control it.',
+  ],
+  cable_lateral_raise: [
+    'Standing too close to the stack so there is no tension at your side; step away slightly.',
+    'Shrugging as the handle rises; lead with your elbow.',
+  ],
+  single_arm_cable_lateral_raise: [
+    'Leaning away from the stack more and more each rep; set your posture and hold it.',
+    'Letting the cable drop fast; control the return.',
+  ],
+  behind_the_back_cable_lateral_raise: [
+    'Letting the handle swing in front of your body; keep the path behind and to the side.',
+    'Cranking the top of the rep with a shrug.',
+  ],
+  lean_away_cable_lateral_raise: [
+    'Losing the fixed lean; anchor your grip and keep the angle constant.',
+    'Turning it into a swing; the extra range only counts under control.',
+  ],
+  machine_lateral_raise: [
+    'Seat height off so the pads push at your wrists or elbows unevenly; adjust until your arms line up with the pivot.',
+    'Slamming the stack down between reps.',
+  ],
+  single_arm_machine_lateral_raise: [
+    'Leaning into the machine to grind out reps; stay upright.',
+    'Rushing the negative; lower slowly against the pad.',
+  ],
+  resistance_band_lateral_raise: [
+    'Standing on too much band and turning the top into a fight; pick tension you can control to shoulder height.',
+    'Shrugging as the band gets heavy near the top.',
+  ],
+  // Front raises + scaption + Y
+  dumbbell_front_raise: [
+    'Swinging the weights up with your hips; raise strictly.',
+    'Lifting far above shoulder height with a shrug; stop around parallel.',
+  ],
+  single_arm_cable_front_raise: [
+    'Rocking backward to help the cable up; brace and stay still.',
+    'Letting the cable snap your arm down; control the return.',
+  ],
+  plate_front_raise: [
+    'Leaning back to counterweight the plate; keep your ribs stacked.',
+    'Gripping only with your fingertips; squeeze the plate flat between your palms.',
+  ],
+  dumbbell_scaption: [
+    'Raising straight out to the side; keep your arms about 30 degrees forward of that.',
+    'Turning thumbs down; keep thumbs up to give the shoulder room.',
+  ],
+  dumbbell_y_raise: [
+    'Shrugging as your arms rise; reach long into the Y instead.',
+    'Going heavy; this is a light, precise movement.',
+  ],
+  // Upright rows
+  barbell_upright_row: [
+    'Pulling the bar to your chin with a narrow grip; elbows above wrists to chest height is enough.',
+    'Letting your wrists lead the pull; drive with your elbows.',
+    'Jerking the bar off your hips with body english.',
+  ],
+  dumbbell_upright_row: [
+    'Pulling the weights up your body past chest height; stop when your elbows reach shoulder level.',
+    'Curling your wrists at the top; keep them loose and let the elbows lead.',
+  ],
+  ez_bar_upright_row: [
+    'Gripping too narrow even with the angled bar; keep your hands around shoulder width.',
+    'Yanking the bar up; pull smoothly with your elbows.',
+  ],
+  cable_upright_row: [
+    'Standing too far from the pulley so the cable drags you forward; stand over it.',
+    'Rolling your shoulders forward at the top; pull straight up.',
+  ],
+  rope_upright_row: [
+    'Keeping the rope ends pinned together; let them split apart as you pull.',
+    'Pulling to your chin; elbows to shoulder height is the finish.',
+  ],
+  // Rear delts
+  face_pull: [
+    'Pulling to your chest; aim the rope at the bridge of your nose.',
+    'Letting your elbows drop; finish with knuckles beside your ears.',
+    'Stacking on weight and leaning back; this move rewards light and strict.',
+  ],
+  resistance_band_face_pull: [
+    'Anchoring the band too low; set it at face height or above.',
+    'Pulling with your arms only; squeeze your shoulder blades as the band splits.',
+  ],
+  reverse_pec_deck: [
+    'Setting the handles so you press backward with bent arms; keep a fixed soft bend and sweep wide.',
+    'Throwing the pads back and letting them fly home; control both directions.',
+  ],
+  cable_reverse_fly: [
+    'Turning the fly into a row; keep your arms long as they sweep.',
+    'Standing upright out of the crossover line; set your stance so the cables cross at your chest.',
+  ],
+  single_arm_cable_reverse_fly: [
+    'Rotating your torso open with the pull; stay square and let the arm sweep alone.',
+    'Chasing weight; the rear delt gives out long before your rowing muscles.',
+  ],
+  bent_over_dumbbell_reverse_fly: [
+    'Standing up as the set gets hard; hold the hinge at near-parallel.',
+    'Swinging the weights with a bounce; sweep them wide under control.',
+    'Squeezing your shoulder blades hard together and turning it into a row.',
+  ],
+  seated_bent_over_dumbbell_reverse_fly: [
+    'Lifting your chest off your thighs to help the raise; stay folded.',
+    'Banging the weights together under your legs between reps.',
+  ],
+  incline_bench_rear_delt_fly: [
+    'Pushing off the bench with your chest to heave the weights; the pad is there to keep you honest.',
+    'Bending the elbows more as you tire; the arc stays fixed.',
+  ],
+  chest_supported_cable_rear_delt_fly: [
+    'Letting the cables pull you forward off the pad; set your chest and stay planted.',
+    'Rowing with bent arms instead of sweeping wide.',
+  ],
+  resistance_band_reverse_fly: [
+    'Gripping the band so wide there is no tension at the start; shorten your grip.',
+    'Letting the band snap your arms together; control the return.',
+  ],
+  rear_delt_row: [
+    'Pulling with elbows tucked, which turns it into a lat row; keep your elbows high and wide.',
+    'Standing up out of the hinge as you fatigue.',
+  ],
+  chest_supported_rear_delt_row: [
+    'Rowing to your hips; pull high toward your chest with wide elbows.',
+    'Bouncing your chest off the pad for momentum.',
+  ],
+  high_cable_rear_delt_row: [
+    'Letting the cable pull your shoulders forward between reps; stay braced.',
+    'Dropping the elbows into a lat pull; keep them up in line with your shoulders.',
+  ],
+  prone_t_raise: [
+    'Lifting your chest off the floor or bench to raise higher; only the arms move.',
+    'Shrugging as you lift; reach long through your fingertips first.',
+  ],
+  band_pull_apart: [
+    'Bending your elbows into a row; keep your arms long.',
+    'Letting the band snap back; return as slowly as you pulled.',
+    'Shrugging as it stretches; keep your shoulders down.',
+  ],
+  low_cable_pull_apart: [
+    'Turning it into a rear-delt fly with a hinge; stay tall and pull apart at chest height.',
+    'Overstretching at the start so the cables yank you; step back for constant tension.',
+  ],
+  // Rotator cuff essentials
+  band_standing_external_rotation: [
+    'Drifting your elbow away from your side; pin it to your ribs, a towel under the arm helps.',
+    'Rotating fast; slow and controlled is the whole point.',
+  ],
+  cable_standing_external_rotation: [
+    'Standing so the cable pulls at an angle; set the pulley at elbow height.',
+    'Twisting your torso instead of rotating the shoulder.',
+  ],
+  side_lying_dumbbell_external_rotation: [
+    'Using a weight heavy enough to swing; the cuff wants light and slow.',
+    'Letting the elbow slide off your side; keep it pinned.',
+  ],
+  band_standing_internal_rotation: [
+    'Elbow drifting away from your ribs as you rotate in; keep it pinned.',
+    'Rushing the return; resist the band both ways.',
+  ],
+  cable_standing_internal_rotation: [
+    'Leaning into the stack to help the rotation; stay tall and let the shoulder do it.',
+    'Pulley set too high or low; line it up with your elbow.',
+  ],
+  single_arm_serratus_wall_slide: [
+    'Shrugging as your arm slides up; reach up and forward instead.',
+    'Losing contact with the wall; keep gentle pressure the whole slide.',
+  ],
+  single_arm_full_can_raise: [
+    'Turning the thumb down, which is the impingement position; keep the thumb up as if holding a full can.',
+    'Raising past shoulder height with a shrug.',
   ],
 };
 
