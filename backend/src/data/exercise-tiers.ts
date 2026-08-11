@@ -27,6 +27,15 @@
  *   Cross-group S exemplars: flat_barbell_bench_press, push_up,
  *   treadmill_jog_steady, rowing_machine_steady (see group blocks).
  *
+ * S IS GLOBAL, NOT PER-CATEGORY (Dylan + audit session, 2026-08-11).
+ * Some sub-muscle categories deliberately have no S row (calves, forearms,
+ * grip, traps, obliques, inner/outer thighs cap at A; rotator cuff at B):
+ * the best calf exercise is still an accessory, not a program anchor.
+ * Within any filtered list the category's own leaders still sort first, so
+ * ordering is unaffected. CONSUMER RULE: tiers are relative weights within
+ * a filtered pool — NEVER hard-filter by absolute tier (an "S/A only"
+ * pool would starve capped categories).
+ *
  * RULES (enforced by exercise-tiers.spec.ts)
  *   - Groups are graded one slice at a time; a group listed in
  *     TIER_COMPLETED_GROUPS must have EVERY visible row graded.
