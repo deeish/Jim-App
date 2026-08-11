@@ -14,6 +14,7 @@ import {
 import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { ExercisesService } from './exercises.service';
 import { getExerciseProgressions } from '../data/exercise-progressions';
+import { getFormCues } from '../data/exercise-form-cues';
 import { SavedExercisesService } from './saved-exercises.service';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
@@ -119,10 +120,12 @@ export class ExercisesController {
     if (!exercise) {
       throw new NotFoundException(`Exercise '${id}' not found`);
     }
-    // Progression-ladder neighbors, resolved to names for the detail
-    // screen's Easier/Harder chips. Omitted entirely off-ladder.
+    // Detail-only enrichments, omitted when absent: progression-ladder
+    // neighbors (resolved to names for the Easier/Harder chips) and the
+    // "Watch Out For" form cues.
     const ladder = getExerciseProgressions(id);
-    if (!ladder) return exercise;
+    const formCues = getFormCues(id);
+    if (!ladder && !formCues) return exercise;
     const resolve = (ids: string[]) =>
       ids
         .map((pid) => this.exercisesService.findOne(pid))
@@ -130,10 +133,15 @@ export class ExercisesController {
         .map((e) => ({ id: e.id, name: e.name }));
     return {
       ...exercise,
-      progressions: {
-        easier: resolve(ladder.easier),
-        harder: resolve(ladder.harder),
-      },
+      ...(formCues ? { formCues } : {}),
+      ...(ladder
+        ? {
+            progressions: {
+              easier: resolve(ladder.easier),
+              harder: resolve(ladder.harder),
+            },
+          }
+        : {}),
     };
   }
 }
