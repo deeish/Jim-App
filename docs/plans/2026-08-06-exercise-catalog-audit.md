@@ -298,9 +298,26 @@ expect filler and near-duplicates, especially in the big groups.
       slotted into cardio-display-order. Both gates green, eval
       byte-identical (8th consecutive). Catalog 1,341; retired 90;
       visible 1,251.
-- [ ] **Task 12 — Consolidation** (merge per-group findings, cross-group
-      consistency + dedup pass, final decisions list for Dylan, then the
-      Section 7 apply plan: 3 eval-gated PRs)
+- [x] **Task 12 — Consolidation** — done + APPLIED 2026-08-11
+      (`fd2e155`). The queued cross-group backlog closed in one eval-gated
+      slice (the "3 separate PRs" plan in Section 7 was superseded by
+      apply-as-we-go long ago): dip_belt class closed (weighted
+      pull-up/chin-up +plate; **cable_belt_squat refuted** — the cable
+      stack is its load source), hammer + pinch_block danglers removed
+      from 13 live rows' alternatives (T9's "hammer only on retired rows"
+      was wrong), `machine_lumbar_extension` added (the T5 back-group
+      machine erector gap, mirroring the 45° split; untiered by choice),
+      **84 verbatim-duplicate shoulder descriptions de-templated** (11
+      clusters — the T7 handoff understated it 28×; zero duplicate
+      descriptions remain catalog-wide), id-twin hygiene settled
+      document-only with a 13-test drift guard in
+      exercise-mappings.spec.ts (12 twin groups incl. 3 newly found;
+      ez_bar vs ez_bar_attachment pinned as deliberate non-twin), pattern
+      sprawl (369 ids / 152 singletons) left as-is by decision, and a
+      final Task 0-style full-catalog sweep came back clean (only
+      documented conventions remain). Findings §12. Gates: 50/50 suites
+      (609 tests), eval report byte-identical — ninth consecutive.
+      Catalog 1,342; retired 90; visible 1,252.
 - [ ] **Task 13 — Exercise quality ranking** (added by Dylan 2026-08-07,
       runs AFTER everything else): give every exercise row an overall
       how-good-is-it ranking. Scope to define with Dylan when we get

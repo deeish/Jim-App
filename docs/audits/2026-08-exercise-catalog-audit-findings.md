@@ -1831,3 +1831,144 @@ via the cardio group gate, consistent with the modality convention.
 | Decisions closed | empty-subs by design; session templates by design; modality-row convention; sled/skater/mountain-climber splits; bicycle+pool Unmodeled documented |
 | Eval gate | report byte-identical; 50/50 suites (596 tests) |
 | Visible after slice | catalog-wide 1,251 (1,341 − 90); **all muscle groups audited** |
+
+## Task 12 — Consolidation (2026-08-11)
+
+> **APPLIED 2026-08-11** (commit `fd2e155`, same session as the findings).
+> The cross-group backlog queued by Tasks 5–10 is closed, plus the residue
+> a final full-catalog sweep surfaced. Catalog 1,342; retired 90 (list
+> unchanged); visible 1,252. Gates: 50/50 suites (609 tests — +13 from the
+> new twin drift guard), eval captures report **byte-identical** — ninth
+> consecutive perfect gate.
+
+### 12.1 dip_belt under-gating class — closed (2 fixed, 1 refuted)
+
+- `weighted_pull_up` + `chin_up_weighted_belt`: equipmentIds gain `plate`
+  (→ 'Barbell'), matching Task 8's weighted dips and Task 6's dip-belt
+  calf raise. Plate-less pull-up-bar users can no longer be served
+  "weighted" rows with nothing to hang from the belt. Their own
+  instructions already coached "attach a dip belt with a weight plate".
+- **`cable_belt_squat` REFUTED — no fix.** The Task 8 class list
+  over-included it: its load source is the cable stack, and
+  `cable_machine` already gates as 'Cable'. A plate-less cable user can
+  genuinely load the movement, so adding `plate` would have wrongly
+  required 'Barbell' for a cable exercise. The class definition ("rows
+  whose only gating item is a free implement") never actually matched it.
+
+### 12.2 Dangling unmapped ids + alt/eq overlaps (sweep residue)
+
+- **Task 9's "hammer only on retired rows" claim was wrong**: four live
+  wrist-PT rows (`seated_dumbbell_pronation`/`_supination`/
+  `_radial_deviation`/`_ulnar_deviation`) still carried the never-mapped
+  `hammer` id in their alternatives — removed (the `cable_machine` alt
+  stays). Retired sledgehammer rows keep theirs, frozen for history.
+- Five live plate-pinch keepers referenced the retired-class
+  `pinch_block` in alternatives (`plate_pinch_carry`, `plate_pinch_hold`,
+  `one_hand_plate_pinch_lift`, `two_hand_plate_pinch_lift`,
+  `plate_rim_hold`) — removed; their mapped grip-implement alts
+  (`hex_dumbbell`, `loading_pin`, `hub_lift_implement`) stay.
+- Four rows listed required equipment as its own alternative
+  (`assisted_parallel_bar_dip`, `feet_elevated_bench_dip`,
+  `landmine_upright_row`, `single_arm_foam_roller_serratus_wall_slide`)
+  — overlap entries removed, genuine substitutes kept.
+
+### 12.3 Coverage add (1) — Machine Lumbar Extension
+
+The Task 5 rejected-adds gap (back-group machine erector row).
+`machine_lumbar_extension`, back/`back_lower`, mirrors the established
+45° glute-vs-erector split at the machine station: shares the
+`back_extension_machine` equipment id with the legs-group glute-coached
+"Machine Back Extension" the same way `back_extension_bench` already
+serves both groups' 45° rows. Alt `back_extension_bench` (coach-true
+sub), pattern `back_extension` (existing vocab), Isolation / Seated /
+Beginner. Aliases "Lumbar Extension Machine", "Seated Lumbar Extension",
+"Lower Back Extension Machine" — no collisions ("lumbar" appeared
+nowhere in the catalog). **Untiered by choice**: the common tier's
+erector slot is already `hyperextension_back_extension`, and NICHE_NAME
+doesn't match. No anchor/fill-in pool membership (isolation row).
+
+### 12.4 Description de-templating — 84 rows, 11 clusters, all shoulders
+
+The Task 7 handoff ("several rows share verbatim boilerplate, e.g. three
+presses") understated it: **84 rows across 11 clusters** shared verbatim
+descriptions — overhead press ×24, lateral raise ×14, reverse fly ×12,
+front raise ×9, upright row ×8, rear-delt row ×5, push press ×3, Y raise
+×3, HSPU/pike ×2, scaption ×2, face pull ×2. Every browse card in a
+family showed the same sentence, hiding exactly what distinguishes the
+variants. All 84 hand-rewritten in house style (one sentence, no
+em-dashes), each stating the variant's actual difference (seated =
+strict/no leg drive, lean-away = loads the bottom of the arc, bottoms-up
+= grip and control demand, Smith = fixed path, band = peak resistance at
+lockout, …). Zero duplicate descriptions remain catalog-wide.
+
+### 12.5 Equipment id-twin hygiene — document-only, now drift-guarded
+
+Decision (Task 5 precedent, confirmed): **no migration, ever** — catalog
+ids are immutable, twins are label-normalized, and gating compares
+labels, not ids, so migration would produce zero behavior change. Instead
+the convention is now documented on EQUIPMENT_MAP and pinned by a
+drift-guard block in `exercise-mappings.spec.ts` (13 tests): each twin
+group must resolve to one label. A full-map morphological scan found
+three pairs beyond the queued list — `battle_rope`/`battle_ropes`,
+`rope`/`rope_attachment`, and `weight_plate`/`weight_plates` (making
+plate a **triple** with `plate`). The 12 guarded groups:
+dumbbell/dumbbells, cable/cable_machine, battle_rope/battle_ropes,
+landmine/landmine_attachment, slider/sliders, rope/rope_attachment,
+single_handle/single_handle_attachment, plate/weight_plate/weight_plates,
+weight_vest/weighted_vest, bench/flat_bench (setup ids, never gate),
+safety_bar/safety_squat_bar, rubber_band/resistance_band. One deliberate
+**non-twin** is pinned too: `ez_bar` ('Barbell', the free bar) vs
+`ez_bar_attachment` ('Cable', the cable attachment) — a naive normalizer
+would "fix" this and be wrong.
+
+### 12.6 Movement-pattern vocabulary sprawl — decision: leave as-is
+
+369 distinct pattern ids; 152 singletons; 243 used ≤3 times. The
+singletons are implement-encoded sprawl (`machine_wrist_flexion`,
+`band_wrist_curl`, `arm_blaster_curl`, …). Runtime consumers key on the
+specific ids they name — `movement-pattern-fillins` pools, generation
+pattern caps, the prescription pattern gates — so ids outside those
+lists are inert. A normalization pass would be churn with real eval
+blast radius (pattern caps count these ids) and zero user-visible gain.
+**Left as-is.** If pattern-level grouping is ever needed, Task 13's
+quality/ranking field is the better lever.
+
+### 12.7 Final full-catalog integrity sweep — clean
+
+Task 0-style sweep re-run across all 1,342 rows: referential integrity
+(equipment / sub-muscle / primary-group ids), enum conformance,
+instruction counts, duplicate ids and names, secondary-contains-primary,
+alt/eq overlap, em-dash names, description punctuation. After the fixes
+above, the only remaining hits are documented conventions: `bicycle`,
+`pool`, and `tire` deliberately unmapped (venue/implement class — the
+EQUIPMENT_MAP comment already covers all three), and the two cardio
+session-template rows with 6–7 instruction steps (browse-hidden, by
+design per Task 11). **Zero new findings.** The audit's content phase is
+closed.
+
+### 12.8 Where things stand
+
+All per-slice decisions were closed in findings §1–§11 under Dylan's
+widened autonomous brief; this section closes the cross-group backlog.
+The only remaining item is **Task 13 — exercise quality ranking**, which
+is explicitly scoped-with-Dylan-first (field name + scale, criteria,
+consumers: browse ordering / generation pool priority / replace-picker
+bias; likely interacts with the common-exercise-ids tiers;
+session-template rows exempt). Queued ranking material from the slices:
+the ~50-row ER/IR matrix, the ~60-row curl-position matrix, the
+alternating long tail, the 22-row carry matrix, breathing drills, and
+the front-rack/landmine/smith/cable permutation families.
+
+### Counts summary (Task 12)
+
+| Item | Count |
+| --- | --- |
+| Gate fixes | 2 (+`plate`); 1 class member refuted (cable_belt_squat) |
+| Dangler/overlap fixes | 13 rows (4 hammer, 5 pinch_block, 4 alt-in-eq) |
+| Adds | 1 (`machine_lumbar_extension`; catalog 1,341 → 1,342) |
+| Descriptions rewritten | 84 (11 clusters → 0 duplicate descriptions catalog-wide) |
+| New spec tests | 13 (id-twin drift guard; suite 596 → 609) |
+| Retires | 0 (list stays 90) |
+| Decisions closed | id-twins document-only; pattern sprawl left as-is; lumbar row untiered; tire_flip already-documented Unmodeled |
+| Eval gate | report byte-identical (9th consecutive); 50/50 suites |
+| Visible after slice | 1,252 (1,342 − 90) |
