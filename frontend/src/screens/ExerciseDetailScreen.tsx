@@ -230,6 +230,8 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           backgroundColor: colors.surface,
         },
         sectionTitle: { fontSize: text.headline, fontWeight: weight.semibold, color: colors.text, marginBottom: spacing.md },
+        progressionLabel: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
+        progressionGroup: { marginTop: spacing.md },
         description: { fontSize: text.callout, color: colors.textSecondary, lineHeight: leading.callout },
         tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
         bodyMapRow: {
@@ -692,6 +694,49 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
             </View>
           </View>
         )}
+
+        {/* Progressions — easier/harder ladder neighbors, tappable */}
+        {(exercise.progressions?.easier?.length || exercise.progressions?.harder?.length) ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Progressions</Text>
+            {exercise.progressions?.easier?.length ? (
+              <View>
+                <Text style={styles.progressionLabel}>Easier</Text>
+                <View style={styles.tagsContainer}>
+                  {exercise.progressions.easier.map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.tag, styles.secondaryTag]}
+                      onPress={() => navigation.push('ExerciseDetail', { exerciseId: p.id })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Easier variation: ${p.name}`}
+                    >
+                      <Text style={styles.tagText}>{p.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+            {exercise.progressions?.harder?.length ? (
+              <View style={exercise.progressions?.easier?.length ? styles.progressionGroup : undefined}>
+                <Text style={styles.progressionLabel}>Harder</Text>
+                <View style={styles.tagsContainer}>
+                  {exercise.progressions.harder.map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.tag, styles.secondaryTag]}
+                      onPress={() => navigation.push('ExerciseDetail', { exerciseId: p.id })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Harder variation: ${p.name}`}
+                    >
+                      <Text style={styles.tagText}>{p.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Instructions — collapsed by default; the video below covers most users */}
         {exercise.instructions && exercise.instructions.length > 0 && (

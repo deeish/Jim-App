@@ -19,6 +19,14 @@ export interface Exercise {
    * of one lift share it; angle/stance variants get their own.
    */
   groupKey?: string;
+  /**
+   * Progression-ladder neighbors, present only on GET /exercises/:id and
+   * only for exercises that sit on a ladder (push-up, pull-up, squat, …).
+   */
+  progressions?: {
+    easier: { id: string; name: string }[];
+    harder: { id: string; name: string }[];
+  };
   [key: string]: any; // Allow other fields
 }
 
