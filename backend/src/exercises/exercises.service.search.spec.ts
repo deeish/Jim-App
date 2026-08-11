@@ -87,12 +87,12 @@ describe('ExercisesService.search tier ordering (Task 13 Phase B)', () => {
     expect(tierOf(found[0].id)).toBe('S');
   });
 
-  it('legacyOrdering keeps the pre-tier common-first order for generator/replace pools', () => {
-    const legacy = service.search(
-      { muscleGroups: ['Back'] },
-      { legacyOrdering: true },
-    );
-    // Legacy ordering leads with the common staples list, not the tier map.
-    expect(isCommonExercise(legacy[0].id)).toBe(true);
+  it('generator candidate pools lead with S-tier rows (Phase C)', () => {
+    const pool = service.getCandidatesForGenerator({ focus: 'chest' });
+    expect(pool.length).toBeGreaterThan(0);
+    expect(tierOf(pool[0].id)).toBe('S');
+    // Common staples are the within-tier tiebreak, so the head of the pool
+    // is still recognizable gym canon.
+    expect(isCommonExercise(pool[0].id)).toBe(true);
   });
 });

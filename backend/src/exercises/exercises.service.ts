@@ -270,18 +270,7 @@ export class ExercisesService implements OnModuleInit {
     return !isExcludedFromExerciseCatalog(id) && !isRetiredExercise(id);
   }
 
-  search(
-    searchDto: SearchExercisesDto,
-    opts: {
-      /**
-       * Pre-tier sort order (common-first without the quality-tier key).
-       * Pinned by the generator/replace paths until Task 13 Phase C flips
-       * them deliberately — their candidate pools are cap-sliced, so a sort
-       * change also changes pool membership and moves the eval report.
-       */
-      legacyOrdering?: boolean;
-    } = {},
-  ): TransformedExercise[] {
+  search(searchDto: SearchExercisesDto): TransformedExercise[] {
     let results = this.exercises.filter((e) => this.isCatalogVisible(e.id));
 
     // Text search: tokenized, order-independent, equipment/movement-aware match,
@@ -353,15 +342,14 @@ export class ExercisesService implements OnModuleInit {
         if (cA !== cB) return cA - cB;
       }
 
-      // Quality tier is the primary browse key (Task 13 Phase B): S→D,
-      // relative within whatever filter produced this list — categories
-      // without an S row still surface their own leaders first. Common
+      // Quality tier is the primary key (Task 13): S→D, relative within
+      // whatever filter produced this list — categories without an S row
+      // still surface their own leaders first. Browse, the replace picker,
+      // and the generator candidate pools all inherit this order; common
       // rank below stays as the within-tier tiebreak.
-      if (!opts.legacyOrdering) {
-        const tierA = TIER_ORDER[EXERCISE_TIERS[a.id]] ?? 5;
-        const tierB = TIER_ORDER[EXERCISE_TIERS[b.id]] ?? 5;
-        if (tierA !== tierB) return tierA - tierB;
-      }
+      const tierA = TIER_ORDER[EXERCISE_TIERS[a.id]] ?? 5;
+      const tierB = TIER_ORDER[EXERCISE_TIERS[b.id]] ?? 5;
+      if (tierA !== tierB) return tierA - tierB;
 
       const rankA = getCommonExerciseRank(a.id);
       const rankB = getCommonExerciseRank(b.id);
@@ -560,7 +548,7 @@ export class ExercisesService implements OnModuleInit {
     const ex = new Set(
       excludeIds.map((id) => String(id ?? '').trim()).filter(Boolean),
     );
-    const all = this.search({}, { legacyOrdering: true });
+    const all = this.search({});
     const out: TransformedExercise[] = [];
     for (const e of all) {
       if (ex.has(e.id)) continue;
@@ -582,10 +570,9 @@ export class ExercisesService implements OnModuleInit {
       .split(/\+|&|,/)[0]
       .trim();
     const muscleGroups = this.focusToMuscleGroups(focusNorm);
-    let results = this.search(
-      { muscleGroups: muscleGroups.length ? muscleGroups : undefined },
-      { legacyOrdering: true },
-    );
+    let results = this.search({
+      muscleGroups: muscleGroups.length ? muscleGroups : undefined,
+    });
     // Generation filters on *required* equipment: a cable exercise with a band
     // alternative must not reach a home plan under its cable name (the merged
     // `equipment` list that library search uses would let it through). Empty
