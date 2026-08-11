@@ -32,6 +32,11 @@ export interface Exercise {
    * GET /exercises/:id for rows with authored cues.
    */
   formCues?: string[];
+  /**
+   * Joints this exercise places outsized demand on (display labels, e.g.
+   * "Shoulders"). Present only on GET /exercises/:id when non-empty.
+   */
+  jointDemands?: string[];
   [key: string]: any; // Allow other fields
 }
 

@@ -741,6 +741,20 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           </View>
         ) : null}
 
+        {/* Joint demand — joints this movement is heavy on */}
+        {exercise.jointDemands && exercise.jointDemands.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Joint Demand</Text>
+            <View style={styles.tagsContainer}>
+              {exercise.jointDemands.map((joint, index) => (
+                <View key={index} style={[styles.tag, styles.secondaryTag]}>
+                  <Text style={styles.tagText}>{joint}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Instructions — collapsed by default; the video below covers most users */}
         {exercise.instructions && exercise.instructions.length > 0 && (
           <View style={styles.section}>
