@@ -19,7 +19,6 @@ import type { RootStackParamList } from '../types/navigation';
 import { getExerciseById, Exercise, getSavedExerciseIds, saveExercise, unsaveExercise } from '../services/exerciseService';
 import { useTheme } from '../theme/ThemeContext';
 import { getMuscleGroupVisual } from '../constants/muscleGroupMeta';
-import MuscleBodyTile from '../components/MuscleBodyTile';
 import MuscleBodyMap from '../components/bodymap/MuscleBodyMap';
 import { exerciseToHighlights } from '../lib/exerciseToHighlights';
 import ExerciseLikeButton from '../components/ExerciseLikeButton';
@@ -213,14 +212,6 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           backgroundColor: colors.surface,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-        },
-        recommendedRow: {
-          flexDirection: 'row',
-          paddingHorizontal: spacing.xl,
-          paddingTop: spacing.md,
         },
         recommendedBadge: {
           flexDirection: 'row',
@@ -258,7 +249,8 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           color: colors.textSecondary,
         },
         exerciseName: { fontSize: text.display, fontWeight: weight.bold, color: colors.text, flex: 1, marginRight: spacing.md },
-        titleLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+        titleNameRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+        badgeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
         difficultyBadge: {
           backgroundColor: colors.primary + '20',
           paddingHorizontal: spacing.md,
@@ -587,15 +579,13 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         contentContainerStyle={{ paddingBottom: spacing.xxl + tabBarInset }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Exercise Name + Like + Difficulty */}
+        {/* Title block: full-width name (the mini tile is redundant with the
+            hero figures in the Muscles card), heart pinned top-right, and one
+            badges row where difficulty and Recommended sit as siblings —
+            long names wrap gracefully and no badge floats in its own band. */}
         <View style={styles.titleSection}>
-          <View style={styles.titleLeft}>
-            {/* Same mini body-map tile as the list rows, at hero size — the
-                mark the user tapped carries through to the screen they land on. */}
-            <MuscleBodyTile exercise={exercise} size={48} />
+          <View style={styles.titleNameRow}>
             <Text style={styles.exerciseName}>{exercise.name}</Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
             <ExerciseLikeButton
               exerciseId={exercise.id}
               saved={saved}
@@ -604,31 +594,30 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
               disabled={savingLike}
               size={26}
             />
-            {exercise.difficulty && (
-              <View style={styles.difficultyBadge}>
-                <Text style={styles.difficultyText}>{exercise.difficulty}</Text>
-              </View>
-            )}
           </View>
+          {(exercise.difficulty || exercise.recommended) && (
+            <View style={styles.badgeRow}>
+              {exercise.difficulty && (
+                <View style={styles.difficultyBadge}>
+                  <Text style={styles.difficultyText}>{exercise.difficulty}</Text>
+                </View>
+              )}
+              {!!exercise.recommended && (
+                <TouchableOpacity
+                  style={styles.recommendedBadge}
+                  onPress={() => Alert.alert(RECOMMENDED_INFO.title, RECOMMENDED_INFO.body)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Recommended. Tap to learn what this means."
+                >
+                  <Ionicons name="star" size={12} color={colors.primary} />
+                  <Text style={styles.recommendedText}>Recommended</Text>
+                  <Ionicons name="information-circle-outline" size={13} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
-
-        {/* Recommended — the curated staples carry a full badge here; list rows
-            show the same signal as a bare star. Tapping explains the mark. */}
-        {!!exercise.recommended && (
-          <View style={styles.recommendedRow}>
-            <TouchableOpacity
-              style={styles.recommendedBadge}
-              onPress={() => Alert.alert(RECOMMENDED_INFO.title, RECOMMENDED_INFO.body)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="Recommended. Tap to learn what this means."
-            >
-              <Ionicons name="star" size={12} color={colors.primary} />
-              <Text style={styles.recommendedText}>Recommended</Text>
-              <Ionicons name="information-circle-outline" size={13} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-        )}
 
         {/* Description */}
         {exercise.description && (
