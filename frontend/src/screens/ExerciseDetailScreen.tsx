@@ -25,7 +25,7 @@ import { exerciseToHighlights } from '../lib/exerciseToHighlights';
 import ExerciseLikeButton from '../components/ExerciseLikeButton';
 import { getExerciseHistory } from '../services/workoutService';
 import { RECOMMENDED_INFO } from '../constants/recommendedInfo';
-import { palette } from '../theme/colors';
+import { assistColorFor } from '../components/bodymap/bodyMapFigure';
 import { isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import {
   formatBestSetValue,
@@ -251,7 +251,6 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           borderRadius: radius.pill,
         },
         legendDotAssist: {
-          backgroundColor: palette.bodyMapAssist,
           marginLeft: spacing.md,
         },
         legendLabel: {
@@ -698,14 +697,20 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                   ),
                 )}
               </View>
-              {/* Decoder for the figure's two tones — no interaction needed. */}
+              {/* Decoder for the figure's two strengths — no interaction needed. */}
               <View style={styles.legendRow}>
                 <View style={[styles.legendDot, { backgroundColor: muscleVisual.color }]} />
                 <Text style={styles.legendLabel}>Target</Text>
                 {(exercise.secondaryMuscleGroups?.length ?? 0) > 0 && (
                   <>
-                    <View style={[styles.legendDot, styles.legendDotAssist]} />
-                    <Text style={styles.legendLabel}>Assists</Text>
+                    <View
+                      style={[
+                        styles.legendDot,
+                        styles.legendDotAssist,
+                        { backgroundColor: assistColorFor(muscleVisual.color) },
+                      ]}
+                    />
+                    <Text style={styles.legendLabel}>Also works</Text>
                   </>
                 )}
               </View>

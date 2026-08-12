@@ -188,6 +188,19 @@ function withIntensity(hex: string, intensity: number): string {
   return hex + alpha;
 }
 
+/**
+ * Assisting muscles use the TARGET's hue at this strength — monochromatic
+ * hierarchy (strong = target, pale = also works). One hue per figure means
+ * assists can never collide with another group's color and never vanish
+ * into the gray silhouette the way a neutral wash does.
+ */
+const ASSIST_STRENGTH = 0.25;
+
+/** The assist wash for a target hue — shared with the detail-page legend dot. */
+export function assistColorFor(targetHex: string): string {
+  return withIntensity(targetHex, ASSIST_STRENGTH);
+}
+
 export function buildBodyMapFigure(opts: {
   highlights: BodyMapHighlight[];
   view: BodyMapView | 'auto';
@@ -211,12 +224,24 @@ export function buildBodyMapFigure(opts: {
   const quietColor = palette.bodyMapQuiet;
   const intensityByRegion = new Map(highlights.map((h) => [h.region, h.intensity]));
 
+  // The figure's accent is the target's group hue: primaries wear it at full
+  // strength, assisting muscles wear the SAME hue pale (see ASSIST_STRENGTH).
+  // Resolved from the highlights across BOTH view tables — the back view of a
+  // chest exercise has no chest regions, but its assists must still tint
+  // chest-red, not gray. The gray token is only a defensive fallback for
+  // direct callers that pass no primary at all.
+  const primaryHighlight = highlights.find((h) => h.intensity >= 1);
+  const primaryGroup = primaryHighlight
+    ? (BODY_MAP_REGIONS.front[primaryHighlight.region] ??
+        BODY_MAP_REGIONS.back[primaryHighlight.region])?.group
+    : undefined;
+  const accentHue = primaryGroup
+    ? getMuscleGroupVisual(primaryGroup).color
+    : palette.bodyMapAssist;
+
   const regions: BodyMapFigureRegion[] = Object.entries(BODY_MAP_REGIONS[view]).map(
     ([key, region]) => {
       const intensity = intensityByRegion.get(key);
-      // Primaries glow in their group hue; assisting muscles share ONE muted
-      // tone so the figure reads "colored = target, gray = assists" instead
-      // of a multi-hue legend (a chest press no longer purples the arms).
       if (intensity && intensity >= 1) {
         const hue = getMuscleGroupVisual(region.group).color;
         return {
@@ -229,7 +254,7 @@ export function buildBodyMapFigure(opts: {
       return {
         key,
         path: region.path,
-        color: intensity ? withIntensity(palette.bodyMapAssist, intensity) : quietColor,
+        color: intensity ? assistColorFor(accentHue) : quietColor,
       };
     },
   );

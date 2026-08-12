@@ -30,14 +30,30 @@ describe('buildBodyMapFigure', () => {
     // Derived from the theme rather than hardcoded, so a palette change restyles
     // the body map without failing this test — only the alpha scaling is asserted.
     expect(byKey['Upper Chest']).toBe(`${muscleGroupColors.chest}ff`); // full intensity
-    // Assisting muscles never take their own group hue — one gray tone for all.
-    expect(byKey['Front Delts']).toBe(`${palette.bodyMapAssist}66`); // 0.4 -> 0x66
+    // Assists wear the TARGET's hue pale (monochromatic hierarchy), never
+    // their own group hue and never a gray that sinks into the silhouette.
+    expect(byKey['Front Delts']).toBe(`${muscleGroupColors.chest}40`); // 0.25 -> 0x40
     expect(byKey['Quads']).toBe(palette.bodyMapQuiet);
     // Only the primary emits a glow halo; assists and quiet regions never do.
     const glowByKey = Object.fromEntries(figure.regions.map((r) => [r.key, r.glowColor]));
     expect(glowByKey['Upper Chest']).toBe(`${muscleGroupColors.chest}59`); // 0.35 -> 0x59
     expect(glowByKey['Front Delts']).toBeUndefined();
     expect(glowByKey['Quads']).toBeUndefined();
+  });
+
+  it('back view of a front-target exercise still tints assists in the target hue', () => {
+    // The back view has no chest regions, but a bench press's assisting rear
+    // anatomy must tint chest-red, not fall back to gray.
+    const figure = buildBodyMapFigure({
+      highlights: [
+        { region: 'Mid Chest', intensity: 1 },
+        { region: 'Rear Delts', intensity: 0.4 },
+      ],
+      view: 'back',
+      size: 180,
+    });
+    const byKey = Object.fromEntries(figure.regions.map((r) => [r.key, r.color]));
+    expect(byKey['Rear Delts']).toBe(`${muscleGroupColors.chest}40`);
   });
 
   it('emits every region of the requested view exactly once', () => {
