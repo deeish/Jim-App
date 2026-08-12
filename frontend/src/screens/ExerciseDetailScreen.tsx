@@ -797,31 +797,20 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
               </View>
             </>
           )}
+          {/* The chips sample the figure's own two tones, exactly like the
+              legend dots: SOLID hue = the strong target regions, pale wash =
+              the also-works regions. Fill weight now agrees with the figure
+              instead of inverting it (outline chips read lighter than washes). */}
           <View style={styles.tagsContainer}>
-            <View
-              style={[
-                styles.tag,
-                styles.primaryTag,
-                { backgroundColor: muscleVisual.softColor, borderColor: muscleVisual.color },
-              ]}
-            >
-              <Text style={[styles.tagText, { color: muscleVisual.color, fontWeight: weight.semibold }]}>
-                {exercise.primaryMuscleGroup}
-              </Text>
-            </View>
-            {/* Sub-muscles ARE the strong-red target on the figure, so their
-                chips match the group chip exactly — the row mirrors the
-                figure's two tones: strong target chips, pale also-works. */}
-            {exercise.subMuscles.map((muscle, index) => (
+            {[exercise.primaryMuscleGroup, ...exercise.subMuscles].map((muscle, index) => (
               <View
-                key={index}
+                key={`target-${index}`}
                 style={[
                   styles.tag,
-                  styles.primaryTag,
-                  { backgroundColor: muscleVisual.softColor, borderColor: muscleVisual.color },
+                  { backgroundColor: muscleVisual.color, borderColor: muscleVisual.color },
                 ]}
               >
-                <Text style={[styles.tagText, { color: muscleVisual.color, fontWeight: weight.semibold }]}>
+                <Text style={[styles.tagText, { color: colors.onPrimary, fontWeight: weight.semibold }]}>
                   {muscle}
                 </Text>
               </View>
@@ -831,8 +820,10 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                 key={`assist-${index}`}
                 style={[
                   styles.tag,
-                  styles.secondaryTag,
-                  { backgroundColor: assistColorFor(muscleVisual.color) },
+                  {
+                    backgroundColor: assistColorFor(muscleVisual.color),
+                    borderColor: 'transparent',
+                  },
                 ]}
               >
                 <Text style={styles.tagText}>{muscle}</Text>
