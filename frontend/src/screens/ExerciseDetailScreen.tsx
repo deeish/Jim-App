@@ -272,6 +272,56 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           borderBottomColor: colors.border,
           backgroundColor: colors.surface,
         },
+        card: {
+          backgroundColor: colors.surface,
+          borderRadius: radius.lg,
+          borderWidth: 1,
+          borderColor: colors.border,
+          marginHorizontal: spacing.lg,
+          marginTop: spacing.md,
+          padding: spacing.lg,
+        },
+        cardDivider: {
+          height: 1,
+          backgroundColor: colors.border,
+          marginVertical: spacing.lg,
+        },
+        factsStrip: {
+          marginTop: spacing.md,
+          flexGrow: 0,
+        },
+        factsRow: {
+          flexDirection: 'row',
+          alignItems: 'stretch',
+          paddingHorizontal: spacing.xl,
+          paddingVertical: spacing.sm,
+        },
+        factTile: {
+          paddingHorizontal: spacing.lg,
+          justifyContent: 'center',
+          alignItems: 'flex-start',
+        },
+        factTileFirst: { paddingLeft: 0 },
+        factDivider: { width: 1, backgroundColor: colors.border },
+        factLabel: {
+          fontSize: text.caption,
+          color: colors.textMuted,
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
+          marginBottom: 3,
+        },
+        factValue: {
+          fontSize: text.body,
+          fontWeight: weight.semibold,
+          color: colors.text,
+        },
+        footerAliases: {
+          fontSize: text.footnote,
+          color: colors.textMuted,
+          textAlign: 'center',
+          paddingHorizontal: spacing.xl,
+          paddingTop: spacing.xl,
+        },
         sectionTitle: { fontSize: text.headline, fontWeight: weight.semibold, color: colors.text, marginBottom: spacing.md },
         progressionLabel: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
         progressionGroup: { marginTop: spacing.md },
@@ -587,6 +637,33 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           </View>
         )}
 
+        {/* Facts strip — App Store style: one compact row of labeled tiles
+            replaces the old Equipment / Movement Pattern / Joint Demand
+            sections (a full section header per one-word fact). */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.factsStrip}
+          contentContainerStyle={styles.factsRow}
+        >
+          {[
+            { label: 'Equipment', value: exercise.equipment.join(', ') },
+            { label: 'Pattern', value: exercise.movementPatterns.join(', ') },
+            { label: 'Type', value: exercise.type ?? '' },
+            { label: 'Joints', value: (exercise.jointDemands ?? []).join(', ') },
+          ]
+            .filter((f) => f.value.length > 0)
+            .map((fact, index) => (
+              <React.Fragment key={fact.label}>
+                {index > 0 && <View style={styles.factDivider} />}
+                <View style={[styles.factTile, index === 0 && styles.factTileFirst]}>
+                  <Text style={styles.factLabel}>{fact.label}</Text>
+                  <Text style={styles.factValue}>{fact.value}</Text>
+                </View>
+              </React.Fragment>
+            ))}
+        </ScrollView>
+
         {/*
           The user's own history with this lift.
 
@@ -599,7 +676,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           their estimate tile, per-row estimates, and trend never appear.
         */}
         {historySummary.sessions.length > 0 && (
-          <View style={styles.section}>
+          <View style={styles.card}>
             <Text style={styles.sectionTitle}>Your history</Text>
 
             {historySummary.hasWeightedWork && (
@@ -678,9 +755,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Primary Muscle Group */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Target Muscles</Text>
+        {/* Muscles — one card: the figure already encodes target vs assists,
+            so the old separate Secondary Muscles section is merged into a
+            single chip row (colored target, pale also-works). */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Muscles</Text>
           {bodyMap && (
             <>
               <View style={styles.bodyMapRow}>
@@ -733,54 +812,24 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                 <Text style={styles.tagText}>{muscle}</Text>
               </View>
             ))}
+            {exercise.secondaryMuscleGroups.map((muscle, index) => (
+              <View
+                key={`assist-${index}`}
+                style={[
+                  styles.tag,
+                  styles.secondaryTag,
+                  { backgroundColor: assistColorFor(muscleVisual.color) },
+                ]}
+              >
+                <Text style={styles.tagText}>{muscle}</Text>
+              </View>
+            ))}
           </View>
         </View>
 
-        {/* Secondary Muscles */}
-        {exercise.secondaryMuscleGroups.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Secondary Muscles</Text>
-            <View style={styles.tagsContainer}>
-              {exercise.secondaryMuscleGroups.map((muscle, index) => (
-                <View key={index} style={[styles.tag, styles.secondaryTag]}>
-                  <Text style={styles.tagText}>{muscle}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Equipment */}
-        {exercise.equipment.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Equipment</Text>
-            <View style={styles.tagsContainer}>
-              {exercise.equipment.map((eq, index) => (
-                <View key={index} style={[styles.tag, styles.equipmentTag]}>
-                  <Text style={styles.tagText}>{eq}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Movement Patterns */}
-        {exercise.movementPatterns.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Movement Pattern</Text>
-            <View style={styles.tagsContainer}>
-              {exercise.movementPatterns.map((pattern, index) => (
-                <View key={index} style={[styles.tag, styles.movementTag]}>
-                  <Text style={styles.tagText}>{pattern}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
         {/* Progressions — easier/harder ladder neighbors, tappable */}
         {(exercise.progressions?.easier?.length || exercise.progressions?.harder?.length) ? (
-          <View style={styles.section}>
+          <View style={styles.card}>
             <Text style={styles.sectionTitle}>Progressions</Text>
             {exercise.progressions?.easier?.length ? (
               <View>
@@ -821,23 +870,12 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           </View>
         ) : null}
 
-        {/* Joint demand — joints this movement is heavy on */}
-        {exercise.jointDemands && exercise.jointDemands.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Joint Demand</Text>
-            <View style={styles.tagsContainer}>
-              {exercise.jointDemands.map((joint, index) => (
-                <View key={index} style={[styles.tag, styles.secondaryTag]}>
-                  <Text style={styles.tagText}>{joint}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Instructions — collapsed by default; the video below covers most users */}
-        {exercise.instructions && exercise.instructions.length > 0 && (
-          <View style={styles.section}>
+        {/* Form card — the coaching core in one place: steps (collapsed),
+            common mistakes, and the demo link. Joint demand moved to the
+            facts strip up top. */}
+        <View style={styles.card}>
+          {exercise.instructions && exercise.instructions.length > 0 && (
+            <>
             <TouchableOpacity
               style={styles.collapseHeader}
               onPress={() => {
@@ -872,33 +910,33 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                 ))}
               </View>
             )}
-          </View>
-        )}
+            </>
+          )}
 
-        {/* Watch Out For — common mistakes with the fix */}
-        {exercise.formCues && exercise.formCues.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Watch Out For</Text>
-            {exercise.formCues.map((cue, index) => (
-              <View key={index} style={styles.cueRow}>
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={18}
-                  color={colors.textSecondary}
-                  style={styles.cueIcon}
-                />
-                <Text style={styles.cueText}>{cue}</Text>
-              </View>
-            ))}
-          </View>
-        )}
+          {(exercise.instructions?.length ?? 0) > 0 &&
+            (exercise.formCues?.length ?? 0) > 0 && <View style={styles.cardDivider} />}
 
-        {/* Watch demo: opens YouTube search so user can pick a video */}
-        <View style={styles.videoSection}>
-          <Text style={styles.videoSectionTitle}>Watch demo</Text>
-          <Text style={styles.videoSectionHint}>
-            Search YouTube for demo videos and pick one that works for you.
-          </Text>
+          {exercise.formCues && exercise.formCues.length > 0 && (
+            <View>
+              <Text style={styles.sectionTitle}>Watch Out For</Text>
+              {exercise.formCues.map((cue, index) => (
+                <View key={index} style={styles.cueRow}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={18}
+                    color={colors.textSecondary}
+                    style={styles.cueIcon}
+                  />
+                  <Text style={styles.cueText}>{cue}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {((exercise.instructions?.length ?? 0) > 0 ||
+            (exercise.formCues?.length ?? 0) > 0) && <View style={styles.cardDivider} />}
+
+          {/* Watch demo: opens YouTube search so user can pick a video */}
           <TouchableOpacity
             style={styles.youtubeButton}
             onPress={() => Linking.openURL(getYouTubeSearchUrl(exercise.name))}
@@ -907,12 +945,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         </View>
 
-        {/* Aliases */}
+        {/* Reference trivia lives in the footer, not a section. */}
         {exercise.aliases && exercise.aliases.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Also Known As</Text>
-            <Text style={styles.aliasesText}>{exercise.aliases.join(', ')}</Text>
-          </View>
+          <Text style={styles.footerAliases}>
+            {`Also known as: ${exercise.aliases.join(', ')}`}
+          </Text>
         )}
       </ScrollView>
     </SafeAreaView>
