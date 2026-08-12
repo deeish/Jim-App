@@ -37,7 +37,8 @@
     "id": "standing_ez_bar_curl",
     "name": "Standing EZ-Bar Curl",
     "aliases": [
-      "EZ Curl"
+      "EZ Curl",
+      "Wall Strict EZ-Bar Curl"
     ],
     "description": "A joint-friendly curl that uses an angled bar to train the biceps through a full range.",
     "primaryMuscleGroupId": "arms",
@@ -72,7 +73,9 @@
   {
     "id": "standing_dumbbell_curl",
     "name": "Standing Dumbbell Curl",
-    "aliases": [],
+    "aliases": [
+      "Wall Strict Dumbbell Curl"
+    ],
     "description": "A standard dumbbell curl that trains both arms evenly with a natural wrist position.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
@@ -410,7 +413,9 @@
   {
     "id": "standing_straight_bar_cable_curl",
     "name": "Standing Straight-Bar Cable Curl",
-    "aliases": [],
+    "aliases": [
+      "Wall Strict Cable Curl"
+    ],
     "description": "A low-cable curl with a straight bar that keeps tension on the biceps through the rep.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
@@ -892,7 +897,10 @@
   {
     "id": "wall_strict_barbell_curl",
     "name": "Wall Strict Barbell Curl",
-    "aliases": [],
+    "aliases": [
+      "Strict Curl",
+      "Wall Curl"
+    ],
     "description": "A strict barbell curl done against a wall to reduce body English and momentum.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
@@ -1281,7 +1289,8 @@
     "id": "bayesian_cable_curl",
     "name": "Bayesian Cable Curl",
     "aliases": [
-      "Bayesian Curl"
+      "Bayesian Curl",
+      "Single-Arm Face-Away Cable Curl"
     ],
     "description": "A behind-the-body cable curl that keeps the biceps loaded hard in the stretched position.",
     "primaryMuscleGroupId": "arms",
@@ -4073,7 +4082,6 @@
       "bench"
     ],
     "equipmentAlternativeIds": [
-      "hammer",
       "cable_machine"
     ],
     "movementPatternIds": [
@@ -4105,7 +4113,6 @@
       "bench"
     ],
     "equipmentAlternativeIds": [
-      "hammer",
       "cable_machine"
     ],
     "movementPatternIds": [
@@ -4333,7 +4340,6 @@
       "bench"
     ],
     "equipmentAlternativeIds": [
-      "hammer",
       "cable_machine"
     ],
     "movementPatternIds": [
@@ -4365,7 +4371,6 @@
       "bench"
     ],
     "equipmentAlternativeIds": [
-      "hammer",
       "cable_machine"
     ],
     "movementPatternIds": [
@@ -4883,7 +4888,8 @@
     "description": "A hammer curl that trains the brachioradialis and forearms with a neutral grip.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
-      "arms_forearms"
+      "arms_forearms",
+      "arms_biceps"
     ],
     "secondaryMuscleGroupIds": [],
     "equipmentIds": [
@@ -4915,7 +4921,8 @@
     "description": "An alternating hammer curl that lets each forearm work independently.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
-      "arms_forearms"
+      "arms_forearms",
+      "arms_biceps"
     ],
     "secondaryMuscleGroupIds": [],
     "equipmentIds": [
@@ -4949,7 +4956,8 @@
     "description": "A cross-body hammer curl that changes the arm path while keeping a strong neutral grip.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
-      "arms_forearms"
+      "arms_forearms",
+      "arms_biceps"
     ],
     "secondaryMuscleGroupIds": [],
     "equipmentIds": [
@@ -4981,7 +4989,8 @@
     "description": "A rope hammer curl that keeps continuous tension on the neutral-grip curl pattern.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
-      "arms_forearms"
+      "arms_forearms",
+      "arms_biceps"
     ],
     "secondaryMuscleGroupIds": [],
     "equipmentIds": [
@@ -5014,7 +5023,8 @@
     "description": "A curl that combines a supinated lift with a pronated lowering phase for extra forearm demand.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
-      "arms_forearms"
+      "arms_forearms",
+      "arms_biceps"
     ],
     "secondaryMuscleGroupIds": [],
     "equipmentIds": [
@@ -5184,14 +5194,13 @@
     "id": "suitcase_carry",
     "name": "Suitcase Carry",
     "aliases": [],
-    "description": "A one-arm carry that challenges grip while forcing the trunk to resist side bending.",
-    "primaryMuscleGroupId": "arms",
+    "description": "A one-arm carry that forces the trunk to resist side bending while you walk tall.",
+    "primaryMuscleGroupId": "core",
     "subMuscleIds": [
-      "arms_grip",
-      "arms_forearms"
+      "core_deep"
     ],
     "secondaryMuscleGroupIds": [
-      "core"
+      "arms"
     ],
     "equipmentIds": [
       "dumbbell"
@@ -5231,7 +5240,6 @@
       "weight_plate"
     ],
     "equipmentAlternativeIds": [
-      "pinch_block",
       "hex_dumbbell"
     ],
     "movementPatternIds": [
@@ -5429,15 +5437,14 @@
     "id": "waiter_carry",
     "name": "Waiter Carry",
     "aliases": [],
-    "description": "An overhead carry that challenges grip endurance while the arm stabilizes a vertical load.",
-    "primaryMuscleGroupId": "arms",
+    "description": "An overhead single-arm carry that challenges shoulder stability and trunk control under a vertical load.",
+    "primaryMuscleGroupId": "core",
     "subMuscleIds": [
-      "arms_grip",
-      "arms_forearms"
+      "core_deep"
     ],
     "secondaryMuscleGroupIds": [
       "shoulders",
-      "core"
+      "arms"
     ],
     "equipmentIds": [
       "dumbbell"
@@ -5455,10 +5462,10 @@
     "isUnilateral": true,
     "difficulty": "Intermediate",
     "instructions": [
-      "Pick the load up on one side and stand tall.",
-      "Brace the trunk and grip hard without leaning.",
-      "Walk under control with even steps.",
-      "Set the load down carefully when the carry is done."
+      "Press the load overhead and lock the arm.",
+      "Brace your trunk and keep your ribs stacked.",
+      "Walk under control without arching or leaning.",
+      "Lower the load carefully when the carry is done."
     ]
   },
   {
@@ -5706,7 +5713,9 @@
   {
     "id": "barbell_static_hold",
     "name": "Barbell Static Hold",
-    "aliases": [],
+    "aliases": [
+      "Axle Bar Deadlift Hold"
+    ],
     "description": "A barbell top hold that lets you challenge the hands with heavier straight-bar loading.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
@@ -5741,7 +5750,9 @@
   {
     "id": "trap_bar_static_hold",
     "name": "Trap Bar Static Hold",
-    "aliases": [],
+    "aliases": [
+      "Trap Bar Hold"
+    ],
     "description": "A trap-bar hold that allows heavy symmetrical loading for grip endurance.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
@@ -5858,7 +5869,6 @@
       "weight_plate"
     ],
     "equipmentAlternativeIds": [
-      "pinch_block",
       "hex_dumbbell"
     ],
     "movementPatternIds": [
@@ -5890,7 +5900,6 @@
       "weight_plate"
     ],
     "equipmentAlternativeIds": [
-      "pinch_block",
       "loading_pin"
     ],
     "movementPatternIds": [
@@ -5922,7 +5931,6 @@
       "weight_plate"
     ],
     "equipmentAlternativeIds": [
-      "pinch_block",
       "hex_dumbbell"
     ],
     "movementPatternIds": [
@@ -6195,8 +6203,7 @@
       "weight_plate"
     ],
     "equipmentAlternativeIds": [
-      "hub_lift_implement",
-      "pinch_block"
+      "hub_lift_implement"
     ],
     "movementPatternIds": [
       "rim_hold",
@@ -9058,7 +9065,8 @@
     ],
     "equipmentIds": [
       "parallel_bars",
-      "dip_belt"
+      "dip_belt",
+      "plate"
     ],
     "equipmentAlternativeIds": [
       "weight_vest",
@@ -9199,7 +9207,8 @@
     ],
     "equipmentIds": [
       "gymnastic_rings",
-      "dip_belt"
+      "dip_belt",
+      "plate"
     ],
     "equipmentAlternativeIds": [
       "weight_vest",
@@ -9798,8 +9807,7 @@
       "assistance_band"
     ],
     "equipmentAlternativeIds": [
-      "assisted_dip_machine",
-      "parallel_bars"
+      "assisted_dip_machine"
     ],
     "movementPatternIds": [
       "assisted_dip",
@@ -9904,7 +9912,6 @@
       "box"
     ],
     "equipmentAlternativeIds": [
-      "bench",
       "weight_plate"
     ],
     "movementPatternIds": [
@@ -10068,7 +10075,9 @@
   {
     "id": "suspension_trainer_triceps_extension",
     "name": "Suspension Trainer Triceps Extension",
-    "aliases": [],
+    "aliases": [
+      "Ring Triceps Extension"
+    ],
     "description": "A suspension triceps extension that adds instability to a bodyweight elbow-extension pattern.",
     "primaryMuscleGroupId": "arms",
     "subMuscleIds": [
@@ -10533,7 +10542,8 @@
     "name": "T-Bar Row",
     "aliases": [
       "Landmine Row",
-      "T-Bar Bent-Over Row"
+      "T-Bar Bent-Over Row",
+      "Bilateral Landmine Row"
     ],
     "description": "A barbell row using one end of a barbell in a landmine or floor corner to train the mid-back through a fixed arc.",
     "primaryMuscleGroupId": "back",
@@ -10715,7 +10725,10 @@
     "name": "Yates Row",
     "aliases": [
       "Reverse-Grip Bent-Over Row",
-      "Dorian Row"
+      "Dorian Row",
+      "Underhand Barbell Row",
+      "Supinated Barbell Row",
+      "Reverse-Grip Barbell Row"
     ],
     "description": "A bentover barbell row with a supinated grip and more upright torso, popularized by Dorian Yates for upper back thickness.",
     "primaryMuscleGroupId": "back",
@@ -10749,8 +10762,7 @@
     "id": "kroc_row",
     "name": "Kroc Row",
     "aliases": [
-      "High-Rep Dumbbell Row",
-      "Renegade Row Heavy"
+      "High-Rep Dumbbell Row"
     ],
     "description": "A high-rep, heavy single-arm dumbbell row performed with controlled momentum for maximum lat and mid-back hypertrophy.",
     "primaryMuscleGroupId": "back",
@@ -11304,8 +11316,7 @@
     "id": "hyperextension_back_extension",
     "name": "Back Extension",
     "aliases": [
-      "Hyperextension",
-      "45-Degree Back Extension"
+      "Hyperextension"
     ],
     "description": "A spinal erector and glute exercise performed on a back extension bench by hinging through the hips.",
     "primaryMuscleGroupId": "back",
@@ -11377,12 +11388,13 @@
       "Reverse Hyper"
     ],
     "description": "A lower back and glute exercise where the legs are raised while the upper body stays fixed on a bench.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_glutes",
+      "legs_hamstrings"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core"
     ],
     "equipmentIds": [
@@ -11392,7 +11404,7 @@
       "flat_bench"
     ],
     "movementPatternIds": [
-      "hinge"
+      "hip_extension"
     ],
     "type": "Compound",
     "position": "Prone",
@@ -11413,12 +11425,13 @@
       "Natural Leg Curl"
     ],
     "description": "A glute-ham developer exercise that eccentrically loads the hamstrings and isometrically loads the lower back.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_hamstrings",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core"
     ],
     "equipmentIds": [
@@ -11426,7 +11439,7 @@
     ],
     "equipmentAlternativeIds": [],
     "movementPatternIds": [
-      "hinge"
+      "leg_curl"
     ],
     "type": "Compound",
     "position": "Prone",
@@ -11445,14 +11458,14 @@
     "aliases": [
       "Upright Row"
     ],
-    "description": "A barbell pull from the hips to chin-height with elbows leading, targeting the upper traps and rear deltoids.",
-    "primaryMuscleGroupId": "back",
+    "description": "A barbell pull from the hips to chin-height with elbows leading, targeting the upper traps and side delts.",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "back_traps",
-      "back_upper"
+      "shoulders_side_delts",
+      "shoulders_front_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders",
+      "back",
       "arms"
     ],
     "equipmentIds": [
@@ -11463,12 +11476,12 @@
       "cable_machine"
     ],
     "movementPatternIds": [
-      "vertical_pull"
+      "upright_row"
     ],
     "type": "Compound",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Beginner",
+    "difficulty": "Intermediate",
     "instructions": [
       "Grip a barbell with a close pronated grip, hands 6–8 inches apart.",
       "Stand tall with the bar resting at your hips.",
@@ -11483,13 +11496,13 @@
       "DB Upright Row"
     ],
     "description": "A dumbbell version of the upright row allowing each arm to move independently for more natural shoulder mechanics.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "back_traps",
-      "back_upper"
+      "shoulders_side_delts",
+      "shoulders_front_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders",
+      "back",
       "arms"
     ],
     "equipmentIds": [
@@ -11497,12 +11510,12 @@
     ],
     "equipmentAlternativeIds": [],
     "movementPatternIds": [
-      "vertical_pull"
+      "upright_row"
     ],
     "type": "Compound",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Beginner",
+    "difficulty": "Intermediate",
     "instructions": [
       "Hold a dumbbell in each hand in front of your thighs with palms facing you.",
       "Stand tall with shoulders relaxed.",
@@ -11517,13 +11530,13 @@
       "Cable Face Pull"
     ],
     "description": "A cable pull to the face using a rope attachment that targets the rear deltoids, upper traps, and external rotators.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "back_traps",
-      "back_upper"
+      "shoulders_rear_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders"
+      "back",
+      "arms"
     ],
     "equipmentIds": [
       "cable_machine",
@@ -11862,7 +11875,8 @@
     "id": "barbell_deadrow",
     "name": "Barbell Dead-Row",
     "aliases": [
-      "Dead-Stop Row"
+      "Dead Row",
+      "Deadlift Row Combo"
     ],
     "description": "A combination deadlift and bent-over row where each rep starts from a dead stop on the floor.",
     "primaryMuscleGroupId": "back",
@@ -12038,14 +12052,15 @@
       "Hex Bar Deadlift"
     ],
     "description": "A deadlift performed with a trap bar allowing a more upright torso position and reduced lower back stress.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower",
-      "back_upper"
+      "legs_glutes",
+      "legs_quads"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
-      "core"
+      "back",
+      "core",
+      "arms"
     ],
     "equipmentIds": [
       "trap_bar"
@@ -12072,13 +12087,13 @@
       "Elevated Deadlift"
     ],
     "description": "A conventional deadlift performed while standing on plates to increase range of motion and lower back demand.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower",
-      "back_mid"
+      "legs_hamstrings",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core"
     ],
     "equipmentIds": [
@@ -12107,13 +12122,14 @@
       "Lateral Deadlift"
     ],
     "description": "A unilateral deadlift with the load held at one side to train anti-lateral-flexion strength of the lower back and core.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_glutes",
+      "legs_hamstrings"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "legs",
+      "back",
       "arms"
     ],
     "equipmentIds": [
@@ -12144,13 +12160,14 @@
       "Pull-Through",
       "Hip Hinge Pull-Through"
     ],
-    "description": "A cable hip-hinge movement where the rope is pulled between the legs to train the lower back and glutes.",
-    "primaryMuscleGroupId": "back",
+    "description": "A cable hip-hinge movement where the rope is pulled between the legs to train the glutes and hamstrings.",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_glutes",
+      "legs_hamstrings"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core"
     ],
     "equipmentIds": [
@@ -12171,7 +12188,7 @@
       "Set a cable to the lowest pulley and attach a rope.",
       "Stand facing away from the machine, straddle the cable, and grip the rope between your legs.",
       "Hinge forward at the hips, letting the cable pull the rope back through.",
-      "Drive hips forward to stand, squeezing glutes and lower back at the top."
+      "Drive hips forward to stand, squeezing your glutes at the top."
     ]
   },
   {
@@ -12388,20 +12405,23 @@
       "KB Swing",
       "Two-Hand Swing"
     ],
-    "description": "A dynamic hip-hinge movement using a kettlebell to train the posterior chain with an emphasis on the lower back and glutes.",
-    "primaryMuscleGroupId": "back",
+    "description": "A dynamic hip-hinge movement using a kettlebell to train the posterior chain with an emphasis on the glutes and hips.",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_glutes",
+      "legs_hamstrings"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core",
       "shoulders"
     ],
     "equipmentIds": [
       "kettlebell"
     ],
-    "equipmentAlternativeIds": [],
+    "equipmentAlternativeIds": [
+      "dumbbell"
+    ],
     "movementPatternIds": [
       "hinge",
       "explosive"
@@ -12424,13 +12444,14 @@
       "One-Arm KB Swing"
     ],
     "description": "A unilateral kettlebell swing challenging the lower back and core with anti-rotation demands.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_glutes",
+      "legs_hamstrings"
     ],
     "secondaryMuscleGroupIds": [
+      "back",
       "core",
-      "legs",
       "shoulders"
     ],
     "equipmentIds": [
@@ -13139,13 +13160,12 @@
       "Cable Rear Delt Pull-Apart"
     ],
     "description": "A cable pull-apart from a low pulley for targeted upper mid-back and rear delt activation.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "back_upper",
-      "back_traps"
+      "shoulders_rear_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders"
+      "back"
     ],
     "equipmentIds": [
       "cable_machine",
@@ -13200,9 +13220,10 @@
   },
   {
     "id": "bent_over_dumbbell_shrug",
-    "name": "Bent-Over Dumbbell Shrug",
+    "name": "Prone Incline Dumbbell Shrug",
     "aliases": [
-      "Prone Trap Shrug"
+      "Prone Trap Shrug",
+      "Bent-Over Dumbbell Shrug"
     ],
     "description": "A shrug performed in a bent-over or prone position to isolate the mid and lower trapezius fibers.",
     "primaryMuscleGroupId": "back",
@@ -13270,7 +13291,8 @@
     "name": "Superman Hold",
     "aliases": [
       "Prone Back Extension Hold",
-      "Aquaman"
+      "Aquaman",
+      "Superman"
     ],
     "description": "A bodyweight prone isometric hold lifting arms and legs off the floor simultaneously to activate the spinal erectors.",
     "primaryMuscleGroupId": "back",
@@ -13305,12 +13327,13 @@
       "Resistance Band Good Morning"
     ],
     "description": "A good morning using a resistance band anchored underfoot for hip-hinge lower back training without a barbell.",
-    "primaryMuscleGroupId": "back",
+    "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "back_lower"
+      "legs_hamstrings",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "legs",
+      "back",
       "core"
     ],
     "equipmentIds": [
@@ -13403,7 +13426,7 @@
       "Quadruped Row",
       "Bear Crawl Row"
     ],
-    "description": "A quadruped barbell row pulling from the bear crawl position to train the mid-back with core stability.",
+    "description": "An alternating single-arm dumbbell row from the bear-plank position that trains the mid-back under heavy core stability demand.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
       "back_mid"
@@ -13413,23 +13436,23 @@
       "arms"
     ],
     "equipmentIds": [
-      "barbell"
+      "dumbbell"
     ],
     "equipmentAlternativeIds": [
-      "dumbbell"
+      "kettlebell"
     ],
     "movementPatternIds": [
       "horizontal_pull"
     ],
     "type": "Compound",
     "position": "Kneeling",
-    "isUnilateral": false,
+    "isUnilateral": true,
     "difficulty": "Intermediate",
     "instructions": [
-      "Start in a bear crawl position over a barbell with knees hovering slightly off the floor.",
-      "Grip the bar with a pronated grip.",
-      "Row the bar toward your chest by pulling elbows up and back.",
-      "Lower and repeat while maintaining the bear crawl position."
+      "Start in a bear-plank position with knees hovering just off the floor and a dumbbell in one hand.",
+      "Brace the core and keep the hips level.",
+      "Row the dumbbell to your ribs without letting the torso rotate.",
+      "Lower it under control and alternate sides each rep."
     ]
   },
   {
@@ -14056,9 +14079,9 @@
     "id": "monkey_row",
     "name": "Monkey Row",
     "aliases": [
-      "Dumbbell Spider Row"
+      "Dumbbell Monkey Row"
     ],
-    "description": "A unique row where both elbows swing wide simultaneously on each rep to target the upper-back and posterior shoulder.",
+    "description": "A standing dumbbell pull dragging the elbows up along the sides, blending a shrug and upright row to hit the traps with less shoulder stress.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
       "back_upper",
@@ -14069,22 +14092,21 @@
       "arms"
     ],
     "equipmentIds": [
-      "dumbbell",
-      "incline_bench"
+      "dumbbell"
     ],
     "equipmentAlternativeIds": [],
     "movementPatternIds": [
-      "horizontal_pull"
+      "vertical_pull"
     ],
     "type": "Compound",
-    "position": "Prone",
+    "position": "Standing",
     "isUnilateral": false,
     "difficulty": "Intermediate",
     "instructions": [
-      "Lie prone on an incline bench with a dumbbell in each hand.",
-      "Row both dumbbells outward with elbows flaring at 90 degrees to the torso.",
-      "Retract the scapulas hard at the top.",
-      "Lower to the hanging position and repeat."
+      "Stand tall holding a dumbbell at each side.",
+      "Drag both elbows straight up along your sides, letting the wrists trail.",
+      "Stop when the elbows reach roughly armpit height and squeeze the traps.",
+      "Lower under control and repeat."
     ]
   },
   {
@@ -15243,7 +15265,8 @@
       "core"
     ],
     "equipmentIds": [
-      "dip_belt"
+      "dip_belt",
+      "plate"
     ],
     "equipmentAlternativeIds": [
       "belt_squat_machine",
@@ -15255,7 +15278,7 @@
     "type": "Isolation",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Advanced",
+    "difficulty": "Intermediate",
     "instructions": [
       "Attach the dip belt and stand on sturdy blocks.",
       "Balance on the balls of your feet.",
@@ -15505,12 +15528,14 @@
     "id": "barbell_sumo_deadlift",
     "name": "Barbell Sumo Deadlift",
     "aliases": [
-      "Sumo Deadlift"
+      "Sumo Deadlift",
+      "Wide-Stance Deadlift"
     ],
     "description": "A wide-stance barbell deadlift that heavily recruits the inner thighs along with the hips and trunk.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
@@ -15520,7 +15545,7 @@
       "barbell"
     ],
     "equipmentAlternativeIds": [
-      "trap_bar",
+      "dumbbell",
       "landmine"
     ],
     "movementPatternIds": [
@@ -15572,7 +15597,10 @@
   {
     "id": "copenhagen_knee_plank",
     "name": "Copenhagen Knee Plank",
-    "aliases": [],
+    "aliases": [
+      "Bench Copenhagen Plank",
+      "Short-Lever Copenhagen Plank"
+    ],
     "description": "A shortened Copenhagen plank variation that trains the adductors with reduced leverage.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -15708,7 +15736,8 @@
     "description": "A dumbbell sumo deadlift that trains the inner thighs through a wide-stance deadlift pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
@@ -15909,7 +15938,8 @@
     "description": "A kettlebell sumo deadlift that loads the inner thighs and hips from a wide pulling stance.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
@@ -16039,12 +16069,16 @@
     "id": "sumo_squat",
     "name": "Sumo Squat",
     "aliases": [
-      "Wide Squat"
+      "Wide Squat",
+      "Plie Squat",
+      "Plié Squat"
     ],
     "description": "A wide-stance squat that places extra demand on the inner thighs during the squat pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -16073,11 +16107,15 @@
   {
     "id": "dumbbell_sumo_squat",
     "name": "Dumbbell Sumo Squat",
-    "aliases": [],
+    "aliases": [
+      "Dumbbell Plie Squat"
+    ],
     "description": "A dumbbell-loaded sumo squat that strengthens the inner thighs with simple loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -16112,7 +16150,9 @@
     "description": "A kettlebell sumo squat that loads the inner thighs and legs from a wide stance.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -16144,7 +16184,9 @@
     "description": "A barbell sumo squat that adds heavier loading to the inner-thigh-focused squat pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -16177,7 +16219,9 @@
     "description": "A landmine sumo squat that offers a stable front-loaded option for wide-stance squatting.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -16210,7 +16254,8 @@
     "description": "A landmine sumo deadlift that provides a stable arc while training the inner thighs in a wide-stance pull.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_inner_thighs"
+      "legs_inner_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
@@ -17069,7 +17114,8 @@
     "description": "A cross-behind lunge that places extra demand on the outer thigh of the front leg.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_outer_thighs"
+      "legs_outer_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -17102,7 +17148,8 @@
     "description": "A loaded curtsy lunge that strengthens the outer thighs with additional resistance.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_outer_thighs"
+      "legs_outer_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -17135,7 +17182,8 @@
     "description": "A barbell curtsy lunge that adds heavier loading to the cross-behind lunge pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_outer_thighs"
+      "legs_outer_thighs",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core"
@@ -17851,7 +17899,9 @@
     "subMuscleIds": [
       "chest_mid"
     ],
-    "secondaryMuscleGroupIds": [],
+    "secondaryMuscleGroupIds": [
+      "shoulders"
+    ],
     "equipmentIds": [
       "cable_machine"
     ],
@@ -18076,8 +18126,7 @@
     "id": "chest_dip",
     "name": "Chest Dip",
     "aliases": [
-      "Dip",
-      "Parallel Bar Dip"
+      "Dip"
     ],
     "description": "A compound bodyweight dip with forward lean to heavily recruit the lower chest and triceps.",
     "primaryMuscleGroupId": "chest",
@@ -18149,7 +18198,10 @@
     "name": "Machine Chest Press",
     "aliases": [
       "Chest Press Machine",
-      "Seated Chest Press"
+      "Seated Chest Press",
+      "Hammer Strength Chest Press",
+      "Plate-Loaded Chest Press",
+      "Iso-Lateral Chest Press"
     ],
     "description": "A compound chest press performed on a guided machine for stable loading and beginner-friendly setup.",
     "primaryMuscleGroupId": "chest",
@@ -18182,7 +18234,8 @@
     "id": "incline_machine_chest_press",
     "name": "Incline Machine Chest Press",
     "aliases": [
-      "Incline Chest Press Machine"
+      "Incline Chest Press Machine",
+      "Hammer Strength Incline Press"
     ],
     "description": "A machine chest press on an incline angle targeting the upper chest with guided stability.",
     "primaryMuscleGroupId": "chest",
@@ -18419,15 +18472,18 @@
     "id": "dumbbell_pullover",
     "name": "Dumbbell Pullover",
     "aliases": [
-      "DB Pullover"
+      "DB Pullover",
+      "Across-Bench Pullover"
     ],
     "description": "A unique chest and lat stretch exercise where a dumbbell is lowered behind the head in a sweeping arc.",
-    "primaryMuscleGroupId": "chest",
+    "primaryMuscleGroupId": "back",
     "subMuscleIds": [
-      "chest_upper"
+      "back_lats"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders"
+      "chest",
+      "shoulders",
+      "core"
     ],
     "equipmentIds": [
       "dumbbell",
@@ -18455,12 +18511,14 @@
       "Straight Bar Pullover"
     ],
     "description": "A pullover variation using a barbell for increased loading across the chest and lats.",
-    "primaryMuscleGroupId": "chest",
+    "primaryMuscleGroupId": "back",
     "subMuscleIds": [
-      "chest_upper"
+      "back_lats"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders"
+      "chest",
+      "shoulders",
+      "core"
     ],
     "equipmentIds": [
       "barbell",
@@ -18545,13 +18603,14 @@
     "instructions": [
       "Set rings just above the floor and grip with palms facing in.",
       "Extend legs into a plank and keep the body rigid.",
-      "Lower the chest toward the rings while turning palms outward at the bottom.",
-      "Push back up and rotate palms inward at the top, squeezing the chest."
+      "Lower the chest toward the rings keeping the palms neutral.",
+      "Push back up and turn the rings out slightly at the top, squeezing the chest."
     ]
   },
   {
     "id": "svend_press",
     "name": "Svend Press",
+    "prescriptionType": "reps",
     "aliases": [
       "Plate Pinch Press",
       "Plate Press"
@@ -18587,12 +18646,13 @@
       "Landmine Chest Press"
     ],
     "description": "A compound press using a landmine-anchored barbell that provides a natural arc ideal for upper chest development.",
-    "primaryMuscleGroupId": "chest",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "chest_upper"
+      "shoulders_front_delts",
+      "shoulders_side_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders",
+      "chest",
       "arms",
       "core"
     ],
@@ -18623,12 +18683,13 @@
       "Unilateral Landmine Press"
     ],
     "description": "A unilateral landmine press that builds upper chest strength and anti-rotation core stability.",
-    "primaryMuscleGroupId": "chest",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "chest_upper"
+      "shoulders_front_delts",
+      "shoulders_side_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders",
+      "chest",
       "arms",
       "core"
     ],
@@ -18767,9 +18828,7 @@
     "equipmentIds": [
       "barbell"
     ],
-    "equipmentAlternativeIds": [
-      "dumbbells"
-    ],
+    "equipmentAlternativeIds": [],
     "movementPatternIds": [
       "horizontal_push"
     ],
@@ -20113,7 +20172,8 @@
     "id": "suspension_trainer_fallout",
     "name": "Suspension Trainer Fallout",
     "aliases": [
-      "TRX Fallout"
+      "TRX Fallout",
+      "Ring Fallout"
     ],
     "description": "A suspended fallout that trains anti-extension while the hands move away from the body.",
     "primaryMuscleGroupId": "core",
@@ -20425,7 +20485,8 @@
     "movementPatternIds": [
       "hover",
       "anti_extension",
-      "brace"
+      "brace",
+      "isometric_hold"
     ],
     "type": "Compound",
     "position": "Quadruped",
@@ -21559,14 +21620,15 @@
     "name": "Half-Kneeling Landmine Press",
     "aliases": [],
     "description": "A half-kneeling landmine press that trains trunk stiffness while the load moves on an arc.",
-    "primaryMuscleGroupId": "core",
+    "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
-      "core_deep"
+      "shoulders_front_delts",
+      "shoulders_side_delts"
     ],
     "secondaryMuscleGroupIds": [
-      "shoulders",
-      "legs",
-      "back"
+      "chest",
+      "arms",
+      "core"
     ],
     "equipmentIds": [
       "landmine"
@@ -21630,7 +21692,10 @@
   {
     "id": "farmer_carry",
     "name": "Farmer Carry",
-    "aliases": [],
+    "aliases": [
+      "Farmer's Carry",
+      "Farmer's Walk"
+    ],
     "description": "A bilateral carry that builds full-body bracing and deep-core stiffness under load.",
     "primaryMuscleGroupId": "core",
     "subMuscleIds": [
@@ -21810,7 +21875,10 @@
   {
     "id": "bottoms_up_carry",
     "name": "Bottoms-Up Carry",
-    "aliases": [],
+    "aliases": [
+      "Bottoms-Up Kettlebell Carry",
+      "Single-Arm Bottoms-Up Kettlebell Carry"
+    ],
     "description": "A bottoms-up kettlebell carry that adds grip and shoulder stability to the core challenge.",
     "primaryMuscleGroupId": "core",
     "subMuscleIds": [
@@ -24665,7 +24733,9 @@
   {
     "id": "ab_wheel_rollout",
     "name": "Ab Wheel Rollout",
-    "aliases": [],
+    "aliases": [
+      "Kneeling Ab Wheel Rollout"
+    ],
     "description": "An ab-wheel rollout that challenges the abs by resisting spinal extension through a long range.",
     "primaryMuscleGroupId": "core",
     "subMuscleIds": [
@@ -25771,7 +25841,7 @@
       "Military Press",
       "OHP"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "The classic standing barbell press that builds the delts along with total-body bracing strength.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -25808,7 +25878,7 @@
     "aliases": [
       "Seated Barbell Shoulder Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A back-supported barbell press that isolates the vertical push by taking leg drive out of the movement.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -25846,7 +25916,7 @@
     "aliases": [
       "Standing Dumbbell Overhead Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A standing dumbbell press that lets each shoulder work through its own natural pressing arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -25883,7 +25953,7 @@
     "aliases": [
       "Seated Dumbbell Overhead Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A seated dumbbell press that trades leg and trunk assistance for a stricter delt stimulus.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -25919,7 +25989,7 @@
     "id": "single_arm_dumbbell_shoulder_press",
     "name": "Single-Arm Dumbbell Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm standing press that builds the delts while the trunk fights the offset load.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -25954,7 +26024,7 @@
     "id": "single_arm_seated_dumbbell_shoulder_press",
     "name": "Single-Arm Seated Dumbbell Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm seated press that combines strict delt work with an anti-lean challenge for the core.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -25990,7 +26060,7 @@
     "id": "arnold_press",
     "name": "Arnold Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A rotating dumbbell press that sweeps from palms-in to overhead for a longer front-delt stretch.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26024,7 +26094,7 @@
     "id": "seated_arnold_press",
     "name": "Seated Arnold Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A seated version of the rotating press that keeps the delts under strict control through the twist.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26059,7 +26129,7 @@
     "id": "barbell_push_press",
     "name": "Barbell Push Press",
     "aliases": [],
-    "description": "An explosive pressing movement that uses leg drive to move the weight overhead.",
+    "description": "A barbell press that uses a quick leg dip and drive to send heavier weight overhead than a strict press allows.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26094,7 +26164,7 @@
     "id": "dumbbell_push_press",
     "name": "Dumbbell Push Press",
     "aliases": [],
-    "description": "An explosive pressing movement that uses leg drive to move the weight overhead.",
+    "description": "A dumbbell push press that pairs leg drive with independent arms for explosive overhead power.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26128,7 +26198,7 @@
     "id": "single_arm_dumbbell_push_press",
     "name": "Single-Arm Dumbbell Push Press",
     "aliases": [],
-    "description": "An explosive pressing movement that uses leg drive to move the weight overhead.",
+    "description": "A one-arm push press that drives a single dumbbell overhead while the trunk resists side lean.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26164,7 +26234,7 @@
     "aliases": [
       "Kettlebell Shoulder Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A kettlebell press whose offset handle load makes the shoulder stabilizers work overtime on the way up.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26199,7 +26269,7 @@
     "id": "single_arm_kettlebell_overhead_press",
     "name": "Single-Arm Kettlebell Overhead Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm kettlebell press that pairs the bell's offset load with a strong side-bracing demand.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26234,7 +26304,7 @@
     "id": "seated_kettlebell_press",
     "name": "Seated Kettlebell Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A seated kettlebell press that isolates the delts against the bell's shifting center of mass.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26271,7 +26341,7 @@
     "aliases": [
       "Bottoms Up Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "An upside-down kettlebell press that demands crushing grip and pinpoint shoulder control to keep the bell balanced.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26305,7 +26375,7 @@
     "id": "half_kneeling_single_arm_kettlebell_press",
     "name": "Half-Kneeling Single-Arm Kettlebell Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A half-kneeling one-arm kettlebell press that locks the hips square while the shoulder presses overhead.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26377,7 +26447,7 @@
     "aliases": [
       "Machine Shoulder Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A guided machine press that keeps the delts loaded on a fixed path with minimal balance demand.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26412,7 +26482,7 @@
     "id": "single_arm_machine_shoulder_press",
     "name": "Single-Arm Machine Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm machine press that isolates each delt on a guided path and evens out side-to-side strength.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26447,7 +26517,7 @@
     "id": "smith_machine_shoulder_press",
     "name": "Smith Machine Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A Smith machine press that fixes the bar path so the delts can be loaded heavy with less stabilizer demand.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26483,7 +26553,7 @@
     "id": "cable_shoulder_press",
     "name": "Cable Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A cable press that keeps constant tension on the delts from the bottom of the press to lockout.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26518,7 +26588,7 @@
     "id": "single_arm_cable_shoulder_press",
     "name": "Single-Arm Cable Shoulder Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm cable press that combines constant tension with an anti-rotation demand on the trunk.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26553,7 +26623,7 @@
     "id": "half_kneeling_single_arm_cable_press",
     "name": "Half-Kneeling Single-Arm Cable Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A half-kneeling cable press that drives one arm overhead while the kneeling base keeps the ribs stacked.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26590,7 +26660,7 @@
     "aliases": [
       "Band Overhead Press"
     ],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A band press that loads the delts progressively, getting hardest right at lockout.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26625,7 +26695,7 @@
     "id": "single_arm_resistance_band_overhead_press",
     "name": "Single-Arm Resistance Band Overhead Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A one-arm band press that ramps up resistance to lockout while the trunk resists side lean.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26660,7 +26730,7 @@
     "id": "z_press",
     "name": "Z Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A floor-seated barbell press with no back support that exposes any missing trunk stiffness or overhead mobility.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26695,7 +26765,7 @@
     "id": "dumbbell_z_press",
     "name": "Dumbbell Z Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A floor-seated dumbbell press that demands upright posture and honest overhead mobility from each shoulder.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26730,7 +26800,7 @@
     "id": "viking_press",
     "name": "Viking Press",
     "aliases": [],
-    "description": "A controlled overhead press that builds the delts through a strong vertical path.",
+    "description": "A neutral-grip lever press on machine handles that suits cranky shoulders while still allowing heavy overhead work.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26767,7 +26837,7 @@
     "aliases": [
       "HSPU"
     ],
-    "description": "A bodyweight pressing movement that heavily challenges the delts and upper-body control.",
+    "description": "An inverted wall press that turns a handstand into the hardest bodyweight shoulder press there is.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26802,7 +26872,7 @@
     "id": "pike_push_up",
     "name": "Pike Push-Up",
     "aliases": [],
-    "description": "A bodyweight pressing movement that heavily challenges the delts and upper-body control.",
+    "description": "A folded-hips push-up that shifts the load onto the shoulders as a scalable step toward handstand work.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -26824,7 +26894,7 @@
     "type": "Compound",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Beginner",
+    "difficulty": "Intermediate",
     "instructions": [
       "Start in a pike position with your hips high and hands under your shoulders.",
       "Brace your core and keep your torso stacked.",
@@ -27012,7 +27082,7 @@
     "aliases": [
       "Side Lateral Raise"
     ],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "The staple dumbbell raise that isolates the side delts to build shoulder width.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27045,7 +27115,7 @@
     "id": "seated_dumbbell_lateral_raise",
     "name": "Seated Dumbbell Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A seated dumbbell raise that removes body english so the side delts do all the lifting.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27079,7 +27149,7 @@
     "id": "single_arm_dumbbell_lateral_raise",
     "name": "Single-Arm Dumbbell Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A one-arm dumbbell raise that lets you focus fully on each side delt and fix imbalances.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27112,7 +27182,7 @@
     "id": "lean_away_dumbbell_lateral_raise",
     "name": "Lean-Away Dumbbell Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A dumbbell raise performed leaning away from a support to load the side delt hardest at the bottom.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27144,7 +27214,7 @@
     "id": "incline_dumbbell_lateral_raise",
     "name": "Incline Dumbbell Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A lateral raise lying against an incline bench that keeps tension on the side delt through the stretch.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27177,7 +27247,7 @@
     "id": "side_lying_dumbbell_lateral_raise",
     "name": "Side-Lying Dumbbell Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A raise performed lying on your side that loads the side delt hardest at the very start of the arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27210,7 +27280,7 @@
     "id": "cable_lateral_raise",
     "name": "Cable Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A cable raise that keeps smooth, constant tension on the side delt through the whole arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27243,7 +27313,7 @@
     "id": "single_arm_cable_lateral_raise",
     "name": "Single-Arm Cable Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A one-arm cable raise that isolates each side delt with tension that never drops off.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27276,7 +27346,7 @@
     "id": "behind_the_back_cable_lateral_raise",
     "name": "Behind-the-Back Cable Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A cable raise with the arm starting behind the body to bias the side delt from a deeper stretch.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27308,7 +27378,7 @@
     "id": "lean_away_cable_lateral_raise",
     "name": "Lean-Away Cable Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A cable raise performed leaning away from the stack to work the side delt through a longer arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27340,7 +27410,7 @@
     "id": "seated_cable_lateral_raise",
     "name": "Seated Cable Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A seated cable raise that pins posture in place so the side delt lifts without momentum.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27375,7 +27445,7 @@
     "aliases": [
       "Lateral Raise Machine"
     ],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A machine raise that guides the arc so the side delts can be trained hard without balancing a weight.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27410,7 +27480,7 @@
     "aliases": [
       "Band Lateral Raise"
     ],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A band raise that builds the side delts anywhere, with resistance rising toward the top.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27443,7 +27513,7 @@
     "id": "single_arm_resistance_band_lateral_raise",
     "name": "Single-Arm Resistance Band Lateral Raise",
     "aliases": [],
-    "description": "An isolation raise that directly targets the side delts.",
+    "description": "A one-arm band raise that tunes resistance per side and peaks right where the delt works hardest.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts"
@@ -27476,7 +27546,7 @@
     "id": "dumbbell_y_raise",
     "name": "Dumbbell Y Raise",
     "aliases": [],
-    "description": "A diagonal raise that trains the upper shoulders through a Y-shaped path.",
+    "description": "A dumbbell raise along a Y path that trains the upper shoulders and healthy shoulder-blade rotation.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -27510,7 +27580,7 @@
     "id": "cable_y_raise",
     "name": "Cable Y Raise",
     "aliases": [],
-    "description": "A diagonal raise that trains the upper shoulders through a Y-shaped path.",
+    "description": "A cable Y raise that keeps constant tension on the shoulders as the arms sweep up and out.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -27546,7 +27616,7 @@
     "aliases": [
       "Prone Y Raise"
     ],
-    "description": "A diagonal raise that trains the upper shoulders through a Y-shaped path.",
+    "description": "A chest-supported Y raise on an incline bench that strictly targets the rear and side delts along the Y line.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts",
@@ -27580,7 +27650,7 @@
     "id": "dumbbell_front_raise",
     "name": "Dumbbell Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "The classic dumbbell raise to the front that isolates the front delts one controlled rep at a time.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27679,7 +27749,7 @@
     "id": "barbell_front_raise",
     "name": "Barbell Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A barbell raise to the front that loads both front delts together through a strict arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27712,7 +27782,7 @@
     "id": "ez_bar_front_raise",
     "name": "EZ-Bar Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A front raise with the EZ bar's angled grip that eases wrist strain while the front delts work.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27745,7 +27815,7 @@
     "id": "single_arm_cable_front_raise",
     "name": "Single-Arm Cable Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A one-arm cable raise to the front that keeps tension on the front delt from the very bottom.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27778,7 +27848,7 @@
     "id": "dual_cable_front_raise",
     "name": "Dual Cable Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A two-handle cable raise that keeps both front delts under constant tension through the arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27811,7 +27881,7 @@
     "id": "rope_front_raise",
     "name": "Rope Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A rope-attachment front raise with a neutral grip that keeps the front-delt path shoulder-friendly.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27845,7 +27915,7 @@
     "id": "plate_front_raise",
     "name": "Plate Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A front raise holding a weight plate with both hands that adds a squeeze element to front-delt work.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27878,7 +27948,7 @@
     "id": "landmine_front_raise",
     "name": "Landmine Front Raise",
     "aliases": [],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A front raise on the landmine's rising arc that loads the front delts with a friendly bar path.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27914,7 +27984,7 @@
     "aliases": [
       "Band Front Raise"
     ],
-    "description": "An isolation raise that emphasizes the front delts.",
+    "description": "A band front raise that trains the front delts anywhere with resistance that grows toward the top.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts"
@@ -27949,7 +28019,7 @@
     "aliases": [
       "Scaption Raise"
     ],
-    "description": "A shoulder raise performed in the scapular plane for smooth front-and-side delt work.",
+    "description": "A dumbbell raise angled slightly forward of sideways that loads the delts in the shoulder's most natural plane.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -27983,7 +28053,7 @@
     "id": "cable_scaption_raise",
     "name": "Cable Scaption Raise",
     "aliases": [],
-    "description": "A shoulder raise performed in the scapular plane for smooth front-and-side delt work.",
+    "description": "A cable raise through the scapular plane that keeps steady tension on the delts in their friendliest path.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_front_delts",
@@ -28017,7 +28087,7 @@
     "id": "ez_bar_upright_row",
     "name": "EZ-Bar Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "An upright row with the EZ bar's angled grip that pulls to the chest with less wrist stress.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28053,7 +28123,7 @@
     "id": "cable_upright_row",
     "name": "Cable Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A cable upright row that keeps steady tension on the side delts and traps through the pull.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28089,7 +28159,7 @@
     "id": "rope_upright_row",
     "name": "Rope Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A rope upright row whose free hand path lets the elbows lead at a comfortable width.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28126,7 +28196,7 @@
     "id": "single_arm_cable_upright_row",
     "name": "Single-Arm Cable Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A one-arm cable upright row that lets each side pull along its own comfortable path.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28162,7 +28232,7 @@
     "id": "kettlebell_upright_row",
     "name": "Kettlebell Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A kettlebell upright row whose hanging bell keeps the pull close to the body.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28198,7 +28268,7 @@
     "id": "smith_machine_upright_row",
     "name": "Smith Machine Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A Smith machine upright row that fixes the bar path for consistent side-delt and trap loading.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28236,7 +28306,7 @@
     "aliases": [
       "Band Upright Row"
     ],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "A band upright row that loads the side delts and traps with resistance that rises toward the chin.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28260,7 +28330,7 @@
     "type": "Compound",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Beginner",
+    "difficulty": "Intermediate",
     "instructions": [
       "Stand on a resistance band and hold the handles in front of your thighs.",
       "Keep your torso steady and lead with your elbows.",
@@ -28272,7 +28342,7 @@
     "id": "landmine_upright_row",
     "name": "Landmine Upright Row",
     "aliases": [],
-    "description": "A vertical pulling pattern that loads the side delts and upper shoulders.",
+    "description": "An upright row on the landmine arc that guides the pull while the side delts and traps do the work.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_side_delts",
@@ -28288,8 +28358,7 @@
       "barbell"
     ],
     "equipmentAlternativeIds": [
-      "cable",
-      "barbell"
+      "cable"
     ],
     "movementPatternIds": [
       "upright_row"
@@ -28309,7 +28378,7 @@
     "id": "single_arm_cable_face_pull",
     "name": "Single-Arm Cable Face Pull",
     "aliases": [],
-    "description": "A pull-to-face movement that builds the rear delts and upper shoulders.",
+    "description": "A one-arm face pull that trains each rear delt and the rotator cuff through a fuller range.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28344,7 +28413,7 @@
     "aliases": [
       "Band Face Pull"
     ],
-    "description": "A pull-to-face movement that builds the rear delts and upper shoulders.",
+    "description": "A band face pull to the bridge of the nose that builds the rear delts and shoulder health anywhere.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28414,7 +28483,7 @@
     "aliases": [
       "Pec Deck Reverse Fly"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A machine fly performed facing the pad that isolates the rear delts on a fixed arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28448,7 +28517,7 @@
     "id": "single_arm_reverse_pec_deck",
     "name": "Single-Arm Reverse Pec Deck",
     "aliases": [],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A one-arm machine fly that lets each rear delt work through the arc without the stronger side helping.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28483,7 +28552,7 @@
     "aliases": [
       "Cable Rear Delt Fly"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A crossed-cable fly that keeps constant tension on the rear delts as the arms sweep open.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28517,7 +28586,7 @@
     "id": "single_arm_cable_reverse_fly",
     "name": "Single-Arm Cable Reverse Fly",
     "aliases": [],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A one-arm cable fly that isolates each rear delt with steady tension across the body.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28551,9 +28620,11 @@
     "id": "bent_over_dumbbell_reverse_fly",
     "name": "Bent-Over Dumbbell Reverse Fly",
     "aliases": [
-      "Bent-Over Rear Delt Fly"
+      "Bent-Over Rear Delt Fly",
+      "Dumbbell Reverse Fly",
+      "Bent-Over Lateral Raise"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A hip-hinged dumbbell fly that opens the arms wide to hit the rear delts and upper back.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28587,7 +28658,7 @@
     "id": "seated_bent_over_dumbbell_reverse_fly",
     "name": "Seated Bent-Over Dumbbell Reverse Fly",
     "aliases": [],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A seated bent-over fly that braces the torso on the thighs so the rear delts move the weight, not momentum.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28621,9 +28692,10 @@
     "id": "incline_bench_rear_delt_fly",
     "name": "Incline Bench Rear Delt Fly",
     "aliases": [
-      "Prone Rear Delt Fly"
+      "Prone Rear Delt Fly",
+      "Incline Bench Reverse Fly"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A chest-supported fly on an incline bench that removes all cheating from the rear-delt arc.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28657,7 +28729,7 @@
     "id": "chest_supported_cable_rear_delt_fly",
     "name": "Chest-Supported Cable Rear Delt Fly",
     "aliases": [],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A chest-supported cable fly that pairs strict positioning with tension that never leaves the rear delts.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28694,7 +28766,7 @@
     "aliases": [
       "Band Reverse Fly"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A band fly that opens the arms against rising resistance for rear-delt work anywhere.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28730,7 +28802,7 @@
     "aliases": [
       "Suspension Reverse Fly"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A bodyweight fly on suspension straps that trains the rear delts by sweeping the arms wide as you rise.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28800,7 +28872,7 @@
     "aliases": [
       "Wide-Elbow Rear Delt Row"
     ],
-    "description": "A high-elbow row that emphasizes the rear delts over the lats.",
+    "description": "A wide, high-elbow dumbbell row that pulls toward the chest to bias the rear delts over the lats.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28835,7 +28907,7 @@
     "id": "chest_supported_rear_delt_row",
     "name": "Chest-Supported Rear Delt Row",
     "aliases": [],
-    "description": "A high-elbow row that emphasizes the rear delts over the lats.",
+    "description": "A chest-supported high-elbow row that removes momentum so the rear delts drive the pull.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28871,7 +28943,7 @@
     "id": "single_arm_rear_delt_cable_row",
     "name": "Single-Arm Rear Delt Cable Row",
     "aliases": [],
-    "description": "A high-elbow row that emphasizes the rear delts over the lats.",
+    "description": "A one-arm cable row pulled high and wide to keep each rear delt under constant tension.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28906,7 +28978,7 @@
     "id": "rope_rear_delt_row",
     "name": "Rope Rear Delt Row",
     "aliases": [],
-    "description": "A high-elbow row that emphasizes the rear delts over the lats.",
+    "description": "A high rope row whose split handles let the elbows flare for a clean rear-delt line.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28942,7 +29014,7 @@
     "id": "high_cable_rear_delt_row",
     "name": "High Cable Rear Delt Row",
     "aliases": [],
-    "description": "A high-elbow row that emphasizes the rear delts over the lats.",
+    "description": "A row from a high pulley that pulls down and back to load the rear delts through their strongest line.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -28977,7 +29049,7 @@
     "id": "prone_t_raise",
     "name": "Prone T Raise",
     "aliases": [],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A face-down raise into a T shape that wakes up the rear delts and mid-back with light or no weight.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -29012,9 +29084,10 @@
     "id": "band_pull_apart",
     "name": "Band Pull-Apart",
     "aliases": [
-      "Resistance Band Pull-Apart"
+      "Resistance Band Pull-Apart",
+      "Band Scapular Retraction"
     ],
-    "description": "A rear-delt isolation movement that opens the arms against resistance.",
+    "description": "A simple band stretch across the chest that hits the rear delts and is a staple shoulder-health drill.",
     "primaryMuscleGroupId": "shoulders",
     "subMuscleIds": [
       "shoulders_rear_delts"
@@ -29429,7 +29502,9 @@
     "id": "conventional_deadlift",
     "name": "Conventional Deadlift",
     "aliases": [
-      "Barbell Deadlift"
+      "Barbell Deadlift",
+      "Deadlift",
+      "Standard Deadlift"
     ],
     "description": "A classic pull from the floor that builds the hamstrings, glutes, and entire posterior chain.",
     "primaryMuscleGroupId": "legs",
@@ -29599,7 +29674,9 @@
   {
     "id": "barbell_good_morning",
     "name": "Barbell Good Morning",
-    "aliases": [],
+    "aliases": [
+      "Good Morning"
+    ],
     "description": "A loaded hinge that trains the hamstrings and glutes through torso control.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -29737,7 +29814,8 @@
     "id": "resistance_band_good_morning",
     "name": "Resistance Band Good Morning",
     "aliases": [
-      "Band Good Morning"
+      "Band Good Morning",
+      "Banded Good Morning"
     ],
     "description": "A banded hinge that builds glute and hamstring strength with accommodating resistance.",
     "primaryMuscleGroupId": "legs",
@@ -29806,7 +29884,10 @@
     "id": "dumbbell_single_leg_romanian_deadlift",
     "name": "Dumbbell Single-Leg Romanian Deadlift",
     "aliases": [
-      "Single-Leg DB RDL"
+      "Single-Leg DB RDL",
+      "Single-Leg RDL",
+      "SLRDL",
+      "Single-Leg Romanian Deadlift"
     ],
     "description": "A unilateral hinge that challenges balance while loading one hamstring and glute at a time.",
     "primaryMuscleGroupId": "legs",
@@ -30321,7 +30402,10 @@
   {
     "id": "barbell_hip_thrust",
     "name": "Barbell Hip Thrust",
-    "aliases": [],
+    "aliases": [
+      "Hip Thrust",
+      "Hip Bridge"
+    ],
     "description": "A heavy hip extension exercise that strongly targets the glutes and hamstrings.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -31495,7 +31579,8 @@
     "id": "slider_leg_curl",
     "name": "Slider Leg Curl",
     "aliases": [
-      "Sliding Leg Curl"
+      "Sliding Leg Curl",
+      "Towel Leg Curl"
     ],
     "description": "A floor hamstring curl that uses sliders for smooth bilateral knee flexion.",
     "primaryMuscleGroupId": "legs",
@@ -31529,7 +31614,9 @@
   {
     "id": "single_leg_slider_leg_curl",
     "name": "Single-Leg Slider Leg Curl",
-    "aliases": [],
+    "aliases": [
+      "Single-Leg Towel Leg Curl"
+    ],
     "description": "A unilateral sliding curl that builds hamstring strength and pelvic control.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -31741,10 +31828,10 @@
       "core"
     ],
     "equipmentIds": [
-      "bodyweight",
-      "nordic_bench"
+      "bodyweight"
     ],
     "equipmentAlternativeIds": [
+      "nordic_bench",
       "partner_assist"
     ],
     "movementPatternIds": [
@@ -31755,7 +31842,7 @@
     "isUnilateral": false,
     "difficulty": "Advanced",
     "instructions": [
-      "Kneel with your ankles secured and your body tall.",
+      "Kneel with your ankles secured under a sturdy pad, low bar, or partner.",
       "Brace your glutes and lower yourself forward slowly.",
       "Catch yourself lightly with your hands if needed.",
       "Pull back up using your hamstrings as much as possible."
@@ -32040,8 +32127,11 @@
   },
   {
     "id": "back_extension_machine",
-    "name": "Back Extension Machine",
-    "aliases": [],
+    "name": "Machine Back Extension",
+    "aliases": [
+      "Back Extension Machine",
+      "Seated Back Extension"
+    ],
     "description": "A machine hip extension that strengthens the glutes and hamstrings with guided resistance.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -32307,7 +32397,8 @@
     ],
     "equipmentIds": [
       "pull_up_bar",
-      "dip_belt"
+      "dip_belt",
+      "plate"
     ],
     "equipmentAlternativeIds": [
       "weighted_vest"
@@ -32330,7 +32421,9 @@
     "id": "band_assisted_pull_up",
     "name": "Band-Assisted Pull-Up",
     "aliases": [
-      "Resistance Band Pull-Up"
+      "Resistance Band Pull-Up",
+      "Assisted Pull-Up",
+      "Banded Pull-Up"
     ],
     "description": "A pull-up using a resistance band looped around the bar to reduce bodyweight load for beginners or high-rep sets.",
     "primaryMuscleGroupId": "back",
@@ -32504,7 +32597,8 @@
     "name": "Single-Arm Cable Pulldown",
     "aliases": [
       "One-Arm Lat Pulldown",
-      "Unilateral Pulldown"
+      "Unilateral Pulldown",
+      "D-Handle Pulldown"
     ],
     "description": "A unilateral lat pulldown using a single cable handle to address side-to-side imbalances.",
     "primaryMuscleGroupId": "back",
@@ -32539,7 +32633,8 @@
     "name": "Straight-Arm Cable Pulldown",
     "aliases": [
       "Cable Pullover",
-      "Straight-Arm Pullover"
+      "Straight-Arm Pullover",
+      "Rope Straight-Arm Pulldown"
     ],
     "description": "A cable isolation movement keeping the arms straight to isolate the lats through a large arc of motion.",
     "primaryMuscleGroupId": "back",
@@ -33433,11 +33528,12 @@
   },
   {
     "id": "suspension_trainer_pullup_prone",
-    "name": "Suspension Trainer Pull-Up",
+    "name": "Feet-Elevated Suspension Trainer Row",
     "aliases": [
-      "TRX Pull-Up"
+      "TRX Feet-Elevated Row",
+      "Suspension Row Feet Elevated"
     ],
-    "description": "A pull-up performed on a suspension trainer with feet elevated, allowing adjustable bodyweight loading.",
+    "description": "A suspension trainer row with the feet elevated on a bench to increase the bodyweight load on the back.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
       "back_lats",
@@ -33453,7 +33549,7 @@
     ],
     "equipmentAlternativeIds": [],
     "movementPatternIds": [
-      "vertical_pull"
+      "horizontal_pull"
     ],
     "type": "Compound",
     "position": "Hanging",
@@ -33636,8 +33732,9 @@
   {
     "id": "active_hang_scapular_pull",
     "name": "Scapular Pull-Up",
+    "prescriptionType": "reps",
     "aliases": [
-      "Active Hang",
+      "Scap Pull-Up",
       "Scapular Depression Pull"
     ],
     "description": "A lat activation drill from a dead hang where only the shoulder blades depress without bending the elbows.",
@@ -33848,7 +33945,8 @@
     "id": "lat_prayer_cable",
     "name": "Cable Lat Prayer",
     "aliases": [
-      "Kneeling Cable Pullover Crunch"
+      "Kneeling Cable Pullover Crunch",
+      "Kneeling Cable Pullover"
     ],
     "description": "A kneeling cable exercise pulling a rope attachment downward in a prayer-like arc to engage the lats and serratus.",
     "primaryMuscleGroupId": "back",
@@ -33947,6 +34045,7 @@
   {
     "id": "pike_pullup",
     "name": "Pike Pull-Up",
+    "prescriptionType": "reps",
     "aliases": [
       "L-Sit Pull-Up"
     ],
@@ -34085,8 +34184,10 @@
   },
   {
     "id": "stir_the_pot_lat",
-    "name": "Cable Lat Arc Pull",
+    "name": "Cable Lat Pull-Around",
     "aliases": [
+      "Lat Pull-Around",
+      "Cable Lat Arc Pull",
       "Circular Cable Lat Pull"
     ],
     "description": "A standing cable exercise where the arm sweeps in a large downward arc to recruit the lat through both adduction and extension.",
@@ -34287,9 +34388,12 @@
   },
   {
     "id": "smith_machine_lat_pulldown",
-    "name": "Smith Machine Underhand Row-Pulldown",
-    "aliases": [],
-    "description": "A creative Smith machine exercise where the bar is pulled from overhead in a pulldown pattern from a seated floor position.",
+    "name": "Smith Machine Seated Pull-Up",
+    "aliases": [
+      "Seated Pull-Up",
+      "Smith Machine Pull-Up"
+    ],
+    "description": "A seated pull-up regression using a fixed Smith machine bar, pulling the chest up to the bar from the floor.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
       "back_lats"
@@ -34308,7 +34412,7 @@
     "type": "Compound",
     "position": "Seated",
     "isUnilateral": false,
-    "difficulty": "Intermediate",
+    "difficulty": "Beginner",
     "instructions": [
       "Set a Smith machine bar at overhead height and sit on the floor beneath it.",
       "Grip the bar with a supinated grip and lie back partially.",
@@ -34687,9 +34791,10 @@
   },
   {
     "id": "hip_width_feet_elevated_chin_up",
-    "name": "Feet-Elevated Suspension Chin-Up",
+    "name": "Feet-Assisted Chin-Up",
     "aliases": [
-      "Inclined Chin-Up"
+      "Inclined Chin-Up",
+      "Bench-Assisted Chin-Up"
     ],
     "description": "A modified chin-up with feet elevated on a surface to reduce load for beginners working toward full chin-ups.",
     "primaryMuscleGroupId": "back",
@@ -34888,6 +34993,7 @@
   {
     "id": "hanging_lat_shrug",
     "name": "Hanging Lat Shrug",
+    "prescriptionType": "reps",
     "aliases": [
       "Dead Hang Lat Depression"
     ],
@@ -34986,11 +35092,12 @@
   },
   {
     "id": "suspension_trainer_single_arm_pull",
-    "name": "Single-Arm Suspension Trainer Pull-Up",
+    "name": "Single-Arm Suspension Trainer Row",
     "aliases": [
-      "TRX Single-Arm Row"
+      "TRX Single-Arm Row",
+      "TRX Power Pull"
     ],
-    "description": "A unilateral suspension trainer pull-up challenging each lat independently with anti-rotation demands.",
+    "description": "A unilateral suspension trainer pull that challenges each side of the back with anti-rotation control.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
       "back_lats",
@@ -35005,7 +35112,7 @@
     ],
     "equipmentAlternativeIds": [],
     "movementPatternIds": [
-      "vertical_pull"
+      "horizontal_pull"
     ],
     "type": "Compound",
     "position": "Hanging",
@@ -35069,7 +35176,8 @@
     ],
     "equipmentIds": [
       "pull_up_bar",
-      "dip_belt"
+      "dip_belt",
+      "plate"
     ],
     "equipmentAlternativeIds": [
       "weighted_vest"
@@ -35195,15 +35303,16 @@
     "aliases": [
       "Lat-Focused Barbell Row"
     ],
-    "description": "A bent-over barbell row with elbows flared wide and bar pulled to the upper chest to target the lats.",
+    "description": "A bent-over barbell row with elbows flared wide and the bar pulled to the upper chest to target the upper back and rear delts.",
     "primaryMuscleGroupId": "back",
     "subMuscleIds": [
-      "back_lats",
-      "back_upper"
+      "back_upper",
+      "back_mid"
     ],
     "secondaryMuscleGroupIds": [
       "arms",
-      "core"
+      "core",
+      "shoulders"
     ],
     "equipmentIds": [
       "barbell"
@@ -35259,8 +35368,10 @@
   },
   {
     "id": "overhand_bodyweight_row",
-    "name": "Pronated Bodyweight Row",
+    "name": "Inverted Row",
     "aliases": [
+      "Australian Pull-Up",
+      "Bodyweight Row",
       "Overhand Inverted Row"
     ],
     "description": "A bodyweight row using a pronated grip to increase lat involvement compared to a supinated row.",
@@ -35296,7 +35407,7 @@
   },
   {
     "id": "single_arm_lat_stretch_cable",
-    "name": "Overhead Single-Arm Lat Stretch Cable",
+    "name": "Single-Arm Cable Lat Stretch",
     "aliases": [
       "Cable Lat Stretch"
     ],
@@ -35394,6 +35505,7 @@
   {
     "id": "wall_lat_stretch_active",
     "name": "Wall-Assisted Active Lat Stretch",
+    "prescriptionType": "time",
     "aliases": [
       "Corner Lat Stretch"
     ],
@@ -35425,7 +35537,8 @@
     "id": "crossover_lat_pulldown",
     "name": "Crossover Cable Lat Pull",
     "aliases": [
-      "Cross-Body Cable Pull"
+      "Cross-Body Cable Pull",
+      "Cross-Body Lat Pulldown"
     ],
     "description": "A cable pull where one arm reaches across the body overhead and pulls to the opposite hip, creating a diagonal lat activation.",
     "primaryMuscleGroupId": "back",
@@ -35552,9 +35665,10 @@
   },
   {
     "id": "bar_pulldown_seated_hammer",
-    "name": "Neutral-Grip Bar Pulldown",
+    "name": "Wide Neutral-Grip Pulldown",
     "aliases": [
-      "Hammer-Grip Bar Pulldown"
+      "Hammer-Grip Bar Pulldown",
+      "Neutral-Grip Bar Pulldown"
     ],
     "description": "A lat pulldown using a bar with neutral-grip handles, reducing wrist and elbow stress while targeting the lats.",
     "primaryMuscleGroupId": "back",
@@ -36055,17 +36169,18 @@
     "id": "back_squat",
     "name": "Back Squat",
     "aliases": [
-      "Barbell Back Squat"
+      "Barbell Back Squat",
+      "Barbell Squat"
     ],
     "description": "A classic barbell squat that heavily loads the quads through a full standing squat pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "barbell"
@@ -36095,12 +36210,12 @@
     "description": "A back squat performed to a box, teaching depth control and building explosive hip drive out of the hole.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "barbell",
@@ -36131,12 +36246,12 @@
     "description": "A back squat with a deliberate pause in the bottom position to build positional strength and control.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "barbell"
@@ -36222,7 +36337,7 @@
     "type": "Compound",
     "position": "Standing",
     "isUnilateral": false,
-    "difficulty": "Advanced",
+    "difficulty": "Intermediate",
     "instructions": [
       "Front squat to full depth with the bar in the rack position.",
       "Drive up hard and use the momentum to press the bar overhead.",
@@ -36275,12 +36390,12 @@
     "description": "A front-loaded squat that emphasizes knee flexion and quad demand.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "barbell"
@@ -36307,11 +36422,11 @@
     "description": "A simple front-loaded squat that keeps the torso upright and the quads working hard.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "dumbbell"
@@ -36340,12 +36455,12 @@
     "description": "A squat performed with the bar held in the elbows for a demanding front-loaded quad pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "barbell"
@@ -36372,12 +36487,12 @@
     "description": "A safety bar squat performed with hand support that allows stable deep quad-focused loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "safety_squat_bar",
@@ -36409,12 +36524,12 @@
     "description": "A squat variation using a safety bar that lets many lifters stay more upright and quad-focused.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "back",
-      "glutes"
+      "back"
     ],
     "equipmentIds": [
       "safety_squat_bar"
@@ -36441,11 +36556,11 @@
     "description": "A guided bar squat that provides extra stability while still training the quads hard.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "smith_machine"
@@ -36472,11 +36587,11 @@
     "description": "A front-loaded squat using a landmine that naturally encourages an upright torso.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "landmine"
@@ -36505,11 +36620,10 @@
     "description": "A supported machine squat that allows heavy quad loading with a fixed path.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "hack_squat_machine"
     ],
@@ -36537,10 +36651,10 @@
     "description": "A barbell squat from behind the legs that shifts tension strongly into the quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "back"
     ],
     "equipmentIds": [
@@ -36568,11 +36682,10 @@
     "description": "A machine squat with a swinging arm that creates a very strong quad-biased resistance curve.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "pendulum_squat_machine"
     ],
@@ -36594,15 +36707,16 @@
   {
     "id": "belt_squat",
     "name": "Belt Squat",
-    "aliases": [],
+    "aliases": [
+      "Hip Belt Squat"
+    ],
     "description": "A squat loaded at the hips that trains the quads hard with less spinal loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "belt_squat_machine"
     ],
@@ -36630,11 +36744,10 @@
     "description": "A belt squat done on a cable stack that provides smooth constant tension to the quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "cable_machine",
       "dip_belt"
@@ -36663,11 +36776,10 @@
     "description": "A plate-loaded squat machine that combines stability with heavy quad-focused loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "lever_squat_machine"
     ],
@@ -36695,10 +36807,10 @@
     "description": "A one-leg belt squat that challenges the quads with high stability and reduced spinal loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -36731,11 +36843,11 @@
     "description": "A front squat with two kettlebells that challenges the quads and trunk together.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "kettlebell"
@@ -36762,11 +36874,11 @@
     "description": "A front-loaded squat with dumbbells that keeps the movement upright and quad-dominant.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "dumbbell"
@@ -36793,11 +36905,11 @@
     "description": "A front squat using a sandbag that adds an unstable front-loaded challenge to the quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
       "core",
-      "glutes",
       "back"
     ],
     "equipmentIds": [
@@ -36889,10 +37001,10 @@
     "description": "A stationary staggered-stance squat that loads the front leg quads heavily.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -36920,10 +37032,10 @@
     "description": "A split squat loaded at the sides to build quad strength one leg at a time.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -36951,10 +37063,10 @@
     "description": "A barbell split squat that allows heavier unilateral quad loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -36983,10 +37095,10 @@
     "description": "A front-loaded split squat that helps keep posture upright and the quads engaged.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37016,10 +37128,10 @@
     "description": "A split squat with the load racked in front to increase trunk demand and quad bias.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37046,17 +37158,19 @@
   },
   {
     "id": "rear_foot_elevated_split_squat",
-    "name": "Rear-Foot-Elevated Split Squat",
+    "name": "Bulgarian Split Squat",
     "aliases": [
-      "Bulgarian Split Squat"
+      "Rear-Foot-Elevated Split Squat",
+      "RFESS",
+      "Bodyweight Bulgarian Split Squat"
     ],
     "description": "A rear-foot-supported split squat that strongly challenges the front leg quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37085,10 +37199,10 @@
     "description": "A loaded Bulgarian split squat that builds strong quads with a simple setup.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37117,10 +37231,10 @@
     "description": "A barbell Bulgarian split squat for heavier unilateral quad work.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37150,10 +37264,10 @@
     "description": "A guided Bulgarian split squat that adds stability and consistent loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37182,10 +37296,10 @@
     "description": "A split squat using a landmine to create a stable front-loaded quad pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37213,10 +37327,10 @@
     "description": "A split squat with the front foot raised to increase knee travel and quad range.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37245,10 +37359,10 @@
     "description": "A loaded front-foot-elevated split squat that emphasizes deep quad loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37277,10 +37391,10 @@
     "description": "A split squat against cable resistance that keeps constant tension on the quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37310,10 +37424,10 @@
     "description": "A supported split squat that helps beginners train quad-dominant single-leg strength.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37341,10 +37455,10 @@
     "description": "A split squat using a safety bar to allow heavy loading with stable upper-body position.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37358,7 +37472,7 @@
     "type": "Compound",
     "position": "Split Stance",
     "isUnilateral": true,
-    "difficulty": "Advanced",
+    "difficulty": "Intermediate",
     "instructions": [
       "Set the safety bar across your shoulders and take a split stance.",
       "Lower down until the front leg reaches a deep bend.",
@@ -37373,10 +37487,10 @@
     "description": "A basic stepping lunge that trains quad strength and control one side at a time.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37404,10 +37518,10 @@
     "description": "A forward lunge loaded at the sides for straightforward quad-focused unilateral work.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37435,10 +37549,10 @@
     "description": "A barbell forward lunge that allows heavier loading through the quad-dominant front leg.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37469,10 +37583,10 @@
     "description": "A lunge stepping backward that trains the front leg quads with controlled balance demands.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37500,10 +37614,10 @@
     "description": "A reverse lunge with dumbbells that is easy to load and simple to perform.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37531,10 +37645,10 @@
     "description": "A reverse lunge with a barbell that supports heavier unilateral quad loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37563,10 +37677,10 @@
     "description": "A reverse lunge with the weight racked in front to increase trunk stiffness and quad demand.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37598,10 +37712,10 @@
     "description": "A reverse lunge using a landmine for a stable front-loaded resistance path.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37629,10 +37743,10 @@
     "description": "A guided reverse lunge that adds balance support and steady loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37660,10 +37774,10 @@
     "description": "A continuous lunge pattern that trains the quads while moving forward with each step.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37691,10 +37805,10 @@
     "description": "A loaded walking lunge that combines quad strength with coordination and control.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37722,10 +37836,10 @@
     "description": "A barbell walking lunge that allows heavy quad-focused loading over repeated steps.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37754,10 +37868,10 @@
     "description": "A walking lunge with the load in front that keeps the torso upright and quads engaged.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37789,10 +37903,10 @@
     "description": "A reverse lunge from a small platform that increases knee range and front-leg quad demand.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37822,10 +37936,10 @@
     "description": "A reverse lunge with the rear foot on a slider for smooth constant tension on the front leg.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37855,10 +37969,10 @@
     "description": "A classic unilateral leg exercise that targets the quads by stepping onto a raised surface.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37888,10 +38002,10 @@
     "description": "A loaded step-up that makes the front leg quads work hard through the ascent.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37920,10 +38034,10 @@
     "description": "A barbell step-up for heavier unilateral quad training on a box or bench.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -37955,10 +38069,10 @@
     "description": "A front-loaded step-up that helps maintain upright posture while training the quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -37989,10 +38103,10 @@
     "description": "A step-up with the load racked in front to add trunk demand and quad emphasis.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -38025,10 +38139,10 @@
     "description": "A step-up using kettlebells that challenges single-leg control and quad strength.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38057,10 +38171,10 @@
     "description": "A step-up onto a taller box that increases knee flexion and quad demand.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38090,10 +38204,10 @@
     "description": "A step-up that finishes with the free knee driving up for extra balance and control demand.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38121,10 +38235,10 @@
     "description": "A guided step-up that adds stability while allowing steady loading.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38153,10 +38267,10 @@
     "description": "A step-up against cable resistance that keeps tension on the quads throughout the movement.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38185,10 +38299,10 @@
     "description": "A front-loaded step-up using a landmine for a stable and easy-to-control resistance path.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38217,10 +38331,10 @@
     "description": "A controlled lowering drill from a box that strengthens the quads through eccentric knee control.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38248,10 +38362,10 @@
     "description": "A loaded step-down that challenges the quads through a longer controlled lowering phase.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38280,10 +38394,10 @@
     "description": "A forward-facing step-down that builds strong quad control during descent.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -38337,7 +38451,9 @@
   {
     "id": "poliquin_step_up",
     "name": "Poliquin Step-Up",
-    "aliases": [],
+    "aliases": [
+      "Petersen Step-Up"
+    ],
     "description": "A high-knee-over-toe step-up variation designed to target the quads through a long range.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
@@ -38373,11 +38489,11 @@
     "description": "A full-range single-leg squat that places a very high demand on the working leg quads.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight"
@@ -38404,11 +38520,11 @@
     "description": "A supported pistol squat that helps lifters learn single-leg quad strength and balance.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight",
@@ -38440,11 +38556,11 @@
     "description": "A single-leg squat to a box that reduces range while preserving the quad-focused pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight",
@@ -38474,11 +38590,11 @@
     "description": "A rear-reaching single-leg squat that trains the quads with a compact bodyweight setup.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight"
@@ -38505,11 +38621,11 @@
     "description": "A supported skater squat that makes single-leg quad training more accessible.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight",
@@ -38539,11 +38655,11 @@
     "description": "A challenging single-leg squat with the rear foot held behind the body.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight"
@@ -38570,11 +38686,11 @@
     "description": "A supported shrimp squat that lets you practice deep single-leg quad loading safely.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "bodyweight",
@@ -38606,11 +38722,10 @@
     "description": "A one-leg hack squat machine variation that isolates the working quad with a fixed path.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "hack_squat_machine"
     ],
@@ -38638,11 +38753,11 @@
     "description": "A pistol squat using straps for balance assistance and cleaner reps.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "suspension_trainer"
@@ -38669,11 +38784,11 @@
     "description": "A pistol squat holding a light weight forward to improve balance and keep the torso upright.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "core",
-      "glutes"
+      "core"
     ],
     "equipmentIds": [
       "weight_plate"
@@ -39071,11 +39186,10 @@
     "description": "A classic angled leg press machine that lets you load the quads heavily.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "leg_press_machine"
     ],
@@ -39097,15 +39211,16 @@
   {
     "id": "horizontal_leg_press",
     "name": "Horizontal Leg Press",
-    "aliases": [],
+    "aliases": [
+      "Seated Leg Press"
+    ],
     "description": "A horizontal leg press that trains the quads through a stable machine pressing pattern.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "horizontal_leg_press_machine"
     ],
@@ -39131,11 +39246,10 @@
     "description": "A vertical leg press that loads the quads through a straight up-and-down pressing path.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
-    "secondaryMuscleGroupIds": [
-      "glutes"
-    ],
+    "secondaryMuscleGroupIds": [],
     "equipmentIds": [
       "vertical_leg_press_machine"
     ],
@@ -39163,10 +39277,10 @@
     "description": "A one-leg leg press that builds quad strength and exposes side-to-side differences.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -39283,15 +39397,16 @@
     "id": "backward_sled_drag",
     "name": "Backward Sled Drag",
     "aliases": [
-      "Reverse Sled Drag"
+      "Reverse Sled Drag",
+      "Sled Drag (Backward)"
     ],
     "description": "A backward drag that strongly loads the quads through repeated knee extension steps.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -39321,10 +39436,10 @@
     "description": "A one-leg pendulum squat that creates a strong quad-biased resistance curve on the working side.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core"
     ],
     "equipmentIds": [
@@ -39352,10 +39467,10 @@
     "description": "A forward lunge with the load racked in front that keeps the torso upright and quads heavily involved.",
     "primaryMuscleGroupId": "legs",
     "subMuscleIds": [
-      "legs_quads"
+      "legs_quads",
+      "legs_glutes"
     ],
     "secondaryMuscleGroupIds": [
-      "glutes",
       "core",
       "back"
     ],
@@ -39384,7 +39499,8 @@
     "id": "band_standing_external_rotation",
     "name": "Band Standing External Rotation",
     "aliases": [
-      "Band External Rotation"
+      "Band External Rotation",
+      "Towel Roll External Rotation"
     ],
     "description": "A standing band drill that strengthens the rotator cuff through external rotation at the side.",
     "primaryMuscleGroupId": "shoulders",
@@ -39416,7 +39532,8 @@
     "id": "cable_standing_external_rotation",
     "name": "Cable Standing External Rotation",
     "aliases": [
-      "Cable External Rotation"
+      "Cable External Rotation",
+      "Towel Roll Cable External Rotation"
     ],
     "description": "A standing cable drill that loads shoulder external rotation with a smooth resistance curve.",
     "primaryMuscleGroupId": "shoulders",
@@ -40567,7 +40684,8 @@
     "id": "band_standing_internal_rotation",
     "name": "Band Standing Internal Rotation",
     "aliases": [
-      "Band Internal Rotation"
+      "Band Internal Rotation",
+      "Towel Roll Internal Rotation"
     ],
     "description": "A standing band drill that strengthens the cuff through internal rotation at the side.",
     "primaryMuscleGroupId": "shoulders",
@@ -40599,7 +40717,8 @@
     "id": "cable_standing_internal_rotation",
     "name": "Cable Standing Internal Rotation",
     "aliases": [
-      "Cable Internal Rotation"
+      "Cable Internal Rotation",
+      "Towel Roll Cable Internal Rotation"
     ],
     "description": "A standing cable exercise that loads shoulder internal rotation with smooth tension.",
     "primaryMuscleGroupId": "shoulders",
@@ -41151,9 +41270,7 @@
       "foam_roller",
       "wall"
     ],
-    "equipmentAlternativeIds": [
-      "wall"
-    ],
+    "equipmentAlternativeIds": [],
     "movementPatternIds": [
       "scapular_stability"
     ],
@@ -42415,7 +42532,8 @@
     "id": "single_arm_stability_ball_wall_circles",
     "name": "Single-Arm Stability Ball Wall Circles",
     "aliases": [
-      "Ball on Wall Circles"
+      "Ball on Wall Circles",
+      "Medicine Ball Wall Circles"
     ],
     "description": "A ball-on-wall drill that builds cuff endurance and shoulder stability through controlled circles.",
     "primaryMuscleGroupId": "shoulders",
@@ -43268,7 +43386,7 @@
   },
   {
     "id": "jump_rope_single_under",
-    "name": "Jump Rope — Single Unders",
+    "name": "Jump Rope Single Unders",
     "aliases": [
       "Skipping Rope",
       "Basic Jump Rope"
@@ -43299,7 +43417,7 @@
   },
   {
     "id": "jump_rope_double_under",
-    "name": "Jump Rope — Double Unders",
+    "name": "Jump Rope Double Unders",
     "aliases": [
       "DU",
       "Double-Unders"
@@ -43607,7 +43725,7 @@
   },
   {
     "id": "battle_rope_alternating_waves",
-    "name": "Battle Rope — Alternating Waves",
+    "name": "Battle Rope Alternating Waves",
     "aliases": [
       "Rope Waves"
     ],
@@ -43638,7 +43756,7 @@
   },
   {
     "id": "battle_rope_double_slams",
-    "name": "Battle Rope — Double Slams",
+    "name": "Battle Rope Double Slams",
     "aliases": [
       "Rope Power Slams"
     ],
@@ -43731,7 +43849,7 @@
   },
   {
     "id": "farmers_carry_brisk_walk",
-    "name": "Farmer's Carry — Brisk Walk (Conditioning)",
+    "name": "Farmer's Carry Brisk Walk (Conditioning)",
     "aliases": [
       "Heavy Carry Walk",
       "Farmer Walk Metcon"
@@ -43796,7 +43914,7 @@
   },
   {
     "id": "swimming_laps_easy",
-    "name": "Swimming — Easy Laps",
+    "name": "Swimming Laps (Easy)",
     "aliases": [
       "Pool Swim Aerobic"
     ],
@@ -43890,7 +44008,7 @@
   },
   {
     "id": "hiit_high_intensity_interval_session",
-    "name": "HIIT — General High-Intensity Intervals",
+    "name": "HIIT (General High-Intensity Intervals)",
     "aliases": [
       "HIIT",
       "High Intensity Interval Training",
@@ -43970,7 +44088,7 @@
   },
   {
     "id": "hiit_emom_cardio",
-    "name": "EMOM — Cardio or Mixed Conditioning",
+    "name": "EMOM Conditioning (Cardio or Mixed)",
     "aliases": [
       "EMOM MetCon",
       "Every Minute on the Minute Cardio"
@@ -44007,7 +44125,7 @@
   },
   {
     "id": "hiit_amrap_conditioning",
-    "name": "AMRAP — Conditioning Circuit",
+    "name": "AMRAP Conditioning Circuit",
     "aliases": [
       "AMRAP HIIT",
       "AMRAP MetCon",
@@ -44162,7 +44280,7 @@
   },
   {
     "id": "hybrid_hyrox_style_training",
-    "name": "Hybrid Race Prep — Run + Station Circuits",
+    "name": "Hybrid Race Prep (Run + Station Circuits)",
     "aliases": [
       "HYROX Style Training",
       "Hybrid Running MetCon",
@@ -44200,7 +44318,7 @@
   },
   {
     "id": "circuit_training_cardio",
-    "name": "Circuit Training — Cardio Focus",
+    "name": "Circuit Training (Cardio Focus)",
     "aliases": [
       "Cardio Circuit",
       "Rotation Circuit",
@@ -44234,6 +44352,1504 @@
       "Use a clock or coach cues; equal work at each station keeps rounds comparable.",
       "Modify impact (step vs jump) to survive multiple rounds.",
       "One to three total rounds is plenty for beginners; add rounds gradually."
+    ]
+  },
+  {
+    "id": "knee_push_up",
+    "name": "Knee Push-Up",
+    "aliases": [
+      "Kneeling Push-Up",
+      "Modified Push-Up"
+    ],
+    "description": "A push-up regression performed from the knees that builds pressing strength with a lighter load.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Kneeling",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Start in a plank position with knees resting on the floor and hands under the shoulders.",
+      "Keep a straight line from head to knees with the core braced.",
+      "Lower the chest toward the floor by bending the elbows.",
+      "Press back up to the start position and repeat."
+    ]
+  },
+  {
+    "id": "wall_push_up",
+    "name": "Wall Push-Up",
+    "aliases": [
+      "Wall Press-Up",
+      "Standing Push-Up"
+    ],
+    "description": "A standing push-up against a wall that introduces the pressing pattern with minimal load.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stand an arm's length from a wall and place both palms on it at shoulder height.",
+      "Keep the body in one straight line from head to heels.",
+      "Bend the elbows to bring the chest toward the wall.",
+      "Press back to the start position and repeat."
+    ]
+  },
+  {
+    "id": "dumbbell_squeeze_press",
+    "name": "Dumbbell Squeeze Press",
+    "aliases": [
+      "Crush Press",
+      "Hex Press",
+      "Dumbbell Crush Press"
+    ],
+    "description": "A flat dumbbell press with the dumbbells pressed together throughout, keeping constant inner-chest tension.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [
+      "dumbbells",
+      "bench"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lie on a flat bench holding two dumbbells pressed together over the chest with neutral grips.",
+      "Squeeze the dumbbells into each other as hard as possible.",
+      "Lower the dumbbells to the chest while maintaining the inward squeeze.",
+      "Press back to lockout without letting the dumbbells separate and repeat."
+    ]
+  },
+  {
+    "id": "wide_grip_bench_press",
+    "name": "Wide-Grip Bench Press",
+    "aliases": [
+      "Wide-Grip Barbell Bench Press",
+      "Wide Bench Press"
+    ],
+    "description": "A barbell bench press with a wider-than-standard grip that shortens the range and biases the chest over the triceps.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [
+      "barbell",
+      "bench"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Lie on a flat bench and grip the bar well outside shoulder width.",
+      "Unrack the bar and hold it over the chest with arms extended.",
+      "Lower the bar to the mid chest keeping the forearms vertical.",
+      "Press back to lockout and repeat."
+    ]
+  },
+  {
+    "id": "dumbbell_floor_fly",
+    "name": "Dumbbell Floor Fly",
+    "aliases": [
+      "Floor Fly",
+      "Floor Dumbbell Fly"
+    ],
+    "description": "A dumbbell fly performed lying on the floor, where the limited range keeps the shoulders safe while training the chest.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders"
+    ],
+    "equipmentIds": [
+      "dumbbells"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_adduction"
+    ],
+    "type": "Isolation",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lie on the floor with knees bent, holding dumbbells above the chest with palms facing in.",
+      "Keep a slight bend in the elbows throughout.",
+      "Open the arms in a wide arc until the upper arms lightly touch the floor.",
+      "Squeeze the chest to bring the dumbbells back together and repeat."
+    ]
+  },
+  {
+    "id": "weighted_push_up",
+    "name": "Weighted Push-Up",
+    "aliases": [
+      "Plate-Loaded Push-Up",
+      "Weight Vest Push-Up"
+    ],
+    "description": "A push-up loaded with a plate or weight vest to keep building chest strength beyond bodyweight.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "weight_plate"
+    ],
+    "equipmentAlternativeIds": [
+      "weight_vest"
+    ],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Have a partner place a plate on the upper back, or wear a weight vest.",
+      "Set up in a strong plank with hands under the shoulders.",
+      "Lower the chest to just above the floor keeping the body rigid.",
+      "Press back to the start position and repeat."
+    ]
+  },
+  {
+    "id": "band_resisted_push_up",
+    "name": "Band-Resisted Push-Up",
+    "aliases": [
+      "Banded Push-Up",
+      "Resistance Band Push-Up"
+    ],
+    "description": "A push-up with a resistance band across the back that adds accommodating resistance toward lockout.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "resistance_band"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Loop a resistance band across the upper back and anchor an end under each hand.",
+      "Set up in a plank with the band taut at the bottom position.",
+      "Lower the chest to just above the floor under control.",
+      "Press up against the band's growing resistance to full lockout and repeat."
+    ]
+  },
+  {
+    "id": "deficit_push_up",
+    "name": "Deficit Push-Up",
+    "aliases": [
+      "Push-Up on Dumbbells",
+      "Deep Push-Up"
+    ],
+    "description": "A push-up with hands elevated on dumbbells or handles so the chest can travel below hand level for a deeper stretch.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "dumbbells"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Place two dumbbells or handles on the floor at shoulder width and grip them in a plank.",
+      "Keep the body in one rigid line from head to heels.",
+      "Lower the chest below hand level until a deep stretch is felt.",
+      "Press back to full extension and repeat."
+    ]
+  },
+  {
+    "id": "plyo_push_up",
+    "name": "Plyo Push-Up",
+    "aliases": [
+      "Clap Push-Up",
+      "Explosive Push-Up",
+      "Plyometric Push-Up"
+    ],
+    "description": "An explosive push-up where the hands leave the floor at the top, building pressing power and rate of force.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Start in a strong plank with hands under the shoulders.",
+      "Lower the chest quickly toward the floor under control.",
+      "Drive up explosively so the hands briefly leave the ground.",
+      "Land with soft elbows, absorb, and flow into the next rep."
+    ]
+  },
+  {
+    "id": "one_arm_push_up",
+    "name": "One-Arm Push-Up",
+    "aliases": [
+      "Single-Arm Push-Up"
+    ],
+    "description": "An advanced push-up performed on one arm that demands major pressing strength and full-body tension.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": true,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Set a plank with feet wider than shoulder width and one hand centered under the chest.",
+      "Place the free hand behind the back or hip.",
+      "Lower the chest toward the floor keeping the hips square.",
+      "Press back to full extension and complete all reps before switching arms."
+    ]
+  },
+  {
+    "id": "dive_bomber_push_up",
+    "name": "Dive Bomber Push-Up",
+    "aliases": [
+      "Hindu Push-Up"
+    ],
+    "description": "A flowing push-up that sweeps the chest low from a pike into an upward arc, training the chest and shoulders through a long range.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Start in a pike position with hips high and hands shoulder-width apart.",
+      "Sweep the chest forward and low between the hands in one smooth arc.",
+      "Finish with the chest up and hips near the floor.",
+      "Reverse the arc back to the pike position and repeat."
+    ]
+  },
+  {
+    "id": "trx_chest_press",
+    "name": "TRX Chest Press",
+    "aliases": [
+      "Suspension Push-Up",
+      "TRX Push-Up",
+      "Suspension Chest Press"
+    ],
+    "description": "A suspension-trainer press where body angle sets the load, training the chest with a free range of motion.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "trx"
+    ],
+    "equipmentAlternativeIds": [
+      "gymnastic_rings"
+    ],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Face away from the anchor holding the handles at chest height with arms extended.",
+      "Lean forward into a straight-body plank angle; step back to make it harder.",
+      "Lower the chest between the handles by bending the elbows.",
+      "Press back to full extension keeping the body rigid and repeat."
+    ]
+  },
+  {
+    "id": "trx_chest_fly",
+    "name": "TRX Chest Fly",
+    "aliases": [
+      "Suspension Fly",
+      "TRX Fly"
+    ],
+    "description": "A suspension-trainer fly that adducts the arms against bodyweight for a deep chest stretch and contraction.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "core"
+    ],
+    "equipmentIds": [
+      "trx"
+    ],
+    "equipmentAlternativeIds": [
+      "gymnastic_rings"
+    ],
+    "movementPatternIds": [
+      "horizontal_adduction"
+    ],
+    "type": "Isolation",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Face away from the anchor with arms extended forward at chest height, body in a forward lean.",
+      "Open the arms wide in an arc while the body lowers as one rigid line.",
+      "Keep a slight elbow bend and stop at a comfortable chest stretch.",
+      "Squeeze the chest to draw the arms back together and repeat."
+    ]
+  },
+  {
+    "id": "kettlebell_floor_press",
+    "name": "Kettlebell Floor Press",
+    "aliases": [
+      "KB Floor Press",
+      "Double Kettlebell Floor Press"
+    ],
+    "description": "A floor press using kettlebells whose offset load challenges the chest and pressing stability through a shoulder-friendly range.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [
+      "kettlebell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lie on the floor with knees bent, holding a kettlebell in each hand at the chest with wrists straight.",
+      "Press the kettlebells up to full lockout over the chest.",
+      "Lower under control until the upper arms rest lightly on the floor.",
+      "Pause briefly, then press again."
+    ]
+  },
+  {
+    "id": "single_arm_kettlebell_floor_press",
+    "name": "Single-Arm Kettlebell Floor Press",
+    "aliases": [
+      "One-Arm KB Floor Press"
+    ],
+    "description": "A one-arm kettlebell floor press whose offset load builds pressing strength and side-to-side stability.",
+    "primaryMuscleGroupId": "chest",
+    "subMuscleIds": [
+      "chest_mid"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "kettlebell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_push"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": true,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Lie on the floor with knees bent, holding one kettlebell at the chest with the wrist straight.",
+      "Press the kettlebell to full lockout over the chest.",
+      "Lower under control until the upper arm rests lightly on the floor.",
+      "Complete all reps before switching sides."
+    ]
+  },
+  {
+    "id": "jumping_pull_up",
+    "name": "Jumping Pull-Up",
+    "aliases": [
+      "Jump Pull-Up",
+      "Jumping Chin-Up"
+    ],
+    "description": "A pull-up regression using leg drive from the floor to jump into the pull and control the descent.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lats",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core",
+      "legs"
+    ],
+    "equipmentIds": [
+      "pull_up_bar"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "vertical_pull"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stand below a pull-up bar low enough to reach with a small jump.",
+      "Grip the bar, then drive through the legs to jump as you pull your chin over the bar.",
+      "Use only as much leg drive as needed to complete the pull.",
+      "Lower yourself as slowly as possible, then reset and repeat."
+    ]
+  },
+  {
+    "id": "one_arm_pull_up",
+    "name": "One-Arm Pull-Up",
+    "aliases": [
+      "Single-Arm Pull-Up",
+      "OAP"
+    ],
+    "description": "An elite pull-up performed with one arm, demanding exceptional lat, arm, and grip strength.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lats",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "pull_up_bar"
+    ],
+    "equipmentAlternativeIds": [
+      "gymnastics_rings"
+    ],
+    "movementPatternIds": [
+      "vertical_pull"
+    ],
+    "type": "Compound",
+    "position": "Hanging",
+    "isUnilateral": true,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Grip the bar with one hand and hang with the arm fully extended.",
+      "Brace the core and keep the free arm by your side or behind your back.",
+      "Pull until your chin clears the bar without swinging.",
+      "Lower under full control and complete all reps before switching arms."
+    ]
+  },
+  {
+    "id": "machine_high_row",
+    "name": "Machine High Row",
+    "aliases": [
+      "Iso-Lateral High Row",
+      "Hammer Strength High Row",
+      "Plate-Loaded High Row"
+    ],
+    "description": "A plate-loaded machine row pulling from high to low that trains the lats through a deep overhead stretch.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lats",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "shoulders"
+    ],
+    "equipmentIds": [
+      "machine"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_pull"
+    ],
+    "type": "Compound",
+    "position": "Seated",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Set the seat so the handles sit overhead at a comfortable reach and load the machine.",
+      "Grip the handles with the chest against the pad and arms fully extended.",
+      "Pull the handles down and back toward your ribs by driving the elbows to your hips.",
+      "Return with control to the overhead stretch and repeat."
+    ]
+  },
+  {
+    "id": "front_lever",
+    "name": "Front Lever",
+    "prescriptionType": "time",
+    "aliases": [
+      "Tuck Front Lever",
+      "Front Lever Hold"
+    ],
+    "description": "An advanced calisthenics hold keeping the body horizontal under a bar with straight arms.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lats",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core",
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [
+      "pull_up_bar"
+    ],
+    "equipmentAlternativeIds": [
+      "gymnastics_rings"
+    ],
+    "movementPatternIds": [
+      "isometric"
+    ],
+    "type": "Isolation",
+    "position": "Hanging",
+    "isUnilateral": false,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Hang from a pull-up bar with straight arms and a tight, hollow body.",
+      "Depress the shoulder blades and pull the body up until it is horizontal, face up.",
+      "Hold the horizontal line with straight arms, tucking the knees to regress if needed.",
+      "Hold for the target time, then lower with control."
+    ]
+  },
+  {
+    "id": "kettlebell_pullover",
+    "name": "Kettlebell Pullover",
+    "aliases": [
+      "KB Pullover"
+    ],
+    "description": "A pullover performed lying on the floor with a kettlebell, training the lats through a long overhead arc.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lats"
+    ],
+    "secondaryMuscleGroupIds": [
+      "chest",
+      "shoulders",
+      "core"
+    ],
+    "equipmentIds": [
+      "kettlebell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "pullover"
+    ],
+    "type": "Isolation",
+    "position": "Supine",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lie on your back with knees bent, holding the kettlebell by the horns above your chest.",
+      "With arms slightly bent, lower the bell in an arc overhead toward the floor.",
+      "Stop at a comfortable lat stretch before the bell touches down.",
+      "Pull the bell back over your chest using the lats and repeat."
+    ]
+  },
+  {
+    "id": "ring_row",
+    "name": "Ring Row",
+    "aliases": [
+      "Gymnastic Ring Row",
+      "Australian Ring Row"
+    ],
+    "description": "A bodyweight row on gymnastic rings whose difficulty scales with body angle, building the mid-back and grip.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_mid",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "gymnastics_rings"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_pull"
+    ],
+    "type": "Compound",
+    "position": "Supine",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Set rings to about waist height and grip one in each hand.",
+      "Walk your feet forward and hang below the rings with a straight body.",
+      "Pull your chest to the rings by driving the elbows back.",
+      "Lower under control to full arm extension and repeat."
+    ]
+  },
+  {
+    "id": "gorilla_row",
+    "name": "Gorilla Row",
+    "aliases": [
+      "Kettlebell Gorilla Row",
+      "Alternating Kettlebell Row"
+    ],
+    "description": "An alternating kettlebell row from a deep hinge with the bells on the floor, combining a heavy row with hip-hinge endurance.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_mid",
+      "back_upper"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core",
+      "legs"
+    ],
+    "equipmentIds": [
+      "kettlebell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "horizontal_pull"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": true,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Set two kettlebells on the floor between your feet and hinge at the hips with a flat back.",
+      "Grip both handles, keeping your weight balanced.",
+      "Row one bell to your ribs while pushing the other into the floor.",
+      "Lower it, then row the opposite side, alternating while holding the hinge."
+    ]
+  },
+  {
+    "id": "bodyweight_squat",
+    "name": "Bodyweight Squat",
+    "aliases": [
+      "Air Squat",
+      "BW Squat"
+    ],
+    "description": "The foundational unloaded squat that builds leg strength, mobility, and control anywhere.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads",
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stand with your feet about shoulder-width apart and toes slightly out.",
+      "Sit your hips down and back while keeping your chest tall.",
+      "Lower until your thighs are near parallel or as deep as comfortable.",
+      "Drive through your whole foot to stand back up."
+    ]
+  },
+  {
+    "id": "bodyweight_box_squat",
+    "name": "Bodyweight Box Squat",
+    "aliases": [
+      "Chair Squat",
+      "Sit-to-Stand Squat"
+    ],
+    "description": "A squat down to a box or bench that teaches depth control and builds confidence for newer lifters.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads",
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight",
+      "flat_bench"
+    ],
+    "equipmentAlternativeIds": [
+      "step_platform"
+    ],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stand in front of a box or bench with feet shoulder-width apart.",
+      "Sit back slowly until you touch the box with control.",
+      "Keep your chest up and avoid dropping onto the surface.",
+      "Stand back up by driving through your feet."
+    ]
+  },
+  {
+    "id": "dumbbell_squat",
+    "name": "Dumbbell Squat",
+    "aliases": [
+      "DB Squat"
+    ],
+    "description": "A squat holding dumbbells at your sides for simple, joint-friendly loading at home or in the gym.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads",
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "dumbbell"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Hold a dumbbell in each hand at your sides.",
+      "Squat down while keeping your chest tall and arms relaxed.",
+      "Keep your whole foot planted as your knees bend.",
+      "Stand back up without shrugging the weights."
+    ]
+  },
+  {
+    "id": "heels_elevated_goblet_squat",
+    "name": "Heels-Elevated Goblet Squat",
+    "aliases": [
+      "Cyclist Squat",
+      "Cyclist Goblet Squat"
+    ],
+    "description": "A goblet squat with the heels raised on plates or a wedge to bias the quads through deeper knee bend.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "dumbbell",
+      "weight_plate"
+    ],
+    "equipmentAlternativeIds": [
+      "kettlebell"
+    ],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Set your heels on small plates or a wedge and hold one weight at your chest.",
+      "Squat straight down while staying as upright as possible.",
+      "Let your knees travel forward to load the quads deeply.",
+      "Drive back up through the balls and midfoot."
+    ]
+  },
+  {
+    "id": "suspension_trainer_squat",
+    "name": "Suspension Trainer Squat",
+    "aliases": [
+      "TRX Squat",
+      "TRX Assisted Squat"
+    ],
+    "description": "A squat holding suspension straps for balance support, ideal for learning depth and control.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads",
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "suspension_trainer"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Hold the straps with light tension and stand tall.",
+      "Squat down while using the straps only for balance.",
+      "Keep your feet flat and chest lifted at the bottom.",
+      "Stand back up with as little arm help as possible."
+    ]
+  },
+  {
+    "id": "resistance_band_squat",
+    "name": "Resistance Band Squat",
+    "aliases": [
+      "Banded Squat"
+    ],
+    "description": "A squat standing on a band with the other end racked at the shoulders for simple home resistance.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads",
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "resistance_band"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "squat"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Stand on the band with both feet and bring the top over your shoulders.",
+      "Squat down under control while the band stays secure.",
+      "Keep your chest tall as the tension increases on the way up.",
+      "Stand fully upright against the band resistance."
+    ]
+  },
+  {
+    "id": "dumbbell_thruster",
+    "name": "Dumbbell Thruster",
+    "aliases": [
+      "DB Thruster"
+    ],
+    "description": "A front squat with dumbbells flowing straight into an overhead press for full-body strength and conditioning.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_quads"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "core",
+      "arms"
+    ],
+    "equipmentIds": [
+      "dumbbell"
+    ],
+    "equipmentAlternativeIds": [
+      "kettlebell"
+    ],
+    "movementPatternIds": [
+      "squat",
+      "overhead_press"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Hold dumbbells at your shoulders and squat to full depth.",
+      "Drive up hard and use the momentum to press the weights overhead.",
+      "Lock out overhead, then lower back to your shoulders.",
+      "Keep your heels down and trunk braced throughout."
+    ]
+  },
+  {
+    "id": "cable_glute_kickback",
+    "name": "Cable Glute Kickback",
+    "aliases": [
+      "Cable Hip Extension",
+      "Standing Glute Kickback"
+    ],
+    "description": "A standing cable hip extension using an ankle strap to isolate the glutes through a controlled kick back.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_glutes",
+      "legs_hamstrings"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "cable_machine",
+      "ankle_strap"
+    ],
+    "equipmentAlternativeIds": [
+      "resistance_band"
+    ],
+    "movementPatternIds": [
+      "hip_extension"
+    ],
+    "type": "Isolation",
+    "position": "Standing",
+    "isUnilateral": true,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Attach an ankle strap to a low cable and face the machine.",
+      "Hold the frame lightly and soften the standing knee.",
+      "Kick the working leg back by squeezing the glute, without arching your lower back.",
+      "Return under control and finish the set before switching sides."
+    ]
+  },
+  {
+    "id": "machine_glute_kickback",
+    "name": "Machine Glute Kickback",
+    "aliases": [
+      "Glute Kickback Machine",
+      "Machine Hip Extension"
+    ],
+    "description": "A guided hip extension on a kickback or multi-hip machine that loads the glutes through a fixed path.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_glutes",
+      "legs_hamstrings"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "multi_hip_machine"
+    ],
+    "equipmentAlternativeIds": [
+      "cable_machine"
+    ],
+    "movementPatternIds": [
+      "hip_extension"
+    ],
+    "type": "Isolation",
+    "position": "Standing",
+    "isUnilateral": true,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Set the pad or platform against the working leg and hold the handles.",
+      "Brace your trunk and keep your hips square.",
+      "Drive the leg back by extending the hip fully.",
+      "Return slowly to the start and repeat on the same side."
+    ]
+  },
+  {
+    "id": "kas_glute_bridge",
+    "name": "Kas Glute Bridge",
+    "aliases": [
+      "KAS Glute Bridge"
+    ],
+    "description": "A short-range, constant-tension hip thrust variation that keeps the glutes loaded without momentum.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_glutes"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "barbell",
+      "bench"
+    ],
+    "equipmentAlternativeIds": [
+      "dumbbell"
+    ],
+    "movementPatternIds": [
+      "hip_thrust"
+    ],
+    "type": "Compound",
+    "position": "Lying",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Set up like a barbell hip thrust with your upper back on a bench.",
+      "Start from the locked-out top position with glutes squeezed.",
+      "Lower your hips only a few inches, keeping constant tension.",
+      "Drive back to lockout slowly without bouncing or losing position."
+    ]
+  },
+  {
+    "id": "assisted_nordic_hamstring_curl",
+    "name": "Assisted Nordic Hamstring Curl",
+    "aliases": [
+      "Band-Assisted Nordic Curl",
+      "Assisted Nordic Curl"
+    ],
+    "description": "A band-assisted Nordic curl that makes eccentric hamstring training accessible before the full movement.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_hamstrings"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "resistance_band"
+    ],
+    "equipmentAlternativeIds": [
+      "nordic_bench",
+      "partner_assist"
+    ],
+    "movementPatternIds": [
+      "leg_curl"
+    ],
+    "type": "Isolation",
+    "position": "Kneeling",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Anchor a band high in front of you and hold it at your chest while kneeling with ankles secured.",
+      "Keep your hips extended and your body in one line.",
+      "Lower forward slowly while the band takes part of your weight.",
+      "Pull back up with your hamstrings, using the band only as needed."
+    ]
+  },
+  {
+    "id": "tibialis_raise",
+    "name": "Tibialis Raise",
+    "aliases": [
+      "Tib Raise",
+      "Wall Tibialis Raise",
+      "Shin Raise"
+    ],
+    "description": "A wall-supported raise of the toes and forefeet that strengthens the muscles along the front of the shin.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_calves"
+    ],
+    "secondaryMuscleGroupIds": [],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [
+      "ankle_weights",
+      "dumbbell"
+    ],
+    "movementPatternIds": [
+      "dorsiflexion"
+    ],
+    "type": "Isolation",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lean your back against a wall with your heels about a foot from it.",
+      "Keep your legs straight and your hips against the wall.",
+      "Raise your toes and forefeet as high as you can toward your shins.",
+      "Lower under control and repeat."
+    ]
+  },
+  {
+    "id": "heel_walk",
+    "name": "Heel Walk",
+    "aliases": [
+      "Walking on Heels"
+    ],
+    "description": "A bodyweight walk performed on the heels to build endurance in the front of the shins.",
+    "primaryMuscleGroupId": "legs",
+    "subMuscleIds": [
+      "legs_calves"
+    ],
+    "secondaryMuscleGroupIds": [],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "gait"
+    ],
+    "type": "Isolation",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Lift the balls of your feet so you are standing on your heels.",
+      "Keep your toes pulled up toward your shins.",
+      "Walk forward with short controlled steps.",
+      "Stay tall and continue for distance or time."
+    ]
+  },
+  {
+    "id": "incline_pike_push_up",
+    "name": "Incline Pike Push-Up",
+    "aliases": [
+      "Hands-Elevated Pike Push-Up"
+    ],
+    "description": "A pike push-up with the hands elevated to reduce the load, making the vertical pressing pattern accessible.",
+    "primaryMuscleGroupId": "shoulders",
+    "subMuscleIds": [
+      "shoulders_front_delts",
+      "shoulders_side_delts"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [
+      "bench",
+      "box"
+    ],
+    "movementPatternIds": [
+      "bodyweight_press"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Place your hands on a bench or sturdy surface and walk your feet in.",
+      "Lift your hips high into a pike position.",
+      "Lower the top of your head toward the surface between your hands.",
+      "Press back up under control and repeat."
+    ]
+  },
+  {
+    "id": "kettlebell_push_press",
+    "name": "Kettlebell Push Press",
+    "aliases": [
+      "Single-Arm Kettlebell Push Press"
+    ],
+    "description": "An explosive kettlebell press that uses leg drive to send the bell overhead, building shoulder power.",
+    "primaryMuscleGroupId": "shoulders",
+    "subMuscleIds": [
+      "shoulders_front_delts",
+      "shoulders_side_delts"
+    ],
+    "secondaryMuscleGroupIds": [
+      "arms",
+      "core"
+    ],
+    "equipmentIds": [
+      "kettlebell"
+    ],
+    "equipmentAlternativeIds": [
+      "dumbbell"
+    ],
+    "movementPatternIds": [
+      "push_press"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Rack the kettlebell at your shoulder with a braced trunk.",
+      "Dip slightly at the knees, keeping your torso upright.",
+      "Drive through your legs and press the bell overhead in one motion.",
+      "Lower it back to the rack position under control and repeat."
+    ]
+  },
+  {
+    "id": "weighted_plank",
+    "name": "Weighted Plank",
+    "aliases": [
+      "Plate-Loaded Plank"
+    ],
+    "description": "A front plank with a plate on the back that raises the bracing demand without changing the position.",
+    "primaryMuscleGroupId": "core",
+    "subMuscleIds": [
+      "core_deep"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders"
+    ],
+    "equipmentIds": [
+      "bodyweight",
+      "weight_plate"
+    ],
+    "equipmentAlternativeIds": [
+      "weight_vest",
+      "sandbag"
+    ],
+    "movementPatternIds": [
+      "plank",
+      "anti_extension"
+    ],
+    "type": "Compound",
+    "position": "Plank",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Set up in a forearm plank and have a partner place a plate on your upper back.",
+      "Brace hard and keep your hips level.",
+      "Hold the position without sagging or hiking.",
+      "Remove the plate carefully before lowering down."
+    ]
+  },
+  {
+    "id": "plank_up_down",
+    "name": "Plank Up-Down",
+    "aliases": [
+      "Up-Down Plank"
+    ],
+    "description": "A plank where you move from forearms to hands one arm at a time, training the trunk to resist rotation.",
+    "primaryMuscleGroupId": "core",
+    "subMuscleIds": [
+      "core_deep"
+    ],
+    "secondaryMuscleGroupIds": [
+      "shoulders",
+      "arms"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "plank",
+      "anti_rotation",
+      "push_up"
+    ],
+    "type": "Compound",
+    "position": "Plank",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Start in a forearm plank with your feet slightly wide.",
+      "Press up onto one hand, then the other, reaching a high plank.",
+      "Lower back to your forearms one arm at a time.",
+      "Keep your hips as still as possible and alternate the leading arm."
+    ]
+  },
+  {
+    "id": "wall_ball",
+    "name": "Wall Ball",
+    "aliases": [
+      "Wall Ball Shots",
+      "Med Ball Wall Throw"
+    ],
+    "description": "A squat into an upward medicine-ball throw against a wall target for full-body conditioning.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs",
+      "shoulders"
+    ],
+    "equipmentIds": [
+      "medicine_ball",
+      "wall"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Hold the ball at your chest facing a wall with a target spot overhead.",
+      "Squat to comfortable depth, then drive up and throw the ball to the target.",
+      "Catch the ball softly as it comes down, absorbing into the next squat.",
+      "Keep a steady rhythm and stop before form breaks down."
+    ]
+  },
+  {
+    "id": "jumping_lunge",
+    "name": "Jumping Lunge",
+    "aliases": [
+      "Split Squat Jump",
+      "Lunge Jump"
+    ],
+    "description": "An explosive lunge where you switch legs mid-air, building leg power and fast conditioning.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": true,
+    "difficulty": "Advanced",
+    "instructions": [
+      "Start in a lunge with both knees at comfortable angles.",
+      "Jump up and switch legs in the air.",
+      "Land softly into the opposite lunge with control.",
+      "Keep your chest tall and stop when landings get heavy."
+    ]
+  },
+  {
+    "id": "broad_jump",
+    "name": "Broad Jump",
+    "aliases": [
+      "Standing Long Jump"
+    ],
+    "description": "A maximal forward jump from standing that builds explosive hip power.",
+    "primaryMuscleGroupId": "cardio",
+    "subMuscleIds": [],
+    "secondaryMuscleGroupIds": [
+      "legs",
+      "core"
+    ],
+    "equipmentIds": [
+      "bodyweight"
+    ],
+    "equipmentAlternativeIds": [],
+    "movementPatternIds": [
+      "cardio"
+    ],
+    "type": "Compound",
+    "position": "Standing",
+    "isUnilateral": false,
+    "difficulty": "Intermediate",
+    "instructions": [
+      "Stand with feet hip-width and swing your arms back as you dip.",
+      "Drive your arms forward and jump as far ahead as you can.",
+      "Land softly with bent knees and your chest over your feet.",
+      "Walk back to the start and reset fully between jumps."
+    ]
+  },
+  {
+    "id": "machine_lumbar_extension",
+    "name": "Machine Lumbar Extension",
+    "aliases": [
+      "Lumbar Extension Machine",
+      "Seated Lumbar Extension",
+      "Lower Back Extension Machine"
+    ],
+    "description": "A seated machine extension that isolates the spinal erectors with guided resistance.",
+    "primaryMuscleGroupId": "back",
+    "subMuscleIds": [
+      "back_lower"
+    ],
+    "secondaryMuscleGroupIds": [
+      "core"
+    ],
+    "equipmentIds": [
+      "back_extension_machine"
+    ],
+    "equipmentAlternativeIds": [
+      "back_extension_bench"
+    ],
+    "movementPatternIds": [
+      "back_extension"
+    ],
+    "type": "Isolation",
+    "position": "Seated",
+    "isUnilateral": false,
+    "difficulty": "Beginner",
+    "instructions": [
+      "Sit in the machine with the pad against your upper back and your hips anchored.",
+      "Start slightly bent forward with your trunk resting into the pad.",
+      "Extend your lower back to press the pad through the working range.",
+      "Pause briefly, then return slowly to the start position."
     ]
   }
 ]

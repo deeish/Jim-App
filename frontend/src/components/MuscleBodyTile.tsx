@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleProp, ViewStyle } from 'react-native';
-import { getMuscleGroupVisual } from '../constants/muscleGroupMeta';
+import { palette } from '../theme/colors';
 import { BodyMappableExercise, exerciseToTileHighlights } from '../lib/exerciseToHighlights';
 import MuscleBodyMap from './bodymap/MuscleBodyMap';
 import MuscleGroupDisc from './MuscleGroupDisc';
@@ -10,8 +10,9 @@ import MuscleGroupDisc from './MuscleGroupDisc';
  * rows and the detail title, replacing the glyph disc. Exercise-accurate: a
  * leg curl lights the hamstrings, a calf raise the calves, not the whole leg
  * (exercises without sub-muscle data fall back to their whole group). The
- * tile background keeps the primary group's hue, so the list still scans by
- * color even where the lit region is small.
+ * tile ground is one neutral tone: the lit muscle is the only color, so a
+ * scrolling list reads as calm rows with a single saturated signal each
+ * instead of a patchwork of per-group pastels.
  *
  * The figure's expensive part (parsing region paths) is cached per region
  * app-wide, so per-exercise tiles cost the same as repeated identical ones.
@@ -32,7 +33,6 @@ function MuscleBodyTile({
   if (!bodyMap) {
     return <MuscleGroupDisc group={exercise.primaryMuscleGroup} size={size} style={style} />;
   }
-  const visual = getMuscleGroupVisual(exercise.primaryMuscleGroup);
   return (
     <View
       style={[
@@ -40,7 +40,7 @@ function MuscleBodyTile({
           width: size,
           height: size,
           borderRadius: Math.round(size * 0.28),
-          backgroundColor: visual.softColor,
+          backgroundColor: palette.bodyMapTileBg,
           overflow: 'hidden',
         },
         style,

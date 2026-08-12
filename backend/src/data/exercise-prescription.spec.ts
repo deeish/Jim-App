@@ -66,6 +66,44 @@ describe('inferPrescriptionTypeFromRawExercise (cardio gate)', () => {
     }
   });
 
+  it('serves plank-HYBRID rep movements as reps while base planks stay timed (Task 10)', () => {
+    for (const name of [
+      'Side Plank Clamshell',
+      'Side Plank Hip Abduction',
+      'Side Plank Hip Dip',
+      'Plank Shoulder Tap',
+      'Bear Plank Shoulder Tap',
+      'Side Plank Knee Tuck',
+      'High Plank Bird Dog',
+      'Side Plank with Top-Leg Raise',
+      'Plank Up-Down',
+      'Walkout to Plank',
+    ]) {
+      expect(
+        inferPrescriptionTypeFromRawExercise({
+          name,
+          primaryMuscleGroup: 'Core',
+        }),
+      ).toBe('reps');
+    }
+    for (const name of [
+      'Front Plank',
+      'Side Plank',
+      'Copenhagen Knee Plank',
+      'RKC Plank',
+      'Long Lever Plank',
+      'Weighted Plank',
+      'Star Side Plank',
+    ]) {
+      expect(
+        inferPrescriptionTypeFromRawExercise({
+          name,
+          primaryMuscleGroup: 'Core',
+        }),
+      ).toBe('time');
+    }
+  });
+
   it('does not flag dynamic rep lifts that merely share a word root (e.g. deadlift, pulldown)', () => {
     expect(
       inferPrescriptionTypeFromRawExercise({

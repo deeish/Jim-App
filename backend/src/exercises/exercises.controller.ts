@@ -13,6 +13,9 @@ import {
 } from '@nestjs/common';
 import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { ExercisesService } from './exercises.service';
+import { getExerciseProgressions } from '../data/exercise-progressions';
+import { getFormCues } from '../data/exercise-form-cues';
+import { getJointDemands, JOINT_LABELS } from '../data/exercise-joint-demands';
 import { SavedExercisesService } from './saved-exercises.service';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
@@ -118,6 +121,33 @@ export class ExercisesController {
     if (!exercise) {
       throw new NotFoundException(`Exercise '${id}' not found`);
     }
-    return exercise;
+    // Detail-only enrichments, omitted when absent: progression-ladder
+    // neighbors (resolved to names for the Easier/Harder chips) and the
+    // "Watch Out For" form cues.
+    const ladder = getExerciseProgressions(id);
+    const formCues = getFormCues(id);
+    const joints = getJointDemands(id);
+    const jointDemands = joints?.length
+      ? joints.map((j) => JOINT_LABELS[j])
+      : undefined;
+    if (!ladder && !formCues && !jointDemands) return exercise;
+    const resolve = (ids: string[]) =>
+      ids
+        .map((pid) => this.exercisesService.findOne(pid))
+        .filter((e): e is NonNullable<typeof e> => !!e)
+        .map((e) => ({ id: e.id, name: e.name }));
+    return {
+      ...exercise,
+      ...(formCues ? { formCues } : {}),
+      ...(jointDemands ? { jointDemands } : {}),
+      ...(ladder
+        ? {
+            progressions: {
+              easier: resolve(ladder.easier),
+              harder: resolve(ladder.harder),
+            },
+          }
+        : {}),
+    };
   }
 }

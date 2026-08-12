@@ -64,6 +64,12 @@ export type ColorPalette = {
   bodyMapBody: string;
   bodyMapOutline: string;
   bodyMapQuiet: string;
+  /** Secondary (assisting) muscle wash — one muted tone, never a group hue. */
+  bodyMapAssist: string;
+  /** Bottom stop of the silhouette's vertical shading gradient. */
+  bodyMapBodyShade: string;
+  /** Neutral ground behind mini body-map tiles (color lives in the muscles). */
+  bodyMapTileBg: string;
 };
 
 /**
@@ -121,6 +127,9 @@ export const palette: ColorPalette = {
   bodyMapBody: '#E5E5EA',
   bodyMapOutline: '#C6C6C8',
   bodyMapQuiet: 'rgba(0, 0, 0, 0.07)',
+  bodyMapAssist: '#8E8E93',
+  bodyMapTileBg: '#F2F2F7',
+  bodyMapBodyShade: '#D6D6DC',
 };
 
 /**

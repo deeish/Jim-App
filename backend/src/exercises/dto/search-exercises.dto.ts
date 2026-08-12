@@ -2,6 +2,7 @@ import {
   IsOptional,
   IsString,
   IsArray,
+  IsBoolean,
   IsInt,
   Min,
   Max,
@@ -32,6 +33,11 @@ export class SearchExercisesDto {
   @IsArray()
   @IsString({ each: true })
   movementPatterns?: string[]; // Push, Pull, Squat, etc.
+
+  /** Only the curated staples (the rows carrying the Recommended badge). */
+  @IsOptional()
+  @IsBoolean()
+  recommendedOnly?: boolean;
 
   /**
    * Cap how many exercises come back (browse mode keeps the payload small).

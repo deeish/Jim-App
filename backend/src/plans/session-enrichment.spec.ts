@@ -1942,9 +1942,12 @@ describe('enrichGeneratedSession prescriptionType', () => {
           'front_squat',
           'forty_five_degree_leg_press',
           'conventional_deadlift',
-          'sumo_deadlift',
+          // Catalog audit Task 3 re-pointed the sumo anchor to the legs-side id.
+          'barbell_sumo_deadlift',
           'goblet_squat',
           'dumbbell_romanian_deadlift',
+          // Catalog audit Task 4 added the bodyweight fallback anchor.
+          'bodyweight_squat',
         ],
       },
     );

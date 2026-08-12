@@ -29,9 +29,13 @@ function nameImpliesTime(name: string): boolean {
   if (CARRY_OR_LOADED_WALK.test(n)) return true;
   if (/\bside\s+plank\b/i.test(n) && /\brow\b/i.test(n)) return false;
   if (TIME_NAME.test(n)) {
+    // Plank-HYBRID names are rep movements performed from a plank position —
+    // the base plank/side-plank holds stay timed (catalog audit Task 10).
     if (
       /\bplank\b/i.test(n) &&
-      /\b(row|rotation|reach|drag|dumbbell)\b/i.test(n)
+      /\b(row|rotation|reach|drag|dumbbell|clamshell|abduction|hip\s+dip|shoulder\s+tap|knee\s+tuck|bird\s+dog|leg\s+raise|up[\s-]?down|walkout)\b/i.test(
+        n,
+      )
     ) {
       return false;
     }

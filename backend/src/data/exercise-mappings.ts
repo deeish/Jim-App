@@ -62,6 +62,17 @@ export const SUB_MUSCLE_MAP: Record<string, string> = {
 };
 
 // Equipment ID → Display Name (must map to VALID_EQUIPMENT for filter UI)
+//
+// ID-TWIN CONVENTION (catalog audit Task 12, 2026-08-11): the catalog uses
+// several spelling variants for the same physical implement (e.g. cable /
+// cable_machine, slider / sliders, plate / weight_plate / weight_plates).
+// Catalog ids are immutable, so twins are NEVER migrated — both spellings
+// stay mapped to the SAME display label, which is all that matters at
+// runtime (gating compares labels, not ids). The twin groups are pinned by
+// a drift guard in exercise-mappings.spec.ts; if you add a spelling
+// variant, add it to an existing group there rather than inventing a new
+// label. NOT a twin: ez_bar ('Barbell', the free bar) vs ez_bar_attachment
+// ('Cable', the cable attachment) — different implements on purpose.
 export const EQUIPMENT_MAP: Record<string, string> = {
   bodyweight: 'Bodyweight',
   dumbbell: 'Dumbbell',
@@ -117,9 +128,11 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   slider: 'Bodyweight',
   furniture_sliders: 'Bodyweight',
   // Rings / suspension
-  gymnastic_rings: 'Pull-up Bar',
-  gymnastics_rings: 'Pull-up Bar',
-  rings: 'Pull-up Bar',
+  // Rings gate as TRX (rings ≈ suspension trainer for pushing/pulling work;
+  // decision 1.3-C 2026-08-09). Dip bars keep the pull-up-bar approximation.
+  gymnastic_rings: 'TRX',
+  gymnastics_rings: 'TRX',
+  rings: 'TRX',
   // Cable attachments (count as Cable)
   rope_attachment: 'Cable',
   straight_bar_attachment: 'Cable',
@@ -158,7 +171,10 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   roman_chair: 'Machine',
   ab_crunch_machine: 'Machine',
   oblique_crunch_machine: 'Machine',
+  rotary_torso_machine: 'Machine',
   biceps_curl_machine: 'Machine',
+  iso_lateral_curl_machine: 'Machine',
+  seated_dip_machine: 'Machine',
   preacher_curl_machine: 'Machine',
   lever_curl_machine: 'Machine',
   plate_loaded_curl_machine: 'Machine',
@@ -178,7 +194,7 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   t_bar_row_machine: 'Machine',
   pullover_machine: 'Machine',
   shrug_machine: 'Machine',
-  functional_trainer: 'Machine',
+  functional_trainer: 'Cable',
   hip_thrust_machine: 'Machine',
   glute_ham_developer: 'Machine',
   ghd_machine: 'Machine',
@@ -240,6 +256,10 @@ export const EQUIPMENT_MAP: Record<string, string> = {
   // tire deliberately unmapped: flipping requires an actual tire — mapping it
   // to 'Bodyweight' made Tire Flip always-available (a live dumbbell/band
   // plan prescribed it). Unmapped required ids read as Unmodeled.
+  // bicycle and pool are deliberately unmapped for the same reason (catalog
+  // audit Task 11): outdoor cycling and lap swimming need gear/facilities the
+  // app cannot assume, so their rows stay browseable but never pass an
+  // equipment filter.
   sled: 'Machine',
   heavy_bag: 'Bodyweight',
   climbing_rope: 'Pull-up Bar',
@@ -429,6 +449,7 @@ export const MOVEMENT_PATTERN_MAP: Record<string, string> = {
   isometric_hold: 'Core',
   isometric_rotation: 'Core',
   plantar_flexion: 'Squat',
+  dorsiflexion: 'Squat',
   calf_raise: 'Squat',
 };
 
@@ -514,6 +535,12 @@ export interface TransformedExercise {
    * ExercisesService, not present in the raw data.
    */
   groupKey?: string;
+  /**
+   * Set for quality-tier S/A rows (the curated staples): drives the
+   * "Recommended" badge and filter. Derived per response by
+   * ExercisesService; the letter tiers themselves stay backend-private.
+   */
+  recommended?: boolean;
   [key: string]: any; // Preserve other fields
 }
 

@@ -17,7 +17,17 @@ import {
   isNicheExercise,
 } from '../data/common-exercise-ids';
 import { cardioLibrarySortKey } from '../data/cardio-display-order';
+import {
+  EXERCISE_TIERS,
+  TIER_ORDER,
+  isRecommendedExercise,
+} from '../data/exercise-tiers';
+import {
+  getJointDemands,
+  jointsFromAvoidPhrases,
+} from '../data/exercise-joint-demands';
 import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
+import { isRetiredExercise } from '../data/retired-exercise-ids';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 import {
@@ -97,7 +107,7 @@ export class ExercisesService implements OnModuleInit {
     await this.loadExercises();
     this.loadVideoMap();
     this.memoFindAll = this.exercises
-      .filter((e) => !isExcludedFromExerciseCatalog(e.id))
+      .filter((e) => this.isCatalogVisible(e.id))
       .map((e) => this.withDerived(e));
     this.memoStats = this.computeStats();
   }
@@ -127,9 +137,11 @@ export class ExercisesService implements OnModuleInit {
     const youtubeId = this.videoMap.get(exercise.id);
     const groupKey =
       this.exerciseFamily(exercise.name) || exercise.name.trim().toLowerCase();
-    return youtubeId
+    const out: TransformedExercise = youtubeId
       ? { ...exercise, youtubeId, groupKey }
       : { ...exercise, groupKey };
+    if (isRecommendedExercise(exercise.id)) out.recommended = true;
+    return out;
   }
 
   private async loadExercises() {
@@ -257,10 +269,24 @@ export class ExercisesService implements OnModuleInit {
     return best ?? { results: [], tokens: queryTokens, normalizedQuery };
   }
 
+  /**
+   * Forward-looking visibility: false for cardio session templates and rows the
+   * catalog audit retired. Everything that offers exercises to a user (browse,
+   * search, generator pools, chunk repair, replace candidates) flows through
+   * this via search()/memoFindAll; id-resolution paths (findOne, findByIds,
+   * resolveByName) deliberately do NOT, so history and saved items still work.
+   */
+  private isCatalogVisible(id: string): boolean {
+    return !isExcludedFromExerciseCatalog(id) && !isRetiredExercise(id);
+  }
+
   search(searchDto: SearchExercisesDto): TransformedExercise[] {
-    let results = this.exercises.filter(
-      (e) => !isExcludedFromExerciseCatalog(e.id),
-    );
+    let results = this.exercises.filter((e) => this.isCatalogVisible(e.id));
+
+    // "Recommended" scope: explicit user intent for the curated staples only.
+    if (searchDto.recommendedOnly) {
+      results = results.filter((e) => isRecommendedExercise(e.id));
+    }
 
     // Text search: tokenized, order-independent, equipment/movement-aware match,
     // with forgiving rewrites (compound joins) when they strictly beat the
@@ -330,6 +356,15 @@ export class ExercisesService implements OnModuleInit {
         const cB = cardioLibrarySortKey(b.id);
         if (cA !== cB) return cA - cB;
       }
+
+      // Quality tier is the primary key (Task 13): S→D, relative within
+      // whatever filter produced this list — categories without an S row
+      // still surface their own leaders first. Browse, the replace picker,
+      // and the generator candidate pools all inherit this order; common
+      // rank below stays as the within-tier tiebreak.
+      const tierA = TIER_ORDER[EXERCISE_TIERS[a.id]] ?? 5;
+      const tierB = TIER_ORDER[EXERCISE_TIERS[b.id]] ?? 5;
+      if (tierA !== tierB) return tierA - tierB;
 
       const rankA = getCommonExerciseRank(a.id);
       const rankB = getCommonExerciseRank(b.id);
@@ -463,7 +498,9 @@ export class ExercisesService implements OnModuleInit {
     usedFamilies.delete(''); // an empty family must never exclude everything
 
     const equipment = dto.location === 'home' ? [...HOME_EQUIPMENT] : undefined;
-    // search() returns same-muscle candidates already quality-sorted (common first).
+    // search() returns same-muscle candidates quality-sorted: tier first
+    // (Task 13 Phase C), common rank as the within-tier tiebreak — so the
+    // top-12 randomization pool below is drawn from the best replacements.
     const sameMuscle = this.search({
       muscleGroups: [target.primaryMuscleGroup],
       equipment,
@@ -472,8 +509,18 @@ export class ExercisesService implements OnModuleInit {
     const avoid = (dto.avoid ?? [])
       .map((a) => a.trim().toLowerCase())
       .filter((a) => a.length >= 2);
+    // Avoid phrases that name a joint ("shoulder", "knee pain") also
+    // exclude candidates tagged with outsized demand on that joint —
+    // structural avoidance on top of the free-text match below.
+    const avoidJoints = new Set(jointsFromAvoidPhrases(avoid));
     const isAvoided = (e: TransformedExercise): boolean => {
       if (!avoid.length) return false;
+      if (
+        avoidJoints.size &&
+        getJointDemands(e.id)?.some((j) => avoidJoints.has(j))
+      ) {
+        return true;
+      }
       const hay = [
         e.name,
         e.primaryMuscleGroup,

@@ -18,6 +18,11 @@ export type BodyMapFigureRegion = {
   path: string;
   /** Final fill color (highlight hue at intensity, or the quiet tone). */
   color: string;
+  /**
+   * Soft halo behind PRIMARY highlights only (the hue at low alpha) — the
+   * target muscle emits light; assists and quiet regions never glow.
+   */
+  glowColor?: string;
 };
 
 export type BodyMapWindow = {
@@ -41,10 +46,20 @@ export type BodyMapFigure = {
   outlinePath: string;
   /** Silhouette fill — a step off `surface` so the figure reads on cards. */
   bodyColor: string;
+  /**
+   * Bottom stop of the silhouette's vertical shading gradient (top stop is
+   * `bodyColor`) — the subtle light-to-shade falloff that keeps the figure
+   * from reading sticker-flat. Spans the full viewbox height so every crop
+   * shows a consistent slice of the same lighting.
+   */
+  bodyColorShade: string;
   /** Hairline outline stroke color (stroke width 1.5 in viewbox units). */
   outlineColor: string;
   regions: BodyMapFigureRegion[];
 };
+
+/** Full-figure viewbox height — gradient/glow geometry in both renderers keys off this. */
+export const BODY_VIEWBOX_HEIGHT = 440;
 
 // Focus-frame guardrails, all in viewbox units. Min window height caps zoom at
 // ~1.75x so a single small region never becomes an unrecognizable close-up;
@@ -173,6 +188,19 @@ function withIntensity(hex: string, intensity: number): string {
   return hex + alpha;
 }
 
+/**
+ * Assisting muscles use the TARGET's hue at this strength — monochromatic
+ * hierarchy (strong = target, pale = also works). One hue per figure means
+ * assists can never collide with another group's color and never vanish
+ * into the gray silhouette the way a neutral wash does.
+ */
+const ASSIST_STRENGTH = 0.25;
+
+/** The assist wash for a target hue — shared with the detail-page legend dot. */
+export function assistColorFor(targetHex: string): string {
+  return withIntensity(targetHex, ASSIST_STRENGTH);
+}
+
 export function buildBodyMapFigure(opts: {
   highlights: BodyMapHighlight[];
   view: BodyMapView | 'auto';
@@ -196,15 +224,37 @@ export function buildBodyMapFigure(opts: {
   const quietColor = palette.bodyMapQuiet;
   const intensityByRegion = new Map(highlights.map((h) => [h.region, h.intensity]));
 
+  // The figure's accent is the target's group hue: primaries wear it at full
+  // strength, assisting muscles wear the SAME hue pale (see ASSIST_STRENGTH).
+  // Resolved from the highlights across BOTH view tables — the back view of a
+  // chest exercise has no chest regions, but its assists must still tint
+  // chest-red, not gray. The gray token is only a defensive fallback for
+  // direct callers that pass no primary at all.
+  const primaryHighlight = highlights.find((h) => h.intensity >= 1);
+  const primaryGroup = primaryHighlight
+    ? (BODY_MAP_REGIONS.front[primaryHighlight.region] ??
+        BODY_MAP_REGIONS.back[primaryHighlight.region])?.group
+    : undefined;
+  const accentHue = primaryGroup
+    ? getMuscleGroupVisual(primaryGroup).color
+    : palette.bodyMapAssist;
+
   const regions: BodyMapFigureRegion[] = Object.entries(BODY_MAP_REGIONS[view]).map(
     ([key, region]) => {
       const intensity = intensityByRegion.get(key);
+      if (intensity && intensity >= 1) {
+        const hue = getMuscleGroupVisual(region.group).color;
+        return {
+          key,
+          path: region.path,
+          color: withIntensity(hue, intensity),
+          glowColor: withIntensity(hue, 0.35),
+        };
+      }
       return {
         key,
         path: region.path,
-        color: intensity
-          ? withIntensity(getMuscleGroupVisual(region.group).color, intensity)
-          : quietColor,
+        color: intensity ? assistColorFor(accentHue) : quietColor,
       };
     },
   );
@@ -217,6 +267,7 @@ export function buildBodyMapFigure(opts: {
     window,
     outlinePath: BODY_OUTLINE_PATH,
     bodyColor: palette.bodyMapBody,
+    bodyColorShade: palette.bodyMapBodyShade,
     outlineColor: palette.bodyMapOutline,
     regions,
   };

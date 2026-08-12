@@ -21,7 +21,14 @@ export function isTimeHoldExerciseName(name: string): boolean {
   if (!n) return false;
   if (/\bside\s+plank\b/i.test(n) && /\brow\b/i.test(n)) return false;
   if (TIME_HOLD_NAME.test(n)) {
-    if (/\bplank\b/i.test(n) && /\b(row|rotation|reach|drag|dumbbell)\b/i.test(n)) {
+    // Plank-HYBRID names are rep movements performed from a plank position —
+    // base plank/side-plank holds stay timed. Keep in sync with backend.
+    if (
+      /\bplank\b/i.test(n) &&
+      /\b(row|rotation|reach|drag|dumbbell|clamshell|abduction|hip\s+dip|shoulder\s+tap|knee\s+tuck|bird\s+dog|leg\s+raise|up[\s-]?down|walkout)\b/i.test(
+        n,
+      )
+    ) {
       return false;
     }
     return true;

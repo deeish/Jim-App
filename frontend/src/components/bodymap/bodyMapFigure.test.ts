@@ -20,7 +20,7 @@ describe('buildBodyMapFigure', () => {
     expect(figure.view).toBe('back');
   });
 
-  it('colors highlighted regions with alpha-scaled hue and leaves the rest quiet', () => {
+  it('colors primaries in their group hue, assists in the single muted tone, rest quiet', () => {
     const figure = buildBodyMapFigure({
       highlights: [{ region: 'Upper Chest', intensity: 1 }, { region: 'Front Delts', intensity: 0.4 }],
       view: 'front',
@@ -30,8 +30,30 @@ describe('buildBodyMapFigure', () => {
     // Derived from the theme rather than hardcoded, so a palette change restyles
     // the body map without failing this test — only the alpha scaling is asserted.
     expect(byKey['Upper Chest']).toBe(`${muscleGroupColors.chest}ff`); // full intensity
-    expect(byKey['Front Delts']).toBe(`${muscleGroupColors.shoulders}66`); // 0.4 -> 0x66
+    // Assists wear the TARGET's hue pale (monochromatic hierarchy), never
+    // their own group hue and never a gray that sinks into the silhouette.
+    expect(byKey['Front Delts']).toBe(`${muscleGroupColors.chest}40`); // 0.25 -> 0x40
     expect(byKey['Quads']).toBe(palette.bodyMapQuiet);
+    // Only the primary emits a glow halo; assists and quiet regions never do.
+    const glowByKey = Object.fromEntries(figure.regions.map((r) => [r.key, r.glowColor]));
+    expect(glowByKey['Upper Chest']).toBe(`${muscleGroupColors.chest}59`); // 0.35 -> 0x59
+    expect(glowByKey['Front Delts']).toBeUndefined();
+    expect(glowByKey['Quads']).toBeUndefined();
+  });
+
+  it('back view of a front-target exercise still tints assists in the target hue', () => {
+    // The back view has no chest regions, but a bench press's assisting rear
+    // anatomy must tint chest-red, not fall back to gray.
+    const figure = buildBodyMapFigure({
+      highlights: [
+        { region: 'Mid Chest', intensity: 1 },
+        { region: 'Rear Delts', intensity: 0.4 },
+      ],
+      view: 'back',
+      size: 180,
+    });
+    const byKey = Object.fromEntries(figure.regions.map((r) => [r.key, r.color]));
+    expect(byKey['Rear Delts']).toBe(`${muscleGroupColors.chest}40`);
   });
 
   it('emits every region of the requested view exactly once', () => {

@@ -176,15 +176,24 @@ export const PLAN_CALENDAR_LOOKBACK_WEEKS = 12;
  * Without an anchor (legacy plans), only the current and future weeks are addressable.
  * With `weekAnchorMonday`, users can go back toward program week 1’s Monday, capped by {@link PLAN_CALENDAR_LOOKBACK_WEEKS}.
  * If the anchor is still in the future, `min` stays `0` so “this week” and the out-of-range banner remain reachable.
+ *
+ * `maxProgramWeek` extends the forward bound to the program's final week: a
+ * hard {@link PLAN_CALENDAR_LOOKAHEAD_WEEKS} cap made week 8 of an 8-week
+ * program starting next Monday unreachable until real time caught up.
  */
-export function getPlanCalendarWeekNavigationBounds(anchorYmdRaw: string | null | undefined): {
+export function getPlanCalendarWeekNavigationBounds(
+  anchorYmdRaw: string | null | undefined,
+  maxProgramWeek: number = 1,
+): {
   min: number;
   max: number;
 } {
-  const max = PLAN_CALENDAR_LOOKAHEAD_WEEKS;
+  const programWeeks = normalizeProgramWeekNumber(maxProgramWeek);
   const anchorYmd = normalizePlanAnchorYmd(anchorYmdRaw);
   if (!anchorYmd) {
-    return { min: 0, max };
+    // Legacy mapping is offset + 1 → program week, so the final week sits at
+    // offset programWeeks − 1.
+    return { min: 0, max: Math.max(PLAN_CALENDAR_LOOKAHEAD_WEEKS, programWeeks - 1) };
   }
   const todayMonday = calendarMondayForOffsetFromToday(0);
   const anchorMonday = parseLocalYmd(anchorYmd);
@@ -196,6 +205,8 @@ export function getPlanCalendarWeekNavigationBounds(anchorYmdRaw: string | null 
   // When anchor is this week or in the past, diffWeeks <= 0: min is the strip offset of program week 1’s Monday, capped at -12.
   const min =
     diffWeeks > 0 ? 0 : Math.max(-PLAN_CALENDAR_LOOKBACK_WEEKS, diffWeeks);
+  // Program week w's Monday sits at offset diffWeeks + (w − 1).
+  const max = Math.max(PLAN_CALENDAR_LOOKAHEAD_WEEKS, diffWeeks + programWeeks - 1);
   return { min, max };
 }
 

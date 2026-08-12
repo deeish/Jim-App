@@ -38,6 +38,31 @@ describe('isTimeHoldExerciseName', () => {
     expect(isTimeHoldExerciseName('Side Plank')).toBe(true);
     expect(isTimeHoldExerciseName('Side Plank Row')).toBe(false);
   });
+
+  it('treats plank-HYBRID rep movements as reps, base planks as timed (backend parity)', () => {
+    for (const name of [
+      'Side Plank Clamshell',
+      'Side Plank Hip Abduction',
+      'Side Plank Hip Dip',
+      'Plank Shoulder Tap',
+      'Side Plank Knee Tuck',
+      'High Plank Bird Dog',
+      'Side Plank with Top-Leg Raise',
+      'Plank Up-Down',
+      'Walkout to Plank',
+    ]) {
+      expect(isTimeHoldExerciseName(name)).toBe(false);
+    }
+    for (const name of [
+      'Front Plank',
+      'Copenhagen Knee Plank',
+      'RKC Plank',
+      'Weighted Plank',
+      'Star Side Plank',
+    ]) {
+      expect(isTimeHoldExerciseName(name)).toBe(true);
+    }
+  });
 });
 
 describe('formatRestSecondsForPreview', () => {

@@ -533,6 +533,25 @@ export class PlansService {
     return 'intermediate';
   }
 
+  /**
+   * Update the name column and nothing else. `update()` below rebuilds the
+   * whole plan from the DTO's slots — using it for a rename would delete
+   * every planWorkout and unlink every materialized workout.
+   */
+  async renamePlan(id: string, name: string, userId: string) {
+    const existing = await this.prisma.workoutPlan.findUnique({
+      where: { id },
+    });
+    if (!existing) throw new NotFoundException(`Plan with ID ${id} not found`);
+    if (existing.userId && existing.userId !== userId) {
+      throw new NotFoundException(`Plan with ID ${id} not found`);
+    }
+    return this.prisma.workoutPlan.update({
+      where: { id },
+      data: { name: name.trim() },
+    });
+  }
+
   async update(id: string, dto: CreatePlanDto, userId: string) {
     const existing = await this.prisma.workoutPlan.findUnique({
       where: { id },

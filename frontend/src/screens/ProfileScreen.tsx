@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import SheetModal from '../components/SheetModal';
 import {
   useUserPreferences,
   GOAL_OPTIONS,
@@ -915,19 +916,16 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      <Modal
+      <SheetModal
         visible={avatarSheetOpen}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setAvatarSheetOpen(false)}
+        onClose={() => setAvatarSheetOpen(false)}
+        scrimColor={colors.scrim}
       >
-        <View style={[styles.modalOverlay, themedStyles.modalOverlay]}>
-          <TouchableOpacity
-            style={StyleSheet.absoluteFill}
-            activeOpacity={1}
-            onPress={() => setAvatarSheetOpen(false)}
-          />
-          <View style={[styles.modalSheet, themedStyles.modalSheet]}>
+          {/* The card guards its own taps; see SheetModal. */}
+          <Pressable
+            style={[styles.modalSheet, themedStyles.modalSheet]}
+            onPress={(e) => e.stopPropagation()}
+          >
             <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Avatar</Text>
             <View style={styles.avatarSheetPreview}>
               <ProfileAvatarDisc
@@ -979,23 +977,18 @@ export default function ProfileScreen() {
                 <Text style={[styles.modalBtnText, { color: colors.primary }]}>Done</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
+          </Pressable>
+      </SheetModal>
 
-      <Modal
+      <SheetModal
         visible={equipmentModalOpen}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setEquipmentModalOpen(false)}
+        onClose={() => setEquipmentModalOpen(false)}
+        scrimColor={colors.scrim}
       >
-        <View style={[styles.modalOverlay, themedStyles.modalOverlay]}>
-          <TouchableOpacity
-            style={StyleSheet.absoluteFill}
-            activeOpacity={1}
-            onPress={() => setEquipmentModalOpen(false)}
-          />
-          <View style={[styles.modalSheet, themedStyles.modalSheet]}>
+          <Pressable
+            style={[styles.modalSheet, themedStyles.modalSheet]}
+            onPress={(e) => e.stopPropagation()}
+          >
             <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Your equipment</Text>
             <Text
               style={{
@@ -1036,9 +1029,8 @@ export default function ProfileScreen() {
                 <Text style={[styles.modalBtnText, { color: colors.primary }]}>Save</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
+          </Pressable>
+      </SheetModal>
     </SafeAreaView>
   );
 }

@@ -19,6 +19,26 @@ export interface Exercise {
    * of one lift share it; angle/stance variants get their own.
    */
   groupKey?: string;
+  /**
+   * Progression-ladder neighbors, present only on GET /exercises/:id and
+   * only for exercises that sit on a ladder (push-up, pull-up, squat, …).
+   */
+  progressions?: {
+    easier: { id: string; name: string }[];
+    harder: { id: string; name: string }[];
+  };
+  /**
+   * "Watch Out For" coaching cues (common mistake; fix). Present only on
+   * GET /exercises/:id for rows with authored cues.
+   */
+  formCues?: string[];
+  /**
+   * Joints this exercise places outsized demand on (display labels, e.g.
+   * "Shoulders"). Present only on GET /exercises/:id when non-empty.
+   */
+  jointDemands?: string[];
+  /** True for the curated staples — drives the Recommended star and filter. */
+  recommended?: boolean;
   [key: string]: any; // Allow other fields
 }
 
@@ -28,6 +48,8 @@ export interface SearchExercisesParams {
   subMuscles?: string[];
   equipment?: string[];
   movementPatterns?: string[];
+  /** Only the curated staples (the rows carrying the Recommended badge). */
+  recommendedOnly?: boolean;
   /** Cap the exercises array (browse mode). `count` still reports total matches. */
   limit?: number;
 }

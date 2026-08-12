@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  TextInput,
   TouchableOpacity,
   Pressable,
   Modal,
@@ -12,8 +13,8 @@ import {
 } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, runOnJS, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
@@ -23,7 +24,7 @@ import { elevation, leading, planSlotIconColors, radius, spacing, text, tracking
 import { useTabBarInset } from '../navigation/useTabBarInset';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
-import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot, movePlanSlot } from '../services/planService';
+import { getCurrentPlanWithWeekly, getCurrentPlan, removePlanSlot, movePlanSlot, renamePlan } from '../services/planService';
 import type { ApiPlan, ApiPlanExercise, ApiPlanWorkout } from '../services/planService';
 import type { Exercise, Workout, WorkoutLog } from '../types/workout';
 import { materializePlanSlotWorkout, getWorkoutLogs } from '../services/workoutService';
@@ -31,6 +32,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import WorkoutDayRow, { pickWorkoutIcon, pickWorkoutAccent, workoutEyebrow } from '../components/WorkoutDayRow';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
 import ShareModal from '../components/ShareModal';
+import SheetModal from '../components/SheetModal';
 import {
   formatLocalYmd,
   getCalendarWeekRange,
@@ -40,10 +42,12 @@ import {
   normalizePlanDayOfWeek,
   normalizeProgramWeekNumber,
   isRestPlanSlotTitle,
+  parseLocalYmd,
   resolveProgramWeekForCalendarOffset,
   shiftWeekWorkouts,
 } from '../lib/planCalendar';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
+import { formatPlanDisplayName } from '../lib/planDisplayName';
 import {
   exercisesLikeFromPrescription,
   getPlanSlotDisplayMinutes,
@@ -159,17 +163,24 @@ type Props = {
   navigation?: PlanScreenNavigationProp;
 };
 
-function findDayAtY(
-  screenY: number,
-  containerOffsetY: number,
-  headerBottom: number,
-  scrollOffset: number,
-  dayLayouts: Record<string, { y: number; height: number }>,
+/**
+ * Which day group the pointer is over, in WINDOW coordinates. The rects are
+ * snapshotted with `measureInWindow` when a drag starts (scrolling is disabled
+ * for the whole drag, so they stay valid), and the gesture's `absoluteY` is in
+ * the same space. The previous approach cached content-relative `onLayout`
+ * rects and reconstructed the pointer position from container/header/scroll
+ * offsets — but after a drop moved rows between days, siblings whose position
+ * (not size) changed never re-fired `onLayout`, so the cache went stale and
+ * the NEXT drag resolved drops against wrong rectangles. That is exactly the
+ * "card can't be dragged again after it was dragged once" bug.
+ */
+function findDayAtWindowY(
+  windowY: number,
+  dayRects: Record<string, { top: number; height: number }>,
 ): string | null {
-  const contentY = screenY - containerOffsetY - headerBottom + scrollOffset;
   for (const day of DAYS_OF_WEEK) {
-    const l = dayLayouts[day];
-    if (l && contentY >= l.y && contentY <= l.y + l.height) return day;
+    const r = dayRects[day];
+    if (r && windowY >= r.top && windowY <= r.top + r.height) return day;
   }
   return null;
 }
@@ -185,6 +196,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const { colors } = useTheme();
   // The tab bar floats over this screen; keep the last day rows clear of it.
   const tabBarInset = useTabBarInset();
+  // Bottom sheets pad their footer past the home indicator.
   const insets = useSafeAreaInsets();
   const { weightUnit, goal } = useUserPreferences();
   const [selectedWeek, setSelectedWeek] = useState(0);
@@ -192,7 +204,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [planLoading, setPlanLoading] = useState(true);
   const [planError, setPlanError] = useState<string | null>(null);
   const [contextWorkout, setContextWorkout] = useState<{ workout: PlanWorkout; day: string } | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
   const [savedModalVisible, setSavedModalVisible] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
@@ -203,6 +214,11 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState<{ slotId: string; day: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [clearingWeek, setClearingWeek] = useState(false);
+  /** ⋯ menu on the week row (rename / shift week / clear week). */
+  const [weekMenuOpen, setWeekMenuOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<ApiPlan | null>(null);
   const [startWorkoutLoading, setStartWorkoutLoading] = useState(false);
   const [detailSheetGuideExpanded, setDetailSheetGuideExpanded] = useState(false);
@@ -225,9 +241,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
 
   const containerRef       = useRef<View>(null);
   const containerOffsetRef = useRef({ x: 0, y: 0 });
-  const headerBottomRef    = useRef(0);
-  const scrollOffsetRef    = useRef(0);
+  /** Content-relative day rects — used only by scroll-to-today, never by drag. */
   const dayLayoutsRef      = useRef<Record<string, { y: number; height: number }>>({});
+  /** Per-day group refs so drag start can measure fresh window rects. */
+  const dayNodeRefs        = useRef<Record<string, View | null>>({});
+  /** Window-space day rects snapshotted at drag start; see findDayAtWindowY. */
+  const dayWindowRectsRef  = useRef<Record<string, { top: number; height: number }>>({});
   const draggingSlotRef        = useRef<{ workout: PlanWorkout; day: string } | null>(null);
   const hoveredDayRef          = useRef<string | null>(null);
   const planByWeekRef          = useRef(planByWeek);
@@ -320,7 +339,10 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
     [currentPlan?.weekAnchorMonday],
   );
 
-  const weekNavBounds = useMemo(() => getPlanCalendarWeekNavigationBounds(anchorYmd), [anchorYmd]);
+  const weekNavBounds = useMemo(
+    () => getPlanCalendarWeekNavigationBounds(anchorYmd, maxPlanWeek),
+    [anchorYmd, maxPlanWeek],
+  );
 
   useEffect(() => {
     setSelectedWeek((w) => Math.max(weekNavBounds.min, Math.min(weekNavBounds.max, w)));
@@ -371,27 +393,105 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
 
   const weekRange = getCalendarWeekRange(selectedWeek);
   const loadBalance = computeLoadBalance(plan);
-  const headerSubtitle = useMemo(() => {
-    const parts: string[] = [];
-    if (loadBalance.strength) parts.push(`${loadBalance.strength} strength`);
-    if (loadBalance.cardio) parts.push(`${loadBalance.cardio} cardio`);
-    if (loadBalance.recovery) parts.push(`${loadBalance.recovery} recovery`);
-    return parts.length ? parts.join(', ') : null;
-  }, [loadBalance.strength, loadBalance.cardio, loadBalance.recovery]);
-  const detailsLoadSummary = useMemo(() => {
-    const parts: string[] = [];
-    if (loadBalance.strength) parts.push(`${loadBalance.strength} Strength`);
-    if (loadBalance.cardio) parts.push(`${loadBalance.cardio} Cardio`);
-    if (loadBalance.recovery) parts.push(`${loadBalance.recovery} Recovery`);
-    return parts.length ? parts.join(' • ') : 'No sessions';
-  }, [loadBalance.strength, loadBalance.cardio, loadBalance.recovery]);
   // The stored plan name ("Strength · 4d/wk · 1 wk") outlives its sessions:
   // removing the last slot leaves the record — and its generated name — behind,
   // so an emptied plan read like a live one. Gate on the WHOLE plan, not the
   // selected week: an empty week of a multi-week plan keeps the real name.
+  // Generated machine names render through the display humanizer.
   const headerTitle =
-    (currentPlan?.planWorkouts?.length ?? 0) > 0 ? (currentPlan?.name ?? 'My Plan') : 'My Plan';
+    (currentPlan?.planWorkouts?.length ?? 0) > 0
+      ? formatPlanDisplayName(currentPlan?.name)
+      : 'My Plan';
   const isCurrentWeek = selectedWeek === 0;
+
+  // The program's arc ("Week 3 of 8") is the identity of a multi-week plan;
+  // the calendar range is detail. Repeated weeks past the program end keep the
+  // dates-only label — claiming "Week 8 of 8" there would be a lie the
+  // repeating banner already explains. One-week plans gain nothing from
+  // "Week 1 of 1", so they stay dates-only too.
+  const programWeekLabel =
+    programWeekResolution.status === 'in_program' &&
+    !programWeekResolution.repeatingLastWeek &&
+    maxPlanWeek > 1
+      ? `Week ${programWeekResolution.week} of ${maxPlanWeek}`
+      : null;
+
+  /**
+   * Save the new plan name. Optimistic — the identity row updates at once and
+   * reverts (with an alert) if the PATCH fails. Uses the dedicated rename
+   * endpoint; the general plan PATCH rebuilds every slot.
+   */
+  const handleRenameSave = useCallback(async () => {
+    const planId = currentPlan?.id;
+    const trimmed = renameValue.trim();
+    if (!planId || !trimmed || renaming) return;
+    const previous = currentPlan;
+    setRenaming(true);
+    setCurrentPlan((prev) => (prev ? { ...prev, name: trimmed } : prev));
+    setRenameOpen(false);
+    try {
+      await renamePlan(planId, trimmed);
+    } catch (err) {
+      setCurrentPlan(previous);
+      Alert.alert(
+        'Could not rename plan',
+        (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
+          ?.message ??
+          (err as { message?: string })?.message ??
+          'Check your connection and try again.',
+      );
+    } finally {
+      setRenaming(false);
+    }
+  }, [currentPlan, renameValue, renaming]);
+
+  // Native-header toolbar: History / Saved / Share as icon buttons. Set from
+  // the screen rather than the navigator because they open screen-owned
+  // modals and Share needs the loaded plan id.
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('History')}
+            accessibilityLabel="Workout history"
+            hitSlop={8}
+            style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.xs }}
+          >
+            <Ionicons name="time-outline" size={22} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setSavedModalVisible(true)}
+            accessibilityLabel="Saved workouts"
+            hitSlop={8}
+            style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.xs }}
+          >
+            <Ionicons name="heart-outline" size={22} color={colors.primary} />
+          </TouchableOpacity>
+          {currentPlan?.id ? (
+            <TouchableOpacity
+              onPress={() => setShareModalVisible(true)}
+              accessibilityLabel="Share plan"
+              hitSlop={8}
+              style={{ paddingLeft: spacing.sm, paddingVertical: spacing.xs }}
+            >
+              <Ionicons name="share-outline" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ),
+    });
+  }, [navigation, colors.primary, currentPlan?.id]);
+
+  // A just-applied program that starts next Monday should read as anticipation
+  // ("starts Monday, Aug 10"), not as this week being somehow wrong.
+  const programStartsLine = useMemo(() => {
+    if (!anchorYmd) return null;
+    const d = parseLocalYmd(anchorYmd);
+    if (Number.isNaN(d.getTime())) return null;
+    const when = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    return `Your program starts ${when}.`;
+  }, [anchorYmd]);
 
   const weekSlots = resolvedProgramWeek !== null ? planByWeek[resolvedProgramWeek] : null;
   const canShiftBack = !!weekSlots && !weekSlots['Monday']?.length;
@@ -405,30 +505,24 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           flex: 1,
           backgroundColor: colors.background,
         },
-        header: {
+        errorTitle: { fontSize: text.title, fontWeight: weight.bold, color: colors.text },
+        planIdentityRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.md,
           backgroundColor: colors.surface,
-          padding: spacing.md,
-          paddingTop: spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
         },
-        headerTop: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: spacing.md,
+        planIdentityName: {
+          flex: 1,
+          minWidth: 0,
+          fontSize: text.body,
+          fontWeight: weight.semibold,
+          color: colors.textSecondary,
         },
-        headerTitles: { flex: 1 },
-        headerTitle: { fontSize: text.title, fontWeight: weight.bold, color: colors.text },
-        subtitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginTop: spacing.xxs },
-        goalContext: { fontSize: text.footnote, color: colors.primary, fontWeight: weight.semibold, flex: 1 },
-        detailsToggle: { marginTop: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
-        detailsToggleContent: { flexDirection: 'row', alignItems: 'center' },
-        detailsToggleText: { fontSize: text.footnote, color: colors.textSecondary, fontWeight: weight.semibold },
-        detailsToggleIcon: { fontSize: text.footnote, color: colors.textSecondary, fontWeight: weight.semibold },
-        ctaRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', marginTop: spacing.md },
-        historyLabelButton: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
-        historyLabelText: { fontSize: text.body, fontWeight: weight.semibold },
         ctaCompact: {
           backgroundColor: colors.primary,
           paddingVertical: spacing.sm,
@@ -441,13 +535,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           // Trailing anchor: links sit left, the one primary action sits right.
           marginLeft: 'auto',
         },
-        ctaSecondary: {
-          backgroundColor: colors.surface,
-          borderWidth: 1,
-          borderColor: colors.border,
-        },
         ctaCompactText: { fontSize: text.body, fontWeight: weight.semibold, color: colors.onPrimary },
-        ctaCompactTextSecondary: { fontSize: text.body, fontWeight: weight.semibold, color: colors.textSecondary },
         weekRow: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -469,32 +557,22 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         weekNavArrowDisabled: { opacity: 0.35 },
         weekNavArrowText: { fontSize: text.title, color: colors.primary, fontWeight: weight.semibold },
         weekNavCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+        weekNavLabels: { alignItems: 'center' },
         weekNavLabel: { fontSize: text.body, color: colors.text, fontWeight: weight.semibold },
-        shiftRow: {
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-          gap: spacing.md,
-          backgroundColor: colors.surface,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-          paddingVertical: spacing.md,
-          paddingHorizontal: spacing.md,
-        },
-        shiftBtn: {
-          flex: 1,
-          minHeight: 48,
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
-          borderRadius: radius.md,
-          borderWidth: 2,
-          borderColor: colors.primary,
+        weekNavSubLabel: { fontSize: text.footnote, color: colors.textSecondary, marginTop: 1 },
+        weekNavSideSlot: {
+          width: 48,
+          minHeight: 44,
           alignItems: 'center',
           justifyContent: 'center',
         },
-        shiftBtnDisabled: { opacity: 0.35 },
-        shiftBtnText: { fontSize: text.body, color: colors.primary, fontWeight: weight.bold },
-        clearWeekBtnText: { fontSize: text.body, color: colors.error, fontWeight: weight.bold },
+        weekNavSideBtn: {
+          minWidth: 44,
+          minHeight: 44,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        weekNavTodayText: { fontSize: text.footnote, color: colors.primary, fontWeight: weight.semibold },
         outOfProgramWeekBanner: {
           paddingVertical: spacing.sm,
           paddingHorizontal: spacing.md,
@@ -519,10 +597,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         contentContainer: { padding: spacing.md, paddingBottom: spacing.xxxl, gap: spacing.sm },
         dayGroup: {
           borderRadius: radius.md,
+          // Constant border so the drop-target highlight is layout-neutral: a
+          // border appearing mid-drag used to shift every row below by 2px,
+          // invalidating the drag's day-rect snapshot.
+          borderWidth: 1,
+          borderColor: 'transparent',
         },
         dayGroupDropTarget: {
           backgroundColor: colors.primary + '14',
-          borderWidth: 1,
           borderColor: colors.primary,
         },
         moreButton: {
@@ -550,6 +632,19 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         menuItemText: { fontSize: text.callout, color: colors.text },
         menuItemTextMuted: { fontSize: text.callout, color: colors.textMuted },
         menuItemDanger: { color: colors.error },
+        renameInput: {
+          marginHorizontal: spacing.lg,
+          marginBottom: spacing.sm,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.md,
+          borderRadius: radius.sm,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.background,
+          fontSize: text.callout,
+          color: colors.text,
+        },
+        renameSaveText: { fontSize: text.callout, color: colors.primary, fontWeight: weight.semibold },
         moveOverlay: {
           flex: 1,
           backgroundColor: colors.scrim,
@@ -569,29 +664,42 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         moveDayText: { fontSize: text.callout, color: colors.text },
         moveCancel: { padding: spacing.lg, alignItems: 'center' },
         moveCancelText: { fontSize: text.callout, color: colors.textMuted },
-        detailSheetOverlay: {
-          flex: 1,
-          backgroundColor: colors.overlay,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: spacing.xl,
-        },
+        // Bottom sheet, not a centered dialog — matches the template scheduler
+        // and the avatar picker, and puts Start workout in thumb reach.
+        // Presented via SheetModal (scrim fades while the card slides).
         detailSheetBox: {
           backgroundColor: colors.surface,
-          borderRadius: radius.xl,
+          borderTopLeftRadius: radius.xl,
+          borderTopRightRadius: radius.xl,
           width: '100%',
-          maxWidth: 400,
+          maxWidth: 480,
+          alignSelf: 'center',
           maxHeight: '88%',
           overflow: 'hidden',
           borderWidth: 1,
+          borderBottomWidth: 0,
           borderColor: colors.border,
           shadowColor: colors.shadow,
           ...elevation.level3,
+        },
+        detailSheetCloseBtn: {
+          position: 'absolute',
+          top: spacing.md,
+          right: spacing.md,
+          width: 32,
+          height: 32,
+          borderRadius: 16,
+          backgroundColor: colors.background,
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2,
         },
         detailSheetScroll: { flexGrow: 0, maxHeight: 420 },
         detailSheetScrollContent: { paddingBottom: spacing.md },
         detailSheetTitleRow: {
           paddingHorizontal: spacing.xl,
+          // Clears the absolute ✕ in the sheet's top-right corner.
+          paddingRight: 56,
           paddingTop: spacing.xl,
           paddingBottom: spacing.lg,
           borderBottomWidth: 1,
@@ -685,47 +793,33 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           backgroundColor: colors.surface,
           gap: spacing.md,
         },
-        detailSheetLinkRow: {
+        // Navigation, not an action: a quiet row keeps Start workout as the
+        // sheet's one button.
+        detailSheetDetailsRow: {
           flexDirection: 'row',
-          justifyContent: 'center',
-          alignItems: 'stretch',
-          gap: spacing.md,
-          paddingTop: spacing.xxs,
-        },
-        detailSheetFooterBtnSecondary: {
-          minHeight: 48,
-          paddingVertical: spacing.lg,
-          paddingHorizontal: spacing.lg,
-          borderRadius: radius.md,
-          backgroundColor: colors.background,
-          borderWidth: 1,
-          borderColor: colors.border,
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: spacing.xl,
+          paddingVertical: spacing.lg,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          backgroundColor: colors.surface,
         },
-        detailSheetFooterBtnFlex: { flex: 1 },
-        detailSheetFooterBtnOutline: {
-          backgroundColor: colors.primary + '14',
-          borderColor: colors.primary,
-          borderWidth: 2,
-        },
-        detailSheetFooterBtnSecondaryText: {
+        detailSheetDetailsRowText: {
           fontSize: text.callout,
-          fontWeight: weight.bold,
+          fontWeight: weight.semibold,
           color: colors.text,
-        },
-        detailSheetFooterBtnOutlineText: {
-          fontSize: text.callout,
-          fontWeight: weight.bold,
-          color: colors.primary,
         },
         restSheetBox: {
           backgroundColor: colors.surface,
-          borderRadius: radius.xl,
+          borderTopLeftRadius: radius.xl,
+          borderTopRightRadius: radius.xl,
           width: '100%',
-          maxWidth: 360,
+          maxWidth: 480,
+          alignSelf: 'center',
           overflow: 'hidden',
           borderWidth: 1,
+          borderBottomWidth: 0,
           borderColor: colors.border,
           shadowColor: colors.shadow,
           ...elevation.level3,
@@ -1148,14 +1242,23 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   }, [currentPlan?.id, resolvedProgramWeek, planByWeek, loadPlan]);
 
   // --- Drag-and-drop callbacks ---
-  const updateHoveredDay = useCallback((screenY: number) => {
-    const day = findDayAtY(
-      screenY,
-      containerOffsetRef.current.y,
-      headerBottomRef.current,
-      scrollOffsetRef.current,
-      dayLayoutsRef.current,
-    );
+  /**
+   * Fresh window rects for every day group, taken when a drag starts. Scrolling
+   * is disabled for the duration of the drag, so these stay valid until drop —
+   * and unlike cached onLayout values they can never be stale from a previous
+   * move (the root cause of repeat drags landing nowhere).
+   */
+  const snapshotDayWindowRects = useCallback(() => {
+    dayWindowRectsRef.current = {};
+    for (const day of DAYS_OF_WEEK) {
+      dayNodeRefs.current[day]?.measureInWindow((_x, y, _w, h) => {
+        dayWindowRectsRef.current[day] = { top: y, height: h };
+      });
+    }
+  }, []);
+
+  const updateHoveredDay = useCallback((windowY: number) => {
+    const day = findDayAtWindowY(windowY, dayWindowRectsRef.current);
     hoveredDayRef.current = day; // update ref immediately — don't wait for useEffect
     setHoveredDay(day);          // update state for visual highlight
   }, []);
@@ -1193,10 +1296,19 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       };
     });
 
-    // Persist in background — revert on failure and re-fetch to ensure UI matches server
-    movePlanSlot(planId, slot.workout.id, { dayOfWeek: target }).catch(() => {
+    // Persist in background — revert on failure and re-fetch to ensure UI
+    // matches the server. The revert must never be silent: a card snapping
+    // back with no explanation reads as "the app won't let me move it".
+    movePlanSlot(planId, slot.workout.id, { dayOfWeek: target }).catch((err) => {
       setPlanByWeek(snapshot);
       void loadPlan();
+      Alert.alert(
+        'Could not move workout',
+        (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
+          ?.message ??
+          (err as { message?: string })?.message ??
+          'Check your connection and try again.',
+      );
     });
   }, [currentPlan?.id, loadPlan]);
 
@@ -1251,7 +1363,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         testID="e2e-plan-root"
         style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: spacing.xl }]}
       >
-        <Text style={[styles.headerTitle, { color: colors.text, marginBottom: spacing.sm }]}>{planError}</Text>
+        <Text style={[styles.errorTitle, { marginBottom: spacing.sm }]}>{planError}</Text>
         <TouchableOpacity onPress={loadPlan} style={{ padding: spacing.md, backgroundColor: colors.primary, borderRadius: radius.sm }}>
           <Text style={{ color: colors.onPrimary, fontWeight: weight.semibold }}>Retry</Text>
         </TouchableOpacity>
@@ -1270,74 +1382,42 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         });
       }}
     >
-      {/* Dynamic header: plan name + optional subtitle from load balance */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
-        {headerSubtitle || currentPlan?.id ? (
-          <View style={styles.subtitleRow}>
-            {headerSubtitle ? (
-              <Text style={styles.goalContext} numberOfLines={1}>{headerSubtitle}</Text>
-            ) : (
-              <View style={{ flex: 1 }} />
-            )}
-            {currentPlan?.id ? (
-              <TouchableOpacity
-                onPress={() => setShareModalVisible(true)}
-                accessibilityLabel="Share plan"
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="share-outline" size={18} color={colors.primary} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : null}
-        {/* Three items, one line, no wrap. Templates deliberately lives inside
-            the plan-creation flow (GeneratePlan's opening card + the no-plan
-            hero), not here — four items forced this row onto two ragged lines
-            on phones, and "use a template" is a creation-time decision anyway. */}
-        <View style={styles.ctaRow}>
+      {/* The screen's name is the native header's ("Plan"). The plan's own
+          generated name ("Strength · Upper/Lower") is data, not the room's
+          name, so it lives here in content — beside the one action that
+          replaces it. History/Saved/Share are native toolbar icons. */}
+      {currentPlan ? (
+        <View style={styles.planIdentityRow}>
+          <Text style={styles.planIdentityName} numberOfLines={1}>
+            {headerTitle}
+          </Text>
           <TouchableOpacity
-            style={styles.historyLabelButton}
-            onPress={() => navigation.navigate('History')}
-            accessibilityLabel="Workout history"
+            style={styles.ctaCompact}
+            onPress={handleAIGenerate}
+            accessibilityLabel="AI Generate plan"
           >
-            <Text style={[styles.historyLabelText, { color: colors.primary }]}>History</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.historyLabelButton}
-            onPress={() => setSavedModalVisible(true)}
-            accessibilityLabel="Saved workouts"
-          >
-            <Text style={[styles.historyLabelText, { color: colors.primary }]}>Saved</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.ctaCompact} onPress={handleAIGenerate} accessibilityLabel="AI Generate plan">
             <Ionicons name="sparkles-outline" size={16} color={colors.onPrimary} />
             <Text style={styles.ctaCompactText}>AI Generate</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Collapsible Details section */}
-        <TouchableOpacity
-          style={styles.detailsToggle}
-          onPress={() => setShowDetails(!showDetails)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.detailsToggleContent}>
-            <Text style={styles.detailsToggleText}>
-              Details ({detailsLoadSummary})
-            </Text>
-            <Text style={styles.detailsToggleIcon}>{showDetails ? ' ▾' : ' ▸'}</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+      ) : null}
 
       {/* Tight week navigation: ‹ Week of Jan 26 – Feb 1 › */}
-      <View
-        style={styles.weekRow}
-        onLayout={(e: LayoutChangeEvent) => {
-          headerBottomRef.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
-        }}
-      >
+      <View style={styles.weekRow}>
+        {/* Fixed-width side slots keep the label centered whether or not
+            Today / ⋯ are showing. */}
+        <View style={styles.weekNavSideSlot}>
+          {!isCurrentWeek ? (
+            <TouchableOpacity
+              style={styles.weekNavSideBtn}
+              onPress={() => setSelectedWeek(0)}
+              accessibilityRole="button"
+              accessibilityLabel="Go to the current week"
+            >
+              <Text style={styles.weekNavTodayText}>Today</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <TouchableOpacity
           style={[styles.weekNavArrow, selectedWeek <= weekNavBounds.min && styles.weekNavArrowDisabled]}
           disabled={selectedWeek <= weekNavBounds.min}
@@ -1347,7 +1427,18 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           <Text style={styles.weekNavArrowText}>‹</Text>
         </TouchableOpacity>
         <View style={styles.weekNavCenter}>
-          <Text style={styles.weekNavLabel}>Week of {formatWeekRange(weekRange.start, weekRange.end)}</Text>
+          {programWeekLabel ? (
+            <View style={styles.weekNavLabels}>
+              <Text style={styles.weekNavLabel}>{programWeekLabel}</Text>
+              <Text style={styles.weekNavSubLabel}>
+                {formatWeekRange(weekRange.start, weekRange.end)}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.weekNavLabel}>
+              Week of {formatWeekRange(weekRange.start, weekRange.end)}
+            </Text>
+          )}
         </View>
         <TouchableOpacity
           style={[styles.weekNavArrow, selectedWeek >= weekNavBounds.max && styles.weekNavArrowDisabled]}
@@ -1357,42 +1448,19 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         >
           <Text style={styles.weekNavArrowText}>›</Text>
         </TouchableOpacity>
-      </View>
-
-      {hasWorkoutsThisWeek ? (
-        <View style={styles.shiftRow}>
-          <TouchableOpacity
-            style={[styles.shiftBtn, (!canShiftBack || shifting) && styles.shiftBtnDisabled]}
-            disabled={!canShiftBack || shifting}
-            onPress={() => handleShiftWeek(-1)}
-            accessibilityLabel="Shift all workouts back one day"
-          >
-            <Text style={styles.shiftBtnText}>← Shift back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.shiftBtn, (!canShiftForward || shifting) && styles.shiftBtnDisabled]}
-            disabled={!canShiftForward || shifting}
-            onPress={() => handleShiftWeek(1)}
-            accessibilityLabel="Shift all workouts forward one day"
-          >
-            <Text style={styles.shiftBtnText}>Shift forward →</Text>
-          </TouchableOpacity>
-          {!(programWeekResolution.status === 'in_program' && programWeekResolution.repeatingLastWeek) ? (
+        <View style={styles.weekNavSideSlot}>
+          {currentPlan ? (
             <TouchableOpacity
-              style={[styles.shiftBtn, clearingWeek && styles.shiftBtnDisabled]}
-              disabled={clearingWeek}
-              onPress={handleClearWeek}
-              accessibilityLabel="Remove all workouts from this week"
+              style={styles.weekNavSideBtn}
+              onPress={() => setWeekMenuOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Week actions"
             >
-              {clearingWeek ? (
-                <ActivityIndicator size="small" color={colors.error} />
-              ) : (
-                <Text style={styles.clearWeekBtnText}>Clear week</Text>
-              )}
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           ) : null}
         </View>
-      ) : null}
+      </View>
 
       {programWeekResolution.status === 'in_program' && programWeekResolution.repeatingLastWeek ? (
         <TouchableOpacity
@@ -1414,7 +1482,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         <View style={styles.outOfProgramWeekBanner}>
           <Text style={styles.outOfProgramWeekText}>
             {programWeekResolution.status === 'before_program'
-              ? 'No workouts for this calendar week — it is before your program starts.'
+              ? programStartsLine ?? 'Your program has not started yet.'
               : 'No workouts mapped to this week for your plan.'}
           </Text>
         </View>
@@ -1427,8 +1495,6 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         contentContainerStyle={[styles.contentContainer, { paddingBottom: spacing.xxxl + tabBarInset }]}
         showsVerticalScrollIndicator={false}
         scrollEnabled={scrollEnabled}
-        onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
-        scrollEventThrottle={16}
       >
         {currentPlan === null ? (
           <View style={styles.noPlanHero}>
@@ -1479,6 +1545,9 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
           return (
             <View
               key={day}
+              ref={(node) => {
+                dayNodeRefs.current[day] = node;
+              }}
               style={[styles.dayGroup, isDropTarget && styles.dayGroupDropTarget]}
               onLayout={(e: LayoutChangeEvent) => {
                 dayLayoutsRef.current[day] = {
@@ -1488,19 +1557,40 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               }}
             >
               {workouts.length === 0 ? (
-                <TouchableOpacity
-                  onPress={() => handleAddWorkoutForDay(day)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Add workout for ${day}`}
-                >
-                  <WorkoutDayRow
-                    dayLabel={dayLabel}
-                    kind="empty"
-                    title={`Add workout for ${day}`}
-                    isToday={isToday}
-                  />
-                </TouchableOpacity>
+                // On a week that has scheduled workouts, an empty day is the
+                // program's rest day — labeling it "Add workout" reframes
+                // planned recovery as an omission. It stays tappable to add;
+                // the quiet + in the trailing slot keeps that discoverable.
+                hasWorkoutsThisWeek ? (
+                  <TouchableOpacity
+                    onPress={() => handleAddWorkoutForDay(day)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Rest day. Add a workout for ${day}`}
+                  >
+                    <WorkoutDayRow
+                      dayLabel={dayLabel}
+                      kind="rest"
+                      title="Rest day"
+                      isToday={isToday}
+                      moreButton={<Ionicons name="add" size={18} color={colors.textMuted} />}
+                    />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => handleAddWorkoutForDay(day)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add workout for ${day}`}
+                  >
+                    <WorkoutDayRow
+                      dayLabel={dayLabel}
+                      kind="empty"
+                      title={`Add workout for ${day}`}
+                      isToday={isToday}
+                    />
+                  </TouchableOpacity>
+                )
               ) : (
                 workouts.map((workout, idx) => {
                   const isRestDay = isRestPlanSlotTitle(workout.title);
@@ -1529,6 +1619,7 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                       dragX.value = e.absoluteX;
                       dragY.value = e.absoluteY;
                       ghostOpacity.value = withTiming(1, { duration: 120 });
+                      runOnJS(snapshotDayWindowRects)();
                       runOnJS(setDraggingSlot)({ workout, day });
                       runOnJS(setScrollEnabled)(false);
                     })
@@ -1623,6 +1714,112 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
         </Pressable>
       </Modal>
 
+      {/* Week actions menu (⋯ on the week row): shift/clear are rare power
+          actions — a permanent toolbar overweighted them against the schedule. */}
+      <Modal visible={weekMenuOpen} transparent animationType="fade">
+        <Pressable style={styles.menuOverlay} onPress={() => setWeekMenuOpen(false)}>
+          <View style={styles.menuBox}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setWeekMenuOpen(false);
+                setRenameValue(headerTitle);
+                setRenameOpen(true);
+              }}
+            >
+              <Text style={styles.menuItemText}>Rename plan</Text>
+            </TouchableOpacity>
+            {hasWorkoutsThisWeek ? (
+              <>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  disabled={!canShiftBack || shifting}
+                  onPress={() => {
+                    setWeekMenuOpen(false);
+                    void handleShiftWeek(-1);
+                  }}
+                >
+                  <Text style={!canShiftBack || shifting ? styles.menuItemTextMuted : styles.menuItemText}>
+                    Shift all workouts back a day
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  disabled={!canShiftForward || shifting}
+                  onPress={() => {
+                    setWeekMenuOpen(false);
+                    void handleShiftWeek(1);
+                  }}
+                >
+                  <Text style={!canShiftForward || shifting ? styles.menuItemTextMuted : styles.menuItemText}>
+                    Shift all workouts forward a day
+                  </Text>
+                </TouchableOpacity>
+                {!(programWeekResolution.status === 'in_program' && programWeekResolution.repeatingLastWeek) ? (
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    disabled={clearingWeek}
+                    onPress={() => {
+                      setWeekMenuOpen(false);
+                      handleClearWeek();
+                    }}
+                  >
+                    <Text style={[styles.menuItemText, styles.menuItemDanger]}>Clear week</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </>
+            ) : null}
+            <TouchableOpacity style={styles.menuItem} onPress={() => setWeekMenuOpen(false)}>
+              <Text style={styles.menuItemTextMuted}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Rename sheet (in-app modal — Alert.prompt is iOS-only and a no-op on web) */}
+      <Modal visible={renameOpen} transparent animationType="fade">
+        <Pressable style={styles.menuOverlay} onPress={() => setRenameOpen(false)}>
+          <Pressable style={styles.menuBox} onPress={(e) => e.stopPropagation()}>
+            <Text style={[styles.menuItemText, { padding: spacing.lg, paddingBottom: spacing.sm }]}>
+              Rename plan
+            </Text>
+            <TextInput
+              style={styles.renameInput}
+              value={renameValue}
+              onChangeText={setRenameValue}
+              maxLength={80}
+              autoFocus
+              selectTextOnFocus
+              returnKeyType="done"
+              onSubmitEditing={() => void handleRenameSave()}
+              accessibilityLabel="Plan name"
+            />
+            <View style={{ flexDirection: 'row', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md }}>
+              <TouchableOpacity
+                style={[styles.menuItem, { flex: 1 }]}
+                onPress={() => setRenameOpen(false)}
+                disabled={renaming}
+              >
+                <Text style={styles.menuItemTextMuted}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.menuItem, { flex: 1 }]}
+                onPress={() => void handleRenameSave()}
+                disabled={renaming || !renameValue.trim()}
+              >
+                <Text
+                  style={
+                    renameValue.trim() && !renaming ? styles.renameSaveText : styles.menuItemTextMuted
+                  }
+                >
+                  Save
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Delete confirmation modal (in-app so Remove works on web) */}
       <Modal visible={!!deleteConfirm} transparent animationType="fade">
         <Pressable style={styles.menuOverlay} onPress={closeDeleteConfirm}>
@@ -1696,9 +1893,13 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
       </Modal>
 
       {/* Workout detail sheet: reasoning, exercises, and actions */}
-      <Modal visible={!!detailSheetWorkout} transparent animationType="fade">
-        <Pressable style={styles.detailSheetOverlay} onPress={closeDetailSheet}>
-          {detailSheetWorkout && (() => {
+      <SheetModal
+        visible={!!detailSheetWorkout}
+        onClose={closeDetailSheet}
+        scrimColor={colors.overlay}
+      >
+        {detailSheetWorkout &&
+          (() => {
             const linked = resolveWorkoutForPlanSlot(detailSheetWorkout.workout.id);
             const isRestDay = isRestPlanSlotTitle(detailSheetWorkout.workout.title);
             const apiSlot = currentPlan?.planWorkouts?.find((p) => p.id === detailSheetWorkout.workout.id);
@@ -1728,6 +1929,14 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
               linked?.exercises?.length ? linked.exercises : fromPlanRows;
             return (
               <Pressable style={styles.detailSheetBox} onPress={(e) => e.stopPropagation()}>
+                <TouchableOpacity
+                  style={styles.detailSheetCloseBtn}
+                  onPress={closeDetailSheet}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
                 <ScrollView
                   style={styles.detailSheetScroll}
                   contentContainerStyle={styles.detailSheetScrollContent}
@@ -1767,7 +1976,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                         </Text>
                       ) : null}
                       <Text style={styles.detailSheetSubLine}>
-                        {detailSheetWorkout.day} • {detailSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {detailSheetWorkout.day},{' '}
+                        {detailSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </Text>
                     </View>
                   </View>
@@ -1898,67 +2108,68 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                     <Text style={[styles.detailSheetDetail, { marginTop: spacing.md }]}>Off / Optional walk</Text>
                   ) : null}
                 </ScrollView>
-                <View style={styles.detailSheetFooter}>
+                {!isRestDay && linked ? (
+                  <TouchableOpacity
+                    style={styles.detailSheetDetailsRow}
+                    onPress={() => {
+                      closeDetailSheet();
+                      navigation.navigate('WorkoutDetail', { workoutId: linked.id });
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Workout details"
+                  >
+                    <Text style={styles.detailSheetDetailsRowText}>Workout details</Text>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                ) : null}
+                <View
+                  style={[
+                    styles.detailSheetFooter,
+                    { paddingBottom: Math.max(insets.bottom + spacing.sm, spacing.xl) },
+                  ]}
+                >
                   {isRestDay ? (
                     <TouchableOpacity style={styles.detailSheetPrimaryFull} onPress={closeDetailSheet}>
-                      <Text style={styles.detailSheetPrimaryText}>OK</Text>
+                      <Text style={styles.detailSheetPrimaryText}>Done</Text>
                     </TouchableOpacity>
                   ) : (
-                    <>
-                      <TouchableOpacity
-                        style={[
-                          styles.detailSheetPrimaryFull,
-                          (startWorkoutLoading || displayExercises.length === 0) && { opacity: 0.55 },
-                        ]}
-                        onPress={() => void handleStartWorkout()}
-                        disabled={startWorkoutLoading || displayExercises.length === 0}
-                      >
-                        {startWorkoutLoading ? (
-                          <ActivityIndicator color={colors.onPrimary} />
-                        ) : (
-                          <Text style={styles.detailSheetPrimaryText}>Start workout</Text>
-                        )}
-                      </TouchableOpacity>
-                      <View style={styles.detailSheetLinkRow}>
-                        <TouchableOpacity
-                          style={[styles.detailSheetFooterBtnSecondary, styles.detailSheetFooterBtnFlex]}
-                          onPress={closeDetailSheet}
-                          accessibilityRole="button"
-                          accessibilityLabel="Close"
-                        >
-                          <Text style={styles.detailSheetFooterBtnSecondaryText}>Close</Text>
-                        </TouchableOpacity>
-                        {linked ? (
-                          <TouchableOpacity
-                            style={[
-                              styles.detailSheetFooterBtnSecondary,
-                              styles.detailSheetFooterBtnFlex,
-                              styles.detailSheetFooterBtnOutline,
-                            ]}
-                            onPress={() => {
-                              closeDetailSheet();
-                              navigation.navigate('WorkoutDetail', { workoutId: linked.id });
-                            }}
-                            accessibilityRole="button"
-                          >
-                            <Text style={styles.detailSheetFooterBtnOutlineText}>Workout details</Text>
-                          </TouchableOpacity>
-                        ) : null}
-                      </View>
-                    </>
+                    <TouchableOpacity
+                      style={[
+                        styles.detailSheetPrimaryFull,
+                        (startWorkoutLoading || displayExercises.length === 0) && { opacity: 0.55 },
+                      ]}
+                      onPress={() => void handleStartWorkout()}
+                      disabled={startWorkoutLoading || displayExercises.length === 0}
+                    >
+                      {startWorkoutLoading ? (
+                        <ActivityIndicator color={colors.onPrimary} />
+                      ) : (
+                        <Text style={styles.detailSheetPrimaryText}>Start workout</Text>
+                      )}
+                    </TouchableOpacity>
                   )}
                 </View>
               </Pressable>
             );
           })()}
-        </Pressable>
-      </Modal>
+      </SheetModal>
 
       {/* Rest day sheet — compact, with "Make this a workout day" CTA */}
-      <Modal visible={!!restSheetWorkout} transparent animationType="fade">
-        <Pressable style={styles.detailSheetOverlay} onPress={closeRestSheet}>
-          {restSheetWorkout && (
+      <SheetModal
+        visible={!!restSheetWorkout}
+        onClose={closeRestSheet}
+        scrimColor={colors.overlay}
+      >
+        {restSheetWorkout && (
             <Pressable style={styles.restSheetBox} onPress={(e) => e.stopPropagation()}>
+              <TouchableOpacity
+                style={styles.detailSheetCloseBtn}
+                onPress={closeRestSheet}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
               <View style={styles.detailSheetTitleRow}>
                 <View
                   style={[
@@ -1972,7 +2183,8 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                   <Text style={styles.detailSheetEyebrow}>REST</Text>
                   <Text style={styles.detailSheetTitle}>Rest Day</Text>
                   <Text style={styles.detailSheetSubLine}>
-                    {restSheetWorkout.day} • {restSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {restSheetWorkout.day},{' '}
+                    {restSheetWorkout.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </Text>
                 </View>
               </View>
@@ -1981,7 +2193,12 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                   Recovery — optional easy walk or mobility today.
                 </Text>
               </View>
-              <View style={styles.detailSheetFooter}>
+              <View
+                style={[
+                  styles.detailSheetFooter,
+                  { paddingBottom: Math.max(insets.bottom + spacing.sm, spacing.xl) },
+                ]}
+              >
                 <TouchableOpacity
                   style={styles.detailSheetPrimaryFull}
                   onPress={() => {
@@ -1994,21 +2211,10 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
                 >
                   <Text style={styles.detailSheetPrimaryText}>Make this a workout day</Text>
                 </TouchableOpacity>
-                <View style={styles.detailSheetLinkRow}>
-                  <TouchableOpacity
-                    style={[styles.detailSheetFooterBtnSecondary, styles.detailSheetFooterBtnFlex]}
-                    onPress={closeRestSheet}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close"
-                  >
-                    <Text style={styles.detailSheetFooterBtnSecondaryText}>Close</Text>
-                  </TouchableOpacity>
-                </View>
               </View>
             </Pressable>
           )}
-        </Pressable>
-      </Modal>
+      </SheetModal>
 
       {/* Saved workouts as a pop-up modal (not a stack screen) so switching tabs shows Plan again */}
       <Modal

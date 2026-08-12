@@ -9,6 +9,7 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +24,8 @@ import MuscleBodyMap from '../components/bodymap/MuscleBodyMap';
 import { exerciseToHighlights } from '../lib/exerciseToHighlights';
 import ExerciseLikeButton from '../components/ExerciseLikeButton';
 import { getExerciseHistory } from '../services/workoutService';
+import { RECOMMENDED_INFO } from '../constants/recommendedInfo';
+import { assistColorFor } from '../components/bodymap/bodyMapFigure';
 import { isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import {
   formatBestSetValue,
@@ -214,6 +217,46 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           justifyContent: 'space-between',
           alignItems: 'flex-start',
         },
+        recommendedRow: {
+          flexDirection: 'row',
+          paddingHorizontal: spacing.xl,
+          paddingTop: spacing.md,
+        },
+        recommendedBadge: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 5,
+          backgroundColor: colors.primarySoft,
+          borderWidth: 1,
+          borderColor: colors.primary,
+          borderRadius: radius.pill,
+          paddingHorizontal: spacing.md,
+          paddingVertical: 4,
+        },
+        recommendedText: {
+          fontSize: text.footnote,
+          fontWeight: weight.semibold,
+          color: colors.primary,
+        },
+        legendRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          marginBottom: spacing.md,
+        },
+        legendDot: {
+          width: 10,
+          height: 10,
+          borderRadius: radius.pill,
+        },
+        legendDotAssist: {
+          marginLeft: spacing.md,
+        },
+        legendLabel: {
+          fontSize: text.footnote,
+          color: colors.textSecondary,
+        },
         exerciseName: { fontSize: text.display, fontWeight: weight.bold, color: colors.text, flex: 1, marginRight: spacing.md },
         titleLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
         difficultyBadge: {
@@ -229,7 +272,62 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           borderBottomColor: colors.border,
           backgroundColor: colors.surface,
         },
+        card: {
+          backgroundColor: colors.surface,
+          borderRadius: radius.lg,
+          borderWidth: 1,
+          borderColor: colors.border,
+          marginHorizontal: spacing.lg,
+          marginTop: spacing.md,
+          padding: spacing.lg,
+        },
+        cardDivider: {
+          height: 1,
+          backgroundColor: colors.border,
+          marginVertical: spacing.lg,
+        },
+        factsStrip: {
+          marginTop: spacing.md,
+          flexGrow: 0,
+        },
+        factsRow: {
+          flexDirection: 'row',
+          alignItems: 'stretch',
+          paddingHorizontal: spacing.xl,
+          paddingVertical: spacing.sm,
+        },
+        factTile: {
+          paddingHorizontal: spacing.lg,
+          justifyContent: 'center',
+          alignItems: 'flex-start',
+        },
+        factTileFirst: { paddingLeft: 0 },
+        factDivider: { width: 1, backgroundColor: colors.border },
+        factLabel: {
+          fontSize: text.caption,
+          color: colors.textMuted,
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
+          marginBottom: 3,
+        },
+        factValue: {
+          fontSize: text.body,
+          fontWeight: weight.semibold,
+          color: colors.text,
+        },
+        footerAliases: {
+          fontSize: text.footnote,
+          color: colors.textMuted,
+          textAlign: 'center',
+          paddingHorizontal: spacing.xl,
+          paddingTop: spacing.xl,
+        },
         sectionTitle: { fontSize: text.headline, fontWeight: weight.semibold, color: colors.text, marginBottom: spacing.md },
+        progressionLabel: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
+        progressionGroup: { marginTop: spacing.md },
+        cueRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginBottom: spacing.sm },
+        cueIcon: { marginTop: 2 },
+        cueText: { flex: 1, fontSize: text.body, color: colors.textSecondary, lineHeight: 21 },
         description: { fontSize: text.callout, color: colors.textSecondary, lineHeight: leading.callout },
         tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
         bodyMapRow: {
@@ -514,12 +612,59 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           </View>
         </View>
 
+        {/* Recommended — the curated staples carry a full badge here; list rows
+            show the same signal as a bare star. Tapping explains the mark. */}
+        {!!exercise.recommended && (
+          <View style={styles.recommendedRow}>
+            <TouchableOpacity
+              style={styles.recommendedBadge}
+              onPress={() => Alert.alert(RECOMMENDED_INFO.title, RECOMMENDED_INFO.body)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Recommended. Tap to learn what this means."
+            >
+              <Ionicons name="star" size={12} color={colors.primary} />
+              <Text style={styles.recommendedText}>Recommended</Text>
+              <Ionicons name="information-circle-outline" size={13} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Description */}
         {exercise.description && (
           <View style={styles.section}>
             <Text style={styles.description}>{exercise.description}</Text>
           </View>
         )}
+
+        {/* Facts strip — App Store style: one compact row of labeled tiles
+            replaces the old Equipment / Movement Pattern / Joint Demand
+            sections (a full section header per one-word fact). */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.factsStrip}
+          contentContainerStyle={styles.factsRow}
+        >
+          {[
+            { label: 'Equipment', value: exercise.equipment.join(', ') },
+            { label: 'Movement', value: exercise.movementPatterns.join(', ') },
+            { label: 'Type', value: exercise.type ?? '' },
+            // "Tough on", not "Joints" (reads like a muscle list) and not
+            // "Hard on" (unfortunate in caps): the idiom without the snicker.
+            { label: 'Tough on', value: (exercise.jointDemands ?? []).join(', ') },
+          ]
+            .filter((f) => f.value.length > 0)
+            .map((fact, index) => (
+              <React.Fragment key={fact.label}>
+                {index > 0 && <View style={styles.factDivider} />}
+                <View style={[styles.factTile, index === 0 && styles.factTileFirst]}>
+                  <Text style={styles.factLabel}>{fact.label}</Text>
+                  <Text style={styles.factValue}>{fact.value}</Text>
+                </View>
+              </React.Fragment>
+            ))}
+        </ScrollView>
 
         {/*
           The user's own history with this lift.
@@ -533,7 +678,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           their estimate tile, per-row estimates, and trend never appear.
         */}
         {historySummary.sessions.length > 0 && (
-          <View style={styles.section}>
+          <View style={styles.card}>
             <Text style={styles.sectionTitle}>Your history</Text>
 
             {historySummary.hasWeightedWork && (
@@ -612,90 +757,142 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Primary Muscle Group */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Target Muscles</Text>
+        {/* Muscles — one card: the figure already encodes target vs assists,
+            so the old separate Secondary Muscles section is merged into a
+            single chip row (colored target, pale also-works). */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Muscles</Text>
           {bodyMap && (
-            <View style={styles.bodyMapRow}>
-              {/* Lead with the view holding the primary work so the lit figure is read first. */}
-              {(bodyMap.view === 'back' ? (['back', 'front'] as const) : (['front', 'back'] as const)).map(
-                (mapView) => (
-                  <MuscleBodyMap
-                    key={mapView}
-                    highlights={bodyMap.highlights}
-                    view={mapView}
-                    size={180}
-                    frame="focus"
-                  />
-                ),
-              )}
-            </View>
+            <>
+              <View style={styles.bodyMapRow}>
+                {/* Lead with the view holding the primary work so the lit figure is read first. */}
+                {(bodyMap.view === 'back' ? (['back', 'front'] as const) : (['front', 'back'] as const)).map(
+                  (mapView) => (
+                    <MuscleBodyMap
+                      key={mapView}
+                      highlights={bodyMap.highlights}
+                      view={mapView}
+                      size={180}
+                      frame="focus"
+                    />
+                  ),
+                )}
+              </View>
+              {/* Decoder for the figure's two strengths — no interaction needed. */}
+              <View style={styles.legendRow}>
+                <View style={[styles.legendDot, { backgroundColor: muscleVisual.color }]} />
+                <Text style={styles.legendLabel}>Target</Text>
+                {(exercise.secondaryMuscleGroups?.length ?? 0) > 0 && (
+                  <>
+                    <View
+                      style={[
+                        styles.legendDot,
+                        styles.legendDotAssist,
+                        { backgroundColor: assistColorFor(muscleVisual.color) },
+                      ]}
+                    />
+                    <Text style={styles.legendLabel}>Also works</Text>
+                  </>
+                )}
+              </View>
+            </>
           )}
+          {/* The chips sample the figure's own two tones, exactly like the
+              legend dots: SOLID hue = the strong target regions, pale wash =
+              the also-works regions. Fill weight now agrees with the figure
+              instead of inverting it (outline chips read lighter than washes). */}
           <View style={styles.tagsContainer}>
-            <View
-              style={[
-                styles.tag,
-                styles.primaryTag,
-                { backgroundColor: muscleVisual.softColor, borderColor: muscleVisual.color },
-              ]}
-            >
-              <Text style={[styles.tagText, { color: muscleVisual.color, fontWeight: weight.semibold }]}>
-                {exercise.primaryMuscleGroup}
-              </Text>
-            </View>
-            {exercise.subMuscles.map((muscle, index) => (
-              <View key={index} style={styles.tag}>
+            {[exercise.primaryMuscleGroup, ...exercise.subMuscles].map((muscle, index) => (
+              <View
+                key={`target-${index}`}
+                style={[
+                  styles.tag,
+                  { backgroundColor: muscleVisual.color, borderColor: muscleVisual.color },
+                ]}
+              >
+                <Text style={[styles.tagText, { color: colors.onPrimary, fontWeight: weight.semibold }]}>
+                  {muscle}
+                </Text>
+              </View>
+            ))}
+            {exercise.secondaryMuscleGroups.map((muscle, index) => (
+              <View
+                key={`assist-${index}`}
+                style={[
+                  styles.tag,
+                  {
+                    backgroundColor: assistColorFor(muscleVisual.color),
+                    borderColor: 'transparent',
+                  },
+                ]}
+              >
                 <Text style={styles.tagText}>{muscle}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        {/* Secondary Muscles */}
-        {exercise.secondaryMuscleGroups.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Secondary Muscles</Text>
-            <View style={styles.tagsContainer}>
-              {exercise.secondaryMuscleGroups.map((muscle, index) => (
-                <View key={index} style={[styles.tag, styles.secondaryTag]}>
-                  <Text style={styles.tagText}>{muscle}</Text>
+        {/* Progressions — easier/harder ladder neighbors, tappable */}
+        {(exercise.progressions?.easier?.length || exercise.progressions?.harder?.length) ? (
+          <View style={styles.card}>
+            {/* The title only promises what the card delivers. */}
+            <Text style={styles.sectionTitle}>
+              {exercise.progressions?.easier?.length && exercise.progressions?.harder?.length
+                ? 'Easier & Harder Versions'
+                : exercise.progressions?.easier?.length
+                  ? 'Easier Versions'
+                  : 'Harder Versions'}
+            </Text>
+            {exercise.progressions?.easier?.length ? (
+              <View>
+                {/* Captions only earn their place when both directions exist. */}
+                {!!exercise.progressions?.harder?.length && (
+                  <Text style={styles.progressionLabel}>Easier</Text>
+                )}
+                <View style={styles.tagsContainer}>
+                  {exercise.progressions.easier.map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.tag, styles.secondaryTag]}
+                      onPress={() => navigation.push('ExerciseDetail', { exerciseId: p.id })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Easier variation: ${p.name}`}
+                    >
+                      <Text style={styles.tagText}>{p.name}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Equipment */}
-        {exercise.equipment.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Equipment</Text>
-            <View style={styles.tagsContainer}>
-              {exercise.equipment.map((eq, index) => (
-                <View key={index} style={[styles.tag, styles.equipmentTag]}>
-                  <Text style={styles.tagText}>{eq}</Text>
+              </View>
+            ) : null}
+            {exercise.progressions?.harder?.length ? (
+              <View style={exercise.progressions?.easier?.length ? styles.progressionGroup : undefined}>
+                {!!exercise.progressions?.easier?.length && (
+                  <Text style={styles.progressionLabel}>Harder</Text>
+                )}
+                <View style={styles.tagsContainer}>
+                  {exercise.progressions.harder.map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.tag, styles.secondaryTag]}
+                      onPress={() => navigation.push('ExerciseDetail', { exerciseId: p.id })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Harder variation: ${p.name}`}
+                    >
+                      <Text style={styles.tagText}>{p.name}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              ))}
-            </View>
+              </View>
+            ) : null}
           </View>
-        )}
+        ) : null}
 
-        {/* Movement Patterns */}
-        {exercise.movementPatterns.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Movement Pattern</Text>
-            <View style={styles.tagsContainer}>
-              {exercise.movementPatterns.map((pattern, index) => (
-                <View key={index} style={[styles.tag, styles.movementTag]}>
-                  <Text style={styles.tagText}>{pattern}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Instructions — collapsed by default; the video below covers most users */}
-        {exercise.instructions && exercise.instructions.length > 0 && (
-          <View style={styles.section}>
+        {/* Form card — the coaching core in one place: steps (collapsed),
+            common mistakes, and the demo link. Joint demand moved to the
+            facts strip up top. */}
+        <View style={styles.card}>
+          {exercise.instructions && exercise.instructions.length > 0 && (
+            <>
             <TouchableOpacity
               style={styles.collapseHeader}
               onPress={() => {
@@ -730,15 +927,33 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                 ))}
               </View>
             )}
-          </View>
-        )}
+            </>
+          )}
 
-        {/* Watch demo: opens YouTube search so user can pick a video */}
-        <View style={styles.videoSection}>
-          <Text style={styles.videoSectionTitle}>Watch demo</Text>
-          <Text style={styles.videoSectionHint}>
-            Search YouTube for demo videos and pick one that works for you.
-          </Text>
+          {(exercise.instructions?.length ?? 0) > 0 &&
+            (exercise.formCues?.length ?? 0) > 0 && <View style={styles.cardDivider} />}
+
+          {exercise.formCues && exercise.formCues.length > 0 && (
+            <View>
+              <Text style={styles.sectionTitle}>Common Mistakes</Text>
+              {exercise.formCues.map((cue, index) => (
+                <View key={index} style={styles.cueRow}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={18}
+                    color={colors.textSecondary}
+                    style={styles.cueIcon}
+                  />
+                  <Text style={styles.cueText}>{cue}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {((exercise.instructions?.length ?? 0) > 0 ||
+            (exercise.formCues?.length ?? 0) > 0) && <View style={styles.cardDivider} />}
+
+          {/* Watch demo: opens YouTube search so user can pick a video */}
           <TouchableOpacity
             style={styles.youtubeButton}
             onPress={() => Linking.openURL(getYouTubeSearchUrl(exercise.name))}
@@ -747,12 +962,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         </View>
 
-        {/* Aliases */}
+        {/* Reference trivia lives in the footer, not a section. */}
         {exercise.aliases && exercise.aliases.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Also Known As</Text>
-            <Text style={styles.aliasesText}>{exercise.aliases.join(', ')}</Text>
-          </View>
+          <Text style={styles.footerAliases}>
+            {`Also known as: ${exercise.aliases.join(', ')}`}
+          </Text>
         )}
       </ScrollView>
     </SafeAreaView>

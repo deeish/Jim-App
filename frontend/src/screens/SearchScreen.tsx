@@ -20,13 +20,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
+import { useRoute, useFocusEffect, useScrollToTop, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { palette, type ColorPalette } from '../theme/colors';
 import Button from '../components/Button';
 import { searchExercises, Exercise, getSavedExerciseIds, getSavedExercises, saveExercise, unsaveExercise } from '../services/exerciseService';
+import { RECOMMENDED_INFO } from '../constants/recommendedInfo';
 import ExerciseGroupCard from '../components/ExerciseGroupCard';
 import { groupExercises, ExerciseGroup } from '../utils/exerciseGrouping';
 import { getCurrentPlan, createPlan, addPlanSlotToCurrent } from '../services/planService';
@@ -112,6 +113,8 @@ interface FilterState {
   subMuscles: string[]; // Specific muscles (Upper Chest, Lower Chest, etc.)
   equipment: string[];
   movementPatterns: string[];
+  /** Only the curated staples (rows carrying the Recommended star). */
+  recommendedOnly: boolean;
 }
 
 // ——— Filter chip UI, hoisted to module scope ———
@@ -417,6 +420,7 @@ export default function SearchScreen({ navigation }: Props) {
     subMuscles: [],
     equipment: [],
     movementPatterns: [],
+    recommendedOnly: false,
   });
 
   // Equipment + movement patterns live behind ONE collapsed row: equipment is a
@@ -437,6 +441,16 @@ export default function SearchScreen({ navigation }: Props) {
   // against a double-fire doesn't re-render the row and drop the next tap.
   const inFlightLikeIds = useRef<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'all' | 'saved'>('all');
+
+  // Re-tapping the Exercises tab scrolls the visible list back to the top —
+  // standard iOS muscle memory for escaping a deep scroll. One ref per list;
+  // the hook no-ops on whichever list isn't mounted.
+  const allListRef = useRef<FlatList>(null);
+  const savedListRef = useRef<FlatList>(null);
+  // The hook's type rejects nullable refs, but a null current is exactly the
+  // unmounted-list no-op we rely on; FlatList satisfies it structurally.
+  useScrollToTop(allListRef as React.RefObject<FlatList>);
+  useScrollToTop(savedListRef as React.RefObject<FlatList>);
   const [savedExercisesList, setSavedExercisesList] = useState<Exercise[]>([]);
   const [loadingSavedList, setLoadingSavedList] = useState(false);
 
@@ -665,6 +679,7 @@ export default function SearchScreen({ navigation }: Props) {
       // equipment they don't own.
       equipment: [...profileEquipment],
       movementPatterns: [],
+      recommendedOnly: false,
     });
   };
 
@@ -678,12 +693,18 @@ export default function SearchScreen({ navigation }: Props) {
     filters.muscleGroups.length === 0 &&
     filters.subMuscles.length === 0 &&
     filters.movementPatterns.length === 0 &&
+    !filters.recommendedOnly &&
     equipmentSetsEqual(filters.equipment, profileEquipment);
 
   // Chips for the active-filter row. The header badge is this list's length —
   // one source of truth, so the badge can never disagree with the rendered chips.
   const getActiveFilters = () => {
     const active: Array<{ label: string; category: string; value: string; isParent?: boolean }> = [];
+
+    // Recommended scope leads the row — it narrows everything below it.
+    if (filters.recommendedOnly) {
+      active.push({ label: 'Recommended', category: 'recommended', value: 'recommended' });
+    }
 
     // Selected parent groups (each searches the whole group unless narrowed by sub-muscles below).
     filters.muscleGroups.forEach(g => {
@@ -732,7 +753,8 @@ export default function SearchScreen({ navigation }: Props) {
       currentFilters.muscleGroups.length +
       currentFilters.subMuscles.length +
       (equipmentNarrowed ? 1 : 0) +
-      currentFilters.movementPatterns.length;
+      currentFilters.movementPatterns.length +
+      (currentFilters.recommendedOnly ? 1 : 0);
     const hasSearch = currentFilters.searchQuery.trim().length > 0;
 
     setIsLoading(true);
@@ -753,6 +775,7 @@ export default function SearchScreen({ navigation }: Props) {
               subMuscles: currentFilters.subMuscles.length > 0 ? currentFilters.subMuscles : undefined,
               equipment: equipmentNarrowed ? currentFilters.equipment : undefined,
               movementPatterns: currentFilters.movementPatterns.length > 0 ? currentFilters.movementPatterns : undefined,
+              recommendedOnly: currentFilters.recommendedOnly || undefined,
               limit: BROWSE_LIMIT,
             };
 
@@ -822,6 +845,8 @@ export default function SearchScreen({ navigation }: Props) {
         updated.equipment = [...EQUIPMENT_OPTIONS];
       } else if (category === 'movementPatterns') {
         updated.movementPatterns = prev.movementPatterns.filter(v => v !== value);
+      } else if (category === 'recommended') {
+        updated.recommendedOnly = false;
       }
       return updated;
     });
@@ -1192,6 +1217,22 @@ export default function SearchScreen({ navigation }: Props) {
         sectionBadgeText: { color: colors.onPrimary, fontSize: text.caption, fontWeight: weight.bold },
         sectionDescription: { fontSize: text.body, color: colors.textMuted, marginBottom: spacing.md },
         chipsContainer: { flexDirection: 'row', gap: spacing.sm, paddingRight: spacing.lg },
+        chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+        resultsFooterNote: {
+          fontSize: text.footnote,
+          color: colors.textMuted,
+          textAlign: 'center',
+          paddingVertical: spacing.xl,
+          paddingHorizontal: spacing.lg,
+        },
+        recommendedRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: spacing.lg,
+          paddingBottom: spacing.sm,
+        },
+        recommendedStar: { marginRight: 5 },
+        recommendedInfoBtn: { marginLeft: spacing.sm },
         chip: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -1405,6 +1446,7 @@ export default function SearchScreen({ navigation }: Props) {
         // Virtualized like the main results list — the saved list can grow unbounded,
         // and a plain .map would re-introduce the mount-everything jank FlatList fixed.
         <FlatList
+          ref={savedListRef}
           style={styles.content}
           contentContainerStyle={[styles.contentContainer, { paddingBottom: 100 + tabBarInset }]}
           showsVerticalScrollIndicator={false}
@@ -1454,6 +1496,40 @@ export default function SearchScreen({ navigation }: Props) {
         </View>
       </View>
 
+      {/* Recommended scope — our vetted staples. Dimmed while a search term is
+          active, matching the chips-never-narrow-text-search convention. */}
+      <View style={[styles.recommendedRow, searchActive && styles.activeFiltersDimmed]}>
+        <TouchableOpacity
+          style={[styles.chip, filters.recommendedOnly && styles.chipSelected]}
+          onPress={() =>
+            setFilters(prev => ({ ...prev, recommendedOnly: !prev.recommendedOnly }))
+          }
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Recommended filter${filters.recommendedOnly ? ', selected' : ''}`}
+          accessibilityState={{ selected: filters.recommendedOnly }}
+        >
+          <Ionicons
+            name={filters.recommendedOnly ? 'star' : 'star-outline'}
+            size={13}
+            color={filters.recommendedOnly ? colors.onPrimary : colors.textSecondary}
+            style={styles.recommendedStar}
+          />
+          <Text style={[styles.chipText, filters.recommendedOnly && styles.chipTextSelected]}>
+            Recommended
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => Alert.alert(RECOMMENDED_INFO.title, RECOMMENDED_INFO.body)}
+          hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="What does Recommended mean?"
+          style={styles.recommendedInfoBtn}
+        >
+          <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+      </View>
+
       {/* Active Filters — dimmed while a search term is active: text search
           deliberately ignores chips (a typed name must never be hidden), so the
           row must not claim filters it is not applying. */}
@@ -1487,6 +1563,7 @@ export default function SearchScreen({ navigation }: Props) {
 
       {/* Content */}
       <FlatList
+        ref={allListRef}
         style={styles.content}
         contentContainerStyle={[styles.contentContainer, { paddingBottom: 100 + tabBarInset }]}
         showsVerticalScrollIndicator={false}
@@ -1511,6 +1588,17 @@ export default function SearchScreen({ navigation }: Props) {
             </View>
           ) : null
         }
+        // The cap note lives at the END of the list — a reader 300 rows deep is
+        // the only person it concerns. Announcing it above the first row made
+        // the page open on an apology.
+        ListFooterComponent={
+          !isLoading && !error && resultsCapped && activeTab === 'all' ? (
+            <Text style={styles.resultsFooterNote}>
+              Showing the {exercises.length} most popular of {totalMatchCount} — search or refine
+              to see the rest.
+            </Text>
+          ) : null
+        }
         ListHeaderComponent={
           <>
         {/* Primary Filters - Most Important */}
@@ -1525,11 +1613,10 @@ export default function SearchScreen({ navigation }: Props) {
               </View>
             )}
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsContainer}
-          >
+          {/* Wrapped, not horizontally scrolled: seven fixed categories fit in
+              two rows on a phone, and a flush-edged scroll row reads as
+              complete — users never learned Arms/Cardio/Core existed. */}
+          <View style={styles.chipsWrap}>
             {MAIN_MUSCLE_GROUPS.map((group) => {
               const state = getMuscleGroupState(group);
               const subMuscles = getSubMuscles(group);
@@ -1546,7 +1633,7 @@ export default function SearchScreen({ navigation }: Props) {
                 />
               );
             })}
-          </ScrollView>
+          </View>
         </View>
 
         {/* Refine Sections - Show when a parent group is selected */}
@@ -1655,11 +1742,7 @@ export default function SearchScreen({ navigation }: Props) {
             {isBrowsingAll ? (
               <>
                 <Text style={styles.resultsHeaderText}>Popular exercises</Text>
-                <Text style={styles.resultsSubtext}>
-                  {resultsCapped
-                    ? `Showing the top ${exercises.length} of ${totalMatchCount}. Search or filter to see the rest.`
-                    : 'Search or filter to narrow the list.'}
-                </Text>
+                <Text style={styles.resultsSubtext}>Search or filter to narrow the list.</Text>
               </>
             ) : (
               <>
@@ -1673,13 +1756,6 @@ export default function SearchScreen({ navigation }: Props) {
                       </Text>
                     )}
                 </Text>
-                {/* Chip-driven searches are capped like browse mode; say so instead of
-                    silently truncating. (Text search is uncapped, so this never shows.) */}
-                {resultsCapped && (
-                  <Text style={styles.resultsSubtext}>
-                    Showing the top {exercises.length}. Narrow further or search to see the rest.
-                  </Text>
-                )}
               </>
             )}
           </View>

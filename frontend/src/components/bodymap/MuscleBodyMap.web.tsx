@@ -2,7 +2,11 @@ import React, { useId } from 'react';
 import { StyleProp, View, ViewStyle } from 'react-native';
 import { BodyMapHighlight } from '../../lib/exerciseToHighlights';
 import { BodyMapView } from './bodyMapPaths';
-import { buildBodyMapFigure, WINDOW_FADE_UNITS } from './bodyMapFigure';
+import {
+  BODY_VIEWBOX_HEIGHT,
+  buildBodyMapFigure,
+  WINDOW_FADE_UNITS,
+} from './bodyMapFigure';
 
 /**
  * Web variant of MuscleBodyMap: a plain inline <svg>. The asset is SVG path
@@ -27,6 +31,10 @@ const SvgLinearGradient = 'linearGradient' as unknown as React.ComponentType<
   Record<string, unknown>
 >;
 const SvgStop = 'stop' as unknown as React.ComponentType<Record<string, unknown>>;
+const SvgFilter = 'filter' as unknown as React.ComponentType<Record<string, unknown>>;
+const SvgFeGaussianBlur = 'feGaussianBlur' as unknown as React.ComponentType<
+  Record<string, unknown>
+>;
 
 function MuscleBodyMap({
   highlights,
@@ -52,12 +60,24 @@ function MuscleBodyMap({
 
   const content = (
     <>
+      {/* Vertical light-to-shade falloff (same model as the Skia renderer). */}
       <SvgPath
         d={figure.outlinePath}
-        fill={figure.bodyColor}
+        fill={`url(#${maskId}-body)`}
         stroke={figure.outlineColor}
         strokeWidth={1.5}
       />
+      {/* Soft halo behind primary highlights — drawn before the fills. */}
+      {figure.regions.map((region) =>
+        region.glowColor ? (
+          <SvgPath
+            key={`glow-${region.key}`}
+            d={region.path}
+            fill={region.glowColor}
+            filter={`url(#${maskId}-blur)`}
+          />
+        ) : null,
+      )}
       {figure.regions.map((region) => (
         <SvgPath key={region.key} d={region.path} fill={region.color} />
       ))}
@@ -73,9 +93,30 @@ function MuscleBodyMap({
         role="img"
         aria-label={`${figure.view} muscle map`}
       >
-        {needsFade ? (
-          <>
-            <SvgDefs>
+        <SvgDefs>
+          <SvgLinearGradient
+            id={`${maskId}-body`}
+            gradientUnits="userSpaceOnUse"
+            x1={0}
+            y1={0}
+            x2={0}
+            y2={BODY_VIEWBOX_HEIGHT}
+          >
+            <SvgStop offset="0" stopColor={figure.bodyColor} />
+            <SvgStop offset="1" stopColor={figure.bodyColorShade} />
+          </SvgLinearGradient>
+          {/* Generous filter region: the default bbox margins would clip the halo. */}
+          <SvgFilter
+            id={`${maskId}-blur`}
+            x="-30%"
+            y="-30%"
+            width="160%"
+            height="160%"
+          >
+            <SvgFeGaussianBlur stdDeviation={6} />
+          </SvgFilter>
+          {needsFade && (
+            <>
               <SvgLinearGradient id={`${maskId}-g`} x1="0" y1="0" x2="0" y2="1">
                 <SvgStop offset="0" stopColor="#fff" stopOpacity={win.fadeTop ? 0 : 1} />
                 <SvgStop offset={fadeFraction} stopColor="#fff" stopOpacity={1} />
@@ -101,12 +142,10 @@ function MuscleBodyMap({
                   fill={`url(#${maskId}-g)`}
                 />
               </SvgMask>
-            </SvgDefs>
-            <SvgG mask={`url(#${maskId})`}>{content}</SvgG>
-          </>
-        ) : (
-          content
-        )}
+            </>
+          )}
+        </SvgDefs>
+        {needsFade ? <SvgG mask={`url(#${maskId})`}>{content}</SvgG> : content}
       </Svg>
     </View>
   );

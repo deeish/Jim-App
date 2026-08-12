@@ -1,5 +1,6 @@
 import {
   equipmentSatisfies,
+  EQUIPMENT_MAP,
   transformExercise,
   UNMODELED_EQUIPMENT,
   type RawExercise,
@@ -70,5 +71,40 @@ describe('equipmentSatisfies', () => {
     expect(
       equipmentSatisfies([UNMODELED_EQUIPMENT], ['Barbell', 'Machine']),
     ).toBe(false);
+  });
+});
+
+// Catalog audit Task 12: the catalog spells some implements more than one
+// way. Ids are immutable so the variants are never migrated — instead every
+// spelling in a twin group must resolve to the same display label, or the
+// two spellings gate differently and rows silently drift apart.
+describe('equipment id-twin groups stay label-identical', () => {
+  const TWIN_GROUPS: string[][] = [
+    ['dumbbell', 'dumbbells'],
+    ['cable', 'cable_machine'],
+    ['battle_rope', 'battle_ropes'],
+    ['landmine', 'landmine_attachment'],
+    ['slider', 'sliders'],
+    ['rope', 'rope_attachment'],
+    ['single_handle', 'single_handle_attachment'],
+    ['plate', 'weight_plate', 'weight_plates'],
+    ['weight_vest', 'weighted_vest'],
+    ['bench', 'flat_bench'],
+    ['safety_bar', 'safety_squat_bar'],
+    ['rubber_band', 'resistance_band'],
+  ];
+
+  it.each(TWIN_GROUPS.map((g) => [g.join(' / '), g] as const))(
+    '%s',
+    (_label, group) => {
+      const labels = group.map((id) => EQUIPMENT_MAP[id]);
+      for (const label of labels) expect(label).toBeDefined();
+      expect(new Set(labels).size).toBe(1);
+    },
+  );
+
+  it('ez_bar vs ez_bar_attachment stay DIFFERENT (free bar vs cable attachment)', () => {
+    expect(EQUIPMENT_MAP.ez_bar).toBe('Barbell');
+    expect(EQUIPMENT_MAP.ez_bar_attachment).toBe('Cable');
   });
 });
