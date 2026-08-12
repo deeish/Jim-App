@@ -648,9 +648,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         >
           {[
             { label: 'Equipment', value: exercise.equipment.join(', ') },
-            { label: 'Pattern', value: exercise.movementPatterns.join(', ') },
+            { label: 'Movement', value: exercise.movementPatterns.join(', ') },
             { label: 'Type', value: exercise.type ?? '' },
-            { label: 'Joints', value: (exercise.jointDemands ?? []).join(', ') },
+            // "Hard on", not "Joints": the value names body parts, so a bare
+            // JOINTS label reads like another muscle list instead of a caution.
+            { label: 'Hard on', value: (exercise.jointDemands ?? []).join(', ') },
           ]
             .filter((f) => f.value.length > 0)
             .map((fact, index) => (
@@ -807,8 +809,20 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                 {exercise.primaryMuscleGroup}
               </Text>
             </View>
+            {/* Sub-muscles are part of the target: they wear the target hue
+                (soft), never the app's generic blue chip tint — every color
+                on this card must exist on the figure above it. */}
             {exercise.subMuscles.map((muscle, index) => (
-              <View key={index} style={styles.tag}>
+              <View
+                key={index}
+                style={[
+                  styles.tag,
+                  {
+                    backgroundColor: muscleVisual.softColor,
+                    borderColor: muscleVisual.color + '40',
+                  },
+                ]}
+              >
                 <Text style={styles.tagText}>{muscle}</Text>
               </View>
             ))}
@@ -830,7 +844,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         {/* Progressions — easier/harder ladder neighbors, tappable */}
         {(exercise.progressions?.easier?.length || exercise.progressions?.harder?.length) ? (
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Progressions</Text>
+            <Text style={styles.sectionTitle}>Easier & Harder Versions</Text>
             {exercise.progressions?.easier?.length ? (
               <View>
                 <Text style={styles.progressionLabel}>Easier</Text>
@@ -918,7 +932,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
 
           {exercise.formCues && exercise.formCues.length > 0 && (
             <View>
-              <Text style={styles.sectionTitle}>Watch Out For</Text>
+              <Text style={styles.sectionTitle}>Common Mistakes</Text>
               {exercise.formCues.map((cue, index) => (
                 <View key={index} style={styles.cueRow}>
                   <Ionicons
