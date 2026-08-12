@@ -650,9 +650,9 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
             { label: 'Equipment', value: exercise.equipment.join(', ') },
             { label: 'Movement', value: exercise.movementPatterns.join(', ') },
             { label: 'Type', value: exercise.type ?? '' },
-            // "Hard on", not "Joints": the value names body parts, so a bare
-            // JOINTS label reads like another muscle list instead of a caution.
-            { label: 'Hard on', value: (exercise.jointDemands ?? []).join(', ') },
+            // "Tough on", not "Joints" (reads like a muscle list) and not
+            // "Hard on" (unfortunate in caps): the idiom without the snicker.
+            { label: 'Tough on', value: (exercise.jointDemands ?? []).join(', ') },
           ]
             .filter((f) => f.value.length > 0)
             .map((fact, index) => (
@@ -809,21 +809,21 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                 {exercise.primaryMuscleGroup}
               </Text>
             </View>
-            {/* Sub-muscles are part of the target: they wear the target hue
-                (soft), never the app's generic blue chip tint — every color
-                on this card must exist on the figure above it. */}
+            {/* Sub-muscles ARE the strong-red target on the figure, so their
+                chips match the group chip exactly — the row mirrors the
+                figure's two tones: strong target chips, pale also-works. */}
             {exercise.subMuscles.map((muscle, index) => (
               <View
                 key={index}
                 style={[
                   styles.tag,
-                  {
-                    backgroundColor: muscleVisual.softColor,
-                    borderColor: muscleVisual.color + '40',
-                  },
+                  styles.primaryTag,
+                  { backgroundColor: muscleVisual.softColor, borderColor: muscleVisual.color },
                 ]}
               >
-                <Text style={styles.tagText}>{muscle}</Text>
+                <Text style={[styles.tagText, { color: muscleVisual.color, fontWeight: weight.semibold }]}>
+                  {muscle}
+                </Text>
               </View>
             ))}
             {exercise.secondaryMuscleGroups.map((muscle, index) => (
@@ -844,10 +844,20 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         {/* Progressions — easier/harder ladder neighbors, tappable */}
         {(exercise.progressions?.easier?.length || exercise.progressions?.harder?.length) ? (
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Easier & Harder Versions</Text>
+            {/* The title only promises what the card delivers. */}
+            <Text style={styles.sectionTitle}>
+              {exercise.progressions?.easier?.length && exercise.progressions?.harder?.length
+                ? 'Easier & Harder Versions'
+                : exercise.progressions?.easier?.length
+                  ? 'Easier Versions'
+                  : 'Harder Versions'}
+            </Text>
             {exercise.progressions?.easier?.length ? (
               <View>
-                <Text style={styles.progressionLabel}>Easier</Text>
+                {/* Captions only earn their place when both directions exist. */}
+                {!!exercise.progressions?.harder?.length && (
+                  <Text style={styles.progressionLabel}>Easier</Text>
+                )}
                 <View style={styles.tagsContainer}>
                   {exercise.progressions.easier.map((p) => (
                     <TouchableOpacity
@@ -865,7 +875,9 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
             ) : null}
             {exercise.progressions?.harder?.length ? (
               <View style={exercise.progressions?.easier?.length ? styles.progressionGroup : undefined}>
-                <Text style={styles.progressionLabel}>Harder</Text>
+                {!!exercise.progressions?.easier?.length && (
+                  <Text style={styles.progressionLabel}>Harder</Text>
+                )}
                 <View style={styles.tagsContainer}>
                   {exercise.progressions.harder.map((p) => (
                     <TouchableOpacity
