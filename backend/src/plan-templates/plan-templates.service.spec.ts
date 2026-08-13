@@ -8,12 +8,14 @@ describe('PlanTemplatesService', () => {
     service = new PlanTemplatesService();
   });
 
-  it('lists the three v1 programs as cards, browse order', () => {
+  it('lists the five programs as cards, newcomer-friendly browse order', () => {
     const { templates } = service.list();
     expect(templates.map((t) => t.id)).toEqual([
+      'beginner-full-body',
       'strength-upper-lower',
       'fat-loss-full-body',
       'hybrid-ppl',
+      'home-dumbbell-full-body',
     ]);
     for (const card of templates) {
       expect(card.weeksCount).toBe(8);

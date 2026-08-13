@@ -3,17 +3,23 @@ import { estimateTemplateSessionMinutes } from './types';
 import { STRENGTH_UPPER_LOWER } from './strength-upper-lower';
 import { FAT_LOSS_FULL_BODY } from './fat-loss-full-body';
 import { HYBRID_PPL } from './hybrid-ppl';
+import { BEGINNER_FULL_BODY } from './beginner-full-body';
+import { HOME_DUMBBELL_FULL_BODY } from './home-dumbbell-full-body';
 
 export * from './types';
 export { STRENGTH_UPPER_LOWER } from './strength-upper-lower';
 export { FAT_LOSS_FULL_BODY } from './fat-loss-full-body';
 export { HYBRID_PPL } from './hybrid-ppl';
+export { BEGINNER_FULL_BODY } from './beginner-full-body';
+export { HOME_DUMBBELL_FULL_BODY } from './home-dumbbell-full-body';
 
-/** All hand-authored programs, browse order. */
+/** All hand-authored programs, browse order (newcomer-friendly first). */
 export const PLAN_TEMPLATES_V1: PlanTemplate[] = [
+  BEGINNER_FULL_BODY,
   STRENGTH_UPPER_LOWER,
   FAT_LOSS_FULL_BODY,
   HYBRID_PPL,
+  HOME_DUMBBELL_FULL_BODY,
 ];
 
 /** Card projection for the list endpoint (no weekly programming payload). */

@@ -1,8 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { RawExercise } from '../exercise-mappings';
+import { transformExercise, type RawExercise } from '../exercise-mappings';
 import {
+  BEGINNER_FULL_BODY,
   FAT_LOSS_FULL_BODY,
+  HOME_DUMBBELL_FULL_BODY,
   HYBRID_PPL,
   PLAN_TEMPLATES_V1,
   STRENGTH_UPPER_LOWER,
@@ -213,6 +215,10 @@ describe('session durations stay inside the advertised bands', () => {
     [FAT_LOSS_FULL_BODY.id, FAT_LOSS_FULL_BODY, 40, 60],
     // PPL: 35–70 min (deload days short, peak legs day at the top).
     [HYBRID_PPL.id, HYBRID_PPL, 35, 70],
+    // Beginner full body: five movements, under an hour as advertised.
+    [BEGINNER_FULL_BODY.id, BEGINNER_FULL_BODY, 30, 60],
+    // Home dumbbell: short rests keep it tight; peak row weeks at the top.
+    [HOME_DUMBBELL_FULL_BODY.id, HOME_DUMBBELL_FULL_BODY, 30, 65],
   ];
 
   it.each(cases)('%s', (_id, template, min, max) => {
@@ -472,6 +478,109 @@ describe('Hybrid · Push/Pull/Legs — hypertrophy volume and ramp', () => {
     const ids = t.sessions.flatMap((s) => s.exercises.map((e) => e.exerciseId));
     expect(ids).toContain('barbell_hip_thrust');
     expect(ids).toContain('barbell_romanian_deadlift');
+  });
+});
+
+describe('Beginner · Full Body — linear-progression shape', () => {
+  const t = BEGINNER_FULL_BODY;
+
+  function row(id: string) {
+    for (const s of t.sessions) {
+      const found = s.exercises.find((e) => e.exerciseId === id);
+      if (found) return found;
+    }
+    throw new Error(`row ${id} not found`);
+  }
+
+  it('teaches all four barbell anchors across the week', () => {
+    const ids = t.sessions.flatMap((s) => s.exercises.map((e) => e.exerciseId));
+    for (const anchor of [
+      'back_squat',
+      'flat_barbell_bench_press',
+      'conventional_deadlift',
+      'barbell_overhead_press',
+    ]) {
+      expect(ids).toContain(anchor);
+    }
+    // The two big lower lifts each open their session.
+    expect(t.sessions[0].exercises[0].exerciseId).toBe('back_squat');
+    expect(t.sessions[1].exercises[0].exerciseId).toBe('conventional_deadlift');
+  });
+
+  it('pairs every press with a same-session pull, set for set every week', () => {
+    const pairs: Array<[string, string]> = [
+      ['flat_barbell_bench_press', 'barbell_bent_over_row'],
+      ['barbell_overhead_press', 'lat_pulldown_wide'],
+      ['flat_dumbbell_bench_press', 'single_arm_dumbbell_row'],
+    ];
+    for (const [press, pull] of pairs) {
+      const pressWeekly = row(press).weekly;
+      const pullWeekly = row(pull).weekly;
+      for (let w = 0; w < 8; w++) {
+        expect(pullWeekly[w].sets).toBe(pressWeekly[w].sets);
+      }
+    }
+  });
+
+  it('ramps the deadlift from one learning set and keeps it light on back-off weeks', () => {
+    const wk = row('conventional_deadlift').weekly;
+    expect(wk[0].sets).toBe(1); // learn
+    expect(wk[6].sets).toBe(3); // strongest week
+    expect(wk[3].sets).toBe(1); // technique week
+    expect(wk[7].sets).toBe(1); // deload
+    for (const week of wk) expect(week.repsMax).toBe(5); // fives, always
+  });
+
+  it('week 7 gives the squat-day leads their one extra set', () => {
+    expect(row('back_squat').weekly[6].sets).toBe(4);
+    expect(row('goblet_squat').weekly[6].sets).toBe(4);
+  });
+});
+
+describe('Home · Dumbbell Full Body — equipment honesty', () => {
+  const t = HOME_DUMBBELL_FULL_BODY;
+
+  it('every row runs on dumbbells or bodyweight — no gym machinery anywhere', () => {
+    // The program's whole promise is "dumbbells + a bench + you". A single
+    // cable/machine/barbell row silently breaks it for everyone at home.
+    const allowed = new Set(['Dumbbell', 'Bodyweight']);
+    for (const s of t.sessions) {
+      for (const ex of s.exercises) {
+        const raw = rawById.get(ex.exerciseId);
+        expect(raw).toBeDefined();
+        const equipment = transformExercise(raw!).primaryEquipment;
+        // Empty equipment (push-up) is bodyweight by definition.
+        for (const item of equipment) {
+          expect(allowed.has(item)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('every session holds the squat-or-hinge / press / row triad', () => {
+    for (const s of t.sessions) {
+      const patterns = s.exercises.flatMap(
+        (e) => rawById.get(e.exerciseId)?.movementPatternIds ?? [],
+      );
+      const hasLower = patterns.some((p) =>
+        ['squat', 'hip_hinge', 'split_squat'].includes(p),
+      );
+      const hasPress = patterns.some((p) =>
+        ['horizontal_push', 'vertical_press', 'incline_push'].includes(p),
+      );
+      const hasRow = patterns.includes('horizontal_pull');
+      expect(hasLower).toBe(true);
+      expect(hasPress).toBe(true);
+      expect(hasRow).toBe(true);
+    }
+  });
+
+  it('rows run at or ahead of presses every single week', () => {
+    for (let w = 0; w < 8; w++) {
+      const press = setsMatchingPatterns(t, w, PRESS_PATTERNS);
+      const pull = setsMatchingPatterns(t, w, PULL_PATTERNS);
+      expect(pull).toBeGreaterThanOrEqual(press);
+    }
   });
 });
 
