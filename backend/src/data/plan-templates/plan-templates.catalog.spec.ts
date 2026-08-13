@@ -96,6 +96,42 @@ describe('plan templates · catalog resolution', () => {
     },
   );
 
+  it('no template prescribes a retired catalog row', () => {
+    // Retired rows stay resolvable for history, but a template is
+    // forward-looking prescription — it must never hand a user a row the
+    // browse/search/generator surfaces no longer show.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { RETIRED_EXERCISE_IDS } = require('../retired-exercise-ids') as {
+      RETIRED_EXERCISE_IDS: readonly string[];
+    };
+    const retired = new Set(RETIRED_EXERCISE_IDS);
+    for (const template of PLAN_TEMPLATES_V1) {
+      const bad = allRows(template).filter((e) => retired.has(e.exerciseId));
+      expect(bad.map((e) => e.exerciseId)).toEqual([]);
+    }
+  });
+
+  it('every template row grades S/A/B — hand-picked programs never prescribe the C/D tail', () => {
+    // Authoring gate, not a pool filter: the tier consumer rule (never
+    // hard-filter by absolute tier) is about ordering candidate pools; a
+    // hand-authored program simply should not contain a row the audit graded
+    // situational (C) or last-resort (D). Audited 2026-08-12: 58 S/A rows +
+    // 2 contextual Bs (reverse lunge as the low-impact day-C lunge, battle
+    // ropes as the deliberate burpee replacement).
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { EXERCISE_TIERS } = require('../exercise-tiers') as {
+      EXERCISE_TIERS: Record<string, string>;
+    };
+    for (const template of PLAN_TEMPLATES_V1) {
+      const low = allRows(template).filter(
+        (e) => !['S', 'A', 'B'].includes(EXERCISE_TIERS[e.exerciseId] ?? ''),
+      );
+      expect(
+        low.map((e) => `${e.exerciseId}=${EXERCISE_TIERS[e.exerciseId]}`),
+      ).toEqual([]);
+    }
+  });
+
   it('no template prescribes a niche/circus movement as programming staple', () => {
     // The templates should read like a coach wrote them: no bottoms-up,
     // b-stance, pinch-grip or similar specialty variants (the same filter the
