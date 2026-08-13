@@ -141,6 +141,8 @@ export class ExercisesService implements OnModuleInit {
       ? { ...exercise, youtubeId, groupKey }
       : { ...exercise, groupKey };
     if (isRecommendedExercise(exercise.id)) out.recommended = true;
+    const tier = EXERCISE_TIERS[exercise.id];
+    if (tier) out.tier = tier;
     return out;
   }
 

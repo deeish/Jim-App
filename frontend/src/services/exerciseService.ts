@@ -39,6 +39,12 @@ export interface Exercise {
   jointDemands?: string[];
   /** True for the curated staples — drives the Recommended star and filter. */
   recommended?: boolean;
+  /**
+   * Quality grade from the catalog audit (S best → D), shown as the
+   * "Jim score" fact on the detail screen. Absent for ungraded rows.
+   * Display only — never filter or sort by it client-side.
+   */
+  tier?: 'S' | 'A' | 'B' | 'C' | 'D';
   [key: string]: any; // Allow other fields
 }
 

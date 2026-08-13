@@ -128,4 +128,20 @@ describe('ExercisesService.search tier ordering (Task 13 Phase B)', () => {
       expect(getJointDemands(replacement.id) ?? []).not.toContain('shoulder');
     }
   });
+
+  it('exposes the tier as the "Jim score" field on every response path', () => {
+    // Browse rows carry the sidecar grade verbatim.
+    const browse = service.search({ muscleGroups: ['Chest'] });
+    for (const e of browse.slice(0, 25)) {
+      expect(e.tier).toBe(EXERCISE_TIERS[e.id]);
+    }
+    // findOne (the detail screen's source) carries it too.
+    expect(service.findOne('flat_barbell_bench_press')?.tier).toBe('S');
+    expect(service.findOne('svend_press')?.tier).toBe('C');
+    // Ungraded rows omit the field rather than sending a null/placeholder —
+    // the detail screen's facts strip drops the tile on empty values.
+    const retired = service.findOne('cable_pullover');
+    expect(retired).toBeDefined();
+    expect(retired?.tier).toBeUndefined();
+  });
 });

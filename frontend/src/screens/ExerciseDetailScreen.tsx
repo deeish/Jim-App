@@ -636,6 +636,9 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           contentContainerStyle={styles.factsRow}
         >
           {[
+            // Jim's own grade leads the strip — the one fact no other app
+            // has. Ungraded rows (retired, cardio templates) just omit it.
+            { label: 'Jim score', value: exercise.tier ?? '' },
             { label: 'Equipment', value: exercise.equipment.join(', ') },
             { label: 'Movement', value: exercise.movementPatterns.join(', ') },
             { label: 'Type', value: exercise.type ?? '' },

@@ -7,6 +7,7 @@ import {
   inferPrescriptionTypeFromRawExercise,
   type ExercisePrescriptionType,
 } from './exercise-prescription';
+import type { ExerciseTier } from './exercise-tiers';
 import { MOVEMENT_PATTERN_FILLINS } from './movement-pattern-fillins';
 
 // Primary Muscle Group ID → Display Name
@@ -538,9 +539,17 @@ export interface TransformedExercise {
   /**
    * Set for quality-tier S/A rows (the curated staples): drives the
    * "Recommended" badge and filter. Derived per response by
-   * ExercisesService; the letter tiers themselves stay backend-private.
+   * ExercisesService.
    */
   recommended?: boolean;
+  /**
+   * The audit's quality grade, shown as the "Jim score" on the exercise
+   * detail screen. Derived per response by ExercisesService; absent for
+   * ungraded rows (retired, cardio session templates). DISPLAY ONLY —
+   * consumers must never hard-filter by absolute tier (capped categories
+   * would starve; see exercise-tiers.ts).
+   */
+  tier?: ExerciseTier;
   [key: string]: any; // Preserve other fields
 }
 
