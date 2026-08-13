@@ -9,6 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import type { RootStackParamList } from '../types/navigation';
@@ -40,6 +41,12 @@ export type SavedWorkoutsScreenProps = {
 export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedWorkoutsScreenProps = {}) {
   const navigation = useNavigation<NavProp>();
   const { colors } = useTheme();
+  // This screen lives inside a full-screen Modal (PlanScreen), which covers
+  // the status-bar area — without the top inset the back button and title sit
+  // under the clock/notch. ⚠ This exact fix (1977e87) was silently lost once
+  // already when the header refactor (d1057e1) rewrote this file — if you
+  // restructure this header, keep the inset.
+  const insets = useSafeAreaInsets();
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [planSnap, setPlanSnap] = useState<ApiPlan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,7 +90,8 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
           flexDirection: 'row',
           alignItems: 'center',
           paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
+          paddingTop: insets.top + spacing.md,
+          paddingBottom: spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           backgroundColor: colors.surface,
@@ -105,7 +113,7 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
         cardMeta: { fontSize: text.body, color: colors.textSecondary },
         cardExercises: { fontSize: text.body, color: colors.textTertiary, marginTop: spacing.sm },
       }),
-    [colors]
+    [colors, insets.top]
   );
 
   const handleUnsave = useCallback(async (id: string) => {
