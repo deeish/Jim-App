@@ -20,7 +20,14 @@ export interface PlanTemplateCard {
   goalId: TemplateGoalId;
   split: string;
   splitId: 'upper_lower' | 'full_body' | 'ppl';
+  /** Authored (recommended) training days/week. */
   daysPerWeek: number;
+  /**
+   * Inclusive schedulable range. Optional because a client can meet an older
+   * backend during the BE-first deploy window — absent means "authored count
+   * only" (see supportedDayRange in lib/templatePlan.ts).
+   */
+  supportedDaysPerWeek?: { min: number; max: number };
   weeksCount: number;
   experienceLevel: 'beginner' | 'intermediate' | 'advanced';
   defaultWeekdays: Weekday[];

@@ -389,8 +389,14 @@ export default function OnboardingScreen({ navigation }: Props) {
                     <Text style={styles.payoffCardTitle}>{recommended.name}</Text>
                     <Text style={styles.payoffCardTagline}>{recommended.tagline}</Text>
                     <Text style={styles.payoffCardMeta}>
-                      {recommended.weeksCount} weeks · {recommended.daysPerWeek} days/week ·{' '}
-                      {recommended.sessionMinutes.min}–{recommended.sessionMinutes.max} min
+                      {recommended.weeksCount} weeks ·{' '}
+                      {recommended.supportedDaysPerWeek &&
+                      recommended.supportedDaysPerWeek.min <
+                        recommended.supportedDaysPerWeek.max
+                        ? `${recommended.supportedDaysPerWeek.min}–${recommended.supportedDaysPerWeek.max}`
+                        : recommended.daysPerWeek}{' '}
+                      days/week · {recommended.sessionMinutes.min}–
+                      {recommended.sessionMinutes.max} min
                     </Text>
                     <Button
                       title="View program"

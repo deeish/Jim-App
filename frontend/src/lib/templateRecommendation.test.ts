@@ -77,4 +77,39 @@ describe('recommendTemplate', () => {
       })?.id,
     ).toBe('strength-4d-beg');
   });
+
+  it('any day count inside supportedDaysPerWeek counts as a full match', () => {
+    const adjustable = card({
+      id: 'hybrid-adjustable',
+      goalId: 'balanced',
+      daysPerWeek: 6,
+      supportedDaysPerWeek: { min: 3, max: 6 },
+    });
+    const strict = card({ id: 'hybrid-strict', goalId: 'balanced', daysPerWeek: 5 });
+    // 4 days: inside the adjustable range (distance 0) vs 1 off for the
+    // strict 5-day — the adjustable wins even though its authored count is
+    // further away.
+    expect(
+      recommendTemplate([strict, adjustable], { goal: 'General fitness', daysPerWeek: 4 })?.id,
+    ).toBe('hybrid-adjustable');
+  });
+
+  it('within overlapping ranges, prefers the program authored at the user count', () => {
+    const ppl = card({
+      id: 'ppl-6',
+      goalId: 'strength',
+      daysPerWeek: 6,
+      supportedDaysPerWeek: { min: 3, max: 6 },
+    });
+    const ul = card({
+      id: 'ul-4',
+      goalId: 'strength',
+      daysPerWeek: 4,
+      supportedDaysPerWeek: { min: 2, max: 5 },
+    });
+    // 4 days fits both ranges; the program written AT 4 days wins.
+    expect(recommendTemplate([ppl, ul], { goal: 'Strength', daysPerWeek: 4 })?.id).toBe('ul-4');
+    // 6 days only fits the PPL range.
+    expect(recommendTemplate([ppl, ul], { goal: 'Strength', daysPerWeek: 6 })?.id).toBe('ppl-6');
+  });
 });

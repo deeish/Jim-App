@@ -38,9 +38,50 @@ export function orderWeekdays(days: Weekday[]): Weekday[] {
 }
 
 /**
+ * The schedulable days/week range for a template. Older backends don't send
+ * `supportedDaysPerWeek` (BE-first deploy window) — then the authored count
+ * is the only option, which is exactly the pre-adjustability behavior.
+ */
+export function supportedDayRange(
+  template: Pick<PlanTemplateDetail, 'daysPerWeek' | 'supportedDaysPerWeek'>,
+): { min: number; max: number } {
+  return (
+    template.supportedDaysPerWeek ?? {
+      min: template.daysPerWeek,
+      max: template.daysPerWeek,
+    }
+  );
+}
+
+/**
+ * Default training days for a chosen count. The authored count keeps the
+ * template's hand-picked defaults; other counts use the standard gym-week
+ * layouts (recovery-spaced below 5, consecutive weekdays at 5+).
+ */
+const DEFAULT_WEEKDAYS_BY_COUNT: Record<number, Weekday[]> = {
+  2: ['Monday', 'Thursday'],
+  3: ['Monday', 'Wednesday', 'Friday'],
+  4: ['Monday', 'Tuesday', 'Thursday', 'Friday'],
+  5: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+  6: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  7: [...WEEKDAY_ORDER],
+};
+
+export function defaultWeekdaysForCount(
+  template: Pick<
+    PlanTemplateDetail,
+    'daysPerWeek' | 'supportedDaysPerWeek' | 'defaultWeekdays'
+  >,
+  count: number,
+): Weekday[] {
+  if (count === template.daysPerWeek) return [...template.defaultWeekdays];
+  return [...(DEFAULT_WEEKDAYS_BY_COUNT[count] ?? template.defaultWeekdays)];
+}
+
+/**
  * Toggle one weekday in a constrained selection. Selecting past the cap is
  * ignored (the day stays unselected) so the picker can never exceed the
- * template's days/week; deselecting always works.
+ * chosen days/week; deselecting always works.
  */
 export function toggleTemplateWeekday(
   selected: Weekday[],
@@ -128,17 +169,25 @@ export interface MaterializeTemplateOptions {
 
 /**
  * Build the full `POST /plans` body for a template. Throws if the weekday
- * selection does not match the template's days/week — callers gate on the
+ * count is outside the template's supported range — callers gate on the
  * picker, this is the last line of defense.
+ *
+ * Scheduling is SESSION ROTATION: sessions cycle in authored order across
+ * every training day of the block, so any day count inside the supported
+ * range keeps the split's order intact (a 6-session PPL at 4 days/week rolls
+ * Push→Pull→Legs across week boundaries). At the authored count the rotation
+ * is exactly the classic one-session-per-weekday layout. Prescriptions stay
+ * calendar-anchored: whatever session lands in week 8 gets week 8's deload.
  */
 export function materializeTemplatePlan(
   template: PlanTemplateDetail,
   options: MaterializeTemplateOptions,
 ): CreatePlanBody {
   const weekdays = orderWeekdays(options.weekdays);
-  if (weekdays.length !== template.daysPerWeek) {
+  const { min, max } = supportedDayRange(template);
+  if (weekdays.length < min || weekdays.length > max) {
     throw new Error(
-      `Template needs ${template.daysPerWeek} training days, got ${weekdays.length}`,
+      `Template supports ${min}–${max} training days/week, got ${weekdays.length}`,
     );
   }
   if (new Set(weekdays).size !== weekdays.length) {
@@ -148,7 +197,11 @@ export function materializeTemplatePlan(
   const slots: PlanSlot[] = [];
   for (let w = 0; w < template.weeksCount; w++) {
     const meta = template.weekMeta[w];
-    template.sessions.forEach((session, dayIndex) => {
+    weekdays.forEach((weekday, dayIndex) => {
+      const session =
+        template.sessions[
+          (w * weekdays.length + dayIndex) % template.sessions.length
+        ];
       const exercises: PlanSlotExercise[] = session.exercises.map((ex, i) => {
         const week = ex.weekly[w];
         const isTime = ex.prescriptionType === 'time';
@@ -167,7 +220,7 @@ export function materializeTemplatePlan(
       });
       slots.push({
         weekNumber: w + 1,
-        dayOfWeek: weekdays[dayIndex],
+        dayOfWeek: weekday,
         title: session.title,
         detailLine: `Wk ${meta.weekNumber}: ${meta.label}`,
         type: 'strength',

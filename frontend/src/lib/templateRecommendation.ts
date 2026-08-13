@@ -37,7 +37,22 @@ export function recommendTemplate(
   for (const t of templates) {
     let score = 0;
     if (t.goalId === bucket) score += 100;
-    score -= Math.abs(t.daysPerWeek - answers.daysPerWeek) * 10;
+    // Templates schedule at any count inside their supported range (session
+    // rotation), so the day distance is to the RANGE — zero when the user's
+    // count fits. A smaller pull toward the authored count breaks ties in
+    // favor of the program written at the user's frequency.
+    const range = t.supportedDaysPerWeek ?? {
+      min: t.daysPerWeek,
+      max: t.daysPerWeek,
+    };
+    const rangeDistance =
+      answers.daysPerWeek < range.min
+        ? range.min - answers.daysPerWeek
+        : answers.daysPerWeek > range.max
+          ? answers.daysPerWeek - range.max
+          : 0;
+    score -= rangeDistance * 10;
+    score -= Math.abs(t.daysPerWeek - answers.daysPerWeek) * 2;
     if (t.experienceLevel === experience) score += 5;
     if (score > bestScore) {
       bestScore = score;

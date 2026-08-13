@@ -132,7 +132,12 @@ export default function TemplatesScreen() {
               <Text style={styles.chipText}>{t.split}</Text>
             </View>
             <View style={styles.chip}>
-              <Text style={styles.chipText}>{t.daysPerWeek} days/wk</Text>
+              <Text style={styles.chipText}>
+                {t.supportedDaysPerWeek &&
+                t.supportedDaysPerWeek.min < t.supportedDaysPerWeek.max
+                  ? `${t.supportedDaysPerWeek.min}–${t.supportedDaysPerWeek.max} days/wk`
+                  : `${t.daysPerWeek} days/wk`}
+              </Text>
             </View>
             <View style={styles.chip}>
               <Text style={styles.chipText}>{t.weeksCount} weeks</Text>

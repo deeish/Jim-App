@@ -29,9 +29,11 @@ import {
 import { createPlan } from '../services/planService';
 import {
   WEEKDAY_ORDER,
+  defaultWeekdaysForCount,
   estimateTemplateSessionMinutes,
   materializeTemplatePlan,
   suggestedTemplateStartDateISO,
+  supportedDayRange,
   toggleTemplateWeekday,
 } from '../lib/templatePlan';
 import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
@@ -83,6 +85,8 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
 
   const [applyOpen, setApplyOpen] = useState(false);
   const [applying, setApplying] = useState(false);
+  /** Chosen training days/week — the authored count until the user adjusts. */
+  const [daysCount, setDaysCount] = useState(0);
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
   const [startDateISO, setStartDateISO] = useState(suggestedTemplateStartDateISO());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -103,6 +107,7 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
     try {
       const detail = await getPlanTemplate(templateId);
       setTemplate(detail);
+      setDaysCount(detail.daysPerWeek);
       setWeekdays(detail.defaultWeekdays);
     } catch (e) {
       console.warn('[TemplateDetail] load failed:', e);
@@ -117,7 +122,8 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
   }, [load]);
 
   const weekMeta = template?.weekMeta[selectedWeek - 1];
-  const canApply = template != null && weekdays.length === template.daysPerWeek;
+  const dayRange = template ? supportedDayRange(template) : null;
+  const canApply = template != null && daysCount > 0 && weekdays.length === daysCount;
 
   const handleApply = async () => {
     if (!template || !canApply) return;
@@ -181,7 +187,11 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
             </Text>
           </View>
           <View style={styles.chip}>
-            <Text style={styles.chipText}>{template.daysPerWeek} days/wk</Text>
+            <Text style={styles.chipText}>
+              {dayRange && dayRange.min < dayRange.max
+                ? `${dayRange.min}–${dayRange.max} days/wk`
+                : `${template.daysPerWeek} days/wk`}
+            </Text>
           </View>
           <View style={styles.chip}>
             <Text style={styles.chipText}>{template.weeksCount} weeks</Text>
@@ -325,13 +335,58 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
               </Text>
             </TouchableOpacity>
 
+            {dayRange && dayRange.min < dayRange.max && (
+              <>
+                <Text style={styles.modalSectionLabel}>
+                  DAYS PER WEEK · {template.daysPerWeek} RECOMMENDED
+                </Text>
+                <View style={styles.dayRow}>
+                  {Array.from(
+                    { length: dayRange.max - dayRange.min + 1 },
+                    (_, i) => dayRange.min + i,
+                  ).map((count) => {
+                    const selected = count === daysCount;
+                    return (
+                      <TouchableOpacity
+                        key={count}
+                        style={[styles.dayChip, selected && styles.dayChipSelected]}
+                        onPress={() => {
+                          setDaysCount(count);
+                          setWeekdays(defaultWeekdaysForCount(template, count));
+                        }}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        accessibilityLabel={`${count} days per week`}
+                      >
+                        <Text
+                          style={[
+                            styles.dayChipText,
+                            selected && styles.dayChipTextSelected,
+                          ]}
+                        >
+                          {count}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                {daysCount !== template.daysPerWeek && (
+                  <Text style={styles.rotationNote}>
+                    The {template.sessions.length} sessions keep their order and
+                    rotate across your {daysCount} days — every week's
+                    progression stays as written.
+                  </Text>
+                )}
+              </>
+            )}
+
             <Text style={styles.modalSectionLabel}>
-              TRAINING DAYS · PICK {template.daysPerWeek}
+              TRAINING DAYS · PICK {daysCount}
             </Text>
             <View style={styles.dayRow}>
               {WEEKDAY_ORDER.map((day) => {
                 const selected = weekdays.includes(day);
-                const atCap = weekdays.length >= template.daysPerWeek;
+                const atCap = weekdays.length >= daysCount;
                 return (
                   <TouchableOpacity
                     key={day}
@@ -342,7 +397,7 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
                     ]}
                     onPress={() =>
                       setWeekdays((prev) =>
-                        toggleTemplateWeekday(prev, day, template.daysPerWeek),
+                        toggleTemplateWeekday(prev, day, daysCount),
                       )
                     }
                     accessibilityRole="button"
@@ -361,8 +416,8 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
             <Text style={styles.modalHint}>
               {canApply
                 ? `Week 1 starts the week of ${formatStartDate(startDateISO)}. Applying replaces your current plan.`
-                : `Choose ${template.daysPerWeek - weekdays.length} more day${
-                    template.daysPerWeek - weekdays.length === 1 ? '' : 's'
+                : `Choose ${daysCount - weekdays.length} more day${
+                    daysCount - weekdays.length === 1 ? '' : 's'
                   }.`}
             </Text>
 
@@ -749,6 +804,12 @@ function createStyles(c: ColorPalette) {
       color: c.textSecondary,
       marginTop: spacing.md,
       marginBottom: spacing.lg,
+    },
+    rotationNote: {
+      fontSize: text.footnote,
+      lineHeight: 18,
+      color: c.textSecondary,
+      marginTop: spacing.sm,
     },
     modalCancel: {
       alignItems: 'center',

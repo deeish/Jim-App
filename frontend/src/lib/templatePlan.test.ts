@@ -1,8 +1,10 @@
 import {
+  defaultWeekdaysForCount,
   estimateTemplateSessionMinutes,
   materializeTemplatePlan,
   orderWeekdays,
   suggestedTemplateStartDateISO,
+  supportedDayRange,
   toggleTemplateWeekday,
 } from './templatePlan';
 import type { PlanTemplateDetail } from '../services/templateService';
@@ -240,19 +242,132 @@ describe('materializeTemplatePlan', () => {
     expect(deload.intensity).toBe('Easy');
   });
 
-  it('rejects weekday selections that do not match days/week', () => {
+  it('without supportedDaysPerWeek, only the authored count is accepted', () => {
+    // Old-backend fallback: the range collapses to the authored count.
     expect(() =>
       materializeTemplatePlan(template, {
         weekdays: ['Monday'],
         startDateISO: '2026-08-10',
       }),
-    ).toThrow(/needs 2 training days/);
+    ).toThrow(/supports 2–2 training days/);
     expect(() =>
       materializeTemplatePlan(template, {
         weekdays: ['Monday', 'Monday'] as Weekday[],
         startDateISO: '2026-08-10',
       }),
     ).toThrow();
+  });
+});
+
+describe('adjustable days/week', () => {
+  const adjustable: PlanTemplateDetail = {
+    ...template,
+    supportedDaysPerWeek: { min: 2, max: 3 },
+  };
+
+  it('supportedDayRange falls back to the authored count', () => {
+    expect(supportedDayRange(template)).toEqual({ min: 2, max: 2 });
+    expect(supportedDayRange(adjustable)).toEqual({ min: 2, max: 3 });
+  });
+
+  it('defaultWeekdaysForCount keeps authored defaults at the authored count', () => {
+    expect(defaultWeekdaysForCount(adjustable, 2)).toEqual([
+      'Monday',
+      'Thursday',
+    ]);
+    expect(defaultWeekdaysForCount(adjustable, 3)).toEqual([
+      'Monday',
+      'Wednesday',
+      'Friday',
+    ]);
+    expect(defaultWeekdaysForCount(adjustable, 5)).toEqual([
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+    ]);
+  });
+
+  it('rejects counts outside the supported range', () => {
+    expect(() =>
+      materializeTemplatePlan(adjustable, {
+        weekdays: ['Monday'],
+        startDateISO: '2026-08-10',
+      }),
+    ).toThrow(/supports 2–3 training days/);
+    expect(() =>
+      materializeTemplatePlan(adjustable, {
+        weekdays: ['Monday', 'Tuesday', 'Thursday', 'Friday'],
+        startDateISO: '2026-08-10',
+      }),
+    ).toThrow(/supports 2–3 training days/);
+  });
+
+  it('rotates sessions in order across week boundaries at a non-authored count', () => {
+    const body = materializeTemplatePlan(adjustable, {
+      weekdays: ['Monday', 'Wednesday', 'Friday'],
+      startDateISO: '2026-08-10',
+    });
+    // 8 weeks × 3 days — every training day gets a session.
+    expect(body.slots).toHaveLength(24);
+    // The 2-session cycle rolls continuously: U L U | L U L | U L U | …
+    const titles = body.slots.map((s) => s.title);
+    expect(titles.slice(0, 6)).toEqual([
+      'Upper',
+      'Lower',
+      'Upper',
+      'Lower',
+      'Upper',
+      'Lower',
+    ]);
+    // Week 2 starts where week 1 left off (Lower), not back at Upper.
+    const week2 = body.slots.filter((s) => s.weekNumber === 2);
+    expect(week2.map((s) => s.title)).toEqual(['Lower', 'Upper', 'Lower']);
+    expect(week2.map((s) => s.dayOfWeek)).toEqual([
+      'Monday',
+      'Wednesday',
+      'Friday',
+    ]);
+    // Over the block the rotation stays balanced: 12 of each session.
+    expect(titles.filter((t) => t === 'Upper')).toHaveLength(12);
+    expect(titles.filter((t) => t === 'Lower')).toHaveLength(12);
+  });
+
+  it('prescriptions stay calendar-anchored under rotation', () => {
+    const body = materializeTemplatePlan(adjustable, {
+      weekdays: ['Monday', 'Wednesday', 'Friday'],
+      startDateISO: '2026-08-10',
+    });
+    // The bench override lives on program week 2 — every Upper slot in
+    // calendar week 2 gets it, whichever rotation position it holds.
+    const week2Uppers = body.slots.filter(
+      (s) => s.weekNumber === 2 && s.title === 'Upper',
+    );
+    expect(week2Uppers.length).toBeGreaterThan(0);
+    for (const slot of week2Uppers) {
+      expect(slot.exercises![0].sets).toBe(5);
+      expect(slot.exercises![0].notes).toContain('Week 2 override.');
+    }
+    // Upper slots in other weeks keep the 4-set baseline.
+    const week1Upper = body.slots.find(
+      (s) => s.weekNumber === 1 && s.title === 'Upper',
+    )!;
+    expect(week1Upper.exercises![0].sets).toBe(4);
+  });
+
+  it('at the authored count the rotation is the classic per-weekday layout', () => {
+    const classic = materializeTemplatePlan(adjustable, {
+      weekdays: ['Monday', 'Thursday'],
+      startDateISO: '2026-08-12',
+    });
+    const legacy = materializeTemplatePlan(template, {
+      weekdays: ['Monday', 'Thursday'],
+      startDateISO: '2026-08-12',
+    });
+    expect(classic).toEqual(legacy);
+    const week1 = classic.slots.filter((s) => s.weekNumber === 1);
+    expect(week1.map((s) => s.title)).toEqual(['Upper', 'Lower']);
   });
 });
 
