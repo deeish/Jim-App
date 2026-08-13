@@ -26,12 +26,22 @@ function formatRest(restSeconds: number): string {
     : `${Math.floor(mins)}m ${restSeconds % 60}s`;
 }
 
-/** Mirrors frontend templatePlan.materializeTemplatePlan (kept in sync by convention). */
+/**
+ * Mirrors frontend templatePlan.materializeTemplatePlan (kept in sync by
+ * convention), including session rotation: sessions cycle in authored order
+ * across the block's training days, so any weekday count inside
+ * `supportedDaysPerWeek` materializes — at the authored count this is the
+ * classic one-session-per-weekday layout.
+ */
 function materializeSlots(template: PlanTemplate, weekdays: string[]) {
   const slots: Array<Record<string, unknown>> = [];
   for (let w = 0; w < template.weeksCount; w++) {
     const meta = template.weekMeta[w];
-    template.sessions.forEach((session, dayIndex) => {
+    weekdays.forEach((weekday, dayIndex) => {
+      const session =
+        template.sessions[
+          (w * weekdays.length + dayIndex) % template.sessions.length
+        ];
       const exercises = session.exercises.map((ex, i) => {
         const week = ex.weekly[w];
         const isTime = ex.prescriptionType === 'time';
@@ -54,7 +64,7 @@ function materializeSlots(template: PlanTemplate, weekdays: string[]) {
       });
       slots.push({
         weekNumber: w + 1,
-        dayOfWeek: weekdays[dayIndex],
+        dayOfWeek: weekday,
         title: session.title,
         detailLine: `Wk ${meta.weekNumber}: ${meta.label}`,
         type: 'strength',
@@ -135,5 +145,70 @@ describe.each(PLAN_TEMPLATES_V1.map((t) => [t.id, t] as const))(
         }
       }
     });
+  },
+);
+
+/** Mirrors DEFAULT_WEEKDAYS_BY_COUNT in frontend lib/templatePlan.ts. */
+const WEEKDAYS_BY_COUNT: Record<number, string[]> = {
+  2: ['Monday', 'Thursday'],
+  3: ['Monday', 'Wednesday', 'Friday'],
+  4: ['Monday', 'Tuesday', 'Thursday', 'Friday'],
+  5: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+  6: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+};
+
+describe.each(PLAN_TEMPLATES_V1.map((t) => [t.id, t] as const))(
+  'adjusted days/week apply payload · %s',
+  (_id, template) => {
+    const { min, max } = template.supportedDaysPerWeek;
+    const counts = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+
+    it.each(counts)(
+      'at %d days/week the payload still validates',
+      async (count) => {
+        const body = {
+          name: template.name,
+          weekAnchorMonday: '2026-08-10',
+          slots: materializeSlots(template, WEEKDAYS_BY_COUNT[count]),
+          goal: template.goal,
+          experience: template.experienceLevel,
+          programTemplateId: template.programTemplateId,
+        };
+        const dto = plainToInstance(CreatePlanDto, body);
+        const errors = await validate(dto, {
+          whitelist: true,
+          forbidNonWhitelisted: true,
+        });
+        expect(errors).toHaveLength(0);
+        expect(body.slots).toHaveLength(template.weeksCount * count);
+      },
+    );
+
+    it.each(counts)(
+      'at %d days/week the rotation is continuous and balanced',
+      (count) => {
+        const slots = materializeSlots(template, WEEKDAYS_BY_COUNT[count]);
+        // Continuity: reading the block day by day walks the session list in
+        // authored order, wrapping — no week ever restarts the cycle.
+        const expectedTitles = slots.map(
+          (_s, i) => template.sessions[i % template.sessions.length].title,
+        );
+        expect(slots.map((s) => s.title)).toEqual(expectedTitles);
+        // Balance: across the block no session runs more than one appearance
+        // ahead of any other.
+        const perSession = new Map<string, number>();
+        for (const s of slots) {
+          perSession.set(
+            s.title as string,
+            (perSession.get(s.title as string) ?? 0) + 1,
+          );
+        }
+        const appearances = [...perSession.values()];
+        expect(
+          Math.max(...appearances) - Math.min(...appearances),
+        ).toBeLessThanOrEqual(1);
+        expect(perSession.size).toBe(template.sessions.length);
+      },
+    );
   },
 );

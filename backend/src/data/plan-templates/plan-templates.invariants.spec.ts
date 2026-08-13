@@ -474,3 +474,39 @@ describe('Hybrid · Push/Pull/Legs — hypertrophy volume and ramp', () => {
     expect(ids).toContain('barbell_romanian_deadlift');
   });
 });
+
+describe('adjustable days/week — supported ranges', () => {
+  it.each(PLAN_TEMPLATES_V1.map((t) => [t.id, t] as const))(
+    '%s: range is sane and contains the authored count',
+    (_id, t) => {
+      const { min, max } = t.supportedDaysPerWeek;
+      // ≥2: a 1-day/week block is not this program; ≤7: calendar bound.
+      expect(min).toBeGreaterThanOrEqual(2);
+      expect(max).toBeLessThanOrEqual(7);
+      expect(min).toBeLessThanOrEqual(max);
+      // The authored count must be schedulable — it is the recommended pick.
+      expect(t.daysPerWeek).toBeGreaterThanOrEqual(min);
+      expect(t.daysPerWeek).toBeLessThanOrEqual(max);
+      // Above the session count the rotation repeats a session within the
+      // same week. One repeat is a sensible frequency bump; two would double
+      // large parts of the week's volume — cap the range at sessions + 1.
+      expect(max).toBeLessThanOrEqual(t.sessions.length + 1);
+    },
+  );
+
+  it('no session note anchors itself to a weekday — schedules are user-chosen', () => {
+    for (const t of PLAN_TEMPLATES_V1) {
+      for (const s of t.sessions) {
+        for (const ex of s.exercises) {
+          const notes = [ex.note, ...ex.weekly.map((w) => w.note)];
+          for (const note of notes) {
+            if (!note) continue;
+            for (const day of WEEKDAYS) {
+              expect(note).not.toContain(day);
+            }
+          }
+        }
+      }
+    }
+  });
+});

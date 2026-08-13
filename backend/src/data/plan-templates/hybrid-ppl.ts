@@ -431,7 +431,7 @@ const legsB: TemplateExercise[] = [
     name: 'Seated Leg Curl',
     prescriptionType: 'reps',
     restSeconds: 75,
-    note: 'Seated angle biases the hamstrings at long length — pair to Monday’s lying curl.',
+    note: 'Seated angle biases the hamstrings at long length — pairs with Legs A’s lying curl.',
     weekly: peakingIsolation(10, 15),
   },
   {
@@ -447,7 +447,7 @@ const legsB: TemplateExercise[] = [
     name: 'Seated Calf Raise Machine',
     prescriptionType: 'reps',
     restSeconds: 60,
-    note: 'Seated hits the soleus — the muscle Monday’s standing raise misses.',
+    note: 'Seated hits the soleus — the muscle Legs A’s standing raise misses.',
     weekly: calves(12, 20),
   },
   {
@@ -471,6 +471,10 @@ export const HYBRID_PPL: PlanTemplate = {
   splitId: 'ppl',
   programTemplateId: 'ppl',
   daysPerWeek: 6,
+  // 3–5 days: the P→P→L rotation rolls across weeks (each session still runs
+  // its full 8-week progression; frequency per muscle scales with the count).
+  // Below 3 a PPL split leaves each muscle ~10 days apart — run Full Body then.
+  supportedDaysPerWeek: { min: 3, max: 6 },
   weeksCount: 8,
   experienceLevel: 'intermediate',
   defaultWeekdays: [

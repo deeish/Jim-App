@@ -371,7 +371,7 @@ const dayC: TemplateExercise[] = [
       {
         sets: 6,
         durationSeconds: 45,
-        note: 'Peak: six 45s rounds. Earn the weekend.',
+        note: 'Peak: six 45s rounds. Empty the tank.',
       },
       { sets: 4, durationSeconds: 30, note: 'Deload: four easy rounds.' },
     ],
@@ -389,6 +389,10 @@ export const FAT_LOSS_FULL_BODY: PlanTemplate = {
   splitId: 'full_body',
   programTemplateId: 'full-body-3',
   daysPerWeek: 3,
+  // 2 days: still a complete program (rotation covers all three sessions).
+  // 4 days: full-body density work in a deficit is already a big ask — cap
+  // there; 5+ full-body days with finishers is a recovery hole, not fat loss.
+  supportedDaysPerWeek: { min: 2, max: 4 },
   weeksCount: 8,
   experienceLevel: 'intermediate',
   defaultWeekdays: ['Monday', 'Wednesday', 'Friday'],

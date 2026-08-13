@@ -119,7 +119,21 @@ export interface PlanTemplate {
   splitId: TemplateSplitId;
   /** Program template id for CreatePlanDto.programTemplateId (existing LLM-context ids). */
   programTemplateId: 'upper-lower-4' | 'full-body-3' | 'ppl';
+  /** Authored (recommended) training days/week — the count the program was written at. */
   daysPerWeek: number;
+  /**
+   * Inclusive range of days/week the program may be scheduled at. Off the
+   * authored count the client materializes by SESSION ROTATION: sessions
+   * cycle in authored order across every training day of the block
+   * (`sessionIndex = (week * chosenDays + day) % sessions.length`), so a
+   * 6-session PPL at 4 days/week keeps its Push→Pull→Legs order rolling
+   * across week boundaries — the standard way coaches run these splits at
+   * lower frequency. Weekly prescriptions stay calendar-anchored (week 8 is
+   * still the deload for whatever sessions land in it). Bounds are coaching
+   * judgment per program: the cap is where recovery stops being plausible,
+   * the floor where the split stops making sense.
+   */
+  supportedDaysPerWeek: { min: number; max: number };
   weeksCount: typeof PLAN_TEMPLATE_WEEKS;
   experienceLevel: 'beginner' | 'intermediate' | 'advanced';
   /** Sensible default training days (length === daysPerWeek, Monday-first order). */

@@ -448,6 +448,10 @@ export const STRENGTH_UPPER_LOWER: PlanTemplate = {
   splitId: 'upper_lower',
   programTemplateId: 'upper-lower-4',
   daysPerWeek: 4,
+  // 2–3 days: the U/L rotation simply spans weeks (classic 3-day U/L).
+  // 5 days: anchors come around ~1.25×/week — still recoverable on this wave.
+  // 6 is out: heavy 5s/3s at 1.5×/week outruns recovery for the target lifter.
+  supportedDaysPerWeek: { min: 2, max: 5 },
   weeksCount: 8,
   experienceLevel: 'intermediate',
   defaultWeekdays: ['Monday', 'Tuesday', 'Thursday', 'Friday'],

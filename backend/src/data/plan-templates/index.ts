@@ -26,6 +26,7 @@ export interface PlanTemplateCard {
   split: string;
   splitId: PlanTemplate['splitId'];
   daysPerWeek: number;
+  supportedDaysPerWeek: PlanTemplate['supportedDaysPerWeek'];
   weeksCount: number;
   experienceLevel: PlanTemplate['experienceLevel'];
   defaultWeekdays: PlanTemplate['defaultWeekdays'];
@@ -54,6 +55,7 @@ export function toPlanTemplateCard(t: PlanTemplate): PlanTemplateCard {
     split: t.split,
     splitId: t.splitId,
     daysPerWeek: t.daysPerWeek,
+    supportedDaysPerWeek: t.supportedDaysPerWeek,
     weeksCount: t.weeksCount,
     experienceLevel: t.experienceLevel,
     defaultWeekdays: t.defaultWeekdays,
