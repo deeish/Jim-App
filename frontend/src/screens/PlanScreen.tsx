@@ -37,6 +37,7 @@ import {
   formatLocalYmd,
   getCalendarWeekRange,
   getPlanCalendarWeekNavigationBounds,
+  calendarOffsetOfProgramWeek1,
   lastContiguousProgramWeek,
   normalizePlanAnchorYmd,
   normalizePlanDayOfWeek,
@@ -347,6 +348,22 @@ export default function PlanScreen({ navigation: navigationProp }: Props) {
   useEffect(() => {
     setSelectedWeek((w) => Math.max(weekNavBounds.min, Math.min(weekNavBounds.max, w)));
   }, [weekNavBounds.min, weekNavBounds.max]);
+
+  // A program anchored to a FUTURE week (apply a template midweek → week 1
+  // starts next Monday) would land on the empty current week — which reads as
+  // "my plan didn't save". Land on program week 1 instead, once per
+  // plan+anchor; after that the user's own navigation (incl. Today) wins.
+  const autoJumpKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (planLoading || !currentPlan?.id || !anchorYmd) return;
+    const key = `${currentPlan.id}:${anchorYmd}`;
+    if (autoJumpKeyRef.current === key) return;
+    autoJumpKeyRef.current = key;
+    const offset = calendarOffsetOfProgramWeek1(anchorYmd);
+    if (offset != null && offset > 0) {
+      setSelectedWeek(Math.min(offset, weekNavBounds.max));
+    }
+  }, [planLoading, currentPlan?.id, anchorYmd, weekNavBounds.max]);
 
   // Clamp past the program end so a finished plan keeps showing (and editing)
   // a recurring weekly routine instead of rendering seven empty days. The repeat

@@ -155,6 +155,26 @@ export function wholeWeeksBetween(from: Date, to: Date): number {
   return Math.round((to.getTime() - from.getTime()) / WEEK_MS);
 }
 
+/**
+ * Calendar-week offset (0 = the device's current week) where program week 1
+ * sits; null without a valid anchor. A future anchor gives a positive
+ * offset — Plan uses this to land a just-applied program on its first real
+ * week instead of the empty pre-start week (apply a Mon/Tue/… template on a
+ * Thursday and week 1 anchors to NEXT Monday; the current week has nothing
+ * to show).
+ */
+export function calendarOffsetOfProgramWeek1(
+  anchorYmdRaw: string | null | undefined,
+  today: Date = new Date(),
+): number | null {
+  const anchorYmd = normalizePlanAnchorYmd(anchorYmdRaw);
+  if (!anchorYmd) return null;
+  const todayMonday = getWeekStartMonday(today);
+  // Anchors are Mondays by construction; normalizing defensively costs nothing.
+  const anchorMonday = getWeekStartMonday(parseLocalYmd(anchorYmd));
+  return wholeWeeksBetween(todayMonday, anchorMonday);
+}
+
 export function getCalendarWeekRange(weekOffsetFromThisWeek: number): { start: Date; end: Date } {
   const start = calendarMondayForOffsetFromToday(weekOffsetFromThisWeek);
   const end = new Date(start);

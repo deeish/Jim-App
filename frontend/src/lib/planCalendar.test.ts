@@ -1,6 +1,7 @@
 import {
   PLAN_CALENDAR_LOOKAHEAD_WEEKS,
   PLAN_CALENDAR_LOOKBACK_WEEKS,
+  calendarOffsetOfProgramWeek1,
   getPlanCalendarWeekNavigationBounds,
   lastContiguousProgramWeek,
   normalizePlanDayOfWeek,
@@ -8,6 +9,33 @@ import {
   resolveProgramWeekForCalendarOffset,
   wholeWeeksBetween,
 } from './planCalendar';
+
+describe('calendarOffsetOfProgramWeek1', () => {
+  // Thursday 2026-08-13 — the exact repro: template applied midweek anchors
+  // week 1 to NEXT Monday.
+  const thursday = new Date(2026, 7, 13);
+
+  it('a future anchor is a positive offset (the auto-jump case)', () => {
+    expect(calendarOffsetOfProgramWeek1('2026-08-17', thursday)).toBe(1);
+    expect(calendarOffsetOfProgramWeek1('2026-08-24', thursday)).toBe(2);
+  });
+
+  it('an anchor in the current week is offset 0 (no jump)', () => {
+    expect(calendarOffsetOfProgramWeek1('2026-08-10', thursday)).toBe(0);
+    // Mid-week anchor values normalize to their own week's Monday.
+    expect(calendarOffsetOfProgramWeek1('2026-08-13', thursday)).toBe(0);
+  });
+
+  it('a past anchor is negative (running plans never jump)', () => {
+    expect(calendarOffsetOfProgramWeek1('2026-08-03', thursday)).toBe(-1);
+  });
+
+  it('missing or invalid anchors return null', () => {
+    expect(calendarOffsetOfProgramWeek1(null, thursday)).toBeNull();
+    expect(calendarOffsetOfProgramWeek1(undefined, thursday)).toBeNull();
+    expect(calendarOffsetOfProgramWeek1('not-a-date', thursday)).toBeNull();
+  });
+});
 
 describe('wholeWeeksBetween', () => {
   const DAY_MS = 24 * 60 * 60 * 1000;
