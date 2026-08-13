@@ -19,6 +19,7 @@ import {
   TextStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useFocusEffect, useScrollToTop, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -135,20 +136,26 @@ type ChipStyles = {
   chipCountSelected: StyleProp<TextStyle>;
 };
 
-type SectionStyles = ChipStyles & {
+type ChipRowStyles = {
+  chipRowBleed: StyleProp<ViewStyle>;
+  chipRowContent: StyleProp<ViewStyle>;
+  chipRowFade: StyleProp<ViewStyle>;
+  chipRowFadeLeft: StyleProp<ViewStyle>;
+  chipRowFadeRight: StyleProp<ViewStyle>;
+};
+
+type SectionStyles = ChipStyles & ChipRowStyles & {
   section: StyleProp<ViewStyle>;
   sectionHeader: StyleProp<ViewStyle>;
   sectionTitle: StyleProp<TextStyle>;
   sectionBadge: StyleProp<ViewStyle>;
   sectionBadgeText: StyleProp<TextStyle>;
   sectionDescription: StyleProp<TextStyle>;
-  chipsContainer: StyleProp<ViewStyle>;
 };
 
-type RefineStyles = ChipStyles & {
+type RefineStyles = ChipStyles & ChipRowStyles & {
   refineSection: StyleProp<ViewStyle>;
   refineCaption: StyleProp<TextStyle>;
-  chipsContainer: StyleProp<ViewStyle>;
 };
 
 const Chip = React.memo(function Chip({
@@ -208,6 +215,108 @@ const Chip = React.memo(function Chip({
   );
 });
 
+// ——— Single-row chip strip with overflow affordances ———
+// One row, horizontally scrollable — the iOS App Store / Fitness chip pattern.
+// A plain padded scroll row failed here before (it clipped cleanly at the
+// margin and read as complete — users never learned Arms/Cardio/Core existed),
+// so this row makes the overflow itself visible: it bleeds to the container
+// edge so an overflowing chip is cut mid-pill (the "peek"), and a soft fade
+// sits on whichever edge still hides chips, disappearing at the ends of the
+// scroll range.
+const ChipScrollRow = React.memo(function ChipScrollRow({
+  children,
+  bleedStyle,
+  contentStyle,
+  fadeColor,
+  styles,
+}: {
+  children: React.ReactNode;
+  /** Negative horizontal margin escaping the parent's padding; omit if the row is already full-width. */
+  bleedStyle?: StyleProp<ViewStyle>;
+  /** Must restore the margin the bleed removed, so chips align with the section title at rest. */
+  contentStyle: StyleProp<ViewStyle>;
+  /** The color behind the row — fades must blend clipped chips into exactly this. */
+  fadeColor: string;
+  styles: ChipRowStyles;
+}) {
+  // Measurements live in a ref (no re-render per scroll frame); only fade
+  // visibility flips drive animation.
+  const metrics = useRef({ x: 0, viewport: 0, content: 0 });
+  const visible = useRef({ start: false, end: false });
+  const startFade = useRef(new Animated.Value(0)).current;
+  const endFade = useRef(new Animated.Value(0)).current;
+
+  const syncFades = useCallback(() => {
+    const { x, viewport, content } = metrics.current;
+    const overflow = content - viewport;
+    const wantStart = overflow > 1 && x > 4;
+    const wantEnd = overflow > 1 && x < overflow - 4;
+    if (wantStart !== visible.current.start) {
+      visible.current.start = wantStart;
+      Animated.timing(startFade, {
+        toValue: wantStart ? 1 : 0,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+    }
+    if (wantEnd !== visible.current.end) {
+      visible.current.end = wantEnd;
+      Animated.timing(endFade, {
+        toValue: wantEnd ? 1 : 0,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [startFade, endFade]);
+
+  return (
+    <View style={bleedStyle}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={contentStyle}
+        onLayout={(e) => {
+          metrics.current.viewport = e.nativeEvent.layout.width;
+          syncFades();
+        }}
+        onContentSizeChange={(width) => {
+          metrics.current.content = width;
+          syncFades();
+        }}
+        onScroll={(e) => {
+          metrics.current.x = e.nativeEvent.contentOffset.x;
+          syncFades();
+        }}
+        scrollEventThrottle={16}
+      >
+        {children}
+      </ScrollView>
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.chipRowFade, styles.chipRowFadeLeft, { opacity: startFade }]}
+      >
+        <LinearGradient
+          colors={[fadeColor, fadeColor + '00']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.chipRowFade, styles.chipRowFadeRight, { opacity: endFade }]}
+      >
+        <LinearGradient
+          colors={[fadeColor + '00', fadeColor]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+    </View>
+  );
+});
+
 const ActiveFilterChip = React.memo(function ActiveFilterChip({
   label,
   onRemove,
@@ -258,6 +367,7 @@ const FilterSection = React.memo(function FilterSection({
   onSelect,
   description,
   badgeText,
+  fadeColor,
   styles,
 }: {
   title?: string;
@@ -267,6 +377,7 @@ const FilterSection = React.memo(function FilterSection({
   description?: string;
   /** Overrides the selected-count badge (e.g. equipment's "All" / "8/12"). */
   badgeText?: string;
+  fadeColor: string;
   styles: SectionStyles;
 }) {
   return (
@@ -284,10 +395,11 @@ const FilterSection = React.memo(function FilterSection({
       {description && (
         <Text style={styles.sectionDescription}>{description}</Text>
       )}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipsContainer}
+      <ChipScrollRow
+        bleedStyle={styles.chipRowBleed}
+        contentStyle={styles.chipRowContent}
+        fadeColor={fadeColor}
+        styles={styles}
       >
         {options.map((option) => (
           <Chip
@@ -298,7 +410,7 @@ const FilterSection = React.memo(function FilterSection({
             styles={styles}
           />
         ))}
-      </ScrollView>
+      </ChipScrollRow>
     </View>
   );
 });
@@ -312,12 +424,14 @@ const RefineSection = React.memo(function RefineSection({
   subMuscles,
   selectedSubMuscles,
   onToggleSubMuscle,
+  fadeColor,
   styles,
 }: {
   parentGroup: string;
   subMuscles: string[];
   selectedSubMuscles: string[];
   onToggleSubMuscle: (subMuscle: string) => void;
+  fadeColor: string;
   styles: RefineStyles;
 }) {
   const selectedCount = selectedSubMuscles.length;
@@ -330,10 +444,11 @@ const RefineSection = React.memo(function RefineSection({
           ? `All ${parentGroup.toLowerCase()} · tap to narrow`
           : `${parentGroup} · narrowed to ${selectedCount} of ${totalCount}`}
       </Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipsContainer}
+      <ChipScrollRow
+        bleedStyle={styles.chipRowBleed}
+        contentStyle={styles.chipRowContent}
+        fadeColor={fadeColor}
+        styles={styles}
       >
         {subMuscles.map((subMuscle) => (
           <Chip
@@ -344,7 +459,7 @@ const RefineSection = React.memo(function RefineSection({
             styles={styles}
           />
         ))}
-      </ScrollView>
+      </ChipScrollRow>
     </View>
   );
 });
@@ -1216,8 +1331,15 @@ export default function SearchScreen({ navigation }: Props) {
         },
         sectionBadgeText: { color: colors.onPrimary, fontSize: text.caption, fontWeight: weight.bold },
         sectionDescription: { fontSize: text.body, color: colors.textMuted, marginBottom: spacing.md },
-        chipsContainer: { flexDirection: 'row', gap: spacing.sm, paddingRight: spacing.lg },
-        chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+        // ChipScrollRow: the bleed escapes the section's lg padding so chips
+        // clip at the container's true edge (mid-pill = the scroll affordance);
+        // the content padding restores the margin so the row aligns with its
+        // title at rest and at full scroll.
+        chipRowBleed: { marginHorizontal: -spacing.lg },
+        chipRowContent: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
+        chipRowFade: { position: 'absolute', top: 0, bottom: 0, width: 32 },
+        chipRowFadeLeft: { left: 0 },
+        chipRowFadeRight: { right: 0 },
         resultsFooterNote: {
           fontSize: text.footnote,
           color: colors.textMuted,
@@ -1538,10 +1660,10 @@ export default function SearchScreen({ navigation }: Props) {
           {searchActive && (
             <Text style={styles.activeFiltersPausedNote}>Not applied while searching</Text>
           )}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.activeFiltersScroll}
+          <ChipScrollRow
+            contentStyle={styles.activeFiltersScroll}
+            fadeColor={colors.surface}
+            styles={styles}
           >
             {activeFilters.map((filter, index) => (
               <ActiveFilterChip
@@ -1557,7 +1679,7 @@ export default function SearchScreen({ navigation }: Props) {
                 colors={colors}
               />
             ))}
-          </ScrollView>
+          </ChipScrollRow>
         </View>
       )}
 
@@ -1613,10 +1735,17 @@ export default function SearchScreen({ navigation }: Props) {
               </View>
             )}
           </View>
-          {/* Wrapped, not horizontally scrolled: seven fixed categories fit in
-              two rows on a phone, and a flush-edged scroll row reads as
-              complete — users never learned Arms/Cardio/Core existed. */}
-          <View style={styles.chipsWrap}>
+          {/* One scrollable row, not a wrap. A wrapped grid was tried after the
+              first scroll row hid Arms/Cardio/Core (it clipped cleanly at the
+              margin and read as complete). ChipScrollRow fixes the affordance
+              instead: full-bleed peek + edge fades say "there's more" without
+              costing a second line. */}
+          <ChipScrollRow
+            bleedStyle={styles.chipRowBleed}
+            contentStyle={styles.chipRowContent}
+            fadeColor={colors.background}
+            styles={styles}
+          >
             {MAIN_MUSCLE_GROUPS.map((group) => {
               const state = getMuscleGroupState(group);
               const subMuscles = getSubMuscles(group);
@@ -1633,7 +1762,7 @@ export default function SearchScreen({ navigation }: Props) {
                 />
               );
             })}
-          </View>
+          </ChipScrollRow>
         </View>
 
         {/* Refine Sections - Show when a parent group is selected */}
@@ -1651,6 +1780,7 @@ export default function SearchScreen({ navigation }: Props) {
                 subMuscles={subMuscles}
                 selectedSubMuscles={selectedSubMuscles}
                 onToggleSubMuscle={(subMuscle) => toggleSubMuscle(subMuscle, group)}
+                fadeColor={colors.background}
                 styles={styles}
               />
             );
@@ -1696,6 +1826,7 @@ export default function SearchScreen({ navigation }: Props) {
                 selectedValues={filters.equipment}
                 onSelect={(value) => toggleFilter('equipment', value)}
                 description="What equipment do you have access to?"
+                fadeColor={colors.background}
                 styles={styles}
               />
               <FilterSection
@@ -1704,6 +1835,7 @@ export default function SearchScreen({ navigation }: Props) {
                 selectedValues={filters.movementPatterns}
                 onSelect={(value) => toggleFilter('movementPatterns', value)}
                 description="Filter by exercise movement type (optional)"
+                fadeColor={colors.background}
                 styles={styles}
               />
             </>
