@@ -25,6 +25,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-08-13',
+    version: '1.1.0',
+    date: '2026-08-13',
+    title: 'Programs that fit your week',
+    changes: [
+      { type: 'new', text: 'Two new coach-built programs: Beginner Full Body, your first eight weeks of barbells, and Home Dumbbell Full Body, which needs only dumbbells and a bench.' },
+      { type: 'new', text: 'Every program now adjusts to your schedule. Run the 6 day Push/Pull/Legs on 4 days and the sessions rotate through your week automatically.' },
+      { type: 'new', text: 'Jim score: our quality rating for every exercise, right on its page.' },
+      { type: 'improved', text: 'Applying a program that starts next Monday now opens on its first week, so you can see everything you are about to train.' },
+      { type: 'fixed', text: 'The saved workouts page no longer sits under the clock.' },
+    ],
+  },
+  {
     id: '2026-08-11',
     version: '1.1.0',
     date: '2026-08-11',
