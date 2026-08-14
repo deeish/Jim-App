@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
+  Pressable,
   Share,
   StyleSheet,
   Text,
@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import Button from './Button';
+import SheetModal from './SheetModal';
 import QrCodeView from './QrCodeView';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -94,11 +95,6 @@ export default function ShareModal({
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        overlay: {
-          flex: 1,
-          backgroundColor: colors.overlay,
-          justifyContent: 'flex-end',
-        },
         container: {
           backgroundColor: colors.surface,
           borderTopLeftRadius: radius.xl,
@@ -171,14 +167,13 @@ export default function ShareModal({
   );
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <View style={styles.container}>
+    // SheetModal animates the scrim (fade-in-place) and the card (slide)
+    // independently — the stock `animationType="slide"` modal rode the grey
+    // backdrop down the screen together with the card on dismiss. Same fix as
+    // the Profile avatar/equipment sheets.
+    <SheetModal visible={visible} onClose={onClose} scrimColor={colors.overlay}>
+      {/* The card guards its own taps; see SheetModal. */}
+      <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1}>
               {kind === 'plan' ? 'Share this plan' : 'Share this workout'}
@@ -232,8 +227,7 @@ export default function ShareModal({
               </View>
             </>
           ) : null}
-        </View>
-      </View>
-    </Modal>
+      </Pressable>
+    </SheetModal>
   );
 }
