@@ -25,6 +25,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-08-14',
+    version: '1.1.0',
+    date: '2026-08-14',
+    title: 'Your plan is now a calendar',
+    changes: [
+      { type: 'new', text: 'The Plan and Train tabs became one Calendar: month, week, and day views with every muscle color coded.' },
+      { type: 'new', text: 'Log sets right on the calendar with swipeable set cards, rest timers, and a celebration when you finish.' },
+      { type: 'new', text: 'Swap or add exercises on any day, with recommendations from the library. Your plan saves the change.' },
+      { type: 'improved', text: 'Completed days get crossed off, missed days fade back, and everything counts toward History and Progress.' },
+      { type: 'improved', text: 'A workout in progress now survives closing the app, and you can log a shorter session as done.' },
+    ],
+  },
+  {
     id: '2026-08-13',
     version: '1.1.0',
     date: '2026-08-13',
