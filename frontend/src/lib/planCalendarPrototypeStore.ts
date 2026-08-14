@@ -26,7 +26,6 @@ import {
   addDays,
   fromIso,
   mondayOf,
-  planForDate,
   toIso,
   weekdayIndex,
   type PlannedDay,
@@ -34,10 +33,14 @@ import {
   type PrototypeMuscle,
 } from './planCalendarPrototype';
 import {
+  addPlanSlot,
   getCurrentPlanWithWeekly,
+  removePlanSlot,
   type ApiPlan,
   type ApiPlanExercise,
   type ApiPlanWorkout,
+  type PlanSlot,
+  type PlanSlotExercise,
 } from '../services/planService';
 import {
   createWorkout,
@@ -277,10 +280,25 @@ function toPlannedExercise(ex: ApiPlanExercise, slot: ApiPlanWorkout): PlannedEx
     sets: ex.sets > 0 ? ex.sets : 1,
     reps: formatRepsDisplay(ex),
     weight: ex.weight != null && ex.weight > 0 ? `${ex.weight} lb` : 'Bodyweight',
-    rest: isCardio ? '—' : ex.sets >= 4 ? '2:30' : '2:00',
+    rest: isCardio ? '—' : restHeuristic(name, ex.sets),
     equipment: meta?.equipment ?? '—',
     note: ex.notes ?? '',
   };
+}
+
+/**
+ * Rest guidance by movement class (generation-time restSeconds isn't
+ * persisted): heavy compounds breathe longest, isolation work shortest.
+ */
+function restHeuristic(name: string, sets: number): string {
+  const n = name.toLowerCase();
+  if (/(squat|deadlift|bench|overhead press|barbell row|pull-up|pullup|hip thrust|lunge|clean|snatch|leg press)/.test(n)) {
+    return sets >= 4 ? '3:00' : '2:30';
+  }
+  if (/(curl|raise|fly|pushdown|push-down|extension|crunch|plank|calf|face pull|kickback|shrug|rotation)/.test(n)) {
+    return '1:30';
+  }
+  return '2:00';
 }
 
 function formatRepsDisplay(ex: ApiPlanExercise): string {
@@ -356,27 +374,22 @@ function guessMuscleFromName(name: string, isCardio: boolean): PrototypeMuscle {
 /**
  * What the calendar is showing:
  *  - 'live'    — the user's real plan
- *  - 'empty'   — signed in, backend fine, but NO active plan (honest empty
- *                state; never fake data)
- *  - 'sample'  — backend unreachable (dev/web demo): the sample split
- *  - 'loading' — first fetch still in flight (rendered like sample)
+ *  - 'empty'   — signed in, backend fine, but NO active plan
+ *  - 'offline' — backend unreachable: the calendar renders open days
+ *  - 'loading' — first fetch still in flight
  */
-export type CalendarDataMode = 'live' | 'empty' | 'sample' | 'loading';
+export type CalendarDataMode = 'live' | 'empty' | 'offline' | 'loading';
 
 export function calendarDataMode(): CalendarDataMode {
   if (liveStatus === 'ready') return livePlan ? 'live' : 'empty';
-  if (liveStatus === 'unavailable') return 'sample';
+  if (liveStatus === 'unavailable') return 'offline';
   return 'loading';
 }
 
 function baseDayForDate(dateIso: string): PlannedDay {
   const live = liveDayForDate(dateIso);
   if (live) return live;
-  if (calendarDataMode() === 'empty') {
-    // A real user with no plan sees empty days, not the sample split.
-    return { weekday: WEEKDAYS[weekdayIndex(fromIso(dateIso))], title: 'Rest Day', exercises: [] };
-  }
-  return planForDate(dateIso);
+  return { weekday: WEEKDAYS[weekdayIndex(fromIso(dateIso))], title: 'Rest Day', exercises: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -507,6 +520,7 @@ export function replaceExercise(
   }
   // A different exercise: any sets logged against the old one no longer apply.
   setLogs.delete(slotKey(dateIso, exerciseIndex));
+  queuePersistDayEdits(dateIso);
   emit();
 }
 
@@ -514,7 +528,114 @@ export function replaceExercise(
  *  too, which become a Custom Workout). */
 export function addExerciseToDay(dateIso: string, exercise: PlannedExercise): void {
   additions.set(dateIso, [...(additions.get(dateIso) ?? []), exercise]);
+  queuePersistDayEdits(dateIso);
   emit();
+}
+
+// ---------------------------------------------------------------------------
+// Persisting day edits into the plan itself
+// ---------------------------------------------------------------------------
+
+/** Serialize plan writes — two quick edits must not interleave add/remove. */
+let persistChain: Promise<void> = Promise.resolve();
+
+function queuePersistDayEdits(dateIso: string): void {
+  if (liveStatus !== 'ready' || !livePlan) return;
+  persistChain = persistChain.then(() => persistDayEdits(dateIso)).catch(() => {});
+}
+
+/** A display exercise back into a plan-slot row (null = not persistable). */
+function toSlotExerciseRow(ex: PlannedExercise, orderIndex: number): PlanSlotExercise | null {
+  if (!ex.exerciseId) return null;
+  const row: PlanSlotExercise = {
+    exerciseId: ex.exerciseId,
+    name: ex.name,
+    sets: ex.sets,
+    reps: 1,
+    orderIndex,
+  };
+  const time = ex.reps.match(/^(\d+)\s*(min|sec)$/i);
+  if (time) {
+    row.durationSeconds = Number(time[1]) * (time[2].toLowerCase() === 'min' ? 60 : 1);
+    row.prescriptionType = 'time';
+  } else {
+    const range = ex.reps.match(/^(\d+)[–-](\d+)$/);
+    if (range) {
+      row.repsMin = Number(range[1]);
+      row.repsMax = Number(range[2]);
+      row.reps = Number(range[2]);
+    } else {
+      row.reps = Math.max(1, Number(ex.reps) || 1);
+    }
+  }
+  const w = ex.weight.match(/^([\d.]+)\s*lb$/i);
+  if (w) row.weight = Number(w[1]);
+  return row;
+}
+
+/**
+ * Write the day's replaces/adds into the plan: rebuild the day's slot with
+ * the edited exercise list (add the new slot, then remove the old — worst
+ * case a transient duplicate, never a lost day), or create a slot for a
+ * custom rest-day session. On success the server plan becomes the base and
+ * the session overlays for that day are cleared; on failure they simply
+ * stay session-local. Multi-slot days keep session-only edits (rare).
+ */
+async function persistDayEdits(dateIso: string): Promise<void> {
+  if (liveStatus !== 'ready' || !livePlan) return;
+  const planId = livePlan.id;
+  const slots = liveSlotsForDate(dateIso);
+  if (slots.length > 1) return;
+  const day = plannedDayForDate(dateIso);
+  const rows: PlanSlotExercise[] = [];
+  for (let i = 0; i < day.exercises.length; i++) {
+    const row = toSlotExerciseRow(day.exercises[i], i);
+    if (!row) return; // an un-catalogued row: keep everything session-local
+    rows.push(row);
+  }
+  if (rows.length === 0) return;
+  try {
+    const date = fromIso(dateIso);
+    const anchor = planAnchorMonday(livePlan);
+    const programWeek =
+      Math.round((mondayOf(date).getTime() - anchor.getTime()) / WEEK_MS) + 1;
+    const offset = weekNumberOffset(livePlan);
+    const old = slots[0];
+    const slot: PlanSlot = old
+      ? {
+          weekNumber: old.weekNumber,
+          dayOfWeek: old.dayOfWeek,
+          title: old.title,
+          detailLine: old.detailLine ?? undefined,
+          type: old.type,
+          durationMinutes: old.durationMinutes,
+          intensity: old.intensity ?? undefined,
+          orderInDay: old.orderInDay,
+          exercises: rows,
+        }
+      : {
+          weekNumber: Math.max(1, programWeek - offset),
+          dayOfWeek: WEEKDAYS[weekdayIndex(date)],
+          title: day.title,
+          type: 'strength',
+          durationMinutes: Math.max(15, rows.length * 8),
+          exercises: rows,
+        };
+    let plan = await addPlanSlot(planId, slot);
+    if (old) plan = await removePlanSlot(planId, old.id);
+    // Server is now canonical for this day — drop the local overlays (they
+    // would double-apply the additions on top of the rebuilt slot).
+    for (let i = 0; i < day.exercises.length; i++) {
+      replacements.delete(slotKey(dateIso, i));
+    }
+    additions.delete(dateIso);
+    livePlan = plan;
+    lastSeenPlanId = plan.id;
+    emit();
+    void loadExerciseMeta(plan);
+  } catch (err) {
+    console.warn('[calendar] failed to persist day edits:', err);
+  }
 }
 
 export function getSetLogs(dateIso: string, exerciseIndex: number): SetLog[] {
@@ -613,10 +734,13 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
     const completedAt = new Date(Date.parse(startedAt) + elapsedMs).toISOString();
     let totalSets = 0;
     let totalVolume = 0;
-    const entries = day.exercises.map((ex, i) => {
+    // Only exercises with at least one logged set — this is what makes a
+    // PARTIAL finish log exactly what was done.
+    const entries = day.exercises.flatMap((ex, i) => {
       const logs = setLogs.get(slotKey(dateIso, i)) ?? [];
+      if (logs.length === 0) return [];
       totalSets += logs.length;
-      return {
+      return [{
         name: ex.name,
         ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : null),
         orderIndex: i,
@@ -626,8 +750,12 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
           if (weight != null) totalVolume += weight * reps;
           return { setNumber: si + 1, reps, ...(weight != null ? { weight } : null), completed: true };
         }),
-      };
+      }];
     });
+    if (entries.length === 0) {
+      syncedDays.delete(dateIso);
+      return;
+    }
     await api.post('/workout-logs', {
       workoutId,
       startedAt,
@@ -649,8 +777,19 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
   }
 }
 
-/** Demo helper — clear one exercise's logged sets so the deck can be re-run. */
+/** Clear one exercise's logged sets so the deck can be re-run. */
 export function resetSetLogs(dateIso: string, exerciseIndex: number): void {
   setLogs.delete(slotKey(dateIso, exerciseIndex));
   emit();
+}
+
+/** Ending a session early: log whatever was completed so far as the day's
+ *  workout log (History/Progress/strikes count it like a finished session). */
+export function finishDaySession(dateIso: string): void {
+  void syncDayCompletion(dateIso);
+}
+
+/** The day has a workout log (synced this session or fetched from history). */
+export function isDayLogged(dateIso: string): boolean {
+  return completedLogDays.has(dateIso);
 }
