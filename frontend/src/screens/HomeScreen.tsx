@@ -24,6 +24,7 @@ import { getCurrentPlanWithWeekly, planSlotForWorkout } from '../services/planSe
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import { getWorkoutLogs } from '../services/workoutService';
 import { loadWorkoutDraft } from '../lib/workoutDraftStorage';
+import { todayIso } from '../lib/planCalendarPrototype';
 import type { Workout, WorkoutLog } from '../types/workout';
 import type { PersistedWorkoutDraft } from '../lib/workoutDraftStorage';
 import {
@@ -224,31 +225,42 @@ export default function HomeScreen() {
     (parent as { navigate?: (name: keyof RootNavigatorParamList) => void })?.navigate?.('Profile');
   };
 
-  // initial: false keeps PlanList as the stack's first route even when the Plan
-  // tab hasn't been mounted yet, so Back on these screens pops to the plan page
-  // instead of having nothing beneath.
+  // PROTOTYPE — the Calendar tab replaced the Plan and Train tabs, so every
+  // Home entry point routes into it: overview links land on the month or week,
+  // anything workout-shaped lands on today's day view. `initial: false` on the
+  // day view mounts the week landing beneath it, so Back reads Day → Week.
+  // History/Progress are the REAL screens, re-homed into the Calendar stack.
+  // `initial: false` mounts the week landing beneath them so Back works.
   const goToHistory = () => {
-    navigation.navigate('Plan', { screen: 'History', initial: false });
+    navigation.navigate('Calendar', { screen: 'History', initial: false });
   };
 
   const goToProgress = () => {
-    navigation.navigate('Plan', { screen: 'Progress', initial: false });
+    navigation.navigate('Calendar', { screen: 'Progress', initial: false });
   };
 
   const goToPlan = () => {
-    navigation.navigate('Plan');
+    navigation.navigate('Calendar');
   };
 
   const goToGeneratePlan = () => {
-    navigation.navigate('Plan', { screen: 'GeneratePlan', initial: false });
+    navigation.navigate('Calendar');
   };
 
   const goToWorkout = () => {
-    navigation.navigate('Workout', undefined);
+    navigation.navigate('Calendar', {
+      screen: 'PlanCalendarDay',
+      params: { dateIso: todayIso() },
+      initial: false,
+    });
   };
 
-  const goToTodaysWorkoutSession = (workout: Workout) => {
-    navigation.navigate('Workout', { workoutId: workout.id });
+  const goToTodaysWorkoutSession = (_workout: Workout) => {
+    navigation.navigate('Calendar', {
+      screen: 'PlanCalendarDay',
+      params: { dateIso: todayIso() },
+      initial: false,
+    });
   };
 
   const themedStyles = useMemo(
