@@ -862,3 +862,31 @@ export function finishDaySession(dateIso: string): void {
 export function isDayLogged(dateIso: string): boolean {
   return completedLogDays.has(dateIso);
 }
+
+/**
+ * An unfinished session on a day: some sets logged, nothing submitted yet.
+ * Powers Home's "Resume workout" card. Counts straight off the log map so it
+ * works even before the plan fetch lands (logs hydrate independently).
+ */
+export function inProgressSession(
+  dateIso: string,
+): { title: string; loggedSets: number; totalSets: number } | null {
+  let logged = 0;
+  for (const [k, v] of setLogs) {
+    if (k.startsWith(`${dateIso}#`)) logged += v.length;
+  }
+  if (logged === 0 || completedLogDays.has(dateIso)) return null;
+  const day = plannedDayForDate(dateIso);
+  const total = day.exercises.reduce((sum, ex) => sum + ex.sets, 0);
+  const complete =
+    day.exercises.length > 0 &&
+    day.exercises.every(
+      (ex, i) => (setLogs.get(slotKey(dateIso, i))?.length ?? 0) >= ex.sets,
+    );
+  if (complete) return null;
+  return {
+    title: day.exercises.length > 0 ? day.title : 'Workout in progress',
+    loggedSets: logged,
+    totalSets: Math.max(total, logged),
+  };
+}

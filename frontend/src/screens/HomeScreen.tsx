@@ -23,10 +23,13 @@ import { RootTabParamList } from '../components/NavBar';
 import { getCurrentPlanWithWeekly, planSlotForWorkout } from '../services/planService';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import { getWorkoutLogs } from '../services/workoutService';
-import { loadWorkoutDraft } from '../lib/workoutDraftStorage';
 import { todayIso } from '../lib/planCalendarPrototype';
+import {
+  ensureLiveCalendarData,
+  inProgressSession,
+  subscribePlanCalendar,
+} from '../lib/planCalendarPrototypeStore';
 import type { Workout, WorkoutLog } from '../types/workout';
-import type { PersistedWorkoutDraft } from '../lib/workoutDraftStorage';
 import {
   resolveHomeToday,
   buildHomeWeekDots,
@@ -130,7 +133,13 @@ export default function HomeScreen() {
   const whatsNewAutoShown = useRef(false);
   const [homeToday, setHomeToday] = useState<HomeTodayResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [draft, setDraft] = useState<PersistedWorkoutDraft | null>(null);
+  // Calendar in-progress session (crash-safe store) → the Resume card.
+  const [resumeSession, setResumeSession] = useState<ReturnType<typeof inProgressSession>>(null);
+  useEffect(() => {
+    ensureLiveCalendarData();
+    setResumeSession(inProgressSession(todayIso()));
+    return subscribePlanCalendar(() => setResumeSession(inProgressSession(todayIso())));
+  }, []);
   const [plan, setPlan] = useState<ApiPlan | null>(null);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
   /** Completed logs for the current calendar week — the only valid "done" signal for week dots. */
@@ -182,12 +191,7 @@ export default function HomeScreen() {
     if (pull) setRefreshing(true);
     else if (isFirstLoad.current) setLoading(true);
     try {
-      try {
-        const d = await loadWorkoutDraft();
-        setDraft(d);
-      } catch {
-        setDraft(null);
-      }
+      setResumeSession(inProgressSession(todayIso()));
 
       const { start, end } = getCalendarWeekRange(0);
       const [{ plan: fetchedPlan, weeklyWorkouts: fetchedWeekly }, logs] = await Promise.all([
@@ -389,13 +393,13 @@ export default function HomeScreen() {
               <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>Today</Text>
             )}
 
-            {draft ? (
+            {resumeSession ? (
               <TouchableOpacity
                 style={[styles.card, styles.resumeCard, themedStyles.resumeCard]}
                 onPress={goToWorkout}
                 activeOpacity={0.88}
                 accessibilityRole="button"
-                accessibilityHint="Opens Train tab to resume"
+                accessibilityHint="Opens today's workout in the Calendar to resume"
               >
                 <View style={[styles.cardIconCircle, { backgroundColor: colors.primary + '28' }]}>
                   <Ionicons name="play-circle" size={26} color={colors.primary} />
@@ -403,10 +407,10 @@ export default function HomeScreen() {
                 <View style={styles.cardTextBlock}>
                   <Text style={[styles.cardEyebrow, { color: colors.primary }]}>In progress</Text>
                   <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
-                    {draft.workout.name}
+                    {resumeSession.title}
                   </Text>
                   <Text style={[styles.cardMeta, { color: colors.textSecondary }]} numberOfLines={1}>
-                    Continue your session
+                    {resumeSession.loggedSets} of {resumeSession.totalSets} sets logged · keep going
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
