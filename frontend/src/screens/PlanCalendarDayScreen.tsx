@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useReducer, useState } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -30,6 +31,7 @@ import {
   MUSCLE_COLORS,
   MUSCLE_EDGE,
   MUSCLE_INK,
+  catalogGroupForMuscle,
   fromIso,
   mondayOf,
   recommendReplacements,
@@ -38,24 +40,34 @@ import {
   toIso,
   type PlanCalendarParamList,
   type PlannedExercise,
+  type PrototypeMuscle,
 } from '../lib/planCalendarPrototype';
 import {
+  addExerciseToDay,
+  calendarDataMode,
+  muscleFromCatalog,
   plannedDayForDate,
+  plannedExerciseFromCatalog,
   replaceExercise,
   subscribePlanCalendar,
 } from '../lib/planCalendarPrototypeStore';
+import { searchExercises, type Exercise as CatalogExercise } from '../services/exerciseService';
 
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarDay'>;
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarDay'>;
 
 /** The slot a long-press is acting on. */
 type SlotTarget = { index: number; exercise: PlannedExercise };
+/** What the exercise picker is doing: swapping one slot, or appending. */
+type PickerTarget =
+  | { mode: 'replace'; index: number; exercise: PlannedExercise }
+  | { mode: 'add' };
 
 /**
- * PROTOTYPE — one day of the plan: the session's exercises as solid,
- * vibrantly colour-coded blocks (name only). Tap opens the workout detail;
- * press-and-hold offers Replace, which opens an exercises-tab-style pop-up
- * with three recommended swaps pinned on top.
+ * PROTOTYPE — one day of the plan: split colour-coded blocks (tap = workout
+ * detail, hold = replace), plus "+ Add Exercise". Replace/Add open the
+ * exercise-library picker: the REAL catalog when the backend is reachable
+ * (recommended-tier exercises pinned on top), the sample library offline.
  */
 export default function PlanCalendarDayScreen() {
   const navigation = useNavigation<Nav>();
@@ -65,7 +77,7 @@ export default function PlanCalendarDayScreen() {
   const tabBarInset = useTabBarInset();
   const insets = useSafeAreaInsets();
 
-  // Re-render when a replacement (or set log) lands in the session store.
+  // Re-render when a replacement/addition/live update lands in the store.
   const [, forceRender] = useReducer((x: number) => x + 1, 0);
   useEffect(() => subscribePlanCalendar(forceRender), []);
 
@@ -73,33 +85,214 @@ export default function PlanCalendarDayScreen() {
   const plan = plannedDayForDate(dateIso);
   const date = fromIso(dateIso);
 
-  /** Long-press menu (small sheet), then the full replace pop-up. */
+  /** Long-press menu (small sheet), then the picker pop-up. */
   const [menuFor, setMenuFor] = useState<SlotTarget | null>(null);
-  const [pickerFor, setPickerFor] = useState<SlotTarget | null>(null);
+  const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [query, setQuery] = useState('');
 
-  const dayNames = useMemo(
-    () => new Set(plan.exercises.map((e) => e.name)),
+  // ---- Catalog fetches (null = loading; offline flips to the sample lib) ----
+  const [recList, setRecList] = useState<CatalogExercise[] | null>(null);
+  const [allList, setAllList] = useState<CatalogExercise[] | null>(null);
+  const [catalogOffline, setCatalogOffline] = useState(false);
+  const recSeq = useRef(0);
+  const allSeq = useRef(0);
+
+  const dayNamesLower = useMemo(
+    () => new Set(plan.exercises.map((e) => e.name.toLowerCase())),
     [plan],
   );
-  const recommended = pickerFor
-    ? recommendReplacements(pickerFor.exercise.muscle, dayNames)
-    : [];
-  const allResults = pickerFor
-    ? EXERCISE_LIBRARY.filter(
+
+  // Recommended rail: fetched once per picker open (query never filters it).
+  useEffect(() => {
+    if (!picker) return;
+    setQuery('');
+    setRecList(null);
+    setAllList(null);
+    setCatalogOffline(false);
+    const seq = ++recSeq.current;
+    void (async () => {
+      try {
+        const groups =
+          picker.mode === 'replace'
+            ? [catalogGroupForMuscle(picker.exercise.muscle)]
+            : [...new Set(plan.exercises.map((e) => catalogGroupForMuscle(e.muscle)))];
+        let rec = (
+          await searchExercises(
+            groups.length
+              ? { muscleGroups: groups, recommendedOnly: true, limit: 25 }
+              : { recommendedOnly: true, limit: 25 },
+          )
+        ).exercises;
+        // Recommended pool dry for this muscle → best same-group picks instead.
+        if (rec.length === 0 && groups.length) {
+          rec = (await searchExercises({ muscleGroups: groups, limit: 15 })).exercises;
+        }
+        if (seq !== recSeq.current) return;
+        setRecList(rec);
+      } catch {
+        if (seq !== recSeq.current) return;
+        setCatalogOffline(true);
+      }
+    })();
+    // The day's plan is snapshotted at open; a mid-open store change is fine.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picker]);
+
+  // Full list: debounced on the search query.
+  useEffect(() => {
+    if (!picker || catalogOffline) return;
+    const seq = ++allSeq.current;
+    const q = query.trim();
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await searchExercises({
+            searchQuery: q.length > 0 ? q : undefined,
+            limit: 60,
+          });
+          if (seq !== allSeq.current) return;
+          setAllList(res.exercises);
+        } catch {
+          if (seq !== allSeq.current) return;
+          setCatalogOffline(true);
+        }
+      })();
+    }, q.length > 0 ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [picker, query, catalogOffline]);
+
+  const targetMuscle: PrototypeMuscle | null =
+    picker?.mode === 'replace' ? picker.exercise.muscle : null;
+
+  /** Exclude what's already in the day; recommended first, then the target
+   *  muscle, then name — "recommended workouts at the top of the list". */
+  const rankCatalog = (rows: CatalogExercise[], limit?: number): CatalogExercise[] => {
+    const usable = rows.filter((r) => !dayNamesLower.has(r.name.toLowerCase()));
+    usable.sort((a, b) => {
+      const rec = Number(b.recommended === true) - Number(a.recommended === true);
+      if (rec !== 0) return rec;
+      if (targetMuscle) {
+        const am = muscleFromCatalog(a.primaryMuscleGroup, a.subMuscles, a.name);
+        const bm = muscleFromCatalog(b.primaryMuscleGroup, b.subMuscles, b.name);
+        const tm = Number(bm === targetMuscle) - Number(am === targetMuscle);
+        if (tm !== 0) return tm;
+      }
+      return a.name.localeCompare(b.name);
+    });
+    return limit != null ? usable.slice(0, limit) : usable;
+  };
+
+  const catalogRecommended = recList != null ? rankCatalog(recList, 3) : null;
+  const catalogAll = allList != null ? rankCatalog(allList) : null;
+
+  // ---- Offline fallback: the sample library (previous behaviour) ----
+  const mockRecommended = useMemo(() => {
+    if (!picker) return [];
+    if (picker.mode === 'replace') {
+      return recommendReplacements(picker.exercise.muscle, dayNamesLower);
+    }
+    const seed = plan.exercises[0]?.muscle;
+    if (seed) return recommendReplacements(seed, dayNamesLower);
+    return EXERCISE_LIBRARY.filter((e) => !dayNamesLower.has(e.name.toLowerCase())).slice(0, 3);
+  }, [picker, dayNamesLower, plan]);
+  const mockAll = useMemo(
+    () =>
+      EXERCISE_LIBRARY.filter(
         (e) =>
-          !dayNames.has(e.name) &&
+          !dayNamesLower.has(e.name.toLowerCase()) &&
           (query.trim() === '' ||
             `${e.name} ${e.muscle}`.toLowerCase().includes(query.trim().toLowerCase())),
-      )
-    : [];
+      ),
+    [dayNamesLower, query],
+  );
 
-  const applyReplacement = (replacement: PlannedExercise) => {
-    if (!pickerFor) return;
-    replaceExercise(dateIso, pickerFor.index, replacement);
-    setPickerFor(null);
+  const closePicker = () => {
+    setPicker(null);
     setQuery('');
+    // Invalidate any in-flight fetches.
+    recSeq.current += 1;
+    allSeq.current += 1;
   };
+
+  const applyPlanned = (exercise: PlannedExercise) => {
+    if (!picker) return;
+    if (picker.mode === 'replace') replaceExercise(dateIso, picker.index, exercise);
+    else addExerciseToDay(dateIso, exercise);
+    closePicker();
+  };
+
+  const applyCatalogPick = (row: CatalogExercise) => {
+    if (!picker) return;
+    applyPlanned(
+      plannedExerciseFromCatalog(row, picker.mode === 'replace' ? picker.exercise : null),
+    );
+  };
+
+  const pickerVerb = picker?.mode === 'add' ? 'Add' : 'Replace with';
+
+  const renderCatalogRow = (row: CatalogExercise, i: number, pinned: boolean) => {
+    const muscle = muscleFromCatalog(row.primaryMuscleGroup, row.subMuscles, row.name);
+    return (
+      <TouchableOpacity
+        key={row.id}
+        style={[styles.pickerRow, i > 0 && styles.rowDivider]}
+        activeOpacity={0.8}
+        onPress={() => applyCatalogPick(row)}
+        accessibilityRole="button"
+        accessibilityLabel={`${pickerVerb} ${row.name}`}
+      >
+        <View
+          style={[
+            styles.pickerDot,
+            { backgroundColor: MUSCLE_COLORS[muscle], borderColor: MUSCLE_EDGE[muscle] },
+          ]}
+        />
+        <View style={styles.pickerRowText}>
+          <Text style={styles.pickerRowName}>{row.name}</Text>
+          <Text style={styles.pickerRowMuscle}>{muscle}</Text>
+        </View>
+        {pinned || row.recommended ? (
+          <Ionicons name="sparkles" size={15} color={GOLD} />
+        ) : (
+          <Ionicons name="chevron-forward" size={15} color={colors.textTertiary} />
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  const renderMockRow = (ex: PlannedExercise, i: number, pinned: boolean) => (
+    <TouchableOpacity
+      key={ex.name}
+      style={[styles.pickerRow, i > 0 && styles.rowDivider]}
+      activeOpacity={0.8}
+      onPress={() => applyPlanned(ex)}
+      accessibilityRole="button"
+      accessibilityLabel={`${pickerVerb} ${ex.name}`}
+    >
+      <View
+        style={[
+          styles.pickerDot,
+          { backgroundColor: MUSCLE_COLORS[ex.muscle], borderColor: MUSCLE_EDGE[ex.muscle] },
+        ]}
+      />
+      <View style={styles.pickerRowText}>
+        <Text style={styles.pickerRowName}>{ex.name}</Text>
+        <Text style={styles.pickerRowMuscle}>{ex.muscle}</Text>
+      </View>
+      {pinned ? (
+        <Ionicons name="sparkles" size={15} color={GOLD} />
+      ) : (
+        <Ionicons name="chevron-forward" size={15} color={colors.textTertiary} />
+      )}
+    </TouchableOpacity>
+  );
+
+  const loadingRow = (
+    <View style={styles.pickerRow}>
+      <ActivityIndicator size="small" color={colors.primary} />
+      <Text style={styles.pickerRowMuscle}>Loading exercises…</Text>
+    </View>
+  );
 
   return (
     <ScrollView
@@ -178,8 +371,23 @@ export default function PlanCalendarDayScreen() {
         </TouchableOpacity>
       ))}
 
-      <Text style={styles.hint}>Hold an exercise to replace it</Text>
-      <Text style={styles.footerNote}>Prototype · Sample plan data</Text>
+      <TouchableOpacity
+        style={styles.addRow}
+        activeOpacity={0.8}
+        onPress={() => setPicker({ mode: 'add' })}
+        accessibilityRole="button"
+        accessibilityLabel="Add exercise"
+      >
+        <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+        <Text style={styles.addRowLabel}>Add Exercise</Text>
+      </TouchableOpacity>
+
+      {plan.exercises.length > 0 && (
+        <Text style={styles.hint}>Hold an exercise to replace it</Text>
+      )}
+      {calendarDataMode() === 'sample' && (
+        <Text style={styles.footerNote}>Prototype · Sample plan data</Text>
+      )}
 
       {/* ---- Long-press menu ---- */}
       <Modal
@@ -200,7 +408,9 @@ export default function PlanCalendarDayScreen() {
                 style={styles.menuAction}
                 activeOpacity={0.8}
                 onPress={() => {
-                  setPickerFor(menuFor);
+                  if (menuFor) {
+                    setPicker({ mode: 'replace', index: menuFor.index, exercise: menuFor.exercise });
+                  }
                   setMenuFor(null);
                 }}
                 accessibilityRole="button"
@@ -223,30 +433,31 @@ export default function PlanCalendarDayScreen() {
         </Pressable>
       </Modal>
 
-      {/* ---- Replace pop-up (the exercises tab, recommendations pinned) ---- */}
+      {/* ---- Replace/Add pop-up (the exercises tab, recommendations pinned) ---- */}
       <Modal
-        visible={pickerFor !== null}
+        visible={picker !== null}
         animationType="slide"
-        onRequestClose={() => setPickerFor(null)}
+        onRequestClose={closePicker}
       >
         <View style={[styles.pickerRoot, { paddingTop: insets.top + spacing.md }]}>
           <View style={styles.pickerHeader}>
             <TouchableOpacity
-              onPress={() => {
-                setPickerFor(null);
-                setQuery('');
-              }}
+              onPress={closePicker}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessibilityRole="button"
-              accessibilityLabel="Close replace"
+              accessibilityLabel="Close picker"
             >
               <Ionicons name="close" size={26} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.pickerTitle}>Replace Exercise</Text>
+            <Text style={styles.pickerTitle}>
+              {picker?.mode === 'add' ? 'Add Exercise' : 'Replace Exercise'}
+            </Text>
             <View style={styles.pickerHeaderSpacer} />
           </View>
           <Text style={styles.pickerLede} numberOfLines={1}>
-            Swapping out {pickerFor?.exercise.name}
+            {picker?.mode === 'add'
+              ? `Adding to ${plan.title}`
+              : `Swapping out ${picker?.exercise.name ?? ''}`}
           </Text>
 
           <View style={styles.searchBox}>
@@ -267,62 +478,57 @@ export default function PlanCalendarDayScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.sectionLabel}>RECOMMENDED</Text>
-            <View style={styles.groupCard}>
-              {recommended.map((ex, i) => (
-                <TouchableOpacity
-                  key={ex.name}
-                  style={[styles.pickerRow, i > 0 && styles.rowDivider]}
-                  activeOpacity={0.8}
-                  onPress={() => applyReplacement(ex)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Replace with ${ex.name}`}
-                >
-                  <View
-                    style={[
-                      styles.pickerDot,
-                      { backgroundColor: MUSCLE_COLORS[ex.muscle], borderColor: MUSCLE_EDGE[ex.muscle] },
-                    ]}
-                  />
-                  <View style={styles.pickerRowText}>
-                    <Text style={styles.pickerRowName}>{ex.name}</Text>
-                    <Text style={styles.pickerRowMuscle}>{ex.muscle}</Text>
-                  </View>
-                  <Ionicons name="sparkles" size={15} color={GOLD} />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.sectionLabel}>ALL EXERCISES</Text>
-            <View style={styles.groupCard}>
-              {allResults.map((ex, i) => (
-                <TouchableOpacity
-                  key={ex.name}
-                  style={[styles.pickerRow, i > 0 && styles.rowDivider]}
-                  activeOpacity={0.8}
-                  onPress={() => applyReplacement(ex)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Replace with ${ex.name}`}
-                >
-                  <View
-                    style={[
-                      styles.pickerDot,
-                      { backgroundColor: MUSCLE_COLORS[ex.muscle], borderColor: MUSCLE_EDGE[ex.muscle] },
-                    ]}
-                  />
-                  <View style={styles.pickerRowText}>
-                    <Text style={styles.pickerRowName}>{ex.name}</Text>
-                    <Text style={styles.pickerRowMuscle}>{ex.muscle}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={15} color={colors.textTertiary} />
-                </TouchableOpacity>
-              ))}
-              {allResults.length === 0 && (
-                <View style={styles.pickerRow}>
-                  <Text style={styles.pickerRowMuscle}>No exercises match “{query}”.</Text>
+            {catalogOffline ? (
+              <>
+                {mockRecommended.length > 0 && (
+                  <>
+                    <Text style={styles.sectionLabel}>RECOMMENDED</Text>
+                    <View style={styles.groupCard}>
+                      {mockRecommended.map((ex, i) => renderMockRow(ex, i, true))}
+                    </View>
+                  </>
+                )}
+                <Text style={styles.sectionLabel}>ALL EXERCISES</Text>
+                <View style={styles.groupCard}>
+                  {mockAll.map((ex, i) => renderMockRow(ex, i, false))}
+                  {mockAll.length === 0 && (
+                    <View style={styles.pickerRow}>
+                      <Text style={styles.pickerRowMuscle}>
+                        No exercises match “{query}”.
+                      </Text>
+                    </View>
+                  )}
                 </View>
-              )}
-            </View>
+              </>
+            ) : (
+              <>
+                {(catalogRecommended == null || catalogRecommended.length > 0) && (
+                  <>
+                    <Text style={styles.sectionLabel}>RECOMMENDED</Text>
+                    <View style={styles.groupCard}>
+                      {catalogRecommended == null
+                        ? loadingRow
+                        : catalogRecommended.map((row, i) => renderCatalogRow(row, i, true))}
+                    </View>
+                  </>
+                )}
+                <Text style={styles.sectionLabel}>ALL EXERCISES</Text>
+                <View style={styles.groupCard}>
+                  {catalogAll == null
+                    ? loadingRow
+                    : catalogAll.map((row, i) => renderCatalogRow(row, i, false))}
+                  {catalogAll != null && catalogAll.length === 0 && (
+                    <View style={styles.pickerRow}>
+                      <Text style={styles.pickerRowMuscle}>
+                        {query.trim()
+                          ? `No exercises match “${query.trim()}”.`
+                          : 'No exercises available.'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </>
+            )}
           </ScrollView>
         </View>
       </Modal>
@@ -388,6 +594,23 @@ function createStyles(c: ColorPalette) {
     },
     exerciseChevron: {
       opacity: 0.7,
+    },
+    addRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderStyle: 'dashed',
+      paddingVertical: spacing.lg,
+    },
+    addRowLabel: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: c.primary,
     },
     hint: {
       ...sfPro,
@@ -468,7 +691,7 @@ function createStyles(c: ColorPalette) {
       color: c.text,
     },
 
-    // Replace pop-up
+    // Replace/Add pop-up
     pickerRoot: {
       flex: 1,
       backgroundColor: c.background,

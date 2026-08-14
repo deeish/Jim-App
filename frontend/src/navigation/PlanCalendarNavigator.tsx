@@ -16,6 +16,7 @@ import TemplateDetailScreen from '../screens/TemplateDetailScreen';
 import GeneratePlanScreen from '../screens/GeneratePlanScreen';
 import PlanPreviewScreen from '../screens/PlanPreviewScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
+import ExerciseDetailScreen from '../screens/ExerciseDetailScreen';
 import {
   fromIso,
   mondayOf,
@@ -157,9 +158,13 @@ export default function PlanCalendarNavigator() {
       <Stack.Screen
         name="PlanList"
         component={PlanCalendarWeekScreen}
-        options={({ navigation }) => ({
+        options={({ route, navigation }) => ({
           ...nativeHeader,
-          title: 'This Week',
+          // The week component can retarget this route to the plan's week 1
+          // (anchor auto-jump), so the title must track the param.
+          title: weekTitle(
+            (route.params as { weekMondayIso?: string } | undefined)?.weekMondayIso,
+          ),
           headerLeft: () => <BackTo label="Month" onPress={() => weekBack(navigation)} />,
         })}
       />
@@ -188,10 +193,14 @@ export default function PlanCalendarNavigator() {
           title: route.params.templateName ?? 'Program',
         })}
       />
-      {/* GeneratePlan/PlanPreview/WorkoutDetail draw their own header rows. */}
+      {/* GeneratePlan/PlanPreview/WorkoutDetail/ExerciseDetail draw their own
+          header rows. ExerciseDetail is the library's guide page — pushed
+          plainly here (no cross-tab context params), so its back is a normal
+          pop to the workout page. */}
       <Stack.Screen name="GeneratePlan" component={GeneratePlanScreen} />
       <Stack.Screen name="PlanPreview" component={PlanPreviewScreen} />
       <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
+      <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
     </Stack.Navigator>
   );
 }

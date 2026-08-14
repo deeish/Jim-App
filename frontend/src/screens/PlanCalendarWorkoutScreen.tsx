@@ -8,7 +8,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRoute, type RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   Easing,
@@ -53,6 +54,7 @@ import {
 } from '../lib/planCalendarPrototypeStore';
 
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarWorkout'>;
+type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWorkout'>;
 
 const SCREEN_W = Dimensions.get('window').width;
 /** How long the gold outline shows before the card swipes to the back. */
@@ -73,6 +75,7 @@ function weightPlaceholder(weight: string): string {
  */
 export default function PlanCalendarWorkoutScreen() {
   const route = useRoute<Route>();
+  const navigation = useNavigation<Nav>();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const tabBarInset = useTabBarInset();
@@ -197,6 +200,27 @@ export default function PlanCalendarWorkoutScreen() {
           <Text style={styles.rowLabel}>Date</Text>
           <Text style={styles.rowValue}>{shortDate(fromIso(dateIso))}</Text>
         </View>
+        {/* Bridge into the exercise library: form cues, mistakes, Jim score,
+            easier/harder versions — at the moment you're about to do the
+            movement. Only when the catalog id is known (live plan rows and
+            catalog-picked swaps; sample rows have no id). */}
+        {exercise.exerciseId ? (
+          <TouchableOpacity
+            style={[styles.row, styles.rowDivider]}
+            activeOpacity={0.8}
+            onPress={() =>
+              navigation.navigate('ExerciseDetail', { exerciseId: exercise.exerciseId! })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Open exercise guide"
+          >
+            <View style={styles.rowValueWrap}>
+              <Ionicons name="book-outline" size={17} color={colors.primary} />
+              <Text style={[styles.rowLabel, { color: colors.primary }]}>Exercise Guide</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {exercise.note !== '' && (
