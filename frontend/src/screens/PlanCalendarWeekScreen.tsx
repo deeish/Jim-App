@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useReducer } from 'react';
+import React, { useCallback, useEffect, useMemo, useReducer } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -32,8 +32,11 @@ import {
   type PlanCalendarParamList,
 } from '../lib/planCalendarPrototype';
 import {
-  ensureLiveCalendarData,
+  calendarDataMode,
+  consumeAnchorAutoJump,
   plannedDayForDate,
+  programWeekInfoFor,
+  refreshLiveCalendarData,
   subscribePlanCalendar,
 } from '../lib/planCalendarPrototypeStore';
 
@@ -56,16 +59,33 @@ export default function PlanCalendarWeekScreen() {
   // Re-render when a replacement or live-plan update lands.
   const [, forceRender] = useReducer((x: number) => x + 1, 0);
   useEffect(() => subscribePlanCalendar(forceRender), []);
-  // This is the tab's landing screen — kick off the real-plan fetch here.
-  useEffect(() => {
-    ensureLiveCalendarData();
-  }, []);
+  // Landing screen + focus refresh: notice a plan applied elsewhere this
+  // session. The 'PlanList' alias is the post-apply landing, so it always
+  // force-refetches — the fresh plan must show immediately.
+  const isPostApplyLanding = (route.name as string) === 'PlanList';
+  useFocusEffect(
+    useCallback(() => {
+      refreshLiveCalendarData(isPostApplyLanding);
+    }, [isPostApplyLanding]),
+  );
 
   const weekMondayIso = route.params?.weekMondayIso ?? toIso(mondayOf(new Date()));
   const days = useMemo(
     () => [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(fromIso(weekMondayIso), i)),
     [weekMondayIso],
   );
+
+  const mode = calendarDataMode();
+  const weekInfo = mode === 'live' ? programWeekInfoFor(weekMondayIso) : null;
+
+  // Dead-first-week fix: a just-applied plan can anchor week 1 to NEXT Monday,
+  // so the landing week is empty and reads as "my plan didn't save". Jump the
+  // landing screen (explicit navigations keep their week) to week 1, once.
+  useEffect(() => {
+    if (route.params?.weekMondayIso) return;
+    const jumpTo = consumeAnchorAutoJump();
+    if (jumpTo) navigation.setParams({ weekMondayIso: jumpTo });
+  });
 
   return (
     <ScrollView
@@ -89,6 +109,40 @@ export default function PlanCalendarWeekScreen() {
           }
         }}
       />
+
+      {weekInfo?.state === 'in' && (
+        <Text style={styles.contextLine}>
+          Week {weekInfo.week} of {weekInfo.totalWeeks} · {weekInfo.planName}
+        </Text>
+      )}
+      {weekInfo?.state === 'after' && (
+        <Text style={styles.contextLine}>
+          Program complete · {weekInfo.planName} ({weekInfo.totalWeeks} weeks)
+        </Text>
+      )}
+      {weekInfo?.state === 'before' && (
+        <View style={styles.anchorBanner}>
+          <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+          <View style={styles.anchorBannerText}>
+            <Text style={styles.anchorBannerTitle}>
+              Your program starts {shortDate(fromIso(weekInfo.startsMondayIso))}
+            </Text>
+            <Text style={styles.anchorBannerBody}>
+              This week is a lead-in — week 1 begins Monday.
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() =>
+              navigation.setParams({ weekMondayIso: weekInfo.startsMondayIso })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Go to week 1"
+            hitSlop={8}
+          >
+            <Text style={styles.anchorBannerAction}>Week 1</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {days.map((date) => {
         const iso = toIso(date);
@@ -149,7 +203,16 @@ export default function PlanCalendarWeekScreen() {
         );
       })}
 
-      <Text style={styles.footerNote}>Prototype · Sample plan data</Text>
+      {mode === 'sample' && (
+        <Text style={styles.footerNote}>Prototype · Sample plan data</Text>
+      )}
+      {mode === 'empty' && (
+        // No plan: the week stays a normal, quiet calendar of open days —
+        // creation lives in the month view's Planning section.
+        <Text style={styles.footerNote}>
+          No active plan · create one from the month view
+        </Text>
+      )}
     </ScrollView>
   );
 }
@@ -260,6 +323,42 @@ function createStyles(c: ColorPalette) {
       color: c.textMuted,
       textAlign: 'center',
       marginTop: spacing.md,
+    },
+    contextLine: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      color: c.textSecondary,
+      textAlign: 'center',
+    },
+    anchorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: c.primarySoft,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+    },
+    anchorBannerText: {
+      flex: 1,
+    },
+    anchorBannerTitle: {
+      ...sfPro,
+      fontSize: text.body,
+      fontWeight: weight.semibold,
+      color: c.text,
+    },
+    anchorBannerBody: {
+      ...sfPro,
+      fontSize: text.footnote,
+      color: c.textSecondary,
+      marginTop: spacing.xxs,
+    },
+    anchorBannerAction: {
+      ...sfPro,
+      fontSize: text.body,
+      fontWeight: weight.bold,
+      color: c.primary,
     },
   });
 }

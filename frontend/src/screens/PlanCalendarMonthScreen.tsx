@@ -1,6 +1,6 @@
-import React, { useEffect, useLayoutEffect, useMemo, useReducer, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
@@ -34,11 +34,12 @@ import {
   type PrototypeMuscle,
 } from '../lib/planCalendarPrototype';
 import {
-  ensureLiveCalendarData,
+  calendarDataMode,
   ensureLogsForMonth,
   getLivePlan,
   isDayCompleted,
   plannedDayForDate,
+  refreshLiveCalendarData,
   subscribePlanCalendar,
 } from '../lib/planCalendarPrototypeStore';
 
@@ -73,10 +74,12 @@ export default function PlanCalendarMonthScreen() {
   // loaded, any muscle can appear.
   const legend = useMemo(() => Object.keys(MUSCLE_COLORS) as PrototypeMuscle[], []);
 
-  // Real data: active plan (once per session) + completed logs per month.
-  useEffect(() => {
-    ensureLiveCalendarData();
-  }, []);
+  // Real data: active plan (refetched on focus, throttled) + logs per month.
+  useFocusEffect(
+    useCallback(() => {
+      refreshLiveCalendarData();
+    }, []),
+  );
   useEffect(() => {
     ensureLogsForMonth(month);
   }, [month]);
@@ -223,6 +226,8 @@ export default function PlanCalendarMonthScreen() {
       </View>
       <Text style={styles.gridHint}>Tap a day to see its workout</Text>
 
+      {calendarDataMode() !== 'empty' && (
+      <>
       <Text style={styles.sectionLabel}>MUSCLE COLORS</Text>
       <View style={styles.legendCard}>
         {legend.map((m) => (
@@ -237,6 +242,8 @@ export default function PlanCalendarMonthScreen() {
           </View>
         ))}
       </View>
+      </>
+      )}
 
       <Text style={styles.sectionLabel}>PLANNING</Text>
       <View style={styles.planningCard}>
@@ -265,7 +272,11 @@ export default function PlanCalendarMonthScreen() {
       </View>
 
       <Text style={styles.footerNote}>
-        {livePlan ? `Plan: ${livePlan.name}` : 'Prototype · Sample plan data'}
+        {livePlan
+          ? `Plan: ${livePlan.name}`
+          : calendarDataMode() === 'empty'
+            ? 'No active plan yet — start with Planning above'
+            : 'Prototype · Sample plan data'}
       </Text>
 
       {/* Liked (saved) workouts — the old Plan-tab heart, same modal. */}
