@@ -24,17 +24,18 @@ import {
   type ColorPalette,
 } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import PlanCalendarScopeBar from '../components/PlanCalendarScopeBar';
 import {
-  EXERCISE_LIBRARY,
   GOLD,
   MUSCLE_COLORS,
   MUSCLE_EDGE,
   MUSCLE_INK,
+  addDays,
   catalogGroupForMuscle,
   fromIso,
   mondayOf,
-  recommendReplacements,
   sfPro,
   shortDate,
   toIso,
@@ -45,7 +46,9 @@ import {
 import {
   addExerciseToDay,
   calendarDataMode,
+  finishDaySession,
   getSetLogs,
+  isDayLogged,
   muscleFromCatalog,
   plannedDayForDate,
   plannedExerciseFromCatalog,
@@ -186,27 +189,6 @@ export default function PlanCalendarDayScreen() {
   const catalogRecommended = recList != null ? rankCatalog(recList, 3) : null;
   const catalogAll = allList != null ? rankCatalog(allList) : null;
 
-  // ---- Offline fallback: the sample library (previous behaviour) ----
-  const mockRecommended = useMemo(() => {
-    if (!picker) return [];
-    if (picker.mode === 'replace') {
-      return recommendReplacements(picker.exercise.muscle, dayNamesLower);
-    }
-    const seed = plan.exercises[0]?.muscle;
-    if (seed) return recommendReplacements(seed, dayNamesLower);
-    return EXERCISE_LIBRARY.filter((e) => !dayNamesLower.has(e.name.toLowerCase())).slice(0, 3);
-  }, [picker, dayNamesLower, plan]);
-  const mockAll = useMemo(
-    () =>
-      EXERCISE_LIBRARY.filter(
-        (e) =>
-          !dayNamesLower.has(e.name.toLowerCase()) &&
-          (query.trim() === '' ||
-            `${e.name} ${e.muscle}`.toLowerCase().includes(query.trim().toLowerCase())),
-      ),
-    [dayNamesLower, query],
-  );
-
   const closePicker = () => {
     setPicker(null);
     setQuery('');
@@ -230,6 +212,33 @@ export default function PlanCalendarDayScreen() {
   };
 
   const pickerVerb = picker?.mode === 'add' ? 'Add' : 'Replace with';
+
+  const doneCount = plan.exercises.filter(
+    (ex, i) => getSetLogs(dateIso, i).length >= ex.sets,
+  ).length;
+  const allDone = plan.exercises.length > 0 && doneCount === plan.exercises.length;
+  const anyLogged = plan.exercises.some((_, i) => getSetLogs(dateIso, i).length > 0);
+  const dayLogged = isDayLogged(dateIso);
+
+  // Swipe pages between days; taps are swallowed briefly after a swipe (on
+  // web the release click can land on a card of the re-rendered day).
+  const lastSwipeAt = useRef(0);
+  const swipe = useMemo(
+    () =>
+      Gesture.Pan()
+        .runOnJS(true)
+        .activeOffsetX([-24, 24])
+        .failOffsetY([-16, 16])
+        .onEnd((e) => {
+          if (Math.abs(e.translationX) >= 50) lastSwipeAt.current = Date.now();
+          if (e.translationX <= -50) {
+            navigation.setParams({ dateIso: toIso(addDays(fromIso(dateIso), 1)) });
+          } else if (e.translationX >= 50) {
+            navigation.setParams({ dateIso: toIso(addDays(fromIso(dateIso), -1)) });
+          }
+        }),
+    [navigation, dateIso],
+  );
 
   const renderCatalogRow = (row: CatalogExercise, i: number, pinned: boolean) => {
     const muscle = muscleFromCatalog(row.primaryMuscleGroup, row.subMuscles, row.name);
@@ -261,33 +270,6 @@ export default function PlanCalendarDayScreen() {
     );
   };
 
-  const renderMockRow = (ex: PlannedExercise, i: number, pinned: boolean) => (
-    <TouchableOpacity
-      key={ex.name}
-      style={[styles.pickerRow, i > 0 && styles.rowDivider]}
-      activeOpacity={0.8}
-      onPress={() => applyPlanned(ex)}
-      accessibilityRole="button"
-      accessibilityLabel={`${pickerVerb} ${ex.name}`}
-    >
-      <View
-        style={[
-          styles.pickerDot,
-          { backgroundColor: MUSCLE_COLORS[ex.muscle], borderColor: MUSCLE_EDGE[ex.muscle] },
-        ]}
-      />
-      <View style={styles.pickerRowText}>
-        <Text style={styles.pickerRowName}>{ex.name}</Text>
-        <Text style={styles.pickerRowMuscle}>{ex.muscle}</Text>
-      </View>
-      {pinned ? (
-        <Ionicons name="sparkles" size={15} color={GOLD} />
-      ) : (
-        <Ionicons name="chevron-forward" size={15} color={colors.textTertiary} />
-      )}
-    </TouchableOpacity>
-  );
-
   const loadingRow = (
     <View style={styles.pickerRow}>
       <ActivityIndicator size="small" color={colors.primary} />
@@ -296,12 +278,15 @@ export default function PlanCalendarDayScreen() {
   );
 
   return (
+    <GestureDetector gesture={swipe}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: spacing.xxxl + tabBarInset }]}
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
     >
+      {/* Keyed by date so day-swipes cross-fade instead of hard-cutting. */}
+      <Animated.View key={dateIso} entering={FadeIn.duration(200)} style={styles.dayPager}>
       <PlanCalendarScopeBar
         active="day"
         onNavigate={(scope) => {
@@ -330,21 +315,17 @@ export default function PlanCalendarDayScreen() {
 
       <Text style={styles.lede}>
         {plan.title} · {shortDate(date)} · {plan.exercises.length} exercises
-        {(() => {
-          const done = plan.exercises.filter(
-            (ex, i) => getSetLogs(dateIso, i).length >= ex.sets,
-          ).length;
-          return done > 0 && done < plan.exercises.length ? ` · ${done} done` : '';
-        })()}
+        {doneCount > 0 && !allDone ? ` · ${doneCount} done` : ''}
       </Text>
 
-      {plan.exercises.length > 0 &&
-        plan.exercises.every((ex, i) => getSetLogs(dateIso, i).length >= ex.sets) && (
-          <View style={styles.completeBanner}>
-            <Ionicons name="checkmark-circle" size={20} color={GOLD} />
-            <Text style={styles.completeBannerText}>Workout complete — great work.</Text>
-          </View>
-        )}
+      {(allDone || dayLogged) && (
+        <View style={styles.completeBanner}>
+          <Ionicons name="checkmark-circle" size={20} color={GOLD} />
+          <Text style={styles.completeBannerText}>
+            {allDone ? 'Workout complete — great work.' : 'Session logged.'}
+          </Text>
+        </View>
+      )}
 
       {plan.exercises.length === 0 && (
         <View style={styles.restCard}>
@@ -364,13 +345,14 @@ export default function PlanCalendarDayScreen() {
               done && styles.exerciseCardDone,
             ]}
             activeOpacity={0.8}
-            onPress={() =>
+            onPress={() => {
+              if (Date.now() - lastSwipeAt.current < 450) return;
               navigation.navigate('PlanCalendarWorkout', {
                 dateIso,
                 exerciseIndex: index,
                 exerciseName: ex.name,
-              })
-            }
+              });
+            }}
             onLongPress={() => setMenuFor({ index, exercise: ex })}
             accessibilityRole="button"
             accessibilityLabel={`${ex.name}, ${ex.muscle}${done ? ', completed' : ''}`}
@@ -400,7 +382,10 @@ export default function PlanCalendarDayScreen() {
       <TouchableOpacity
         style={styles.addRow}
         activeOpacity={0.8}
-        onPress={() => setPicker({ mode: 'add' })}
+        onPress={() => {
+          if (Date.now() - lastSwipeAt.current < 450) return;
+          setPicker({ mode: 'add' });
+        }}
         accessibilityRole="button"
         accessibilityLabel="Add exercise"
       >
@@ -408,12 +393,26 @@ export default function PlanCalendarDayScreen() {
         <Text style={styles.addRowLabel}>Add Exercise</Text>
       </TouchableOpacity>
 
+      {anyLogged && !allDone && !dayLogged && (
+        <TouchableOpacity
+          style={styles.finishRow}
+          activeOpacity={0.85}
+          onPress={() => finishDaySession(dateIso)}
+          accessibilityRole="button"
+          accessibilityLabel="Finish and log session"
+        >
+          <Ionicons name="flag-outline" size={18} color={GOLD} />
+          <Text style={styles.finishRowLabel}>Finish & Log Session</Text>
+        </TouchableOpacity>
+      )}
+
       {plan.exercises.length > 0 && (
         <Text style={styles.hint}>Hold an exercise to replace it</Text>
       )}
-      {calendarDataMode() === 'sample' && (
-        <Text style={styles.footerNote}>Prototype · Sample plan data</Text>
+      {calendarDataMode() === 'offline' && (
+        <Text style={styles.footerNote}>Offline — changes stay on this device</Text>
       )}
+      </Animated.View>
 
       {/* ---- Long-press menu ---- */}
       <Modal
@@ -505,27 +504,14 @@ export default function PlanCalendarDayScreen() {
             showsVerticalScrollIndicator={false}
           >
             {catalogOffline ? (
-              <>
-                {mockRecommended.length > 0 && (
-                  <>
-                    <Text style={styles.sectionLabel}>RECOMMENDED</Text>
-                    <View style={styles.groupCard}>
-                      {mockRecommended.map((ex, i) => renderMockRow(ex, i, true))}
-                    </View>
-                  </>
-                )}
-                <Text style={styles.sectionLabel}>ALL EXERCISES</Text>
-                <View style={styles.groupCard}>
-                  {mockAll.map((ex, i) => renderMockRow(ex, i, false))}
-                  {mockAll.length === 0 && (
-                    <View style={styles.pickerRow}>
-                      <Text style={styles.pickerRowMuscle}>
-                        No exercises match “{query}”.
-                      </Text>
-                    </View>
-                  )}
+              <View style={[styles.groupCard, { marginTop: spacing.xl }]}>
+                <View style={styles.pickerRow}>
+                  <Ionicons name="cloud-offline-outline" size={18} color={colors.textMuted} />
+                  <Text style={styles.pickerRowMuscle}>
+                    Can’t reach the exercise library. Check your connection and try again.
+                  </Text>
                 </View>
-              </>
+              </View>
             ) : (
               <>
                 {(catalogRecommended == null || catalogRecommended.length > 0) && (
@@ -559,6 +545,7 @@ export default function PlanCalendarDayScreen() {
         </View>
       </Modal>
     </ScrollView>
+    </GestureDetector>
   );
 }
 
@@ -637,6 +624,26 @@ function createStyles(c: ColorPalette) {
       paddingVertical: spacing.md,
     },
     completeBannerText: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: c.text,
+    },
+    dayPager: {
+      gap: spacing.md,
+    },
+    finishRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      borderRadius: radius.lg,
+      borderWidth: 2,
+      borderColor: GOLD,
+      backgroundColor: c.surface,
+      paddingVertical: spacing.md,
+    },
+    finishRowLabel: {
       ...sfPro,
       fontSize: text.callout,
       fontWeight: weight.semibold,

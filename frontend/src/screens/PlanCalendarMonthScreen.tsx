@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -209,7 +210,12 @@ export default function PlanCalendarMonthScreen() {
       </View>
 
       <GestureDetector gesture={swipe}>
-      <View style={styles.gridCard}>
+      {/* Keyed by month so paging cross-fades instead of hard-cutting. */}
+      <Animated.View
+        key={toIso(month)}
+        entering={FadeIn.duration(200)}
+        style={styles.gridCard}
+      >
         <View style={styles.weekdayHeader}>
           {WEEKDAY_INITIALS.map((d, i) => (
             <Text key={`${d}-${i}`} style={styles.weekdayInitial}>
@@ -275,7 +281,7 @@ export default function PlanCalendarMonthScreen() {
             })}
           </View>
         ))}
-      </View>
+      </Animated.View>
       </GestureDetector>
       <Text style={styles.gridHint}>Tap a day to see its workout</Text>
 
@@ -327,9 +333,9 @@ export default function PlanCalendarMonthScreen() {
       <Text style={styles.footerNote}>
         {livePlan
           ? `Plan: ${livePlan.name}`
-          : calendarDataMode() === 'empty'
-            ? 'No active plan yet — start with Planning above'
-            : 'Prototype · Sample plan data'}
+          : calendarDataMode() === 'offline'
+            ? 'Offline — can’t reach the server'
+            : 'No active plan yet — start with Planning above'}
       </Text>
 
       {/* Liked (saved) workouts — the old Plan-tab heart, same modal. */}

@@ -48,7 +48,6 @@ import {
   getSetLogs,
   logSet,
   plannedDayForDate,
-  resetSetLogs,
   subscribePlanCalendar,
   type SetLog,
 } from '../lib/planCalendarPrototypeStore';
@@ -164,7 +163,21 @@ export default function PlanCalendarWorkoutScreen() {
   const logs = getSetLogs(dateIso, exerciseIndex);
   const allDone = logs.length >= exercise.sets;
 
+  // Celebration burst the moment the exercise's last set lands.
+  const prevAllDone = useRef(allDone);
+  const [celebrating, setCelebrating] = useState(false);
+  useEffect(() => {
+    if (allDone && !prevAllDone.current) {
+      setCelebrating(true);
+      const t = setTimeout(() => setCelebrating(false), 1500);
+      prevAllDone.current = allDone;
+      return () => clearTimeout(t);
+    }
+    prevAllDone.current = allDone;
+  }, [allDone]);
+
   return (
+    <View style={styles.container}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: spacing.xxxl + tabBarInset }]}
@@ -215,13 +228,6 @@ export default function PlanCalendarWorkoutScreen() {
               </View>
             ))}
           </View>
-          <TouchableOpacity
-            onPress={() => resetSetLogs(dateIso, exerciseIndex)}
-            accessibilityRole="button"
-            accessibilityLabel="Reset sets"
-          >
-            <Text style={styles.resetLink}>Reset sets (demo)</Text>
-          </TouchableOpacity>
         </>
       ) : (
         <SetDeck
@@ -301,8 +307,68 @@ export default function PlanCalendarWorkoutScreen() {
         </>
       )}
 
-      <Text style={styles.footerNote}>Prototype · Sample plan data</Text>
     </ScrollView>
+    {celebrating && <CompletionBurst styles={styles} />}
+    </View>
+  );
+}
+
+/** One flying confetti dot of the completion burst. */
+function BurstDot({
+  angle,
+  dist,
+  color,
+  delay,
+}: {
+  angle: number;
+  dist: number;
+  color: string;
+  delay: number;
+}) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withDelay(delay, withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) }));
+  }, [p, delay]);
+  const style = useAnimatedStyle(() => ({
+    opacity: 1 - p.value,
+    transform: [
+      { translateX: Math.cos(angle) * dist * p.value },
+      { translateY: Math.sin(angle) * dist * p.value - 30 * p.value },
+      { scale: 1 - 0.35 * p.value },
+    ],
+  }));
+  return <Animated.View style={[{ position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: color }, style]} />;
+}
+
+/**
+ * The exercise-complete celebration: a gold check springs in while the muscle
+ * palette bursts outward. Pure reanimated, so it plays on web and mobile.
+ */
+function CompletionBurst({ styles }: { styles: ReturnType<typeof createStyles> }) {
+  const check = useSharedValue(0);
+  useEffect(() => {
+    check.value = withSpring(1, { damping: 11, stiffness: 180 });
+  }, [check]);
+  const checkStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, check.value * 2),
+    transform: [{ scale: check.value }],
+  }));
+  const burstColors = (Object.values(MUSCLE_COLORS) as string[]).filter((c) => c !== '#FFFFFF');
+  return (
+    <View pointerEvents="none" style={styles.celebrationOverlay}>
+      {burstColors.map((c, i) => (
+        <BurstDot
+          key={i}
+          angle={(i / burstColors.length) * Math.PI * 2}
+          dist={110 + (i % 3) * 26}
+          color={c}
+          delay={i * 16}
+        />
+      ))}
+      <Animated.View style={checkStyle}>
+        <Ionicons name="checkmark-circle" size={96} color={GOLD} />
+      </Animated.View>
+    </View>
   );
 }
 
@@ -729,12 +795,11 @@ function createStyles(c: ColorPalette) {
       color: c.textSecondary,
       marginTop: spacing.xxs,
     },
-    resetLink: {
-      ...sfPro,
-      fontSize: text.footnote,
-      color: c.textMuted,
-      textAlign: 'center',
-      marginTop: spacing.md,
+    celebrationOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 10,
     },
 
     // Grouped facts

@@ -43,6 +43,7 @@ import {
 } from '../lib/planCalendarPrototypeStore';
 import { GOLD } from '../lib/planCalendarPrototype';
 import { SkeletonCard } from '../components/Skeleton';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWeek'>;
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarWeek'>;
@@ -196,7 +197,9 @@ export default function PlanCalendarWeekScreen() {
         </>
       )}
 
-      {mode !== 'loading' && days.map((date) => {
+      {mode !== 'loading' && (
+      <Animated.View key={weekMondayIso} entering={FadeIn.duration(200)} style={styles.weekPager}>
+      {days.map((date) => {
         const iso = toIso(date);
         const plan = plannedDayForDate(iso);
         const muscles = dayMuscles(plan);
@@ -266,9 +269,11 @@ export default function PlanCalendarWeekScreen() {
           </TouchableOpacity>
         );
       })}
+      </Animated.View>
+      )}
 
-      {mode === 'sample' && (
-        <Text style={styles.footerNote}>Prototype · Sample plan data</Text>
+      {mode === 'offline' && (
+        <Text style={styles.footerNote}>Offline — can’t reach the server</Text>
       )}
       {mode === 'empty' && (
         // No plan: the week stays a normal, quiet calendar of open days —
@@ -350,6 +355,9 @@ function createStyles(c: ColorPalette) {
       fontWeight: weight.medium,
       color: c.textMuted,
       marginLeft: spacing.xs,
+    },
+    weekPager: {
+      gap: spacing.md,
     },
     missedLabel: {
       ...sfPro,
