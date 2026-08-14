@@ -1,0 +1,487 @@
+import React, { useEffect, useLayoutEffect, useMemo, useReducer, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import SavedWorkoutsScreen from './SavedWorkoutsScreen';
+import ShareModal from '../components/ShareModal';
+import PlanCalendarScopeBar from '../components/PlanCalendarScopeBar';
+import {
+  elevation,
+  radius,
+  spacing,
+  text,
+  tracking,
+  useTheme,
+  weight,
+  type ColorPalette,
+} from '../theme';
+import { useTabBarInset } from '../navigation/useTabBarInset';
+import {
+  MUSCLE_COLORS,
+  MUSCLE_EDGE,
+  MUSCLE_INK,
+  dayMuscles,
+  isToday,
+  fromIso,
+  mondayOf,
+  monthGrid,
+  monthLabel,
+  sfPro,
+  todayIso,
+  toIso,
+  type PlanCalendarParamList,
+  type PrototypeMuscle,
+} from '../lib/planCalendarPrototype';
+import {
+  ensureLiveCalendarData,
+  ensureLogsForMonth,
+  getLivePlan,
+  isDayCompleted,
+  plannedDayForDate,
+  subscribePlanCalendar,
+} from '../lib/planCalendarPrototypeStore';
+
+type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarMonth'>;
+
+const WEEKDAY_INITIALS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+/** Dots per calendar cell — more than 3 reads as noise at this size. */
+const MAX_DOTS = 3;
+
+/**
+ * PROTOTYPE — month overview for the Calendar tab. Each trained day carries
+ * the colour dots of its muscles; tapping any week row drills into the Week
+ * screen. This is the screen "back" from the week lands on.
+ */
+export default function PlanCalendarMonthScreen() {
+  const navigation = useNavigation<Nav>();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const tabBarInset = useTabBarInset();
+
+  // Re-render when a replacement lands, so day dots track the actual muscles.
+  const [, forceRender] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => subscribePlanCalendar(forceRender), []);
+
+  const route = useRoute<RouteProp<PlanCalendarParamList, 'PlanCalendarMonth'>>();
+  const [month, setMonth] = useState(() => {
+    const base = route.params?.monthIso ? fromIso(route.params.monthIso) : new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+  const weeks = useMemo(() => monthGrid(month), [month]);
+  // The full palette (not just the sample split's muscles): with a real plan
+  // loaded, any muscle can appear.
+  const legend = useMemo(() => Object.keys(MUSCLE_COLORS) as PrototypeMuscle[], []);
+
+  // Real data: active plan (once per session) + completed logs per month.
+  useEffect(() => {
+    ensureLiveCalendarData();
+  }, []);
+  useEffect(() => {
+    ensureLogsForMonth(month);
+  }, [month]);
+
+  const livePlan = getLivePlan();
+
+  // Header toolbar: liked (saved workouts) + share plan, next to "Calendar".
+  const [savedVisible, setSavedVisible] = useState(false);
+  const [shareVisible, setShareVisible] = useState(false);
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={() => setSavedVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Saved workouts"
+            hitSlop={8}
+            style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.xs }}
+          >
+            <Ionicons name="heart-outline" size={22} color={colors.primary} />
+          </TouchableOpacity>
+          {livePlan?.id ? (
+            <TouchableOpacity
+              onPress={() => setShareVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Share plan"
+              hitSlop={8}
+              style={{ paddingLeft: spacing.sm, paddingVertical: spacing.xs }}
+            >
+              <Ionicons name="share-outline" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ),
+    });
+  }, [navigation, colors.primary, livePlan?.id]);
+
+  const shiftMonth = (by: number) =>
+    setMonth((m) => new Date(m.getFullYear(), m.getMonth() + by, 1));
+
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: spacing.xxxl + tabBarInset }]}
+      contentInsetAdjustmentBehavior="automatic"
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.scopeBarWrap}>
+        <PlanCalendarScopeBar
+          active="month"
+          onNavigate={(scope) => {
+            if (scope === 'week') {
+              navigation.navigate('PlanCalendarWeek', {
+                weekMondayIso: toIso(mondayOf(new Date())),
+              });
+            } else if (scope === 'day') {
+              navigation.navigate('PlanCalendarDay', { dateIso: todayIso() });
+            }
+          }}
+        />
+      </View>
+
+      <View style={styles.monthRow}>
+        <Text style={styles.monthTitle}>{monthLabel(month)}</Text>
+        <TouchableOpacity
+          onPress={() => shiftMonth(-1)}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Previous month"
+        >
+          <Ionicons name="chevron-back" size={22} color={colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => shiftMonth(1)}
+          hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel="Next month"
+          style={styles.nextMonthButton}
+        >
+          <Ionicons name="chevron-forward" size={22} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.gridCard}>
+        <View style={styles.weekdayHeader}>
+          {WEEKDAY_INITIALS.map((d, i) => (
+            <Text key={`${d}-${i}`} style={styles.weekdayInitial}>
+              {d}
+            </Text>
+          ))}
+        </View>
+
+        {weeks.map((week, wi) => (
+          <View key={toIso(week[0])} style={[styles.weekRow, wi > 0 && styles.weekRowDivider]}>
+            {week.map((date) => {
+              const iso = toIso(date);
+              const inMonth = date.getMonth() === month.getMonth();
+              const today = isToday(iso);
+              const muscles = dayMuscles(plannedDayForDate(iso));
+              const completed = isDayCompleted(iso);
+              return (
+                <Pressable
+                  key={iso}
+                  style={({ pressed }) => [styles.dayCell, pressed && styles.dayCellPressed]}
+                  onPress={() => navigation.navigate('PlanCalendarDay', { dateIso: iso })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${iso}${completed ? ', completed' : ''}`}
+                >
+                  <View style={[styles.dayNumberWrap, today && styles.todayNumberWrap]}>
+                    <Text
+                      style={[
+                        styles.dayNumber,
+                        !inMonth && styles.outMonthNumber,
+                        today && styles.todayNumber,
+                      ]}
+                    >
+                      {date.getDate()}
+                    </Text>
+                  </View>
+                  {completed && (
+                    <View
+                      pointerEvents="none"
+                      style={[styles.completedStrike, today && styles.completedStrikeToday]}
+                    />
+                  )}
+                  <View style={styles.dotsRow}>
+                    {muscles.slice(0, MAX_DOTS).map((m) => (
+                      <View
+                        key={m}
+                        style={[
+                          styles.dot,
+                          { backgroundColor: MUSCLE_COLORS[m], borderColor: MUSCLE_EDGE[m] },
+                          !inMonth && styles.outMonthDot,
+                        ]}
+                      />
+                    ))}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+      <Text style={styles.gridHint}>Tap a day to see its workout</Text>
+
+      <Text style={styles.sectionLabel}>MUSCLE COLORS</Text>
+      <View style={styles.legendCard}>
+        {legend.map((m) => (
+          <View
+            key={m}
+            style={[
+              styles.chip,
+              { backgroundColor: MUSCLE_COLORS[m], borderColor: MUSCLE_EDGE[m] },
+            ]}
+          >
+            <Text style={[styles.chipLabel, { color: MUSCLE_INK[m] }]}>{m}</Text>
+          </View>
+        ))}
+      </View>
+
+      <Text style={styles.sectionLabel}>PLANNING</Text>
+      <View style={styles.planningCard}>
+        <TouchableOpacity
+          style={styles.planningRow}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('GeneratePlan')}
+          accessibilityRole="button"
+          accessibilityLabel="Generate a plan"
+        >
+          <Ionicons name="sparkles-outline" size={20} color={colors.primary} />
+          <Text style={styles.planningLabel}>Generate a Plan</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.planningRow, styles.planningRowDivider]}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('Templates')}
+          accessibilityRole="button"
+          accessibilityLabel="Workout templates"
+        >
+          <Ionicons name="albums-outline" size={20} color={colors.primary} />
+          <Text style={styles.planningLabel}>Workout Templates</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.footerNote}>
+        {livePlan ? `Plan: ${livePlan.name}` : 'Prototype · Sample plan data'}
+      </Text>
+
+      {/* Liked (saved) workouts — the old Plan-tab heart, same modal. */}
+      <Modal
+        visible={savedVisible}
+        animationType="slide"
+        onRequestClose={() => setSavedVisible(false)}
+      >
+        <SavedWorkoutsScreen
+          onClose={() => setSavedVisible(false)}
+          onSelectWorkout={(workoutId) => {
+            setSavedVisible(false);
+            navigation.navigate('WorkoutDetail', { workoutId });
+          }}
+        />
+      </Modal>
+      {livePlan?.id ? (
+        <ShareModal
+          visible={shareVisible}
+          onClose={() => setShareVisible(false)}
+          kind="plan"
+          targetId={livePlan.id}
+          targetName={livePlan.name ?? 'My Plan'}
+        />
+      ) : null}
+    </ScrollView>
+  );
+}
+
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    content: {
+      padding: spacing.lg,
+    },
+    scopeBarWrap: {
+      marginBottom: spacing.lg,
+    },
+    monthRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+      paddingHorizontal: spacing.xs,
+    },
+    monthTitle: {
+      ...sfPro,
+      flex: 1,
+      fontSize: text.title,
+      lineHeight: 28,
+      fontWeight: weight.bold,
+      color: c.text,
+    },
+    nextMonthButton: {
+      marginLeft: spacing.lg,
+    },
+    gridCard: {
+      backgroundColor: c.surface,
+      borderRadius: radius.xl,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.xs,
+      shadowColor: c.shadow,
+      ...elevation.level1,
+    },
+    weekdayHeader: {
+      flexDirection: 'row',
+      paddingBottom: spacing.xs,
+    },
+    weekdayInitial: {
+      ...sfPro,
+      flex: 1,
+      textAlign: 'center',
+      fontSize: text.caption,
+      fontWeight: weight.semibold,
+      letterSpacing: tracking.wide,
+      color: c.textMuted,
+    },
+    weekRow: {
+      flexDirection: 'row',
+      borderRadius: radius.md,
+    },
+    weekRowDivider: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
+    },
+    dayCell: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      borderRadius: radius.md,
+    },
+    dayCellPressed: {
+      backgroundColor: c.background,
+    },
+    /** Diagonal cross-out over a completed day's number. */
+    completedStrike: {
+      position: 'absolute',
+      alignSelf: 'center',
+      top: 21,
+      width: 30,
+      height: 2,
+      borderRadius: radius.pill,
+      backgroundColor: c.textSecondary,
+      transform: [{ rotate: '-45deg' }],
+    },
+    completedStrikeToday: {
+      backgroundColor: c.onPrimary,
+    },
+    dayNumberWrap: {
+      width: 28,
+      height: 28,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    todayNumberWrap: {
+      backgroundColor: c.primary,
+    },
+    dayNumber: {
+      ...sfPro,
+      fontSize: text.callout,
+      color: c.text,
+    },
+    outMonthNumber: {
+      color: c.textMuted,
+      opacity: 0.5,
+    },
+    todayNumber: {
+      color: c.onPrimary,
+      fontWeight: weight.semibold,
+    },
+    dotsRow: {
+      flexDirection: 'row',
+      gap: spacing.xxs,
+      height: 6,
+      marginTop: spacing.xxs,
+    },
+    dot: {
+      width: 5,
+      height: 5,
+      borderRadius: radius.pill,
+      borderWidth: StyleSheet.hairlineWidth,
+    },
+    outMonthDot: {
+      opacity: 0.35,
+    },
+    gridHint: {
+      ...sfPro,
+      fontSize: text.footnote,
+      color: c.textMuted,
+      textAlign: 'center',
+      marginTop: spacing.sm,
+    },
+    sectionLabel: {
+      ...sfPro,
+      fontSize: text.caption,
+      fontWeight: weight.semibold,
+      letterSpacing: tracking.widest,
+      color: c.textMuted,
+      marginTop: spacing.xxl,
+      marginBottom: spacing.sm,
+      marginLeft: spacing.md,
+    },
+    legendCard: {
+      backgroundColor: c.surface,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      shadowColor: c.shadow,
+      ...elevation.level1,
+    },
+    chip: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+    },
+    chipLabel: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+    },
+    planningCard: {
+      backgroundColor: c.surface,
+      borderRadius: radius.lg,
+      paddingHorizontal: spacing.lg,
+      shadowColor: c.shadow,
+      ...elevation.level1,
+    },
+    planningRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.lg,
+    },
+    planningRowDivider: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
+    },
+    planningLabel: {
+      ...sfPro,
+      flex: 1,
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: c.text,
+    },
+    footerNote: {
+      ...sfPro,
+      fontSize: text.caption,
+      color: c.textMuted,
+      textAlign: 'center',
+      marginTop: spacing.xl,
+    },
+  });
+}
