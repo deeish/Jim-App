@@ -126,7 +126,7 @@ export default function ShareRedeemScreen() {
 
   const goToPlanTab = useCallback(() => {
     navigation.navigate('Main', {
-      screen: 'Plan',
+      screen: 'Calendar',
       params: { screen: 'PlanList', params: undefined },
     });
   }, [navigation]);
@@ -134,7 +134,7 @@ export default function ShareRedeemScreen() {
   const goToWorkout = useCallback(
     (workoutId: string) => {
       navigation.navigate('Main', {
-        screen: 'Plan',
+        screen: 'Calendar',
         params: { screen: 'WorkoutDetail', params: { workoutId } },
       });
     },

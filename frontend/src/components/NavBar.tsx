@@ -11,26 +11,14 @@ import PlanCalendarNavigator from '../navigation/PlanCalendarNavigator';
 import SearchStackNavigator from '../navigation/SearchStackNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
-import type { RootStackParamList } from '../types/navigation';
 import type { PlanCalendarParamList } from '../lib/planCalendarPrototype';
 
 import { elevationUp, spacing, text, weight } from '../theme';
 export type RootTabParamList = {
   Home: undefined;
-  /**
-   * PROTOTYPE — the Calendar tab REPLACES the Plan and Train tabs
-   * (Month → Week → Day → Workout detail, sample data).
-   */
+  /** The Calendar tab: plan + training hub (Month → Week → Day → Workout). */
   Calendar: NavigatorScreenParams<PlanCalendarParamList> | undefined;
   Search: undefined;
-  /**
-   * @deprecated Tabs removed by the calendar prototype — kept in the type so
-   * dormant call sites (Onboarding, Share redeem, in-plan screens) still
-   * compile. Navigating to them is a no-op until the prototype is decided.
-   */
-  Plan: NavigatorScreenParams<RootStackParamList> | undefined;
-  /** @deprecated See `Plan`. */
-  Workout: { workoutId?: string; fromPlan?: boolean } | undefined;
 };
 
 const Tab = createBottomTabNavigator<RootTabParamList>();

@@ -1151,7 +1151,7 @@ export default function SearchScreen({ navigation }: Props) {
 
       clearSelection();
       const tabNav = (navigation as any)?.getParent?.();
-      if (tabNav) tabNav.navigate('Plan');
+      if (tabNav) tabNav.navigate('Calendar');
       const exerciseNoun = `exercise${selectedExercises.length === 1 ? '' : 's'}`;
       const successMsg =
         anchorYmd != null
@@ -1212,11 +1212,8 @@ export default function SearchScreen({ navigation }: Props) {
       // session) — that's still the right place to be. Plan's context menu and WorkoutDetail
       // aren't mid-workout, so jumping to Workout there would be a non-sequitur; land back on
       // Plan instead.
-      const returnToPlan = addToWorkout.origin === 'plan' || addToWorkout.origin === 'workoutDetail';
-      if (tabNav) {
-        if (returnToPlan) tabNav.navigate('Plan');
-        else tabNav.navigate('Workout', { workoutId: addToWorkout.workoutId });
-      }
+      // The Calendar tab replaced both Plan and Train — every origin lands there.
+      if (tabNav) tabNav.navigate('Calendar');
       Alert.alert(
         'Done',
         `Added ${selectedExercises.length} exercise${selectedExercises.length === 1 ? '' : 's'} to ${addToWorkout.workoutName}.`,
