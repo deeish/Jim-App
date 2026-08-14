@@ -45,6 +45,7 @@ import {
 import {
   addExerciseToDay,
   calendarDataMode,
+  getSetLogs,
   muscleFromCatalog,
   plannedDayForDate,
   plannedExerciseFromCatalog,
@@ -329,7 +330,21 @@ export default function PlanCalendarDayScreen() {
 
       <Text style={styles.lede}>
         {plan.title} · {shortDate(date)} · {plan.exercises.length} exercises
+        {(() => {
+          const done = plan.exercises.filter(
+            (ex, i) => getSetLogs(dateIso, i).length >= ex.sets,
+          ).length;
+          return done > 0 && done < plan.exercises.length ? ` · ${done} done` : '';
+        })()}
       </Text>
+
+      {plan.exercises.length > 0 &&
+        plan.exercises.every((ex, i) => getSetLogs(dateIso, i).length >= ex.sets) && (
+          <View style={styles.completeBanner}>
+            <Ionicons name="checkmark-circle" size={20} color={GOLD} />
+            <Text style={styles.completeBannerText}>Workout complete — great work.</Text>
+          </View>
+        )}
 
       {plan.exercises.length === 0 && (
         <View style={styles.restCard}>
@@ -338,38 +353,49 @@ export default function PlanCalendarDayScreen() {
         </View>
       )}
 
-      {plan.exercises.map((ex, index) => (
-        <TouchableOpacity
-          key={`${index}-${ex.name}`}
-          style={[styles.exerciseCard, { borderColor: MUSCLE_EDGE[ex.muscle] }]}
-          activeOpacity={0.8}
-          onPress={() =>
-            navigation.navigate('PlanCalendarWorkout', {
-              dateIso,
-              exerciseIndex: index,
-              exerciseName: ex.name,
-            })
-          }
-          onLongPress={() => setMenuFor({ index, exercise: ex })}
-          accessibilityRole="button"
-          accessibilityLabel={`${ex.name}, ${ex.muscle}`}
-        >
-          <View style={styles.exerciseLeft}>
-            <Text style={styles.exerciseName}>{ex.name}</Text>
-          </View>
-          <View style={[styles.exerciseRight, { backgroundColor: MUSCLE_COLORS[ex.muscle] }]}>
-            <Text style={[styles.exerciseMuscle, { color: MUSCLE_INK[ex.muscle] }]}>
-              {ex.muscle}
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={17}
-              color={MUSCLE_INK[ex.muscle]}
-              style={styles.exerciseChevron}
-            />
-          </View>
-        </TouchableOpacity>
-      ))}
+      {plan.exercises.map((ex, index) => {
+        const done = getSetLogs(dateIso, index).length >= ex.sets;
+        return (
+          <TouchableOpacity
+            key={`${index}-${ex.name}`}
+            style={[
+              styles.exerciseCard,
+              { borderColor: MUSCLE_EDGE[ex.muscle] },
+              done && styles.exerciseCardDone,
+            ]}
+            activeOpacity={0.8}
+            onPress={() =>
+              navigation.navigate('PlanCalendarWorkout', {
+                dateIso,
+                exerciseIndex: index,
+                exerciseName: ex.name,
+              })
+            }
+            onLongPress={() => setMenuFor({ index, exercise: ex })}
+            accessibilityRole="button"
+            accessibilityLabel={`${ex.name}, ${ex.muscle}${done ? ', completed' : ''}`}
+          >
+            <View style={styles.exerciseLeft}>
+              <Text style={styles.exerciseName}>{ex.name}</Text>
+            </View>
+            <View style={[styles.exerciseRight, { backgroundColor: MUSCLE_COLORS[ex.muscle] }]}>
+              <Text style={[styles.exerciseMuscle, { color: MUSCLE_INK[ex.muscle] }]}>
+                {ex.muscle}
+              </Text>
+              {done ? (
+                <Ionicons name="checkmark-circle" size={19} color={MUSCLE_INK[ex.muscle]} />
+              ) : (
+                <Ionicons
+                  name="chevron-forward"
+                  size={17}
+                  color={MUSCLE_INK[ex.muscle]}
+                  style={styles.exerciseChevron}
+                />
+              )}
+            </View>
+          </TouchableOpacity>
+        );
+      })}
 
       <TouchableOpacity
         style={styles.addRow}
@@ -594,6 +620,27 @@ function createStyles(c: ColorPalette) {
     },
     exerciseChevron: {
       opacity: 0.7,
+    },
+    /** Finished exercises recede so the remaining work stands out. */
+    exerciseCardDone: {
+      opacity: 0.55,
+    },
+    completeBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      backgroundColor: c.surface,
+      borderRadius: radius.lg,
+      borderWidth: 2,
+      borderColor: GOLD,
+      paddingVertical: spacing.md,
+    },
+    completeBannerText: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: c.text,
     },
     addRow: {
       flexDirection: 'row',

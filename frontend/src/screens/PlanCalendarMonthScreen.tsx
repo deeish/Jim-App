@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -121,12 +122,44 @@ export default function PlanCalendarMonthScreen() {
   const shiftMonth = (by: number) =>
     setMonth((m) => new Date(m.getFullYear(), m.getMonth() + by, 1));
 
+  const now = new Date();
+  const isCurrentMonth =
+    month.getFullYear() === now.getFullYear() && month.getMonth() === now.getMonth();
+
+  // Horizontal swipe pages between months (vertical scrolling wins otherwise).
+  // On web the browser can still deliver a CLICK to whatever ends up under the
+  // release point of the re-rendered grid — `lastSwipeAt` lets cells swallow it.
+  const lastSwipeAt = useRef(0);
+  const swipe = useMemo(
+    () =>
+      Gesture.Pan()
+        .runOnJS(true)
+        .activeOffsetX([-24, 24])
+        .failOffsetY([-16, 16])
+        .onEnd((e) => {
+          if (Math.abs(e.translationX) >= 50) lastSwipeAt.current = Date.now();
+          if (e.translationX <= -50) shiftMonth(1);
+          else if (e.translationX >= 50) shiftMonth(-1);
+        }),
+    [],
+  );
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    refreshLiveCalendarData(true);
+    setTimeout(() => setRefreshing(false), 900);
+  }, []);
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: spacing.xxxl + tabBarInset }]}
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />
+      }
     >
       <View style={styles.scopeBarWrap}>
         <PlanCalendarScopeBar
@@ -145,6 +178,17 @@ export default function PlanCalendarMonthScreen() {
 
       <View style={styles.monthRow}>
         <Text style={styles.monthTitle}>{monthLabel(month)}</Text>
+        {!isCurrentMonth && (
+          <TouchableOpacity
+            onPress={() => setMonth(new Date(now.getFullYear(), now.getMonth(), 1))}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Jump to today"
+            style={styles.todayButton}
+          >
+            <Text style={styles.todayButtonLabel}>Today</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           onPress={() => shiftMonth(-1)}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
@@ -164,6 +208,7 @@ export default function PlanCalendarMonthScreen() {
         </TouchableOpacity>
       </View>
 
+      <GestureDetector gesture={swipe}>
       <View style={styles.gridCard}>
         <View style={styles.weekdayHeader}>
           {WEEKDAY_INITIALS.map((d, i) => (
@@ -181,11 +226,17 @@ export default function PlanCalendarMonthScreen() {
               const today = isToday(iso);
               const muscles = dayMuscles(plannedDayForDate(iso));
               const completed = isDayCompleted(iso);
+              // A skipped past workout day recedes (muted dots) — distinct
+              // from completed (strike) and upcoming (full colour).
+              const missed = muscles.length > 0 && !completed && iso < todayIso();
               return (
                 <Pressable
                   key={iso}
                   style={({ pressed }) => [styles.dayCell, pressed && styles.dayCellPressed]}
-                  onPress={() => navigation.navigate('PlanCalendarDay', { dateIso: iso })}
+                  onPress={() => {
+                    if (Date.now() - lastSwipeAt.current < 450) return;
+                    navigation.navigate('PlanCalendarDay', { dateIso: iso });
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={`Open ${iso}${completed ? ', completed' : ''}`}
                 >
@@ -214,6 +265,7 @@ export default function PlanCalendarMonthScreen() {
                           styles.dot,
                           { backgroundColor: MUSCLE_COLORS[m], borderColor: MUSCLE_EDGE[m] },
                           !inMonth && styles.outMonthDot,
+                          missed && styles.missedDot,
                         ]}
                       />
                     ))}
@@ -224,6 +276,7 @@ export default function PlanCalendarMonthScreen() {
           </View>
         ))}
       </View>
+      </GestureDetector>
       <Text style={styles.gridHint}>Tap a day to see its workout</Text>
 
       {calendarDataMode() !== 'empty' && (
@@ -424,6 +477,18 @@ function createStyles(c: ColorPalette) {
     },
     outMonthDot: {
       opacity: 0.35,
+    },
+    missedDot: {
+      opacity: 0.35,
+    },
+    todayButton: {
+      marginRight: spacing.lg,
+    },
+    todayButtonLabel: {
+      ...sfPro,
+      fontSize: text.body,
+      fontWeight: weight.semibold,
+      color: c.primary,
     },
     gridHint: {
       ...sfPro,

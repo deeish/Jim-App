@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useReducer } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,11 +35,14 @@ import {
 import {
   calendarDataMode,
   consumeAnchorAutoJump,
+  isDayCompleted,
   plannedDayForDate,
   programWeekInfoFor,
   refreshLiveCalendarData,
   subscribePlanCalendar,
 } from '../lib/planCalendarPrototypeStore';
+import { GOLD } from '../lib/planCalendarPrototype';
+import { SkeletonCard } from '../components/Skeleton';
 
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWeek'>;
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarWeek'>;
@@ -78,6 +82,41 @@ export default function PlanCalendarWeekScreen() {
   const mode = calendarDataMode();
   const weekInfo = mode === 'live' ? programWeekInfoFor(weekMondayIso) : null;
 
+  // Pull-to-refresh: force a plan refetch; the spinner is time-boxed since
+  // the store notifies via subscription rather than a promise.
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    refreshLiveCalendarData(true);
+    setTimeout(() => setRefreshing(false), 900);
+  }, []);
+
+  // Horizontal swipe pages between weeks (vertical scrolling wins otherwise).
+  const goWeek = useCallback(
+    (delta: number) => {
+      navigation.setParams({
+        weekMondayIso: toIso(addDays(fromIso(weekMondayIso), delta * 7)),
+      });
+    },
+    [navigation, weekMondayIso],
+  );
+  // `lastSwipeAt` swallows the click the browser can deliver after a pan
+  // releases over a card of the re-rendered week (same guard as the month).
+  const lastSwipeAt = useRef(0);
+  const swipe = useMemo(
+    () =>
+      Gesture.Pan()
+        .runOnJS(true)
+        .activeOffsetX([-24, 24])
+        .failOffsetY([-16, 16])
+        .onEnd((e) => {
+          if (Math.abs(e.translationX) >= 50) lastSwipeAt.current = Date.now();
+          if (e.translationX <= -50) goWeek(1);
+          else if (e.translationX >= 50) goWeek(-1);
+        }),
+    [goWeek],
+  );
+
   // Dead-first-week fix: a just-applied plan can anchor week 1 to NEXT Monday,
   // so the landing week is empty and reads as "my plan didn't save". Jump the
   // landing screen (explicit navigations keep their week) to week 1, once.
@@ -88,11 +127,15 @@ export default function PlanCalendarWeekScreen() {
   });
 
   return (
+    <GestureDetector gesture={swipe}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: spacing.xxxl + tabBarInset }]}
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />
+      }
     >
       <PlanCalendarScopeBar
         active="week"
@@ -144,12 +187,23 @@ export default function PlanCalendarWeekScreen() {
         </View>
       )}
 
-      {days.map((date) => {
+      {mode === 'loading' && (
+        <>
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={2} />
+        </>
+      )}
+
+      {mode !== 'loading' && days.map((date) => {
         const iso = toIso(date);
         const plan = plannedDayForDate(iso);
         const muscles = dayMuscles(plan);
         const today = isToday(iso);
         const rest = plan.exercises.length === 0;
+        const completed = !rest && isDayCompleted(iso);
+        const missed = !rest && !completed && iso < todayIso();
 
         if (rest) {
           return (
@@ -171,7 +225,10 @@ export default function PlanCalendarWeekScreen() {
             key={iso}
             style={[styles.card, today && styles.todayCard]}
             activeOpacity={0.85}
-            onPress={() => navigation.navigate('PlanCalendarDay', { dateIso: iso })}
+            onPress={() => {
+              if (Date.now() - lastSwipeAt.current < 450) return;
+              navigation.navigate('PlanCalendarDay', { dateIso: iso });
+            }}
             accessibilityRole="button"
             accessibilityLabel={`${plan.weekday}, ${plan.title}`}
           >
@@ -181,7 +238,14 @@ export default function PlanCalendarWeekScreen() {
               </Text>
               {today && <TodayPill styles={styles} />}
               <View style={styles.spacer} />
-              <Ionicons name="chevron-forward" size={17} color={colors.textTertiary} />
+              {completed ? (
+                <Ionicons name="checkmark-circle" size={20} color={GOLD} />
+              ) : (
+                <>
+                  {missed && <Text style={styles.missedLabel}>Missed</Text>}
+                  <Ionicons name="chevron-forward" size={17} color={colors.textTertiary} />
+                </>
+              )}
             </View>
             <Text style={styles.dateLine}>
               {shortDate(date)} · {plan.title}
@@ -214,6 +278,7 @@ export default function PlanCalendarWeekScreen() {
         </Text>
       )}
     </ScrollView>
+    </GestureDetector>
   );
 }
 
@@ -285,6 +350,13 @@ function createStyles(c: ColorPalette) {
       fontWeight: weight.medium,
       color: c.textMuted,
       marginLeft: spacing.xs,
+    },
+    missedLabel: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.medium,
+      color: c.textMuted,
+      marginRight: spacing.sm,
     },
     chipRow: {
       flexDirection: 'row',
