@@ -14,11 +14,12 @@
  *     When there is no plan (or no backend — the web demo), the sample split
  *     from planCalendarPrototype keeps every view populated.
  *   - `ensureLogsForMonth()` + `isDayCompleted()` back the month grid's
- *     crossed-out days: a real completed workout log on that LOCAL day, or —
- *     demo mode — every set of every exercise logged in this session.
+ *     crossed-out days: a real completed workout log on that LOCAL day, or
+ *     every set of every exercise logged in this session.
  *
- * Replacements and set logs remain in-memory only; nothing here writes back
- * to the backend.
+ * Persistence: day edits rebuild the plan slot on the server; completed and
+ * partial sessions POST real workout logs; in-progress set logs are
+ * crash-safe via an AsyncStorage snapshot.
  */
 
 import {
@@ -50,6 +51,7 @@ import {
 import { getExerciseById, type Exercise as CatalogExercise } from '../services/exerciseService';
 import type { Workout } from '../types/workout';
 import { api } from '../api/client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type SetLog = { reps: string; weight: string };
 
@@ -77,6 +79,72 @@ export function subscribePlanCalendar(listener: () => void): () => void {
 }
 
 // ---------------------------------------------------------------------------
+// Crash-safe session state: logged sets survive an app restart
+// ---------------------------------------------------------------------------
+
+/** First-set timestamp per date, so the synced log has an honest startedAt. */
+const dayStartTimes = new Map<string, string>();
+/** Days whose completed log has been (or is being) written to the backend. */
+const syncedDays = new Set<string>();
+/** Detects a DIFFERENT plan arriving (apply/regenerate) vs a refetch of the
+ *  same one — only the former invalidates session overlays. Persisted, so a
+ *  cold start doesn't read as a new plan and wipe hydrated logs. */
+let lastSeenPlanId: string | null = null;
+
+/** Device-scoped (not per-account) — acceptable for now; sets are keyed by
+ *  date+slot and pruned after 14 days. */
+const SESSION_STORAGE_KEY = 'jim_calendar_session_v1';
+
+const sessionHydrated: Promise<void> = (async () => {
+  try {
+    const raw = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw) as {
+      setLogs?: Record<string, SetLog[]>;
+      dayStartTimes?: Record<string, string>;
+      syncedDays?: string[];
+      lastSeenPlanId?: string | null;
+    };
+    const cutoff = toIso(addDays(new Date(), -14));
+    for (const [k, v] of Object.entries(data.setLogs ?? {})) {
+      if (k.slice(0, 10) >= cutoff && !setLogs.has(k)) setLogs.set(k, v);
+    }
+    for (const [k, v] of Object.entries(data.dayStartTimes ?? {})) {
+      if (k >= cutoff && !dayStartTimes.has(k)) dayStartTimes.set(k, v);
+    }
+    for (const d of data.syncedDays ?? []) {
+      if (d >= cutoff) syncedDays.add(d);
+    }
+    // Without this, every cold start looks like a NEW plan and wipes the
+    // freshly hydrated logs.
+    if (lastSeenPlanId == null) lastSeenPlanId = data.lastSeenPlanId ?? null;
+    emit();
+  } catch {
+    // Corrupt/missing snapshot: start clean.
+  }
+})();
+
+let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSessionSave(): void {
+  if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
+  sessionSaveTimer = setTimeout(() => {
+    // Never write before hydration finishes, or a fast first set could be
+    // clobbered by the old snapshot.
+    void sessionHydrated.then(() =>
+      AsyncStorage.setItem(
+        SESSION_STORAGE_KEY,
+        JSON.stringify({
+          setLogs: Object.fromEntries(setLogs),
+          dayStartTimes: Object.fromEntries(dayStartTimes),
+          syncedDays: [...syncedDays],
+          lastSeenPlanId,
+        }),
+      ).catch(() => {}),
+    );
+  }, 300);
+}
+
+// ---------------------------------------------------------------------------
 // Live plan
 // ---------------------------------------------------------------------------
 
@@ -86,15 +154,8 @@ let liveStatus: LiveStatus = 'idle';
 let livePlan: ApiPlan | null = null;
 /** Materialized Workout rows for the plan (slot ↔ workout via planWorkoutId). */
 let liveWorkouts: Workout[] = [];
-/** First-set timestamp per date, so the synced log has an honest startedAt. */
-const dayStartTimes = new Map<string, string>();
-/** Days whose completed log has been (or is being) written to the backend. */
-const syncedDays = new Set<string>();
 /** One-time landing redirect to the plan's first populated week. */
 let anchorAutoJumpConsumed = false;
-/** Detects a DIFFERENT plan arriving (apply/regenerate) vs a refetch of the
- *  same one — only the former invalidates session overlays. */
-let lastSeenPlanId: string | null = null;
 let lastFetchMs = 0;
 /** exerciseId → resolved catalog metadata. */
 const exerciseMeta = new Map<string, { muscle: PrototypeMuscle; equipment: string }>();
@@ -118,6 +179,8 @@ export function ensureLiveCalendarData(): void {
   liveStatus = 'loading';
   void (async () => {
     try {
+      // The new-plan check below compares against the persisted plan id.
+      await sessionHydrated;
       const { plan, weeklyWorkouts } = await getCurrentPlanWithWeekly();
       livePlan = plan;
       liveWorkouts = weeklyWorkouts ?? [];
@@ -130,6 +193,7 @@ export function ensureLiveCalendarData(): void {
         replacements.clear();
         additions.clear();
         setLogs.clear();
+        scheduleSessionSave();
         // A new plan also deserves the week-1 landing jump again.
         anchorAutoJumpConsumed = false;
       }
@@ -520,6 +584,7 @@ export function replaceExercise(
   }
   // A different exercise: any sets logged against the old one no longer apply.
   setLogs.delete(slotKey(dateIso, exerciseIndex));
+  scheduleSessionSave();
   queuePersistDayEdits(dateIso);
   emit();
 }
@@ -648,6 +713,7 @@ export function logSet(dateIso: string, exerciseIndex: number, log: SetLog): voi
     dayStartTimes.set(dateIso, new Date().toISOString());
   }
   setLogs.set(key, [...(setLogs.get(key) ?? []), log]);
+  scheduleSessionSave();
   // The day's last set: persist the whole session as a real workout log.
   if (isDayFullyLogged(dateIso)) void syncDayCompletion(dateIso);
   emit();
@@ -690,6 +756,7 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
   if (liveStatus !== 'ready' || !livePlan) return;
   if (syncedDays.has(dateIso)) return;
   syncedDays.add(dateIso);
+  scheduleSessionSave();
   try {
     const day = plannedDayForDate(dateIso);
     const slots = liveSlotsForDate(dateIso);
@@ -773,6 +840,7 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
   } catch (err) {
     // Keep the local completion; the strike still shows for this session.
     syncedDays.delete(dateIso);
+    scheduleSessionSave();
     console.warn('[calendar] failed to persist workout log:', err);
   }
 }
@@ -780,6 +848,7 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
 /** Clear one exercise's logged sets so the deck can be re-run. */
 export function resetSetLogs(dateIso: string, exerciseIndex: number): void {
   setLogs.delete(slotKey(dateIso, exerciseIndex));
+  scheduleSessionSave();
   emit();
 }
 

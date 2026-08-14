@@ -223,7 +223,9 @@ export default function PlanCalendarWorkoutScreen() {
                   <Text style={styles.gridCardTitle}>SET {i + 1}</Text>
                   <Ionicons name="checkmark-circle" size={16} color={GOLD} />
                 </View>
-                <Text style={styles.gridCardReps}>{log.reps} reps</Text>
+                <Text style={styles.gridCardReps}>
+                  {/(min|sec)/i.test(log.reps) ? log.reps : `${log.reps} reps`}
+                </Text>
                 <Text style={styles.gridCardWeight}>{displayWeight(log.weight, unit)}</Text>
               </View>
             ))}
@@ -447,6 +449,10 @@ function SetDeck({
     onLog(log, isLast);
   };
 
+  // Time-based work ('10 min', '45 sec') gets a duration input, not a rep count.
+  const timedMatch = exercise.reps.match(/(\d+)\s*(min|sec)/i);
+  const timedUnit = timedMatch ? timedMatch[2].toLowerCase() : null;
+
   const onCheck = () => {
     if (busy.current) return;
     busy.current = true;
@@ -455,8 +461,18 @@ function SetDeck({
     // (last performance when known, the prescription otherwise).
     const typedWeight = Number(weightIn.trim());
     const weightValid = weightIn.trim() !== '' && Number.isFinite(typedWeight) && typedWeight > 0;
+    const typedReps = Number(reps.trim());
+    const repsValid = reps.trim() !== '' && Number.isFinite(typedReps) && typedReps > 0;
     const log: SetLog = {
-      reps: reps.trim() || (lastTop ? String(lastTop.reps) : exercise.reps),
+      reps: timedUnit
+        ? repsValid
+          ? `${typedReps} ${timedUnit}`
+          : exercise.reps
+        : repsValid
+          ? String(typedReps)
+          : lastTop
+            ? String(lastTop.reps)
+            : exercise.reps,
       weight: weightValid
         ? `${roundLb(unit === 'kg' ? kgToLb(typedWeight) : typedWeight)} lb`
         : lastTop
@@ -514,12 +530,20 @@ function SetDeck({
 
         <View style={styles.inputRow}>
           <View style={styles.inputBox}>
-            <Text style={styles.inputLabel}>REPS</Text>
+            <Text style={styles.inputLabel}>
+              {timedUnit ? `TIME (${timedUnit.toUpperCase()})` : 'REPS'}
+            </Text>
             <TextInput
               style={styles.input}
               value={reps}
               onChangeText={setReps}
-              placeholder={lastTop ? String(lastTop.reps) : exercise.reps}
+              placeholder={
+                timedUnit
+                  ? timedMatch![1]
+                  : lastTop
+                    ? String(lastTop.reps)
+                    : exercise.reps
+              }
               placeholderTextColor={colors.textMuted}
               keyboardType="number-pad"
               maxLength={5}
