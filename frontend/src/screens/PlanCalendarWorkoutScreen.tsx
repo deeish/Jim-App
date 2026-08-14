@@ -52,6 +52,16 @@ import {
   subscribePlanCalendar,
   type SetLog,
 } from '../lib/planCalendarPrototypeStore';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import {
+  formatWeightFromLb,
+  kgToLb,
+  lbToKg,
+  roundLb,
+  type WeightUnit,
+} from '../lib/weightDisplay';
+import { getExerciseHistory } from '../services/workoutService';
+import { buzzSelection } from '../lib/planCalendarPrototype';
 
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarWorkout'>;
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWorkout'>;
@@ -60,10 +70,32 @@ const SCREEN_W = Dimensions.get('window').width;
 /** How long the gold outline shows before the card swipes to the back. */
 const GOLD_HOLD_MS = 500;
 
-/** '185 lb' -> '185', '+10 lb' -> '+10', 'Bodyweight' -> 'BW'. */
-function weightPlaceholder(weight: string): string {
+/** '185 lb' → the user's unit ('84 kg'); non-weights pass through. */
+function displayWeight(weight: string, unit: WeightUnit): string {
+  const m = weight.match(/^\+?([\d.]+)\s*lb$/i);
+  if (!m) return weight;
+  return formatWeightFromLb(Number(m[1]), unit);
+}
+
+/** Weight-input placeholder as a bare number in the user's unit. */
+function weightInputPlaceholder(weight: string, unit: WeightUnit): string {
   if (weight === 'Bodyweight') return 'BW';
-  return weight.replace(/\s*lb$/i, '');
+  const m = weight.match(/^\+?([\d.]+)\s*lb$/i);
+  if (!m) return '—';
+  const lb = Number(m[1]);
+  return String(Math.round(unit === 'kg' ? lbToKg(lb) : lb));
+}
+
+/** '2:30' → 150; '—'/unparseable → null (no rest timer). */
+function restSecondsOf(rest: string): number | null {
+  const m = rest.match(/^(\d+):(\d{2})$/);
+  if (!m) return null;
+  const s = Number(m[1]) * 60 + Number(m[2]);
+  return s > 0 ? s : null;
+}
+
+function formatSeconds(s: number): string {
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
 /**
@@ -87,6 +119,38 @@ export default function PlanCalendarWorkoutScreen() {
   const { dateIso, exerciseIndex } = route.params;
   const plan = plannedDayForDate(dateIso);
   const exercise = plan.exercises[exerciseIndex];
+
+  const { weightUnit } = useUserPreferences();
+  const unit: WeightUnit = weightUnit === 'kg' ? 'kg' : 'lb';
+
+  // Last logged performance for this exercise — prefills the deck and shows a
+  // "Last time" line. Catalog-linked exercises only; failures stay silent.
+  const [lastTop, setLastTop] = useState<{ weightLb: number; reps: number } | null>(null);
+  const historyExerciseId = exercise?.exerciseId;
+  useEffect(() => {
+    setLastTop(null);
+    if (!historyExerciseId) return;
+    let stale = false;
+    getExerciseHistory(historyExerciseId, 1)
+      .then((h) => {
+        if (stale) return;
+        // Heaviest weighted set of the most recent session (weights are
+        // canonical pounds; bodyweight-only sessions yield nothing).
+        const sets = h.sessions[0]?.sets ?? [];
+        const top = sets.reduce<{ weightLb: number; reps: number } | null>(
+          (best, s) =>
+            s.weight != null && s.weight > 0 && (best == null || s.weight > best.weightLb)
+              ? { weightLb: s.weight, reps: s.reps }
+              : best,
+          null,
+        );
+        setLastTop(top);
+      })
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [historyExerciseId]);
 
   if (!exercise) {
     return (
@@ -127,7 +191,7 @@ export default function PlanCalendarWorkoutScreen() {
           <Text style={styles.statLabel}>SETS × REPS</Text>
         </View>
         <View style={styles.statTile}>
-          <Text style={styles.statValue}>{exercise.weight}</Text>
+          <Text style={styles.statValue}>{displayWeight(exercise.weight, unit)}</Text>
           <Text style={styles.statLabel}>WEIGHT</Text>
         </View>
         <View style={styles.statTile}>
@@ -147,7 +211,7 @@ export default function PlanCalendarWorkoutScreen() {
                   <Ionicons name="checkmark-circle" size={16} color={GOLD} />
                 </View>
                 <Text style={styles.gridCardReps}>{log.reps} reps</Text>
-                <Text style={styles.gridCardWeight}>{log.weight}</Text>
+                <Text style={styles.gridCardWeight}>{displayWeight(log.weight, unit)}</Text>
               </View>
             ))}
           </View>
@@ -165,6 +229,8 @@ export default function PlanCalendarWorkoutScreen() {
           completed={logs.length}
           styles={styles}
           colors={colors}
+          unit={unit}
+          lastTop={lastTop}
           onLog={(log, isLast) => {
             logSet(dateIso, exerciseIndex, log);
             if (isLast) buzzAllSetsComplete();
@@ -251,16 +317,41 @@ function SetDeck({
   onLog,
   styles,
   colors,
+  unit,
+  lastTop,
 }: {
   exercise: PlannedExercise;
   completed: number;
   onLog: (log: SetLog, isLast: boolean) => void;
   styles: ReturnType<typeof createStyles>;
   colors: ColorPalette;
+  unit: WeightUnit;
+  lastTop: { weightLb: number; reps: number } | null;
 }) {
   const [reps, setReps] = useState('');
   const [weightIn, setWeightIn] = useState('');
   const busy = useRef(false);
+
+  // Rest countdown: starts when a set lands (not before the first, not after
+  // the last), ticks to zero with a soft haptic; tap to dismiss.
+  const [restLeft, setRestLeft] = useState<number | null>(null);
+  const prevCompleted = useRef(completed);
+  useEffect(() => {
+    if (completed > prevCompleted.current && completed < exercise.sets) {
+      setRestLeft(restSecondsOf(exercise.rest));
+    }
+    prevCompleted.current = completed;
+  }, [completed, exercise.sets, exercise.rest]);
+  useEffect(() => {
+    if (restLeft == null) return;
+    if (restLeft <= 0) {
+      setRestLeft(null);
+      buzzSelection();
+      return;
+    }
+    const t = setTimeout(() => setRestLeft((v) => (v == null ? null : v - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [restLeft]);
 
   const cardX = useSharedValue(0);
   const cardScale = useSharedValue(1);
@@ -293,9 +384,18 @@ function SetDeck({
   const onCheck = () => {
     if (busy.current) return;
     busy.current = true;
+    // Typed weight arrives in the user's unit; the store (and backend logs)
+    // stay canonical in POUNDS. Empty inputs log what the placeholder shows
+    // (last performance when known, the prescription otherwise).
+    const typedWeight = Number(weightIn.trim());
+    const weightValid = weightIn.trim() !== '' && Number.isFinite(typedWeight) && typedWeight > 0;
     const log: SetLog = {
-      reps: reps.trim() || exercise.reps,
-      weight: weightIn.trim() ? `${weightIn.trim()} lb` : exercise.weight,
+      reps: reps.trim() || (lastTop ? String(lastTop.reps) : exercise.reps),
+      weight: weightValid
+        ? `${roundLb(unit === 'kg' ? kgToLb(typedWeight) : typedWeight)} lb`
+        : lastTop
+          ? `${roundLb(lastTop.weightLb)} lb`
+          : exercise.weight,
     };
     const isLast = completed + 1 >= exercise.sets;
     buzzSetComplete();
@@ -325,9 +425,26 @@ function SetDeck({
             Set {completed + 1} of {exercise.sets}
           </Text>
           <Text style={styles.setCardTarget}>
-            Target {exercise.reps} · {exercise.weight}
+            Target {exercise.reps} · {displayWeight(exercise.weight, unit)}
           </Text>
         </View>
+        {lastTop && (
+          <Text style={styles.lastTimeLine}>
+            Last time: {formatWeightFromLb(lastTop.weightLb, unit)} × {lastTop.reps}
+          </Text>
+        )}
+        {restLeft != null && (
+          <TouchableOpacity
+            style={styles.restChip}
+            activeOpacity={0.8}
+            onPress={() => setRestLeft(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss rest timer"
+          >
+            <Ionicons name="timer-outline" size={15} color={colors.primary} />
+            <Text style={styles.restChipText}>Rest {formatSeconds(restLeft)}</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.inputRow}>
           <View style={styles.inputBox}>
@@ -336,19 +453,23 @@ function SetDeck({
               style={styles.input}
               value={reps}
               onChangeText={setReps}
-              placeholder={exercise.reps}
+              placeholder={lastTop ? String(lastTop.reps) : exercise.reps}
               placeholderTextColor={colors.textMuted}
               keyboardType="number-pad"
               maxLength={5}
             />
           </View>
           <View style={styles.inputBox}>
-            <Text style={styles.inputLabel}>WEIGHT (LB)</Text>
+            <Text style={styles.inputLabel}>WEIGHT ({unit.toUpperCase()})</Text>
             <TextInput
               style={styles.input}
               value={weightIn}
               onChangeText={setWeightIn}
-              placeholder={weightPlaceholder(exercise.weight)}
+              placeholder={
+                lastTop
+                  ? String(Math.round(unit === 'kg' ? lbToKg(lastTop.weightLb) : lastTop.weightLb))
+                  : weightInputPlaceholder(exercise.weight, unit)
+              }
               placeholderTextColor={colors.textMuted}
               keyboardType="decimal-pad"
               maxLength={6}
@@ -492,6 +613,30 @@ function createStyles(c: ColorPalette) {
       ...sfPro,
       fontSize: text.footnote,
       color: c.textMuted,
+    },
+    lastTimeLine: {
+      ...sfPro,
+      fontSize: text.footnote,
+      color: c.textMuted,
+      marginTop: spacing.xs,
+    },
+    restChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: spacing.xs,
+      backgroundColor: c.primarySoft,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      marginTop: spacing.md,
+    },
+    restChipText: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      color: c.primary,
+      fontVariant: ['tabular-nums'],
     },
     inputRow: {
       flexDirection: 'row',
