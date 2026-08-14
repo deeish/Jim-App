@@ -39,8 +39,14 @@ import {
   type ApiPlanExercise,
   type ApiPlanWorkout,
 } from '../services/planService';
-import { getWorkoutLogs } from '../services/workoutService';
-import { getExerciseById } from '../services/exerciseService';
+import {
+  createWorkout,
+  getWorkoutLogs,
+  materializePlanSlotWorkout,
+} from '../services/workoutService';
+import { getExerciseById, type Exercise as CatalogExercise } from '../services/exerciseService';
+import type { Workout } from '../types/workout';
+import { api } from '../api/client';
 
 export type SetLog = { reps: string; weight: string };
 
@@ -50,6 +56,8 @@ function slotKey(dateIso: string, exerciseIndex: number): string {
 }
 
 const replacements = new Map<string, PlannedExercise>();
+/** dateIso → exercises appended after the day's base list ("+ Add Exercise"). */
+const additions = new Map<string, PlannedExercise[]>();
 const setLogs = new Map<string, SetLog[]>();
 const listeners = new Set<() => void>();
 
@@ -73,6 +81,18 @@ type LiveStatus = 'idle' | 'loading' | 'ready' | 'unavailable';
 
 let liveStatus: LiveStatus = 'idle';
 let livePlan: ApiPlan | null = null;
+/** Materialized Workout rows for the plan (slot ↔ workout via planWorkoutId). */
+let liveWorkouts: Workout[] = [];
+/** First-set timestamp per date, so the synced log has an honest startedAt. */
+const dayStartTimes = new Map<string, string>();
+/** Days whose completed log has been (or is being) written to the backend. */
+const syncedDays = new Set<string>();
+/** One-time landing redirect to the plan's first populated week. */
+let anchorAutoJumpConsumed = false;
+/** Detects a DIFFERENT plan arriving (apply/regenerate) vs a refetch of the
+ *  same one — only the former invalidates session overlays. */
+let lastSeenPlanId: string | null = null;
+let lastFetchMs = 0;
 /** exerciseId → resolved catalog metadata. */
 const exerciseMeta = new Map<string, { muscle: PrototypeMuscle; equipment: string }>();
 const pendingMetaIds = new Set<string>();
@@ -95,16 +115,46 @@ export function ensureLiveCalendarData(): void {
   liveStatus = 'loading';
   void (async () => {
     try {
-      const { plan } = await getCurrentPlanWithWeekly();
+      const { plan, weeklyWorkouts } = await getCurrentPlanWithWeekly();
       livePlan = plan;
+      liveWorkouts = weeklyWorkouts ?? [];
       liveStatus = 'ready';
+      lastFetchMs = Date.now();
+      // A DIFFERENT plan arriving (first load, template applied, regenerated)
+      // re-bases every day, so index-keyed session overlays would land on the
+      // wrong slots. A refetch of the same plan keeps them.
+      if (plan && plan.id !== lastSeenPlanId) {
+        replacements.clear();
+        additions.clear();
+        setLogs.clear();
+        // A new plan also deserves the week-1 landing jump again.
+        anchorAutoJumpConsumed = false;
+      }
+      lastSeenPlanId = plan?.id ?? lastSeenPlanId;
       emit();
       if (plan) void loadExerciseMeta(plan);
     } catch {
       liveStatus = 'unavailable';
+      lastFetchMs = Date.now();
       emit();
     }
   })();
+}
+
+/**
+ * Focus-time refetch (throttled): the calendar must notice a plan applied or
+ * regenerated elsewhere in the app during this session. `force` skips the
+ * throttle — the post-apply landing (the 'PlanList' alias) uses it, since a
+ * template can be applied within seconds of the first fetch.
+ */
+export function refreshLiveCalendarData(force = false): void {
+  if (liveStatus === 'loading' || liveStatus === 'idle') {
+    ensureLiveCalendarData();
+    return;
+  }
+  if (!force && Date.now() - lastFetchMs < 10_000) return;
+  liveStatus = 'idle';
+  ensureLiveCalendarData();
 }
 
 /** Resolve muscle/equipment for every exercise id the plan references. */
@@ -187,17 +237,24 @@ function weekNumberOffset(plan: ApiPlan): number {
   return nums.length > 0 && Math.min(...nums) === 0 ? 1 : 0;
 }
 
-function liveDayForDate(dateIso: string): PlannedDay | null {
-  if (liveStatus !== 'ready' || !livePlan?.planWorkouts?.length) return null;
+/** The plan's slots for a LOCAL date (empty on rest/out-of-program days). */
+function liveSlotsForDate(dateIso: string): ApiPlanWorkout[] {
+  if (liveStatus !== 'ready' || !livePlan?.planWorkouts?.length) return [];
   const date = fromIso(dateIso);
   const weekday = WEEKDAYS[weekdayIndex(date)];
   const anchor = planAnchorMonday(livePlan);
   const programWeek =
     Math.round((mondayOf(date).getTime() - anchor.getTime()) / WEEK_MS) + 1;
   const offset = weekNumberOffset(livePlan);
-  const slots = livePlan.planWorkouts
+  return livePlan.planWorkouts
     .filter((pw) => pw.weekNumber + offset === programWeek && pw.dayOfWeek === weekday)
     .sort((a, b) => a.orderInDay - b.orderInDay);
+}
+
+function liveDayForDate(dateIso: string): PlannedDay | null {
+  if (liveStatus !== 'ready' || !livePlan?.planWorkouts?.length) return null;
+  const weekday = WEEKDAYS[weekdayIndex(fromIso(dateIso))];
+  const slots = liveSlotsForDate(dateIso);
   if (slots.length === 0) return { weekday, title: 'Rest Day', exercises: [] };
   const exercises = slots.flatMap((slot) =>
     (slot.exercises ?? [])
@@ -215,6 +272,7 @@ function toPlannedExercise(ex: ApiPlanExercise, slot: ApiPlanWorkout): PlannedEx
   const name = ex.name ?? 'Exercise';
   return {
     name,
+    exerciseId: ex.exerciseId ?? undefined,
     muscle: meta?.muscle ?? guessMuscleFromName(name, isCardio),
     sets: ex.sets > 0 ? ex.sets : 1,
     reps: formatRepsDisplay(ex),
@@ -245,7 +303,7 @@ function formatEquipment(equipment: string[] | undefined): string {
 }
 
 /** Catalog group/subMuscles → the calendar's 12-muscle palette. */
-function muscleFromCatalog(
+export function muscleFromCatalog(
   group: string | undefined,
   subMuscles: string[] | undefined,
   name: string,
@@ -295,15 +353,128 @@ function guessMuscleFromName(name: string, isCardio: boolean): PrototypeMuscle {
 // The calendar's day API (live plan when present, sample split otherwise)
 // ---------------------------------------------------------------------------
 
-/** The day's plan — real when a plan is loaded, sample otherwise — with any
- *  session replacements applied. */
-export function plannedDayForDate(dateIso: string): PlannedDay {
-  const base = liveDayForDate(dateIso) ?? planForDate(dateIso);
-  if (replacements.size === 0) return base;
-  const exercises = base.exercises.map(
-    (ex, i) => replacements.get(slotKey(dateIso, i)) ?? ex,
+/**
+ * What the calendar is showing:
+ *  - 'live'    — the user's real plan
+ *  - 'empty'   — signed in, backend fine, but NO active plan (honest empty
+ *                state; never fake data)
+ *  - 'sample'  — backend unreachable (dev/web demo): the sample split
+ *  - 'loading' — first fetch still in flight (rendered like sample)
+ */
+export type CalendarDataMode = 'live' | 'empty' | 'sample' | 'loading';
+
+export function calendarDataMode(): CalendarDataMode {
+  if (liveStatus === 'ready') return livePlan ? 'live' : 'empty';
+  if (liveStatus === 'unavailable') return 'sample';
+  return 'loading';
+}
+
+function baseDayForDate(dateIso: string): PlannedDay {
+  const live = liveDayForDate(dateIso);
+  if (live) return live;
+  if (calendarDataMode() === 'empty') {
+    // A real user with no plan sees empty days, not the sample split.
+    return { weekday: WEEKDAYS[weekdayIndex(fromIso(dateIso))], title: 'Rest Day', exercises: [] };
+  }
+  return planForDate(dateIso);
+}
+
+// ---------------------------------------------------------------------------
+// Program-week context ("Week N of M", the pre-anchor dead zone)
+// ---------------------------------------------------------------------------
+
+export type ProgramWeekInfo =
+  | { state: 'in'; week: number; totalWeeks: number; planName: string }
+  | { state: 'before'; startsMondayIso: string; planName: string }
+  | { state: 'after'; totalWeeks: number; planName: string };
+
+/** Where a calendar week sits inside the live plan (null in non-live modes). */
+export function programWeekInfoFor(weekMondayIso: string): ProgramWeekInfo | null {
+  if (liveStatus !== 'ready' || !livePlan?.planWorkouts?.length) return null;
+  const anchor = planAnchorMonday(livePlan);
+  const offset = weekNumberOffset(livePlan);
+  const totalWeeks = Math.max(
+    ...livePlan.planWorkouts.map((pw) => pw.weekNumber + offset),
+    1,
   );
+  const week =
+    Math.round((fromIso(weekMondayIso).getTime() - anchor.getTime()) / WEEK_MS) + 1;
+  const planName = livePlan.name ?? 'My Plan';
+  if (week < 1) return { state: 'before', startsMondayIso: toIso(anchor), planName };
+  if (week > totalWeeks) return { state: 'after', totalWeeks, planName };
+  return { state: 'in', week, totalWeeks, planName };
+}
+
+/**
+ * The dead-first-week fix: when the tab lands on the CURRENT week but the
+ * plan's week 1 starts on a future Monday (a template applied midweek), the
+ * landing week is empty and reads as "my plan didn't save". Returns the
+ * anchor Monday to jump to — once per session, and only while the current
+ * week is genuinely pre-program.
+ */
+export function consumeAnchorAutoJump(): string | null {
+  if (anchorAutoJumpConsumed) return null;
+  if (liveStatus !== 'ready' || !livePlan?.planWorkouts?.length) return null;
+  const anchor = planAnchorMonday(livePlan);
+  if (anchor.getTime() <= mondayOf(new Date()).getTime()) return null;
+  anchorAutoJumpConsumed = true;
+  return toIso(anchor);
+}
+
+/** The day's plan — real when a plan is loaded, sample otherwise — with
+ *  session replacements applied and added exercises appended. */
+export function plannedDayForDate(dateIso: string): PlannedDay {
+  const base = baseDayForDate(dateIso);
+  const added = additions.get(dateIso) ?? [];
+  let exercises = base.exercises;
+  if (replacements.size > 0) {
+    exercises = exercises.map((ex, i) => replacements.get(slotKey(dateIso, i)) ?? ex);
+  }
+  if (added.length > 0) {
+    exercises = [...exercises, ...added];
+    // Exercises added onto a rest day turn it into a session.
+    if (base.exercises.length === 0) {
+      return { ...base, title: 'Custom Workout', exercises };
+    }
+  }
   return { ...base, exercises };
+}
+
+/**
+ * Build a calendar exercise from a CATALOG row (the replace/add picker).
+ * A replacement inherits the outgoing slot's prescription — same role in the
+ * workout — except the weight, which only carries over when the new exercise
+ * is actually loadable (a barbell weight on a bodyweight move reads as a bug).
+ * Additions get sensible defaults instead.
+ */
+export function plannedExerciseFromCatalog(
+  catalog: CatalogExercise,
+  inherit: PlannedExercise | null,
+): PlannedExercise {
+  const muscle = muscleFromCatalog(
+    catalog.primaryMuscleGroup,
+    catalog.subMuscles,
+    catalog.name,
+  );
+  const isCardio = muscle === 'Cardio';
+  const equipmentText = (catalog.equipment ?? []).join(' ').toLowerCase();
+  const bodyweightOnly =
+    (catalog.equipment ?? []).length === 0 || equipmentText.includes('bodyweight');
+  const inheritedWeight =
+    inherit && inherit.weight !== 'Bodyweight' && inherit.weight !== '—'
+      ? inherit.weight
+      : null;
+  return {
+    name: catalog.name,
+    exerciseId: catalog.id,
+    muscle,
+    sets: inherit?.sets ?? (isCardio ? 1 : 3),
+    reps: inherit?.reps ?? (isCardio ? '10 min' : '8–12'),
+    weight: bodyweightOnly ? 'Bodyweight' : inheritedWeight ?? '—',
+    rest: inherit?.rest ?? (isCardio ? '—' : '2:00'),
+    equipment: formatEquipment(catalog.equipment),
+    note: '',
+  };
 }
 
 /** Crossed out on the month grid: a completed log that LOCAL day, or (demo
@@ -322,9 +493,27 @@ export function replaceExercise(
   exerciseIndex: number,
   replacement: PlannedExercise,
 ): void {
-  replacements.set(slotKey(dateIso, exerciseIndex), replacement);
+  const baseLen = baseDayForDate(dateIso).exercises.length;
+  if (exerciseIndex >= baseLen) {
+    // Replacing an ADDED exercise: edit the additions list in place (the
+    // replacements map only overlays base-slot indexes).
+    const arr = [...(additions.get(dateIso) ?? [])];
+    const ai = exerciseIndex - baseLen;
+    if (ai < 0 || ai >= arr.length) return;
+    arr[ai] = replacement;
+    additions.set(dateIso, arr);
+  } else {
+    replacements.set(slotKey(dateIso, exerciseIndex), replacement);
+  }
   // A different exercise: any sets logged against the old one no longer apply.
   setLogs.delete(slotKey(dateIso, exerciseIndex));
+  emit();
+}
+
+/** "+ Add Exercise" — appended after the day's base list (works on rest days
+ *  too, which become a Custom Workout). */
+export function addExerciseToDay(dateIso: string, exercise: PlannedExercise): void {
+  additions.set(dateIso, [...(additions.get(dateIso) ?? []), exercise]);
   emit();
 }
 
@@ -334,8 +523,130 @@ export function getSetLogs(dateIso: string, exerciseIndex: number): SetLog[] {
 
 export function logSet(dateIso: string, exerciseIndex: number, log: SetLog): void {
   const key = slotKey(dateIso, exerciseIndex);
+  if (!dayStartTimes.has(dateIso)) {
+    dayStartTimes.set(dateIso, new Date().toISOString());
+  }
   setLogs.set(key, [...(setLogs.get(key) ?? []), log]);
+  // The day's last set: persist the whole session as a real workout log.
+  if (isDayFullyLogged(dateIso)) void syncDayCompletion(dateIso);
   emit();
+}
+
+// ---------------------------------------------------------------------------
+// Backend persistence of completed calendar sessions
+// ---------------------------------------------------------------------------
+
+function isDayFullyLogged(dateIso: string): boolean {
+  const day = plannedDayForDate(dateIso);
+  if (day.exercises.length === 0) return false;
+  return day.exercises.every(
+    (ex, i) => (setLogs.get(slotKey(dateIso, i))?.length ?? 0) >= ex.sets,
+  );
+}
+
+/** '5–8' → 8, '12' → 12, '10 min' → 0 (time work carries no rep count). */
+function repsNumber(reps: string): number {
+  const nums = reps.match(/\d+/g);
+  if (!nums || /min|sec/i.test(reps)) return 0;
+  return Number(nums[nums.length - 1]) || 0;
+}
+
+/** '185 lb' → 185; 'Bodyweight' / '—' → undefined. */
+function weightLb(weight: string): number | undefined {
+  const m = weight.match(/[\d.]+/);
+  return m ? Number(m[0]) : undefined;
+}
+
+/**
+ * POST the finished day as a real workout log, so History, Progress, streaks
+ * and the month strikes all count it. Live-plan days log against the slot's
+ * materialized Workout row (created idempotently on demand); a custom
+ * rest-day session mints an ad-hoc Workout first. Sample/offline days stay
+ * local. Failures stay local too — the in-session strike still shows, and
+ * nothing retries this session (write-once endpoint; no dupes).
+ */
+async function syncDayCompletion(dateIso: string): Promise<void> {
+  if (liveStatus !== 'ready' || !livePlan) return;
+  if (syncedDays.has(dateIso)) return;
+  syncedDays.add(dateIso);
+  try {
+    const day = plannedDayForDate(dateIso);
+    const slots = liveSlotsForDate(dateIso);
+    let workoutId: string | undefined;
+    if (slots.length > 0) {
+      const slot = slots[0];
+      const linked = liveWorkouts.find((w) => w.planWorkoutId === slot.id);
+      if (linked?.id) {
+        workoutId = linked.id;
+      } else {
+        const materialized = await materializePlanSlotWorkout(slot.id);
+        liveWorkouts = [...liveWorkouts, materialized];
+        workoutId = materialized.id;
+      }
+    } else {
+      // Custom session on a rest day: mint an ad-hoc Workout to log against.
+      const created = await createWorkout({
+        name: day.title,
+        day: day.weekday,
+        exercises: day.exercises.map((ex, i) => ({
+          name: ex.name,
+          sets: ex.sets,
+          reps: Math.max(1, repsNumber(ex.reps)),
+          weight: weightLb(ex.weight),
+          exerciseId: ex.exerciseId,
+          orderIndex: i,
+        })),
+      });
+      workoutId = created.id;
+    }
+    if (!workoutId) return;
+
+    // Date the log to the day being logged: sets checked "for Monday" while
+    // it's still Thursday must not land in Thursday's history. Today's
+    // sessions keep their true first-set timestamp.
+    const actualStart = dayStartTimes.get(dateIso) ?? new Date().toISOString();
+    const elapsedMs = Math.max(0, Date.now() - Date.parse(actualStart));
+    const isToday = dateIso === toIso(new Date());
+    const startedAt = isToday
+      ? actualStart
+      : new Date(fromIso(dateIso).getTime() + 12 * 60 * 60 * 1000).toISOString();
+    const completedAt = new Date(Date.parse(startedAt) + elapsedMs).toISOString();
+    let totalSets = 0;
+    let totalVolume = 0;
+    const entries = day.exercises.map((ex, i) => {
+      const logs = setLogs.get(slotKey(dateIso, i)) ?? [];
+      totalSets += logs.length;
+      return {
+        name: ex.name,
+        ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : null),
+        orderIndex: i,
+        sets: logs.map((l, si) => {
+          const reps = repsNumber(l.reps);
+          const weight = weightLb(l.weight);
+          if (weight != null) totalVolume += weight * reps;
+          return { setNumber: si + 1, reps, ...(weight != null ? { weight } : null), completed: true };
+        }),
+      };
+    });
+    await api.post('/workout-logs', {
+      workoutId,
+      startedAt,
+      completedAt,
+      totalTimeSeconds: Math.max(
+        0,
+        Math.round((Date.parse(completedAt) - Date.parse(startedAt)) / 1000),
+      ),
+      totalSets,
+      totalVolume: Math.round(totalVolume),
+      entries,
+    });
+    completedLogDays.add(dateIso);
+    emit();
+  } catch (err) {
+    // Keep the local completion; the strike still shows for this session.
+    syncedDays.delete(dateIso);
+    console.warn('[calendar] failed to persist workout log:', err);
+  }
 }
 
 /** Demo helper — clear one exercise's logged sets so the deck can be re-run. */

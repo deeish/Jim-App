@@ -44,6 +44,7 @@ export type PlanCalendarParamList = {
   | 'GeneratePlan'
   | 'PlanPreview'
   | 'WorkoutDetail'
+  | 'ExerciseDetail'
 >;
 
 /**
@@ -170,6 +171,9 @@ export function buzzSelection(): void {
 export type PlannedExercise = {
   name: string;
   muscle: PrototypeMuscle;
+  /** Catalog id when known (live plan rows, catalog-picked swaps) — powers
+   *  the Exercise Guide link. Sample-split rows have none. */
+  exerciseId?: string;
   sets: number;
   /** Display string, e.g. '8–10'. */
   reps: string;
@@ -625,6 +629,28 @@ export const EXERCISE_LIBRARY: PlannedExercise[] = [
   { name: 'Dead Hang', muscle: 'Forearms', sets: 3, reps: '45 sec', weight: 'Bodyweight', rest: '1:30', equipment: 'Pull-up bar', note: 'Shoulders packed, grip crushing. Time only counts while your form does.' },
 ];
 
+/** The exercise catalog's coarser muscle-group vocabulary for a palette muscle. */
+export function catalogGroupForMuscle(m: PrototypeMuscle): string {
+  switch (m) {
+    case 'Chest':
+      return 'chest';
+    case 'Back':
+      return 'back';
+    case 'Shoulders':
+      return 'shoulders';
+    case 'Core':
+      return 'core';
+    case 'Cardio':
+      return 'cardio';
+    case 'Biceps':
+    case 'Triceps':
+    case 'Forearms':
+      return 'arms';
+    default:
+      return 'legs';
+  }
+}
+
 /**
  * Top-3 swap suggestions for a slot: same muscle first, nothing already in
  * the day, padded from other muscles if the pool runs short.
@@ -633,7 +659,9 @@ export function recommendReplacements(
   muscle: PrototypeMuscle,
   excludeNames: ReadonlySet<string>,
 ): PlannedExercise[] {
-  const pool = EXERCISE_LIBRARY.filter((e) => !excludeNames.has(e.name));
+  // Case-insensitive exclusion — callers pass names from mixed sources.
+  const excluded = new Set([...excludeNames].map((n) => n.toLowerCase()));
+  const pool = EXERCISE_LIBRARY.filter((e) => !excluded.has(e.name.toLowerCase()));
   const same = pool.filter((e) => e.muscle === muscle);
   const rest = pool.filter((e) => e.muscle !== muscle);
   return [...same, ...rest].slice(0, 3);
