@@ -21,6 +21,7 @@ import {
   MUSCLE_EDGE,
   MUSCLE_INK,
   addDays,
+  buzzSelection,
   dayMuscles,
   fromIso,
   isCurrentWeek,
@@ -117,7 +118,11 @@ export default function PlanCalendarWeekScreen() {
         .activeOffsetX([-24, 24])
         .failOffsetY([-16, 16])
         .onEnd((e) => {
-          if (Math.abs(e.translationX) >= 50) lastSwipeAt.current = Date.now();
+          if (Math.abs(e.translationX) >= 50) {
+            lastSwipeAt.current = Date.now();
+            // The page-turn tick — only when the swipe actually commits.
+            buzzSelection();
+          }
           if (e.translationX <= -50) goWeek(1);
           else if (e.translationX >= 50) goWeek(-1);
         }),

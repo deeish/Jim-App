@@ -23,6 +23,7 @@ import {
   MUSCLE_COLORS,
   MUSCLE_EDGE,
   MUSCLE_INK,
+  buzzSelection,
   dayMuscles,
   isToday,
   fromIso,
@@ -142,7 +143,11 @@ export default function PlanCalendarMonthScreen() {
         .activeOffsetX([-24, 24])
         .failOffsetY([-16, 16])
         .onEnd((e) => {
-          if (Math.abs(e.translationX) >= 50) lastSwipeAt.current = Date.now();
+          if (Math.abs(e.translationX) >= 50) {
+            lastSwipeAt.current = Date.now();
+            // The page-turn tick — only when the swipe actually commits.
+            buzzSelection();
+          }
           if (e.translationX <= -50) shiftMonth(1);
           else if (e.translationX >= 50) shiftMonth(-1);
         }),

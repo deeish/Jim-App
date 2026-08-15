@@ -160,6 +160,25 @@ export function buzzSelection(): void {
   Haptics.selectionAsync().catch(() => {});
 }
 
+/** Medium thump when a long-press surfaces a menu — the native context-menu feel. */
+export function buzzMenuOpen(): void {
+  if (Platform.OS === 'web') return;
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+}
+
+/** Light tap confirming a swap/add landed on the day. */
+export function buzzEditApplied(): void {
+  if (Platform.OS === 'web') return;
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+}
+
+/** Rest timer done — attention pattern, distinct from the Success double-tap,
+ *  strong enough to register with the phone face-down between sets. */
+export function buzzRestOver(): void {
+  if (Platform.OS === 'web') return;
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+}
+
 // ---------------------------------------------------------------------------
 // Plan day shapes
 // ---------------------------------------------------------------------------

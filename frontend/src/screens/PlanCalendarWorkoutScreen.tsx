@@ -62,7 +62,7 @@ import {
   type WeightUnit,
 } from '../lib/weightDisplay';
 import { getExerciseHistory } from '../services/workoutService';
-import { buzzSelection } from '../lib/planCalendarPrototype';
+import { buzzRestOver } from '../lib/planCalendarPrototype';
 
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarWorkout'>;
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWorkout'>;
@@ -171,7 +171,9 @@ export default function PlanCalendarWorkoutScreen() {
     if (restLeft == null) return;
     if (restLeft <= 0) {
       setRestLeft(null);
-      buzzSelection();
+      // Warning pattern, not the selection tick: this is the one haptic that
+      // fires while the phone is likely face-down between sets.
+      buzzRestOver();
       return;
     }
     const t = setTimeout(() => setRestLeft((v) => (v == null ? null : v - 1)), 1000);

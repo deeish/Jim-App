@@ -33,6 +33,10 @@ import {
   MUSCLE_EDGE,
   MUSCLE_INK,
   addDays,
+  buzzAllSetsComplete,
+  buzzEditApplied,
+  buzzMenuOpen,
+  buzzSelection,
   catalogGroupForMuscle,
   fromIso,
   mondayOf,
@@ -208,6 +212,7 @@ export default function PlanCalendarDayScreen() {
     if (!picker) return;
     if (picker.mode === 'replace') replaceExercise(dateIso, picker.index, exercise);
     else addExerciseToDay(dateIso, exercise);
+    buzzEditApplied();
     closePicker();
   };
 
@@ -237,7 +242,11 @@ export default function PlanCalendarDayScreen() {
         .activeOffsetX([-24, 24])
         .failOffsetY([-16, 16])
         .onEnd((e) => {
-          if (Math.abs(e.translationX) >= 50) lastSwipeAt.current = Date.now();
+          if (Math.abs(e.translationX) >= 50) {
+            lastSwipeAt.current = Date.now();
+            // The page-turn tick — only when the swipe actually commits.
+            buzzSelection();
+          }
           if (e.translationX <= -50) {
             navigation.setParams({ dateIso: toIso(addDays(fromIso(dateIso), 1)) });
           } else if (e.translationX >= 50) {
@@ -360,7 +369,10 @@ export default function PlanCalendarDayScreen() {
                 exerciseName: ex.name,
               });
             }}
-            onLongPress={() => setMenuFor({ index, exercise: ex })}
+            onLongPress={() => {
+              buzzMenuOpen();
+              setMenuFor({ index, exercise: ex });
+            }}
             accessibilityRole="button"
             accessibilityLabel={`${ex.name}, ${ex.muscle}${done ? ', completed' : ''}`}
           >
@@ -406,7 +418,12 @@ export default function PlanCalendarDayScreen() {
         <TouchableOpacity
           style={styles.finishRow}
           activeOpacity={0.85}
-          onPress={() => finishDaySession(dateIso)}
+          onPress={() => {
+            // The session-complete thump — same success pattern as an
+            // exercise's last set; fires on the action, not the server ack.
+            buzzAllSetsComplete();
+            finishDaySession(dateIso);
+          }}
           accessibilityRole="button"
           accessibilityLabel="Finish and log session"
         >
