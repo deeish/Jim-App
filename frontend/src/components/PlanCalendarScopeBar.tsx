@@ -112,7 +112,10 @@ function createStyles(c: ColorPalette) {
       top: SEG_PAD,
       bottom: SEG_PAD,
       left: SEG_PAD,
-      borderRadius: radius.sm,
+      // Concentric with the track: inner radius = outer radius − inset, the
+      // iOS segmented-control rule. A smaller token here reads as a squared
+      // thumb rattling inside a rounder track (most visibly on device).
+      borderRadius: radius.md - SEG_PAD,
       backgroundColor: c.surface,
       shadowColor: c.shadow,
       ...elevation.level1,
