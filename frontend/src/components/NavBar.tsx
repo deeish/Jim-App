@@ -114,7 +114,7 @@ export default function NavBar() {
           tabBarButton: tabBarButton('e2e-tab-calendar'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? 'today' : 'today-outline'}
+              name={focused ? 'calendar' : 'calendar-outline'}
               size={focused ? 26 : 24}
               color={color}
             />
