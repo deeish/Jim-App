@@ -432,7 +432,7 @@ function createStyles(c: ColorPalette) {
     dayCellPressed: {
       backgroundColor: c.background,
     },
-    /** Diagonal cross-out over a completed day's number. */
+    /** Horizontal strikethrough over a completed day's number. */
     completedStrike: {
       position: 'absolute',
       alignSelf: 'center',
@@ -441,7 +441,6 @@ function createStyles(c: ColorPalette) {
       height: 2,
       borderRadius: radius.pill,
       backgroundColor: c.textSecondary,
-      transform: [{ rotate: '-45deg' }],
     },
     completedStrikeToday: {
       backgroundColor: c.onPrimary,
