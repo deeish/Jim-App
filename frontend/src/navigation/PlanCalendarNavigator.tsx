@@ -117,7 +117,16 @@ export default function PlanCalendarNavigator() {
       <Stack.Screen
         name="PlanCalendarMonth"
         component={PlanCalendarMonthScreen}
-        options={{ ...nativeHeader, title: 'Calendar' }}
+        options={{
+          ...nativeHeader,
+          title: 'Calendar',
+          // Month is only ever mounted via reset (the tab lands on Week, so
+          // "up to month" rebuilds the stack root). A reset-mounted large
+          // title lands half-expanded on iOS 26: blank title band, content
+          // pushed down, no "Calendar" until the first scroll. The compact
+          // bar draws correctly from the first frame.
+          headerLargeTitle: false,
+        }}
       />
       <Stack.Screen
         name="PlanCalendarWeek"
