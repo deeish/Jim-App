@@ -35,6 +35,7 @@ import {
 import {
   calendarDataMode,
   consumeAnchorAutoJump,
+  ensureLogsForMonth,
   isDayCompleted,
   plannedDayForDate,
   programWeekInfoFor,
@@ -79,6 +80,11 @@ export default function PlanCalendarWeekScreen() {
     () => [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(fromIso(weekMondayIso), i)),
     [weekMondayIso],
   );
+  // Completed checks need this week's workout logs even when the month
+  // screen (previously the only fetcher) was never visited this session.
+  useEffect(() => {
+    ensureLogsForMonth(fromIso(weekMondayIso));
+  }, [weekMondayIso]);
 
   const mode = calendarDataMode();
   const weekInfo = mode === 'live' ? programWeekInfoFor(weekMondayIso) : null;

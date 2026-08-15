@@ -858,9 +858,19 @@ export function finishDaySession(dateIso: string): void {
   void syncDayCompletion(dateIso);
 }
 
-/** The day has a workout log (synced this session or fetched from history). */
+/** The day has a workout log — synced from this device (persisted, so it
+ *  survives a restart before any history fetch) or fetched from history. */
 export function isDayLogged(dateIso: string): boolean {
-  return completedLogDays.has(dateIso);
+  return completedLogDays.has(dateIso) || syncedDays.has(dateIso);
+}
+
+/** Any sets logged locally for this date. When true, the local record is
+ *  authoritative for a logged day: sets it lacks were genuinely skipped. */
+export function dayHasLocalLogs(dateIso: string): boolean {
+  for (const [k, v] of setLogs) {
+    if (v.length > 0 && k.startsWith(`${dateIso}#`)) return true;
+  }
+  return false;
 }
 
 /**
@@ -875,7 +885,7 @@ export function inProgressSession(
   for (const [k, v] of setLogs) {
     if (k.startsWith(`${dateIso}#`)) logged += v.length;
   }
-  if (logged === 0 || completedLogDays.has(dateIso)) return null;
+  if (logged === 0 || isDayLogged(dateIso)) return null;
   const day = plannedDayForDate(dateIso);
   const total = day.exercises.reduce((sum, ex) => sum + ex.sets, 0);
   const complete =

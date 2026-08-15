@@ -45,7 +45,9 @@ import {
   type PlannedExercise,
 } from '../lib/planCalendarPrototype';
 import {
+  dayHasLocalLogs,
   getSetLogs,
+  isDayLogged,
   logSet,
   plannedDayForDate,
   subscribePlanCalendar,
@@ -151,6 +153,31 @@ export default function PlanCalendarWorkoutScreen() {
     };
   }, [historyExerciseId]);
 
+  const logs = getSetLogs(dateIso, exerciseIndex);
+
+  // Rest countdown — lives in the REST stat tile (one timer, always visible
+  // above the deck; the prescribed rest it replaces is what it counts down
+  // from). Starts when a set lands (not before the first, not after the
+  // last), ticks to zero with a soft haptic; tap the tile to skip.
+  const [restLeft, setRestLeft] = useState<number | null>(null);
+  const prevLogged = useRef(logs.length);
+  useEffect(() => {
+    if (exercise && logs.length > prevLogged.current && logs.length < exercise.sets) {
+      setRestLeft(restSecondsOf(exercise.rest));
+    }
+    prevLogged.current = logs.length;
+  }, [logs.length, exercise]);
+  useEffect(() => {
+    if (restLeft == null) return;
+    if (restLeft <= 0) {
+      setRestLeft(null);
+      buzzSelection();
+      return;
+    }
+    const t = setTimeout(() => setRestLeft((v) => (v == null ? null : v - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [restLeft]);
+
   if (!exercise) {
     return (
       <View style={[styles.container, styles.missingWrap]}>
@@ -160,8 +187,15 @@ export default function PlanCalendarWorkoutScreen() {
   }
 
   const color = MUSCLE_COLORS[exercise.muscle];
-  const logs = getSetLogs(dateIso, exerciseIndex);
   const allDone = logs.length >= exercise.sets;
+  // A submitted session is closed — the deck never returns, even for sets a
+  // partial finish skipped (the write-once log would silently ignore them).
+  const dayLogged = isDayLogged(dateIso);
+  // With local logs the record is authoritative: sets it lacks were skipped.
+  // A logged day with NO local record (finished on another device, snapshot
+  // pruned) shows the prescription as the completed values instead.
+  const daySkipsKnown = dayHasLocalLogs(dateIso);
+  const showGrid = allDone || dayLogged;
 
   // Celebration burst the moment the exercise's last set lands.
   const prevAllDone = useRef(allDone);
@@ -207,30 +241,54 @@ export default function PlanCalendarWorkoutScreen() {
           <Text style={styles.statValue}>{displayWeight(exercise.weight, unit)}</Text>
           <Text style={styles.statLabel}>WEIGHT</Text>
         </View>
-        <View style={styles.statTile}>
-          <Text style={styles.statValue}>{exercise.rest}</Text>
-          <Text style={styles.statLabel}>REST</Text>
-        </View>
+        {restLeft != null ? (
+          <TouchableOpacity
+            style={[styles.statTile, styles.statTileResting]}
+            activeOpacity={0.8}
+            onPress={() => setRestLeft(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss rest timer"
+          >
+            <Text style={[styles.statValue, styles.statValueResting]}>
+              {formatSeconds(restLeft)}
+            </Text>
+            <Text style={styles.statLabel}>REST</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.statTile}>
+            <Text style={styles.statValue}>{exercise.rest}</Text>
+            <Text style={styles.statLabel}>REST</Text>
+          </View>
+        )}
       </View>
 
       <Text style={styles.sectionLabel}>SET BREAKDOWN</Text>
-      {allDone ? (
-        <>
-          <View style={styles.gridWrap}>
-            {logs.map((log, i) => (
-              <View key={i} style={styles.gridCard}>
+      {showGrid ? (
+        <View style={styles.gridWrap}>
+          {Array.from({ length: Math.max(exercise.sets, logs.length) }, (_, i) => {
+            const log: SetLog | undefined = logs[i];
+            const done = log != null || !daySkipsKnown;
+            const repsText = log?.reps ?? exercise.reps;
+            return (
+              <View key={i} style={[styles.gridCard, !done && styles.gridCardSkipped]}>
                 <View style={styles.gridCardHeader}>
                   <Text style={styles.gridCardTitle}>SET {i + 1}</Text>
-                  <Ionicons name="checkmark-circle" size={16} color={GOLD} />
+                  {done ? (
+                    <Ionicons name="checkmark-circle" size={16} color={GOLD} />
+                  ) : (
+                    <Ionicons name="remove-circle-outline" size={16} color={colors.textMuted} />
+                  )}
                 </View>
-                <Text style={styles.gridCardReps}>
-                  {/(min|sec)/i.test(log.reps) ? log.reps : `${log.reps} reps`}
+                <Text style={[styles.gridCardReps, !done && styles.gridCardRepsSkipped]}>
+                  {/(min|sec)/i.test(repsText) ? repsText : `${repsText} reps`}
                 </Text>
-                <Text style={styles.gridCardWeight}>{displayWeight(log.weight, unit)}</Text>
+                <Text style={styles.gridCardWeight}>
+                  {done ? displayWeight(log?.weight ?? exercise.weight, unit) : 'Not logged'}
+                </Text>
               </View>
-            ))}
-          </View>
-        </>
+            );
+          })}
+        </View>
       ) : (
         <SetDeck
           exercise={exercise}
@@ -400,27 +458,6 @@ function SetDeck({
   const [weightIn, setWeightIn] = useState('');
   const busy = useRef(false);
 
-  // Rest countdown: starts when a set lands (not before the first, not after
-  // the last), ticks to zero with a soft haptic; tap to dismiss.
-  const [restLeft, setRestLeft] = useState<number | null>(null);
-  const prevCompleted = useRef(completed);
-  useEffect(() => {
-    if (completed > prevCompleted.current && completed < exercise.sets) {
-      setRestLeft(restSecondsOf(exercise.rest));
-    }
-    prevCompleted.current = completed;
-  }, [completed, exercise.sets, exercise.rest]);
-  useEffect(() => {
-    if (restLeft == null) return;
-    if (restLeft <= 0) {
-      setRestLeft(null);
-      buzzSelection();
-      return;
-    }
-    const t = setTimeout(() => setRestLeft((v) => (v == null ? null : v - 1)), 1000);
-    return () => clearTimeout(t);
-  }, [restLeft]);
-
   const cardX = useSharedValue(0);
   const cardScale = useSharedValue(1);
   const goldOp = useSharedValue(0);
@@ -515,19 +552,6 @@ function SetDeck({
             Last time: {formatWeightFromLb(lastTop.weightLb, unit)} × {lastTop.reps}
           </Text>
         )}
-        {restLeft != null && (
-          <TouchableOpacity
-            style={styles.restChip}
-            activeOpacity={0.8}
-            onPress={() => setRestLeft(null)}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss rest timer"
-          >
-            <Ionicons name="timer-outline" size={15} color={colors.primary} />
-            <Text style={styles.restChipText}>Rest {formatSeconds(restLeft)}</Text>
-          </TouchableOpacity>
-        )}
-
         <View style={styles.inputRow}>
           <View style={styles.inputBox}>
             <Text style={styles.inputLabel}>
@@ -630,6 +654,17 @@ function createStyles(c: ColorPalette) {
       gap: spacing.xs,
       shadowColor: c.shadow,
       ...elevation.level1,
+      // Reserved for the resting state's gold ring — keeps all three tiles
+      // the same size whether or not the countdown is running.
+      borderWidth: 2,
+      borderColor: 'transparent',
+    },
+    statTileResting: {
+      borderColor: GOLD,
+    },
+    statValueResting: {
+      color: GOLD,
+      fontVariant: ['tabular-nums'],
     },
     statValue: {
       ...sfPro,
@@ -710,24 +745,6 @@ function createStyles(c: ColorPalette) {
       color: c.textMuted,
       marginTop: spacing.xs,
     },
-    restChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      alignSelf: 'flex-start',
-      gap: spacing.xs,
-      backgroundColor: c.primarySoft,
-      borderRadius: radius.pill,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs,
-      marginTop: spacing.md,
-    },
-    restChipText: {
-      ...sfPro,
-      fontSize: text.footnote,
-      fontWeight: weight.semibold,
-      color: c.primary,
-      fontVariant: ['tabular-nums'],
-    },
     inputRow: {
       flexDirection: 'row',
       gap: spacing.md,
@@ -793,6 +810,13 @@ function createStyles(c: ColorPalette) {
       borderWidth: 2,
       borderColor: GOLD,
       padding: spacing.lg,
+    },
+    /** A set the logged session skipped: present, but visibly not done. */
+    gridCardSkipped: {
+      borderColor: c.border,
+    },
+    gridCardRepsSkipped: {
+      color: c.textMuted,
     },
     gridCardHeader: {
       flexDirection: 'row',

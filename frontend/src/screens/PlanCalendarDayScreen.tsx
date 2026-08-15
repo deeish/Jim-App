@@ -46,6 +46,7 @@ import {
 import {
   addExerciseToDay,
   calendarDataMode,
+  ensureLogsForMonth,
   finishDaySession,
   getSetLogs,
   isDayLogged,
@@ -88,6 +89,12 @@ export default function PlanCalendarDayScreen() {
   const { dateIso } = route.params;
   const plan = plannedDayForDate(dateIso);
   const date = fromIso(dateIso);
+
+  // A logged day must read as logged even when the app opens straight onto
+  // it — without this only the MONTH screen ever fetched workout logs.
+  useEffect(() => {
+    ensureLogsForMonth(fromIso(dateIso));
+  }, [dateIso]);
 
   /** Long-press menu (small sheet), then the picker pop-up. */
   const [menuFor, setMenuFor] = useState<SlotTarget | null>(null);
@@ -358,7 +365,9 @@ export default function PlanCalendarDayScreen() {
             accessibilityLabel={`${ex.name}, ${ex.muscle}${done ? ', completed' : ''}`}
           >
             <View style={styles.exerciseLeft}>
-              <Text style={styles.exerciseName}>{ex.name}</Text>
+              <Text style={styles.exerciseName} numberOfLines={2}>
+                {ex.name}
+              </Text>
             </View>
             <View style={[styles.exerciseRight, { backgroundColor: MUSCLE_COLORS[ex.muscle] }]}>
               <Text style={[styles.exerciseMuscle, { color: MUSCLE_INK[ex.muscle] }]}>
@@ -578,7 +587,10 @@ function createStyles(c: ColorPalette) {
       overflow: 'hidden',
     },
     exerciseLeft: {
-      flex: 1,
+      // Wider than the colour half: exercise names run long ("Dumbbell
+      // Romanian Deadlift") while muscle labels top out at "Hamstrings" —
+      // a 50/50 split wrapped a couple of characters onto their own row.
+      flex: 1.3,
       justifyContent: 'center',
       paddingVertical: spacing.lg,
       paddingHorizontal: spacing.lg,
