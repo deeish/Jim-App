@@ -94,13 +94,17 @@ export default function PlanCalendarMonthScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        // Symmetric spacing: gap between the icons, no edge padding — the
+        // bar (and the iOS 26 glass pill it groups these into) supplies the
+        // outer margins. One-sided padding here read as the share icon
+        // hugging the pill's right edge while the heart floated.
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
           <TouchableOpacity
             onPress={() => setSavedVisible(true)}
             accessibilityRole="button"
             accessibilityLabel="Saved workouts"
-            hitSlop={8}
-            style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.xs }}
+            hitSlop={12}
+            style={{ paddingVertical: spacing.xs }}
           >
             <Ionicons name="heart-outline" size={22} color={colors.primary} />
           </TouchableOpacity>
@@ -109,8 +113,8 @@ export default function PlanCalendarMonthScreen() {
               onPress={() => setShareVisible(true)}
               accessibilityRole="button"
               accessibilityLabel="Share plan"
-              hitSlop={8}
-              style={{ paddingLeft: spacing.sm, paddingVertical: spacing.xs }}
+              hitSlop={12}
+              style={{ paddingVertical: spacing.xs }}
             >
               <Ionicons name="share-outline" size={22} color={colors.primary} />
             </TouchableOpacity>
