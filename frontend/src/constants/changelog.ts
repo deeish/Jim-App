@@ -25,6 +25,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-08-15',
+    version: '1.1.0',
+    date: '2026-08-15',
+    title: 'Calendar polish',
+    changes: [
+      { type: 'improved', text: 'A finished session now shows every set as a completed card, with skipped sets marked.' },
+      { type: 'improved', text: 'The rest timer counts down right in the REST tile. Tap it to skip.' },
+      { type: 'new', text: 'The calendar taps back: logging a session, swapping an exercise, flipping a page, and the end of a rest each have their own feel.' },
+      { type: 'fixed', text: 'The month view opens at the top.' },
+    ],
+  },
+  {
     id: '2026-08-14',
     version: '1.1.0',
     date: '2026-08-14',
