@@ -260,7 +260,10 @@ export default function PlanCalendarMonthScreen() {
                     style={[
                       styles.dayNumberWrap,
                       today && styles.todayNumberWrap,
-                      completed && (inMonth ? styles.completedRing : styles.completedRingOutMonth),
+                      // Today renders full-strength even as an adjacent-month
+                      // cell, so its ring must too — never the faded variant.
+                      completed &&
+                        (inMonth || today ? styles.completedRing : styles.completedRingOutMonth),
                     ]}
                   >
                     <Text
