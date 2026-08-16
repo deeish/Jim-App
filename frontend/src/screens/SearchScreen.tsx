@@ -43,8 +43,9 @@ import {
 import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
 import { EQUIPMENT_OPTIONS } from '../constants/equipment';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { buzzSelection } from '../lib/planCalendarPrototype';
 
-import { elevationUp, radius, spacing, text, weight } from '../theme';
+import { elevation, elevationUp, radius, spacing, text, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
 type SearchScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Search'>;
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
@@ -157,6 +158,88 @@ type RefineStyles = ChipStyles & ChipRowStyles & {
   refineSection: StyleProp<ViewStyle>;
   refineCaption: StyleProp<TextStyle>;
 };
+
+// ——— Recommended scope bar ———
+// The iOS search "scope bar" (Mail, App Store): an All | ★ Recommended
+// segmented control docked under the search field. A scope is a mode the
+// control itself always displays, so unlike the chips it never appears as a
+// removable token in the active-filter row. Track/thumb geometry mirrors the
+// calendar's PlanCalendarScopeBar; module scope for the same
+// stable-component-type reason as the chip helpers above.
+
+/** Inset between the segmented track and its sliding thumb. */
+const SCOPE_PAD = 2;
+
+type ScopeStyles = {
+  scopeTrack: StyleProp<ViewStyle>;
+  scopeThumb: StyleProp<ViewStyle>;
+  scopeButton: StyleProp<ViewStyle>;
+  scopeLabel: StyleProp<TextStyle>;
+  scopeLabelActive: StyleProp<TextStyle>;
+};
+
+const RecommendedScopeBar = React.memo(function RecommendedScopeBar({
+  recommendedOnly,
+  onChange,
+  styles,
+  colors,
+}: {
+  recommendedOnly: boolean;
+  onChange: (next: boolean) => void;
+  styles: ScopeStyles;
+  colors: ColorPalette;
+}) {
+  const [trackW, setTrackW] = useState(0);
+  const segW = trackW > 0 ? (trackW - SCOPE_PAD * 2) / 2 : 0;
+  const thumbX = useRef(new Animated.Value(0)).current;
+
+  // Slide the thumb under the active segment (the mount run is a no-op: the
+  // screen always starts on All, so 0 → 0).
+  useEffect(() => {
+    Animated.timing(thumbX, {
+      toValue: recommendedOnly ? segW : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [recommendedOnly, segW, thumbX]);
+
+  return (
+    <View style={styles.scopeTrack} onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}>
+      {segW > 0 && (
+        <Animated.View
+          style={[styles.scopeThumb, { width: segW, transform: [{ translateX: thumbX }] }]}
+        />
+      )}
+      <TouchableOpacity
+        style={styles.scopeButton}
+        onPress={() => onChange(false)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="All exercises"
+        accessibilityState={{ selected: !recommendedOnly }}
+      >
+        <Text style={[styles.scopeLabel, !recommendedOnly && styles.scopeLabelActive]}>All</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.scopeButton}
+        onPress={() => onChange(true)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Recommended only"
+        accessibilityState={{ selected: recommendedOnly }}
+      >
+        <Ionicons
+          name={recommendedOnly ? 'star' : 'star-outline'}
+          size={13}
+          color={recommendedOnly ? colors.primary : colors.textSecondary}
+        />
+        <Text style={[styles.scopeLabel, recommendedOnly && styles.scopeLabelActive]}>
+          Recommended
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+});
 
 const Chip = React.memo(function Chip({
   label,
@@ -816,10 +899,9 @@ export default function SearchScreen({ navigation }: Props) {
   const getActiveFilters = () => {
     const active: Array<{ label: string; category: string; value: string; isParent?: boolean }> = [];
 
-    // Recommended scope leads the row — it narrows everything below it.
-    if (filters.recommendedOnly) {
-      active.push({ label: 'Recommended', category: 'recommended', value: 'recommended' });
-    }
+    // (The Recommended scope is deliberately NOT a chip: the scope bar under
+    // the search field always shows that state itself, so a removable token
+    // here would double-report it.)
 
     // Selected parent groups (each searches the whole group unless narrowed by sub-muscles below).
     filters.muscleGroups.forEach(g => {
@@ -939,7 +1021,8 @@ export default function SearchScreen({ navigation }: Props) {
   const activeFilterCount = activeFilters.length;
   const searchActive = filters.searchQuery.trim().length > 0;
   // No chips and no text: the list is the capped, popularity-sorted whole catalog.
-  const isBrowsingAll = activeFilterCount === 0 && !searchActive;
+  // (The Recommended scope also leaves "browse all" — it narrows to the staples.)
+  const isBrowsingAll = activeFilterCount === 0 && !searchActive && !filters.recommendedOnly;
 
   const removeFilter = (category: string, value: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -960,8 +1043,6 @@ export default function SearchScreen({ navigation }: Props) {
         updated.equipment = [...EQUIPMENT_OPTIONS];
       } else if (category === 'movementPatterns') {
         updated.movementPatterns = prev.movementPatterns.filter(v => v !== value);
-      } else if (category === 'recommended') {
-        updated.recommendedOnly = false;
       }
       return updated;
     });
@@ -1344,14 +1425,44 @@ export default function SearchScreen({ navigation }: Props) {
           paddingVertical: spacing.xl,
           paddingHorizontal: spacing.lg,
         },
-        recommendedRow: {
+        // Recommended scope bar — iOS segmented-control geometry; the track
+        // tone is the standard system segmented grey (same hardcode as the
+        // calendar's scope bar; no palette token exists for it).
+        scopeTrack: {
+          flexDirection: 'row',
+          backgroundColor: '#E4E4E9',
+          borderRadius: radius.md,
+          marginTop: spacing.md,
+        },
+        scopeThumb: {
+          position: 'absolute',
+          top: SCOPE_PAD,
+          bottom: SCOPE_PAD,
+          left: SCOPE_PAD,
+          // Concentric with the track: inner radius = outer radius − inset,
+          // the iOS segmented-control rule (a smaller token reads as a squared
+          // thumb rattling inside a rounder track).
+          borderRadius: radius.md - SCOPE_PAD,
+          backgroundColor: colors.surface,
+          shadowColor: colors.shadow,
+          ...elevation.level1,
+        },
+        scopeButton: {
+          flex: 1,
           flexDirection: 'row',
           alignItems: 'center',
-          paddingHorizontal: spacing.lg,
-          paddingBottom: spacing.sm,
+          justifyContent: 'center',
+          gap: 5,
+          paddingVertical: spacing.sm,
         },
-        recommendedStar: { marginRight: 5 },
-        recommendedInfoBtn: { marginLeft: spacing.sm },
+        scopeLabel: { fontSize: text.body, fontWeight: weight.medium, color: colors.textSecondary },
+        scopeLabelActive: { fontWeight: weight.semibold, color: colors.text },
+        scopeCaption: {
+          fontSize: text.footnote,
+          color: colors.textMuted,
+          marginTop: spacing.sm,
+          marginHorizontal: spacing.xs,
+        },
         chip: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -1613,40 +1724,28 @@ export default function SearchScreen({ navigation }: Props) {
             </TouchableOpacity>
           )}
         </View>
-      </View>
 
-      {/* Recommended scope — our vetted staples. Dimmed while a search term is
-          active, matching the chips-never-narrow-text-search convention. */}
-      <View style={[styles.recommendedRow, searchActive && styles.activeFiltersDimmed]}>
-        <TouchableOpacity
-          style={[styles.chip, filters.recommendedOnly && styles.chipSelected]}
-          onPress={() =>
-            setFilters(prev => ({ ...prev, recommendedOnly: !prev.recommendedOnly }))
-          }
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={`Recommended filter${filters.recommendedOnly ? ', selected' : ''}`}
-          accessibilityState={{ selected: filters.recommendedOnly }}
-        >
-          <Ionicons
-            name={filters.recommendedOnly ? 'star' : 'star-outline'}
-            size={13}
-            color={filters.recommendedOnly ? colors.onPrimary : colors.textSecondary}
-            style={styles.recommendedStar}
+        {/* Recommended scope — the iOS search scope-bar pattern (Mail, App
+            Store), docked inside the search container so the field and its
+            scope read as one control. Dimmed while a search term is active,
+            matching the chips-never-narrow-text-search convention. The
+            caption replaces the old (i) → alert explainer. */}
+        <View style={searchActive ? styles.activeFiltersDimmed : null}>
+          <RecommendedScopeBar
+            recommendedOnly={filters.recommendedOnly}
+            onChange={(next) => {
+              if (next === filters.recommendedOnly) return;
+              buzzSelection();
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setFilters(prev => ({ ...prev, recommendedOnly: next }));
+            }}
+            styles={styles}
+            colors={colors}
           />
-          <Text style={[styles.chipText, filters.recommendedOnly && styles.chipTextSelected]}>
-            Recommended
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => Alert.alert(RECOMMENDED_INFO.title, RECOMMENDED_INFO.body)}
-          hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel="What does Recommended mean?"
-          style={styles.recommendedInfoBtn}
-        >
-          <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
-        </TouchableOpacity>
+          {filters.recommendedOnly && (
+            <Text style={styles.scopeCaption}>{RECOMMENDED_INFO.caption}</Text>
+          )}
+        </View>
       </View>
 
       {/* Active Filters — dimmed while a search term is active: text search
@@ -1700,7 +1799,7 @@ export default function SearchScreen({ navigation }: Props) {
               </Text>
               <Text style={styles.resultsPreviewHint}>Try fewer words or check the spelling</Text>
             </View>
-          ) : !isLoading && !error && activeFilterCount > 0 ? (
+          ) : !isLoading && !error && (activeFilterCount > 0 || filters.recommendedOnly) ? (
             <View style={styles.resultsPreview}>
               <Text style={styles.resultsPreviewText}>No exercises found</Text>
               <Text style={styles.resultsPreviewHint}>Try adjusting your filters</Text>
@@ -1902,12 +2001,12 @@ export default function SearchScreen({ navigation }: Props) {
             <Text style={styles.resultCountText}>
               {isLoading
                 ? 'Searching...'
-                : activeFilterCount > 0 || filters.searchQuery.trim().length > 0
+                : activeFilterCount > 0 || filters.recommendedOnly || filters.searchQuery.trim().length > 0
                 ? 'No exercises match your filters'
                 : 'No exercises to show'}
             </Text>
           </View>
-          {activeFilterCount > 0 && (
+          {(activeFilterCount > 0 || filters.recommendedOnly) && (
             <View style={styles.viewResultsButtonContainer}>
               <Button
                 title="Clear Filters"
