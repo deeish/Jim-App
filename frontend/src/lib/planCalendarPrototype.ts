@@ -142,10 +142,15 @@ export const MUSCLE_EDGE: Record<PrototypeMuscle, string> = {
 /** Set-complete gold: check button, the completion outline, finished-set cards. */
 export const GOLD = '#F5A623';
 
-/** Light tap on each completed set. No-op on web; never throws. */
+// ⚠ Strength calibrated on-device (2026-08-15, build 23): the Light-impact and
+// selection tiers were reported as imperceptible in real use, so every moment
+// runs one tier stronger than the "textbook" iOS mapping. Don't quietly walk
+// these back down without another on-device pass.
+
+/** Tap on each completed set — Medium, because Light didn't register. */
 export function buzzSetComplete(): void {
   if (Platform.OS === 'web') return;
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 }
 
 /** Success buzz when the whole exercise is finished. */
@@ -154,22 +159,24 @@ export function buzzAllSetsComplete(): void {
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 }
 
-/** The subtle tick iOS segmented controls make on selection change. */
+/** Crisp tick for selection moments (scope-bar slides, page turns). Rigid
+ *  impact, not `selectionAsync` — the system selection tick is the faintest
+ *  haptic iOS has and was unnoticeable in real use. */
 export function buzzSelection(): void {
   if (Platform.OS === 'web') return;
-  Haptics.selectionAsync().catch(() => {});
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid).catch(() => {});
 }
 
-/** Medium thump when a long-press surfaces a menu — the native context-menu feel. */
+/** Heavy thump when a long-press surfaces a menu — the native context-menu feel. */
 export function buzzMenuOpen(): void {
   if (Platform.OS === 'web') return;
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
 }
 
-/** Light tap confirming a swap/add landed on the day. */
+/** Tap confirming a swap/add landed on the day — Medium, same reason as sets. */
 export function buzzEditApplied(): void {
   if (Platform.OS === 'web') return;
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 }
 
 /** Rest timer done — attention pattern, distinct from the Success double-tap,
