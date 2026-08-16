@@ -24,42 +24,28 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  // One entry covering the whole Calendar release for the Friends/Family
+  // group: external testers last received the 2026-08-13 update (build 18 +
+  // OTA), so the former 2026-08-14, 2026-08-15 and 2026-08-16 cards were
+  // merged in here. Fixes for regressions that only internal builds ever had
+  // (views opening scrolled down) are dropped, and the completed-day mark is
+  // described as it ships now (gold seal), not the strike or ring it briefly
+  // was between internal builds.
   {
-    id: '2026-08-16',
+    id: '2026-08-17',
     version: '1.1.0',
-    date: '2026-08-16',
-    title: 'A full-color day view',
-    changes: [
-      { type: 'new', text: 'Your day view is now full color: every exercise card wears its muscle color as a smooth gradient, with the muscle name on a frosted chip.' },
-      { type: 'improved', text: 'A finished day on the month grid now earns a gold ring instead of a cross-out.' },
-      { type: 'improved', text: 'Recommended on the Exercises page is now a proper All | Recommended switch under the search bar.' },
-      { type: 'improved', text: 'Haptics are stronger across the board. You will feel the difference.' },
-      { type: 'fixed', text: 'The week and day views open at the top, like the month.' },
-    ],
-  },
-  {
-    id: '2026-08-15',
-    version: '1.1.0',
-    date: '2026-08-15',
-    title: 'Calendar polish',
-    changes: [
-      { type: 'improved', text: 'A finished session now shows every set as a completed card, with skipped sets marked.' },
-      { type: 'improved', text: 'The rest timer counts down right in the REST tile. Tap it to skip.' },
-      { type: 'new', text: 'The calendar taps back: logging a session, swapping an exercise, flipping a page, and the end of a rest each have their own feel.' },
-      { type: 'fixed', text: 'The month view opens at the top.' },
-    ],
-  },
-  {
-    id: '2026-08-14',
-    version: '1.1.0',
-    date: '2026-08-14',
+    date: '2026-08-17',
     title: 'Your plan is now a calendar',
     changes: [
       { type: 'new', text: 'The Plan and Train tabs became one Calendar: month, week, and day views with every muscle color coded.' },
-      { type: 'new', text: 'Log sets right on the calendar with swipeable set cards, rest timers, and a celebration when you finish.' },
+      { type: 'new', text: 'The day view is full color: every exercise card wears its muscle color as a smooth gradient, with the muscle name on a frosted chip.' },
+      { type: 'new', text: 'Log sets right on the calendar with swipeable set cards, a rest timer that counts down in the REST tile, and a celebration when you finish.' },
       { type: 'new', text: 'Swap or add exercises on any day, with recommendations from the library. Your plan saves the change.' },
-      { type: 'improved', text: 'Completed days get crossed off, missed days fade back, and everything counts toward History and Progress.' },
+      { type: 'improved', text: 'A finished day earns a gold seal on the month grid, missed days fade back, and everything counts toward History and Progress.' },
+      { type: 'improved', text: 'A finished session shows every set as a completed card, with skipped sets marked.' },
       { type: 'improved', text: 'A workout in progress now survives closing the app, and you can log a shorter session as done.' },
+      { type: 'new', text: 'The calendar taps back: logging a session, swapping an exercise, flipping a page, and the end of a rest each have their own feel.' },
+      { type: 'improved', text: 'Recommended on the Exercises page is now a proper All | Recommended switch under the search bar.' },
     ],
   },
   {
