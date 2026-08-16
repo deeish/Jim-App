@@ -20,6 +20,7 @@ import {
 } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
 import {
+  GOLD,
   MUSCLE_COLORS,
   MUSCLE_EDGE,
   MUSCLE_INK,
@@ -242,7 +243,7 @@ export default function PlanCalendarMonthScreen() {
               const muscles = dayMuscles(plannedDayForDate(iso));
               const completed = isDayCompleted(iso);
               // A skipped past workout day recedes (muted dots) — distinct
-              // from completed (strike) and upcoming (full colour).
+              // from completed (gold ring) and upcoming (full colour).
               const missed = muscles.length > 0 && !completed && iso < todayIso();
               return (
                 <Pressable
@@ -255,7 +256,13 @@ export default function PlanCalendarMonthScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`Open ${iso}${completed ? ', completed' : ''}`}
                 >
-                  <View style={[styles.dayNumberWrap, today && styles.todayNumberWrap]}>
+                  <View
+                    style={[
+                      styles.dayNumberWrap,
+                      today && styles.todayNumberWrap,
+                      completed && (inMonth ? styles.completedRing : styles.completedRingOutMonth),
+                    ]}
+                  >
                     <Text
                       style={[
                         styles.dayNumber,
@@ -266,12 +273,6 @@ export default function PlanCalendarMonthScreen() {
                       {date.getDate()}
                     </Text>
                   </View>
-                  {completed && (
-                    <View
-                      pointerEvents="none"
-                      style={[styles.completedStrike, today && styles.completedStrikeToday]}
-                    />
-                  )}
                   <View style={styles.dotsRow}>
                     {muscles.slice(0, MAX_DOTS).map((m) => (
                       <View
@@ -441,18 +442,18 @@ function createStyles(c: ColorPalette) {
     dayCellPressed: {
       backgroundColor: c.background,
     },
-    /** Horizontal strikethrough over a completed day's number. */
-    completedStrike: {
-      position: 'absolute',
-      alignSelf: 'center',
-      top: 21,
-      width: 30,
-      height: 2,
-      borderRadius: radius.pill,
-      backgroundColor: c.textSecondary,
+    /** Fitness-style "ring closed": a gold ring circles a logged day's date.
+     *  (Replaced the strikethrough, which read as cancelled, not done.) A
+     *  completed today keeps its blue fill and gains the ring, so both facts
+     *  read at once. */
+    completedRing: {
+      borderWidth: 2,
+      borderColor: GOLD,
     },
-    completedStrikeToday: {
-      backgroundColor: c.onPrimary,
+    /** Adjacent-month cells recede — ring at ~35%, matching outMonthDot. */
+    completedRingOutMonth: {
+      borderWidth: 2,
+      borderColor: GOLD + '59',
     },
     dayNumberWrap: {
       width: 28,
