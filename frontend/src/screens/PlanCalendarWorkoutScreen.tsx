@@ -232,15 +232,21 @@ export default function PlanCalendarWorkoutScreen() {
         </Text>
       </View>
 
+      {/* Tile values shrink to fit ONE line — "Bodyweight" is wider than a
+          third-of-screen tile and wrapped mid-word ("Bodyweig / ht") on
+          device. All three tiles get the same treatment so a shrunk value
+          never sits next to a full-size one of the same length. */}
       <View style={styles.statsRow}>
         <View style={styles.statTile}>
-          <Text style={styles.statValue}>
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
             {exercise.sets} × {exercise.reps}
           </Text>
           <Text style={styles.statLabel}>SETS × REPS</Text>
         </View>
         <View style={styles.statTile}>
-          <Text style={styles.statValue}>{displayWeight(exercise.weight, unit)}</Text>
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+            {displayWeight(exercise.weight, unit)}
+          </Text>
           <Text style={styles.statLabel}>WEIGHT</Text>
         </View>
         {restLeft != null ? (
@@ -251,14 +257,21 @@ export default function PlanCalendarWorkoutScreen() {
             accessibilityRole="button"
             accessibilityLabel="Dismiss rest timer"
           >
-            <Text style={[styles.statValue, styles.statValueResting]}>
+            <Text
+              style={[styles.statValue, styles.statValueResting]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
+            >
               {formatSeconds(restLeft)}
             </Text>
             <Text style={styles.statLabel}>REST</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.statTile}>
-            <Text style={styles.statValue}>{exercise.rest}</Text>
+            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+              {exercise.rest}
+            </Text>
             <Text style={styles.statLabel}>REST</Text>
           </View>
         )}

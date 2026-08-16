@@ -377,7 +377,10 @@ export default function PlanCalendarDayScreen() {
             accessibilityLabel={`${ex.name}, ${ex.muscle}${done ? ', completed' : ''}`}
           >
             <View style={styles.exerciseLeft}>
-              <Text style={styles.exerciseName} numberOfLines={2}>
+              {/* 3 lines, not 2: the longest catalog names ("Single-Arm
+                  Dumbbell Overhead Triceps Extension") still truncated at 2
+                  on device. Only long names pay the taller card. */}
+              <Text style={styles.exerciseName} numberOfLines={3}>
                 {ex.name}
               </Text>
             </View>
