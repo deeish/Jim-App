@@ -133,6 +133,13 @@ export default function PlanCalendarNavigator() {
         component={PlanCalendarWeekScreen}
         options={({ route, navigation }) => ({
           ...nativeHeader,
+          // ⚠ Device-only fix (iOS 26): a large title paired with a custom
+          // headerLeft lands half-expanded — blank title band, content pushed
+          // down, no title until the first scroll. Same failure the Month
+          // screen hit when reset-mounted, same fix (see 0e852c2): the
+          // compact bar draws correctly from the first frame. Web's header
+          // shim has no large titles, so only an iPhone shows the difference.
+          headerLargeTitle: false,
           title: weekTitle(route.params?.weekMondayIso),
           headerLeft: () => <BackTo label="Month" onPress={() => weekBack(navigation)} />,
         })}
@@ -142,6 +149,9 @@ export default function PlanCalendarNavigator() {
         component={PlanCalendarDayScreen}
         options={({ route, navigation }) => ({
           ...nativeHeader,
+          // ⚠ Device-only: custom headerLeft + large title — see the Week
+          // screen's note above.
+          headerLargeTitle: false,
           title: WEEKDAYS[weekdayIndex(fromIso(route.params.dateIso))],
           headerLeft: () => (
             <BackTo label="Week" onPress={() => dayBack(navigation, route.params.dateIso)} />
@@ -169,6 +179,9 @@ export default function PlanCalendarNavigator() {
         component={PlanCalendarWeekScreen}
         options={({ route, navigation }) => ({
           ...nativeHeader,
+          // ⚠ Device-only: custom headerLeft + large title — see the Week
+          // screen's note above.
+          headerLargeTitle: false,
           // The week component can retarget this route to the plan's week 1
           // (anchor auto-jump), so the title must track the param.
           title: weekTitle(
