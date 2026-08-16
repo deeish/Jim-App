@@ -5,6 +5,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
 import ShareModal from '../components/ShareModal';
 import PlanCalendarScopeBar from '../components/PlanCalendarScopeBar';
@@ -52,6 +53,86 @@ type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarMonth'>
 const WEEKDAY_INITIALS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 /** Dots per calendar cell — more than 3 reads as noise at this size. */
 const MAX_DOTS = 3;
+
+const SEAL_SIZE = 18;
+const SEAL_DISC = 13;
+const SEAL_PETAL = 5;
+/** 12 petal centers around the badge — the crescents peeking out from behind
+ *  the disc are what read as a scalloped seal edge at this size. */
+const SEAL_PETALS = Array.from({ length: 12 }, (_, i) => {
+  const a = (i / 12) * 2 * Math.PI;
+  return {
+    left: SEAL_SIZE / 2 + 6.3 * Math.cos(a) - SEAL_PETAL / 2,
+    top: SEAL_SIZE / 2 + 6.3 * Math.sin(a) - SEAL_PETAL / 2,
+  };
+});
+
+/**
+ * Award-seal badge on a logged day's corner ("rosette seal", Dylan's pick from
+ * the 2026-08-16 nine-option completed-day mark study — replaced the round-18
+ * gold ring; shipped so testers can judge it). Built from plain views because
+ * no shipped binary carries react-native-svg — adding it would make this
+ * change binary-only, and a view seal stays OTA-safe.
+ */
+function CompletedSeal({ faded }: { faded: boolean }) {
+  return (
+    <View style={[sealStyles.seal, faded && sealStyles.sealFaded]} pointerEvents="none">
+      {SEAL_PETALS.map((p, i) => (
+        <View key={i} style={[sealStyles.petal, { left: p.left, top: p.top }]} />
+      ))}
+      <LinearGradient colors={['#FFD34D', GOLD, '#E08D0C']} style={sealStyles.disc}>
+        <View style={sealStyles.discRing} />
+        <Ionicons name="checkmark" size={9} color="#FFFFFF" />
+      </LinearGradient>
+    </View>
+  );
+}
+
+const sealStyles = StyleSheet.create({
+  /** ⚠ No shadow here on purpose: a shadow on this background-less wrapper is
+   *  computed from its square bounding box (RN-web paints the box solid white
+   *  over the grid; native iOS would cast a rectangular shadow) — caught on
+   *  the web rig 2026-08-16. The dark petal edge does the separating instead. */
+  seal: {
+    position: 'absolute',
+    top: -6,
+    right: -9,
+    width: SEAL_SIZE,
+    height: SEAL_SIZE,
+  },
+  /** Adjacent-month seals recede to ~35%, matching outMonthDot. */
+  sealFaded: {
+    opacity: 0.35,
+  },
+  petal: {
+    position: 'absolute',
+    width: SEAL_PETAL,
+    height: SEAL_PETAL,
+    borderRadius: radius.pill,
+    backgroundColor: '#E8940F',
+  },
+  disc: {
+    position: 'absolute',
+    left: (SEAL_SIZE - SEAL_DISC) / 2,
+    top: (SEAL_SIZE - SEAL_DISC) / 2,
+    width: SEAL_DISC,
+    height: SEAL_DISC,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discRing: {
+    position: 'absolute',
+    left: 2,
+    top: 2,
+    width: SEAL_DISC - 4,
+    height: SEAL_DISC - 4,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+});
 
 /**
  * PROTOTYPE — month overview for the Calendar tab. Each trained day carries
@@ -243,7 +324,7 @@ export default function PlanCalendarMonthScreen() {
               const muscles = dayMuscles(plannedDayForDate(iso));
               const completed = isDayCompleted(iso);
               // A skipped past workout day recedes (muted dots) — distinct
-              // from completed (gold ring) and upcoming (full colour).
+              // from completed (gold seal) and upcoming (full colour).
               const missed = muscles.length > 0 && !completed && iso < todayIso();
               return (
                 <Pressable
@@ -256,16 +337,7 @@ export default function PlanCalendarMonthScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`Open ${iso}${completed ? ', completed' : ''}`}
                 >
-                  <View
-                    style={[
-                      styles.dayNumberWrap,
-                      today && styles.todayNumberWrap,
-                      // Today renders full-strength even as an adjacent-month
-                      // cell, so its ring must too — never the faded variant.
-                      completed &&
-                        (inMonth || today ? styles.completedRing : styles.completedRingOutMonth),
-                    ]}
-                  >
+                  <View style={[styles.dayNumberWrap, today && styles.todayNumberWrap]}>
                     <Text
                       style={[
                         styles.dayNumber,
@@ -275,6 +347,9 @@ export default function PlanCalendarMonthScreen() {
                     >
                       {date.getDate()}
                     </Text>
+                    {/* Today renders full-strength even as an adjacent-month
+                        cell, so its seal must too — never the faded variant. */}
+                    {completed && <CompletedSeal faded={!inMonth && !today} />}
                   </View>
                   <View style={styles.dotsRow}>
                     {muscles.slice(0, MAX_DOTS).map((m) => (
@@ -444,19 +519,6 @@ function createStyles(c: ColorPalette) {
     },
     dayCellPressed: {
       backgroundColor: c.background,
-    },
-    /** Fitness-style "ring closed": a gold ring circles a logged day's date.
-     *  (Replaced the strikethrough, which read as cancelled, not done.) A
-     *  completed today keeps its blue fill and gains the ring, so both facts
-     *  read at once. */
-    completedRing: {
-      borderWidth: 2,
-      borderColor: GOLD,
-    },
-    /** Adjacent-month cells recede — ring at ~35%, matching outMonthDot. */
-    completedRingOutMonth: {
-      borderWidth: 2,
-      borderColor: GOLD + '59',
     },
     dayNumberWrap: {
       width: 28,

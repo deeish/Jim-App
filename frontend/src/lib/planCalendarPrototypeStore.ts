@@ -14,7 +14,7 @@
  *     When there is no plan (or no backend — the web demo), the sample split
  *     from planCalendarPrototype keeps every view populated.
  *   - `ensureLogsForMonth()` + `isDayCompleted()` back the month grid's
- *     gold-ringed (completed) days: a real completed workout log on that
+ *     gold-sealed (completed) days: a real completed workout log on that
  *     LOCAL day, or every set of every exercise logged in this session.
  *
  * Persistence: day edits rebuild the plan slot on the server; completed and
@@ -554,7 +554,7 @@ export function plannedExerciseFromCatalog(
   };
 }
 
-/** Gold-ringed on the month grid: a completed log that LOCAL day, or (demo
+/** Gold-sealed on the month grid: a completed log that LOCAL day, or (demo
  *  mode) every set of every exercise logged this session. */
 export function isDayCompleted(dateIso: string): boolean {
   if (completedLogDays.has(dateIso)) return true;
@@ -746,10 +746,10 @@ function weightLb(weight: string): number | undefined {
 
 /**
  * POST the finished day as a real workout log, so History, Progress, streaks
- * and the month's completion rings all count it. Live-plan days log against
+ * and the month's completion seals all count it. Live-plan days log against
  * the slot's materialized Workout row (created idempotently on demand); a
  * custom rest-day session mints an ad-hoc Workout first. Sample/offline days
- * stay local. Failures stay local too — the in-session completion ring still
+ * stay local. Failures stay local too — the in-session completion seal still
  * shows, and nothing retries this session (write-once endpoint; no dupes).
  */
 async function syncDayCompletion(dateIso: string): Promise<void> {
@@ -838,7 +838,7 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
     completedLogDays.add(dateIso);
     emit();
   } catch (err) {
-    // Keep the local completion; the ring still shows for this session.
+    // Keep the local completion; the seal still shows for this session.
     syncedDays.delete(dateIso);
     scheduleSessionSave();
     console.warn('[calendar] failed to persist workout log:', err);
@@ -853,7 +853,7 @@ export function resetSetLogs(dateIso: string, exerciseIndex: number): void {
 }
 
 /** Ending a session early: log whatever was completed so far as the day's
- *  workout log (History/Progress/rings count it like a finished session). */
+ *  workout log (History/Progress/seals count it like a finished session). */
 export function finishDaySession(dateIso: string): void {
   void syncDayCompletion(dateIso);
 }
