@@ -193,8 +193,8 @@ const RecommendedScopeBar = React.memo(function RecommendedScopeBar({
   const segW = trackW > 0 ? (trackW - SCOPE_PAD * 2) / 2 : 0;
   const thumbX = useRef(new Animated.Value(0)).current;
 
-  // Slide the thumb under the active segment (the mount run is a no-op: the
-  // screen always starts on All, so 0 → 0).
+  // Slide the thumb when the SELECTION changes; layout changes are snapped in
+  // onLayout below, so the timing this also runs for them is a visual no-op.
   useEffect(() => {
     Animated.timing(thumbX, {
       toValue: recommendedOnly ? segW : 0,
@@ -204,7 +204,18 @@ const RecommendedScopeBar = React.memo(function RecommendedScopeBar({
   }, [recommendedOnly, segW, thumbX]);
 
   return (
-    <View style={styles.scopeTrack} onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}>
+    <View
+      style={styles.scopeTrack}
+      onLayout={(e) => {
+        const w = e.nativeEvent.layout.width;
+        setTrackW(w);
+        // First layout (and any resize): SNAP the thumb onto the active
+        // segment. The bar can remount with Recommended already on (Saved-tab
+        // round trip unmounts it), and animating in from All there reads as a
+        // glitch — same rule as PlanCalendarScopeBar's layout snap.
+        thumbX.setValue(((w - SCOPE_PAD * 2) / 2) * (recommendedOnly ? 1 : 0));
+      }}
+    >
       {segW > 0 && (
         <Animated.View
           style={[styles.scopeThumb, { width: segW, transform: [{ translateX: thumbX }] }]}
@@ -1021,8 +1032,24 @@ export default function SearchScreen({ navigation }: Props) {
   const activeFilterCount = activeFilters.length;
   const searchActive = filters.searchQuery.trim().length > 0;
   // No chips and no text: the list is the capped, popularity-sorted whole catalog.
-  // (The Recommended scope also leaves "browse all" — it narrows to the staples.)
-  const isBrowsingAll = activeFilterCount === 0 && !searchActive && !filters.recommendedOnly;
+  // "Something narrows the list" defined ONCE: chips or the Recommended scope.
+  // (The header filter badge stays chips-only on purpose — it counts the
+  // removable tokens, and the scope bar always shows its own state.)
+  const hasNarrowing = activeFilterCount > 0 || filters.recommendedOnly;
+  const isBrowsingAll = !hasNarrowing && !searchActive;
+
+  // Scope toggle: ref-guarded and dep-free so RecommendedScopeBar's memo holds
+  // (an inline arrow re-rendered the bar on every search keystroke) and a fast
+  // double-tap can't double-fire the haptic before the state commits.
+  const recommendedOnlyRef = useRef(filters.recommendedOnly);
+  recommendedOnlyRef.current = filters.recommendedOnly;
+  const onScopeChange = useCallback((next: boolean) => {
+    if (recommendedOnlyRef.current === next) return;
+    recommendedOnlyRef.current = next;
+    buzzSelection();
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setFilters(prev => ({ ...prev, recommendedOnly: next }));
+  }, []);
 
   const removeFilter = (category: string, value: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -1733,17 +1760,17 @@ export default function SearchScreen({ navigation }: Props) {
         <View style={searchActive ? styles.activeFiltersDimmed : null}>
           <RecommendedScopeBar
             recommendedOnly={filters.recommendedOnly}
-            onChange={(next) => {
-              if (next === filters.recommendedOnly) return;
-              buzzSelection();
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-              setFilters(prev => ({ ...prev, recommendedOnly: next }));
-            }}
+            onChange={onScopeChange}
             styles={styles}
             colors={colors}
           />
           {filters.recommendedOnly && (
-            <Text style={styles.scopeCaption}>{RECOMMENDED_INFO.caption}</Text>
+            // While searching, the caption must say the scope is paused (text
+            // search ignores it) — the explainer would read as a false claim
+            // over unfiltered results. Same wording as the active-filter row.
+            <Text style={styles.scopeCaption}>
+              {searchActive ? 'Not applied while searching' : RECOMMENDED_INFO.caption}
+            </Text>
           )}
         </View>
       </View>
@@ -1799,7 +1826,7 @@ export default function SearchScreen({ navigation }: Props) {
               </Text>
               <Text style={styles.resultsPreviewHint}>Try fewer words or check the spelling</Text>
             </View>
-          ) : !isLoading && !error && (activeFilterCount > 0 || filters.recommendedOnly) ? (
+          ) : !isLoading && !error && hasNarrowing ? (
             <View style={styles.resultsPreview}>
               <Text style={styles.resultsPreviewText}>No exercises found</Text>
               <Text style={styles.resultsPreviewHint}>Try adjusting your filters</Text>
@@ -2001,12 +2028,12 @@ export default function SearchScreen({ navigation }: Props) {
             <Text style={styles.resultCountText}>
               {isLoading
                 ? 'Searching...'
-                : activeFilterCount > 0 || filters.recommendedOnly || filters.searchQuery.trim().length > 0
+                : hasNarrowing || filters.searchQuery.trim().length > 0
                 ? 'No exercises match your filters'
                 : 'No exercises to show'}
             </Text>
           </View>
-          {(activeFilterCount > 0 || filters.recommendedOnly) && (
+          {hasNarrowing && (
             <View style={styles.viewResultsButtonContainer}>
               <Button
                 title="Clear Filters"
