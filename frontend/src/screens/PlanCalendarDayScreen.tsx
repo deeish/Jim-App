@@ -40,6 +40,8 @@ import {
   catalogGroupForMuscle,
   fromIso,
   mondayOf,
+  muscleChipFrost,
+  muscleGradient,
   sfPro,
   shortDate,
   toIso,
@@ -47,6 +49,7 @@ import {
   type PlannedExercise,
   type PrototypeMuscle,
 } from '../lib/planCalendarPrototype';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   addExerciseToDay,
   calendarDataMode,
@@ -376,18 +379,28 @@ export default function PlanCalendarDayScreen() {
             accessibilityRole="button"
             accessibilityLabel={`${ex.name}, ${ex.muscle}${done ? ', completed' : ''}`}
           >
-            <View style={styles.exerciseLeft}>
+            <LinearGradient
+              colors={muscleGradient(ex.muscle)}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.exerciseCardInner}
+            >
               {/* 3 lines, not 2: the longest catalog names ("Single-Arm
                   Dumbbell Overhead Triceps Extension") still truncated at 2
                   on device. Only long names pay the taller card. */}
-              <Text style={styles.exerciseName} numberOfLines={3}>
+              <Text
+                style={[styles.exerciseName, { color: MUSCLE_INK[ex.muscle] }]}
+                numberOfLines={3}
+              >
                 {ex.name}
               </Text>
-            </View>
-            <View style={[styles.exerciseRight, { backgroundColor: MUSCLE_COLORS[ex.muscle] }]}>
-              <Text style={[styles.exerciseMuscle, { color: MUSCLE_INK[ex.muscle] }]}>
-                {ex.muscle}
-              </Text>
+              <View
+                style={[styles.muscleChip, { backgroundColor: muscleChipFrost(ex.muscle) }]}
+              >
+                <Text style={[styles.muscleChipLabel, { color: MUSCLE_INK[ex.muscle] }]}>
+                  {ex.muscle}
+                </Text>
+              </View>
               {done ? (
                 <Ionicons name="checkmark-circle" size={19} color={MUSCLE_INK[ex.muscle]} />
               ) : (
@@ -398,7 +411,7 @@ export default function PlanCalendarDayScreen() {
                   style={styles.exerciseChevron}
                 />
               )}
-            </View>
+            </LinearGradient>
           </TouchableOpacity>
         );
       })}
@@ -596,46 +609,37 @@ function createStyles(c: ColorPalette) {
       marginBottom: spacing.xs,
     },
     exerciseCard: {
-      flexDirection: 'row',
-      alignItems: 'stretch',
       borderRadius: radius.lg,
       borderWidth: 1,
-      // The base card is the white left half; the right half paints its
-      // muscle colour over its own side. Clipping keeps the colour inside
-      // the rounded corners.
+      // The LinearGradient child paints the whole card (the "E2 Bright"
+      // muscle gradient — see muscleGradient in the lib); clipping keeps it
+      // inside the rounded corners. Surface stays behind it as the fallback.
       backgroundColor: c.surface,
       overflow: 'hidden',
     },
-    exerciseLeft: {
-      // Wider than the colour half: exercise names run long ("Dumbbell
-      // Romanian Deadlift") while muscle labels top out at "Hamstrings" —
-      // a 50/50 split wrapped a couple of characters onto their own row.
-      flex: 1.3,
-      justifyContent: 'center',
+    exerciseCardInner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
       paddingVertical: spacing.lg,
       paddingHorizontal: spacing.lg,
     },
     exerciseName: {
       ...sfPro,
-      fontSize: text.callout,
-      lineHeight: 22,
-      fontWeight: weight.semibold,
-      color: '#000000',
-    },
-    exerciseRight: {
       flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.lg,
-    },
-    exerciseMuscle: {
-      ...sfPro,
       fontSize: text.callout,
       lineHeight: 22,
       fontWeight: weight.semibold,
-      marginRight: spacing.sm,
+    },
+    muscleChip: {
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+    },
+    muscleChipLabel: {
+      ...sfPro,
+      fontSize: text.body,
+      fontWeight: weight.semibold,
     },
     exerciseChevron: {
       opacity: 0.7,

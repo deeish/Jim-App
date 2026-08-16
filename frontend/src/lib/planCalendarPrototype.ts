@@ -139,6 +139,32 @@ export const MUSCLE_EDGE: Record<PrototypeMuscle, string> = {
   Forearms: 'transparent',
 };
 
+/**
+ * Day-card gradient — the "E2 Bright" treatment Dylan picked from the
+ * 2026-08-15 mockup rounds: the pure muscle colour fading lighter across
+ * the card, no dark end. Ink stays MUSCLE_INK — the name sits on the
+ * full-colour corner, exactly the surface the ink map was tuned for.
+ */
+export function muscleGradient(m: PrototypeMuscle): [string, string] {
+  return [MUSCLE_COLORS[m], mixWithWhite(MUSCLE_COLORS[m], 0.62)];
+}
+
+/** #RRGGBB mixed toward white; `colorFraction` is how much colour survives. */
+export function mixWithWhite(hex: string, colorFraction: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const channel = (c: number) =>
+    Math.round(c * colorFraction + 255 * (1 - colorFraction))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${channel((n >> 16) & 0xff)}${channel((n >> 8) & 0xff)}${channel(n & 0xff)}`;
+}
+
+/** Frosted muscle-chip fill on a gradient day card. Cardio's card is
+ *  white-on-white, so its chip frosts dark instead of disappearing. */
+export function muscleChipFrost(m: PrototypeMuscle): string {
+  return m === 'Cardio' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.32)';
+}
+
 /** Set-complete gold: check button, the completion outline, finished-set cards. */
 export const GOLD = '#F5A623';
 
