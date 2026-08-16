@@ -25,6 +25,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-08-16',
+    version: '1.1.0',
+    date: '2026-08-16',
+    title: 'A full-color day view',
+    changes: [
+      { type: 'new', text: 'Your day view is now full color: every exercise card wears its muscle color as a smooth gradient, with the muscle name on a frosted chip.' },
+      { type: 'improved', text: 'A finished day on the month grid now earns a gold ring instead of a cross-out.' },
+      { type: 'improved', text: 'Recommended on the Exercises page is now a proper All | Recommended switch under the search bar.' },
+      { type: 'improved', text: 'Haptics are stronger across the board. You will feel the difference.' },
+      { type: 'fixed', text: 'The week and day views open at the top, like the month.' },
+    ],
+  },
+  {
     id: '2026-08-15',
     version: '1.1.0',
     date: '2026-08-15',
