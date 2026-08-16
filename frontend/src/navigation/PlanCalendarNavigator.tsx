@@ -36,6 +36,12 @@ type AnyNav = NativeStackNavigationProp<PlanCalendarParamList>;
  * Labeled header back control — every level names the level it returns to
  * (Workout → "Day", Day → "Week", Week → "Month"). Custom instead of the
  * native back button so the label is identical on iOS, Android and web.
+ *
+ * ⚠ Device-only sizing: iOS 26 wraps this view in its own Liquid Glass pill,
+ * sized by the content. The chevron is deliberately 22 — the same content
+ * height as the header's other pills (heart/share icons are 22) — so the back
+ * pill matches them instead of rendering as a visibly fatter lozenge (Dylan's
+ * build-23 report; the old size-26 chevron was the bloat).
  */
 function BackTo({ label, onPress }: { label: string; onPress: () => void }) {
   const { colors } = useTheme();
@@ -47,7 +53,7 @@ function BackTo({ label, onPress }: { label: string; onPress: () => void }) {
       accessibilityLabel={`Back to ${label.toLowerCase()}`}
       style={backStyles.wrap}
     >
-      <Ionicons name="chevron-back" size={26} color={colors.primary} />
+      <Ionicons name="chevron-back" size={22} color={colors.primary} />
       <Text style={[backStyles.label, { color: colors.primary }]}>{label}</Text>
     </Pressable>
   );
