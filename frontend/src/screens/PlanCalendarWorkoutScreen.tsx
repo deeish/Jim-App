@@ -71,11 +71,13 @@ const SCREEN_W = Dimensions.get('window').width;
 /** How long the gold outline shows before the card swipes to the back. */
 const GOLD_HOLD_MS = 500;
 
-/** '185 lb' → the user's unit ('84 kg'); non-weights pass through. */
+/** '185 lb' → the user's unit ('84 kg'); non-weights pass through. An
+ *  additive weight keeps its '+' ('+25 lb' → '+11 kg') — it means
+ *  bodyweight PLUS the load, and dropping it misread as a 25 lb pull-up. */
 function displayWeight(weight: string, unit: WeightUnit): string {
-  const m = weight.match(/^\+?([\d.]+)\s*lb$/i);
+  const m = weight.match(/^(\+?)([\d.]+)\s*lb$/i);
   if (!m) return weight;
-  return formatWeightFromLb(Number(m[1]), unit);
+  return m[1] + formatWeightFromLb(Number(m[2]), unit);
 }
 
 /** Weight-input placeholder as a bare number in the user's unit. */
@@ -684,7 +686,10 @@ function createStyles(c: ColorPalette) {
     statValue: {
       ...sfPro,
       fontSize: text.headline,
-      lineHeight: 24,
+      // No explicit lineHeight: it fights adjustsFontSizeToFit on iOS — a
+      // shrunk value renders low inside the fixed line box, sitting visibly
+      // below its neighbours. All three tiles share this style, so heights
+      // stay equal without it.
       fontWeight: weight.bold,
       letterSpacing: tracking.tight,
       color: c.text,
