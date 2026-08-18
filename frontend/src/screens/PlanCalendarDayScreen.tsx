@@ -45,19 +45,24 @@ import {
   muscleGradient,
   sfPro,
   shortDate,
+  todayIso,
   toIso,
   type PlanCalendarParamList,
   type PlannedExercise,
   type PrototypeMuscle,
 } from '../lib/planCalendarPrototype';
 import { LinearGradient } from 'expo-linear-gradient';
+import MissedDaySheet from '../components/MissedDaySheet';
 import {
   addExerciseToDay,
   calendarDataMode,
+  canRescueDay,
   ensureLogsForMonth,
   finishDaySession,
   getSetLogs,
+  isDayCompleted,
   isDayLogged,
+  moveMissedDay,
   muscleFromCatalog,
   plannedDayForDate,
   plannedExerciseFromCatalog,
@@ -136,6 +141,28 @@ export default function PlanCalendarDayScreen() {
   const [menuFor, setMenuFor] = useState<SlotTarget | null>(null);
   const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [query, setQuery] = useState('');
+
+  // Missed-day rescue: the banner's one-tap action + the shared sheet.
+  const [rescueSheetOpen, setRescueSheetOpen] = useState(false);
+  const [rescueBusy, setRescueBusy] = useState(false);
+  const [rescueError, setRescueError] = useState('');
+  const rescuable = canRescueDay(dateIso);
+  const todayLogged = isDayCompleted(todayIso()) || isDayLogged(todayIso());
+  const doItToday = async () => {
+    if (rescueBusy) return;
+    setRescueBusy(true);
+    setRescueError('');
+    try {
+      await moveMissedDay(dateIso, todayIso());
+      buzzEditApplied();
+      // Follow the workout to where it went.
+      navigation.setParams({ dateIso: todayIso() });
+    } catch {
+      setRescueError('Couldn’t move it — check your connection and try again.');
+    } finally {
+      setRescueBusy(false);
+    }
+  };
 
   // ---- Catalog fetches (null = loading; offline flips to the sample lib) ----
   const [recList, setRecList] = useState<CatalogExercise[] | null>(null);
@@ -344,6 +371,52 @@ export default function PlanCalendarDayScreen() {
         {plan.title} · {shortDate(date)} · {plan.exercises.length} exercises
         {doneCount > 0 && !allDone ? ` · ${doneCount} done` : ''}
       </Text>
+
+      {rescuable && (
+        // The day-view rescue door: catches arrivals from the month grid.
+        // Retroactive logging below stays available — this only offers a way
+        // to move the session instead.
+        <View style={styles.missedBanner}>
+          <View style={styles.missedBannerTitleRow}>
+            <Ionicons name="alert-circle-outline" size={17} color={colors.warning} />
+            <Text style={styles.missedBannerTitle}>This workout was missed</Text>
+          </View>
+          <Text style={styles.missedBannerBody}>
+            Planned for {plan.weekday} — it hasn’t been logged.
+          </Text>
+          <View style={styles.missedBannerActions}>
+            {!todayLogged && (
+              <TouchableOpacity
+                style={styles.missedBannerPrimary}
+                activeOpacity={0.8}
+                disabled={rescueBusy}
+                onPress={doItToday}
+                accessibilityRole="button"
+                accessibilityLabel="Do it today"
+              >
+                {rescueBusy ? (
+                  <ActivityIndicator size="small" color={colors.onPrimary} />
+                ) : (
+                  <Text style={styles.missedBannerPrimaryLabel}>Do it today</Text>
+                )}
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.missedBannerSecondary}
+              activeOpacity={0.8}
+              disabled={rescueBusy}
+              onPress={() => setRescueSheetOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="More options for this missed workout"
+            >
+              <Text style={styles.missedBannerSecondaryLabel}>Options</Text>
+            </TouchableOpacity>
+          </View>
+          {rescueError !== '' && (
+            <Text style={styles.missedBannerError}>{rescueError}</Text>
+          )}
+        </View>
+      )}
 
       {(allDone || dayLogged) && (
         <View style={styles.completeBanner}>
@@ -596,6 +669,15 @@ export default function PlanCalendarDayScreen() {
       </Modal>
     </ScrollView>
     </GestureDetector>
+
+    <MissedDaySheet
+      dateIso={rescueSheetOpen ? dateIso : null}
+      context="day"
+      onClose={() => setRescueSheetOpen(false)}
+      onEditDay={() => {}}
+      // Follow the workout to its new day.
+      onMoved={(targetIso) => navigation.setParams({ dateIso: targetIso })}
+    />
     </View>
   );
 }
@@ -621,6 +703,66 @@ function createStyles(c: ColorPalette) {
       lineHeight: 20,
       color: c.textSecondary,
       marginBottom: spacing.xs,
+    },
+    missedBanner: {
+      backgroundColor: c.warningSoft,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+    },
+    missedBannerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    missedBannerTitle: {
+      ...sfPro,
+      fontSize: text.body,
+      fontWeight: weight.bold,
+      color: c.warning,
+    },
+    missedBannerBody: {
+      ...sfPro,
+      fontSize: text.footnote,
+      color: c.textSecondary,
+      marginTop: spacing.xxs,
+    },
+    missedBannerActions: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+    },
+    missedBannerPrimary: {
+      backgroundColor: c.primary,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      minWidth: 110,
+      alignItems: 'center',
+    },
+    missedBannerPrimaryLabel: {
+      ...sfPro,
+      fontSize: text.body,
+      fontWeight: weight.semibold,
+      color: c.onPrimary,
+    },
+    missedBannerSecondary: {
+      backgroundColor: c.primarySoft,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+    },
+    missedBannerSecondaryLabel: {
+      ...sfPro,
+      fontSize: text.body,
+      fontWeight: weight.semibold,
+      color: c.primary,
+    },
+    missedBannerError: {
+      ...sfPro,
+      fontSize: text.footnote,
+      color: c.error,
+      marginTop: spacing.sm,
     },
     exerciseCard: {
       borderRadius: radius.lg,

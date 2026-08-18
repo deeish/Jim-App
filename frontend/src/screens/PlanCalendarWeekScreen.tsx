@@ -27,19 +27,26 @@ import {
   isCurrentWeek,
   isToday,
   mondayOf,
+  movedToLabel,
   muscleGradient,
   sfPro,
   shortDate,
+  shortWeekday,
   todayIso,
   toIso,
   type PlanCalendarParamList,
 } from '../lib/planCalendarPrototype';
 import { LinearGradient } from 'expo-linear-gradient';
+import MissedDaySheet from '../components/MissedDaySheet';
 import {
   calendarDataMode,
+  canRescueDay,
   consumeAnchorAutoJump,
+  dayMovedFrom,
+  dayMovedTo,
   ensureLogsForMonth,
   isDayCompleted,
+  isDaySkipped,
   plannedDayForDate,
   programWeekInfoFor,
   refreshLiveCalendarData,
@@ -110,6 +117,9 @@ export default function PlanCalendarWeekScreen() {
     [navigation, weekMondayIso],
   );
   useFrozenScopeBar('week', onScopeNavigate);
+
+  // The missed-day rescue sheet (opened from a card's amber Missed pill).
+  const [rescueDateIso, setRescueDateIso] = useState<string | null>(null);
 
   // Pull-to-refresh: force a plan refetch; the spinner is time-boxed since
   // the store notifies via subscription rather than a promise.
@@ -228,8 +238,41 @@ export default function PlanCalendarWeekScreen() {
         const rest = plan.exercises.length === 0;
         const completed = !rest && isDayCompleted(iso);
         const missed = !rest && !completed && iso < todayIso();
+        const rescuable = !rest && missed && canRescueDay(iso);
+        const skipped = !rest && missed && isDaySkipped(iso);
+        const movedFrom = !rest ? dayMovedFrom(iso) : null;
 
         if (rest) {
+          // A day whose workout was moved away: quiet like a rest card, but
+          // the whole card follows the workout to where it went.
+          const movedTo = dayMovedTo(iso);
+          if (movedTo) {
+            return (
+              <TouchableOpacity
+                key={iso}
+                style={[styles.card, styles.restCard]}
+                activeOpacity={0.7}
+                onPress={() => {
+                  if (Date.now() - lastSwipeAt.current < 450) return;
+                  navigation.navigate('PlanCalendarDay', { dateIso: movedTo.toIso });
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`${plan.weekday}, ${movedTo.title} moved to ${movedToLabel(movedTo.toIso, todayIso())}`}
+              >
+                <View style={styles.titleRow}>
+                  <Text style={[styles.weekday, styles.restWeekday]}>{plan.weekday}</Text>
+                  {today && <TodayPill styles={styles} />}
+                  <View style={styles.spacer} />
+                  <Text style={styles.movedLabel}>
+                    Moved to {movedToLabel(movedTo.toIso, todayIso())} ›
+                  </Text>
+                </View>
+                <Text style={styles.dateLine}>
+                  {shortDate(date)} · was {movedTo.title}
+                </Text>
+              </TouchableOpacity>
+            );
+          }
           return (
             <View key={iso} style={[styles.card, styles.restCard]}>
               <View style={styles.titleRow}>
@@ -264,6 +307,24 @@ export default function PlanCalendarWeekScreen() {
               <View style={styles.spacer} />
               {completed ? (
                 <Ionicons name="checkmark-circle" size={20} color={GOLD} />
+              ) : rescuable ? (
+                // The rescue door: recent misses trade the grey caption for a
+                // tappable amber pill (Todoist's overdue grammar) → sheet.
+                <TouchableOpacity
+                  style={styles.missedPill}
+                  hitSlop={8}
+                  onPress={() => {
+                    if (Date.now() - lastSwipeAt.current < 450) return;
+                    setRescueDateIso(iso);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Missed ${plan.title} — options`}
+                >
+                  <Text style={styles.missedPillLabel}>Missed</Text>
+                  <Ionicons name="chevron-down" size={12} color={colors.warning} />
+                </TouchableOpacity>
+              ) : skipped ? (
+                <Text style={styles.missedLabel}>Skipped</Text>
               ) : (
                 <>
                   {missed && <Text style={styles.missedLabel}>Missed</Text>}
@@ -273,6 +334,7 @@ export default function PlanCalendarWeekScreen() {
             </View>
             <Text style={styles.dateLine}>
               {shortDate(date)} · {plan.title}
+              {movedFrom ? ` · moved from ${shortWeekday(movedFrom)}` : ''}
             </Text>
             <View style={styles.chipRow}>
               {muscles.map((m) => (
@@ -305,6 +367,15 @@ export default function PlanCalendarWeekScreen() {
       )}
     </ScrollView>
     </GestureDetector>
+
+    <MissedDaySheet
+      dateIso={rescueDateIso}
+      context="week"
+      onClose={() => setRescueDateIso(null)}
+      onEditDay={(dateIso) => navigation.navigate('PlanCalendarDay', { dateIso })}
+      // The week shows the aftermath in place (store emit re-renders it).
+      onMoved={() => {}}
+    />
     </View>
   );
 }
@@ -392,6 +463,27 @@ function createStyles(c: ColorPalette) {
       fontWeight: weight.medium,
       color: c.textMuted,
       marginRight: spacing.sm,
+    },
+    missedPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xxs,
+      backgroundColor: c.warningSoft,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+    },
+    missedPillLabel: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      color: c.warning,
+    },
+    movedLabel: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      color: c.primary,
     },
     chipRow: {
       flexDirection: 'row',

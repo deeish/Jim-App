@@ -26,8 +26,11 @@ import {
   WEEKDAYS,
   addDays,
   fromIso,
+  isWithinRescueWindow,
   mondayOf,
+  todayIso,
   toIso,
+  upcomingDatesFrom,
   weekdayIndex,
   type PlannedDay,
   type PlannedExercise,
@@ -36,6 +39,7 @@ import {
 import {
   addPlanSlot,
   getCurrentPlanWithWeekly,
+  movePlanSlot,
   removePlanSlot,
   type ApiPlan,
   type ApiPlanExercise,
@@ -86,6 +90,14 @@ export function subscribePlanCalendar(listener: () => void): () => void {
 const dayStartTimes = new Map<string, string>();
 /** Days whose completed log has been (or is being) written to the backend. */
 const syncedDays = new Set<string>();
+/** Missed days the user dismissed via "Skip this workout" (dates, not slots —
+ *  the plan itself is never touched, so repeating weeks keep the workout). */
+const skippedDays = new Set<string>();
+/** sourceIso → where its missed workout went. The MOVE is server-persisted
+ *  (the slot really changed day); this map only powers the explanatory
+ *  captions ("Moved to Wed ›" / "moved from Mon"), so losing it on a new
+ *  device degrades gracefully to a plain schedule. */
+const movedDays = new Map<string, { toIso: string; title: string }>();
 /** Detects a DIFFERENT plan arriving (apply/regenerate) vs a refetch of the
  *  same one — only the former invalidates session overlays. Persisted, so a
  *  cold start doesn't read as a new plan and wipe hydrated logs. */
@@ -103,6 +115,8 @@ const sessionHydrated: Promise<void> = (async () => {
       setLogs?: Record<string, SetLog[]>;
       dayStartTimes?: Record<string, string>;
       syncedDays?: string[];
+      skippedDates?: string[];
+      movedDates?: Record<string, { toIso: string; title: string }>;
       lastSeenPlanId?: string | null;
     };
     const cutoff = toIso(addDays(new Date(), -14));
@@ -114,6 +128,12 @@ const sessionHydrated: Promise<void> = (async () => {
     }
     for (const d of data.syncedDays ?? []) {
       if (d >= cutoff) syncedDays.add(d);
+    }
+    for (const d of data.skippedDates ?? []) {
+      if (d >= cutoff) skippedDays.add(d);
+    }
+    for (const [k, v] of Object.entries(data.movedDates ?? {})) {
+      if (k >= cutoff && !movedDays.has(k)) movedDays.set(k, v);
     }
     // Without this, every cold start looks like a NEW plan and wipes the
     // freshly hydrated logs.
@@ -137,6 +157,8 @@ function scheduleSessionSave(): void {
           setLogs: Object.fromEntries(setLogs),
           dayStartTimes: Object.fromEntries(dayStartTimes),
           syncedDays: [...syncedDays],
+          skippedDates: [...skippedDays],
+          movedDates: Object.fromEntries(movedDays),
           lastSeenPlanId,
         }),
       ).catch(() => {}),
@@ -193,6 +215,9 @@ export function ensureLiveCalendarData(): void {
         replacements.clear();
         additions.clear();
         setLogs.clear();
+        // Skip/move records describe dates of the OLD plan's schedule.
+        skippedDays.clear();
+        movedDays.clear();
         scheduleSessionSave();
         // A new plan also deserves the week-1 landing jump again.
         anchorAutoJumpConsumed = false;
@@ -563,6 +588,157 @@ export function isDayCompleted(dateIso: string): boolean {
   return day.exercises.every(
     (ex, i) => (setLogs.get(slotKey(dateIso, i))?.length ?? 0) >= ex.sets,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Missed-day rescue: skip records + server-backed moves
+// ---------------------------------------------------------------------------
+
+/** The user dismissed this missed day ("Skip this workout"). */
+export function isDaySkipped(dateIso: string): boolean {
+  return skippedDays.has(dateIso);
+}
+
+/** Where this day's missed workout was moved (null = never moved). */
+export function dayMovedTo(dateIso: string): { toIso: string; title: string } | null {
+  return movedDays.get(dateIso) ?? null;
+}
+
+/** The source date whose workout was moved ONTO this day (latest wins). */
+export function dayMovedFrom(dateIso: string): string | null {
+  let found: string | null = null;
+  for (const [source, rec] of movedDays) {
+    if (rec.toIso === dateIso) found = source;
+  }
+  return found;
+}
+
+/**
+ * A day gets the rescue affordances (amber pill, day-view banner, sheet) only
+ * when EVERY gate passes:
+ *  - live plan (nothing to persist against otherwise);
+ *  - a past day within the 7-day rescue window (older = quiet history);
+ *  - not completed/logged, not already skipped or moved;
+ *  - no locally logged sets — moving a day would strand its date-keyed set
+ *    logs, so an in-progress day keeps the plain "Missed" label instead;
+ *  - actually has exercises (rest days can't be missed).
+ */
+export function canRescueDay(dateIso: string): boolean {
+  if (calendarDataMode() !== 'live') return false;
+  if (!isWithinRescueWindow(dateIso, todayIso())) return false;
+  if (skippedDays.has(dateIso) || movedDays.has(dateIso)) return false;
+  if (isDayCompleted(dateIso) || isDayLogged(dateIso)) return false;
+  if (dayHasLocalLogs(dateIso)) return false;
+  return plannedDayForDate(dateIso).exercises.length > 0;
+}
+
+/** Mark a missed day dismissed. Local-only — the plan is never touched. */
+export function skipMissedDay(dateIso: string): void {
+  skippedDays.add(dateIso);
+  scheduleSessionSave();
+  emit();
+}
+
+export type MoveTargetState =
+  | 'open' // rest day — the natural landing spot
+  | 'doubles' // already has a session; the moved one is added alongside
+  | 'logged' // already logged (only possible for today) — blocked
+  | 'beyond'; // past the program's final week — blocked (see moveMissedDay)
+
+export type MoveTarget = {
+  dateIso: string;
+  /** The day's current content ('Rest day' when empty). */
+  title: string;
+  state: MoveTargetState;
+};
+
+/**
+ * The move picker's rows: today plus the next six days.
+ *  - 'logged' days are blocked — the day's workout log is write-once, so a
+ *    workout moved onto it could never be logged (the closed-session grid).
+ *  - Days past the program's last week are blocked: placing a slot there
+ *    would grow max(weekNumber) and silently turn an 8-week program into a
+ *    9-week one everywhere "Week N of M" renders.
+ */
+export function moveTargetsForDay(): MoveTarget[] {
+  return upcomingDatesFrom(todayIso()).map((dateIso) => {
+    const day = plannedDayForDate(dateIso);
+    const weekInfo = programWeekInfoFor(toIso(mondayOf(fromIso(dateIso))));
+    let state: MoveTargetState;
+    if (weekInfo?.state === 'after') state = 'beyond';
+    else if (isDayCompleted(dateIso) || isDayLogged(dateIso)) state = 'logged';
+    else if (day.exercises.length > 0) state = 'doubles';
+    else state = 'open';
+    return {
+      dateIso,
+      title: day.exercises.length > 0 ? day.title : 'Rest day',
+      state,
+    };
+  });
+}
+
+/**
+ * Move a missed day's workout to another date — the real thing, not an
+ * overlay: every slot mapped to the source date changes its (dayOfWeek,
+ * weekNumber) on the server, so the week list, month dots, day view, Home's
+ * today card and slot-linked logging all follow automatically.
+ *
+ * Edge handling:
+ *  - Multi-slot source days move every slot, sequentially; a mid-loop
+ *    failure force-refetches the plan so the UI resyncs to server truth.
+ *  - `weekNumber` is sent only when the program week actually changes.
+ *    Forward-only targets make the stored number safe for 0-based plans:
+ *    a cross-week target is at program week ≥ 2, so `week - offset` ≥ 1
+ *    (the DTO rejects 0).
+ *  - Moved slots land AFTER the target day's own sessions (orderInDay).
+ *  - Session overlays keyed to the source date are dropped: their indexes
+ *    are meaningless on an empty day, and edits are already persisted into
+ *    the slot by persistDayEdits in the normal case.
+ */
+export async function moveMissedDay(sourceIso: string, targetIso: string): Promise<void> {
+  if (liveStatus !== 'ready' || !livePlan) {
+    throw new Error('No active plan loaded');
+  }
+  const sourceSlots = liveSlotsForDate(sourceIso);
+  if (sourceSlots.length === 0) {
+    throw new Error('Nothing scheduled on that day');
+  }
+  const title = plannedDayForDate(sourceIso).title;
+  const planId = livePlan.id;
+  const anchor = planAnchorMonday(livePlan);
+  const offset = weekNumberOffset(livePlan);
+  const programWeekOf = (iso: string) =>
+    Math.round((mondayOf(fromIso(iso)).getTime() - anchor.getTime()) / WEEK_MS) + 1;
+  const sourceWeek = programWeekOf(sourceIso);
+  const targetWeek = programWeekOf(targetIso);
+  const targetWeekday = WEEKDAYS[weekdayIndex(fromIso(targetIso))];
+  const targetSlots = liveSlotsForDate(targetIso);
+  let nextOrder =
+    targetSlots.length > 0 ? Math.max(...targetSlots.map((s) => s.orderInDay)) + 1 : 0;
+
+  try {
+    let plan = livePlan;
+    for (const slot of sourceSlots) {
+      plan = await movePlanSlot(planId, slot.id, {
+        dayOfWeek: targetWeekday,
+        ...(targetWeek !== sourceWeek ? { weekNumber: targetWeek - offset } : {}),
+        orderInDay: nextOrder++,
+      });
+    }
+    livePlan = plan;
+  } catch (err) {
+    // A multi-slot move may have landed partially — resync to server truth.
+    refreshLiveCalendarData(true);
+    throw err;
+  }
+
+  for (const key of [...replacements.keys()]) {
+    if (key.startsWith(`${sourceIso}#`)) replacements.delete(key);
+  }
+  additions.delete(sourceIso);
+  movedDays.set(sourceIso, { toIso: targetIso, title });
+  scheduleSessionSave();
+  emit();
 }
 
 export function replaceExercise(

@@ -350,6 +350,39 @@ export function shortDate(d: Date): string {
   return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
 }
 
+/** 'Mon' for a YYYY-MM-DD date. */
+export function shortWeekday(iso: string): string {
+  return WEEKDAYS[weekdayIndex(fromIso(iso))].slice(0, 3);
+}
+
+// ---------------------------------------------------------------------------
+// Missed-day rescue (pure date logic; state lives in the store)
+// ---------------------------------------------------------------------------
+
+/** Misses older than this stay quiet history — no pill, no banner, no sheet. */
+export const RESCUE_WINDOW_DAYS = 7;
+
+/**
+ * A PAST day close enough to rescue: strictly before today, and no more than
+ * RESCUE_WINDOW_DAYS back. Compares ISO strings (same format ⇒ lexicographic
+ * order is date order). Today itself is never "missed".
+ */
+export function isWithinRescueWindow(dateIso: string, todayIsoStr: string): boolean {
+  const cutoff = toIso(addDays(fromIso(todayIsoStr), -RESCUE_WINDOW_DAYS));
+  return dateIso < todayIsoStr && dateIso >= cutoff;
+}
+
+/** Today plus the next `count - 1` days — the move picker's candidate rows. */
+export function upcomingDatesFrom(todayIsoStr: string, count = 7): string[] {
+  const start = fromIso(todayIsoStr);
+  return Array.from({ length: count }, (_, i) => toIso(addDays(start, i)));
+}
+
+/** 'today' or the 3-letter weekday — the "Moved to X ›" caption. */
+export function movedToLabel(targetIso: string, todayIsoStr: string): string {
+  return targetIso === todayIsoStr ? 'today' : shortWeekday(targetIso);
+}
+
 /** 'August 2026' */
 export function monthLabel(d: Date): string {
   return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;

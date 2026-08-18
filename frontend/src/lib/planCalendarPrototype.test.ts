@@ -6,7 +6,15 @@ jest.mock('react-native', () => ({
 }));
 jest.mock('expo-haptics', () => ({}));
 
-import { MUSCLE_COLORS, mixWithWhite, muscleGradient } from './planCalendarPrototype';
+import {
+  MUSCLE_COLORS,
+  isWithinRescueWindow,
+  mixWithWhite,
+  movedToLabel,
+  muscleGradient,
+  shortWeekday,
+  upcomingDatesFrom,
+} from './planCalendarPrototype';
 
 describe('mixWithWhite', () => {
   it('keeps the colour at fraction 1 and reaches white at 0', () => {
@@ -34,5 +42,59 @@ describe('muscleGradient', () => {
 
   it('leaves white (Cardio) white at both ends', () => {
     expect(muscleGradient('Cardio')).toEqual(['#FFFFFF', '#ffffff']);
+  });
+});
+
+describe('isWithinRescueWindow', () => {
+  const today = '2026-08-18';
+
+  it('includes yesterday and the 7-day boundary, excludes today', () => {
+    expect(isWithinRescueWindow('2026-08-17', today)).toBe(true);
+    expect(isWithinRescueWindow('2026-08-11', today)).toBe(true); // exactly 7 back
+    expect(isWithinRescueWindow(today, today)).toBe(false);
+  });
+
+  it('excludes older misses and the future', () => {
+    expect(isWithinRescueWindow('2026-08-10', today)).toBe(false); // 8 back
+    expect(isWithinRescueWindow('2026-08-19', today)).toBe(false);
+  });
+
+  it('handles the window crossing a month boundary', () => {
+    expect(isWithinRescueWindow('2026-08-30', '2026-09-03')).toBe(true);
+    expect(isWithinRescueWindow('2026-08-26', '2026-09-03')).toBe(false);
+  });
+});
+
+describe('upcomingDatesFrom', () => {
+  it('returns today plus the next six days', () => {
+    expect(upcomingDatesFrom('2026-08-18')).toEqual([
+      '2026-08-18',
+      '2026-08-19',
+      '2026-08-20',
+      '2026-08-21',
+      '2026-08-22',
+      '2026-08-23',
+      '2026-08-24',
+    ]);
+  });
+
+  it('rolls across a month boundary', () => {
+    expect(upcomingDatesFrom('2026-08-30', 3)).toEqual([
+      '2026-08-30',
+      '2026-08-31',
+      '2026-09-01',
+    ]);
+  });
+});
+
+describe('movedToLabel / shortWeekday', () => {
+  it('says today for a move onto today', () => {
+    expect(movedToLabel('2026-08-18', '2026-08-18')).toBe('today');
+  });
+
+  it('uses the 3-letter weekday otherwise', () => {
+    expect(movedToLabel('2026-08-19', '2026-08-18')).toBe('Wed');
+    expect(shortWeekday('2026-08-17')).toBe('Mon');
+    expect(shortWeekday('2026-08-23')).toBe('Sun');
   });
 });
