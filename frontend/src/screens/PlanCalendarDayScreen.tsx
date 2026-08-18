@@ -60,9 +60,9 @@ import {
   ensureLogsForMonth,
   finishDaySession,
   getSetLogs,
-  isDayCompleted,
   isDayLogged,
   moveMissedDay,
+  moveTargetsForDay,
   muscleFromCatalog,
   plannedDayForDate,
   plannedExerciseFromCatalog,
@@ -147,7 +147,11 @@ export default function PlanCalendarDayScreen() {
   const [rescueBusy, setRescueBusy] = useState(false);
   const [rescueError, setRescueError] = useState('');
   const rescuable = canRescueDay(dateIso);
-  const todayLogged = isDayCompleted(todayIso()) || isDayLogged(todayIso());
+  // Today's move-target state (picker row 0): the banner's one-tap must share
+  // the picker's gates — already-logged today AND today past the program's
+  // end both block it (see MissedDaySheet for the reasoning).
+  const todayState = rescuable ? moveTargetsForDay()[0].state : 'open';
+  const todayBlocked = todayState === 'logged' || todayState === 'beyond';
   const doItToday = async () => {
     if (rescueBusy) return;
     setRescueBusy(true);
@@ -385,7 +389,7 @@ export default function PlanCalendarDayScreen() {
             Planned for {plan.weekday} — it hasn’t been logged.
           </Text>
           <View style={styles.missedBannerActions}>
-            {!todayLogged && (
+            {!todayBlocked && (
               <TouchableOpacity
                 style={styles.missedBannerPrimary}
                 activeOpacity={0.8}

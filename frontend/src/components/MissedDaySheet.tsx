@@ -22,8 +22,6 @@ import {
   weekdayIndex,
 } from '../lib/planCalendarPrototype';
 import {
-  isDayCompleted,
-  isDayLogged,
   moveMissedDay,
   moveTargetsForDay,
   plannedDayForDate,
@@ -78,9 +76,12 @@ export default function MissedDaySheet({
   const day = dateIso ? plannedDayForDate(dateIso) : null;
   const date = dateIso ? fromIso(dateIso) : null;
   const today = todayIso();
-  // The write-once day log means a workout moved onto an already-logged day
-  // could never be logged itself — block "Do it today" then.
-  const todayBlocked = isDayCompleted(today) || isDayLogged(today);
+  // Today's move-target state (picker row 0 is always today), so the one-tap
+  // hero shares the picker's gates: an already-logged today can never accept
+  // the workout (write-once day log), and a today PAST the program's end
+  // would grow max(weekNumber) — silently turning "Week 8 of 8" into "of 9".
+  const todayState = dateIso ? moveTargetsForDay()[0].state : 'open';
+  const todayBlocked = todayState === 'logged' || todayState === 'beyond';
   const todayWeekday = WEEKDAYS[weekdayIndex(fromIso(today))];
 
   const runMove = async (which: string, targetIso: string) => {
@@ -192,9 +193,11 @@ export default function MissedDaySheet({
               <View style={styles.rowMain}>
                 <Text style={styles.rowLabel}>Do it today</Text>
                 <Text style={styles.rowSub}>
-                  {todayBlocked
+                  {todayState === 'logged'
                     ? 'Today’s session is already logged — pick another day'
-                    : `Adds ${day.title} to today, ${todayWeekday}`}
+                    : todayState === 'beyond'
+                      ? 'Your program has ended'
+                      : `Adds ${day.title} to today, ${todayWeekday}`}
                 </Text>
               </View>
               {busy === 'today' ? (

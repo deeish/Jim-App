@@ -273,8 +273,21 @@ export default function PlanCalendarWeekScreen() {
               </TouchableOpacity>
             );
           }
+          // Rest days open their day view too (Dylan's build-25 report: the
+          // inert card read as broken) — that's also the only week-level
+          // path to "+ Add Exercise" on an open day. Visuals stay quiet.
           return (
-            <View key={iso} style={[styles.card, styles.restCard]}>
+            <TouchableOpacity
+              key={iso}
+              style={[styles.card, styles.restCard]}
+              activeOpacity={0.7}
+              onPress={() => {
+                if (Date.now() - lastSwipeAt.current < 450) return;
+                navigation.navigate('PlanCalendarDay', { dateIso: iso });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`${plan.weekday}, rest day`}
+            >
               <View style={styles.titleRow}>
                 <Text style={[styles.weekday, styles.restWeekday]}>{plan.weekday}</Text>
                 {today && <TodayPill styles={styles} />}
@@ -283,7 +296,7 @@ export default function PlanCalendarWeekScreen() {
                 <Text style={styles.restLabel}>Rest</Text>
               </View>
               <Text style={styles.dateLine}>{shortDate(date)}</Text>
-            </View>
+            </TouchableOpacity>
           );
         }
 
