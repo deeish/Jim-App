@@ -15,7 +15,8 @@ import {
   type ColorPalette,
 } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
-import PlanCalendarScopeBar from '../components/PlanCalendarScopeBar';
+import type { CalendarScope } from '../components/PlanCalendarScopeBar';
+import { SCOPE_BAR_SPACE, useFrozenScopeBar } from '../components/PlanCalendarScopeBarHost';
 import {
   MUSCLE_EDGE,
   MUSCLE_INK,
@@ -91,6 +92,25 @@ export default function PlanCalendarWeekScreen() {
   const mode = calendarDataMode();
   const weekInfo = mode === 'live' ? programWeekInfoFor(weekMondayIso) : null;
 
+  // Own the navigator's frozen Month|Week|Day bar while this screen is up
+  // (the 'PlanList' alias registers as 'week' too — same component).
+  const onScopeNavigate = useCallback(
+    (scope: CalendarScope) => {
+      if (scope === 'month') {
+        // Mirrors the header's "‹ Month": pop to the month beneath, or
+        // make it the root when this week is the tab's landing screen.
+        if (navigation.canGoBack()) navigation.goBack();
+        else navigation.reset({ index: 0, routes: [{ name: 'PlanCalendarMonth' }] });
+      } else if (scope === 'day') {
+        navigation.navigate('PlanCalendarDay', {
+          dateIso: isCurrentWeek(weekMondayIso) ? todayIso() : weekMondayIso,
+        });
+      }
+    },
+    [navigation, weekMondayIso],
+  );
+  useFrozenScopeBar('week', onScopeNavigate);
+
   // Pull-to-refresh: force a plan refetch; the spinner is time-boxed since
   // the store notifies via subscription rather than a promise.
   const [refreshing, setRefreshing] = useState(false);
@@ -140,6 +160,11 @@ export default function PlanCalendarWeekScreen() {
   });
 
   return (
+    // The navigator's frozen scope bar owns the wrapper's top strip — the
+    // scroll viewport starts below it. Padding on a plain wrapper, NOT margin
+    // on the ScrollView: RN-web applies a ScrollView style's margin to both
+    // of its nested divs, doubling the inset.
+    <View style={styles.frozenBarInset}>
     <GestureDetector gesture={swipe}>
     <ScrollView
       style={styles.container}
@@ -150,22 +175,6 @@ export default function PlanCalendarWeekScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />
       }
     >
-      <PlanCalendarScopeBar
-        active="week"
-        onNavigate={(scope) => {
-          if (scope === 'month') {
-            // Mirrors the header's "‹ Month": pop to the month beneath, or
-            // make it the root when this week is the tab's landing screen.
-            if (navigation.canGoBack()) navigation.goBack();
-            else navigation.reset({ index: 0, routes: [{ name: 'PlanCalendarMonth' }] });
-          } else if (scope === 'day') {
-            navigation.navigate('PlanCalendarDay', {
-              dateIso: isCurrentWeek(weekMondayIso) ? todayIso() : weekMondayIso,
-            });
-          }
-        }}
-      />
-
       {weekInfo?.state === 'in' && (
         <Text style={styles.contextLine}>
           Week {weekInfo.week} of {weekInfo.totalWeeks} · {weekInfo.planName}
@@ -296,6 +305,7 @@ export default function PlanCalendarWeekScreen() {
       )}
     </ScrollView>
     </GestureDetector>
+    </View>
   );
 }
 
@@ -309,6 +319,11 @@ function TodayPill({ styles }: { styles: ReturnType<typeof createStyles> }) {
 
 function createStyles(c: ColorPalette) {
   return StyleSheet.create({
+    frozenBarInset: {
+      flex: 1,
+      paddingTop: SCOPE_BAR_SPACE,
+      backgroundColor: c.background,
+    },
     container: {
       flex: 1,
       backgroundColor: c.background,

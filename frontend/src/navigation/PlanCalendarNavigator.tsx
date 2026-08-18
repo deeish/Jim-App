@@ -1,10 +1,11 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, text, useTheme, weight } from '../theme';
 import { nativeHeaderOptions } from './headerOptions';
+import { PlanCalendarScopeBarOverlay } from '../components/PlanCalendarScopeBarHost';
 import PlanCalendarMonthScreen from '../screens/PlanCalendarMonthScreen';
 import PlanCalendarWeekScreen from '../screens/PlanCalendarWeekScreen';
 import PlanCalendarDayScreen from '../screens/PlanCalendarDayScreen';
@@ -113,6 +114,9 @@ export default function PlanCalendarNavigator() {
   const nativeHeader = nativeHeaderOptions(colors);
 
   return (
+    // The overlay renders AFTER (above) the stack: the frozen Month|Week|Day
+    // bar the scope screens register into — see PlanCalendarScopeBarHost.
+    <View style={styles.host}>
     <Stack.Navigator
       initialRouteName="PlanCalendarWeek"
       screenOptions={{
@@ -230,5 +234,13 @@ export default function PlanCalendarNavigator() {
       <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
       <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
     </Stack.Navigator>
+    <PlanCalendarScopeBarOverlay />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  host: {
+    flex: 1,
+  },
+});

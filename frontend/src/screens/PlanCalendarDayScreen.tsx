@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -26,7 +26,8 @@ import {
 import { useTabBarInset } from '../navigation/useTabBarInset';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import PlanCalendarScopeBar from '../components/PlanCalendarScopeBar';
+import type { CalendarScope } from '../components/PlanCalendarScopeBar';
+import { SCOPE_BAR_SPACE, useFrozenScopeBar } from '../components/PlanCalendarScopeBarHost';
 import {
   GOLD,
   MUSCLE_COLORS,
@@ -96,6 +97,34 @@ export default function PlanCalendarDayScreen() {
   const { dateIso } = route.params;
   const plan = plannedDayForDate(dateIso);
   const date = fromIso(dateIso);
+
+  // Own the navigator's frozen Month|Week|Day bar while this screen is up.
+  const onScopeNavigate = useCallback(
+    (scope: CalendarScope) => {
+      if (scope === 'week') {
+        // Mirrors the header's "‹ Week": pop when the week is beneath,
+        // otherwise swap this day for its week in place.
+        const state = navigation.getState();
+        const prev = state.index > 0 ? state.routes[state.index - 1] : undefined;
+        if (prev?.name === 'PlanCalendarWeek' || prev?.name === 'PlanList') {
+          navigation.goBack();
+        } else {
+          navigation.replace('PlanCalendarWeek', {
+            weekMondayIso: toIso(mondayOf(fromIso(dateIso))),
+          });
+        }
+      } else if (scope === 'month') {
+        // Zoom all the way out: the month containing this day becomes
+        // the stack root (the canonical top of the hierarchy).
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'PlanCalendarMonth', params: { monthIso: dateIso } }],
+        });
+      }
+    },
+    [navigation, dateIso],
+  );
+  useFrozenScopeBar('day', onScopeNavigate);
 
   // A logged day must read as logged even when the app opens straight onto
   // it — without this only the MONTH screen ever fetched workout logs.
@@ -297,6 +326,11 @@ export default function PlanCalendarDayScreen() {
   );
 
   return (
+    // The navigator's frozen scope bar owns the wrapper's top strip — the
+    // scroll viewport starts below it. Padding on a plain wrapper, NOT margin
+    // on the ScrollView: RN-web applies a ScrollView style's margin to both
+    // of its nested divs, doubling the inset.
+    <View style={styles.frozenBarInset}>
     <GestureDetector gesture={swipe}>
     <ScrollView
       style={styles.container}
@@ -306,32 +340,6 @@ export default function PlanCalendarDayScreen() {
     >
       {/* Keyed by date so day-swipes cross-fade instead of hard-cutting. */}
       <Animated.View key={dateIso} entering={FadeIn.duration(200)} style={styles.dayPager}>
-      <PlanCalendarScopeBar
-        active="day"
-        onNavigate={(scope) => {
-          if (scope === 'week') {
-            // Mirrors the header's "‹ Week": pop when the week is beneath,
-            // otherwise swap this day for its week in place.
-            const state = navigation.getState();
-            const prev = state.index > 0 ? state.routes[state.index - 1] : undefined;
-            if (prev?.name === 'PlanCalendarWeek' || prev?.name === 'PlanList') {
-              navigation.goBack();
-            } else {
-              navigation.replace('PlanCalendarWeek', {
-                weekMondayIso: toIso(mondayOf(fromIso(dateIso))),
-              });
-            }
-          } else if (scope === 'month') {
-            // Zoom all the way out: the month containing this day becomes
-            // the stack root (the canonical top of the hierarchy).
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'PlanCalendarMonth', params: { monthIso: dateIso } }],
-            });
-          }
-        }}
-      />
-
       <Text style={styles.lede}>
         {plan.title} · {shortDate(date)} · {plan.exercises.length} exercises
         {doneCount > 0 && !allDone ? ` · ${doneCount} done` : ''}
@@ -588,11 +596,17 @@ export default function PlanCalendarDayScreen() {
       </Modal>
     </ScrollView>
     </GestureDetector>
+    </View>
   );
 }
 
 function createStyles(c: ColorPalette) {
   return StyleSheet.create({
+    frozenBarInset: {
+      flex: 1,
+      paddingTop: SCOPE_BAR_SPACE,
+      backgroundColor: c.background,
+    },
     container: {
       flex: 1,
       backgroundColor: c.background,

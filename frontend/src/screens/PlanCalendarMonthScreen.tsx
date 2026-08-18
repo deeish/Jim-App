@@ -8,7 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
 import ShareModal from '../components/ShareModal';
-import PlanCalendarScopeBar from '../components/PlanCalendarScopeBar';
+import type { CalendarScope } from '../components/PlanCalendarScopeBar';
+import { SCOPE_BAR_SPACE, useFrozenScopeBar } from '../components/PlanCalendarScopeBarHost';
 import {
   elevation,
   radius,
@@ -172,6 +173,21 @@ export default function PlanCalendarMonthScreen() {
 
   const livePlan = getLivePlan();
 
+  // Own the navigator's frozen Month|Week|Day bar while this screen is up.
+  const onScopeNavigate = useCallback(
+    (scope: CalendarScope) => {
+      if (scope === 'week') {
+        navigation.navigate('PlanCalendarWeek', {
+          weekMondayIso: toIso(mondayOf(new Date())),
+        });
+      } else if (scope === 'day') {
+        navigation.navigate('PlanCalendarDay', { dateIso: todayIso() });
+      }
+    },
+    [navigation],
+  );
+  useFrozenScopeBar('month', onScopeNavigate);
+
   // Header toolbar: liked (saved workouts) + share plan, next to "Calendar".
   const [savedVisible, setSavedVisible] = useState(false);
   const [shareVisible, setShareVisible] = useState(false);
@@ -245,6 +261,11 @@ export default function PlanCalendarMonthScreen() {
   }, []);
 
   return (
+    // The navigator's frozen scope bar owns the wrapper's top strip — the
+    // scroll viewport starts below it. Padding on a plain wrapper, NOT margin
+    // on the ScrollView: RN-web applies a ScrollView style's margin to both
+    // of its nested divs, doubling the inset.
+    <View style={styles.frozenBarInset}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: spacing.xxxl + tabBarInset }]}
@@ -254,21 +275,6 @@ export default function PlanCalendarMonthScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />
       }
     >
-      <View style={styles.scopeBarWrap}>
-        <PlanCalendarScopeBar
-          active="month"
-          onNavigate={(scope) => {
-            if (scope === 'week') {
-              navigation.navigate('PlanCalendarWeek', {
-                weekMondayIso: toIso(mondayOf(new Date())),
-              });
-            } else if (scope === 'day') {
-              navigation.navigate('PlanCalendarDay', { dateIso: todayIso() });
-            }
-          }}
-        />
-      </View>
-
       <View style={styles.monthRow}>
         <Text style={styles.monthTitle}>{monthLabel(month)}</Text>
         {!isCurrentMonth && (
@@ -454,20 +460,23 @@ export default function PlanCalendarMonthScreen() {
         />
       ) : null}
     </ScrollView>
+    </View>
   );
 }
 
 function createStyles(c: ColorPalette) {
   return StyleSheet.create({
+    frozenBarInset: {
+      flex: 1,
+      paddingTop: SCOPE_BAR_SPACE,
+      backgroundColor: c.background,
+    },
     container: {
       flex: 1,
       backgroundColor: c.background,
     },
     content: {
       padding: spacing.lg,
-    },
-    scopeBarWrap: {
-      marginBottom: spacing.lg,
     },
     monthRow: {
       flexDirection: 'row',

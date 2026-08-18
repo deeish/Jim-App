@@ -1,11 +1,9 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import {
   elevation,
   radius,
-  spacing,
   text,
   useTheme,
   weight,
@@ -19,15 +17,19 @@ const SEGMENTS: CalendarScope[] = ['month', 'week', 'day'];
 const LABELS: Record<CalendarScope, string> = { month: 'Month', week: 'Week', day: 'Day' };
 /** Inset between the segmented track and its sliding thumb. */
 const SEG_PAD = 2;
+/** Fixed track height — the overlay host and the screens' reserved top space
+ *  (SCOPE_BAR_SPACE) both build on it, so it must not float with font metrics. */
+export const SCOPE_BAR_HEIGHT = 36;
 
 /**
  * PROTOTYPE — the calendar's zoom control: a sliding Month | Week | Day
- * segmented bar rendered at the top of ALL THREE scope screens (the Photos
- * years/months/all pattern — the control persists across the levels it
- * switches, with the current level highlighted). The thumb slides, a
- * selection haptic ticks, then `onNavigate` fires so the slide is visible
- * before the screen changes. Coming back to a screen resets the thumb to
- * that screen's own scope.
+ * segmented bar. ONE instance is rendered by the navigator's overlay host
+ * (PlanCalendarScopeBarHost), frozen above the stack while the scope screens
+ * transition beneath it (the Photos years/months/all pattern). The thumb
+ * slides, a selection haptic ticks, then `onNavigate` fires so the slide is
+ * visible before the screen changes. `active` flips when a different scope
+ * screen takes focus (bar tap or any other navigation) and the thumb glides
+ * to it — the component instance persists, so no snap.
  */
 export default function PlanCalendarScopeBar({
   active,
@@ -50,15 +52,14 @@ export default function PlanCalendarScopeBar({
     transform: [{ translateX: thumbX.value }],
   }));
 
-  useFocusEffect(
-    useCallback(() => {
-      setSelected(activeIndex);
-      if (segW > 0) thumbX.value = withTiming(activeIndex * segW, { duration: 150 });
-      return () => {
-        if (timer.current) clearTimeout(timer.current);
-      };
-    }, [activeIndex, segW, thumbX]),
-  );
+  useEffect(() => {
+    setSelected(activeIndex);
+    if (segW > 0) thumbX.value = withTiming(activeIndex * segW, { duration: 150 });
+    return () => {
+      // A scope change while a tap's navigate is still pending cancels it.
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [activeIndex, segW, thumbX]);
 
   const select = (i: number) => {
     if (i === selected) return;
@@ -104,6 +105,7 @@ function createStyles(c: ColorPalette) {
     // segmented grey (no palette token exists for it — prototype-only).
     track: {
       flexDirection: 'row',
+      height: SCOPE_BAR_HEIGHT,
       backgroundColor: '#E4E4E9',
       borderRadius: radius.md,
     },
@@ -124,7 +126,6 @@ function createStyles(c: ColorPalette) {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: spacing.sm,
     },
     label: {
       ...sfPro,
