@@ -17,7 +17,6 @@ import {
 import { useTabBarInset } from '../navigation/useTabBarInset';
 import PlanCalendarScopeBar from '../components/PlanCalendarScopeBar';
 import {
-  MUSCLE_COLORS,
   MUSCLE_EDGE,
   MUSCLE_INK,
   addDays,
@@ -27,12 +26,14 @@ import {
   isCurrentWeek,
   isToday,
   mondayOf,
+  muscleGradient,
   sfPro,
   shortDate,
   todayIso,
   toIso,
   type PlanCalendarParamList,
 } from '../lib/planCalendarPrototype';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   calendarDataMode,
   consumeAnchorAutoJump,
@@ -266,15 +267,15 @@ export default function PlanCalendarWeekScreen() {
             </Text>
             <View style={styles.chipRow}>
               {muscles.map((m) => (
-                <View
+                <LinearGradient
                   key={m}
-                  style={[
-                    styles.chip,
-                    { backgroundColor: MUSCLE_COLORS[m], borderColor: MUSCLE_EDGE[m] },
-                  ]}
+                  colors={muscleGradient(m)}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.chip, { borderColor: MUSCLE_EDGE[m] }]}
                 >
                   <Text style={[styles.chipLabel, { color: MUSCLE_INK[m] }]}>{m}</Text>
-                </View>
+                </LinearGradient>
               ))}
             </View>
           </TouchableOpacity>
@@ -388,6 +389,8 @@ function createStyles(c: ColorPalette) {
       paddingVertical: spacing.xs,
       borderRadius: radius.pill,
       borderWidth: 1,
+      // Clips the gradient fill to the pill on every platform.
+      overflow: 'hidden',
     },
     chipLabel: {
       ...sfPro,

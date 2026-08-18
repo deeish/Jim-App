@@ -32,6 +32,7 @@ import {
   mondayOf,
   monthGrid,
   monthLabel,
+  muscleGradient,
   sfPro,
   todayIso,
   toIso,
@@ -353,11 +354,14 @@ export default function PlanCalendarMonthScreen() {
                   </View>
                   <View style={styles.dotsRow}>
                     {muscles.slice(0, MAX_DOTS).map((m) => (
-                      <View
+                      <LinearGradient
                         key={m}
+                        colors={muscleGradient(m)}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
                         style={[
                           styles.dot,
-                          { backgroundColor: MUSCLE_COLORS[m], borderColor: MUSCLE_EDGE[m] },
+                          { borderColor: MUSCLE_EDGE[m] },
                           !inMonth && styles.outMonthDot,
                           missed && styles.missedDot,
                         ]}
@@ -378,15 +382,15 @@ export default function PlanCalendarMonthScreen() {
       <Text style={styles.sectionLabel}>MUSCLE COLORS</Text>
       <View style={styles.legendCard}>
         {legend.map((m) => (
-          <View
+          <LinearGradient
             key={m}
-            style={[
-              styles.chip,
-              { backgroundColor: MUSCLE_COLORS[m], borderColor: MUSCLE_EDGE[m] },
-            ]}
+            colors={muscleGradient(m)}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.chip, { borderColor: MUSCLE_EDGE[m] }]}
           >
             <Text style={[styles.chipLabel, { color: MUSCLE_INK[m] }]}>{m}</Text>
-          </View>
+          </LinearGradient>
         ))}
       </View>
       </>
@@ -554,6 +558,8 @@ function createStyles(c: ColorPalette) {
       height: 5,
       borderRadius: radius.pill,
       borderWidth: StyleSheet.hairlineWidth,
+      // Clips the gradient fill to the circle on every platform.
+      overflow: 'hidden',
     },
     outMonthDot: {
       opacity: 0.35,
@@ -602,6 +608,8 @@ function createStyles(c: ColorPalette) {
       paddingVertical: spacing.xs,
       borderRadius: radius.pill,
       borderWidth: 1,
+      // Clips the gradient fill to the pill on every platform.
+      overflow: 'hidden',
     },
     chipLabel: {
       ...sfPro,

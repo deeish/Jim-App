@@ -76,8 +76,9 @@ export type PrototypeMuscle =
 
 /**
  * One vibrant hue per muscle — the SINGLE source of truth for every view
- * (week chips, month dots, day blocks, detail accents, replace picker),
- * always used as a SOLID fill. The mapping is the design spec verbatim
+ * (week chips, month dots, day blocks, detail accents, replace picker).
+ * Calendar surfaces render it through muscleGradient (the E2 Bright fade);
+ * the hue itself stays the spec value. The mapping is the design spec verbatim
  * (chest=salmon red, tris=pure orange, shoulders=light blue, back=lime
  * green, biceps=electric blue, quads=red, glutes=pink, hamstrings=purple,
  * calves=deep orange/coral, core=dark charcoal, cardio=white,
@@ -140,10 +141,12 @@ export const MUSCLE_EDGE: Record<PrototypeMuscle, string> = {
 };
 
 /**
- * Day-card gradient — the "E2 Bright" treatment Dylan picked from the
- * 2026-08-15 mockup rounds: the pure muscle colour fading lighter across
- * the card, no dark end. Ink stays MUSCLE_INK — the name sits on the
- * full-colour corner, exactly the surface the ink map was tuned for.
+ * The "E2 Bright" muscle gradient Dylan picked from the 2026-08-15 mockup
+ * rounds: the pure muscle colour fading lighter across the surface, no dark
+ * end. Started on the day cards, now the ONE treatment for every muscle
+ * fill on the calendar (day cards, week chips, month dots, legend). Ink
+ * stays MUSCLE_INK — text sits on the full-colour corner, exactly the
+ * surface the ink map was tuned for.
  */
 export function muscleGradient(m: PrototypeMuscle): [string, string] {
   return [MUSCLE_COLORS[m], mixWithWhite(MUSCLE_COLORS[m], 0.62)];
