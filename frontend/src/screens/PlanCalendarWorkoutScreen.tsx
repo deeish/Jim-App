@@ -40,6 +40,7 @@ import {
   buzzAllSetsComplete,
   buzzEditApplied,
   buzzSetComplete,
+  buzzTap,
   fromIso,
   sfPro,
   shortDate,
@@ -163,6 +164,16 @@ export default function PlanCalendarWorkoutScreen() {
 
   const logs = getSetLogs(dateIso, exerciseIndex);
 
+  // "Add another set" — session-scoped extras on top of the prescription
+  // (a burnout set today, not an edit to the plan). Extra sets flow into the
+  // day's workout log like any other; the button lives on the completed grid
+  // and only while the day's log hasn't been submitted (write-once).
+  const [extraSets, setExtraSets] = useState(0);
+  useEffect(() => {
+    setExtraSets(0);
+  }, [dateIso, exerciseIndex]);
+  const plannedSets = exercise ? exercise.sets + extraSets : 0;
+
   // Prevention nudge (the "finished workout on the wrong date" case): checking
   // sets on a FUTURE day while training now would date the log to that day.
   // Offer the clean fix BEFORE any set lands — only while today is open (an
@@ -195,11 +206,11 @@ export default function PlanCalendarWorkoutScreen() {
   const [restLeft, setRestLeft] = useState<number | null>(null);
   const prevLogged = useRef(logs.length);
   useEffect(() => {
-    if (exercise && logs.length > prevLogged.current && logs.length < exercise.sets) {
+    if (exercise && logs.length > prevLogged.current && logs.length < plannedSets) {
       setRestLeft(restSecondsOf(exercise.rest));
     }
     prevLogged.current = logs.length;
-  }, [logs.length, exercise]);
+  }, [logs.length, exercise, plannedSets]);
   useEffect(() => {
     if (restLeft == null) return;
     if (restLeft <= 0) {
@@ -222,7 +233,7 @@ export default function PlanCalendarWorkoutScreen() {
   }
 
   const color = MUSCLE_COLORS[exercise.muscle];
-  const allDone = logs.length >= exercise.sets;
+  const allDone = logs.length >= plannedSets;
   // A submitted session is closed — the deck never returns, even for sets a
   // partial finish skipped (the write-once log would silently ignore them).
   const dayLogged = isDayLogged(dateIso);
@@ -311,7 +322,10 @@ export default function PlanCalendarWorkoutScreen() {
           <TouchableOpacity
             style={[styles.statTile, styles.statTileResting]}
             activeOpacity={0.8}
-            onPress={() => setRestLeft(null)}
+            onPress={() => {
+              buzzTap();
+              setRestLeft(null);
+            }}
             accessibilityRole="button"
             accessibilityLabel="Dismiss rest timer"
           >
@@ -337,6 +351,7 @@ export default function PlanCalendarWorkoutScreen() {
 
       <Text style={styles.sectionLabel}>SET BREAKDOWN</Text>
       {showGrid ? (
+        <>
         <View style={styles.gridWrap}>
           {Array.from({ length: Math.max(exercise.sets, logs.length) }, (_, i) => {
             const log: SetLog | undefined = logs[i];
@@ -362,9 +377,30 @@ export default function PlanCalendarWorkoutScreen() {
             );
           })}
         </View>
+        {/* One more beyond the prescription — hidden once the day's log is
+            submitted (write-once: a set logged after submission could never
+            reach the server record). */}
+        {!dayLogged && (
+          <TouchableOpacity
+            style={styles.addSetRow}
+            activeOpacity={0.7}
+            onPress={() => {
+              setExtraSets((e) => e + 1);
+              buzzEditApplied();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Add another set"
+          >
+            <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+            <Text style={styles.addSetLabel}>Add another set</Text>
+          </TouchableOpacity>
+        )}
+        </>
       ) : (
         <SetDeck
-          exercise={exercise}
+          // The deck counts the session's planned sets — prescription plus
+          // any extras added this session.
+          exercise={{ ...exercise, sets: plannedSets }}
           completed={logs.length}
           styles={styles}
           colors={colors}
@@ -413,9 +449,10 @@ export default function PlanCalendarWorkoutScreen() {
           <TouchableOpacity
             style={[styles.row, styles.rowDivider]}
             activeOpacity={0.8}
-            onPress={() =>
-              navigation.navigate('ExerciseDetail', { exerciseId: exercise.exerciseId! })
-            }
+            onPress={() => {
+              buzzTap();
+              navigation.navigate('ExerciseDetail', { exerciseId: exercise.exerciseId! });
+            }}
             accessibilityRole="button"
             accessibilityLabel="Open exercise guide"
           >
@@ -699,6 +736,24 @@ function createStyles(c: ColorPalette) {
       ...sfPro,
       fontSize: text.body,
       color: c.textMuted,
+    },
+    addSetRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: c.border,
+      borderRadius: radius.md,
+      paddingVertical: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    addSetLabel: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      color: c.primary,
     },
     todayNudgeWrap: {
       marginBottom: spacing.md,
