@@ -24,6 +24,42 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  // The card for the NEXT release (nothing after build 25 has shipped yet).
+  // Headline: Quick Workout. Before distribution this card should absorb the
+  // rest of the unreleased work on this branch (dark mode, missed day rescue,
+  // haptics everywhere, add another set) so the build ships ONE card.
+  {
+    id: '2026-08-19',
+    version: '1.1.0',
+    date: '2026-08-19',
+    title: 'Quick Workout',
+    changes: [
+      {
+        type: 'new',
+        text: 'Quick Workout: on a day with nothing scheduled, tap the muscles you want to train and get a complete session instantly. No plan needed.',
+      },
+      {
+        type: 'new',
+        text: 'Pick a goal and the whole session adapts: strength, muscle, endurance, and general fitness each change the exercises, sets, reps, and rest.',
+      },
+      {
+        type: 'new',
+        text: 'Tell it what equipment you have and every pick fits. A dumbbell-only session at home works as well as a full gym.',
+      },
+      {
+        type: 'improved',
+        text: 'Sessions are ordered the way a coach would run them: big lifts first while you are fresh, smaller work after, core at the end.',
+      },
+      {
+        type: 'improved',
+        text: 'Come back tomorrow and the accessories rotate for variety while your main lifts stay consistent.',
+      },
+      {
+        type: 'improved',
+        text: 'Beginner sessions stick to friendlier exercises with a volume you can recover from.',
+      },
+    ],
+  },
   // One entry covering the whole Calendar release for the Friends/Family
   // group: external testers last received the 2026-08-13 update (build 18 +
   // OTA), so the former 2026-08-14, 2026-08-15 and 2026-08-16 cards were
