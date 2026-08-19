@@ -387,7 +387,23 @@ const ACCESSORY_FAMILIES = new Set<QuickFamily>([
  * pool still fills — but rank behind every conventional alternative.
  */
 const QUIRK_RE =
-  /lateral lunge|side lunge|cossack|bird[- ]dog|wrist roller|sandbag|table[- ]|slider leg curl|dumbbell leg curl|stability ball leg curl|^glute bridge$|copenhagen|bench dip|sit[- ]up|dumbbell seated calf|kettlebell seated calf/i;
+  /lateral lunge|side lunge|cossack|lateral step[- ]up|crossover step[- ]up|bird[- ]dog|wrist roller|sandbag|table[- ]|slider leg curl|dumbbell leg curl|stability ball leg curl|^glute bridge$|copenhagen|bench dip|sit[- ]up|dumbbell seated calf|kettlebell seated calf/i;
+
+/** Beginner anchors are the plain patterns: incline/decline variants teach
+ *  angles before the base movement is grooved, so they rank last for novices
+ *  without being blocked outright. */
+const BEGINNER_DEMOTE_RE = /incline|decline/i;
+
+/** Unsupported, heavily-loadable rows (T-bar, bent-over, Pendlay, any
+ *  barbell-loaded row): the erectors are the limiting tissue, so one per
+ *  session — the second row must be chest-supported, cable, or machine. */
+function isHeavyRowRow(e: TransformedExercise): boolean {
+  return (
+    familyOf(e) === 'hrow' &&
+    (primaryEquip(e).includes('Barbell') ||
+      /t[- ]bar|bent[- ]over|pendlay/i.test(e.name))
+  );
+}
 
 /**
  * High-skill barbell lifts a BEGINNER session must not open with (the pool
@@ -426,10 +442,16 @@ function sameTokenSet(a: Set<string>, b: Set<string>): boolean {
 // ---------------------------------------------------------------------------
 
 const ARCHETYPES: Record<Exclude<QuickMuscle, 'Cardio'>, QuickFamily[][]> = {
-  Chest: [['hpress'], ['hpress', 'fly'], ['fly', 'dip'], ['dip', 'hpress']],
+  // Dip before fly on a 4-slot day: with the lower-pec dip already placed,
+  // the fly slot's freshness scoring stops defaulting to a THIRD
+  // lower-chest movement (decline fly after flat bench + dips).
+  Chest: [['hpress'], ['hpress', 'fly'], ['dip', 'fly'], ['fly', 'dip']],
+  // The heavy row is Back's ANCHOR: it opens the session while the erectors
+  // and grip are fresh, and it repeats week to week like a real program's
+  // main lift; the vertical pull rotates behind it.
   Back: [
-    ['vpull', 'hrow'],
     ['hrow', 'vpull'],
+    ['vpull', 'hrow'],
     ['latiso', 'hrow', 'vpull'],
     ['hrow', 'vpull', 'shrug'],
   ],
@@ -593,12 +615,13 @@ function usesStatedEquipment(
   return primaryEquip(e).some((eq) => stated.has(eq));
 }
 
-/** Stable quality sort: stated-equipment → non-quirk → tier → compound-first
- *  → common. */
+/** Stable quality sort: stated-equipment → non-quirk → non-demoted → tier →
+ *  compound-first → common. */
 function rankPool(
   pool: TransformedExercise[],
   compoundsFirst: boolean,
   stated?: Set<string>,
+  demote?: RegExp,
 ): TransformedExercise[] {
   return [...pool].sort((a, b) => {
     if (stated && stated.size > 0) {
@@ -609,6 +632,10 @@ function rankPool(
     }
     const q = Number(QUIRK_RE.test(a.name)) - Number(QUIRK_RE.test(b.name));
     if (q !== 0) return q;
+    if (demote) {
+      const d = Number(demote.test(a.name)) - Number(demote.test(b.name));
+      if (d !== 0) return d;
+    }
     const t = tierRank(a.id) - tierRank(b.id);
     if (t !== 0) return t;
     if (compoundsFirst) {
@@ -642,19 +669,12 @@ export function allocate(muscles: QuickMuscle[]): Map<QuickMuscle, number> {
   const perMuscleCap = muscles.length === 1 ? 4 : 3;
   let remaining = sessionBudget(muscles.length) - muscles.length;
   for (const m of muscles) counts.set(m, 1);
-  // Extras go to LARGE muscles in coach order (Back first — its extra slot
-  // buys a vertical + horizontal pull pair, the highest-value doubling on
-  // any multi-muscle day), then small muscles, then Core.
-  const largeOrder: QuickMuscle[] = [
-    'Back',
-    'Quads',
-    'Shoulders',
-    'Chest',
-    'Hamstrings',
-    'Glutes',
-  ];
+  // Extras go to LARGE muscles in TAP order — the muscle the user picked
+  // first is the session's priority, and the set allocation has to honor
+  // that (a "Chest, Back +3 more" day must not give chest the least work).
+  // Then small muscles, then Core.
   const priority = [
-    ...largeOrder.filter((m) => muscles.includes(m)),
+    ...muscles.filter((m) => LARGE_MUSCLES.has(m)),
     ...muscles.filter(
       (m) => !LARGE_MUSCLES.has(m) && m !== 'Core' && m !== 'Cardio',
     ),
@@ -740,11 +760,25 @@ function applyRepPolicy(
       band(endurance ? 15 : 12, endurance ? 20 : 15);
       sets = Math.min(sets, 3);
       break;
-    case 'wrist':
     case 'calf':
-    case 'calfseated':
-      band(endurance ? 15 : 12, endurance ? 20 : 15);
+      // Standing raises train the gastroc — loads well at 8-12.
+      band(endurance ? 15 : 8, endurance ? 20 : 12);
       sets = Math.min(sets, 3);
+      break;
+    case 'calfseated':
+      // Seated raises train the slow-twitch soleus — it lives at 15+.
+      band(15, 20);
+      sets = Math.min(sets, 3);
+      break;
+    case 'wrist':
+      // Wrist work's whole value is above 15 reps.
+      band(15, 20);
+      sets = Math.min(sets, 3);
+      break;
+    case 'curl':
+      // The barbell curl is the LOADABLE curl — one heavy elbow-flexion
+      // slot per arm day instead of two pump-range twins.
+      if (primaryEquip(e).includes('Barbell') && repsMin >= 12) band(8, 12);
       break;
     case 'hrow':
       // Dead-stop/hinged barbell rows exist for low reps — the erectors fail
@@ -768,6 +802,15 @@ function applyRepPolicy(
   if (/rollout|ab wheel/i.test(e.name)) band(6, 10);
   // Assisted machines subtract load — they cannot express low-rep strength.
   if (/assisted/i.test(e.name) && repsMin < 8) band(8, 12);
+  // Heavy dumbbell pressing below 8 reps is a bell-into-position problem
+  // (and a no-spotter problem), not a strength stimulus.
+  if (
+    (family === 'hpress' || family === 'opress') &&
+    primaryEquip(e).includes('Dumbbell') &&
+    repsMin < 8
+  ) {
+    band(8, 10);
+  }
 
   if (isFixedLoad(e) && (e.prescriptionType as string) !== 'time') {
     // Windows a human can actually complete for bodyweight-loaded rows.
@@ -874,6 +917,8 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
     muscle: QuickMuscle;
     family: QuickFamily;
     compound: boolean;
+    /** The muscle's slot-0 pick — stable across seeds, leads its block. */
+    anchor: boolean;
   };
   const picks: Pick[] = [];
 
@@ -923,6 +968,12 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
     // pulls (the hinge slot falls to an RDL), and vice versa.
     if (isHeavyHinge(e) && familyCount('squat') > 0) return true;
     if (fam === 'squat' && picks.some((p) => isHeavyHinge(p.exercise))) {
+      return true;
+    }
+    // Likewise ONE unsupported barbell row: a T-bar row followed by a
+    // close-grip barbell row is six straight heavy sets ended by the lower
+    // back, not the lats.
+    if (isHeavyRowRow(e) && picks.some((p) => isHeavyRowRow(p.exercise))) {
       return true;
     }
     return familyCount(fam) >= familyCap(fam);
@@ -1006,7 +1057,12 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
         if (pool.length === 0) break;
       }
 
-      const ranked = rankPool(pool, true, stated);
+      const ranked = rankPool(
+        pool,
+        true,
+        stated,
+        beginner ? BEGINNER_DEMOTE_RE : undefined,
+      );
       let chosen: TransformedExercise;
       if (taken === 0) {
         // The muscle's anchor: best row of its lead archetype, no rotation —
@@ -1021,11 +1077,14 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
           if (!sharesAny(primaryEquip(e), usedEquipment)) score += 1;
           return score;
         };
-        const best = Math.max(...ranked.map(freshScore));
-        const contenders = ranked.filter((e) => freshScore(e) >= best - 1);
-        // Quirk rows never rotate in unless they are all that's left.
-        const clean = contenders.filter((e) => !QUIRK_RE.test(e.name));
-        const band = tierBand(clean.length > 0 ? clean : contenders);
+        // Quirk rows are excluded from scoring outright unless they are all
+        // that's left — their unusual sub-muscles otherwise win the novelty
+        // score and smuggle them past the rank demotion.
+        const nonQuirk = ranked.filter((e) => !QUIRK_RE.test(e.name));
+        const basis = nonQuirk.length > 0 ? nonQuirk : ranked;
+        const best = Math.max(...basis.map(freshScore));
+        const contenders = basis.filter((e) => freshScore(e) >= best - 1);
+        const band = tierBand(contenders);
         chosen = band[(seed + taken) % band.length]!;
       }
 
@@ -1039,6 +1098,7 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
         muscle,
         family: fam,
         compound: isCompound(chosen),
+        anchor: taken === 0,
       });
       taken++;
     }
@@ -1048,27 +1108,84 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
   // big compounds, smaller compounds, isolation, rear-delt/prehab after the
   // heavy pressing it protects, Core late, grip-destroyers (hangs, carries)
   // after everything grip-dependent, Cardio last.
+  const hasSquatPick = picks.some((p) => p.family === 'squat');
   const orderClass = (p: Pick): number => {
+    // Wrist work after hangs/carries: the hang is the harder grip task and
+    // needs fresh flexors; hangs themselves come after grip-dependent Core.
+    if (p.family === 'wrist') return 7;
     if (p.family === 'hang' || p.family === 'carry') return 6;
     if (p.muscle === 'Core') return 5;
     if (p.family === 'rdelt' || p.family === 'shrug') return 4;
-    if (p.family === 'deadlift' || p.family === 'squat') return 0;
+    if (p.family === 'squat') return 0;
+    // A hinge sharing the day with a squat drops into the compound block so
+    // a non-axial movement lands between them — the erectors get a break
+    // instead of eight consecutive axially-loaded sets.
+    if (p.family === 'deadlift') return hasSquatPick ? 1 : 0;
     const accessory = ACCESSORY_FAMILIES.has(p.family) || !p.compound;
     if (accessory) return 3;
     if (LARGE_MUSCLES.has(p.muscle)) return 1;
     return 2;
   };
+  // Within the compound block, the heaviest lumbar/grip demand goes first:
+  // an unsupported barbell row or a pull-up never sits behind a machine
+  // pulldown done at pump reps.
+  const loadRank = (p: Pick): number =>
+    isHeavyRowRow(p.exercise) ||
+    (p.family === 'vpull' && isFixedLoad(p.exercise))
+      ? 0
+      : 1;
   const muscleOrder = new Map<QuickMuscle, number>(
     strengthMuscles.map((m, i) => [m, i]),
   );
   picks.sort((a, b) => {
     const c = orderClass(a) - orderClass(b);
     if (c !== 0) return c;
+    if (orderClass(a) === 1) {
+      // Stable anchors lead their block; then the heaviest remaining
+      // lumbar/grip demands; rotating picks never open a session. A hinge
+      // demoted here to escape the squat's back-to-back axial loading gets
+      // no anchor boost — it belongs mid-session, after a non-axial break.
+      const boost = (p: Pick): number =>
+        p.anchor && p.family !== 'deadlift' ? 0 : 1;
+      const anch = boost(a) - boost(b);
+      if (anch !== 0) return anch;
+      const h = loadRank(a) - loadRank(b);
+      if (h !== 0) return h;
+    }
     const m =
       (muscleOrder.get(a.muscle) ?? 0) - (muscleOrder.get(b.muscle) ?? 0);
     if (m !== 0) return m;
     return tierRank(a.exercise.id) - tierRank(b.exercise.id);
   });
+
+  // Adjacency pass: within the big-compound block, alternate movement
+  // families where possible so consecutive lifts don't fail on the same
+  // tissue (bench → OHP → incline, never three straight horizontal presses).
+  {
+    const reordered: Pick[] = [];
+    let i = 0;
+    while (i < picks.length) {
+      const cls = orderClass(picks[i]!);
+      let j = i;
+      while (j < picks.length && orderClass(picks[j]!) === cls) j++;
+      const block = picks.slice(i, j);
+      if (cls === 1 && block.length > 2) {
+        const rest = [...block];
+        const ordered: Pick[] = [rest.shift()!];
+        while (rest.length > 0) {
+          const prevFam = ordered[ordered.length - 1]!.family;
+          const k = rest.findIndex((p) => p.family !== prevFam);
+          ordered.push(k === -1 ? rest.shift()! : rest.splice(k, 1)[0]!);
+        }
+        reordered.push(...ordered);
+      } else {
+        reordered.push(...block);
+      }
+      i = j;
+    }
+    picks.length = 0;
+    picks.push(...reordered);
+  }
 
   // Roles → prescriptions. First LOADABLE compound overall is THE anchor;
   // accessory families prescribe as isolation whatever the catalog's type.
@@ -1096,6 +1213,11 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
       // each turn a strength day into an unrecoverable 20-set press dump.
       sets = 3;
     }
+    if (role === 'secondary_compound' && beginner) {
+      // A novice's limiting factor is recovery and motor learning, not
+      // volume: 2 sets per secondary movement, frequency does the rest.
+      sets = 2;
+    }
     if (role === 'primary_compound' && goalKey === 'hypertrophy') {
       // Every session keeps ONE mechanical-tension anchor — a hypertrophy
       // day where nothing goes below 10 reps has no heavy stimulus at all.
@@ -1105,7 +1227,8 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
     if (role === 'isolation') {
       // Two-set isolation is a placebo dose, and low-rep isolation loads a
       // small muscle in a range that punishes the joint for no return.
-      sets = Math.max(sets, 3);
+      // (Beginners keep the lighter scheme dose.)
+      sets = Math.max(sets, beginner ? 2 : 3);
       if (goalKey === 'strength' && repsMin < 10) {
         repsMin = 10;
         repsMax = 15;
@@ -1123,10 +1246,12 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
     });
     // A 10-15 band lets a trainee add 50% more reps without ever touching
     // the load — that quietly kills double progression. Outside endurance
-    // work, high-rep bands stay tight enough to progress on.
+    // work, mid-range bands stay tight enough to progress on; deliberate
+    // high-rep specialist work (15+: soleus, wrist) keeps its width.
     if (
       goalKey !== 'endurance' &&
       rx.repsMin >= 10 &&
+      rx.repsMin < 15 &&
       rx.repsMax - rx.repsMin > 3
     ) {
       rx.repsMax = rx.repsMin + 2;
@@ -1148,24 +1273,25 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
   // SECONDARY COMPOUND sets first (a fourth set of the third press is the
   // cheapest set in the session) down to 3, and only then shave isolation
   // work toward 2 — never gut the accessories to protect press volume.
-  // Per-muscle ceiling: past ~12 hard sets on one muscle in one session the
+  // Per-muscle ceiling: past ~13 hard sets on one muscle in one session the
   // extra sets buy recovery cost, not stimulus — a solo Chest day must not
-  // become 15 sets of pressing. Trim later rows first, compounds before
-  // gutting the accessories (floor 2).
+  // become 15 sets of pressing. Trim secondary compounds first (a fourth
+  // set of the third press is the cheapest set in the session); isolation
+  // keeps its 3-set dose — a 2-set fly is not a prescription.
   for (const muscle of strengthMuscles) {
     const mine = rows.filter((r) => r.pick.muscle === muscle);
     const muscleSets = () => mine.reduce((n, r) => n + r.rx.sets, 0);
-    let shaved = true;
-    while (muscleSets() > 12 && shaved) {
-      shaved = false;
-      for (let i = mine.length - 1; i >= 0 && muscleSets() > 12; i--) {
-        const r = mine[i]!;
-        const floor = r.role === 'primary_compound' ? 4 : 2;
-        if (r.rx.sets > floor) {
-          r.rx.sets--;
-          shaved = true;
-        }
+    const shave = (pass: (r: (typeof rows)[number]) => boolean): void => {
+      for (let i = mine.length - 1; i >= 0 && muscleSets() > 13; i--) {
+        if (pass(mine[i]!)) mine[i]!.rx.sets--;
       }
+    };
+    let guard = 0;
+    while (muscleSets() > 13 && guard++ < 8) {
+      shave((r) => r.role === 'secondary_compound' && r.rx.sets > 3);
+      shave((r) => r.role === 'primary_compound' && r.rx.sets > 4);
+      shave((r) => r.role === 'isolation' && r.rx.sets > 3);
+      shave((r) => r.rx.sets > 2);
     }
   }
 
@@ -1271,10 +1397,10 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
       seconds += r.rx.sets * (hold + 45);
     } else {
       // Unilateral rows run both sides — each "set" is two bouts.
-      const work = isUnilateral(r.pick.exercise.name) ? 75 : 40;
+      const work = isUnilateral(r.pick.exercise.name) ? 80 : 45;
       seconds += r.rx.sets * (work + r.rx.restSeconds);
     }
-    seconds += 90; // find the station, set up, warm-up feel
+    seconds += 120; // find the station, set up, ramp the first sets
   });
   seconds += cardioSeconds;
   const durationMinutes = Math.max(15, Math.round(seconds / 60 / 5) * 5);

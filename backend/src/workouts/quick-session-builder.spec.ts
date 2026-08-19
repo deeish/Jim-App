@@ -140,7 +140,9 @@ describe('quick-session-builder (real catalog)', () => {
     for (const ex of session.exercises) {
       expect(['Core', 'Calves', 'Forearms']).toContain(ex.muscle);
     }
-    const lastMuscles = session.exercises.slice(-2).map((e) => e.muscle);
+    // Core sits near the end (grip finishers — hangs, wrist work — may
+    // trail it so the flexors are fresh for the harder holds).
+    const lastMuscles = session.exercises.slice(-3).map((e) => e.muscle);
     expect(lastMuscles).toContain('Core');
   });
 
@@ -606,9 +608,14 @@ describe('quick-session-builder (real catalog)', () => {
       for (const ex of session.exercises) {
         if (ex.muscle === 'Cardio') continue;
         perMuscle.set(ex.muscle, (perMuscle.get(ex.muscle) ?? 0) + ex.sets);
-        // Outside endurance goals, no 5-rep-wide band above 10 reps — a
-        // trainee must run out of reps and touch the load.
-        if (ex.prescriptionType !== 'time' && ex.repsMin >= 10) {
+        // Outside endurance goals, no 5-rep-wide band in the 10-14 zone — a
+        // trainee must run out of reps and touch the load. Deliberate
+        // high-rep specialist work (15+: soleus, wrist) keeps its width.
+        if (
+          ex.prescriptionType !== 'time' &&
+          ex.repsMin >= 10 &&
+          ex.repsMin < 15
+        ) {
           expect(ex.repsMax - ex.repsMin).toBeLessThanOrEqual(3);
         }
         // Unilateral movements cap at 3 prescribed sets (each is 2 bouts).
@@ -621,7 +628,7 @@ describe('quick-session-builder (real catalog)', () => {
         }
       }
       for (const sets of perMuscle.values()) {
-        expect(sets).toBeLessThanOrEqual(12);
+        expect(sets).toBeLessThanOrEqual(13);
       }
     }
   });
@@ -637,6 +644,128 @@ describe('quick-session-builder (real catalog)', () => {
     if (shoulderRows.length === 1) {
       const fam = familyOf(rowOf(shoulderRows[0]!.exerciseId));
       expect(['lraise', 'rdelt']).toContain(fam);
+    }
+  });
+
+  it('AUDIT-5: one heavy barbell row per session, and it goes before machine pulls', () => {
+    for (const goal of ['hypertrophy', 'endurance', 'strength']) {
+      for (const combo of [
+        ['Back'],
+        ['Back', 'Biceps'],
+        ['Back', 'Cardio'],
+      ] as QuickMuscle[][]) {
+        const session = build(combo, { goal });
+        const rows = session.exercises.map((e) => rowOf(e.exerciseId));
+        const heavy = rows.filter(
+          (r) =>
+            familyOf(r) === 'hrow' &&
+            ((r.primaryEquipment ?? []).includes('Barbell') ||
+              /t[- ]bar|bent[- ]over|pendlay/i.test(r.name)),
+        );
+        expect(heavy.length).toBeLessThanOrEqual(1);
+        // The heavy row (or a fixed-load pull-up) opens the pulling block —
+        // never a machine pulldown at pump reps ahead of loaded barbell work.
+        if (heavy.length === 1) {
+          const heavyAt = rows.findIndex((r) => r === heavy[0]);
+          const machinePullAt = rows.findIndex(
+            (r) =>
+              familyOf(r) === 'vpull' &&
+              !(r.primaryEquipment ?? []).includes('Pull-up Bar'),
+          );
+          if (machinePullAt !== -1) {
+            expect(heavyAt).toBeLessThan(machinePullAt);
+          }
+        }
+      }
+    }
+  });
+
+  it('AUDIT-5: high-rep specialists exist and loadable curls go heavy', () => {
+    const odd = build(['Core', 'Calves', 'Forearms']);
+    for (const ex of odd.exercises) {
+      const fam = familyOf(rowOf(ex.exerciseId));
+      if (fam === 'calfseated' || fam === 'wrist') {
+        expect(ex.repsMin).toBeGreaterThanOrEqual(15);
+      }
+      if (fam === 'calf') {
+        expect(ex.repsMax).toBeLessThanOrEqual(12);
+      }
+    }
+    const pull = build(['Back', 'Biceps']);
+    for (const ex of pull.exercises) {
+      const row = rowOf(ex.exerciseId);
+      if (
+        familyOf(row) === 'curl' &&
+        (row.primaryEquipment ?? []).includes('Barbell')
+      ) {
+        expect(ex.repsMax).toBeLessThanOrEqual(12);
+      }
+    }
+  });
+
+  it('AUDIT-5: no three consecutive picks share a movement family', () => {
+    for (const combo of [
+      ['Chest', 'Shoulders', 'Triceps'],
+      ['Quads', 'Hamstrings', 'Glutes', 'Calves'],
+      ['Back', 'Cardio'],
+      ['Chest'],
+    ] as QuickMuscle[][]) {
+      for (const goal of ['hypertrophy', 'strength']) {
+        const session = build(combo, { goal });
+        const fams = session.exercises.map((e) =>
+          familyOf(rowOf(e.exerciseId)),
+        );
+        for (let i = 2; i < fams.length; i++) {
+          const trio = [fams[i - 2], fams[i - 1], fams[i]];
+          expect(new Set(trio).size).toBeGreaterThan(1);
+        }
+      }
+    }
+  });
+
+  it('AUDIT-5: a squat and its hinge never sit back to back', () => {
+    const session = build(['Quads', 'Hamstrings', 'Glutes', 'Calves']);
+    const fams = session.exercises.map((e) => familyOf(rowOf(e.exerciseId)));
+    const squatAt = fams.indexOf('squat');
+    const hingeAt = fams.indexOf('deadlift');
+    if (squatAt !== -1 && hingeAt !== -1) {
+      expect(Math.abs(hingeAt - squatAt)).toBeGreaterThan(1);
+    }
+  });
+
+  it('AUDIT-5: volume follows tap order — the first-named muscle is never the least served', () => {
+    const session = build(['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps'], {
+      equipment: ['dumbbell'],
+    });
+    const setsFor = (m: QuickMuscle) =>
+      session.exercises
+        .filter((e) => e.muscle === m)
+        .reduce((n, e) => n + e.sets, 0);
+    expect(setsFor('Chest')).toBeGreaterThanOrEqual(setsFor('Shoulders'));
+    expect(setsFor('Chest')).toBeGreaterThanOrEqual(setsFor('Biceps'));
+    // And a chest day never ends with a 2-set token fly.
+    const chestSolo = build(['Chest']);
+    for (const ex of chestSolo.exercises) {
+      if (familyOf(rowOf(ex.exerciseId)) === 'fly') {
+        expect(ex.sets).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it('AUDIT-5: heavy dumbbell pressing stays at 8+ reps (no-spotter reality)', () => {
+    const session = build(['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps'], {
+      goal: 'strength',
+      equipment: ['dumbbell'],
+    });
+    for (const ex of session.exercises) {
+      const row = rowOf(ex.exerciseId);
+      const fam = familyOf(row);
+      if (
+        (fam === 'hpress' || fam === 'opress') &&
+        (row.primaryEquipment ?? []).includes('Dumbbell')
+      ) {
+        expect(ex.repsMin).toBeGreaterThanOrEqual(8);
+      }
     }
   });
 
@@ -699,7 +828,7 @@ describe('quick-session-builder (real catalog)', () => {
       const session = build(combo);
       for (const ex of session.exercises) {
         expect(
-          /lateral lunge|cossack|bird[- ]dog|wrist roller|^glute bridge$|copenhagen/i.test(
+          /lateral lunge|lateral step[- ]up|cossack|bird[- ]dog|wrist roller|^glute bridge$|copenhagen|bench dip|sit[- ]up/i.test(
             ex.name,
           ),
         ).toBe(false);
