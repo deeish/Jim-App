@@ -321,7 +321,7 @@ const styles = { ...staticStyles, ...layoutStyles };
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootNavigatorParamList>>();
-  const { colors } = useTheme();
+  const { colors, mode, setMode } = useTheme();
   const { user, signOut } = useAuth();
   const {
     hydrated: prefsHydrated,
@@ -713,6 +713,63 @@ export default function ProfileScreen() {
             colors={colors}
             showChevron
           />
+        </View>
+
+        <SectionHeader title="Appearance" colors={colors} />
+        <View style={[styles.sectionCard, themedStyles.sectionCard]}>
+          <View style={styles.weightRow}>
+            <View style={styles.weightRowLabelCol}>
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Theme</Text>
+            </View>
+            <View
+              style={[styles.weightSegment, { borderColor: colors.border }]}
+              accessibilityRole="radiogroup"
+              accessibilityLabel="App theme"
+            >
+              <TouchableOpacity
+                style={[
+                  styles.weightSegmentBtn,
+                  {
+                    backgroundColor: mode === 'light' ? colors.primary : colors.background,
+                  },
+                ]}
+                onPress={() => setMode('light')}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: mode === 'light' }}
+                accessibilityLabel="Light theme"
+              >
+                <Text
+                  style={[
+                    styles.weightSegmentBtnText,
+                    { color: mode === 'light' ? colors.onPrimary : colors.textSecondary },
+                  ]}
+                >
+                  Light
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.weightSegmentBtn,
+                  {
+                    backgroundColor: mode === 'dark' ? colors.primary : colors.background,
+                  },
+                ]}
+                onPress={() => setMode('dark')}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: mode === 'dark' }}
+                accessibilityLabel="Dark theme"
+              >
+                <Text
+                  style={[
+                    styles.weightSegmentBtnText,
+                    { color: mode === 'dark' ? colors.onPrimary : colors.textSecondary },
+                  ]}
+                >
+                  Dark
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         <SectionHeader title="Sharing" colors={colors} />

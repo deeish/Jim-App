@@ -101,12 +101,12 @@ export default function PlanCalendarScopeBar({
 
 function createStyles(c: ColorPalette) {
   return StyleSheet.create({
-    // iOS segmented-control geometry; the track tone is the standard system
-    // segmented grey (no palette token exists for it — prototype-only).
+    // iOS segmented-control geometry; the track tone is the `segmentTrack`
+    // token (system segmented grey on light, elevated charcoal on Blackout).
     track: {
       flexDirection: 'row',
       height: SCOPE_BAR_HEIGHT,
-      backgroundColor: '#E4E4E9',
+      backgroundColor: c.segmentTrack,
       borderRadius: radius.md,
     },
     thumb: {

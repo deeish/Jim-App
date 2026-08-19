@@ -1453,11 +1453,10 @@ export default function SearchScreen({ navigation }: Props) {
           paddingHorizontal: spacing.lg,
         },
         // Recommended scope bar — iOS segmented-control geometry; the track
-        // tone is the standard system segmented grey (same hardcode as the
-        // calendar's scope bar; no palette token exists for it).
+        // tone is the `segmentTrack` token (shared with the calendar's bar).
         scopeTrack: {
           flexDirection: 'row',
-          backgroundColor: '#E4E4E9',
+          backgroundColor: colors.segmentTrack,
           borderRadius: radius.md,
           marginTop: spacing.md,
         },
