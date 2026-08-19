@@ -51,6 +51,7 @@ import {
   createWorkout,
   getWorkoutLogs,
   materializePlanSlotWorkout,
+  type QuickSession,
 } from '../services/workoutService';
 import { getExerciseById, type Exercise as CatalogExercise } from '../services/exerciseService';
 import type { Workout } from '../types/workout';
@@ -67,6 +68,9 @@ function slotKey(dateIso: string, exerciseIndex: number): string {
 const replacements = new Map<string, PlannedExercise>();
 /** dateIso → exercises appended after the day's base list ("+ Add Exercise"). */
 const additions = new Map<string, PlannedExercise[]>();
+/** dateIso → title for a session-local custom day (quick workouts without a
+ *  plan would otherwise all read "Custom Workout"). */
+const customDayTitles = new Map<string, string>();
 const setLogs = new Map<string, SetLog[]>();
 const listeners = new Set<() => void>();
 
@@ -540,7 +544,11 @@ export function plannedDayForDate(dateIso: string): PlannedDay {
     exercises = [...exercises, ...added];
     // Exercises added onto a rest day turn it into a session.
     if (base.exercises.length === 0) {
-      return { ...base, title: 'Custom Workout', exercises };
+      return {
+        ...base,
+        title: customDayTitles.get(dateIso) ?? 'Custom Workout',
+        exercises,
+      };
     }
   }
   return { ...base, exercises };
@@ -881,6 +889,88 @@ export async function commitMoves(pending: PendingMove[]): Promise<void> {
   ].slice(-MOVED_RECORDS_CAP);
   scheduleSessionSave();
   emit();
+}
+
+/**
+ * Land a Quick Workout session on TODAY.
+ *
+ * With a live plan inside its program: a REAL slot is added for today
+ * (persisted, movable via Make Room, loggable via the materialize path).
+ * Otherwise — no plan, or today past the program's end / before its anchor —
+ * the session uses the same session-local custom-day path "+ Add Exercise"
+ * uses, so logging mints the ad-hoc workout. (Out-of-program persistence is
+ * deliberately avoided: a slot beyond max(weekNumber) would silently grow
+ * "Week N of M", and a pre-anchor slot cannot exist below weekNumber 1.)
+ */
+export async function addQuickSessionToday(session: QuickSession): Promise<string> {
+  const today = todayIso();
+  const todayMondayIso = toIso(mondayOf(fromIso(today)));
+  const weekInfo =
+    liveStatus === 'ready' && livePlan ? programWeekInfoFor(todayMondayIso) : null;
+
+  if (livePlan && weekInfo?.state === 'in') {
+    const anchor = planAnchorMonday(livePlan);
+    const offset = weekNumberOffset(livePlan);
+    const programWeek =
+      Math.round((mondayOf(fromIso(today)).getTime() - anchor.getTime()) / WEEK_MS) + 1;
+    const existing = liveSlotsForDate(today);
+    const slot: PlanSlot = {
+      weekNumber: Math.max(1, programWeek - offset),
+      dayOfWeek: WEEKDAYS[weekdayIndex(fromIso(today))],
+      title: session.title,
+      type: session.type,
+      durationMinutes: session.durationMinutes,
+      orderInDay:
+        existing.length > 0 ? Math.max(...existing.map((s) => s.orderInDay)) + 1 : 0,
+      exercises: session.exercises.map((ex, i) => ({
+        exerciseId: ex.exerciseId,
+        name: ex.name,
+        sets: ex.sets,
+        reps: Math.max(1, ex.reps),
+        ...(ex.repsMax > ex.repsMin
+          ? { repsMin: ex.repsMin, repsMax: ex.repsMax }
+          : null),
+        orderIndex: i,
+        ...(ex.prescriptionType === 'time'
+          ? {
+              prescriptionType: 'time' as const,
+              durationSeconds: ex.durationSeconds ?? 600,
+            }
+          : null),
+      })),
+    };
+    const plan = await addPlanSlot(livePlan.id, slot);
+    livePlan = plan;
+    lastSeenPlanId = plan.id;
+    emit();
+    void loadExerciseMeta(plan);
+    return today;
+  }
+
+  customDayTitles.set(today, session.title);
+  for (const ex of session.exercises) {
+    additions.set(today, [
+      ...(additions.get(today) ?? []),
+      {
+        name: ex.name,
+        exerciseId: ex.exerciseId,
+        muscle: ex.muscle as PrototypeMuscle,
+        sets: ex.sets,
+        reps:
+          ex.prescriptionType === 'time'
+            ? `${Math.max(1, Math.round((ex.durationSeconds ?? 600) / 60))} min`
+            : ex.repsMax > ex.repsMin
+              ? `${ex.repsMin}–${ex.repsMax}`
+              : `${ex.reps}`,
+        weight: '—',
+        rest: ex.prescriptionType === 'time' ? '—' : restHeuristic(ex.name, ex.sets),
+        equipment: '—',
+        note: '',
+      },
+    ]);
+  }
+  emit();
+  return today;
 }
 
 /** Move EVERY session of a date (the missed-day "Do it today" and the

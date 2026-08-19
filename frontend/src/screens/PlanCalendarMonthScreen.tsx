@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
 import ShareModal from '../components/ShareModal';
 import SheetModal from '../components/SheetModal';
+import QuickWorkoutSheet from '../components/QuickWorkoutSheet';
 import type { CalendarScope } from '../components/PlanCalendarScopeBar';
 import { SCOPE_BAR_SPACE, useFrozenScopeBar } from '../components/PlanCalendarScopeBarHost';
 import {
@@ -156,6 +157,8 @@ export default function PlanCalendarMonthScreen() {
   // reference one tap away instead of a standing card. The sheet's content
   // is the natural upgrade point for the body-map key later.
   const [legendVisible, setLegendVisible] = useState(false);
+  // Quick Workout — "train right now, no plan needed" (Planning's first row).
+  const [quickVisible, setQuickVisible] = useState(false);
 
   // Re-render when a replacement lands, so day dots track the actual muscles.
   const [, forceRender] = useReducer((x: number) => x + 1, 0);
@@ -434,6 +437,20 @@ export default function PlanCalendarMonthScreen() {
           activeOpacity={0.8}
           onPress={() => {
             buzzTap();
+            setQuickVisible(true);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Quick workout"
+        >
+          <Ionicons name="flash-outline" size={20} color={colors.primary} />
+          <Text style={styles.planningLabel}>Quick Workout</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.planningRow, styles.planningRowDivider]}
+          activeOpacity={0.8}
+          onPress={() => {
+            buzzTap();
             navigation.navigate('GeneratePlan');
           }}
           accessibilityRole="button"
@@ -490,6 +507,12 @@ export default function PlanCalendarMonthScreen() {
           targetName={livePlan.name ?? 'My Plan'}
         />
       ) : null}
+
+      <QuickWorkoutSheet
+        visible={quickVisible}
+        onClose={() => setQuickVisible(false)}
+        onLanded={(dateIso) => navigation.navigate('PlanCalendarDay', { dateIso })}
+      />
 
       {/* The on-demand muscle-colors legend (the grid hint's link). */}
       <SheetModal

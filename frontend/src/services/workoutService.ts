@@ -10,6 +10,47 @@ import type { ExerciseHistory } from '../lib/exerciseHistory';
 import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
 import { api } from '../api/client';
 
+// ---------------------------------------------------------------------------
+// Quick Workout (deterministic catalog builder — no LLM, instant)
+// ---------------------------------------------------------------------------
+
+export type QuickSessionExercise = {
+  exerciseId: string;
+  name: string;
+  /** The calendar's 12-muscle vocabulary — drives the day view's chip. */
+  muscle: string;
+  sets: number;
+  reps: number;
+  repsMin: number;
+  repsMax: number;
+  orderIndex: number;
+  prescriptionType?: 'reps' | 'time';
+  durationSeconds?: number;
+};
+
+export type QuickSession = {
+  title: string;
+  type: 'strength' | 'cardio';
+  durationMinutes: number;
+  exercises: QuickSessionExercise[];
+};
+
+export type QuickSessionRequest = {
+  muscles: string[];
+  goal?: string;
+  experience?: string;
+  equipment?: string[];
+  limitations?: string[];
+};
+
+/** Build a one-off session for an arbitrary muscle selection. */
+export async function buildQuickSession(
+  body: QuickSessionRequest,
+): Promise<QuickSession> {
+  const response = await api.post<QuickSession>('/workouts/quick-session', body);
+  return response.data;
+}
+
 /** Create (or return) a Workout row from a plan slot’s stored exercises. */
 export const materializePlanSlotWorkout = async (planWorkoutId: string): Promise<Workout> => {
   const response = await api.post<Workout>(

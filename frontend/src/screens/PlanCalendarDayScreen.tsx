@@ -54,6 +54,7 @@ import {
 } from '../lib/planCalendarPrototype';
 import { LinearGradient } from 'expo-linear-gradient';
 import WorkoutMoveSheet from '../components/WorkoutMoveSheet';
+import QuickWorkoutSheet from '../components/QuickWorkoutSheet';
 import {
   addExerciseToDay,
   calendarDataMode,
@@ -142,6 +143,9 @@ export default function PlanCalendarDayScreen() {
   const [menuFor, setMenuFor] = useState<SlotTarget | null>(null);
   const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [query, setQuery] = useState('');
+
+  // Quick Workout door on TODAY's rest day (the at-the-gym scenario).
+  const [quickVisible, setQuickVisible] = useState(false);
 
   // Missed-day rescue: the banner's one-tap action + the shared sheet.
   const [rescueSheetOpen, setRescueSheetOpen] = useState(false);
@@ -443,6 +447,24 @@ export default function PlanCalendarDayScreen() {
         </View>
       )}
 
+      {plan.exercises.length === 0 && dateIso === todayIso() && (
+        // The at-the-gym door: an open TODAY offers a built session, not
+        // just the one-exercise "+ Add Exercise" below.
+        <TouchableOpacity
+          style={styles.quickRow}
+          activeOpacity={0.8}
+          onPress={() => {
+            buzzTap();
+            setQuickVisible(true);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Quick workout"
+        >
+          <Ionicons name="flash-outline" size={18} color={colors.primary} />
+          <Text style={styles.quickRowLabel}>Quick Workout</Text>
+        </TouchableOpacity>
+      )}
+
       {plan.exercises.map((ex, index) => {
         const done = getSetLogs(dateIso, index).length >= ex.sets;
         return (
@@ -681,6 +703,13 @@ export default function PlanCalendarDayScreen() {
     </ScrollView>
     </GestureDetector>
 
+    <QuickWorkoutSheet
+      visible={quickVisible}
+      onClose={() => setQuickVisible(false)}
+      // Door only exists on today's own view — the store emit re-renders it.
+      onLanded={() => {}}
+    />
+
     <WorkoutMoveSheet
       dateIso={rescueSheetOpen ? dateIso : null}
       mode="missed"
@@ -715,6 +744,23 @@ function createStyles(c: ColorPalette) {
       lineHeight: 20,
       color: c.textSecondary,
       marginBottom: spacing.xs,
+    },
+    quickRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: c.primary,
+      borderRadius: radius.lg,
+      paddingVertical: spacing.md,
+    },
+    quickRowLabel: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: c.primary,
     },
     missedBanner: {
       backgroundColor: c.warningSoft,
