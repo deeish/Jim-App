@@ -52,7 +52,7 @@ import {
   type PrototypeMuscle,
 } from '../lib/planCalendarPrototype';
 import { LinearGradient } from 'expo-linear-gradient';
-import MissedDaySheet from '../components/MissedDaySheet';
+import WorkoutMoveSheet from '../components/WorkoutMoveSheet';
 import {
   addExerciseToDay,
   calendarDataMode,
@@ -147,11 +147,11 @@ export default function PlanCalendarDayScreen() {
   const [rescueBusy, setRescueBusy] = useState(false);
   const [rescueError, setRescueError] = useState('');
   const rescuable = canRescueDay(dateIso);
-  // Today's move-target state (picker row 0): the banner's one-tap must share
-  // the picker's gates — already-logged today AND today past the program's
-  // end both block it (see MissedDaySheet for the reasoning).
-  const todayState = rescuable ? moveTargetsForDay()[0].state : 'open';
-  const todayBlocked = todayState === 'logged' || todayState === 'beyond';
+  // The banner's one-tap "Do it today" shows only when today is genuinely
+  // OPEN (picker row 0's state): a logged or beyond-program today blocks it,
+  // and an occupied today needs the make-room step — the sheet ("Options")
+  // handles both instead of a silent double (see WorkoutMoveSheet).
+  const todayOpen = rescuable && moveTargetsForDay()[0].state === 'open';
   const doItToday = async () => {
     if (rescueBusy) return;
     setRescueBusy(true);
@@ -389,7 +389,7 @@ export default function PlanCalendarDayScreen() {
             Planned for {plan.weekday} — it hasn’t been logged.
           </Text>
           <View style={styles.missedBannerActions}>
-            {!todayBlocked && (
+            {todayOpen && (
               <TouchableOpacity
                 style={styles.missedBannerPrimary}
                 activeOpacity={0.8}
@@ -674,8 +674,9 @@ export default function PlanCalendarDayScreen() {
     </ScrollView>
     </GestureDetector>
 
-    <MissedDaySheet
+    <WorkoutMoveSheet
       dateIso={rescueSheetOpen ? dateIso : null}
+      mode="missed"
       context="day"
       onClose={() => setRescueSheetOpen(false)}
       onEditDay={() => {}}

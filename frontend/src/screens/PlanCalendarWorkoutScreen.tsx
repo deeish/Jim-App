@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   ScrollView,
   StyleSheet,
@@ -37,18 +38,23 @@ import {
   MUSCLE_EDGE,
   MUSCLE_INK,
   buzzAllSetsComplete,
+  buzzEditApplied,
   buzzSetComplete,
   fromIso,
   sfPro,
   shortDate,
+  todayIso,
   type PlanCalendarParamList,
   type PlannedExercise,
 } from '../lib/planCalendarPrototype';
 import {
+  canMoveDay,
   dayHasLocalLogs,
   getSetLogs,
   isDayLogged,
   logSet,
+  moveMissedDay,
+  moveTargetsForDay,
   plannedDayForDate,
   subscribePlanCalendar,
   type SetLog,
@@ -157,6 +163,31 @@ export default function PlanCalendarWorkoutScreen() {
 
   const logs = getSetLogs(dateIso, exerciseIndex);
 
+  // Prevention nudge (the "finished workout on the wrong date" case): checking
+  // sets on a FUTURE day while training now would date the log to that day.
+  // Offer the clean fix BEFORE any set lands — only while today is open (an
+  // occupied/logged today needs the calendar's make-room flow instead), and
+  // only while the date has no logs to strand. Moving the whole day onto an
+  // open today keeps exercise indexes intact, so this screen just re-points.
+  const [nudgeBusy, setNudgeBusy] = useState(false);
+  const [nudgeError, setNudgeError] = useState('');
+  const showTodayNudge =
+    dateIso > todayIso() && canMoveDay(dateIso) && moveTargetsForDay()[0].state === 'open';
+  const moveToToday = async () => {
+    if (nudgeBusy) return;
+    setNudgeBusy(true);
+    setNudgeError('');
+    try {
+      await moveMissedDay(dateIso, todayIso());
+      buzzEditApplied();
+      navigation.setParams({ dateIso: todayIso() });
+    } catch {
+      setNudgeError('Couldn’t move it — check your connection.');
+    } finally {
+      setNudgeBusy(false);
+    }
+  };
+
   // Rest countdown — lives in the REST stat tile (one timer, always visible
   // above the deck; the prescribed rest it replaces is what it counts down
   // from). Starts when a set lands (not before the first, not after the
@@ -223,6 +254,31 @@ export default function PlanCalendarWorkoutScreen() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
+      {showTodayNudge && (
+        <View style={styles.todayNudgeWrap}>
+          <View style={styles.todayNudge}>
+            <Ionicons name="today-outline" size={17} color={colors.primary} />
+            <Text style={styles.todayNudgeText}>
+              Training this now? It’s planned for {shortDate(fromIso(dateIso))}.
+            </Text>
+            <TouchableOpacity
+              onPress={moveToToday}
+              disabled={nudgeBusy}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Move this workout to today"
+            >
+              {nudgeBusy ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Text style={styles.todayNudgeAction}>Move to today</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          {nudgeError !== '' && <Text style={styles.todayNudgeError}>{nudgeError}</Text>}
+        </View>
+      )}
+
       <View
         style={[
           styles.muscleChip,
@@ -643,6 +699,37 @@ function createStyles(c: ColorPalette) {
       ...sfPro,
       fontSize: text.body,
       color: c.textMuted,
+    },
+    todayNudgeWrap: {
+      marginBottom: spacing.md,
+    },
+    todayNudge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      backgroundColor: c.primarySoft,
+      borderRadius: radius.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+    },
+    todayNudgeText: {
+      ...sfPro,
+      flex: 1,
+      fontSize: text.footnote,
+      fontWeight: weight.medium,
+      color: c.textSecondary,
+    },
+    todayNudgeAction: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.bold,
+      color: c.primary,
+    },
+    todayNudgeError: {
+      ...sfPro,
+      fontSize: text.caption,
+      color: c.error,
+      marginTop: spacing.xs,
     },
     muscleChip: {
       alignSelf: 'flex-start',

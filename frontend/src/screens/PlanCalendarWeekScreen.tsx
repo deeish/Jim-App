@@ -21,6 +21,7 @@ import {
   MUSCLE_EDGE,
   MUSCLE_INK,
   addDays,
+  buzzMenuOpen,
   buzzSelection,
   dayMuscles,
   fromIso,
@@ -37,9 +38,10 @@ import {
   type PlanCalendarParamList,
 } from '../lib/planCalendarPrototype';
 import { LinearGradient } from 'expo-linear-gradient';
-import MissedDaySheet from '../components/MissedDaySheet';
+import WorkoutMoveSheet from '../components/WorkoutMoveSheet';
 import {
   calendarDataMode,
+  canMoveDay,
   canRescueDay,
   consumeAnchorAutoJump,
   dayMovedFrom,
@@ -118,8 +120,11 @@ export default function PlanCalendarWeekScreen() {
   );
   useFrozenScopeBar('week', onScopeNavigate);
 
-  // The missed-day rescue sheet (opened from a card's amber Missed pill).
-  const [rescueDateIso, setRescueDateIso] = useState<string | null>(null);
+  // The move/rescue sheet: 'missed' from a card's amber pill (or long-press
+  // on a missed card), 'move' from long-pressing any upcoming workout card.
+  const [sheetFor, setSheetFor] = useState<{ dateIso: string; mode: 'missed' | 'move' } | null>(
+    null,
+  );
 
   // Pull-to-refresh: force a plan refetch; the spinner is time-boxed since
   // the store notifies via subscription rather than a promise.
@@ -240,6 +245,7 @@ export default function PlanCalendarWeekScreen() {
         const missed = !rest && !completed && iso < todayIso();
         const rescuable = !rest && missed && canRescueDay(iso);
         const skipped = !rest && missed && isDaySkipped(iso);
+        const movable = !rest && !missed && !completed && canMoveDay(iso);
         const movedFrom = !rest ? dayMovedFrom(iso) : null;
 
         if (rest) {
@@ -309,6 +315,19 @@ export default function PlanCalendarWeekScreen() {
               if (Date.now() - lastSwipeAt.current < 450) return;
               navigation.navigate('PlanCalendarDay', { dateIso: iso });
             }}
+            // The freedom door: hold any movable card (or a missed one) for
+            // the move sheet — the hold gesture the day view already teaches.
+            onLongPress={() => {
+              if (Date.now() - lastSwipeAt.current < 450) return;
+              if (rescuable) {
+                buzzMenuOpen();
+                setSheetFor({ dateIso: iso, mode: 'missed' });
+              } else if (movable) {
+                buzzMenuOpen();
+                setSheetFor({ dateIso: iso, mode: 'move' });
+              }
+            }}
+            delayLongPress={300}
             accessibilityRole="button"
             accessibilityLabel={`${plan.weekday}, ${plan.title}`}
           >
@@ -328,7 +347,7 @@ export default function PlanCalendarWeekScreen() {
                   hitSlop={8}
                   onPress={() => {
                     if (Date.now() - lastSwipeAt.current < 450) return;
-                    setRescueDateIso(iso);
+                    setSheetFor({ dateIso: iso, mode: 'missed' });
                   }}
                   accessibilityRole="button"
                   accessibilityLabel={`Missed ${plan.title} — options`}
@@ -381,10 +400,11 @@ export default function PlanCalendarWeekScreen() {
     </ScrollView>
     </GestureDetector>
 
-    <MissedDaySheet
-      dateIso={rescueDateIso}
+    <WorkoutMoveSheet
+      dateIso={sheetFor?.dateIso ?? null}
+      mode={sheetFor?.mode ?? 'missed'}
       context="week"
-      onClose={() => setRescueDateIso(null)}
+      onClose={() => setSheetFor(null)}
       onEditDay={(dateIso) => navigation.navigate('PlanCalendarDay', { dateIso })}
       // The week shows the aftermath in place (store emit re-renders it).
       onMoved={() => {}}

@@ -12,6 +12,7 @@ import {
   mixWithWhite,
   movedToLabel,
   muscleGradient,
+  nearestOpenIso,
   shortWeekday,
   upcomingDatesFrom,
 } from './planCalendarPrototype';
@@ -84,6 +85,32 @@ describe('upcomingDatesFrom', () => {
       '2026-08-31',
       '2026-09-01',
     ]);
+  });
+});
+
+describe('nearestOpenIso', () => {
+  const days = (open: string[]) =>
+    [
+      '2026-08-18',
+      '2026-08-19',
+      '2026-08-20',
+      '2026-08-21',
+      '2026-08-22',
+      '2026-08-23',
+      '2026-08-24',
+    ].map((dateIso) => ({ dateIso, open: open.includes(dateIso) }));
+
+  it('picks the closest open day to the target', () => {
+    expect(nearestOpenIso(days(['2026-08-19', '2026-08-23']), '2026-08-18')).toBe('2026-08-19');
+    expect(nearestOpenIso(days(['2026-08-19', '2026-08-23']), '2026-08-22')).toBe('2026-08-23');
+  });
+
+  it('breaks ties toward the later (forward) day', () => {
+    expect(nearestOpenIso(days(['2026-08-19', '2026-08-21']), '2026-08-20')).toBe('2026-08-21');
+  });
+
+  it('returns null when nothing is open', () => {
+    expect(nearestOpenIso(days([]), '2026-08-20')).toBeNull();
   });
 });
 

@@ -383,6 +383,30 @@ export function movedToLabel(targetIso: string, todayIsoStr: string): string {
   return targetIso === todayIsoStr ? 'today' : shortWeekday(targetIso);
 }
 
+/**
+ * The make-room step's "send it to the nearest open day" suggestion: of the
+ * open candidates, the one closest to `aroundIso` (ties go to the later
+ * date — forward beats backward when equally near). Null when nothing is
+ * open.
+ */
+export function nearestOpenIso(
+  days: Array<{ dateIso: string; open: boolean }>,
+  aroundIso: string,
+): string | null {
+  const around = fromIso(aroundIso).getTime();
+  let best: string | null = null;
+  let bestDist = Infinity;
+  for (const day of days) {
+    if (!day.open) continue;
+    const dist = Math.abs(fromIso(day.dateIso).getTime() - around);
+    if (dist < bestDist || (dist === bestDist && best != null && day.dateIso > best)) {
+      best = day.dateIso;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
 /** 'August 2026' */
 export function monthLabel(d: Date): string {
   return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
