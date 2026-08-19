@@ -6,7 +6,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWorkoutDto } from './dto/create-workout.dto';
 import { GenerateWorkoutDto } from './dto/generate-workout.dto';
+import { QuickSessionDto } from './dto/quick-session.dto';
 import { WorkoutGeneratorService } from './workout-generator.service';
+import { ExercisesService } from '../exercises/exercises.service';
+import { buildQuickSession, type QuickMuscle } from './quick-session-builder';
 import { resolveRegenFocus } from './regenerate-focus.util';
 import { Prisma } from '@prisma/client';
 
@@ -62,7 +65,32 @@ export class WorkoutsService {
   constructor(
     private prisma: PrismaService,
     private workoutGeneratorService: WorkoutGeneratorService,
+    private exercisesService: ExercisesService,
   ) {}
+
+  /**
+   * The Quick Workout builder — deterministic catalog assembly for an
+   * arbitrary muscle selection (see quick-session-builder.ts). No LLM, no
+   * AI throttling: instant and free. The seed rotates day-to-day so two
+   * "Pull" quick sessions in one week differ, while retries within a day
+   * stay stable.
+   */
+  buildQuickSession(dto: QuickSessionDto) {
+    const now = new Date();
+    const dayOfYear = Math.floor(
+      (now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) /
+        86_400_000,
+    );
+    return buildQuickSession({
+      muscles: dto.muscles as QuickMuscle[],
+      candidates: this.exercisesService.search({}),
+      goal: dto.goal,
+      difficulty: dto.experience,
+      equipment: dto.equipment?.length ? dto.equipment : undefined,
+      limitations: dto.limitations,
+      seed: dayOfYear,
+    });
+  }
 
   private get db(): PrismaWithSaved {
     return this.prisma as PrismaWithSaved;

@@ -14,6 +14,7 @@ import { AiThrottlerGuard } from '../common/ai-throttler.guard';
 import { WorkoutsService } from './workouts.service';
 import { CreateWorkoutDto, UpdateWorkoutDto } from './dto/create-workout.dto';
 import { GenerateWorkoutDto } from './dto/generate-workout.dto';
+import { QuickSessionDto } from './dto/quick-session.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 
@@ -21,6 +22,13 @@ import { UserId } from '../auth/user-id.decorator';
 @UseGuards(AuthGuard)
 export class WorkoutsController {
   constructor(private readonly workoutsService: WorkoutsService) {}
+
+  /** Quick Workout: deterministic catalog assembly — no LLM, no AI throttle. */
+  @Post('quick-session')
+  @HttpCode(HttpStatus.OK)
+  quickSession(@Body() dto: QuickSessionDto) {
+    return this.workoutsService.buildQuickSession(dto);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
