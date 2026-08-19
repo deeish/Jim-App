@@ -387,7 +387,7 @@ const ACCESSORY_FAMILIES = new Set<QuickFamily>([
  * pool still fills — but rank behind every conventional alternative.
  */
 const QUIRK_RE =
-  /lateral lunge|side lunge|cossack|bird[- ]dog|wrist roller|sandbag|table[- ]|slider leg curl|dumbbell leg curl|stability ball leg curl|^glute bridge$|copenhagen/i;
+  /lateral lunge|side lunge|cossack|bird[- ]dog|wrist roller|sandbag|table[- ]|slider leg curl|dumbbell leg curl|stability ball leg curl|^glute bridge$|copenhagen|bench dip|^sit[- ]up$|dumbbell seated calf|kettlebell seated calf/i;
 
 /**
  * High-skill barbell lifts a BEGINNER session must not open with (the pool
@@ -396,7 +396,7 @@ const QUIRK_RE =
  * has to change the exercise pool, not just the set count.
  */
 const BEGINNER_BLOCK_RE =
-  /back squat|front squat|overhead squat|conventional deadlift|trap bar deadlift|sumo deadlift|deficit deadlift|pendlay|bent[- ]over barbell row|barbell bent[- ]over row|barbell overhead press|military press|push press|\bsnatch\b|\bclean\b|\bjerk\b|good morning|muscle-up|pistol/i;
+  /back squat|front squat|overhead squat|conventional deadlift|trap bar deadlift|sumo deadlift|deficit deadlift|barbell romanian deadlift|pendlay|bent[- ]over barbell row|barbell bent[- ]over row|barbell bench press|barbell overhead press|military press|push press|\bsnatch\b|\bclean\b|\bjerk\b|good morning|muscle-up|pistol/i;
 
 /** Angle/position tokens: a same-family second pick must differ in at least
  *  one token or in implement, so "incline barbell press after incline
@@ -721,7 +721,11 @@ function applyRepPolicy(
       break;
     }
     case 'squat':
-      if (repsMax > 10) band(6, 10);
+      if (/goblet/i.test(e.name)) {
+        // A goblet squat is limited by the hold, not the legs — low-rep
+        // prescriptions on it are incoherent.
+        band(10, 15);
+      } else if (repsMax > 10) band(6, 10);
       restSeconds = Math.max(restSeconds, 120);
       break;
     case 'ballistic':
@@ -739,7 +743,7 @@ function applyRepPolicy(
     case 'wrist':
     case 'calf':
     case 'calfseated':
-      band(endurance ? 15 : 10, endurance ? 20 : 15);
+      band(endurance ? 15 : 12, endurance ? 20 : 15);
       sets = Math.min(sets, 3);
       break;
     case 'hrow':
@@ -760,8 +764,14 @@ function applyRepPolicy(
 
   if (isFixedLoad(e) && (e.prescriptionType as string) !== 'time') {
     // Windows a human can actually complete for bodyweight-loaded rows.
-    if (family === 'vpull' || family === 'dip') band(6, 10);
-    else if (family === 'hpress' || family === 'hrow') band(8, 12);
+    // Dips sit late behind pressing on hypertrophy days — deep-stretch work
+    // to a heavy failure on a pre-fatigued pec is the tear mechanism, so
+    // outside strength days they live at 8-12 with reps in reserve.
+    if (family === 'vpull') band(6, 10);
+    else if (family === 'dip') {
+      if (goalKey === 'strength') band(6, 10);
+      else band(8, 12);
+    } else if (family === 'hpress' || family === 'hrow') band(8, 12);
     else if (repsMin < 6) repsMin = 6;
     if (repsMax < repsMin) repsMax = repsMin + 4;
     sets = Math.min(sets, 4);
@@ -823,6 +833,9 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
     if (beginner && BEGINNER_BLOCK_RE.test(e.name)) return false;
     // Assisted machines can't express strength — keep them off strength days.
     if (goalKey === 'strength' && /assisted/i.test(e.name)) return false;
+    // Pendlay is a dead-stop strength tool: on hypertrophy/high-rep days a
+    // chest-supported or cable row is the right implement, full stop.
+    if (goalKey !== 'strength' && /pendlay/i.test(e.name)) return false;
     if (available) {
       if (!equipmentSatisfies(e.primaryEquipment ?? e.equipment, available)) {
         return false;
@@ -832,6 +845,20 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
   });
 
   const counts = allocate(strengthMuscles);
+  if (beginner) {
+    // A beginner day is 5-6 movements, not 7 — coaching capacity, not just
+    // set counts, is what experience gates. Extras return before anyone
+    // loses their only slot.
+    let total = [...counts.values()].reduce((a, b) => a + b, 0);
+    for (const m of [...strengthMuscles].reverse()) {
+      if (total <= 6) break;
+      const cur = counts.get(m) ?? 0;
+      if (cur > 1) {
+        counts.set(m, cur - 1);
+        total--;
+      }
+    }
+  }
   const usedIds = new Set<string>();
   const familyCounts = new Map<QuickFamily, number>();
   /** Per-pick record before final ordering. */
@@ -1057,7 +1084,11 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
       sets,
       repsMin,
       repsMax,
-      restSeconds: restForRole(role, scheme.restSeconds ?? 75),
+      restSeconds: restForRole(
+        role,
+        scheme.restSeconds ?? 75,
+        goalKey === 'strength',
+      ),
     });
     return {
       pick: p,
@@ -1071,18 +1102,19 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
   // SECONDARY COMPOUND sets first (a fourth set of the third press is the
   // cheapest set in the session) down to 3, and only then shave isolation
   // work toward 2 — never gut the accessories to protect press volume.
+  const setCap = beginner ? 18 : 22;
   const totalSets = () => rows.reduce((n, r) => n + r.rx.sets, 0);
   let trimmed = true;
-  while (totalSets() > 22 && trimmed) {
+  while (totalSets() > setCap && trimmed) {
     trimmed = false;
-    for (let i = rows.length - 1; i >= 0 && totalSets() > 22; i--) {
+    for (let i = rows.length - 1; i >= 0 && totalSets() > setCap; i--) {
       const r = rows[i]!;
       if (r.role === 'secondary_compound' && r.rx.sets > 3) {
         r.rx.sets--;
         trimmed = true;
       }
     }
-    for (let i = rows.length - 1; i >= 0 && totalSets() > 22; i--) {
+    for (let i = rows.length - 1; i >= 0 && totalSets() > setCap; i--) {
       const r = rows[i]!;
       if (r.role === 'isolation' && r.rx.sets > 2) {
         r.rx.sets--;
@@ -1171,7 +1203,14 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
       const hold = r.role === 'core' ? 40 : 30;
       seconds += r.rx.sets * (hold + 45);
     } else {
-      seconds += r.rx.sets * (40 + r.rx.restSeconds);
+      // Unilateral rows run both sides — each "set" is two bouts.
+      const work =
+        /single[- ]arm|one[- ]arm|single[- ]leg|alternating|lunge|split squat|step[- ]up/i.test(
+          r.pick.exercise.name,
+        )
+          ? 75
+          : 40;
+      seconds += r.rx.sets * (work + r.rx.restSeconds);
     }
     seconds += 90; // find the station, set up, warm-up feel
   });
@@ -1191,13 +1230,21 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
 // ---------------------------------------------------------------------------
 
 /** Rest that matches the row's role: compounds rest like compounds even when
- *  the goal band suggests less; isolation and core stay brisk. */
-function restForRole(role: ExerciseRole, baseRest: number): number {
+ *  the goal band suggests less — heavy 4-6 work needs ~3 minutes, and a time
+ *  estimate that pretends otherwise destroys the strength stimulus it sold.
+ *  Isolation and core stay brisk. */
+function restForRole(
+  role: ExerciseRole,
+  baseRest: number,
+  strength: boolean,
+): number {
   switch (role) {
     case 'primary_compound':
-      return Math.max(baseRest, 120);
+      return Math.max(baseRest, strength ? 180 : 120);
     case 'secondary_compound':
-      return Math.max(Math.round(baseRest * 0.8), 90);
+      return strength
+        ? Math.max(baseRest, 120)
+        : Math.max(Math.round(baseRest * 0.8), 90);
     case 'isolation':
       return 60;
     case 'core':

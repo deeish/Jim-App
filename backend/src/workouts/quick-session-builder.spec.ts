@@ -536,7 +536,7 @@ describe('quick-session-builder (real catalog)', () => {
     );
     for (const ex of session.exercises) {
       expect(
-        /back squat|conventional deadlift|trap bar deadlift|pendlay|barbell overhead press/i.test(
+        /back squat|conventional deadlift|trap bar deadlift|barbell romanian deadlift|pendlay|barbell bench press|barbell overhead press/i.test(
           ex.name,
         ),
       ).toBe(false);
@@ -546,6 +546,19 @@ describe('quick-session-builder (real catalog)', () => {
       familyOf(rowOf(e.exerciseId)),
     );
     expect(families.some((f) => f === 'squat' || f === 'lunge')).toBe(true);
+    // And the DOSE is a beginner dose: 5-6 movements, ≤18 working sets.
+    expect(session.exercises.length).toBeLessThanOrEqual(6);
+    const beginnerSets = session.exercises.reduce((n, e) => n + e.sets, 0);
+    expect(beginnerSets).toBeLessThanOrEqual(18);
+  });
+
+  it('AUDIT-3: Pendlay only appears on strength days, never inside pump work', () => {
+    for (const goal of ['hypertrophy', 'endurance', 'general fitness']) {
+      const session = build(['Back', 'Biceps'], { goal });
+      for (const ex of session.exercises) {
+        expect(/pendlay/i.test(ex.name)).toBe(false);
+      }
+    }
   });
 
   it('AUDIT-2: a squat coexists only with an RDL-type hinge, never a heavy pull', () => {
