@@ -13,6 +13,7 @@ import {
   QUICK_MUSCLES,
   allocate,
   buildQuickSession,
+  familyOf,
   muscleMatches,
   quickSessionTitle,
   sessionBudget,
@@ -144,14 +145,29 @@ describe('quick-session-builder (real catalog)', () => {
   });
 
   it('equipment filtering: a dumbbell-only session never requires anything else', () => {
+    // Users speak lowercase ("dumbbell"); the catalog speaks display labels
+    // ("Dumbbell"). The builder must bridge the vocab — pre-fix, this exact
+    // input matched NOTHING and degraded to sandbag/table oddities.
     const session = build(['Chest', 'Back'], { equipment: ['dumbbell'] });
     expect(session.exercises.length).toBeGreaterThanOrEqual(4);
+    let dumbbellRows = 0;
     for (const ex of session.exercises) {
       const row = byId.get(ex.exerciseId)!;
       expect(
-        equipmentSatisfies(row.primaryEquipment ?? row.equipment, ['dumbbell']),
+        equipmentSatisfies(row.primaryEquipment ?? row.equipment, [
+          'Dumbbell',
+          'Bodyweight',
+        ]),
       ).toBe(true);
+      if ((row.primaryEquipment ?? row.equipment ?? []).includes('Dumbbell')) {
+        dumbbellRows++;
+      }
     }
+    // A dumbbell session is BUILT ON dumbbells, not on push-up variants
+    // that merely survive the filter.
+    expect(dumbbellRows).toBeGreaterThanOrEqual(
+      Math.ceil(session.exercises.length / 2),
+    );
   });
 
   it('a "bad knee" note excludes knee-tagged rows from a Quads day', () => {
@@ -345,6 +361,304 @@ describe('quick-session-builder (real catalog)', () => {
       expect(tierOf(ex.exerciseId)).not.toBe('D');
       expect(muscleMatches(byId.get(ex.exerciseId)!, ex.muscle)).toBe(true);
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // BLIND-AUDIT REGRESSIONS (2026-08-18). An independent S&C review of v1
+  // output found three systematic failures: near-twin stacking (four bench
+  // presses on chest day), template rep schemes the movement can't take
+  // (deadlifts at 4x10-15, face pulls at 5x5-8), and muscle-tag coverage
+  // hiding pattern holes (no knee flexion on leg day, no squat on full-body).
+  // Each test here pins the fix for one of those against the real catalog.
+  // -------------------------------------------------------------------------
+
+  const rowOf = (id: string) => byId.get(id)!;
+  const fixedLoad = (row: TransformedExercise): boolean => {
+    const eq = row.primaryEquipment?.length
+      ? row.primaryEquipment
+      : (row.equipment ?? []);
+    return (
+      eq.length === 0 ||
+      eq.every((x) => x === 'Bodyweight' || x === 'Pull-up Bar' || x === 'TRX')
+    );
+  };
+
+  it('AUDIT: one axial hinge and one squat pattern per session, across muscles', () => {
+    for (const goal of ['hypertrophy', 'strength', 'general fitness']) {
+      for (const combo of [
+        ['Quads', 'Hamstrings', 'Glutes', 'Calves'],
+        ['Chest', 'Back', 'Shoulders', 'Quads', 'Hamstrings', 'Core'],
+        ['Quads', 'Hamstrings'],
+        ['Hamstrings', 'Glutes'],
+      ] as QuickMuscle[][]) {
+        const session = build(combo, { goal });
+        const families = session.exercises.map((e) =>
+          familyOf(rowOf(e.exerciseId)),
+        );
+        expect(
+          families.filter((f) => f === 'deadlift').length,
+        ).toBeLessThanOrEqual(1);
+        expect(
+          families.filter((f) => f === 'squat').length,
+        ).toBeLessThanOrEqual(1);
+        // Ballistic swings are conditioning tools, not hypertrophy/strength picks.
+        expect(families).not.toContain('ballistic');
+        // Quads selected ⇒ an actual knee-dominant squat pattern exists.
+        if (combo.includes('Quads')) {
+          expect(families.some((f) => f === 'squat' || f === 'lunge')).toBe(
+            true,
+          );
+        }
+      }
+    }
+  });
+
+  it('AUDIT: a chest day is press + new angle + fly, never four benches', () => {
+    const session = build(['Chest']);
+    const families = session.exercises.map((e) =>
+      familyOf(rowOf(e.exerciseId)),
+    );
+    expect(families.filter((f) => f === 'hpress').length).toBeLessThanOrEqual(
+      2,
+    );
+    expect(families).toContain('fly');
+    expect(new Set(families).size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('AUDIT: hamstrings with room get knee-flexion work, not a second hinge', () => {
+    const session = build(['Quads', 'Hamstrings', 'Glutes', 'Calves']);
+    const hamRows = session.exercises
+      .filter((e) => e.muscle === 'Hamstrings')
+      .map((e) => familyOf(rowOf(e.exerciseId)));
+    expect(hamRows).toContain('legcurl');
+  });
+
+  it('AUDIT: rep prescriptions respect what the movement can take', () => {
+    for (const goal of [
+      'hypertrophy',
+      'strength',
+      'endurance',
+      'general fitness',
+    ]) {
+      for (const combo of [
+        ['Back', 'Biceps'],
+        ['Chest', 'Shoulders', 'Triceps'],
+        ['Quads', 'Hamstrings', 'Glutes', 'Calves'],
+        ['Chest', 'Back', 'Shoulders', 'Quads', 'Hamstrings', 'Core'],
+      ] as QuickMuscle[][]) {
+        const session = build(combo, { goal });
+        for (const ex of session.exercises) {
+          if (ex.prescriptionType === 'time') continue;
+          const row = rowOf(ex.exerciseId);
+          const fam = familyOf(row);
+          // Axial hinges never run to technical failure at high reps.
+          if (fam === 'deadlift') {
+            expect(ex.repsMax).toBeLessThanOrEqual(10);
+            expect(ex.sets).toBeLessThanOrEqual(4);
+          }
+          // Cue-dependent prehab/raise work never gets strength-stamped.
+          if (fam === 'rdelt' || fam === 'lraise' || fam === 'frontraise') {
+            expect(ex.repsMin).toBeGreaterThanOrEqual(12);
+            expect(ex.sets).toBeLessThanOrEqual(3);
+          }
+          // Fixed-load bodyweight rows get windows a human can hit.
+          if (fixedLoad(row) && (fam === 'vpull' || fam === 'dip')) {
+            expect(ex.repsMin).toBeGreaterThanOrEqual(5);
+            expect(ex.repsMax).toBeLessThanOrEqual(12);
+          }
+        }
+      }
+    }
+  });
+
+  it('AUDIT: prehab never anchors — a strength push day opens with a press', () => {
+    const session = build(['Chest', 'Shoulders', 'Triceps'], {
+      goal: 'strength',
+    });
+    const firstFam = familyOf(rowOf(session.exercises[0]!.exerciseId));
+    expect(['hpress', 'opress']).toContain(firstFam);
+    // Rear-delt work, if present, comes after every compound.
+    const fams = session.exercises.map((e) => familyOf(rowOf(e.exerciseId)));
+    const rdeltAt = fams.indexOf('rdelt');
+    if (rdeltAt !== -1) {
+      const lastCompoundAt = session.exercises.reduce(
+        (last, e, i) =>
+          (rowOf(e.exerciseId).type ?? '').toLowerCase() === 'compound' &&
+          !['rdelt', 'lraise', 'frontraise'].includes(
+            familyOf(rowOf(e.exerciseId)),
+          )
+            ? i
+            : last,
+        -1,
+      );
+      expect(rdeltAt).toBeGreaterThan(lastCompoundAt);
+    }
+  });
+
+  it('AUDIT: grip-destroying holds come last, after grip-dependent core work', () => {
+    const session = build(['Core', 'Calves', 'Forearms']);
+    const fams = session.exercises.map((e) => familyOf(rowOf(e.exerciseId)));
+    const hangAt = fams.findIndex((f) => f === 'hang' || f === 'carry');
+    if (hangAt !== -1) {
+      for (let i = 0; i < session.exercises.length; i++) {
+        if (session.exercises[i]!.muscle === 'Core') {
+          expect(hangAt).toBeGreaterThan(i);
+        }
+      }
+    }
+  });
+
+  it('AUDIT-2: dead-stop barbell rows never get high-rep stamps', () => {
+    // Round-2 blind review: "Pendlay Row at 3 x 15-20 is the single most
+    // indefensible line in the battery."
+    for (const goal of ['hypertrophy', 'strength', 'endurance']) {
+      for (const combo of [
+        ['Back', 'Biceps'],
+        ['Back', 'Cardio'],
+      ] as QuickMuscle[][]) {
+        const session = build(combo, { goal });
+        for (const ex of session.exercises) {
+          if (/pendlay/i.test(ex.name)) {
+            expect(ex.repsMax).toBeLessThanOrEqual(8);
+          }
+          if (/bent[- ]over/i.test(ex.name) && /row/i.test(ex.name)) {
+            expect(ex.repsMax).toBeLessThanOrEqual(10);
+          }
+        }
+      }
+    }
+  });
+
+  it('AUDIT-2: a beginner session swaps the exercise pool, not just the sets', () => {
+    const session = build(
+      ['Chest', 'Back', 'Shoulders', 'Quads', 'Hamstrings', 'Core'],
+      { goal: 'general fitness', difficulty: 'beginner' },
+    );
+    for (const ex of session.exercises) {
+      expect(
+        /back squat|conventional deadlift|trap bar deadlift|pendlay|barbell overhead press/i.test(
+          ex.name,
+        ),
+      ).toBe(false);
+    }
+    // The movement patterns are still all there — just from a safer pool.
+    const families = session.exercises.map((e) =>
+      familyOf(rowOf(e.exerciseId)),
+    );
+    expect(families.some((f) => f === 'squat' || f === 'lunge')).toBe(true);
+  });
+
+  it('AUDIT-2: a squat coexists only with an RDL-type hinge, never a heavy pull', () => {
+    for (const combo of [
+      ['Quads', 'Hamstrings', 'Glutes', 'Calves'],
+      ['Hamstrings', 'Quads'],
+      ['Chest', 'Back', 'Shoulders', 'Quads', 'Hamstrings', 'Core'],
+    ] as QuickMuscle[][]) {
+      const session = build(combo);
+      const rows = session.exercises.map((e) => rowOf(e.exerciseId));
+      const hasSquat = rows.some((r) => familyOf(r) === 'squat');
+      const heavyHinges = rows.filter(
+        (r) =>
+          familyOf(r) === 'deadlift' &&
+          !/romanian|stiff[- ]leg|single[- ]leg/i.test(r.name),
+      );
+      if (hasSquat) {
+        expect(heavyHinges).toHaveLength(0);
+      }
+    }
+  });
+
+  it('AUDIT-2: a strength day caps its heavy pressing instead of stacking five-set secondaries', () => {
+    const session = build(['Chest', 'Shoulders', 'Triceps'], {
+      goal: 'strength',
+    });
+    const totalSets = session.exercises.reduce((n, e) => n + e.sets, 0);
+    expect(totalSets).toBeLessThanOrEqual(22);
+    // Exactly one five-set lift: the primary anchor. Everything else ≤ 4.
+    const fiveSetRows = session.exercises.filter((e) => e.sets >= 5);
+    expect(fiveSetRows.length).toBeLessThanOrEqual(1);
+    // Isolation work is a real dose (3 sets) at joint-friendly reps.
+    for (const ex of session.exercises) {
+      const fam = familyOf(rowOf(ex.exerciseId));
+      if (fam === 'lraise' || fam === 'triext') {
+        expect(ex.sets).toBeGreaterThanOrEqual(3);
+        expect(ex.repsMin).toBeGreaterThanOrEqual(10);
+      }
+    }
+  });
+
+  it('AUDIT-2: quirk rows lose to conventional picks, and curls must change position', () => {
+    // Stability-limited rows, frontal-plane lunges, wrist rollers and
+    // unloaded bridges never beat conventional alternatives in a full gym.
+    for (const combo of [
+      ['Quads', 'Hamstrings', 'Glutes', 'Calves'],
+      ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps'],
+      ['Core', 'Calves', 'Forearms'],
+    ] as QuickMuscle[][]) {
+      const session = build(combo);
+      for (const ex of session.exercises) {
+        expect(
+          /lateral lunge|cossack|bird[- ]dog|wrist roller|^glute bridge$|copenhagen/i.test(
+            ex.name,
+          ),
+        ).toBe(false);
+      }
+    }
+    // Two curls in one session differ in position, not just implement.
+    const pull = build(['Back', 'Biceps']);
+    const curls = pull.exercises.filter(
+      (e) => familyOf(rowOf(e.exerciseId)) === 'curl',
+    );
+    if (curls.length >= 2) {
+      const tokenSets = curls.map((e) =>
+        (
+          e.name
+            .toLowerCase()
+            .match(
+              /incline|preacher|spider|concentration|standing|seated|lying/g,
+            ) ?? []
+        )
+          .sort()
+          .join(','),
+      );
+      expect(new Set(tokenSets).size).toBe(curls.length);
+    }
+  });
+
+  it('AUDIT-2: core slots cover distinct patterns (no plank + rollout double)', () => {
+    const session = build(['Core', 'Calves', 'Forearms']);
+    const coreFams = session.exercises
+      .filter((e) => e.muscle === 'Core')
+      .map((e) => familyOf(rowOf(e.exerciseId)));
+    if (coreFams.length >= 2) {
+      expect(new Set(coreFams).size).toBe(coreFams.length);
+    }
+  });
+
+  it('AUDIT: two calf slots split gastroc and soleus, not two standing raises', () => {
+    const session = build(['Core', 'Calves', 'Forearms']);
+    const calfFams = session.exercises
+      .filter((e) => e.muscle === 'Calves')
+      .map((e) => familyOf(rowOf(e.exerciseId)));
+    if (calfFams.length >= 2) {
+      expect(new Set(calfFams).size).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('AUDIT: a cardio finisher never repeats the pattern just trained', () => {
+    const session = build(['Back', 'Cardio'], { goal: 'endurance' });
+    const finisher = session.exercises[session.exercises.length - 1]!;
+    expect(finisher.muscle).toBe('Cardio');
+    expect(/row/i.test(finisher.name)).toBe(false);
+  });
+
+  it('AUDIT: the duration estimate reflects sets × (work + rest), not a flat rate', () => {
+    const session = build(['Back', 'Biceps']);
+    const totalSets = session.exercises.reduce((n, e) => n + e.sets, 0);
+    // Every working set costs at least ~1.5 min (40s work + 60s minimum rest).
+    expect(session.durationMinutes).toBeGreaterThanOrEqual(totalSets * 1.5);
+    // And no session ever claims more than 24 working sets.
+    expect(totalSets).toBeLessThanOrEqual(25); // +1 allows the cardio bout row
   });
 
   it('titles read like a human wrote them', () => {
