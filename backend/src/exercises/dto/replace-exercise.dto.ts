@@ -1,4 +1,12 @@
-import { IsArray, IsIn, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 /** Request a single catalog exercise to swap in for `targetName` within a day. */
 export class ReplaceExerciseDto {
@@ -27,6 +35,20 @@ export class ReplaceExerciseDto {
   @IsOptional()
   @IsIn(['gym', 'home'])
   location?: 'gym' | 'home';
+
+  /** The user's actual equipment (catalog display names, e.g. 'Dumbbell',
+   *  'Resistance Band'). When present it overrides `location`. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  equipment?: string[];
+
+  /** How many ranked suggestions to return (replace-suggestions only). */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  count?: number;
 
   /** Injury / equipment phrases to avoid. */
   @IsOptional()

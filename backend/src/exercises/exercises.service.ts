@@ -26,6 +26,7 @@ import {
   getJointDemands,
   jointsFromAvoidPhrases,
 } from '../data/exercise-joint-demands';
+import { getExerciseProgressions } from '../data/exercise-progressions';
 import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
 import { isRetiredExercise } from '../data/retired-exercise-ids';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
@@ -60,6 +61,13 @@ const DEFAULT_EQUIPMENT_ORDER = 12;
 
 /** Home-doable equipment subset (mirrors PlansService.HOME_EQUIPMENT). */
 const HOME_EQUIPMENT = ['Dumbbell', 'Resistance Band', 'Bodyweight'];
+
+/** One ranked row of the replace picker's recommendation rail. */
+export interface ReplacementSuggestion {
+  exercise: TransformedExercise;
+  /** Short human-readable why-tags, strongest first (max 2). */
+  reasons: string[];
+}
 
 /**
  * Equipment / qualifier words stripped when computing an exercise's "family", so
@@ -499,7 +507,7 @@ export class ExercisesService implements OnModuleInit {
     usedFamilies.add(this.exerciseFamily(target.name));
     usedFamilies.delete(''); // an empty family must never exclude everything
 
-    const equipment = dto.location === 'home' ? [...HOME_EQUIPMENT] : undefined;
+    const equipment = this.replaceEquipmentFilter(dto);
     // search() returns same-muscle candidates quality-sorted: tier first
     // (Task 13 Phase C), common rank as the within-tier tiebreak — so the
     // top-12 randomization pool below is drawn from the best replacements.
@@ -508,31 +516,7 @@ export class ExercisesService implements OnModuleInit {
       equipment,
     });
 
-    const avoid = (dto.avoid ?? [])
-      .map((a) => a.trim().toLowerCase())
-      .filter((a) => a.length >= 2);
-    // Avoid phrases that name a joint ("shoulder", "knee pain") also
-    // exclude candidates tagged with outsized demand on that joint —
-    // structural avoidance on top of the free-text match below.
-    const avoidJoints = new Set(jointsFromAvoidPhrases(avoid));
-    const isAvoided = (e: TransformedExercise): boolean => {
-      if (!avoid.length) return false;
-      if (
-        avoidJoints.size &&
-        getJointDemands(e.id)?.some((j) => avoidJoints.has(j))
-      ) {
-        return true;
-      }
-      const hay = [
-        e.name,
-        e.primaryMuscleGroup,
-        ...(e.movementPatterns ?? []),
-        ...(e.equipment ?? []),
-      ]
-        .join(' ')
-        .toLowerCase();
-      return avoid.some((a) => hay.includes(a));
-    };
+    const isAvoided = this.buildAvoidChecker(dto.avoid);
     const notDuplicate = (e: TransformedExercise): boolean =>
       e.id !== target.id &&
       !usedIds.has(e.id) &&
@@ -558,6 +542,180 @@ export class ExercisesService implements OnModuleInit {
     // Quality-first (already common-sorted) with light randomization for variety.
     const top = finalPool.slice(0, Math.min(12, finalPool.length));
     return top[Math.floor(Math.random() * top.length)] ?? null;
+  }
+
+  /** The equipment filter for replace flows: the user's REAL equipment list
+   *  when the caller sends one, else the coarse location heuristic. */
+  private replaceEquipmentFilter(
+    dto: ReplaceExerciseDto,
+  ): string[] | undefined {
+    if (dto.equipment?.length) return [...dto.equipment];
+    return dto.location === 'home' ? [...HOME_EQUIPMENT] : undefined;
+  }
+
+  /** Free-text + joint-demand avoidance predicate shared by the replace flows.
+   *  Avoid phrases that name a joint ("shoulder", "knee pain") also exclude
+   *  candidates tagged with outsized demand on that joint — structural
+   *  avoidance on top of the free-text match. */
+  private buildAvoidChecker(
+    avoidRaw: string[] | undefined,
+  ): (e: TransformedExercise) => boolean {
+    const avoid = (avoidRaw ?? [])
+      .map((a) => a.trim().toLowerCase())
+      .filter((a) => a.length >= 2);
+    const avoidJoints = new Set(jointsFromAvoidPhrases(avoid));
+    return (e: TransformedExercise): boolean => {
+      if (!avoid.length) return false;
+      if (
+        avoidJoints.size &&
+        getJointDemands(e.id)?.some((j) => avoidJoints.has(j))
+      ) {
+        return true;
+      }
+      const hay = [
+        e.name,
+        e.primaryMuscleGroup,
+        ...(e.movementPatterns ?? []),
+        ...(e.equipment ?? []),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return avoid.some((a) => hay.includes(a));
+    };
+  }
+
+  /**
+   * The replace picker's recommendation rail: the ranked TOP-N alternatives
+   * for one exercise, each with short human-readable reasons ("Easier
+   * version", "Same lift, different equipment", "Lower Chest focus").
+   *
+   * Same day-coherence rules as pickReplacement (same primary muscle, no
+   * duplicates of anything in the day, avoid/joint exclusions) with two
+   * deliberate differences:
+   *  - the TARGET's own exercise-family stays ELIGIBLE — "same lift on
+   *    different equipment" is the single most useful swap at a busy gym
+   *    (pickReplacement excludes it because a one-tap auto-swap should feel
+   *    like a different exercise);
+   *  - deterministic ranking instead of randomized variety — a rail that
+   *    reshuffles on every open reads as arbitrary.
+   *
+   * Ranking signals, strongest first: progression-ladder adjacency (the
+   * easier/harder rungs ARE the canonical swaps), same family, shared
+   * sub-muscle, shared movement pattern, then tier — with the catalog's
+   * quality sort as the stable tiebreak.
+   */
+  pickReplacementSuggestions(dto: ReplaceExerciseDto): ReplacementSuggestion[] {
+    const target =
+      (dto.targetExerciseId
+        ? this.exercises.find((e) => e.id === dto.targetExerciseId)
+        : undefined) ?? this.resolveByName(dto.targetName);
+    if (!target) return [];
+
+    // Ids/names/families already in the day. Unlike pickReplacement, rows that
+    // ARE the target don't contribute their family — its equipment variants
+    // must stay eligible. Everything else in the day still blocks its family.
+    const usedIds = new Set<string>();
+    const usedNames = new Set<string>();
+    const otherFamilies = new Set<string>();
+    const targetFamily = this.exerciseFamily(target.name);
+    const resolved: TransformedExercise[] = [
+      ...(dto.dayExerciseIds ?? [])
+        .map((id) => this.exercises.find((e) => e.id === id))
+        .filter((e): e is TransformedExercise => !!e),
+      ...(dto.dayExerciseNames ?? [])
+        .map((name) => this.resolveByName(name))
+        .filter((e): e is TransformedExercise => !!e),
+    ];
+    for (const e of resolved) {
+      usedIds.add(e.id);
+      usedNames.add(e.name.toLowerCase());
+      if (e.id !== target.id) otherFamilies.add(this.exerciseFamily(e.name));
+    }
+    for (const name of dto.dayExerciseNames ?? []) {
+      usedNames.add(name.trim().toLowerCase());
+    }
+    otherFamilies.delete(''); // an empty family must never exclude everything
+    // The target itself never comes back as its own suggestion.
+    usedIds.add(target.id);
+    usedNames.add(target.name.toLowerCase());
+
+    const equipment = this.replaceEquipmentFilter(dto);
+    const sameMuscle = this.search({
+      muscleGroups: [target.primaryMuscleGroup],
+      equipment,
+    });
+
+    const isAvoided = this.buildAvoidChecker(dto.avoid);
+    const notDuplicate = (e: TransformedExercise): boolean =>
+      !usedIds.has(e.id) &&
+      !usedNames.has(e.name.toLowerCase()) &&
+      !isAvoided(e);
+
+    // Strict: exclude the families of the day's OTHER exercises. Relax just
+    // the family rule if nothing survives (same fallback as pickReplacement).
+    let pool = sameMuscle.filter(
+      (e) => notDuplicate(e) && !otherFamilies.has(this.exerciseFamily(e.name)),
+    );
+    if (pool.length === 0) pool = sameMuscle.filter(notDuplicate);
+    if (pool.length === 0) return [];
+
+    const progressions = getExerciseProgressions(target.id);
+    const easierIds = new Set(progressions?.easier ?? []);
+    const harderIds = new Set(progressions?.harder ?? []);
+    const targetSubs = new Set(target.subMuscles ?? []);
+    const targetPatterns = new Set(target.movementPatterns ?? []);
+    const hasEquipmentContext = (equipment?.length ?? 0) > 0;
+
+    const scored = pool.map((e, poolIndex) => {
+      let score = 0;
+      const reasons: string[] = [];
+      if (easierIds.has(e.id)) {
+        score += 900;
+        reasons.push('Easier version');
+      } else if (harderIds.has(e.id)) {
+        score += 900;
+        reasons.push('Harder version');
+      }
+      const sameFamily =
+        targetFamily !== '' && this.exerciseFamily(e.name) === targetFamily;
+      if (sameFamily) {
+        score += 800;
+        reasons.push('Same lift, different equipment');
+      }
+      const sharedSub = (e.subMuscles ?? []).find((s) => targetSubs.has(s));
+      if (sharedSub) {
+        score += 400;
+        reasons.push(`${sharedSub} focus`);
+      }
+      const sharedPattern = (e.movementPatterns ?? []).find((p) =>
+        targetPatterns.has(p),
+      );
+      // Same-family rows share the pattern by construction — saying both
+      // would waste the second reason slot.
+      if (sharedPattern && !sameFamily) {
+        score += 150;
+        reasons.push(`Same ${sharedPattern.toLowerCase()} pattern`);
+      }
+      const tier = EXERCISE_TIERS[e.id];
+      if (tier === 'S') score += 60;
+      else if (tier === 'A') score += 30;
+      // Every row explains itself: fall back to the honest weak signals.
+      if (reasons.length === 0) {
+        if (hasEquipmentContext) reasons.push('Fits your equipment');
+        else if (tier === 'S' || tier === 'A') reasons.push('Top rated');
+        else reasons.push(`Works ${target.primaryMuscleGroup.toLowerCase()}`);
+      }
+      return { exercise: e, score, poolIndex, reasons };
+    });
+    // Stable: the pool arrives quality-sorted (tier first, common tiebreak),
+    // so equal scores keep that order.
+    scored.sort((a, b) => b.score - a.score || a.poolIndex - b.poolIndex);
+
+    const count = Math.min(Math.max(dto.count ?? 3, 1), 10);
+    return scored.slice(0, count).map(({ exercise, reasons }) => ({
+      exercise,
+      reasons: reasons.slice(0, 2),
+    }));
   }
 
   /**
