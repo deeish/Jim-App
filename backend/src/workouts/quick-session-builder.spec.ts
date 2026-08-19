@@ -14,6 +14,7 @@ import {
   allocate,
   buildQuickSession,
   familyOf,
+  isNearDuplicate,
   muscleMatches,
   quickSessionTitle,
   sessionBudget,
@@ -85,20 +86,11 @@ describe('quick-session-builder (real catalog)', () => {
     const allSubs = new Set(rows.flatMap((r) => r.subMuscles ?? []));
     expect(allSubs.size).toBeGreaterThanOrEqual(2);
 
-    // …and no two picks are near-duplicates (same patterns AND same regions
-    // AND same primary equipment).
+    // …and no two picks are near-duplicates (the builder's own definition:
+    // same family, patterns, regions, implement, and position tokens).
     for (let i = 0; i < rows.length; i++) {
       for (let j = i + 1; j < rows.length; j++) {
-        const a = rows[i]!;
-        const b = rows[j]!;
-        const same = (x?: string[], y?: string[]) =>
-          JSON.stringify([...(x ?? [])].sort()) ===
-          JSON.stringify([...(y ?? [])].sort());
-        const nearDuplicate =
-          same(a.movementPatterns, b.movementPatterns) &&
-          same(a.subMuscles, b.subMuscles) &&
-          same(a.primaryEquipment, b.primaryEquipment);
-        expect(nearDuplicate).toBe(false);
+        expect(isNearDuplicate(rows[i]!, rows[j]!)).toBe(false);
       }
     }
   });
@@ -276,14 +268,8 @@ describe('quick-session-builder (real catalog)', () => {
     'Forearms',
   ];
 
-  const sameList = (x?: string[], y?: string[]) =>
-    JSON.stringify([...(x ?? [])].sort()) ===
-    JSON.stringify([...(y ?? [])].sort());
-
   const nearDuplicatePair = (a: TransformedExercise, b: TransformedExercise) =>
-    sameList(a.movementPatterns, b.movementPatterns) &&
-    sameList(a.subMuscles, b.subMuscles) &&
-    sameList(a.primaryEquipment, b.primaryEquipment);
+    isNearDuplicate(a, b);
 
   it('SWEEP: every 1-, 2- and 3-muscle combo builds clean — no dupes, no near-dupes, everyone served', () => {
     const combos: QuickMuscle[][] = [];
@@ -394,15 +380,19 @@ describe('quick-session-builder (real catalog)', () => {
         ['Hamstrings', 'Glutes'],
       ] as QuickMuscle[][]) {
         const session = build(combo, { goal });
-        const families = session.exercises.map((e) =>
-          familyOf(rowOf(e.exerciseId)),
-        );
+        const sessRows = session.exercises.map((e) => rowOf(e.exerciseId));
+        const families = sessRows.map((r) => familyOf(r));
         expect(
           families.filter((f) => f === 'deadlift').length,
         ).toBeLessThanOrEqual(1);
-        expect(
-          families.filter((f) => f === 'squat').length,
-        ).toBeLessThanOrEqual(1);
+        // The one-squat rule binds to BARBELL squats — machine knee work
+        // (leg press, hack) is the legitimate quad accessory behind it.
+        const axialSquats = sessRows.filter(
+          (r) =>
+            familyOf(r) === 'squat' &&
+            (r.primaryEquipment ?? []).includes('Barbell'),
+        );
+        expect(axialSquats.length).toBeLessThanOrEqual(1);
         // Ballistic swings are conditioning tools, not hypertrophy/strength picks.
         expect(families).not.toContain('ballistic');
         // Quads selected ⇒ an actual knee-dominant squat pattern exists.
@@ -633,7 +623,9 @@ describe('quick-session-builder (real catalog)', () => {
     }
   });
 
-  it('AUDIT-4: a single Shoulders slot beside a chest press buys side delts, not a second press', () => {
+  it('AUDIT-6: tapping Shoulders earns the overhead pattern, even on one slot', () => {
+    // Round-6 blind review: a lateral raise is an accessory to a press the
+    // session doesn't have — "Shoulders" means the user gets to press.
     const session = build(
       ['Chest', 'Back', 'Shoulders', 'Quads', 'Hamstrings', 'Core'],
       { goal: 'general fitness', difficulty: 'beginner' },
@@ -641,9 +633,33 @@ describe('quick-session-builder (real catalog)', () => {
     const shoulderRows = session.exercises.filter(
       (e) => e.muscle === 'Shoulders',
     );
-    if (shoulderRows.length === 1) {
-      const fam = familyOf(rowOf(shoulderRows[0]!.exerciseId));
-      expect(['lraise', 'rdelt']).toContain(fam);
+    expect(shoulderRows.length).toBeGreaterThanOrEqual(1);
+    const fam = familyOf(rowOf(shoulderRows[0]!.exerciseId));
+    expect(['opress', 'hpress']).toContain(fam);
+  });
+
+  it('AUDIT-6: a strength day carries one fewer movement than a volume day', () => {
+    const strength = build(['Chest', 'Shoulders', 'Triceps'], {
+      goal: 'strength',
+    });
+    const hyp = build(['Chest', 'Shoulders', 'Triceps']);
+    expect(strength.exercises.length).toBe(hyp.exercises.length - 1);
+    const totalSets = strength.exercises.reduce((n, e) => n + e.sets, 0);
+    expect(totalSets).toBeLessThanOrEqual(18);
+  });
+
+  it('AUDIT-6: an endurance day keeps its supported compounds loadable', () => {
+    const session = build(['Back', 'Cardio'], { goal: 'endurance' });
+    for (const ex of session.exercises) {
+      const row = rowOf(ex.exerciseId);
+      if (
+        familyOf(row) === 'hrow' &&
+        (row.primaryEquipment ?? []).some(
+          (q) => q === 'Cable' || q === 'Machine',
+        )
+      ) {
+        expect(ex.repsMax).toBeLessThanOrEqual(15);
+      }
     }
   });
 

@@ -206,6 +206,7 @@ export type QuickFamily =
   | 'thrust'
   | 'gluteacc'
   | 'lunge'
+  | 'kneemach'
   | 'squat'
   | 'vpull'
   | 'latiso'
@@ -262,6 +263,12 @@ const FAMILY_RULES: FamilyRule[] = [
     (e) =>
       inGroup(e, 'legs') &&
       /kickback|abduction|clamshell|fire hydrant/i.test(e.name),
+  ],
+  // Machine knee-dominant work is its own archetype: the loadable quad
+  // accessory a coach writes behind the axial squat.
+  [
+    'kneemach',
+    nameHas(/leg press|hack squat|pendulum squat|belt squat|v[- ]squat/i),
   ],
   // Name-based on purpose: the catalog's Lunge pattern also tags frontal-
   // plane adductor work (Copenhagen planks), which is not a lunge slot.
@@ -344,7 +351,14 @@ export function familyOf(e: TransformedExercise): QuickFamily {
  * soft-caps at two — except mono-family muscles (a solo Biceps day IS three
  * curls; the twin guard below still forces different positions/implements).
  */
-const AXIAL_FAMILIES = new Set<QuickFamily>(['deadlift', 'squat', 'ballistic']);
+const AXIAL_FAMILIES = new Set<QuickFamily>(['deadlift', 'ballistic']);
+
+/** The one-per-session squat cap binds to BARBELL squats — machine
+ *  knee-dominant work (leg press, hack squat machine) is exactly what a
+ *  coach adds as the quad accessory behind the axial lift. */
+function isAxialSquat(e: TransformedExercise): boolean {
+  return familyOf(e) === 'squat' && primaryEquip(e).includes('Barbell');
+}
 const SOFT_CAP_EXEMPT = new Set<QuickFamily>(['curl', 'wrist']);
 const familyCap = (family: QuickFamily): number => {
   if (AXIAL_FAMILIES.has(family)) return 1;
@@ -387,7 +401,7 @@ const ACCESSORY_FAMILIES = new Set<QuickFamily>([
  * pool still fills — but rank behind every conventional alternative.
  */
 const QUIRK_RE =
-  /lateral lunge|side lunge|cossack|lateral step[- ]up|crossover step[- ]up|bird[- ]dog|wrist roller|sandbag|table[- ]|slider leg curl|dumbbell leg curl|stability ball leg curl|^glute bridge$|copenhagen|bench dip|sit[- ]up|dumbbell seated calf|kettlebell seated calf/i;
+  /lateral lunge|side lunge|cossack|lateral step[- ]up|crossover step[- ]up|bird[- ]dog|renegade|bear row|kroc|wrist roller|sandbag|table[- ]|slider leg curl|dumbbell leg curl|stability ball leg curl|resistance band (lying|leg curl)|lying resistance band|^glute bridge$|copenhagen|bench dip|sit[- ]up|\bv[- ]up\b|stiff[- ]arm.*row|dumbbell seated calf|kettlebell seated calf/i;
 
 /** Beginner anchors are the plain patterns: incline/decline variants teach
  *  angles before the base movement is grooved, so they rank last for novices
@@ -418,7 +432,7 @@ const BEGINNER_BLOCK_RE =
  *  one token or in implement, so "incline barbell press after incline
  *  dumbbell press" can never happen. */
 const ANGLE_TOKEN_RE =
-  /incline|decline|seated|standing|lying|close[- ]grip|wide[- ]grip|preacher|spider|concentration|single[- ]arm|one[- ]arm|behind[- ]the[- ]back|deficit|paused|sumo|front|overhead/gi;
+  /incline|decline|seated|standing|lying|close[- ]grip|wide[- ]grip|preacher|spider|concentration|single[- ]arm|one[- ]arm|behind[- ]the[- ]back|deficit|paused|sumo|front|overhead|supported/gi;
 
 function angleTokens(name: string): Set<string> {
   const tokens = new Set<string>();
@@ -468,7 +482,14 @@ const ARCHETYPES: Record<Exclude<QuickMuscle, 'Cardio'>, QuickFamily[][]> = {
     ['triext'],
     ['triext'],
   ],
-  Quads: [['squat'], ['lunge'], ['legext', 'lunge'], ['lunge', 'legext']],
+  // Slot 2 is machine knee work (leg press, hack squat) — the loadable
+  // quad accessory behind the axial squat — before falling to lunges.
+  Quads: [
+    ['squat', 'kneemach'],
+    ['kneemach', 'lunge'],
+    ['legext', 'kneemach', 'lunge'],
+    ['lunge', 'legext'],
+  ],
   Hamstrings: [
     ['deadlift', 'legcurl'],
     ['legcurl', 'backext'],
@@ -780,6 +801,10 @@ function applyRepPolicy(
       // slot per arm day instead of two pump-range twins.
       if (primaryEquip(e).includes('Barbell') && repsMin >= 12) band(8, 12);
       break;
+    case 'thrust':
+      // The hinge already trains the glutes — three thrust sets is the dose.
+      sets = Math.min(sets, 3);
+      break;
     case 'hrow':
       // Dead-stop/hinged barbell rows exist for low reps — the erectors fail
       // long before the lats past ~8-10, and the back half of every high-rep
@@ -822,6 +847,7 @@ function applyRepPolicy(
       if (goalKey === 'strength') band(6, 10);
       else band(8, 12);
     } else if (family === 'hpress' || family === 'hrow') band(8, 12);
+    else if (family === 'squat' || family === 'lunge') band(10, 15);
     else if (repsMin < 6) repsMin = 6;
     if (repsMax < repsMin) repsMax = repsMin + 4;
     sets = Math.min(sets, 4);
@@ -909,6 +935,18 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
       }
     }
   }
+  if (goalKey === 'strength') {
+    // A strength day earns its 5-set top lift by carrying one FEWER
+    // movement — a hypertrophy exercise count under a 4-6-rep opener is a
+    // 20-set day nobody recovers from.
+    for (const m of [...strengthMuscles].reverse()) {
+      const cur = counts.get(m) ?? 0;
+      if (cur > 1) {
+        counts.set(m, cur - 1);
+        break;
+      }
+    }
+  }
   const usedIds = new Set<string>();
   const familyCounts = new Map<QuickFamily, number>();
   /** Per-pick record before final ordering. */
@@ -964,10 +1002,16 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
   const capBlocked = (e: TransformedExercise): boolean => {
     const fam = familyOf(e);
     if (fam === 'ballistic' && goalKey !== 'endurance') return true;
-    // A session holds ONE maximal axial lift: a squat pattern blocks heavy
-    // pulls (the hinge slot falls to an RDL), and vice versa.
-    if (isHeavyHinge(e) && familyCount('squat') > 0) return true;
-    if (fam === 'squat' && picks.some((p) => isHeavyHinge(p.exercise))) {
+    // A session holds ONE maximal axial lift: a barbell squat blocks heavy
+    // pulls (the hinge slot falls to an RDL) and a second barbell squat,
+    // and vice versa. Machine knee-dominant work stays available.
+    if (
+      isAxialSquat(e) &&
+      picks.some((p) => isAxialSquat(p.exercise) || isHeavyHinge(p.exercise))
+    ) {
+      return true;
+    }
+    if (isHeavyHinge(e) && picks.some((p) => isAxialSquat(p.exercise))) {
       return true;
     }
     // Likewise ONE unsupported barbell row: a T-bar row followed by a
@@ -1002,19 +1046,10 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
   for (const muscle of pickOrder) {
     const want = counts.get(muscle) ?? 0;
     const musclePool = eligible.filter((e) => muscleMatches(e, muscle));
-    let slots = ARCHETYPES[muscle];
-    // A single Shoulders slot on a day that already presses (Chest tapped
-    // too) buys side delts, not a redundant second press — mixed days
-    // otherwise skew push-dominant, the wrong bias for desk-bound trainees.
-    if (
-      muscle === 'Shoulders' &&
-      want === 1 &&
-      picks.some((p) => p.family === 'hpress' || p.family === 'opress')
-    ) {
-      slots = [['lraise', 'rdelt', 'opress', 'hpress']];
-    }
+    // Tapping "Shoulders" earns the overhead pattern even on one slot — a
+    // lateral raise is an accessory to a press the session doesn't have.
+    const slots = ARCHETYPES[muscle];
     const usedSubs = new Set<string>();
-    const usedEquipment = new Set<string>();
     let taken = 0;
 
     while (taken < want) {
@@ -1069,14 +1104,12 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
         // a Back day ALWAYS opens with its pull-up/pulldown-class anchor.
         chosen = ranked[0]!;
       } else {
-        // Accessories score freshness (new sub-muscle coverage counts most,
-        // new equipment breaks ties) and rotate within a tier band by seed.
-        const freshScore = (e: TransformedExercise): number => {
-          let score = 0;
-          if ((e.subMuscles ?? []).some((s) => !usedSubs.has(s))) score += 4;
-          if (!sharesAny(primaryEquip(e), usedEquipment)) score += 1;
-          return score;
-        };
+        // Accessories score freshness (new sub-muscle coverage) and rotate
+        // within a tier band by seed. Deliberately NO new-equipment bonus:
+        // in a full gym it rewards trading a machine leg curl down to the
+        // resistance-band version just because the band is "novel".
+        const freshScore = (e: TransformedExercise): number =>
+          (e.subMuscles ?? []).some((s) => !usedSubs.has(s)) ? 4 : 0;
         // Quirk rows are excluded from scoring outright unless they are all
         // that's left — their unusual sub-muscles otherwise win the novelty
         // score and smuggle them past the rank demotion.
@@ -1091,7 +1124,6 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
       const fam = familyOf(chosen);
       usedIds.add(chosen.id);
       chosen.subMuscles?.forEach((s) => usedSubs.add(s));
-      primaryEquip(chosen).forEach((eq) => usedEquipment.add(eq));
       familyCounts.set(fam, familyCount(fam) + 1);
       picks.push({
         exercise: chosen,
@@ -1108,11 +1140,10 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
   // big compounds, smaller compounds, isolation, rear-delt/prehab after the
   // heavy pressing it protects, Core late, grip-destroyers (hangs, carries)
   // after everything grip-dependent, Cardio last.
-  const hasSquatPick = picks.some((p) => p.family === 'squat');
+  const hasSquatPick = picks.some((p) => isAxialSquat(p.exercise));
   const orderClass = (p: Pick): number => {
-    // Wrist work after hangs/carries: the hang is the harder grip task and
-    // needs fresh flexors; hangs themselves come after grip-dependent Core.
-    if (p.family === 'wrist') return 7;
+    // Grip-destroying hangs/carries close the session, after everything
+    // grip-dependent — wrist curls included.
     if (p.family === 'hang' || p.family === 'carry') return 6;
     if (p.muscle === 'Core') return 5;
     if (p.family === 'rdelt' || p.family === 'shrug') return 4;
@@ -1131,6 +1162,7 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
   // pulldown done at pump reps.
   const loadRank = (p: Pick): number =>
     isHeavyRowRow(p.exercise) ||
+    p.family === 'deadlift' ||
     (p.family === 'vpull' && isFixedLoad(p.exercise))
       ? 0
       : 1;
@@ -1217,6 +1249,12 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
       // A novice's limiting factor is recovery and motor learning, not
       // volume: 2 sets per secondary movement, frequency does the rest.
       sets = 2;
+    }
+    if (role === 'secondary_compound' && goalKey === 'endurance') {
+      // Even an endurance day keeps its supported compounds loadable —
+      // 15-20 on a cable row is a grip-limited form grind, not back work.
+      repsMin = 10;
+      repsMax = 15;
     }
     if (role === 'primary_compound' && goalKey === 'hypertrophy') {
       // Every session keeps ONE mechanical-tension anchor — a hypertrophy
@@ -1447,10 +1485,6 @@ function isUnilateral(name: string): boolean {
   );
 }
 
-function sharesAny(items: string[] | undefined, used: Set<string>): boolean {
-  return (items ?? []).some((x) => used.has(x));
-}
-
 function primaryEquip(e: TransformedExercise): string[] {
   return e.primaryEquipment?.length ? e.primaryEquipment : (e.equipment ?? []);
 }
@@ -1463,34 +1497,36 @@ function sameList(x: string[] | undefined, y: string[] | undefined): boolean {
 }
 
 /** Two rows a coach would call the same exercise in different clothes:
- *  identical movement patterns, identical sub-muscles, identical primary
- *  equipment. One session never contains such a pair. */
+ *  SAME movement family with identical patterns, sub-muscles, primary
+ *  equipment AND position tokens. One session never contains such a pair.
+ *  Different families are complements even when metadata matches (standing
+ *  vs seated calf raises on one machine train different muscles), and a
+ *  chest-SUPPORTED dumbbell row is a legitimate second row after a
+ *  single-arm one — the token is the only signal the catalog has. */
 export function isNearDuplicate(
   a: TransformedExercise,
   b: TransformedExercise,
 ): boolean {
   return (
+    familyOf(a) === familyOf(b) &&
     sameList(a.movementPatterns, b.movementPatterns) &&
     sameList(a.subMuscles, b.subMuscles) &&
-    sameList(a.primaryEquipment, b.primaryEquipment)
+    sameList(a.primaryEquipment, b.primaryEquipment) &&
+    sameTokenSet(angleTokens(a.name), angleTokens(b.name))
   );
 }
 
 /** The rotation band of an already-ranked pool: the leading tier, extended
- *  into the next tier when the leading one is thin — a band of one can't
- *  rotate, and adjacent tiers are both curated quality. */
+ *  ONE tier down when the leading one is thin — a band of one can't rotate
+ *  and the adjacent tier is still curated quality, but a full gym must
+ *  never rotate a C-tier resistance-band variant in over an A-tier machine
+ *  two tiers up. A thin band just rotates less. */
 function tierBand(ranked: TransformedExercise[]): TransformedExercise[] {
   if (ranked.length === 0) return ranked;
   const lead = tierRank(ranked[0]!.id);
   let band = ranked.filter((e) => tierRank(e.id) === lead);
   if (band.length < 3) {
-    const nextTiers = [...new Set(ranked.map((e) => tierRank(e.id)))]
-      .filter((t) => t > lead)
-      .sort((a, b) => a - b);
-    for (const t of nextTiers) {
-      if (band.length >= 3) break;
-      band = [...band, ...ranked.filter((e) => tierRank(e.id) === t)];
-    }
+    band = [...band, ...ranked.filter((e) => tierRank(e.id) === lead + 1)];
   }
   return band.slice(0, Math.min(5, band.length));
 }
