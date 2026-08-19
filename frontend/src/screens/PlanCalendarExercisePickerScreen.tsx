@@ -311,6 +311,7 @@ export default function PlanCalendarExercisePickerScreen() {
         savedIdSet={saved.savedIdSet}
         onToggleLike={saved.onToggleLike}
         headerSlot={railNode}
+        compact
         bottomInset={mode === 'add' ? 0 : tabBarInset}
       />
 

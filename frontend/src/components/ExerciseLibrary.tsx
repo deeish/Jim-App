@@ -742,6 +742,7 @@ const RefineSection = React.memo(function RefineSection({
   subMuscles,
   selectedSubMuscles,
   onToggleSubMuscle,
+  showCaption = true,
   fadeColor,
   styles,
 }: {
@@ -749,6 +750,8 @@ const RefineSection = React.memo(function RefineSection({
   subMuscles: string[];
   selectedSubMuscles: string[];
   onToggleSubMuscle: (subMuscle: string) => void;
+  /** Compact hosts drop the caption line — the chips speak for themselves. */
+  showCaption?: boolean;
   fadeColor: string;
   styles: RefineStyles;
 }) {
@@ -757,11 +760,13 @@ const RefineSection = React.memo(function RefineSection({
 
   return (
     <View style={styles.refineSection}>
-      <Text style={styles.refineCaption}>
-        {selectedCount === 0
-          ? `All ${parentGroup.toLowerCase()} · tap to narrow`
-          : `${parentGroup} · narrowed to ${selectedCount} of ${totalCount}`}
-      </Text>
+      {showCaption && (
+        <Text style={styles.refineCaption}>
+          {selectedCount === 0
+            ? `All ${parentGroup.toLowerCase()} · tap to narrow`
+            : `${parentGroup} · narrowed to ${selectedCount} of ${totalCount}`}
+        </Text>
+      )}
       <ChipScrollRow
         bleedStyle={styles.chipRowBleed}
         contentStyle={styles.chipRowContent}
@@ -859,6 +864,12 @@ export type ExerciseLibraryProps = {
   /** Rendered above the filter sections inside the list header (the picker's
    *  recommendation rail goes here). */
   headerSlot?: React.ReactNode;
+  /** Picker-sheet density: drops the browse chrome that triple-reports filter
+   *  state — the active-token row (the chips already show it), the "Muscles &
+   *  cardio" section title, the refine caption — and swaps the big
+   *  "N exercises found" header for a small ALL CHEST-style section label.
+   *  The Exercises tab keeps the full chrome. */
+  compact?: boolean;
   /** Space to keep clear under the last row and the no-results bar (floating
    *  tab bar on the Exercises tab; sheet inset in the picker). */
   bottomInset: number;
@@ -880,6 +891,7 @@ export default function ExerciseLibrary({
   savedIdSet,
   onToggleLike,
   headerSlot,
+  compact = false,
   bottomInset,
   listRef,
 }: ExerciseLibraryProps) {
@@ -1357,6 +1369,15 @@ export default function ExerciseLibrary({
         resultsHeader: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
         resultsHeaderText: { fontSize: text.title, fontWeight: weight.semibold, color: colors.text },
         resultsSubtext: { fontSize: text.body, fontWeight: weight.regular, color: colors.textMuted },
+        compactResultsLabel: {
+          fontSize: text.caption,
+          fontWeight: weight.semibold,
+          letterSpacing: 1.2,
+          color: colors.textMuted,
+          marginTop: spacing.xl,
+          marginBottom: spacing.sm,
+          marginLeft: spacing.lg + spacing.xs,
+        },
       }),
     [colors]
   );
@@ -1412,8 +1433,9 @@ export default function ExerciseLibrary({
 
       {/* Active Filters — dimmed while a search term is active: text search
           deliberately ignores chips (a typed name must never be hidden), so the
-          row must not claim filters it is not applying. */}
-      {activeFilters.length > 0 && (
+          row must not claim filters it is not applying. Compact hosts skip the
+          row: the chips below already show the same state. */}
+      {!compact && activeFilters.length > 0 && (
         <View style={[styles.activeFiltersContainer, searchActive && styles.activeFiltersDimmed]}>
           {searchActive && (
             <Text style={styles.activeFiltersPausedNote}>Not applied while searching</Text>
@@ -1484,16 +1506,18 @@ export default function ExerciseLibrary({
         {headerSlot}
         {/* Primary Filters - Most Important */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Muscles & cardio</Text>
-            {(filters.muscleGroups.length > 0 || filters.subMuscles.length > 0) && (
-              <View style={styles.sectionBadge}>
-                <Text style={styles.sectionBadgeText}>
-                  {filters.muscleGroups.length + filters.subMuscles.length}
-                </Text>
-              </View>
-            )}
-          </View>
+          {!compact && (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Muscles & cardio</Text>
+              {(filters.muscleGroups.length > 0 || filters.subMuscles.length > 0) && (
+                <View style={styles.sectionBadge}>
+                  <Text style={styles.sectionBadgeText}>
+                    {filters.muscleGroups.length + filters.subMuscles.length}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
           {/* One scrollable row, not a wrap. A wrapped grid was tried after the
               first scroll row hid Arms/Cardio/Core (it clipped cleanly at the
               margin and read as complete). ChipScrollRow fixes the affordance
@@ -1539,6 +1563,7 @@ export default function ExerciseLibrary({
                 subMuscles={subMuscles}
                 selectedSubMuscles={selectedSubMuscles}
                 onToggleSubMuscle={(subMuscle) => toggleSubMuscle(subMuscle, group)}
+                showCaption={!compact}
                 fadeColor={colors.background}
                 styles={styles}
               />
@@ -1627,8 +1652,19 @@ export default function ExerciseLibrary({
           </View>
         )}
 
-        {/* Exercise Results header — cards render below as virtualized FlatList items */}
-        {!isLoading && !error && resultCount > 0 && (
+        {/* Exercise Results header — cards render below as virtualized FlatList items.
+            Compact hosts get the picker's small caps label ("ALL CHEST") instead
+            of the browse header; the count would just restate the list. */}
+        {compact && !isLoading && !error && resultCount > 0 && (
+          <Text style={styles.compactResultsLabel}>
+            {filters.searchQuery.trim().length > 0
+              ? 'SEARCH RESULTS'
+              : filters.muscleGroups.length === 1
+                ? `ALL ${filters.muscleGroups[0].toUpperCase()}`
+                : 'ALL EXERCISES'}
+          </Text>
+        )}
+        {!compact && !isLoading && !error && resultCount > 0 && (
           <View style={[styles.resultsHeader, { marginTop: spacing.xxl }]}>
             {isBrowsingAll ? (
               <>
