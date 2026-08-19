@@ -552,6 +552,94 @@ describe('quick-session-builder (real catalog)', () => {
     expect(beginnerSets).toBeLessThanOrEqual(18);
   });
 
+  it('AUDIT-4: barbell rows bind to the implement, never to the slot they land in', () => {
+    // Round-4 blind review: T-Bar Row got 10-15 in one session and 15-20 in
+    // another — "rep ranges assigned by slot position, not exercise
+    // mechanics". Barbell-loaded rows always stay ≤10.
+    for (const goal of [
+      'hypertrophy',
+      'endurance',
+      'general fitness',
+      'strength',
+    ]) {
+      for (const combo of [
+        ['Back', 'Biceps'],
+        ['Back', 'Cardio'],
+        ['Back'],
+      ] as QuickMuscle[][]) {
+        const session = build(combo, { goal });
+        for (const ex of session.exercises) {
+          const row = rowOf(ex.exerciseId);
+          if (
+            familyOf(row) === 'hrow' &&
+            (row.primaryEquipment ?? []).includes('Barbell')
+          ) {
+            expect(ex.repsMax).toBeLessThanOrEqual(10);
+          }
+        }
+      }
+    }
+  });
+
+  it('AUDIT-4: two big pulls never share an implement, and hypertrophy keeps a heavy anchor', () => {
+    const session = build(['Back', 'Biceps']);
+    const backRows = session.exercises
+      .filter((e) => e.muscle === 'Back')
+      .map((e) => rowOf(e.exerciseId));
+    const rowEquip = backRows
+      .filter((r) => familyOf(r) === 'hrow')
+      .map((r) => (r.primaryEquipment ?? []).join('|'));
+    expect(new Set(rowEquip).size).toBe(rowEquip.length);
+    // The session's first lift is the mechanical-tension anchor: ≤10 reps.
+    expect(session.exercises[0]!.repsMax).toBeLessThanOrEqual(10);
+  });
+
+  it('AUDIT-4: per-muscle sets cap at 12, and high-rep bands stay progressable', () => {
+    for (const combo of [
+      ['Chest'],
+      ['Back'],
+      ['Quads', 'Hamstrings', 'Glutes', 'Calves'],
+      ['Chest', 'Shoulders', 'Triceps'],
+    ] as QuickMuscle[][]) {
+      const session = build(combo);
+      const perMuscle = new Map<string, number>();
+      for (const ex of session.exercises) {
+        if (ex.muscle === 'Cardio') continue;
+        perMuscle.set(ex.muscle, (perMuscle.get(ex.muscle) ?? 0) + ex.sets);
+        // Outside endurance goals, no 5-rep-wide band above 10 reps — a
+        // trainee must run out of reps and touch the load.
+        if (ex.prescriptionType !== 'time' && ex.repsMin >= 10) {
+          expect(ex.repsMax - ex.repsMin).toBeLessThanOrEqual(3);
+        }
+        // Unilateral movements cap at 3 prescribed sets (each is 2 bouts).
+        if (
+          /lunge|split squat|step[- ]up|single[- ]arm|single[- ]leg/i.test(
+            ex.name,
+          )
+        ) {
+          expect(ex.sets).toBeLessThanOrEqual(3);
+        }
+      }
+      for (const sets of perMuscle.values()) {
+        expect(sets).toBeLessThanOrEqual(12);
+      }
+    }
+  });
+
+  it('AUDIT-4: a single Shoulders slot beside a chest press buys side delts, not a second press', () => {
+    const session = build(
+      ['Chest', 'Back', 'Shoulders', 'Quads', 'Hamstrings', 'Core'],
+      { goal: 'general fitness', difficulty: 'beginner' },
+    );
+    const shoulderRows = session.exercises.filter(
+      (e) => e.muscle === 'Shoulders',
+    );
+    if (shoulderRows.length === 1) {
+      const fam = familyOf(rowOf(shoulderRows[0]!.exerciseId));
+      expect(['lraise', 'rdelt']).toContain(fam);
+    }
+  });
+
   it('AUDIT-3: Pendlay only appears on strength days, never inside pump work', () => {
     for (const goal of ['hypertrophy', 'endurance', 'general fitness']) {
       const session = build(['Back', 'Biceps'], { goal });

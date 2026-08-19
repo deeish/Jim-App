@@ -387,7 +387,7 @@ const ACCESSORY_FAMILIES = new Set<QuickFamily>([
  * pool still fills — but rank behind every conventional alternative.
  */
 const QUIRK_RE =
-  /lateral lunge|side lunge|cossack|bird[- ]dog|wrist roller|sandbag|table[- ]|slider leg curl|dumbbell leg curl|stability ball leg curl|^glute bridge$|copenhagen|bench dip|^sit[- ]up$|dumbbell seated calf|kettlebell seated calf/i;
+  /lateral lunge|side lunge|cossack|bird[- ]dog|wrist roller|sandbag|table[- ]|slider leg curl|dumbbell leg curl|stability ball leg curl|^glute bridge$|copenhagen|bench dip|sit[- ]up|dumbbell seated calf|kettlebell seated calf/i;
 
 /**
  * High-skill barbell lifts a BEGINNER session must not open with (the pool
@@ -648,8 +648,8 @@ export function allocate(muscles: QuickMuscle[]): Map<QuickMuscle, number> {
   const largeOrder: QuickMuscle[] = [
     'Back',
     'Quads',
-    'Chest',
     'Shoulders',
+    'Chest',
     'Hamstrings',
     'Glutes',
   ];
@@ -749,9 +749,16 @@ function applyRepPolicy(
     case 'hrow':
       // Dead-stop/hinged barbell rows exist for low reps — the erectors fail
       // long before the lats past ~8-10, and the back half of every high-rep
-      // set is a rounded-back grind.
+      // set is a rounded-back grind. This binds to the IMPLEMENT (any
+      // barbell-loaded row), not the slot it landed in.
       if (/pendlay/i.test(e.name)) band(5, 8);
-      else if (/bent[- ]over/i.test(e.name) && repsMax > 10) band(6, 10);
+      else if (
+        (/t[- ]bar|bent[- ]over/i.test(e.name) ||
+          primaryEquip(e).includes('Barbell')) &&
+        repsMax > 10
+      ) {
+        band(6, 10);
+      }
       break;
     default:
       break;
@@ -883,14 +890,22 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
     'lraise',
     'fly',
   ]);
+  /** For the big pulls the IMPLEMENT is the variation that matters: a T-bar
+   *  row after a close-grip barbell row is the same pattern on the same bar
+   *  wearing a different handle — two rows must change implement. */
+  const EQUIP_TWIN_FAMILIES = new Set<QuickFamily>(['hrow', 'vpull']);
   const familyTwinBlocked = (e: TransformedExercise): boolean => {
     const fam = familyOf(e);
     const tokens = angleTokens(e.name);
     return picks.some((p) => {
       if (p.family !== fam) return false;
+      const sameEquip = sameList(primaryEquip(p.exercise), primaryEquip(e));
+      // Implement variety only binds in a full gym — a dumbbell-only day's
+      // two rows are BOTH dumbbell rows by definition; position varies them.
+      if (EQUIP_TWIN_FAMILIES.has(fam) && stated.size === 0) return sameEquip;
       const sameTokens = sameTokenSet(angleTokens(p.exercise.name), tokens);
       if (TOKEN_TWIN_FAMILIES.has(fam)) return sameTokens;
-      return sameTokens && sameList(primaryEquip(p.exercise), primaryEquip(e));
+      return sameTokens && sameEquip;
     });
   };
 
@@ -936,7 +951,17 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
   for (const muscle of pickOrder) {
     const want = counts.get(muscle) ?? 0;
     const musclePool = eligible.filter((e) => muscleMatches(e, muscle));
-    const slots = ARCHETYPES[muscle];
+    let slots = ARCHETYPES[muscle];
+    // A single Shoulders slot on a day that already presses (Chest tapped
+    // too) buys side delts, not a redundant second press — mixed days
+    // otherwise skew push-dominant, the wrong bias for desk-bound trainees.
+    if (
+      muscle === 'Shoulders' &&
+      want === 1 &&
+      picks.some((p) => p.family === 'hpress' || p.family === 'opress')
+    ) {
+      slots = [['lraise', 'rdelt', 'opress', 'hpress']];
+    }
     const usedSubs = new Set<string>();
     const usedEquipment = new Set<string>();
     let taken = 0;
@@ -1071,6 +1096,12 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
       // each turn a strength day into an unrecoverable 20-set press dump.
       sets = 3;
     }
+    if (role === 'primary_compound' && goalKey === 'hypertrophy') {
+      // Every session keeps ONE mechanical-tension anchor — a hypertrophy
+      // day where nothing goes below 10 reps has no heavy stimulus at all.
+      repsMin = 6;
+      repsMax = 10;
+    }
     if (role === 'isolation') {
       // Two-set isolation is a placebo dose, and low-rep isolation loads a
       // small muscle in a range that punishes the joint for no return.
@@ -1090,6 +1121,21 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
         goalKey === 'strength',
       ),
     });
+    // A 10-15 band lets a trainee add 50% more reps without ever touching
+    // the load — that quietly kills double progression. Outside endurance
+    // work, high-rep bands stay tight enough to progress on.
+    if (
+      goalKey !== 'endurance' &&
+      rx.repsMin >= 10 &&
+      rx.repsMax - rx.repsMin > 3
+    ) {
+      rx.repsMax = rx.repsMin + 2;
+    }
+    // Unilateral movements run both sides — a "set" is two bouts, so they
+    // cap at 3 prescribed sets.
+    if (isUnilateral(p.exercise.name)) {
+      rx.sets = Math.min(rx.sets, 3);
+    }
     return {
       pick: p,
       role,
@@ -1102,6 +1148,27 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
   // SECONDARY COMPOUND sets first (a fourth set of the third press is the
   // cheapest set in the session) down to 3, and only then shave isolation
   // work toward 2 — never gut the accessories to protect press volume.
+  // Per-muscle ceiling: past ~12 hard sets on one muscle in one session the
+  // extra sets buy recovery cost, not stimulus — a solo Chest day must not
+  // become 15 sets of pressing. Trim later rows first, compounds before
+  // gutting the accessories (floor 2).
+  for (const muscle of strengthMuscles) {
+    const mine = rows.filter((r) => r.pick.muscle === muscle);
+    const muscleSets = () => mine.reduce((n, r) => n + r.rx.sets, 0);
+    let shaved = true;
+    while (muscleSets() > 12 && shaved) {
+      shaved = false;
+      for (let i = mine.length - 1; i >= 0 && muscleSets() > 12; i--) {
+        const r = mine[i]!;
+        const floor = r.role === 'primary_compound' ? 4 : 2;
+        if (r.rx.sets > floor) {
+          r.rx.sets--;
+          shaved = true;
+        }
+      }
+    }
+  }
+
   const setCap = beginner ? 18 : 22;
   const totalSets = () => rows.reduce((n, r) => n + r.rx.sets, 0);
   let trimmed = true;
@@ -1204,12 +1271,7 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
       seconds += r.rx.sets * (hold + 45);
     } else {
       // Unilateral rows run both sides — each "set" is two bouts.
-      const work =
-        /single[- ]arm|one[- ]arm|single[- ]leg|alternating|lunge|split squat|step[- ]up/i.test(
-          r.pick.exercise.name,
-        )
-          ? 75
-          : 40;
+      const work = isUnilateral(r.pick.exercise.name) ? 75 : 40;
       seconds += r.rx.sets * (work + r.rx.restSeconds);
     }
     seconds += 90; // find the station, set up, warm-up feel
@@ -1250,6 +1312,13 @@ function restForRole(
     case 'core':
       return 45;
   }
+}
+
+/** One side at a time — the prescribed "set" is really two bouts of work. */
+function isUnilateral(name: string): boolean {
+  return /single[- ]arm|one[- ]arm|single[- ]leg|alternating|lunge|split squat|step[- ]up/i.test(
+    name,
+  );
 }
 
 function sharesAny(items: string[] | undefined, used: Set<string>): boolean {
