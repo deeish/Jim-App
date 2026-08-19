@@ -238,6 +238,115 @@ describe('quick-session-builder (real catalog)', () => {
     expect(alloc.get('Biceps' as QuickMuscle)).toBe(2);
   });
 
+  // -------------------------------------------------------------------------
+  // Dylan's confidence sweep (2026-08-18): "not the same/similar workouts,
+  // not the same body parts over-served — and it must hold for repeated use
+  // TODAY at the gym."
+  // -------------------------------------------------------------------------
+
+  const STRENGTH: QuickMuscle[] = [
+    'Chest',
+    'Back',
+    'Shoulders',
+    'Biceps',
+    'Triceps',
+    'Quads',
+    'Hamstrings',
+    'Glutes',
+    'Calves',
+    'Core',
+    'Forearms',
+  ];
+
+  const sameList = (x?: string[], y?: string[]) =>
+    JSON.stringify([...(x ?? [])].sort()) ===
+    JSON.stringify([...(y ?? [])].sort());
+
+  const nearDuplicatePair = (a: TransformedExercise, b: TransformedExercise) =>
+    sameList(a.movementPatterns, b.movementPatterns) &&
+    sameList(a.subMuscles, b.subMuscles) &&
+    sameList(a.primaryEquipment, b.primaryEquipment);
+
+  it('SWEEP: every 1-, 2- and 3-muscle combo builds clean — no dupes, no near-dupes, everyone served', () => {
+    const combos: QuickMuscle[][] = [];
+    for (let i = 0; i < STRENGTH.length; i++) {
+      combos.push([STRENGTH[i]!]);
+      for (let j = i + 1; j < STRENGTH.length; j++) {
+        combos.push([STRENGTH[i]!, STRENGTH[j]!]);
+        for (let k = j + 1; k < STRENGTH.length; k++) {
+          combos.push([STRENGTH[i]!, STRENGTH[j]!, STRENGTH[k]!]);
+        }
+      }
+    }
+    expect(combos.length).toBe(11 + 55 + 165);
+
+    let nearDupePairs = 0;
+    for (const combo of combos) {
+      const session = build(combo, { seed: 118 }); // arbitrary mid-year seed
+      const ids = session.exercises.map((e) => e.exerciseId);
+      expect(new Set(ids).size).toBe(ids.length); // never the same exercise twice
+      expect(ids.length).toBeGreaterThanOrEqual(Math.min(4, combo.length + 2));
+      expect(ids.length).toBeLessThanOrEqual(sessionBudget(combo.length));
+      const served = new Set(session.exercises.map((e) => e.muscle));
+      for (const m of combo) expect(served.has(m)).toBe(true); // no muscle starved
+      for (const ex of session.exercises) {
+        expect(tierOf(ex.exerciseId)).not.toBe('D');
+      }
+      const rows = session.exercises.map((e) => byId.get(e.exerciseId)!);
+      for (let i = 0; i < rows.length; i++) {
+        for (let j = i + 1; j < rows.length; j++) {
+          if (nearDuplicatePair(rows[i]!, rows[j]!)) nearDupePairs++;
+        }
+      }
+    }
+    // Across all 231 sessions, not a single near-duplicate pair anywhere.
+    expect(nearDupePairs).toBe(0);
+  });
+
+  it('A WEEK OF USE: the same request across 7 days keeps the anchor, varies the rest', () => {
+    const presets: Array<[string, QuickMuscle[]]> = [
+      ['Pull', ['Back', 'Biceps']],
+      ['Push', ['Chest', 'Shoulders', 'Triceps']],
+      ['Legs', ['Quads', 'Hamstrings', 'Glutes', 'Calves']],
+    ];
+    for (const [label, muscles] of presets) {
+      const week = Array.from({ length: 7 }, (_, day) =>
+        build(muscles, { seed: day }),
+      );
+      // The anchor is stable — real programs repeat their main lift.
+      const anchors = new Set(week.map((s) => s.exercises[0]!.exerciseId));
+      expect(anchors.size).toBe(1);
+      // But the sessions are not photocopies: several distinct line-ups/week.
+      const fingerprints = new Set(
+        week.map((s) => s.exercises.map((e) => e.exerciseId).join('|')),
+      );
+      expect(fingerprints.size).toBeGreaterThanOrEqual(3);
+      // eslint-disable-next-line no-console
+      console.log(
+        `[variety] ${label}: ${fingerprints.size}/7 distinct sessions across a week`,
+      );
+    }
+  });
+
+  it('TODAY, TWICE: a second session at the gym repeats nothing from the first', () => {
+    const first = build(['Back', 'Biceps'], { seed: 118 });
+    const firstIds = first.exercises.map((e) => e.exerciseId);
+    const second = build(['Back', 'Biceps'], {
+      seed: 118, // same day, same seed — the exclude list does the work
+      excludeIds: firstIds,
+    });
+    expect(second.exercises.length).toBeGreaterThanOrEqual(4);
+    const overlap = second.exercises.filter((e) =>
+      firstIds.includes(e.exerciseId),
+    );
+    expect(overlap).toHaveLength(0);
+    // And the second session is still quality-clean.
+    for (const ex of second.exercises) {
+      expect(tierOf(ex.exerciseId)).not.toBe('D');
+      expect(muscleMatches(byId.get(ex.exerciseId)!, ex.muscle)).toBe(true);
+    }
+  });
+
   it('titles read like a human wrote them', () => {
     expect(quickSessionTitle(['Back'] as QuickMuscle[])).toBe('Back Day');
     expect(quickSessionTitle(['Back', 'Biceps'] as QuickMuscle[])).toBe(

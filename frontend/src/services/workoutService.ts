@@ -41,6 +41,8 @@ export type QuickSessionRequest = {
   experience?: string;
   equipment?: string[];
   limitations?: string[];
+  /** Exercise ids already on today, so a second session doesn't repeat them. */
+  excludeIds?: string[];
 };
 
 /** Build a one-off session for an arbitrary muscle selection. */

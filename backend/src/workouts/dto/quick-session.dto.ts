@@ -34,4 +34,11 @@ export class QuickSessionDto {
   @IsArray()
   @IsString({ each: true })
   limitations?: string[];
+
+  /** Exercise ids already scheduled today — a second quick session on the
+   *  same day must not repeat them. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  excludeIds?: string[];
 }

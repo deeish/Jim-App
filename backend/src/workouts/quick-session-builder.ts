@@ -391,8 +391,20 @@ export function buildQuickSession(options: QuickSessionOptions): QuickSession {
     let taken = 0;
 
     while (taken < want && pool.length > 0) {
-      const unpicked = pool.filter((e) => !usedIds.has(e.id));
-      if (unpicked.length === 0) break;
+      // HARD near-duplicate guard: never two rows a coach would call the
+      // same exercise. If only near-dupes remain, a muscle still gets its
+      // FIRST pick (never starve a selected muscle) — but a later slot is
+      // skipped rather than filled with a photocopy.
+      let unpicked = pool.filter(
+        (e) =>
+          !usedIds.has(e.id) &&
+          !picks.some((p) => isNearDuplicate(p.exercise, e)),
+      );
+      if (unpicked.length === 0) {
+        if (taken > 0) break;
+        unpicked = pool.filter((e) => !usedIds.has(e.id));
+        if (unpicked.length === 0) break;
+      }
 
       let chosen: TransformedExercise;
       if (taken === 0) {
@@ -537,10 +549,42 @@ function primaryEquip(e: TransformedExercise): string[] {
   return e.primaryEquipment?.length ? e.primaryEquipment : (e.equipment ?? []);
 }
 
-/** The leading same-tier slice of an already-ranked pool (rotation band). */
+function sameList(x: string[] | undefined, y: string[] | undefined): boolean {
+  return (
+    JSON.stringify([...(x ?? [])].sort()) ===
+    JSON.stringify([...(y ?? [])].sort())
+  );
+}
+
+/** Two rows a coach would call the same exercise in different clothes:
+ *  identical movement patterns, identical sub-muscles, identical primary
+ *  equipment. One session never contains such a pair. */
+export function isNearDuplicate(
+  a: TransformedExercise,
+  b: TransformedExercise,
+): boolean {
+  return (
+    sameList(a.movementPatterns, b.movementPatterns) &&
+    sameList(a.subMuscles, b.subMuscles) &&
+    sameList(a.primaryEquipment, b.primaryEquipment)
+  );
+}
+
+/** The rotation band of an already-ranked pool: the leading tier, extended
+ *  into the next tier when the leading one is thin — a band of one can't
+ *  rotate, and adjacent tiers are both curated quality. */
 function tierBand(ranked: TransformedExercise[]): TransformedExercise[] {
   if (ranked.length === 0) return ranked;
   const lead = tierRank(ranked[0]!.id);
-  const band = ranked.filter((e) => tierRank(e.id) === lead);
-  return band.slice(0, Math.min(4, band.length));
+  let band = ranked.filter((e) => tierRank(e.id) === lead);
+  if (band.length < 3) {
+    const nextTiers = [...new Set(ranked.map((e) => tierRank(e.id)))]
+      .filter((t) => t > lead)
+      .sort((a, b) => a - b);
+    for (const t of nextTiers) {
+      if (band.length >= 3) break;
+      band = [...band, ...ranked.filter((e) => tierRank(e.id) === t)];
+    }
+  }
+  return band.slice(0, Math.min(5, band.length));
 }

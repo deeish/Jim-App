@@ -88,6 +88,7 @@ export class WorkoutsService {
       difficulty: dto.experience,
       equipment: dto.equipment?.length ? dto.equipment : undefined,
       limitations: dto.limitations,
+      excludeIds: dto.excludeIds,
       seed: dayOfYear,
     });
   }

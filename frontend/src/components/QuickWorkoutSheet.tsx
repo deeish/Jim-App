@@ -21,8 +21,9 @@ import {
   sfPro,
   type PrototypeMuscle,
 } from '../lib/planCalendarPrototype';
-import { addQuickSessionToday } from '../lib/planCalendarPrototypeStore';
+import { addQuickSessionToday, plannedDayForDate } from '../lib/planCalendarPrototypeStore';
 import { buildQuickSession } from '../services/workoutService';
+import { todayIso } from '../lib/planCalendarPrototype';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
 const ALL_MUSCLES: PrototypeMuscle[] = [
@@ -135,10 +136,16 @@ export default function QuickWorkoutSheet({ visible, onClose, onLanded }: Props)
     setBuilding(true);
     setError('');
     try {
+      // A second quick session today must not repeat what's already on the
+      // day (the same-seed builder would otherwise serve identical picks).
+      const alreadyToday = plannedDayForDate(todayIso())
+        .exercises.map((ex) => ex.exerciseId)
+        .filter((id): id is string => !!id);
       const session = await buildQuickSession({
         muscles: selectedList,
         goal,
         experience,
+        ...(alreadyToday.length > 0 ? { excludeIds: alreadyToday } : null),
       });
       const landedOn = await addQuickSessionToday(session);
       buzzEditApplied();
