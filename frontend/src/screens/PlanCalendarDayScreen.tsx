@@ -68,6 +68,7 @@ import {
   muscleFromCatalog,
   plannedDayForDate,
   plannedExerciseFromCatalog,
+  removeExerciseFromDay,
   replaceExercise,
   subscribePlanCalendar,
 } from '../lib/planCalendarPrototypeStore';
@@ -85,7 +86,7 @@ type PickerTarget =
 
 /**
  * PROTOTYPE — one day of the plan: split colour-coded blocks (tap = workout
- * detail, hold = replace), plus "+ Add Exercise". Replace/Add open the
+ * detail, hold = replace/remove), plus "+ Add Exercise". Replace/Add open the
  * exercise-library picker: the REAL catalog when the backend is reachable
  * (recommended-tier exercises pinned on top), the sample library offline.
  */
@@ -563,7 +564,7 @@ export default function PlanCalendarDayScreen() {
       )}
 
       {plan.exercises.length > 0 && (
-        <Text style={styles.hint}>Hold an exercise to replace it</Text>
+        <Text style={styles.hint}>Hold an exercise to replace or remove it</Text>
       )}
       {calendarDataMode() === 'offline' && (
         <Text style={styles.footerNote}>Offline — changes stay on this device</Text>
@@ -599,6 +600,24 @@ export default function PlanCalendarDayScreen() {
               >
                 <Ionicons name="swap-horizontal" size={20} color={colors.primary} />
                 <Text style={styles.menuActionLabel}>Replace Exercise</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.menuAction, styles.menuActionDivider]}
+                activeOpacity={0.8}
+                onPress={() => {
+                  if (menuFor) {
+                    removeExerciseFromDay(dateIso, menuFor.index);
+                    buzzEditApplied();
+                  }
+                  setMenuFor(null);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Remove exercise"
+              >
+                <Ionicons name="trash-outline" size={20} color={colors.error} />
+                <Text style={[styles.menuActionLabel, styles.menuActionDestructive]}>
+                  Remove Exercise
+                </Text>
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -983,6 +1002,13 @@ function createStyles(c: ColorPalette) {
       fontSize: text.callout,
       fontWeight: weight.semibold,
       color: c.primary,
+    },
+    menuActionDivider: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
+    },
+    menuActionDestructive: {
+      color: c.error,
     },
     menuCancel: {
       alignItems: 'center',

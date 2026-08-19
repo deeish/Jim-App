@@ -68,6 +68,8 @@ function slotKey(dateIso: string, exerciseIndex: number): string {
 const replacements = new Map<string, PlannedExercise>();
 /** dateIso → exercises appended after the day's base list ("+ Add Exercise"). */
 const additions = new Map<string, PlannedExercise[]>();
+/** dateIso → BASE indexes removed from the day ("Remove Exercise"). */
+const removals = new Map<string, Set<number>>();
 /** dateIso → title for a session-local custom day (quick workouts without a
  *  plan would otherwise all read "Custom Workout"). */
 const customDayTitles = new Map<string, string>();
@@ -222,6 +224,7 @@ export function ensureLiveCalendarData(): void {
       if (plan && plan.id !== lastSeenPlanId) {
         replacements.clear();
         additions.clear();
+        removals.clear();
         setLogs.clear();
         // Skip/move records describe dates of the OLD plan's schedule.
         skippedDays.clear();
@@ -532,13 +535,19 @@ export function consumeAnchorAutoJump(): string | null {
 }
 
 /** The day's plan — real when a plan is loaded, sample otherwise — with
- *  session replacements applied and added exercises appended. */
+ *  session replacements applied, removed exercises dropped, and added
+ *  exercises appended. */
 export function plannedDayForDate(dateIso: string): PlannedDay {
   const base = baseDayForDate(dateIso);
   const added = additions.get(dateIso) ?? [];
+  const removed = removals.get(dateIso);
   let exercises = base.exercises;
   if (replacements.size > 0) {
+    // Replacements overlay BASE indexes — apply them before removal filtering.
     exercises = exercises.map((ex, i) => replacements.get(slotKey(dateIso, i)) ?? ex);
+  }
+  if (removed && removed.size > 0) {
+    exercises = exercises.filter((_, i) => !removed.has(i));
   }
   if (added.length > 0) {
     exercises = [...exercises, ...added];
@@ -550,6 +559,11 @@ export function plannedDayForDate(dateIso: string): PlannedDay {
         exercises,
       };
     }
+  }
+  // Every exercise removed: the day reads as rest until the slot deletion
+  // persists (after which it IS a rest day from the server too).
+  if (exercises.length === 0 && base.exercises.length > 0) {
+    return { ...base, title: 'Rest Day', exercises };
   }
   return { ...base, exercises };
 }
@@ -875,7 +889,10 @@ export async function commitMoves(pending: PendingMove[]): Promise<void> {
   for (const key of [...replacements.keys()]) {
     if (touched.has(key.slice(0, 10))) replacements.delete(key);
   }
-  for (const dateIso of touched) additions.delete(dateIso);
+  for (const dateIso of touched) {
+    additions.delete(dateIso);
+    removals.delete(dateIso);
+  }
   // One provenance record per slot, keeping its ORIGIN: a workout chained
   // through several days still reads "moved from" its true home, and its
   // old day still points at wherever it lives now (labels derive from the
@@ -991,27 +1008,88 @@ export async function moveMissedDay(sourceIso: string, targetIso: string): Promi
   );
 }
 
+/** Map a DISPLAYED exercise index (what screens hold) back onto the day's
+ *  composition: a surviving base slot, or an entry in the additions list.
+ *  With removals in play the two no longer line up one-to-one. */
+function resolveDayIndex(
+  dateIso: string,
+  exerciseIndex: number,
+): { kind: 'base'; baseIndex: number } | { kind: 'added'; addedIndex: number } | null {
+  const baseLen = baseDayForDate(dateIso).exercises.length;
+  const removed = removals.get(dateIso);
+  const surviving: number[] = [];
+  for (let i = 0; i < baseLen; i++) {
+    if (!removed?.has(i)) surviving.push(i);
+  }
+  if (exerciseIndex < surviving.length) {
+    return { kind: 'base', baseIndex: surviving[exerciseIndex] };
+  }
+  const addedIndex = exerciseIndex - surviving.length;
+  if (addedIndex < (additions.get(dateIso)?.length ?? 0)) {
+    return { kind: 'added', addedIndex };
+  }
+  return null;
+}
+
 export function replaceExercise(
   dateIso: string,
   exerciseIndex: number,
   replacement: PlannedExercise,
 ): void {
-  const baseLen = baseDayForDate(dateIso).exercises.length;
-  if (exerciseIndex >= baseLen) {
+  const target = resolveDayIndex(dateIso, exerciseIndex);
+  if (!target) return;
+  if (target.kind === 'added') {
     // Replacing an ADDED exercise: edit the additions list in place (the
     // replacements map only overlays base-slot indexes).
     const arr = [...(additions.get(dateIso) ?? [])];
-    const ai = exerciseIndex - baseLen;
-    if (ai < 0 || ai >= arr.length) return;
-    arr[ai] = replacement;
+    arr[target.addedIndex] = replacement;
     additions.set(dateIso, arr);
   } else {
-    replacements.set(slotKey(dateIso, exerciseIndex), replacement);
+    replacements.set(slotKey(dateIso, target.baseIndex), replacement);
   }
   // A different exercise: any sets logged against the old one no longer apply.
   setLogs.delete(slotKey(dateIso, exerciseIndex));
   scheduleSessionSave();
   queuePersistDayEdits(dateIso);
+  emit();
+}
+
+/** "Remove Exercise" — drops one exercise from the day (a base slot joins the
+ *  removals overlay; an added one leaves the additions list). Persists like
+ *  replace/add: the day's slot is rebuilt without it. */
+export function removeExerciseFromDay(dateIso: string, exerciseIndex: number): void {
+  const target = resolveDayIndex(dateIso, exerciseIndex);
+  if (!target) return;
+  const mergedLen = plannedDayForDate(dateIso).exercises.length;
+  if (target.kind === 'added') {
+    const arr = [...(additions.get(dateIso) ?? [])];
+    arr.splice(target.addedIndex, 1);
+    if (arr.length > 0) additions.set(dateIso, arr);
+    else additions.delete(dateIso);
+  } else {
+    const set = removals.get(dateIso) ?? new Set<number>();
+    set.add(target.baseIndex);
+    removals.set(dateIso, set);
+    // Its replacement overlay (if any) no longer applies either.
+    replacements.delete(slotKey(dateIso, target.baseIndex));
+  }
+  // Set logs are keyed by DISPLAYED index: drop the removed exercise's logs
+  // and shift every later exercise's logs down one so they stay attached.
+  setLogs.delete(slotKey(dateIso, exerciseIndex));
+  for (let i = exerciseIndex + 1; i < mergedLen; i++) {
+    const logs = setLogs.get(slotKey(dateIso, i));
+    setLogs.delete(slotKey(dateIso, i));
+    if (logs) setLogs.set(slotKey(dateIso, i - 1), logs);
+  }
+  scheduleSessionSave();
+  queuePersistDayEdits(dateIso);
+  // Removing the last unlogged exercise can complete the day: sync the log
+  // (the "Finish & Log Session" row disappears once all done). Queued BEHIND
+  // the slot rebuild — syncing immediately would materialize the very slot
+  // the rebuild is about to delete.
+  if (isDayFullyLogged(dateIso)) {
+    persistChain = persistChain.then(() => syncDayCompletion(dateIso)).catch(() => {});
+  }
   emit();
 }
 
@@ -1065,12 +1143,13 @@ function toSlotExerciseRow(ex: PlannedExercise, orderIndex: number): PlanSlotExe
 }
 
 /**
- * Write the day's replaces/adds into the plan: rebuild the day's slot with
- * the edited exercise list (add the new slot, then remove the old — worst
- * case a transient duplicate, never a lost day), or create a slot for a
- * custom rest-day session. On success the server plan becomes the base and
- * the session overlays for that day are cleared; on failure they simply
- * stay session-local. Multi-slot days keep session-only edits (rare).
+ * Write the day's replaces/removes/adds into the plan: rebuild the day's slot
+ * with the edited exercise list (add the new slot, then remove the old —
+ * worst case a transient duplicate, never a lost day), create a slot for a
+ * custom rest-day session, or delete the slot outright when every exercise
+ * was removed. On success the server plan becomes the base and the session
+ * overlays for that day are cleared; on failure they simply stay
+ * session-local. Multi-slot days keep session-only edits (rare).
  */
 async function persistDayEdits(dateIso: string): Promise<void> {
   if (liveStatus !== 'ready' || !livePlan) return;
@@ -1084,7 +1163,7 @@ async function persistDayEdits(dateIso: string): Promise<void> {
     if (!row) return; // an un-catalogued row: keep everything session-local
     rows.push(row);
   }
-  if (rows.length === 0) return;
+  if (rows.length === 0 && !slots[0]) return;
   try {
     const date = fromIso(dateIso);
     const anchor = planAnchorMonday(livePlan);
@@ -1092,34 +1171,42 @@ async function persistDayEdits(dateIso: string): Promise<void> {
       Math.round((mondayOf(date).getTime() - anchor.getTime()) / WEEK_MS) + 1;
     const offset = weekNumberOffset(livePlan);
     const old = slots[0];
-    const slot: PlanSlot = old
-      ? {
-          weekNumber: old.weekNumber,
-          dayOfWeek: old.dayOfWeek,
-          title: old.title,
-          detailLine: old.detailLine ?? undefined,
-          type: old.type,
-          durationMinutes: old.durationMinutes,
-          intensity: old.intensity ?? undefined,
-          orderInDay: old.orderInDay,
-          exercises: rows,
-        }
-      : {
-          weekNumber: Math.max(1, programWeek - offset),
-          dayOfWeek: WEEKDAYS[weekdayIndex(date)],
-          title: day.title,
-          type: 'strength',
-          durationMinutes: Math.max(15, rows.length * 8),
-          exercises: rows,
-        };
-    let plan = await addPlanSlot(planId, slot);
-    if (old) plan = await removePlanSlot(planId, old.id);
+    let plan: ApiPlan;
+    if (rows.length === 0) {
+      // Every exercise was removed — the slot itself goes, so the day
+      // becomes a genuine rest day (never an empty workout).
+      plan = await removePlanSlot(planId, old.id);
+    } else {
+      const slot: PlanSlot = old
+        ? {
+            weekNumber: old.weekNumber,
+            dayOfWeek: old.dayOfWeek,
+            title: old.title,
+            detailLine: old.detailLine ?? undefined,
+            type: old.type,
+            durationMinutes: old.durationMinutes,
+            intensity: old.intensity ?? undefined,
+            orderInDay: old.orderInDay,
+            exercises: rows,
+          }
+        : {
+            weekNumber: Math.max(1, programWeek - offset),
+            dayOfWeek: WEEKDAYS[weekdayIndex(date)],
+            title: day.title,
+            type: 'strength',
+            durationMinutes: Math.max(15, rows.length * 8),
+            exercises: rows,
+          };
+      plan = await addPlanSlot(planId, slot);
+      if (old) plan = await removePlanSlot(planId, old.id);
+    }
     // Server is now canonical for this day — drop the local overlays (they
     // would double-apply the additions on top of the rebuilt slot).
-    for (let i = 0; i < day.exercises.length; i++) {
-      replacements.delete(slotKey(dateIso, i));
+    for (const key of [...replacements.keys()]) {
+      if (key.startsWith(`${dateIso}#`)) replacements.delete(key);
     }
     additions.delete(dateIso);
+    removals.delete(dateIso);
     livePlan = plan;
     lastSeenPlanId = plan.id;
     emit();
