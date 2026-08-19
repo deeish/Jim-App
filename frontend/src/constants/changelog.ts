@@ -24,15 +24,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
-  // The card for the NEXT release (nothing after build 25 has shipped yet).
-  // Headline: Quick Workout. Before distribution this card should absorb the
-  // rest of the unreleased work on this branch (dark mode, missed day rescue,
-  // haptics everywhere, add another set) so the build ships ONE card.
+  // The ONE card for the next release: everything on this branch since
+  // build 25 (Quick Workout, dark mode, missed day rescue + Make Room,
+  // add another set, gradient month/week + legend sheet, haptics baseline).
+  // Deliberately short so testers know what to look for; selector freeze,
+  // rest-day open fix and the ended-program gate are polish and stay out.
   {
     id: '2026-08-19',
     version: '1.1.0',
     date: '2026-08-19',
-    title: 'Quick Workout',
+    title: 'Quick Workout and dark mode',
     changes: [
       {
         type: 'new',
@@ -40,23 +41,27 @@ export const CHANGELOG: ChangelogEntry[] = [
       },
       {
         type: 'new',
-        text: 'Pick a goal and the whole session adapts: strength, muscle, endurance, and general fitness each change the exercises, sets, reps, and rest.',
+        text: 'Quick sessions match your goal, experience, and equipment, and are ordered the way a coach would run them.',
       },
       {
         type: 'new',
-        text: 'Tell it what equipment you have and every pick fits. A dumbbell-only session at home works as well as a full gym.',
+        text: 'Dark mode. Pick Light or Dark under Appearance in your Profile.',
+      },
+      {
+        type: 'new',
+        text: 'Missed a workout? Move it to another day or let it go. Any workout can be moved, and the calendar makes room when a day is taken.',
+      },
+      {
+        type: 'new',
+        text: 'Add another set to any finished exercise, right from its set cards.',
       },
       {
         type: 'improved',
-        text: 'Sessions are ordered the way a coach would run them: big lifts first while you are fresh, smaller work after, core at the end.',
+        text: 'The month and week views now wear the same muscle colors as the day view, with a color key one tap away.',
       },
       {
         type: 'improved',
-        text: 'Come back tomorrow and the accessories rotate for variety while your main lifts stay consistent.',
-      },
-      {
-        type: 'improved',
-        text: 'Beginner sessions stick to friendlier exercises with a volume you can recover from.',
+        text: 'Gentle tap feedback across the whole app.',
       },
     ],
   },
