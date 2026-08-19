@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,7 +17,6 @@ import {
   radius,
   spacing,
   text,
-  tracking,
   useTheme,
   weight,
   type ColorPalette,
@@ -30,7 +28,6 @@ import type { CalendarScope } from '../components/PlanCalendarScopeBar';
 import { SCOPE_BAR_SPACE, useFrozenScopeBar } from '../components/PlanCalendarScopeBarHost';
 import {
   GOLD,
-  MUSCLE_COLORS,
   MUSCLE_EDGE,
   MUSCLE_INK,
   addDays,
@@ -39,7 +36,6 @@ import {
   buzzMenuOpen,
   buzzSelection,
   buzzTap,
-  catalogGroupForMuscle,
   fromIso,
   mondayOf,
   muscleChipFrost,
@@ -50,13 +46,11 @@ import {
   toIso,
   type PlanCalendarParamList,
   type PlannedExercise,
-  type PrototypeMuscle,
 } from '../lib/planCalendarPrototype';
 import { LinearGradient } from 'expo-linear-gradient';
 import WorkoutMoveSheet from '../components/WorkoutMoveSheet';
 import QuickWorkoutSheet from '../components/QuickWorkoutSheet';
 import {
-  addExerciseToDay,
   calendarDataMode,
   canRescueDay,
   ensureLogsForMonth,
@@ -65,30 +59,22 @@ import {
   isDayLogged,
   moveMissedDay,
   moveTargetsForDay,
-  muscleFromCatalog,
   plannedDayForDate,
-  plannedExerciseFromCatalog,
   removeExerciseFromDay,
-  replaceExercise,
   subscribePlanCalendar,
 } from '../lib/planCalendarPrototypeStore';
-import { searchExercises, type Exercise as CatalogExercise } from '../services/exerciseService';
 
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarDay'>;
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarDay'>;
 
 /** The slot a long-press is acting on. */
 type SlotTarget = { index: number; exercise: PlannedExercise };
-/** What the exercise picker is doing: swapping one slot, or appending. */
-type PickerTarget =
-  | { mode: 'replace'; index: number; exercise: PlannedExercise }
-  | { mode: 'add' };
 
 /**
  * PROTOTYPE — one day of the plan: split colour-coded blocks (tap = workout
- * detail, hold = replace/remove), plus "+ Add Exercise". Replace/Add open the
- * exercise-library picker: the REAL catalog when the backend is reachable
- * (recommended-tier exercises pinned on top), the sample library offline.
+ * detail, hold = replace/remove), plus "+ Add Exercise". Replace/Add push the
+ * library-as-picker sheet (PlanCalendarExercisePicker) — the full Exercises
+ * library in selection mode with recommendations pinned on top.
  */
 export default function PlanCalendarDayScreen() {
   const navigation = useNavigation<Nav>();
@@ -140,10 +126,8 @@ export default function PlanCalendarDayScreen() {
     ensureLogsForMonth(fromIso(dateIso));
   }, [dateIso]);
 
-  /** Long-press menu (small sheet), then the picker pop-up. */
+  /** Long-press menu (small sheet); Replace/Add push the picker screen. */
   const [menuFor, setMenuFor] = useState<SlotTarget | null>(null);
-  const [picker, setPicker] = useState<PickerTarget | null>(null);
-  const [query, setQuery] = useState('');
 
   // Quick Workout door on TODAY's rest day (the at-the-gym scenario).
   const [quickVisible, setQuickVisible] = useState(false);
@@ -175,126 +159,6 @@ export default function PlanCalendarDayScreen() {
     }
   };
 
-  // ---- Catalog fetches (null = loading; offline flips to the sample lib) ----
-  const [recList, setRecList] = useState<CatalogExercise[] | null>(null);
-  const [allList, setAllList] = useState<CatalogExercise[] | null>(null);
-  const [catalogOffline, setCatalogOffline] = useState(false);
-  const recSeq = useRef(0);
-  const allSeq = useRef(0);
-
-  const dayNamesLower = useMemo(
-    () => new Set(plan.exercises.map((e) => e.name.toLowerCase())),
-    [plan],
-  );
-
-  // Recommended rail: fetched once per picker open (query never filters it).
-  useEffect(() => {
-    if (!picker) return;
-    setQuery('');
-    setRecList(null);
-    setAllList(null);
-    setCatalogOffline(false);
-    const seq = ++recSeq.current;
-    void (async () => {
-      try {
-        const groups =
-          picker.mode === 'replace'
-            ? [catalogGroupForMuscle(picker.exercise.muscle)]
-            : [...new Set(plan.exercises.map((e) => catalogGroupForMuscle(e.muscle)))];
-        let rec = (
-          await searchExercises(
-            groups.length
-              ? { muscleGroups: groups, recommendedOnly: true, limit: 25 }
-              : { recommendedOnly: true, limit: 25 },
-          )
-        ).exercises;
-        // Recommended pool dry for this muscle → best same-group picks instead.
-        if (rec.length === 0 && groups.length) {
-          rec = (await searchExercises({ muscleGroups: groups, limit: 15 })).exercises;
-        }
-        if (seq !== recSeq.current) return;
-        setRecList(rec);
-      } catch {
-        if (seq !== recSeq.current) return;
-        setCatalogOffline(true);
-      }
-    })();
-    // The day's plan is snapshotted at open; a mid-open store change is fine.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picker]);
-
-  // Full list: debounced on the search query.
-  useEffect(() => {
-    if (!picker || catalogOffline) return;
-    const seq = ++allSeq.current;
-    const q = query.trim();
-    const timer = setTimeout(() => {
-      void (async () => {
-        try {
-          const res = await searchExercises({
-            searchQuery: q.length > 0 ? q : undefined,
-            limit: 60,
-          });
-          if (seq !== allSeq.current) return;
-          setAllList(res.exercises);
-        } catch {
-          if (seq !== allSeq.current) return;
-          setCatalogOffline(true);
-        }
-      })();
-    }, q.length > 0 ? 250 : 0);
-    return () => clearTimeout(timer);
-  }, [picker, query, catalogOffline]);
-
-  const targetMuscle: PrototypeMuscle | null =
-    picker?.mode === 'replace' ? picker.exercise.muscle : null;
-
-  /** Exclude what's already in the day; recommended first, then the target
-   *  muscle, then name — "recommended workouts at the top of the list". */
-  const rankCatalog = (rows: CatalogExercise[], limit?: number): CatalogExercise[] => {
-    const usable = rows.filter((r) => !dayNamesLower.has(r.name.toLowerCase()));
-    usable.sort((a, b) => {
-      const rec = Number(b.recommended === true) - Number(a.recommended === true);
-      if (rec !== 0) return rec;
-      if (targetMuscle) {
-        const am = muscleFromCatalog(a.primaryMuscleGroup, a.subMuscles, a.name);
-        const bm = muscleFromCatalog(b.primaryMuscleGroup, b.subMuscles, b.name);
-        const tm = Number(bm === targetMuscle) - Number(am === targetMuscle);
-        if (tm !== 0) return tm;
-      }
-      return a.name.localeCompare(b.name);
-    });
-    return limit != null ? usable.slice(0, limit) : usable;
-  };
-
-  const catalogRecommended = recList != null ? rankCatalog(recList, 3) : null;
-  const catalogAll = allList != null ? rankCatalog(allList) : null;
-
-  const closePicker = () => {
-    setPicker(null);
-    setQuery('');
-    // Invalidate any in-flight fetches.
-    recSeq.current += 1;
-    allSeq.current += 1;
-  };
-
-  const applyPlanned = (exercise: PlannedExercise) => {
-    if (!picker) return;
-    if (picker.mode === 'replace') replaceExercise(dateIso, picker.index, exercise);
-    else addExerciseToDay(dateIso, exercise);
-    buzzEditApplied();
-    closePicker();
-  };
-
-  const applyCatalogPick = (row: CatalogExercise) => {
-    if (!picker) return;
-    applyPlanned(
-      plannedExerciseFromCatalog(row, picker.mode === 'replace' ? picker.exercise : null),
-    );
-  };
-
-  const pickerVerb = picker?.mode === 'add' ? 'Add' : 'Replace with';
-
   const doneCount = plan.exercises.filter(
     (ex, i) => getSetLogs(dateIso, i).length >= ex.sets,
   ).length;
@@ -324,43 +188,6 @@ export default function PlanCalendarDayScreen() {
           }
         }),
     [navigation, dateIso],
-  );
-
-  const renderCatalogRow = (row: CatalogExercise, i: number, pinned: boolean) => {
-    const muscle = muscleFromCatalog(row.primaryMuscleGroup, row.subMuscles, row.name);
-    return (
-      <TouchableOpacity
-        key={row.id}
-        style={[styles.pickerRow, i > 0 && styles.rowDivider]}
-        activeOpacity={0.8}
-        onPress={() => applyCatalogPick(row)}
-        accessibilityRole="button"
-        accessibilityLabel={`${pickerVerb} ${row.name}`}
-      >
-        <View
-          style={[
-            styles.pickerDot,
-            { backgroundColor: MUSCLE_COLORS[muscle], borderColor: MUSCLE_EDGE[muscle] },
-          ]}
-        />
-        <View style={styles.pickerRowText}>
-          <Text style={styles.pickerRowName}>{row.name}</Text>
-          <Text style={styles.pickerRowMuscle}>{muscle}</Text>
-        </View>
-        {pinned || row.recommended ? (
-          <Ionicons name="sparkles" size={15} color={GOLD} />
-        ) : (
-          <Ionicons name="chevron-forward" size={15} color={colors.textTertiary} />
-        )}
-      </TouchableOpacity>
-    );
-  };
-
-  const loadingRow = (
-    <View style={styles.pickerRow}>
-      <ActivityIndicator size="small" color={colors.primary} />
-      <Text style={styles.pickerRowMuscle}>Loading exercises…</Text>
-    </View>
   );
 
   return (
@@ -536,7 +363,7 @@ export default function PlanCalendarDayScreen() {
         onPress={() => {
           if (Date.now() - lastSwipeAt.current < 450) return;
           buzzTap();
-          setPicker({ mode: 'add' });
+          navigation.navigate('PlanCalendarExercisePicker', { dateIso, mode: 'add' });
         }}
         accessibilityRole="button"
         accessibilityLabel="Add exercise"
@@ -591,7 +418,11 @@ export default function PlanCalendarDayScreen() {
                 activeOpacity={0.8}
                 onPress={() => {
                   if (menuFor) {
-                    setPicker({ mode: 'replace', index: menuFor.index, exercise: menuFor.exercise });
+                    navigation.navigate('PlanCalendarExercisePicker', {
+                      dateIso,
+                      mode: 'replace',
+                      exerciseIndex: menuFor.index,
+                    });
                   }
                   setMenuFor(null);
                 }}
@@ -633,92 +464,6 @@ export default function PlanCalendarDayScreen() {
         </Pressable>
       </Modal>
 
-      {/* ---- Replace/Add pop-up (the exercises tab, recommendations pinned) ---- */}
-      <Modal
-        visible={picker !== null}
-        animationType="slide"
-        onRequestClose={closePicker}
-      >
-        <View style={[styles.pickerRoot, { paddingTop: insets.top + spacing.md }]}>
-          <View style={styles.pickerHeader}>
-            <TouchableOpacity
-              onPress={closePicker}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              accessibilityRole="button"
-              accessibilityLabel="Close picker"
-            >
-              <Ionicons name="close" size={26} color={colors.text} />
-            </TouchableOpacity>
-            <Text style={styles.pickerTitle}>
-              {picker?.mode === 'add' ? 'Add Exercise' : 'Replace Exercise'}
-            </Text>
-            <View style={styles.pickerHeaderSpacer} />
-          </View>
-          <Text style={styles.pickerLede} numberOfLines={1}>
-            {picker?.mode === 'add'
-              ? `Adding to ${plan.title}`
-              : `Swapping out ${picker?.exercise.name ?? ''}`}
-          </Text>
-
-          <View style={styles.searchBox}>
-            <Ionicons name="search" size={17} color={colors.textMuted} />
-            <TextInput
-              style={styles.searchInput}
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search exercises"
-              placeholderTextColor={colors.textMuted}
-              autoCorrect={false}
-            />
-          </View>
-
-          <ScrollView
-            style={styles.pickerList}
-            contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xxxl }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {catalogOffline ? (
-              <View style={[styles.groupCard, { marginTop: spacing.xl }]}>
-                <View style={styles.pickerRow}>
-                  <Ionicons name="cloud-offline-outline" size={18} color={colors.textMuted} />
-                  <Text style={styles.pickerRowMuscle}>
-                    Can’t reach the exercise library. Check your connection and try again.
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <>
-                {(catalogRecommended == null || catalogRecommended.length > 0) && (
-                  <>
-                    <Text style={styles.sectionLabel}>RECOMMENDED</Text>
-                    <View style={styles.groupCard}>
-                      {catalogRecommended == null
-                        ? loadingRow
-                        : catalogRecommended.map((row, i) => renderCatalogRow(row, i, true))}
-                    </View>
-                  </>
-                )}
-                <Text style={styles.sectionLabel}>ALL EXERCISES</Text>
-                <View style={styles.groupCard}>
-                  {catalogAll == null
-                    ? loadingRow
-                    : catalogAll.map((row, i) => renderCatalogRow(row, i, false))}
-                  {catalogAll != null && catalogAll.length === 0 && (
-                    <View style={styles.pickerRow}>
-                      <Text style={styles.pickerRowMuscle}>
-                        {query.trim()
-                          ? `No exercises match “${query.trim()}”.`
-                          : 'No exercises available.'}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </>
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
     </ScrollView>
     </GestureDetector>
 
@@ -1019,102 +764,6 @@ function createStyles(c: ColorPalette) {
       fontSize: text.callout,
       fontWeight: weight.bold,
       color: c.text,
-    },
-
-    // Replace/Add pop-up
-    pickerRoot: {
-      flex: 1,
-      backgroundColor: c.background,
-      paddingHorizontal: spacing.lg,
-    },
-    pickerHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    pickerTitle: {
-      ...sfPro,
-      flex: 1,
-      textAlign: 'center',
-      fontSize: text.headline,
-      fontWeight: weight.bold,
-      color: c.text,
-    },
-    pickerHeaderSpacer: {
-      width: 26,
-    },
-    pickerLede: {
-      ...sfPro,
-      fontSize: text.footnote,
-      color: c.textMuted,
-      textAlign: 'center',
-      marginTop: spacing.xs,
-    },
-    searchBox: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      backgroundColor: c.surface,
-      borderRadius: radius.md,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      marginTop: spacing.lg,
-    },
-    searchInput: {
-      ...sfPro,
-      flex: 1,
-      fontSize: text.callout,
-      color: c.text,
-      paddingVertical: spacing.xxs,
-    },
-    pickerList: {
-      flex: 1,
-      marginTop: spacing.sm,
-    },
-    sectionLabel: {
-      ...sfPro,
-      fontSize: text.caption,
-      fontWeight: weight.semibold,
-      letterSpacing: tracking.widest,
-      color: c.textMuted,
-      marginTop: spacing.xl,
-      marginBottom: spacing.sm,
-      marginLeft: spacing.md,
-    },
-    groupCard: {
-      backgroundColor: c.surface,
-      borderRadius: radius.lg,
-      paddingHorizontal: spacing.lg,
-    },
-    pickerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-      paddingVertical: spacing.md,
-    },
-    rowDivider: {
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: c.border,
-    },
-    pickerDot: {
-      width: 12,
-      height: 12,
-      borderRadius: radius.pill,
-      borderWidth: 1,
-    },
-    pickerRowText: {
-      flex: 1,
-    },
-    pickerRowName: {
-      ...sfPro,
-      fontSize: text.callout,
-      fontWeight: weight.semibold,
-      color: c.text,
-    },
-    pickerRowMuscle: {
-      ...sfPro,
-      fontSize: text.footnote,
-      color: c.textMuted,
-      marginTop: spacing.xxs,
     },
   });
 }

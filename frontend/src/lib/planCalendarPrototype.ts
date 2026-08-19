@@ -30,6 +30,10 @@ export type PlanCalendarParamList = {
   /** `exerciseIndex` is the slot in the day (survives a replace); the name is
    *  display-only for the header title. */
   PlanCalendarWorkout: { dateIso: string; exerciseIndex: number; exerciseName: string };
+  /** The library-as-picker sheet: replace one slot or multi-add to the day. */
+  PlanCalendarExercisePicker:
+    | { dateIso: string; mode: 'replace'; exerciseIndex: number }
+    | { dateIso: string; mode: 'add' };
 } & Pick<
   RootStackParamList,
   | 'PlanList'

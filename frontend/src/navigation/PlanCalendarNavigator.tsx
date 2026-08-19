@@ -10,6 +10,7 @@ import PlanCalendarMonthScreen from '../screens/PlanCalendarMonthScreen';
 import PlanCalendarWeekScreen from '../screens/PlanCalendarWeekScreen';
 import PlanCalendarDayScreen from '../screens/PlanCalendarDayScreen';
 import PlanCalendarWorkoutScreen from '../screens/PlanCalendarWorkoutScreen';
+import PlanCalendarExercisePickerScreen from '../screens/PlanCalendarExercisePickerScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import TemplatesScreen from '../screens/TemplatesScreen';
@@ -182,6 +183,15 @@ export default function PlanCalendarNavigator() {
           title: route.params.exerciseName,
           headerLeft: () => <BackTo label="Day" onPress={() => navigation.goBack()} />,
         })}
+      />
+
+      {/* The library-as-picker sheet (Replace / Add on the day view). An iOS
+          card sheet — pull down to cancel; the screen draws its own header.
+          Non-scope screen, so the frozen Month|Week|Day bar fades out. */}
+      <Stack.Screen
+        name="PlanCalendarExercisePicker"
+        component={PlanCalendarExercisePickerScreen}
+        options={{ presentation: 'modal' }}
       />
 
       {/* ---- Real plan screens, re-homed from the removed Plan tab ---- */}

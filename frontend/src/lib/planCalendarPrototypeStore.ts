@@ -1096,7 +1096,14 @@ export function removeExerciseFromDay(dateIso: string, exerciseIndex: number): v
 /** "+ Add Exercise" — appended after the day's base list (works on rest days
  *  too, which become a Custom Workout). */
 export function addExerciseToDay(dateIso: string, exercise: PlannedExercise): void {
-  additions.set(dateIso, [...(additions.get(dateIso) ?? []), exercise]);
+  addExercisesToDay(dateIso, [exercise]);
+}
+
+/** Multi-add from the picker: one append + ONE queued slot rebuild, instead of
+ *  a rebuild per exercise. */
+export function addExercisesToDay(dateIso: string, exercises: PlannedExercise[]): void {
+  if (exercises.length === 0) return;
+  additions.set(dateIso, [...(additions.get(dateIso) ?? []), ...exercises]);
   queuePersistDayEdits(dateIso);
   emit();
 }
