@@ -6,8 +6,10 @@ import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SavedWorkoutsScreen from './SavedWorkoutsScreen';
 import ShareModal from '../components/ShareModal';
+import SheetModal from '../components/SheetModal';
 import type { CalendarScope } from '../components/PlanCalendarScopeBar';
 import { SCOPE_BAR_SPACE, useFrozenScopeBar } from '../components/PlanCalendarScopeBarHost';
 import {
@@ -147,6 +149,13 @@ export default function PlanCalendarMonthScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const tabBarInset = useTabBarInset();
+  const insets = useSafeAreaInsets();
+
+  // The muscle-colors legend lives in an on-demand sheet behind the grid
+  // hint's link (Dylan's pick from the 2026-08-18 legend study, option B) —
+  // reference one tap away instead of a standing card. The sheet's content
+  // is the natural upgrade point for the body-map key later.
+  const [legendVisible, setLegendVisible] = useState(false);
 
   // Re-render when a replacement lands, so day dots track the actual muscles.
   const [, forceRender] = useReducer((x: number) => x + 1, 0);
@@ -398,26 +407,25 @@ export default function PlanCalendarMonthScreen() {
         ))}
       </Animated.View>
       </GestureDetector>
-      <Text style={styles.gridHint}>Tap a day to see its workout</Text>
-
-      {calendarDataMode() !== 'empty' && (
-      <>
-      <Text style={styles.sectionLabel}>MUSCLE COLORS</Text>
-      <View style={styles.legendCard}>
-        {legend.map((m) => (
-          <LinearGradient
-            key={m}
-            colors={muscleGradient(m)}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.chip, { borderColor: MUSCLE_EDGE[m] }]}
-          >
-            <Text style={[styles.chipLabel, { color: MUSCLE_INK[m] }]}>{m}</Text>
-          </LinearGradient>
-        ))}
-      </View>
-      </>
-      )}
+      <Text style={styles.gridHint}>
+        Tap a day to see its workout
+        {calendarDataMode() !== 'empty' && (
+          <>
+            {' · '}
+            <Text
+              style={styles.gridHintLink}
+              onPress={() => {
+                buzzTap();
+                setLegendVisible(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Muscle colors"
+            >
+              Muscle colors ›
+            </Text>
+          </>
+        )}
+      </Text>
 
       <Text style={styles.sectionLabel}>PLANNING</Text>
       <View style={styles.planningCard}>
@@ -482,6 +490,38 @@ export default function PlanCalendarMonthScreen() {
           targetName={livePlan.name ?? 'My Plan'}
         />
       ) : null}
+
+      {/* The on-demand muscle-colors legend (the grid hint's link). */}
+      <SheetModal
+        visible={legendVisible}
+        onClose={() => setLegendVisible(false)}
+        scrimColor={colors.scrim}
+      >
+        {/* The card guards its own taps; see SheetModal. */}
+        <Pressable
+          style={[styles.legendSheet, { paddingBottom: insets.bottom + spacing.xl }]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={styles.legendGrabber} />
+          <Text style={styles.legendTitle}>Muscle colors</Text>
+          <Text style={styles.legendSub}>
+            Every workout is coded by the muscles it trains.
+          </Text>
+          <View style={styles.legendChips}>
+            {legend.map((m) => (
+              <LinearGradient
+                key={m}
+                colors={muscleGradient(m)}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.chip, { borderColor: MUSCLE_EDGE[m] }]}
+              >
+                <Text style={[styles.chipLabel, { color: MUSCLE_INK[m] }]}>{m}</Text>
+              </LinearGradient>
+            ))}
+          </View>
+        </Pressable>
+      </SheetModal>
     </ScrollView>
     </View>
   );
@@ -615,6 +655,12 @@ function createStyles(c: ColorPalette) {
       textAlign: 'center',
       marginTop: spacing.sm,
     },
+    gridHintLink: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      color: c.primary,
+    },
     sectionLabel: {
       ...sfPro,
       fontSize: text.caption,
@@ -625,15 +671,38 @@ function createStyles(c: ColorPalette) {
       marginBottom: spacing.sm,
       marginLeft: spacing.md,
     },
-    legendCard: {
+    legendSheet: {
       backgroundColor: c.surface,
-      borderRadius: radius.lg,
-      padding: spacing.lg,
+      borderTopLeftRadius: radius.xl,
+      borderTopRightRadius: radius.xl,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+    },
+    legendGrabber: {
+      alignSelf: 'center',
+      width: 36,
+      height: 5,
+      borderRadius: radius.pill,
+      backgroundColor: c.border,
+      marginBottom: spacing.md,
+    },
+    legendTitle: {
+      ...sfPro,
+      fontSize: text.headline,
+      fontWeight: weight.bold,
+      color: c.text,
+    },
+    legendSub: {
+      ...sfPro,
+      fontSize: text.footnote,
+      color: c.textMuted,
+      marginTop: spacing.xxs,
+      marginBottom: spacing.md,
+    },
+    legendChips: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: spacing.sm,
-      shadowColor: c.shadow,
-      ...elevation.level1,
     },
     chip: {
       paddingHorizontal: spacing.md,
