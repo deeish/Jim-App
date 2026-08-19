@@ -243,7 +243,8 @@ export default function QuickWorkoutSheet({ visible, onClose, onLanded }: Props)
               ) : (
                 <>
                   <Text style={styles.metaTitle}>{previewTitle(selectedList)}</Text>
-                  {` · ~${estimate} exercises · ~${Math.max(15, estimate * 8)} min`}
+                  {/* Mirrors the backend's sets×(work+rest) model ≈ 9 min/exercise. */}
+                  {` · ~${estimate} exercises · ~${Math.max(20, Math.round((estimate * 9) / 5) * 5)} min`}
                 </>
               )}
             </Text>
