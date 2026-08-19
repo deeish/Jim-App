@@ -23,6 +23,7 @@ import {
   addDays,
   buzzMenuOpen,
   buzzSelection,
+  buzzTap,
   dayMuscles,
   fromIso,
   isCurrentWeek,
@@ -212,9 +213,10 @@ export default function PlanCalendarWeekScreen() {
             </Text>
           </View>
           <TouchableOpacity
-            onPress={() =>
-              navigation.setParams({ weekMondayIso: weekInfo.startsMondayIso })
-            }
+            onPress={() => {
+              buzzTap();
+              navigation.setParams({ weekMondayIso: weekInfo.startsMondayIso });
+            }}
             accessibilityRole="button"
             accessibilityLabel="Go to week 1"
             hitSlop={8}
@@ -260,6 +262,7 @@ export default function PlanCalendarWeekScreen() {
                 activeOpacity={0.7}
                 onPress={() => {
                   if (Date.now() - lastSwipeAt.current < 450) return;
+                  buzzTap();
                   navigation.navigate('PlanCalendarDay', { dateIso: movedTo.toIso });
                 }}
                 accessibilityRole="button"
@@ -289,6 +292,7 @@ export default function PlanCalendarWeekScreen() {
               activeOpacity={0.7}
               onPress={() => {
                 if (Date.now() - lastSwipeAt.current < 450) return;
+                buzzTap();
                 navigation.navigate('PlanCalendarDay', { dateIso: iso });
               }}
               accessibilityRole="button"
@@ -313,6 +317,7 @@ export default function PlanCalendarWeekScreen() {
             activeOpacity={0.85}
             onPress={() => {
               if (Date.now() - lastSwipeAt.current < 450) return;
+              buzzTap();
               navigation.navigate('PlanCalendarDay', { dateIso: iso });
             }}
             // The freedom door: hold any movable card (or a missed one) for
@@ -347,6 +352,7 @@ export default function PlanCalendarWeekScreen() {
                   hitSlop={8}
                   onPress={() => {
                     if (Date.now() - lastSwipeAt.current < 450) return;
+                    buzzTap();
                     setSheetFor({ dateIso: iso, mode: 'missed' });
                   }}
                   accessibilityRole="button"

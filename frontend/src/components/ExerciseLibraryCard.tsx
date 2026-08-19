@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Exercise } from '../services/exerciseService';
 import { useTheme } from '../theme/ThemeContext';
+import { haptics } from '../lib/haptics';
 
 import { elevation, leading, radius, spacing, text, weight } from '../theme';
 interface ExerciseLibraryCardProps {
@@ -83,7 +84,10 @@ export default function ExerciseLibraryCard({ exercise, onPress }: ExerciseLibra
   return (
     <TouchableOpacity
       style={styles.card}
-      onPress={onPress}
+      onPress={() => {
+        haptics.tap();
+        onPress?.();
+      }}
       activeOpacity={0.7}
     >
       <View style={styles.header}>

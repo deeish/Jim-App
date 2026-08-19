@@ -12,6 +12,7 @@ import SearchStackNavigator from '../navigation/SearchStackNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import type { PlanCalendarParamList } from '../lib/planCalendarPrototype';
+import { haptics } from '../lib/haptics';
 
 import { elevationUp, spacing, text, weight } from '../theme';
 export type RootTabParamList = {
@@ -24,8 +25,15 @@ export type RootTabParamList = {
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 function tabBarButton(testID: string) {
-  return (props: BottomTabBarButtonProps) => (
-    <Pressable {...props} testID={testID} />
+  return ({ onPress, ...props }: BottomTabBarButtonProps) => (
+    <Pressable
+      {...props}
+      testID={testID}
+      onPress={(e) => {
+        haptics.tap();
+        onPress?.(e);
+      }}
+    />
   );
 }
 

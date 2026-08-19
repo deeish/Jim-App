@@ -47,6 +47,7 @@ import {
 import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
 import { leading, radius, spacing, text, tracking, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
+import { haptics } from '../lib/haptics';
 import { SkeletonCard } from '../components/Skeleton';
 import {
   exercisesLikeFromPrescription,
@@ -148,7 +149,10 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const isFirstLoad = useRef(true);
 
-  const openWhatsNew = () => setWhatsNewVisible(true);
+  const openWhatsNew = () => {
+    haptics.tap();
+    setWhatsNewVisible(true);
+  };
   const closeWhatsNew = useCallback(() => {
     setWhatsNewVisible(false);
     setHasUnseenNews(false);
@@ -225,6 +229,7 @@ export default function HomeScreen() {
   // Avatar goes straight to the account screen (App Store pattern) — sign-out
   // and weight logging live there, so Home no longer needs its own menu.
   const goToProfile = () => {
+    haptics.tap();
     const parent = navigation.getParent();
     (parent as { navigate?: (name: keyof RootNavigatorParamList) => void })?.navigate?.('Profile');
   };
@@ -236,22 +241,27 @@ export default function HomeScreen() {
   // History/Progress are the REAL screens, re-homed into the Calendar stack.
   // `initial: false` mounts the week landing beneath them so Back works.
   const goToHistory = () => {
+    haptics.tap();
     navigation.navigate('Calendar', { screen: 'History', initial: false });
   };
 
   const goToProgress = () => {
+    haptics.tap();
     navigation.navigate('Calendar', { screen: 'Progress', initial: false });
   };
 
   const goToPlan = () => {
+    haptics.tap();
     navigation.navigate('Calendar');
   };
 
   const goToGeneratePlan = () => {
+    haptics.tap();
     navigation.navigate('Calendar');
   };
 
   const goToWorkout = () => {
+    haptics.tap();
     navigation.navigate('Calendar', {
       screen: 'PlanCalendarDay',
       params: { dateIso: todayIso() },
@@ -260,6 +270,7 @@ export default function HomeScreen() {
   };
 
   const goToTodaysWorkoutSession = (_workout: Workout) => {
+    haptics.tap();
     navigation.navigate('Calendar', {
       screen: 'PlanCalendarDay',
       params: { dateIso: todayIso() },

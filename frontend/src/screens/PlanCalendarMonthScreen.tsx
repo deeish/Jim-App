@@ -27,6 +27,7 @@ import {
   MUSCLE_EDGE,
   MUSCLE_INK,
   buzzSelection,
+  buzzTap,
   dayMuscles,
   isToday,
   fromIso,
@@ -200,7 +201,10 @@ export default function PlanCalendarMonthScreen() {
         // hugging the pill's right edge while the heart floated.
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
           <TouchableOpacity
-            onPress={() => setSavedVisible(true)}
+            onPress={() => {
+              buzzTap();
+              setSavedVisible(true);
+            }}
             accessibilityRole="button"
             accessibilityLabel="Saved workouts"
             hitSlop={12}
@@ -210,7 +214,10 @@ export default function PlanCalendarMonthScreen() {
           </TouchableOpacity>
           {livePlan?.id ? (
             <TouchableOpacity
-              onPress={() => setShareVisible(true)}
+              onPress={() => {
+                buzzTap();
+                setShareVisible(true);
+              }}
               accessibilityRole="button"
               accessibilityLabel="Share plan"
               hitSlop={12}
@@ -279,7 +286,10 @@ export default function PlanCalendarMonthScreen() {
         <Text style={styles.monthTitle}>{monthLabel(month)}</Text>
         {!isCurrentMonth && (
           <TouchableOpacity
-            onPress={() => setMonth(new Date(now.getFullYear(), now.getMonth(), 1))}
+            onPress={() => {
+              buzzTap();
+              setMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+            }}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Jump to today"
@@ -289,7 +299,10 @@ export default function PlanCalendarMonthScreen() {
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          onPress={() => shiftMonth(-1)}
+          onPress={() => {
+            buzzTap();
+            shiftMonth(-1);
+          }}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel="Previous month"
@@ -297,7 +310,10 @@ export default function PlanCalendarMonthScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.primary} />
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => shiftMonth(1)}
+          onPress={() => {
+            buzzTap();
+            shiftMonth(1);
+          }}
           hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
           accessibilityRole="button"
           accessibilityLabel="Next month"
@@ -339,6 +355,7 @@ export default function PlanCalendarMonthScreen() {
                   style={({ pressed }) => [styles.dayCell, pressed && styles.dayCellPressed]}
                   onPress={() => {
                     if (Date.now() - lastSwipeAt.current < 450) return;
+                    buzzTap();
                     navigation.navigate('PlanCalendarDay', { dateIso: iso });
                   }}
                   accessibilityRole="button"
@@ -407,7 +424,10 @@ export default function PlanCalendarMonthScreen() {
         <TouchableOpacity
           style={styles.planningRow}
           activeOpacity={0.8}
-          onPress={() => navigation.navigate('GeneratePlan')}
+          onPress={() => {
+            buzzTap();
+            navigation.navigate('GeneratePlan');
+          }}
           accessibilityRole="button"
           accessibilityLabel="Generate a plan"
         >
@@ -418,7 +438,10 @@ export default function PlanCalendarMonthScreen() {
         <TouchableOpacity
           style={[styles.planningRow, styles.planningRowDivider]}
           activeOpacity={0.8}
-          onPress={() => navigation.navigate('Templates')}
+          onPress={() => {
+            buzzTap();
+            navigation.navigate('Templates');
+          }}
           accessibilityRole="button"
           accessibilityLabel="Workout templates"
         >

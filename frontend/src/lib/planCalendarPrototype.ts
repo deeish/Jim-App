@@ -176,6 +176,14 @@ export const GOLD = '#F5A623';
 // runs one tier stronger than the "textbook" iOS mapping. Don't quietly walk
 // these back down without another on-device pass.
 
+/** Baseline tap for ordinary presses (cards, rows, pills, chevrons) — the
+ *  2026-08-18 "haptics on everything" pass. Light: present on every touch
+ *  without competing with the Medium/Heavy moments below. */
+export function buzzTap(): void {
+  if (Platform.OS === 'web') return;
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+}
+
 /** Tap on each completed set — Medium, because Light didn't register. */
 export function buzzSetComplete(): void {
   if (Platform.OS === 'web') return;

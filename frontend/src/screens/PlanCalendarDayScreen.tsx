@@ -38,6 +38,7 @@ import {
   buzzEditApplied,
   buzzMenuOpen,
   buzzSelection,
+  buzzTap,
   catalogGroupForMuscle,
   fromIso,
   mondayOf,
@@ -154,6 +155,7 @@ export default function PlanCalendarDayScreen() {
   const todayOpen = rescuable && moveTargetsForDay()[0].state === 'open';
   const doItToday = async () => {
     if (rescueBusy) return;
+    buzzTap();
     setRescueBusy(true);
     setRescueError('');
     try {
@@ -409,7 +411,10 @@ export default function PlanCalendarDayScreen() {
               style={styles.missedBannerSecondary}
               activeOpacity={0.8}
               disabled={rescueBusy}
-              onPress={() => setRescueSheetOpen(true)}
+              onPress={() => {
+                buzzTap();
+                setRescueSheetOpen(true);
+              }}
               accessibilityRole="button"
               accessibilityLabel="More options for this missed workout"
             >
@@ -451,6 +456,7 @@ export default function PlanCalendarDayScreen() {
             activeOpacity={0.8}
             onPress={() => {
               if (Date.now() - lastSwipeAt.current < 450) return;
+              buzzTap();
               navigation.navigate('PlanCalendarWorkout', {
                 dateIso,
                 exerciseIndex: index,
@@ -506,6 +512,7 @@ export default function PlanCalendarDayScreen() {
         activeOpacity={0.8}
         onPress={() => {
           if (Date.now() - lastSwipeAt.current < 450) return;
+          buzzTap();
           setPicker({ mode: 'add' });
         }}
         accessibilityRole="button"

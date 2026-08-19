@@ -2,6 +2,7 @@ import React from 'react';
 import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
+import { haptics } from '../lib/haptics';
 
 import { spacing } from '../theme';
 export interface ExerciseLikeButtonProps {
@@ -34,6 +35,7 @@ export default function ExerciseLikeButton({
   const handlePress = (e?: any) => {
     e?.stopPropagation?.();
     if (disabled) return;
+    haptics.select();
     if (__DEV__) console.log('[ExerciseLikeButton] press', exerciseId, 'saved:', saved);
     if (saved) onUnsave();
     else onSave();

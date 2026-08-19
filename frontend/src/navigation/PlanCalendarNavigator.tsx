@@ -19,6 +19,7 @@ import PlanPreviewScreen from '../screens/PlanPreviewScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
 import ExerciseDetailScreen from '../screens/ExerciseDetailScreen';
 import {
+  buzzTap,
   fromIso,
   mondayOf,
   sfPro,
@@ -48,7 +49,10 @@ function BackTo({ label, onPress }: { label: string; onPress: () => void }) {
   const { colors } = useTheme();
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        buzzTap();
+        onPress();
+      }}
       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       accessibilityRole="button"
       accessibilityLabel={`Back to ${label.toLowerCase()}`}

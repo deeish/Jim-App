@@ -22,6 +22,7 @@ import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import SheetModal from '../components/SheetModal';
+import { haptics } from '../lib/haptics';
 import {
   useUserPreferences,
   GOAL_OPTIONS,
@@ -87,7 +88,13 @@ function Row({
   );
   if (onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity
+        onPress={() => {
+          haptics.tap();
+          onPress();
+        }}
+        activeOpacity={0.7}
+      >
         {content}
       </TouchableOpacity>
     );
@@ -659,7 +666,10 @@ export default function ProfileScreen() {
                       weightUnit === 'lb' ? colors.primary : colors.background,
                   },
                 ]}
-                onPress={() => setWeightUnit('lb')}
+                onPress={() => {
+                  haptics.select();
+                  setWeightUnit('lb');
+                }}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: weightUnit === 'lb' }}
                 accessibilityLabel="Pounds"
@@ -683,7 +693,10 @@ export default function ProfileScreen() {
                       weightUnit === 'kg' ? colors.primary : colors.background,
                   },
                 ]}
-                onPress={() => setWeightUnit('kg')}
+                onPress={() => {
+                  haptics.select();
+                  setWeightUnit('kg');
+                }}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: weightUnit === 'kg' }}
                 accessibilityLabel="Kilograms"
@@ -733,7 +746,10 @@ export default function ProfileScreen() {
                     backgroundColor: mode === 'light' ? colors.primary : colors.background,
                   },
                 ]}
-                onPress={() => setMode('light')}
+                onPress={() => {
+                  haptics.select();
+                  setMode('light');
+                }}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: mode === 'light' }}
                 accessibilityLabel="Light theme"
@@ -754,7 +770,10 @@ export default function ProfileScreen() {
                     backgroundColor: mode === 'dark' ? colors.primary : colors.background,
                   },
                 ]}
-                onPress={() => setMode('dark')}
+                onPress={() => {
+                  haptics.select();
+                  setMode('dark');
+                }}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: mode === 'dark' }}
                 accessibilityLabel="Dark theme"

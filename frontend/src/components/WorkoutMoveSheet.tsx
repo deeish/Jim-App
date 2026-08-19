@@ -14,6 +14,7 @@ import { radius, spacing, text, useTheme, weight, type ColorPalette } from '../t
 import {
   WEEKDAYS,
   buzzEditApplied,
+  buzzTap,
   dayMuscles,
   fromIso,
   nearestOpenIso,
@@ -102,6 +103,7 @@ export default function WorkoutMoveSheet({
 
   const commit = async (which: string, pending: PendingMove[]) => {
     if (!dateIso || busy) return;
+    buzzTap();
     setBusy(which);
     setError('');
     try {
@@ -124,6 +126,7 @@ export default function WorkoutMoveSheet({
     if (!dateIso) return;
     const sessions = stagedSessionsForDate(dateIso);
     if (sessions.length === 0) return;
+    buzzTap();
     if (sessions.length > 1) {
       setFrames([
         { fromIso: dateIso, slotIds: [], title: '', stage: 'sessions', pendingBefore: [] },
@@ -155,6 +158,7 @@ export default function WorkoutMoveSheet({
         slotIds.map((slotId) => ({ slotId, fromIso: dateIso, targetIso: today, title: day.title })),
       );
     } else if (todayTarget.state === 'occupied') {
+      buzzTap();
       setFrames([
         {
           fromIso: dateIso,
@@ -169,6 +173,7 @@ export default function WorkoutMoveSheet({
   };
 
   const popFrame = () => {
+    buzzTap();
     setError('');
     setFrames((f) => f.slice(0, -1));
   };
@@ -247,6 +252,7 @@ export default function WorkoutMoveSheet({
             activeOpacity={0.7}
             disabled={busy !== ''}
             onPress={() => {
+              buzzTap();
               onClose();
               onEditDay(dateIso);
             }}
@@ -315,7 +321,8 @@ export default function WorkoutMoveSheet({
             key={session.slotId}
             style={styles.row}
             activeOpacity={0.7}
-            onPress={() =>
+            onPress={() => {
+              buzzTap();
               setFrames((prev) => [
                 ...prev.slice(0, -1),
                 {
@@ -324,8 +331,8 @@ export default function WorkoutMoveSheet({
                   title: session.title,
                   stage: 'picker',
                 },
-              ])
-            }
+              ]);
+            }}
             accessibilityRole="button"
             accessibilityLabel={`Move ${session.title}`}
           >
@@ -363,6 +370,7 @@ export default function WorkoutMoveSheet({
           ],
         );
       } else if (target.state === 'occupied') {
+        buzzTap();
         setFrames((prev) => [
           ...prev.slice(0, -1),
           { ...f, stage: 'room', roomTargetIso: target.dateIso },
@@ -580,7 +588,8 @@ export default function WorkoutMoveSheet({
             style={[styles.row, busy !== '' && styles.rowDisabled]}
             activeOpacity={0.7}
             disabled={busy !== ''}
-            onPress={() =>
+            onPress={() => {
+              buzzTap();
               setFrames((prev) => [
                 ...prev,
                 {
@@ -590,8 +599,8 @@ export default function WorkoutMoveSheet({
                   stage: 'picker',
                   pendingBefore: pendingWithIncoming,
                 },
-              ])
-            }
+              ]);
+            }}
             accessibilityRole="button"
             accessibilityLabel={`Pick a day for ${other.title}`}
           >
