@@ -26,7 +26,8 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   // The ONE card for the next release: everything on this branch since
   // build 25 (Quick Workout, dark mode, missed day rescue + Make Room,
-  // add another set, gradient month/week + legend sheet, haptics baseline).
+  // add another set, the library picker + remove exercise, gradient
+  // month/week + legend sheet, haptics baseline).
   // Deliberately short so testers know what to look for; selector freeze,
   // rest-day open fix and the ended-program gate are polish and stay out.
   {
@@ -46,6 +47,14 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         type: 'new',
         text: 'Dark mode. Pick Light or Dark under Appearance in your Profile.',
+      },
+      {
+        type: 'improved',
+        text: 'Swapping or adding exercises now opens the full library: search, filters, and your saved list, with the best swaps for that exact slot pinned on top and the reason for each pick.',
+      },
+      {
+        type: 'new',
+        text: 'Remove an exercise from a day: hold its card and choose Remove Exercise.',
       },
       {
         type: 'new',
