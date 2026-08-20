@@ -96,6 +96,16 @@ export function subscribePlanCalendar(listener: () => void): () => void {
 const dayStartTimes = new Map<string, string>();
 /** Days whose completed log has been (or is being) written to the backend. */
 const syncedDays = new Set<string>();
+/** Days whose synced log was REOPENED by a quick session landing on them —
+ *  isDayLogged goes false again (deck unlocks, "Session logged." banner
+ *  hides) and the next completion syncs a SECOND log for the date. Cleared
+ *  when that sync succeeds. The month/week seal (isDayCompleted) is NOT
+ *  affected: the original workout still happened. */
+const reopenedDays = new Set<string>();
+/** dateIso → per-exercise-index set counts already covered by a synced log.
+ *  syncDayCompletion subtracts these so a reopened day's second log carries
+ *  only the NEW work — never a double-count of the morning session. */
+const syncedSetCounts = new Map<string, number[]>();
 /** Missed days the user dismissed via "Skip this workout" (dates, not slots —
  *  the plan itself is never touched, so repeating weeks keep the workout). */
 const skippedDays = new Set<string>();
@@ -125,6 +135,8 @@ const sessionHydrated: Promise<void> = (async () => {
       setLogs?: Record<string, SetLog[]>;
       dayStartTimes?: Record<string, string>;
       syncedDays?: string[];
+      reopenedDays?: string[];
+      syncedSetCounts?: Record<string, number[]>;
       skippedDates?: string[];
       movedRecords?: Array<{ slotId: string; fromIso: string; title: string }>;
       lastSeenPlanId?: string | null;
@@ -138,6 +150,12 @@ const sessionHydrated: Promise<void> = (async () => {
     }
     for (const d of data.syncedDays ?? []) {
       if (d >= cutoff) syncedDays.add(d);
+    }
+    for (const d of data.reopenedDays ?? []) {
+      if (d >= cutoff) reopenedDays.add(d);
+    }
+    for (const [k, v] of Object.entries(data.syncedSetCounts ?? {})) {
+      if (k >= cutoff && !syncedSetCounts.has(k)) syncedSetCounts.set(k, v);
     }
     for (const d of data.skippedDates ?? []) {
       if (d >= cutoff) skippedDays.add(d);
@@ -167,6 +185,8 @@ function scheduleSessionSave(): void {
           setLogs: Object.fromEntries(setLogs),
           dayStartTimes: Object.fromEntries(dayStartTimes),
           syncedDays: [...syncedDays],
+          reopenedDays: [...reopenedDays],
+          syncedSetCounts: Object.fromEntries(syncedSetCounts),
           skippedDates: [...skippedDays],
           movedRecords,
           lastSeenPlanId,
@@ -952,6 +972,28 @@ function clearDayOverlays(dateIso: string): void {
   additions.delete(dateIso);
   removals.delete(dateIso);
   customDayTitles.delete(dateIso);
+  // The replacement session times from ITS first set, and its log must not
+  // subtract counts that belonged to the removed exercises.
+  dayStartTimes.delete(dateIso);
+  syncedSetCounts.delete(dateIso);
+}
+
+/** A quick session just landed on a day that already has a synced/fetched
+ *  workout log: reopen it. The deck unlocks for the new work, the next
+ *  completion syncs a SECOND log, and the per-index counts snapshot makes
+ *  that log a pure delta (an added session never re-logs the morning's
+ *  sets; a replaced day starts from zero because its logs were cleared). */
+function reopenLoggedDay(dateIso: string): void {
+  reopenedDays.add(dateIso);
+  syncedDays.delete(dateIso);
+  dayStartTimes.delete(dateIso);
+  const day = plannedDayForDate(dateIso);
+  const counts = day.exercises.map(
+    (_, i) => setLogs.get(slotKey(dateIso, i))?.length ?? 0,
+  );
+  if (counts.some((c) => c > 0)) syncedSetCounts.set(dateIso, counts);
+  else syncedSetCounts.delete(dateIso);
+  scheduleSessionSave();
 }
 
 /**
@@ -973,6 +1015,10 @@ export async function addQuickSessionToday(
   const todayMondayIso = toIso(mondayOf(fromIso(today)));
   const weekInfo =
     liveStatus === 'ready' && livePlan ? programWeekInfoFor(todayMondayIso) : null;
+  // Raw log check (not isDayLogged — that already discounts reopened days):
+  // landing on a day with a synced log must reopen it either way, or the new
+  // session arrives with a closed deck and a sync guard that swallows it.
+  const wasLogged = completedLogDays.has(today) || syncedDays.has(today);
 
   if (livePlan && weekInfo?.state === 'in') {
     const anchor = planAnchorMonday(livePlan);
@@ -1021,6 +1067,7 @@ export async function addQuickSessionToday(
     }
     livePlan = plan;
     lastSeenPlanId = plan.id;
+    if (wasLogged) reopenLoggedDay(today);
     emit();
     void loadExerciseMeta(plan);
     return today;
@@ -1053,6 +1100,7 @@ export async function addQuickSessionToday(
       },
     ]);
   }
+  if (wasLogged) reopenLoggedDay(today);
   emit();
   return today;
 }
@@ -1389,9 +1437,14 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
     let totalSets = 0;
     let totalVolume = 0;
     // Only exercises with at least one logged set — this is what makes a
-    // PARTIAL finish log exactly what was done.
+    // PARTIAL finish log exactly what was done. Sets a previous log for this
+    // date already covered (a reopened day's morning session) are skipped,
+    // so the second log is a pure delta.
+    const already = syncedSetCounts.get(dateIso) ?? [];
     const entries = day.exercises.flatMap((ex, i) => {
-      const logs = setLogs.get(slotKey(dateIso, i)) ?? [];
+      const logs = (setLogs.get(slotKey(dateIso, i)) ?? []).slice(
+        already[i] ?? 0,
+      );
       if (logs.length === 0) return [];
       totalSets += logs.length;
       return [{
@@ -1423,6 +1476,16 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
       entries,
     });
     completedLogDays.add(dateIso);
+    // The day is sealed again; a LATER quick session re-runs the reopen
+    // flow, and the refreshed counts make its log the next pure delta.
+    reopenedDays.delete(dateIso);
+    syncedSetCounts.set(
+      dateIso,
+      day.exercises.map(
+        (_, i) => setLogs.get(slotKey(dateIso, i))?.length ?? 0,
+      ),
+    );
+    scheduleSessionSave();
     emit();
   } catch (err) {
     // Keep the local completion; the seal still shows for this session.
@@ -1446,9 +1509,14 @@ export function finishDaySession(dateIso: string): void {
 }
 
 /** The day has a workout log — synced from this device (persisted, so it
- *  survives a restart before any history fetch) or fetched from history. */
+ *  survives a restart before any history fetch) or fetched from history.
+ *  A REOPENED day (quick session landed after the log) reads unlogged again
+ *  so its new session is trainable; the seal (isDayCompleted) is unaffected. */
 export function isDayLogged(dateIso: string): boolean {
-  return completedLogDays.has(dateIso) || syncedDays.has(dateIso);
+  return (
+    (completedLogDays.has(dateIso) || syncedDays.has(dateIso)) &&
+    !reopenedDays.has(dateIso)
+  );
 }
 
 /** Any sets logged locally for this date. When true, the local record is
