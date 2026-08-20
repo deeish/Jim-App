@@ -1,6 +1,8 @@
 import { ExercisesController } from './exercises.controller';
 import { ExercisesService } from './exercises.service';
 import { SavedExercisesService } from './saved-exercises.service';
+import { UserTrainingHistoryService } from './user-training-history.service';
+import { AuthService } from '../auth/auth.service';
 
 describe('ExercisesController search limit', () => {
   const fakeExercises = Array.from({ length: 10 }, (_, i) => ({
@@ -17,6 +19,8 @@ describe('ExercisesController search limit', () => {
     controller = new ExercisesController(
       exercisesService,
       {} as SavedExercisesService,
+      {} as AuthService,
+      {} as UserTrainingHistoryService,
     );
   });
 

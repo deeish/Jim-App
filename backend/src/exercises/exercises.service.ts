@@ -29,8 +29,11 @@ import {
 import { getExerciseProgressions } from '../data/exercise-progressions';
 import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
 import { isRetiredExercise } from '../data/retired-exercise-ids';
+import { BEGINNER_BLOCK_RE } from '../data/beginner-gating';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
+import { SuggestAdditionsDto } from './dto/suggest-additions.dto';
+import type { UserTrainingHistory } from './user-training-history.service';
 import {
   normalizeSearchText,
   tokenizeQuery,
@@ -67,6 +70,28 @@ export interface ReplacementSuggestion {
   exercise: TransformedExercise;
   /** Short human-readable why-tags, strongest first (max 2). */
   reasons: string[];
+}
+
+/** A logged lift within this window reads as "just trained" — swapping it in
+ *  again works the same fibers before they've recovered. */
+const RECENTLY_TRAINED_DAYS = 3;
+
+/**
+ * The personalized half of the ranking context, built once per request:
+ * everything the shared context signals read beyond the candidate itself.
+ * All fields degrade to no-ops when the caller can't supply them (anonymous
+ * user, old client, sample plan) — ranking then falls back to catalog-only.
+ */
+interface RankContext {
+  /** Exercises on OTHER days of the same week (ids + lowercased names). */
+  weekIds: Set<string>;
+  weekNames: Set<string>;
+  /** Lowercased training goal ('' when unknown). */
+  goal: string;
+  isBeginner: boolean;
+  /** The user's real logged history (empty when anonymous / unavailable). */
+  history: UserTrainingHistory;
+  now: number;
 }
 
 /**
@@ -475,7 +500,10 @@ export class ExercisesService implements OnModuleInit {
    * isn't swapped for triceps. Equipment + injury constraints respected. Returns
    * null when the catalog can't offer a fitting alternative (caller keeps original).
    */
-  pickReplacement(dto: ReplaceExerciseDto): TransformedExercise | null {
+  pickReplacement(
+    dto: ReplaceExerciseDto,
+    history?: UserTrainingHistory,
+  ): TransformedExercise | null {
     const target =
       (dto.targetExerciseId
         ? this.exercises.find((e) => e.id === dto.targetExerciseId)
@@ -539,15 +567,21 @@ export class ExercisesService implements OnModuleInit {
       : [];
     const finalPool = preferred.length ? preferred : pool;
 
-    // Quality-first (already common-sorted) with light randomization for variety.
-    const top = finalPool.slice(0, Math.min(12, finalPool.length));
-    return top[Math.floor(Math.random() * top.length)] ?? null;
+    // Personalized-first (history, week variety, beginner gating, goal, tier
+    // — the same contextScore as the suggestion rail) with light
+    // randomization for variety. Ties keep the catalog's quality sort.
+    const ctx = this.buildRankContext(dto, history);
+    const ranked = finalPool
+      .map((e, i) => ({ e, i, score: this.contextScore(e, ctx).score }))
+      .sort((a, b) => b.score - a.score || a.i - b.i);
+    const top = ranked.slice(0, Math.min(8, ranked.length));
+    return top[Math.floor(Math.random() * top.length)]?.e ?? null;
   }
 
   /** The equipment filter for replace flows: the user's REAL equipment list
    *  when the caller sends one, else the coarse location heuristic. */
   private replaceEquipmentFilter(
-    dto: ReplaceExerciseDto,
+    dto: Pick<ReplaceExerciseDto, 'equipment' | 'location'>,
   ): string[] | undefined {
     if (dto.equipment?.length) return [...dto.equipment];
     return dto.location === 'home' ? [...HOME_EQUIPMENT] : undefined;
@@ -584,6 +618,86 @@ export class ExercisesService implements OnModuleInit {
     };
   }
 
+  /** Normalize the optional personalization fields shared by the replace and
+   *  add DTOs into a RankContext. Everything is optional by design. */
+  private buildRankContext(
+    dto: Pick<
+      ReplaceExerciseDto,
+      'weekExerciseIds' | 'weekExerciseNames' | 'goal' | 'experience'
+    >,
+    history?: UserTrainingHistory,
+  ): RankContext {
+    return {
+      weekIds: new Set(dto.weekExerciseIds ?? []),
+      weekNames: new Set(
+        (dto.weekExerciseNames ?? []).map((n) => n.trim().toLowerCase()),
+      ),
+      goal: (dto.goal ?? '').trim().toLowerCase(),
+      isBeginner: (dto.experience ?? '').trim().toLowerCase() === 'beginner',
+      history: history ?? new Map(),
+      now: Date.now(),
+    };
+  }
+
+  /** Whether this exact exercise already appears on another day this week. */
+  private isPlannedThisWeek(e: TransformedExercise, ctx: RankContext): boolean {
+    return ctx.weekIds.has(e.id) || ctx.weekNames.has(e.name.toLowerCase());
+  }
+
+  /**
+   * Personalized ranking signals shared by every recommendation surface
+   * (replace rail, add rail, one-tap swap):
+   *  - catalog quality tier (S/A up, D down);
+   *  - the user's REAL logged familiarity — a lift they keep returning to is
+   *    a lift they can execute, and history prefill knows their weights;
+   *  - "just trained it" freshness (logged in the last few days = penalty);
+   *  - same-week variety (already planned on another day = penalty, so
+   *    Thursday isn't handed Monday's lift);
+   *  - beginner skill gating (high-skill barbell lifts sink, never hard-
+   *    filtered — a thin pool can still surface them last);
+   *  - a light goal nudge (strength / fat-loss favor compounds).
+   * Returns the score delta plus the one user-facing reason this class of
+   * signals can earn (familiarity) — penalties never need explaining.
+   */
+  private contextScore(
+    e: TransformedExercise,
+    ctx: RankContext,
+  ): { score: number; reason: string | null } {
+    let score = 0;
+    let reason: string | null = null;
+
+    const tier = EXERCISE_TIERS[e.id];
+    if (tier === 'S') score += 60;
+    else if (tier === 'A') score += 30;
+    else if (tier === 'D') score -= 30;
+
+    const logged = ctx.history.get(e.id);
+    if (logged) {
+      score += logged.count >= 2 ? 90 : 45;
+      if (logged.count >= 2) reason = "You've trained this before";
+      const daysSince = (ctx.now - logged.lastAt.getTime()) / 86_400_000;
+      if (daysSince <= RECENTLY_TRAINED_DAYS) score -= 150;
+    }
+
+    // Strong enough to outweigh structural fit (a family twin or a coverage
+    // gap): repeating another day's lift makes that day redundant. Callers
+    // additionally gate their biggest structural bonuses on this via
+    // isPlannedThisWeek().
+    if (this.isPlannedThisWeek(e, ctx)) {
+      score -= 600;
+    }
+
+    if (ctx.isBeginner && BEGINNER_BLOCK_RE.test(e.name)) {
+      score -= 800;
+    }
+
+    const isCompound = (e.type ?? '').toLowerCase() === 'compound';
+    if (isCompound && ctx.goal === 'strength') score += 60;
+    else if (isCompound && ctx.goal === 'fat loss') score += 40;
+
+    return { score, reason };
+  }
+
   /**
    * The replace picker's recommendation rail: the ranked TOP-N alternatives
    * for one exercise, each with short human-readable reasons ("Easier
@@ -601,10 +715,17 @@ export class ExercisesService implements OnModuleInit {
    *
    * Ranking signals, strongest first: progression-ladder adjacency (the
    * easier/harder rungs ARE the canonical swaps), same family, shared
-   * sub-muscle, shared movement pattern, then tier — with the catalog's
-   * quality sort as the stable tiebreak.
+   * sub-muscle, compound-for-compound role fidelity (an anchor lift never
+   * degrades into a finisher), shared movement pattern, day sub-muscle
+   * saturation (drifting onto a sub-muscle the day already hits elsewhere is
+   * worse than drifting onto an uncovered one), then the personalized
+   * contextScore signals (history, week variety, tier, beginner gating,
+   * goal) — with the catalog's quality sort as the stable tiebreak.
    */
-  pickReplacementSuggestions(dto: ReplaceExerciseDto): ReplacementSuggestion[] {
+  pickReplacementSuggestions(
+    dto: ReplaceExerciseDto,
+    history?: UserTrainingHistory,
+  ): ReplacementSuggestion[] {
     const target =
       (dto.targetExerciseId
         ? this.exercises.find((e) => e.id === dto.targetExerciseId)
@@ -617,6 +738,9 @@ export class ExercisesService implements OnModuleInit {
     const usedIds = new Set<string>();
     const usedNames = new Set<string>();
     const otherFamilies = new Set<string>();
+    // Sub-muscles the day's OTHER exercises already hit: a candidate drifting
+    // onto one of these duplicates coverage instead of preserving the slot's.
+    const otherDaySubs = new Set<string>();
     const targetFamily = this.exerciseFamily(target.name);
     const resolved: TransformedExercise[] = [
       ...(dto.dayExerciseIds ?? [])
@@ -629,7 +753,10 @@ export class ExercisesService implements OnModuleInit {
     for (const e of resolved) {
       usedIds.add(e.id);
       usedNames.add(e.name.toLowerCase());
-      if (e.id !== target.id) otherFamilies.add(this.exerciseFamily(e.name));
+      if (e.id !== target.id) {
+        otherFamilies.add(this.exerciseFamily(e.name));
+        for (const s of e.subMuscles ?? []) otherDaySubs.add(s);
+      }
     }
     for (const name of dto.dayExerciseNames ?? []) {
       usedNames.add(name.trim().toLowerCase());
@@ -665,20 +792,27 @@ export class ExercisesService implements OnModuleInit {
     const targetSubs = new Set(target.subMuscles ?? []);
     const targetPatterns = new Set(target.movementPatterns ?? []);
     const hasEquipmentContext = (equipment?.length ?? 0) > 0;
+    const ctx = this.buildRankContext(dto, history);
+    const targetType = (target.type ?? '').toLowerCase();
 
     const scored = pool.map((e, poolIndex) => {
       let score = 0;
       const reasons: string[] = [];
-      if (easierIds.has(e.id)) {
+      // The canonical-swap bonuses (ladder rungs, equipment twins) only apply
+      // to lifts the week doesn't already hold: "same lift, different
+      // equipment" stops being the smartest swap the moment that same lift
+      // sits on Friday's plan — then it's just a repeat.
+      const plannedThisWeek = this.isPlannedThisWeek(e, ctx);
+      if (!plannedThisWeek && easierIds.has(e.id)) {
         score += 900;
         reasons.push('Easier version');
-      } else if (harderIds.has(e.id)) {
+      } else if (!plannedThisWeek && harderIds.has(e.id)) {
         score += 900;
         reasons.push('Harder version');
       }
       const sameFamily =
         targetFamily !== '' && this.exerciseFamily(e.name) === targetFamily;
-      if (sameFamily) {
+      if (sameFamily && !plannedThisWeek) {
         score += 800;
         reasons.push('Same lift, different equipment');
       }
@@ -687,6 +821,21 @@ export class ExercisesService implements OnModuleInit {
         score += 400;
         reasons.push(`${sharedSub} focus`);
       }
+      // Role fidelity: a compound slot is the day's anchor — replacing it
+      // with an isolation move quietly downgrades the whole workout. An
+      // isolation slot likewise stays an isolation slot when it can.
+      const candidateType = (e.type ?? '').toLowerCase();
+      if (targetType === 'compound') {
+        if (candidateType === 'compound') score += 120;
+        else if (candidateType === 'isolation') score -= 100;
+      } else if (targetType === 'isolation' && candidateType === 'isolation') {
+        score += 80;
+      }
+      // Familiarity outranks the pattern note in the two-reason budget:
+      // "you've trained this" moves the user more than movement taxonomy.
+      const personal = this.contextScore(e, ctx);
+      score += personal.score;
+      if (personal.reason) reasons.push(personal.reason);
       const sharedPattern = (e.movementPatterns ?? []).find((p) =>
         targetPatterns.has(p),
       );
@@ -696,11 +845,17 @@ export class ExercisesService implements OnModuleInit {
         score += 150;
         reasons.push(`Same ${sharedPattern.toLowerCase()} pattern`);
       }
-      const tier = EXERCISE_TIERS[e.id];
-      if (tier === 'S') score += 60;
-      else if (tier === 'A') score += 30;
+      // Day saturation: penalize drift onto sub-muscles the day's OTHER
+      // exercises already hit (drifting onto uncovered ground is fine).
+      let saturation = 0;
+      for (const s of e.subMuscles ?? []) {
+        if (!targetSubs.has(s) && otherDaySubs.has(s)) saturation += 40;
+        if (saturation >= 80) break;
+      }
+      score -= saturation;
       // Every row explains itself: fall back to the honest weak signals.
       if (reasons.length === 0) {
+        const tier = EXERCISE_TIERS[e.id];
         if (hasEquipmentContext) reasons.push('Fits your equipment');
         else if (tier === 'S' || tier === 'A') reasons.push('Top rated');
         else reasons.push(`Works ${target.primaryMuscleGroup.toLowerCase()}`);
@@ -709,6 +864,127 @@ export class ExercisesService implements OnModuleInit {
     });
     // Stable: the pool arrives quality-sorted (tier first, common tiebreak),
     // so equal scores keep that order.
+    scored.sort((a, b) => b.score - a.score || a.poolIndex - b.poolIndex);
+
+    const count = Math.min(Math.max(dto.count ?? 3, 1), 10);
+    return scored.slice(0, count).map(({ exercise, reasons }) => ({
+      exercise,
+      reasons: reasons.slice(0, 2),
+    }));
+  }
+
+  /**
+   * The add picker's recommendation rail: ranked exercises that COMPLETE the
+   * day instead of duplicating it. Where the replace brain optimizes slot
+   * fidelity, this one runs a coverage-gap analysis over the whole workout:
+   *  - a candidate that hits a sub-muscle the day leaves untouched outranks
+   *    more work for a sub-muscle already covered ("Adds Lower Chest");
+   *  - a day with no compound gets offered an anchor; a day that is all
+   *    compounds gets offered an isolation finisher;
+   *  - equipment variants of anything already in the day are excluded
+   *    outright — adding the dumbbell twin of a barbell lift is never the
+   *    goal (relaxed only if that empties the pool);
+   *  - the shared personalized signals (real logged history, same-week
+   *    variety, tier, beginner gating, goal) rank within those bands.
+   * An empty/custom day falls back to recommended-tier anchors across the
+   * whole catalog.
+   */
+  pickAdditionSuggestions(
+    dto: SuggestAdditionsDto,
+    history?: UserTrainingHistory,
+  ): ReplacementSuggestion[] {
+    const usedIds = new Set<string>();
+    const usedNames = new Set<string>();
+    const usedFamilies = new Set<string>();
+    const coveredSubs = new Set<string>();
+    const resolved: TransformedExercise[] = [
+      ...(dto.dayExerciseIds ?? [])
+        .map((id) => this.exercises.find((e) => e.id === id))
+        .filter((e): e is TransformedExercise => !!e),
+      ...(dto.dayExerciseNames ?? [])
+        .map((name) => this.resolveByName(name))
+        .filter((e): e is TransformedExercise => !!e),
+    ];
+    for (const e of resolved) {
+      usedIds.add(e.id);
+      usedNames.add(e.name.toLowerCase());
+      usedFamilies.add(this.exerciseFamily(e.name));
+      for (const s of e.subMuscles ?? []) coveredSubs.add(s);
+    }
+    for (const name of dto.dayExerciseNames ?? []) {
+      usedNames.add(name.trim().toLowerCase());
+      usedFamilies.add(this.exerciseFamily(name));
+    }
+    usedFamilies.delete(''); // an empty family must never exclude everything
+
+    const dayGroups = [...new Set(resolved.map((e) => e.primaryMuscleGroup))];
+    const dayCompounds = resolved.filter(
+      (e) => (e.type ?? '').toLowerCase() === 'compound',
+    ).length;
+    const dayIsolations = resolved.filter(
+      (e) => (e.type ?? '').toLowerCase() === 'isolation',
+    ).length;
+
+    const equipment = this.replaceEquipmentFilter(dto);
+    const candidates = dayGroups.length
+      ? this.search({ muscleGroups: dayGroups, equipment })
+      : this.search({ equipment, recommendedOnly: true });
+
+    const isAvoided = this.buildAvoidChecker(dto.avoid);
+    const notDuplicate = (e: TransformedExercise): boolean =>
+      !usedIds.has(e.id) &&
+      !usedNames.has(e.name.toLowerCase()) &&
+      !isAvoided(e);
+
+    let pool = candidates.filter(
+      (e) => notDuplicate(e) && !usedFamilies.has(this.exerciseFamily(e.name)),
+    );
+    if (pool.length === 0) pool = candidates.filter(notDuplicate);
+    if (pool.length === 0) return [];
+
+    const ctx = this.buildRankContext(dto, history);
+    const hasEquipmentContext = (equipment?.length ?? 0) > 0;
+    const hasDayContext = dayGroups.length > 0;
+
+    const scored = pool.map((e, poolIndex) => {
+      let score = 0;
+      const reasons: string[] = [];
+      const candidateType = (e.type ?? '').toLowerCase();
+      // Coverage gaps only mean something against a real day: a candidate's
+      // sub-muscle nobody in the day touches is exactly what's missing.
+      if (hasDayContext) {
+        const gapSub = (e.subMuscles ?? []).find((s) => !coveredSubs.has(s));
+        if (gapSub) {
+          score += 500;
+          reasons.push(`Adds ${gapSub}`);
+        }
+        if (dayCompounds === 0 && candidateType === 'compound') {
+          score += 250;
+          reasons.push('Anchor lift for this day');
+        } else if (
+          dayCompounds >= 2 &&
+          dayIsolations === 0 &&
+          candidateType === 'isolation'
+        ) {
+          score += 150;
+          reasons.push('Isolation finisher');
+        }
+      } else if (candidateType === 'compound') {
+        // Empty/custom day: start from a big lift worth building around.
+        score += 250;
+        reasons.push('Anchor lift to build around');
+      }
+      const personal = this.contextScore(e, ctx);
+      score += personal.score;
+      if (personal.reason) reasons.push(personal.reason);
+      if (reasons.length === 0) {
+        const tier = EXERCISE_TIERS[e.id];
+        if (hasEquipmentContext) reasons.push('Fits your equipment');
+        else if (tier === 'S' || tier === 'A') reasons.push('Top rated');
+        else reasons.push(`Works ${e.primaryMuscleGroup.toLowerCase()}`);
+      }
+      return { exercise: e, score, poolIndex, reasons };
+    });
     scored.sort((a, b) => b.score - a.score || a.poolIndex - b.poolIndex);
 
     const count = Math.min(Math.max(dto.count ?? 3, 1), 10);

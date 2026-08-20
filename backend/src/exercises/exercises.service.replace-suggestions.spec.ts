@@ -240,3 +240,229 @@ describe('ExercisesService.pickReplacementSuggestions', () => {
     expect(out).toEqual([]);
   });
 });
+
+describe('ExercisesService.pickReplacementSuggestions personalization', () => {
+  /** Two interchangeable mid-chest presses + one fly; `type` set explicitly. */
+  const pressCatalog = () => [
+    ex({
+      id: 'target_press',
+      name: 'Machine Chest Press',
+      primaryMuscleGroup: 'Chest',
+      subMuscles: ['Mid Chest'],
+      equipment: ['Machine'],
+      type: 'Compound',
+    }),
+    ex({
+      id: 'press_a',
+      name: 'Flat Dumbbell Bench Press',
+      primaryMuscleGroup: 'Chest',
+      subMuscles: ['Mid Chest'],
+      equipment: ['Dumbbell'],
+      type: 'Compound',
+    }),
+    ex({
+      id: 'press_b',
+      name: 'Smith Machine Bench Press',
+      primaryMuscleGroup: 'Chest',
+      subMuscles: ['Mid Chest'],
+      equipment: ['Smith Machine'],
+      type: 'Compound',
+    }),
+    ex({
+      id: 'fly_iso',
+      name: 'Cable Fly',
+      primaryMuscleGroup: 'Chest',
+      subMuscles: ['Mid Chest'],
+      equipment: ['Cable'],
+      type: 'Isolation',
+    }),
+  ];
+
+  it('demotes a candidate already planned elsewhere this week', () => {
+    const service = withCatalog(pressCatalog());
+    const base = {
+      targetName: 'Machine Chest Press',
+      targetExerciseId: 'target_press',
+      dayExerciseIds: ['target_press'],
+      count: 10,
+    };
+    const without = service.pickReplacementSuggestions(base);
+    const with_ = service.pickReplacementSuggestions({
+      ...base,
+      weekExerciseIds: [without[0].exercise.id],
+    });
+    expect(with_[0].exercise.id).not.toBe(without[0].exercise.id);
+    // Still suggested — variety demotes, never hides.
+    expect(with_.map((s) => s.exercise.id)).toContain(without[0].exercise.id);
+  });
+
+  it('boosts a lift the user has really trained and says so, but not when it was just trained', () => {
+    const service = withCatalog(pressCatalog());
+    const base = {
+      targetName: 'Machine Chest Press',
+      targetExerciseId: 'target_press',
+      dayExerciseIds: ['target_press'],
+      count: 10,
+    };
+    const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
+    // press_b trained 6 times, 10 days ago -> outranks its otherwise-equal twin.
+    const familiar = service.pickReplacementSuggestions(
+      base,
+      new Map([['press_b', { count: 6, lastAt: daysAgo(10) }]]),
+    );
+    expect(familiar[0].exercise.id).toBe('press_b');
+    expect(familiar[0].reasons).toContain("You've trained this before");
+    // Same history but logged YESTERDAY -> freshness penalty flips the order.
+    const justTrained = service.pickReplacementSuggestions(
+      base,
+      new Map([['press_b', { count: 6, lastAt: daysAgo(1) }]]),
+    );
+    expect(justTrained[0].exercise.id).not.toBe('press_b');
+  });
+
+  it('sinks high-skill barbell lifts for beginners without hiding them', () => {
+    const service = withCatalog([
+      ...pressCatalog(),
+      ex({
+        id: 'flat_bb',
+        name: 'Flat Barbell Bench Press',
+        primaryMuscleGroup: 'Chest',
+        subMuscles: ['Mid Chest'],
+        type: 'Compound',
+      }),
+    ]);
+    const base = {
+      targetName: 'Machine Chest Press',
+      targetExerciseId: 'target_press',
+      dayExerciseIds: ['target_press'],
+      count: 10,
+    };
+    const intermediate = service.pickReplacementSuggestions({
+      ...base,
+      experience: 'Intermediate',
+    });
+    const beginner = service.pickReplacementSuggestions({
+      ...base,
+      experience: 'Beginner',
+    });
+    const beginnerIds = beginner.map((s) => s.exercise.id);
+    // Sunk to the bottom for a beginner, but still present (soft gate).
+    expect(beginnerIds[beginnerIds.length - 1]).toBe('flat_bb');
+    expect(
+      intermediate.map((s) => s.exercise.id).indexOf('flat_bb'),
+    ).toBeLessThan(beginnerIds.indexOf('flat_bb'));
+  });
+
+  it('keeps a compound slot a compound: isolation moves rank below same-sub compounds', () => {
+    const service = withCatalog(pressCatalog());
+    const out = service.pickReplacementSuggestions({
+      targetName: 'Machine Chest Press',
+      targetExerciseId: 'target_press',
+      dayExerciseIds: ['target_press'],
+      count: 10,
+    });
+    const ids = out.map((s) => s.exercise.id);
+    expect(ids.indexOf('fly_iso')).toBeGreaterThan(ids.indexOf('press_a'));
+    expect(ids.indexOf('fly_iso')).toBeGreaterThan(ids.indexOf('press_b'));
+  });
+
+  it('penalizes drift onto a sub-muscle another day exercise already covers', () => {
+    const service = withCatalog([
+      ex({
+        id: 'lateral_target',
+        name: 'Dumbbell Lateral Raise',
+        primaryMuscleGroup: 'Shoulders',
+        subMuscles: ['Side Delts'],
+        equipment: ['Dumbbell'],
+        type: 'Isolation',
+      }),
+      ex({
+        id: 'front_covered',
+        name: 'Front Raise',
+        primaryMuscleGroup: 'Shoulders',
+        subMuscles: ['Front Delts'],
+        equipment: ['Dumbbell'],
+        type: 'Isolation',
+      }),
+      ex({
+        id: 'rear_uncovered',
+        name: 'Reverse Fly',
+        primaryMuscleGroup: 'Shoulders',
+        subMuscles: ['Rear Delts'],
+        equipment: ['Dumbbell'],
+        type: 'Isolation',
+      }),
+      ex({
+        id: 'ohp_day',
+        name: 'Seated Dumbbell Shoulder Press',
+        primaryMuscleGroup: 'Shoulders',
+        subMuscles: ['Front Delts'],
+        equipment: ['Dumbbell'],
+        type: 'Compound',
+      }),
+    ]);
+    // Day already presses (Front Delts). Neither candidate shares the
+    // target's sub — the one drifting onto uncovered Rear Delts must win.
+    const out = service.pickReplacementSuggestions({
+      targetName: 'Dumbbell Lateral Raise',
+      targetExerciseId: 'lateral_target',
+      dayExerciseIds: ['lateral_target', 'ohp_day'],
+      count: 10,
+    });
+    const ids = out.map((s) => s.exercise.id);
+    expect(ids.indexOf('rear_uncovered')).toBeLessThan(
+      ids.indexOf('front_covered'),
+    );
+  });
+});
+
+describe('ExercisesService.pickReplacementSuggestions week-planned twins', () => {
+  it("strips the canonical-swap bonus from a twin that's already planned this week", () => {
+    const service = withCatalog([
+      ex({
+        id: 'flatbb_w',
+        name: 'Flat Barbell Bench Press',
+        primaryMuscleGroup: 'Chest',
+        subMuscles: ['Mid Chest'],
+        type: 'Compound',
+      }),
+      ex({
+        id: 'flatdb_w',
+        name: 'Flat Dumbbell Bench Press',
+        primaryMuscleGroup: 'Chest',
+        subMuscles: ['Mid Chest'],
+        equipment: ['Dumbbell'],
+        type: 'Compound',
+      }),
+      ex({
+        id: 'machine_w',
+        name: 'Machine Chest Press',
+        primaryMuscleGroup: 'Chest',
+        subMuscles: ['Mid Chest'],
+        equipment: ['Machine'],
+        type: 'Compound',
+      }),
+    ]);
+    const base = {
+      targetName: 'Flat Barbell Bench Press',
+      targetExerciseId: 'flatbb_w',
+      dayExerciseIds: ['flatbb_w'],
+      count: 10,
+    };
+    // Normally the DB twin owns the top slot with the same-lift reason…
+    const plain = service.pickReplacementSuggestions(base);
+    expect(plain[0].exercise.id).toBe('flatdb_w');
+    expect(plain[0].reasons).toContain('Same lift, different equipment');
+    // …but not when that exact lift already sits on another day this week:
+    // then it's a repeat, not a swap — demoted below fresh candidates and
+    // stripped of the canonical-swap why-tag.
+    const withWeek = service.pickReplacementSuggestions({
+      ...base,
+      weekExerciseIds: ['flatdb_w'],
+    });
+    expect(withWeek[0].exercise.id).toBe('machine_w');
+    const twin = withWeek.find((s) => s.exercise.id === 'flatdb_w');
+    expect(twin).toBeDefined(); // demoted, never hidden
+    expect(twin?.reasons).not.toContain('Same lift, different equipment');
+  });
+});
