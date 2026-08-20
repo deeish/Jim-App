@@ -24,6 +24,80 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  // The ONE card for the next release: everything on this branch since
+  // build 25 (Quick Workout, dark mode, missed day rescue + Make Room,
+  // add another set, the library picker + remove exercise, gradient
+  // month/week + legend sheet, haptics baseline).
+  // Deliberately short so testers know what to look for; selector freeze,
+  // rest-day open fix and the ended-program gate are polish and stay out.
+  {
+    id: '2026-08-19',
+    version: '1.1.0',
+    date: '2026-08-19',
+    title: 'Quick Workout and dark mode',
+    changes: [
+      {
+        type: 'new',
+        text: 'Quick Workout: on a day with nothing scheduled, tap the muscles you want to train and get a complete session instantly. No plan needed.',
+      },
+      {
+        type: 'new',
+        text: 'Quick sessions match your goal, experience, and equipment, and are ordered the way a coach would run them.',
+      },
+      {
+        type: 'new',
+        text: 'Dark mode. Pick Light or Dark under Appearance in your Profile.',
+      },
+      {
+        type: 'improved',
+        text: 'Swapping or adding exercises now opens the full library: search, filters, and your saved list, with the best swaps for that exact slot pinned on top and the reason for each pick.',
+      },
+      {
+        type: 'new',
+        text: 'Remove an exercise from a day: hold its card and choose Remove Exercise.',
+      },
+      {
+        type: 'new',
+        text: 'Missed a workout? Move it to another day or let it go. Any workout can be moved, and the calendar makes room when a day is taken.',
+      },
+      {
+        type: 'new',
+        text: 'Add another set to any finished exercise, right from its set cards.',
+      },
+      {
+        type: 'improved',
+        text: 'The month and week views now wear the same muscle colors as the day view, with a color key one tap away.',
+      },
+      {
+        type: 'improved',
+        text: 'Gentle tap feedback across the whole app.',
+      },
+    ],
+  },
+  // One entry covering the whole Calendar release for the Friends/Family
+  // group: external testers last received the 2026-08-13 update (build 18 +
+  // OTA), so the former 2026-08-14, 2026-08-15 and 2026-08-16 cards were
+  // merged in here. Fixes for regressions that only internal builds ever had
+  // (views opening scrolled down) are dropped, and the completed-day mark is
+  // described as it ships now (gold seal), not the strike or ring it briefly
+  // was between internal builds.
+  {
+    id: '2026-08-17',
+    version: '1.1.0',
+    date: '2026-08-17',
+    title: 'Your plan is now a calendar',
+    changes: [
+      { type: 'new', text: 'The Plan and Train tabs became one Calendar: month, week, and day views with every muscle color coded.' },
+      { type: 'new', text: 'The day view is full color: every exercise card wears its muscle color as a smooth gradient, with the muscle name on a frosted chip.' },
+      { type: 'new', text: 'Log sets right on the calendar with swipeable set cards, a rest timer that counts down in the REST tile, and a celebration when you finish.' },
+      { type: 'new', text: 'Swap or add exercises on any day, with recommendations from the library. Your plan saves the change.' },
+      { type: 'improved', text: 'A finished day earns a gold seal on the month grid, missed days fade back, and everything counts toward History and Progress.' },
+      { type: 'improved', text: 'A finished session shows every set as a completed card, with skipped sets marked.' },
+      { type: 'improved', text: 'A workout in progress now survives closing the app, and you can log a shorter session as done.' },
+      { type: 'new', text: 'The calendar taps back: logging a session, swapping an exercise, flipping a page, and the end of a rest each have their own feel.' },
+      { type: 'improved', text: 'Recommended on the Exercises page is now a proper All | Recommended switch under the search bar.' },
+    ],
+  },
   {
     id: '2026-08-13',
     version: '1.1.0',

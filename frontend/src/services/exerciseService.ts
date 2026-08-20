@@ -93,6 +93,34 @@ export async function replaceExercise(body: {
   return res.data.exercise ?? null;
 }
 
+/** One ranked row of the replace picker's recommendation rail. */
+export interface ReplaceSuggestion {
+  exercise: Exercise;
+  /** Short why-tags, strongest first (max 2), e.g. "Easier version". */
+  reasons: string[];
+}
+
+/**
+ * Ranked top-N alternatives for one exercise, each with why-tags — powers the
+ * replace picker's pinned recommendation rail. `equipment` takes the user's
+ * real gear list (catalog display names) and overrides `location`.
+ */
+export async function getReplaceSuggestions(body: {
+  targetName: string;
+  targetExerciseId?: string;
+  dayExerciseNames?: string[];
+  dayExerciseIds?: string[];
+  equipment?: string[];
+  count?: number;
+  avoid?: string[];
+}): Promise<ReplaceSuggestion[]> {
+  const res = await api.post<{ suggestions: ReplaceSuggestion[] }>(
+    '/exercises/replace-suggestions',
+    body,
+  );
+  return res.data.suggestions ?? [];
+}
+
 /**
  * Search exercises with filters
  */

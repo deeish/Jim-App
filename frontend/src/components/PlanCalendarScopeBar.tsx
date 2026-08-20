@@ -1,0 +1,141 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import {
+  elevation,
+  radius,
+  text,
+  useTheme,
+  weight,
+  type ColorPalette,
+} from '../theme';
+import { buzzSelection, sfPro } from '../lib/planCalendarPrototype';
+
+export type CalendarScope = 'month' | 'week' | 'day';
+
+const SEGMENTS: CalendarScope[] = ['month', 'week', 'day'];
+const LABELS: Record<CalendarScope, string> = { month: 'Month', week: 'Week', day: 'Day' };
+/** Inset between the segmented track and its sliding thumb. */
+const SEG_PAD = 2;
+/** Fixed track height — the overlay host and the screens' reserved top space
+ *  (SCOPE_BAR_SPACE) both build on it, so it must not float with font metrics. */
+export const SCOPE_BAR_HEIGHT = 36;
+
+/**
+ * PROTOTYPE — the calendar's zoom control: a sliding Month | Week | Day
+ * segmented bar. ONE instance is rendered by the navigator's overlay host
+ * (PlanCalendarScopeBarHost), frozen above the stack while the scope screens
+ * transition beneath it (the Photos years/months/all pattern). The thumb
+ * slides, a selection haptic ticks, then `onNavigate` fires so the slide is
+ * visible before the screen changes. `active` flips when a different scope
+ * screen takes focus (bar tap or any other navigation) and the thumb glides
+ * to it — the component instance persists, so no snap.
+ */
+export default function PlanCalendarScopeBar({
+  active,
+  onNavigate,
+}: {
+  active: CalendarScope;
+  onNavigate: (scope: CalendarScope) => void;
+}) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const activeIndex = SEGMENTS.indexOf(active);
+
+  const [selected, setSelected] = useState(activeIndex);
+  const [trackW, setTrackW] = useState(0);
+  const segW = trackW > 0 ? (trackW - SEG_PAD * 2) / SEGMENTS.length : 0;
+  const thumbX = useSharedValue(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const thumbStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: thumbX.value }],
+  }));
+
+  useEffect(() => {
+    setSelected(activeIndex);
+    if (segW > 0) thumbX.value = withTiming(activeIndex * segW, { duration: 150 });
+    return () => {
+      // A scope change while a tap's navigate is still pending cancels it.
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [activeIndex, segW, thumbX]);
+
+  const select = (i: number) => {
+    if (i === selected) return;
+    setSelected(i);
+    buzzSelection();
+    thumbX.value = withTiming(i * segW, { duration: 180 });
+    if (timer.current) clearTimeout(timer.current);
+    // Let the thumb finish its slide before the navigation starts.
+    timer.current = setTimeout(() => onNavigate(SEGMENTS[i]), 200);
+  };
+
+  return (
+    <View
+      style={styles.track}
+      onLayout={(e) => {
+        const w = e.nativeEvent.layout.width;
+        setTrackW(w);
+        // First layout: snap (not slide) the thumb onto this screen's scope.
+        thumbX.value = ((w - SEG_PAD * 2) / SEGMENTS.length) * activeIndex;
+      }}
+    >
+      {segW > 0 && <Animated.View style={[styles.thumb, { width: segW }, thumbStyle]} />}
+      {SEGMENTS.map((scope, i) => (
+        <Pressable
+          key={scope}
+          style={styles.button}
+          onPress={() => select(i)}
+          accessibilityRole="button"
+          accessibilityLabel={`Show ${scope}`}
+        >
+          <Text style={[styles.label, selected === i && styles.labelActive]}>
+            {LABELS[scope]}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    // iOS segmented-control geometry; the track tone is the `segmentTrack`
+    // token (system segmented grey on light, elevated charcoal on Blackout).
+    track: {
+      flexDirection: 'row',
+      height: SCOPE_BAR_HEIGHT,
+      backgroundColor: c.segmentTrack,
+      borderRadius: radius.md,
+    },
+    thumb: {
+      position: 'absolute',
+      top: SEG_PAD,
+      bottom: SEG_PAD,
+      left: SEG_PAD,
+      // Concentric with the track: inner radius = outer radius − inset, the
+      // iOS segmented-control rule. A smaller token here reads as a squared
+      // thumb rattling inside a rounder track (most visibly on device).
+      borderRadius: radius.md - SEG_PAD,
+      backgroundColor: c.surface,
+      shadowColor: c.shadow,
+      ...elevation.level1,
+    },
+    button: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    label: {
+      ...sfPro,
+      fontSize: text.body,
+      fontWeight: weight.medium,
+      color: c.textSecondary,
+    },
+    labelActive: {
+      fontWeight: weight.semibold,
+      color: c.text,
+    },
+  });
+}

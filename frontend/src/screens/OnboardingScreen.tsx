@@ -262,7 +262,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   function openRecommendedTemplate(t: PlanTemplateCard) {
     haptics.select();
     navigation.replace('Main', {
-      screen: 'Plan',
+      screen: 'Calendar',
       params: {
         screen: 'TemplateDetail',
         params: { templateId: t.id, templateName: t.name },
@@ -275,7 +275,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   function openTemplatesList() {
     haptics.select();
     navigation.replace('Main', {
-      screen: 'Plan',
+      screen: 'Calendar',
       params: { screen: 'Templates', initial: false },
     });
   }
@@ -283,7 +283,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   function openAIGenerate() {
     haptics.select();
     navigation.replace('Main', {
-      screen: 'Plan',
+      screen: 'Calendar',
       params: { screen: 'GeneratePlan' },
     });
   }

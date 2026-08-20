@@ -22,6 +22,7 @@ import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import SheetModal from '../components/SheetModal';
+import { haptics } from '../lib/haptics';
 import {
   useUserPreferences,
   GOAL_OPTIONS,
@@ -87,7 +88,13 @@ function Row({
   );
   if (onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity
+        onPress={() => {
+          haptics.tap();
+          onPress();
+        }}
+        activeOpacity={0.7}
+      >
         {content}
       </TouchableOpacity>
     );
@@ -321,7 +328,7 @@ const styles = { ...staticStyles, ...layoutStyles };
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootNavigatorParamList>>();
-  const { colors } = useTheme();
+  const { colors, mode, setMode } = useTheme();
   const { user, signOut } = useAuth();
   const {
     hydrated: prefsHydrated,
@@ -659,7 +666,10 @@ export default function ProfileScreen() {
                       weightUnit === 'lb' ? colors.primary : colors.background,
                   },
                 ]}
-                onPress={() => setWeightUnit('lb')}
+                onPress={() => {
+                  haptics.select();
+                  setWeightUnit('lb');
+                }}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: weightUnit === 'lb' }}
                 accessibilityLabel="Pounds"
@@ -683,7 +693,10 @@ export default function ProfileScreen() {
                       weightUnit === 'kg' ? colors.primary : colors.background,
                   },
                 ]}
-                onPress={() => setWeightUnit('kg')}
+                onPress={() => {
+                  haptics.select();
+                  setWeightUnit('kg');
+                }}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: weightUnit === 'kg' }}
                 accessibilityLabel="Kilograms"
@@ -713,6 +726,69 @@ export default function ProfileScreen() {
             colors={colors}
             showChevron
           />
+        </View>
+
+        <SectionHeader title="Appearance" colors={colors} />
+        <View style={[styles.sectionCard, themedStyles.sectionCard]}>
+          <View style={styles.weightRow}>
+            <View style={styles.weightRowLabelCol}>
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Theme</Text>
+            </View>
+            <View
+              style={[styles.weightSegment, { borderColor: colors.border }]}
+              accessibilityRole="radiogroup"
+              accessibilityLabel="App theme"
+            >
+              <TouchableOpacity
+                style={[
+                  styles.weightSegmentBtn,
+                  {
+                    backgroundColor: mode === 'light' ? colors.primary : colors.background,
+                  },
+                ]}
+                onPress={() => {
+                  haptics.select();
+                  setMode('light');
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: mode === 'light' }}
+                accessibilityLabel="Light theme"
+              >
+                <Text
+                  style={[
+                    styles.weightSegmentBtnText,
+                    { color: mode === 'light' ? colors.onPrimary : colors.textSecondary },
+                  ]}
+                >
+                  Light
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.weightSegmentBtn,
+                  {
+                    backgroundColor: mode === 'dark' ? colors.primary : colors.background,
+                  },
+                ]}
+                onPress={() => {
+                  haptics.select();
+                  setMode('dark');
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: mode === 'dark' }}
+                accessibilityLabel="Dark theme"
+              >
+                <Text
+                  style={[
+                    styles.weightSegmentBtnText,
+                    { color: mode === 'dark' ? colors.onPrimary : colors.textSecondary },
+                  ]}
+                >
+                  Dark
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         <SectionHeader title="Sharing" colors={colors} />

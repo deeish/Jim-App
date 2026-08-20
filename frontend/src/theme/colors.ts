@@ -19,9 +19,12 @@
  *    why the blue is not `#007AFF` (4.02:1, fails as button-label backing) and the
  *    greens/oranges are not the vivid iOS accents (`#34C759` is 2.22:1 on white).
  *
- * The app ships one light theme. To reintroduce a second mode, add a second object
- * of this shape and select between them in ThemeContext — the `ColorPalette` type
- * and `useTheme()` API are already built for it.
+ * The app ships light and dark. `palette` is light and stays the default;
+ * `darkPalette` is the "Blackout" scheme (Dylan's 2026-08-18 concept): blue-cast
+ * near-black ground, elevated charcoal cards, electric blue, warm amber.
+ * ThemeContext selects between them; both must satisfy the two rules above —
+ * for dark, rule 2 reads "clears 4.5:1 on the dark surfaces" (fills backed by
+ * `onPrimary`, which flips dark so bright fills keep their label contrast).
  */
 
 // Color palette type (one mode).
@@ -70,6 +73,8 @@ export type ColorPalette = {
   bodyMapBodyShade: string;
   /** Neutral ground behind mini body-map tiles (color lives in the muscles). */
   bodyMapTileBg: string;
+  /** Segmented-control track (the calendar scope bar, the Exercises scope bar). */
+  segmentTrack: string;
 };
 
 /**
@@ -130,6 +135,68 @@ export const palette: ColorPalette = {
   bodyMapAssist: '#8E8E93',
   bodyMapTileBg: '#F2F2F7',
   bodyMapBodyShade: '#D6D6DC',
+
+  segmentTrack: '#E4E4E9',
+};
+
+/** Dark softs run 15% (vs light's 10%): tints on dark need the extra strength
+ *  before their own colour reads on top of them. Still never concatenated. */
+const DARK_SOFT_ALPHA = '26';
+
+/**
+ * "Blackout" — the dark mode. Ground is a blue-cast near-black (the gradient
+ * concept's mid stop, solid for v1: `background` is a single token painted by
+ * every screen, so the full gradient ground is a later per-screen pass).
+ * Cards are elevated charcoal — tonal separation does the work shadows did on
+ * light. The blue turns electric and BRIGHT (`#3D8CFF`), which flips
+ * `onPrimary` near-black: bright fill + dark label is what keeps filled
+ * controls above 4.5:1 (white-on-bright-blue would be ~2.4:1).
+ */
+export const darkPalette: ColorPalette = {
+  background: '#0A0D13',
+  surface: '#1E1E22',
+  border: '#33343B',
+
+  primary: '#3D8CFF',
+  secondary: '#4CC38A',
+  accent: '#FFB340',
+
+  // Text ramp — AA on both the card (#1E1E22) and the ground (#0A0D13).
+  // Not pure white: #F2F2F5 keeps large type from glowing on OLED black.
+  text: '#F2F2F5',
+  textSecondary: '#C9C9D1',
+  textTertiary: '#A6A8B2',
+  textMuted: '#8F919B',
+
+  error: '#FF453A',
+  success: '#4CC38A',
+  warning: '#FFB340',
+
+  overlay: 'rgba(0, 0, 0, 0.55)',
+  shadow: '#000000',
+  onPrimary: '#0A0D13',
+  scrim: 'rgba(0, 0, 0, 0.55)',
+
+  workoutCardio: '#FF7A59',
+  workoutRecovery: '#C089E8',
+
+  primarySoft: `#3D8CFF${DARK_SOFT_ALPHA}`,
+  successSoft: `#4CC38A${DARK_SOFT_ALPHA}`,
+  warningSoft: `#FFB340${DARK_SOFT_ALPHA}`,
+
+  // The brand chip carries its own gradient — identical in both modes.
+  brandGradientStart: '#3B9DFF',
+  brandGradientEnd: '#0047B3',
+  brandGlyphShade: '#D9E4F2',
+
+  bodyMapBody: '#3A3B41',
+  bodyMapOutline: '#55565E',
+  bodyMapQuiet: 'rgba(255, 255, 255, 0.08)',
+  bodyMapAssist: '#8E8E93',
+  bodyMapTileBg: '#0A0D13',
+  bodyMapBodyShade: '#2E2F35',
+
+  segmentTrack: '#26272C',
 };
 
 /**

@@ -23,6 +23,7 @@ import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { isLinkableLibraryExerciseId, navigateFromWorkoutDetailToExerciseDetail } from '../lib/exerciseNavigation';
 import { resolveWorkoutEtaMinutes } from '../lib/estimateWorkoutMinutes';
 import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
+import { todayIso } from '../lib/planCalendarPrototype';
 import { leading, radius, spacing, text, tracking, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
 import {
@@ -235,7 +236,12 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
     if (!workout?.id) return;
     const tabNav = (navigation as any)?.getParent?.()?.getParent?.();
     if (tabNav) {
-      tabNav.navigate('Workout', { workoutId: workout.id });
+      // Training lives in the Calendar now — land on today's day view.
+      tabNav.navigate('Calendar', {
+        screen: 'PlanCalendarDay',
+        params: { dateIso: todayIso() },
+        initial: false,
+      });
       navigation.goBack();
     }
   };

@@ -649,6 +649,10 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
       const actionType = e.data.action.type;
       // Only prompt on explicit user back navigation, not on programmatic resets (e.g. apply from PlanPreview)
       if (actionType !== 'GO_BACK' && actionType !== 'POP') return;
+      // react-native-web's Alert.alert is a NO-OP, so preventing the action
+      // there would strand the user on this screen with a dead back button —
+      // let web navigate away without the discard prompt.
+      if (Platform.OS === 'web') return;
       e.preventDefault();
       Alert.alert(
         'Discard plan settings?',

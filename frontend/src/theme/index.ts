@@ -13,9 +13,10 @@
  * works both there and inside a `useMemo(..., [colors])`.
  */
 export type { ColorPalette } from './colors';
-export { palette, colors, muscleGroupColors, planSlotIconColors, SOFT_ALPHA } from './colors';
+export { palette, darkPalette, colors, muscleGroupColors, planSlotIconColors, SOFT_ALPHA } from './colors';
 export type { PlanSlotIconColors } from './colors';
 export { ThemeProvider, useTheme } from './ThemeContext';
+export type { ThemeMode } from './ThemeContext';
 
 export { spacing } from './spacing';
 export type { SpacingToken } from './spacing';

@@ -7,26 +7,33 @@ import {
 } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute, NavigatorScreenParams } from '@react-navigation/native';
 import HomeScreen from '../screens/HomeScreen';
-import PlanStackNavigator from '../navigation/PlanStackNavigator';
-import WorkoutScreen from '../screens/WorkoutScreen';
+import PlanCalendarNavigator from '../navigation/PlanCalendarNavigator';
 import SearchStackNavigator from '../navigation/SearchStackNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
-import type { RootStackParamList } from '../types/navigation';
+import type { PlanCalendarParamList } from '../lib/planCalendarPrototype';
+import { haptics } from '../lib/haptics';
 
 import { elevationUp, spacing, text, weight } from '../theme';
 export type RootTabParamList = {
   Home: undefined;
-  Plan: NavigatorScreenParams<RootStackParamList> | undefined;
-  Workout: { workoutId?: string; fromPlan?: boolean } | undefined;
+  /** The Calendar tab: plan + training hub (Month → Week → Day → Workout). */
+  Calendar: NavigatorScreenParams<PlanCalendarParamList> | undefined;
   Search: undefined;
 };
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 function tabBarButton(testID: string) {
-  return (props: BottomTabBarButtonProps) => (
-    <Pressable {...props} testID={testID} />
+  return ({ onPress, ...props }: BottomTabBarButtonProps) => (
+    <Pressable
+      {...props}
+      testID={testID}
+      onPress={(e) => {
+        haptics.tap();
+        onPress?.(e);
+      }}
+    />
   );
 }
 
@@ -109,10 +116,10 @@ export default function NavBar() {
         }}
       />
       <Tab.Screen
-        name="Plan"
-        component={PlanStackNavigator}
+        name="Calendar"
+        component={PlanCalendarNavigator}
         options={{
-          tabBarButton: tabBarButton('e2e-tab-plan'),
+          tabBarButton: tabBarButton('e2e-tab-calendar'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'calendar' : 'calendar-outline'}
@@ -121,67 +128,8 @@ export default function NavBar() {
             />
           ),
         }}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            const root = navigation.getState();
-            const planRoute = root.routes.find((r: { name: string }) => r.name === 'Plan');
-            const focusedChild = planRoute ? getFocusedRouteNameFromRoute(planRoute as never) : undefined;
-
-            // Screens holding in-progress state the user would silently lose: GeneratePlan's
-            // unsaved form, PlanPreview's unapplied generated plan. Staying put here is NOT
-            // the default — `createNativeStackNavigator` registers its own `tabPress` listener
-            // that dispatches `POP_TO_TOP` at the stack whenever its tab is re-tapped while
-            // focused, and `POP_TO_TOP` is neither `GO_BACK` nor `POP`, so it walks straight
-            // past GeneratePlan's discard-confirmation guard and drops the form with no
-            // prompt. Blocking the default is what actually prevents that; the guard alone
-            // does not. Only block when this tab is already focused — on a switch *into* Plan
-            // from another tab, `preventDefault()` would cancel the tab switch itself, and the
-            // built-in pop doesn't run in that case anyway (it checks focus at press time).
-            if (focusedChild === 'GeneratePlan' || focusedChild === 'PlanPreview') {
-              if (navigation.isFocused()) e.preventDefault();
-              return;
-            }
-            // Plain list/detail views with nothing to lose: reset to the plan list. Redundant
-            // with the built-in pop-to-top on a same-tab re-tap, but not on a switch in from
-            // another tab, which the built-in deliberately skips.
-            if (focusedChild === 'History' || focusedChild === 'WorkoutDetail') {
-              e.preventDefault();
-              // Carry PlanList's current params across the reset. A nested navigate like this
-              // is a non-merge NAVIGATE, and StackRouter *replaces* the target route's params
-              // in that case rather than merging — which is exactly how the Search listener
-              // used to destroy an in-progress add-mode. PlanList's only param (`openSaved`)
-              // has no live writer today, so nothing is actually lost right now; passing them
-              // through anyway keeps the next param anyone adds from silently vanishing here.
-              // (The Search listener deliberately does NOT do this: dropping a stale add-mode
-              // on the way back into that tab is the intended behaviour there, backing up
-              // SearchScreen's own blur cleanup.)
-              const planListParams = planRoute?.state?.routes?.find(
-                (r: { name: string }) => r.name === 'PlanList',
-              )?.params;
-              navigation.navigate('Plan', { screen: 'PlanList', params: planListParams });
-            }
-          },
-        })}
       />
       <Tab.Screen
-        name="Workout"
-        component={WorkoutScreen}
-        options={{
-          // "Train" answers "where do I DO the workout?" — with Plan and
-          // Exercises both noun-labeled, the action tab reads clearest as a
-          // verb. Route name stays 'Workout'; this is display-only.
-          tabBarLabel: 'Train',
-          tabBarButton: tabBarButton('e2e-tab-workout'),
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'barbell' : 'barbell-outline'}
-              size={focused ? 26 : 24}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen 
         name="Search" 
         component={SearchStackNavigator}
         options={{

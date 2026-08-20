@@ -72,6 +72,16 @@ export class ExercisesController {
     return { exercise: this.exercisesService.pickReplacement(dto) };
   }
 
+  /** Ranked top-N alternatives for one exercise, each with why-tags — the
+   *  replace picker's recommendation rail. */
+  @Post('replace-suggestions')
+  @HttpCode(HttpStatus.OK)
+  replaceSuggestions(@Body() dto: ReplaceExerciseDto) {
+    return {
+      suggestions: this.exercisesService.pickReplacementSuggestions(dto),
+    };
+  }
+
   @Get('stats')
   getStats() {
     return this.exercisesService.getStats();
