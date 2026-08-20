@@ -19,13 +19,12 @@
  * hiding read as "the app lost Push-Ups".
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Text, TouchableOpacity, View, StyleSheet } from 'react-native';
+import { Platform, Text, TouchableOpacity, View, StyleSheet } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { radius, spacing, text, tracking, useTheme, weight, type ColorPalette } from '../theme';
-import { useTabBarInset } from '../navigation/useTabBarInset';
 import Button from '../components/Button';
 import ExerciseLibrary, {
   useExerciseLibraryFilters,
@@ -66,8 +65,20 @@ export default function PlanCalendarExercisePickerScreen() {
   const route = useRoute<Route>();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const tabBarInset = useTabBarInset();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  // ⚠ Sheet insets, not screen insets. This screen is presented as an iOS
+  // page-sheet modal (see PlanCalendarNavigator), so the card already starts
+  // BELOW the status bar and already covers the floating tab bar — but
+  // useSafeAreaInsets() reports the window's insets (one root SafeAreaProvider
+  // in App.tsx) and BottomTabBarHeightContext still resolves through React
+  // context even though no tab bar is visible behind the sheet. Padding by
+  // either one stacks dead space onto a sheet that needs none: 71pt of header
+  // padding where 16 was wanted, and 104pt under the footer button (16 + the
+  // 88pt bar in NavBar.tsx) where the home indicator's 34 was wanted. Android
+  // renders `presentation: 'modal'` full-bleed, so there the top inset is real.
+  const sheetTopInset = Platform.OS === 'ios' ? spacing.lg : insets.top + spacing.md;
+  const sheetBottomInset = Math.max(insets.bottom, spacing.lg);
   const { equipment: profileGear } = useUserPreferences();
 
   const params = route.params;
@@ -275,7 +286,7 @@ export default function PlanCalendarExercisePickerScreen() {
     ) : undefined;
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top + spacing.md }]}>
+    <View style={[styles.root, { paddingTop: sheetTopInset }]}>
       {/* Header — the sheet's own chrome (the navigator hides its header). */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -312,11 +323,11 @@ export default function PlanCalendarExercisePickerScreen() {
         onToggleLike={saved.onToggleLike}
         headerSlot={railNode}
         compact
-        bottomInset={mode === 'add' ? 0 : tabBarInset}
+        bottomInset={mode === 'add' ? 0 : sheetBottomInset}
       />
 
       {mode === 'add' && (
-        <View style={[styles.footer, { paddingBottom: spacing.lg + tabBarInset }]}>
+        <View style={[styles.footer, { paddingBottom: sheetBottomInset }]}>
           <Text style={styles.footerCount}>
             {selectedIds.size === 0
               ? 'Tap exercises to select'
