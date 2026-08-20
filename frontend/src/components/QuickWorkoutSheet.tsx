@@ -21,7 +21,11 @@ import {
   sfPro,
   type PrototypeMuscle,
 } from '../lib/planCalendarPrototype';
-import { addQuickSessionToday, plannedDayForDate } from '../lib/planCalendarPrototypeStore';
+import {
+  addQuickSessionToday,
+  plannedDayForDate,
+  type QuickSessionLanding,
+} from '../lib/planCalendarPrototypeStore';
 import { buildQuickSession } from '../services/workoutService';
 import { todayIso } from '../lib/planCalendarPrototype';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
@@ -98,12 +102,18 @@ export default function QuickWorkoutSheet({ visible, onClose, onLanded }: Props)
   const [selected, setSelected] = useState<Set<PrototypeMuscle>>(new Set());
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState('');
+  /** How many exercises today already holds — a second session must be an
+   *  explicit choice, never a silent 11-exercise merge on the day view. */
+  const [todayCount, setTodayCount] = useState(0);
+  const [landing, setLanding] = useState<QuickSessionLanding>('replace');
 
   useEffect(() => {
     if (visible) {
       setSelected(new Set());
       setBuilding(false);
       setError('');
+      setTodayCount(plannedDayForDate(todayIso()).exercises.length);
+      setLanding('replace');
     }
   }, [visible]);
 
@@ -136,18 +146,23 @@ export default function QuickWorkoutSheet({ visible, onClose, onLanded }: Props)
     setBuilding(true);
     setError('');
     try {
-      // A second quick session today must not repeat what's already on the
-      // day (the same-seed builder would otherwise serve identical picks).
-      const alreadyToday = plannedDayForDate(todayIso())
-        .exercises.map((ex) => ex.exerciseId)
-        .filter((id): id is string => !!id);
+      // Only an ADDED second session must avoid repeating what's already on
+      // the day (the same-seed builder would otherwise serve identical
+      // picks) — a REPLACED day's exercises are gone, so bench press is
+      // allowed to come back.
+      const alreadyToday =
+        landing === 'add'
+          ? plannedDayForDate(todayIso())
+              .exercises.map((ex) => ex.exerciseId)
+              .filter((id): id is string => !!id)
+          : [];
       const session = await buildQuickSession({
         muscles: selectedList,
         goal,
         experience,
         ...(alreadyToday.length > 0 ? { excludeIds: alreadyToday } : null),
       });
-      const landedOn = await addQuickSessionToday(session);
+      const landedOn = await addQuickSessionToday(session, landing);
       buzzEditApplied();
       onClose();
       onLanded(landedOn);
@@ -248,6 +263,48 @@ export default function QuickWorkoutSheet({ visible, onClose, onLanded }: Props)
                 </>
               )}
             </Text>
+
+            {todayCount > 0 && (
+              <View style={styles.landingWrap}>
+                <Text style={styles.landingLabel}>
+                  Today already has a workout ({todayCount}{' '}
+                  {todayCount === 1 ? 'exercise' : 'exercises'})
+                </Text>
+                <View style={styles.landingSeg}>
+                  {(
+                    [
+                      { key: 'replace', label: 'Replace it' },
+                      { key: 'add', label: 'Add to it' },
+                    ] as const
+                  ).map((opt) => {
+                    const active = landing === opt.key;
+                    return (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={[styles.landingOption, active && styles.landingOptionActive]}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          buzzTap();
+                          setLanding(opt.key);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={opt.label}
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Text
+                          style={[
+                            styles.landingOptionLabel,
+                            active && styles.landingOptionLabelActive,
+                          ]}
+                        >
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
 
             <TouchableOpacity
               style={[styles.cta, selectedList.length === 0 && styles.ctaDisabled]}
@@ -366,6 +423,41 @@ function createStyles(c: ColorPalette) {
       ...sfPro,
       fontWeight: weight.bold,
       color: c.text,
+    },
+    landingWrap: {
+      marginBottom: spacing.md,
+      gap: spacing.xs,
+    },
+    landingLabel: {
+      ...sfPro,
+      fontSize: text.footnote,
+      color: c.textMuted,
+      textAlign: 'center',
+    },
+    landingSeg: {
+      flexDirection: 'row',
+      backgroundColor: c.segmentTrack,
+      borderRadius: radius.pill,
+      padding: 2,
+    },
+    landingOption: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+    },
+    landingOptionActive: {
+      backgroundColor: c.surface,
+    },
+    landingOptionLabel: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      color: c.textSecondary,
+    },
+    landingOptionLabelActive: {
+      color: c.text,
+      fontWeight: weight.bold,
     },
     cta: {
       backgroundColor: c.primary,

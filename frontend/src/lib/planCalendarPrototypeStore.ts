@@ -932,6 +932,28 @@ export async function commitMoves(pending: PendingMove[]): Promise<void> {
   emit();
 }
 
+/** How a Quick Workout lands when today already has a session: 'replace'
+ *  swaps the day's plan for the new session (the default — two full sessions
+ *  merged into one 11-exercise day is never what "give me a push day" means);
+ *  'add' keeps the existing workout and appends (the deliberate two-a-day). */
+export type QuickSessionLanding = 'replace' | 'add';
+
+/** Drop every session-local overlay for a date whose exercises are being
+ *  replaced wholesale — edits, additions, removals, title, and the
+ *  index-keyed set logs that would otherwise attach to the NEW session's
+ *  rows at the same positions. */
+function clearDayOverlays(dateIso: string): void {
+  for (const key of [...replacements.keys()]) {
+    if (key.startsWith(`${dateIso}#`)) replacements.delete(key);
+  }
+  for (const key of [...setLogs.keys()]) {
+    if (key.startsWith(`${dateIso}#`)) setLogs.delete(key);
+  }
+  additions.delete(dateIso);
+  removals.delete(dateIso);
+  customDayTitles.delete(dateIso);
+}
+
 /**
  * Land a Quick Workout session on TODAY.
  *
@@ -943,7 +965,10 @@ export async function commitMoves(pending: PendingMove[]): Promise<void> {
  * deliberately avoided: a slot beyond max(weekNumber) would silently grow
  * "Week N of M", and a pre-anchor slot cannot exist below weekNumber 1.)
  */
-export async function addQuickSessionToday(session: QuickSession): Promise<string> {
+export async function addQuickSessionToday(
+  session: QuickSession,
+  landing: QuickSessionLanding = 'replace',
+): Promise<string> {
   const today = todayIso();
   const todayMondayIso = toIso(mondayOf(fromIso(today)));
   const weekInfo =
@@ -955,6 +980,7 @@ export async function addQuickSessionToday(session: QuickSession): Promise<strin
     const programWeek =
       Math.round((mondayOf(fromIso(today)).getTime() - anchor.getTime()) / WEEK_MS) + 1;
     const existing = liveSlotsForDate(today);
+    const replacing = landing === 'replace' && existing.length > 0;
     const slot: PlanSlot = {
       weekNumber: Math.max(1, programWeek - offset),
       dayOfWeek: WEEKDAYS[weekdayIndex(fromIso(today))],
@@ -962,7 +988,9 @@ export async function addQuickSessionToday(session: QuickSession): Promise<strin
       type: session.type,
       durationMinutes: session.durationMinutes,
       orderInDay:
-        existing.length > 0 ? Math.max(...existing.map((s) => s.orderInDay)) + 1 : 0,
+        !replacing && existing.length > 0
+          ? Math.max(...existing.map((s) => s.orderInDay)) + 1
+          : 0,
       exercises: session.exercises.map((ex, i) => ({
         exerciseId: ex.exerciseId,
         name: ex.name,
@@ -980,7 +1008,17 @@ export async function addQuickSessionToday(session: QuickSession): Promise<strin
           : null),
       })),
     };
-    const plan = await addPlanSlot(livePlan.id, slot);
+    // Add first, then remove — the same crash-safe order persistDayEdits
+    // uses, so a failure mid-way leaves the day over-full, never empty.
+    let plan = await addPlanSlot(livePlan.id, slot);
+    if (replacing) {
+      for (const old of existing) {
+        plan = await removePlanSlot(livePlan.id, old.id);
+      }
+      // The replaced day's session-local edits described exercises that no
+      // longer exist — without this they'd re-apply onto the new session.
+      clearDayOverlays(today);
+    }
     livePlan = plan;
     lastSeenPlanId = plan.id;
     emit();
@@ -988,6 +1026,11 @@ export async function addQuickSessionToday(session: QuickSession): Promise<strin
     return today;
   }
 
+  if (landing === 'replace') {
+    // Session-local day: replacing simply drops what "+ Add Exercise" or an
+    // earlier quick session stacked onto today (base is empty out-of-plan).
+    clearDayOverlays(today);
+  }
   customDayTitles.set(today, session.title);
   for (const ex of session.exercises) {
     additions.set(today, [
