@@ -113,9 +113,38 @@ export async function getReplaceSuggestions(body: {
   equipment?: string[];
   count?: number;
   avoid?: string[];
+  /** Exercises on OTHER days of the same week — ranking keeps the week varied. */
+  weekExerciseIds?: string[];
+  weekExerciseNames?: string[];
+  /** User profile context — beginner gating + goal-fit ranking. */
+  goal?: string;
+  experience?: string;
 }): Promise<ReplaceSuggestion[]> {
   const res = await api.post<{ suggestions: ReplaceSuggestion[] }>(
     '/exercises/replace-suggestions',
+    body,
+  );
+  return res.data.suggestions ?? [];
+}
+
+/**
+ * Ranked exercises that COMPLETE a day (uncovered sub-muscles, missing
+ * anchor/finisher, history-aware) — powers the add picker's recommendation
+ * rail. Same why-tag shape as the replace rail.
+ */
+export async function getAddSuggestions(body: {
+  dayExerciseNames?: string[];
+  dayExerciseIds?: string[];
+  equipment?: string[];
+  count?: number;
+  avoid?: string[];
+  weekExerciseIds?: string[];
+  weekExerciseNames?: string[];
+  goal?: string;
+  experience?: string;
+}): Promise<ReplaceSuggestion[]> {
+  const res = await api.post<{ suggestions: ReplaceSuggestion[] }>(
+    '/exercises/add-suggestions',
     body,
   );
   return res.data.suggestions ?? [];

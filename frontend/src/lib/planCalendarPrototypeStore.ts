@@ -569,6 +569,30 @@ export function plannedDayForDate(dateIso: string): PlannedDay {
 }
 
 /**
+ * What the REST of dateIso's week trains: the exercises planned on its other
+ * six days (with replacements/removals/additions applied). The replace/add
+ * pickers send this so the recommendation brain keeps the week varied —
+ * Thursday's rail never tops out with Monday's lift.
+ */
+export function weekExerciseContext(dateIso: string): {
+  ids: string[];
+  names: string[];
+} {
+  const monday = mondayOf(fromIso(dateIso));
+  const ids = new Set<string>();
+  const names = new Set<string>();
+  for (let i = 0; i < 7; i++) {
+    const iso = toIso(addDays(monday, i));
+    if (iso === dateIso) continue;
+    for (const ex of plannedDayForDate(iso).exercises) {
+      if (ex.exerciseId) ids.add(ex.exerciseId);
+      names.add(ex.name);
+    }
+  }
+  return { ids: [...ids], names: [...names] };
+}
+
+/**
  * Build a calendar exercise from a CATALOG row (the replace/add picker).
  * A replacement inherits the outgoing slot's prescription — same role in the
  * workout — except the weight, which only carries over when the new exercise
