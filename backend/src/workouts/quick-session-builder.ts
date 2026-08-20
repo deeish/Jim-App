@@ -56,6 +56,7 @@ import { equipmentSatisfies } from '../data/exercise-mappings';
 import { EXERCISE_TIERS, type ExerciseTier } from '../data/exercise-tiers';
 import { getJointDemands, type JointId } from '../data/exercise-joint-demands';
 import { getCommonExerciseRank } from '../data/common-exercise-ids';
+import { BEGINNER_BLOCK_RE } from '../data/beginner-gating';
 import {
   getRoleAwareScheme,
   normalizeGoal,
@@ -419,14 +420,10 @@ function isHeavyRowRow(e: TransformedExercise): boolean {
   );
 }
 
-/**
- * High-skill barbell lifts a BEGINNER session must not open with (the pool
- * swaps to goblet squats, RDLs, chest-supported rows, seated presses — the
- * same movement patterns with the technique tax removed). Experience gating
- * has to change the exercise pool, not just the set count.
- */
-const BEGINNER_BLOCK_RE =
-  /back squat|front squat|overhead squat|conventional deadlift|trap bar deadlift|sumo deadlift|deficit deadlift|barbell romanian deadlift|pendlay|bent[- ]over barbell row|barbell bent[- ]over row|barbell bench press|barbell overhead press|military press|push press|\bsnatch\b|\bclean\b|\bjerk\b|good morning|muscle-up|pistol/i;
+// BEGINNER_BLOCK_RE (imported above): high-skill barbell lifts a BEGINNER
+// session must not open with — shared with the replace/add recommendation
+// brain via data/beginner-gating.ts. Experience gating has to change the
+// exercise pool, not just the set count.
 
 /** Angle/position tokens: a same-family second pick must differ in at least
  *  one token or in implement, so "incline barbell press after incline
