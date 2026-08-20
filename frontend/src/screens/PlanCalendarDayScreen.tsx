@@ -57,11 +57,13 @@ import {
   finishDaySession,
   getSetLogs,
   isDayLogged,
+  isDaySkipped,
   moveMissedDay,
   moveTargetsForDay,
   plannedDayForDate,
   removeExerciseFromDay,
   subscribePlanCalendar,
+  unskipDay,
 } from '../lib/planCalendarPrototypeStore';
 
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarDay'>;
@@ -132,11 +134,13 @@ export default function PlanCalendarDayScreen() {
   // Quick Workout door on TODAY's rest day (the at-the-gym scenario).
   const [quickVisible, setQuickVisible] = useState(false);
 
-  // Missed-day rescue: the banner's one-tap action + the shared sheet.
-  const [rescueSheetOpen, setRescueSheetOpen] = useState(false);
+  // The day-actions sheet (shared with the week view): 'missed' via the
+  // rescue banner, 'missed'/'move' via the header's ⋯ button.
+  const [daySheetMode, setDaySheetMode] = useState<'missed' | 'move' | null>(null);
   const [rescueBusy, setRescueBusy] = useState(false);
   const [rescueError, setRescueError] = useState('');
   const rescuable = canRescueDay(dateIso);
+  const skippedHere = isDaySkipped(dateIso);
   // The banner's one-tap "Do it today" shows only when today is genuinely
   // OPEN (picker row 0's state): a logged or beyond-program today blocks it,
   // and an occupied today needs the make-room step — the sheet ("Options")
@@ -165,6 +169,37 @@ export default function PlanCalendarDayScreen() {
   const allDone = plan.exercises.length > 0 && doneCount === plan.exercises.length;
   const anyLogged = plan.exercises.some((_, i) => getSetLogs(dateIso, i).length > 0);
   const dayLogged = isDayLogged(dateIso);
+
+  // The header's ⋯ — the VISIBLE door to day-level actions (move, skip,
+  // quick workout). The week-card long-press stays as the shortcut; HIG says
+  // a hold must never be the only path. Hidden where nothing can act:
+  // completed/logged days (write-once log), rest days, old quiet misses,
+  // and sample/offline data (nothing to persist against).
+  const dayActionable =
+    calendarDataMode() === 'live' &&
+    plan.exercises.length > 0 &&
+    !allDone &&
+    !dayLogged &&
+    (rescuable || skippedHere || dateIso >= todayIso());
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: dayActionable
+        ? () => (
+            <TouchableOpacity
+              onPress={() => {
+                buzzMenuOpen();
+                setDaySheetMode(rescuable ? 'missed' : 'move');
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Day options"
+            >
+              <Ionicons name="ellipsis-horizontal-circle" size={26} color={colors.primary} />
+            </TouchableOpacity>
+          )
+        : undefined,
+    });
+  }, [navigation, dayActionable, rescuable, colors.primary]);
 
   // Swipe pages between days; taps are swallowed briefly after a swipe (on
   // web the release click can land on a card of the re-rendered day).
@@ -245,7 +280,7 @@ export default function PlanCalendarDayScreen() {
               disabled={rescueBusy}
               onPress={() => {
                 buzzTap();
-                setRescueSheetOpen(true);
+                setDaySheetMode('missed');
               }}
               accessibilityRole="button"
               accessibilityLabel="More options for this missed workout"
@@ -265,6 +300,25 @@ export default function PlanCalendarDayScreen() {
           <Text style={styles.completeBannerText}>
             {allDone ? 'Workout complete — great work.' : 'Session logged.'}
           </Text>
+        </View>
+      )}
+
+      {skippedHere && !allDone && !dayLogged && plan.exercises.length > 0 && (
+        // The skipped state's undo home — a skip is a mark, never a deletion.
+        <View style={styles.skippedBanner}>
+          <Ionicons name="close-circle-outline" size={17} color={colors.textMuted} />
+          <Text style={styles.skippedBannerText}>You skipped this workout.</Text>
+          <TouchableOpacity
+            onPress={() => {
+              buzzTap();
+              unskipDay(dateIso);
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Undo skip"
+          >
+            <Text style={styles.skippedBannerAction}>Undo</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -475,13 +529,14 @@ export default function PlanCalendarDayScreen() {
     />
 
     <WorkoutMoveSheet
-      dateIso={rescueSheetOpen ? dateIso : null}
-      mode="missed"
+      dateIso={daySheetMode ? dateIso : null}
+      mode={daySheetMode ?? 'missed'}
       context="day"
-      onClose={() => setRescueSheetOpen(false)}
+      onClose={() => setDaySheetMode(null)}
       onEditDay={() => {}}
       // Follow the workout to its new day.
       onMoved={(targetIso) => navigation.setParams({ dateIso: targetIso })}
+      onQuickWorkout={() => setQuickVisible(true)}
     />
     </View>
   );
@@ -577,6 +632,27 @@ function createStyles(c: ColorPalette) {
     missedBannerSecondaryLabel: {
       ...sfPro,
       fontSize: text.body,
+      fontWeight: weight.semibold,
+      color: c.primary,
+    },
+    skippedBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: c.surface,
+      borderRadius: radius.lg,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+    },
+    skippedBannerText: {
+      ...sfPro,
+      flex: 1,
+      fontSize: text.footnote,
+      color: c.textMuted,
+    },
+    skippedBannerAction: {
+      ...sfPro,
+      fontSize: text.footnote,
       fontWeight: weight.semibold,
       color: c.primary,
     },

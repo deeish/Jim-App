@@ -726,9 +726,19 @@ export function canRescueDay(dateIso: string): boolean {
   return plannedDayForDate(dateIso).exercises.length > 0;
 }
 
-/** Mark a missed day dismissed. Local-only — the plan is never touched. */
-export function skipMissedDay(dateIso: string): void {
+/** Mark a day skipped — dismissing a missed day, or declaring ahead of time
+ *  that a planned day won't happen. Local-only — the plan is never touched,
+ *  and the workout stays visible (logging it anyway simply wins). */
+export function skipDay(dateIso: string): void {
   skippedDays.add(dateIso);
+  scheduleSessionSave();
+  emit();
+}
+
+/** Undo a skip: the day counts as planned again (a past day's missed-rescue
+ *  affordances come back with it). */
+export function unskipDay(dateIso: string): void {
+  skippedDays.delete(dateIso);
   scheduleSessionSave();
   emit();
 }
@@ -948,6 +958,9 @@ export async function commitMoves(pending: PendingMove[]): Promise<void> {
       .filter((p) => !known.has(p.slotId))
       .map((p) => ({ slotId: p.slotId, fromIso: p.fromIso, title: p.title })),
   ].slice(-MOVED_RECORDS_CAP);
+  // A day that just RECEIVED a workout isn't skipped any more — the mark
+  // described whatever used to be there.
+  for (const p of pending) skippedDays.delete(p.targetIso);
   scheduleSessionSave();
   emit();
 }
@@ -1068,6 +1081,8 @@ export async function addQuickSessionToday(
     livePlan = plan;
     lastSeenPlanId = plan.id;
     if (wasLogged) reopenLoggedDay(today);
+    // Building a session for today is the opposite of skipping it.
+    if (skippedDays.delete(today)) scheduleSessionSave();
     emit();
     void loadExerciseMeta(plan);
     return today;
@@ -1101,6 +1116,7 @@ export async function addQuickSessionToday(
     ]);
   }
   if (wasLogged) reopenLoggedDay(today);
+  if (skippedDays.delete(today)) scheduleSessionSave();
   emit();
   return today;
 }
