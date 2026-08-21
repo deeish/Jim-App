@@ -14,6 +14,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  elevation,
   radius,
   spacing,
   text,
@@ -39,7 +40,9 @@ import {
   fromIso,
   mondayOf,
   muscleChipFrost,
+  muscleChipFrostDone,
   muscleGradient,
+  muscleInkDone,
   sfPro,
   shortDate,
   todayIso,
@@ -61,6 +64,7 @@ import {
   moveMissedDay,
   moveTargetsForDay,
   plannedDayForDate,
+  primeCelebrationBaselines,
   removeExerciseFromDay,
   subscribePlanCalendar,
   unskipDay,
@@ -81,7 +85,7 @@ type SlotTarget = { index: number; exercise: PlannedExercise };
 export default function PlanCalendarDayScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { colors } = useTheme();
+  const { colors, mode } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const tabBarInset = useTabBarInset();
   const insets = useSafeAreaInsets();
@@ -126,6 +130,14 @@ export default function PlanCalendarDayScreen() {
   // it — without this only the MONTH screen ever fetched workout logs.
   useEffect(() => {
     ensureLogsForMonth(fromIso(dateIso));
+  }, [dateIso]);
+
+  // Warm the celebration's "what did this beat" baselines while the day is
+  // being trained. They must exist BEFORE the workout log POSTs — once the
+  // log lands, the new lift IS the server-side record and every personal-best
+  // claim on the finish screen silently vanishes.
+  useEffect(() => {
+    void primeCelebrationBaselines(dateIso);
   }, [dateIso]);
 
   /** Long-press menu (small sheet); Replace/Add push the picker screen. */
@@ -294,7 +306,9 @@ export default function PlanCalendarDayScreen() {
         </View>
       )}
 
-      {(allDone || dayLogged) && (
+      {/* Only a SUBMITTED day gets the banner — an all-done day that hasn't
+          been through "Complete Workout" still shows the button below. */}
+      {dayLogged && (
         <View style={styles.completeBanner}>
           <Ionicons name="checkmark-circle" size={20} color={GOLD} />
           <Text style={styles.completeBannerText}>
@@ -349,6 +363,13 @@ export default function PlanCalendarDayScreen() {
 
       {plan.exercises.map((ex, index) => {
         const done = getSetLogs(dateIso, index).length >= ex.sets;
+        // Done cards dim to 0.55, compositing light fills toward the dark
+        // page — their near-black ink drops below 4.5:1 there, so it flips
+        // to white (dark mode only; light mode dims toward white).
+        const ink = done ? muscleInkDone(ex.muscle, mode === 'dark') : MUSCLE_INK[ex.muscle];
+        const frost = done
+          ? muscleChipFrostDone(ex.muscle, mode === 'dark')
+          : muscleChipFrost(ex.muscle);
         return (
           <TouchableOpacity
             key={`${index}-${ex.name}`}
@@ -384,25 +405,23 @@ export default function PlanCalendarDayScreen() {
                   Dumbbell Overhead Triceps Extension") still truncated at 2
                   on device. Only long names pay the taller card. */}
               <Text
-                style={[styles.exerciseName, { color: MUSCLE_INK[ex.muscle] }]}
+                style={[styles.exerciseName, { color: ink }]}
                 numberOfLines={3}
               >
                 {ex.name}
               </Text>
-              <View
-                style={[styles.muscleChip, { backgroundColor: muscleChipFrost(ex.muscle) }]}
-              >
-                <Text style={[styles.muscleChipLabel, { color: MUSCLE_INK[ex.muscle] }]}>
+              <View style={[styles.muscleChip, { backgroundColor: frost }]}>
+                <Text style={[styles.muscleChipLabel, { color: ink }]}>
                   {ex.muscle}
                 </Text>
               </View>
               {done ? (
-                <Ionicons name="checkmark-circle" size={19} color={MUSCLE_INK[ex.muscle]} />
+                <Ionicons name="checkmark-circle" size={19} color={ink} />
               ) : (
                 <Ionicons
                   name="chevron-forward"
                   size={17}
-                  color={MUSCLE_INK[ex.muscle]}
+                  color={ink}
                   style={styles.exerciseChevron}
                 />
               )}
@@ -426,21 +445,29 @@ export default function PlanCalendarDayScreen() {
         <Text style={styles.addRowLabel}>Add Exercise</Text>
       </TouchableOpacity>
 
-      {anyLogged && !allDone && !dayLogged && (
+      {anyLogged && !dayLogged && (
+        // The ONE door to the workout log + celebration, full or cut-short.
+        // Nothing fires when the last set is checked, so "one more exercise"
+        // stays possible right up to this press — the press IS the confirm.
         <TouchableOpacity
-          style={styles.finishRow}
+          style={styles.completeButton}
           activeOpacity={0.85}
           onPress={() => {
-            // The session-complete thump — same success pattern as an
-            // exercise's last set; fires on the action, not the server ack.
+            // The session-complete thump fires on the action, not the ack.
             buzzAllSetsComplete();
-            finishDaySession(dateIso);
+            navigation.navigate('PlanCalendarWorkoutComplete', { dateIso });
+            // Celebrate immediately; sync AFTER the baselines land — a log
+            // that POSTs first becomes the record its own claims compare to.
+            void (async () => {
+              await primeCelebrationBaselines(dateIso).catch(() => {});
+              finishDaySession(dateIso);
+            })();
           }}
           accessibilityRole="button"
-          accessibilityLabel="Finish and log session"
+          accessibilityLabel="Complete workout"
         >
-          <Ionicons name="flag-outline" size={18} color={GOLD} />
-          <Text style={styles.finishRowLabel}>Finish & Log Session</Text>
+          <Ionicons name="checkmark" size={20} color="#1C1C1E" />
+          <Text style={styles.completeButtonLabel}>Complete Workout</Text>
         </TouchableOpacity>
       )}
 
@@ -722,22 +749,23 @@ function createStyles(c: ColorPalette) {
     dayPager: {
       gap: spacing.md,
     },
-    finishRow: {
+    completeButton: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: spacing.sm,
-      borderRadius: radius.lg,
-      borderWidth: 2,
-      borderColor: GOLD,
-      backgroundColor: c.surface,
-      paddingVertical: spacing.md,
+      height: 50,
+      borderRadius: radius.pill,
+      backgroundColor: GOLD,
+      shadowColor: c.shadow,
+      ...elevation.level2,
     },
-    finishRowLabel: {
+    completeButtonLabel: {
       ...sfPro,
       fontSize: text.callout,
       fontWeight: weight.semibold,
-      color: c.text,
+      // Constant near-black on the theme-invariant gold (white fails 4.5:1).
+      color: '#1C1C1E',
     },
     addRow: {
       flexDirection: 'row',

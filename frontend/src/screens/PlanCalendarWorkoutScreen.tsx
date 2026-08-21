@@ -51,12 +51,15 @@ import {
 import {
   canMoveDay,
   dayHasLocalLogs,
+  finishDaySession,
   getSetLogs,
+  isDayFullyLogged,
   isDayLogged,
   logSet,
   moveMissedDay,
   moveTargetsForDay,
   plannedDayForDate,
+  primeCelebrationBaselines,
   subscribePlanCalendar,
   type SetLog,
 } from '../lib/planCalendarPrototypeStore';
@@ -446,6 +449,31 @@ export default function PlanCalendarWorkoutScreen() {
             <Text style={styles.addSetLabel}>Add another set</Text>
           </TouchableOpacity>
         )}
+        {/* The whole day's last set usually lands here — offer the same
+            explicit door the day view has, right where the moment happens.
+            Only when the FULL day is logged: a partial finish belongs to the
+            day view's button, not a screen showing one exercise. */}
+        {isDayFullyLogged(dateIso) && !dayLogged && (
+          <TouchableOpacity
+            style={styles.completeButton}
+            activeOpacity={0.85}
+            onPress={() => {
+              buzzAllSetsComplete();
+              navigation.navigate('PlanCalendarWorkoutComplete', { dateIso });
+              // Celebrate immediately; sync AFTER the baselines land — a log
+              // that POSTs first becomes the record its own claims compare to.
+              void (async () => {
+                await primeCelebrationBaselines(dateIso).catch(() => {});
+                finishDaySession(dateIso);
+              })();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Complete workout"
+          >
+            <Ionicons name="checkmark" size={20} color="#1C1C1E" />
+            <Text style={styles.completeButtonLabel}>Complete Workout</Text>
+          </TouchableOpacity>
+        )}
         </>
       ) : (
         <SetDeck
@@ -759,6 +787,25 @@ function createStyles(c: ColorPalette) {
       fontSize: text.footnote,
       fontWeight: weight.semibold,
       color: c.primary,
+    },
+    completeButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      height: 50,
+      borderRadius: radius.pill,
+      backgroundColor: GOLD,
+      marginTop: spacing.md,
+      shadowColor: c.shadow,
+      ...elevation.level2,
+    },
+    completeButtonLabel: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      // Constant near-black on the theme-invariant gold (white fails 4.5:1).
+      color: '#1C1C1E',
     },
     todayNudgeWrap: {
       marginBottom: spacing.md,

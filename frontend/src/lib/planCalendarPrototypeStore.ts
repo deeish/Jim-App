@@ -49,12 +49,25 @@ import {
 } from '../services/planService';
 import {
   createWorkout,
+  getLastPerformance,
+  getPersonalBests,
   getWorkoutLogs,
+  getWorkoutStats,
   materializePlanSlotWorkout,
+  saveWorkout,
   type QuickSession,
 } from '../services/workoutService';
 import { getExerciseById, type Exercise as CatalogExercise } from '../services/exerciseService';
-import type { Workout } from '../types/workout';
+import type {
+  LastPerformanceMap,
+  PersonalBestMap,
+  Workout,
+  WorkoutStatsSession,
+} from '../types/workout';
+import {
+  parseRepsCount as repsNumber,
+  parseWeightLb as weightLb,
+} from './sessionCelebration';
 import { api } from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -1224,13 +1237,9 @@ export function removeExerciseFromDay(dateIso: string, exerciseIndex: number): v
   }
   scheduleSessionSave();
   queuePersistDayEdits(dateIso);
-  // Removing the last unlogged exercise can complete the day: sync the log
-  // (the "Finish & Log Session" row disappears once all done). Queued BEHIND
-  // the slot rebuild — syncing immediately would materialize the very slot
-  // the rebuild is about to delete.
-  if (isDayFullyLogged(dateIso)) {
-    persistChain = persistChain.then(() => syncDayCompletion(dateIso)).catch(() => {});
-  }
+  // Removing the last unlogged exercise can complete the day — but the log
+  // still waits for the explicit "Complete Workout" press (the button shows
+  // whenever any set is logged, so the door is already on screen).
   emit();
 }
 
@@ -1375,8 +1384,9 @@ export function logSet(dateIso: string, exerciseIndex: number, log: SetLog): voi
   }
   setLogs.set(key, [...(setLogs.get(key) ?? []), log]);
   scheduleSessionSave();
-  // The day's last set: persist the whole session as a real workout log.
-  if (isDayFullyLogged(dateIso)) void syncDayCompletion(dateIso);
+  // Deliberately NO auto-sync on the day's last set: the explicit "Complete
+  // Workout" button is the only door to the log POST, so adding one more
+  // exercise after the planned list stays possible right up to that press.
   emit();
 }
 
@@ -1384,7 +1394,9 @@ export function logSet(dateIso: string, exerciseIndex: number, log: SetLog): voi
 // Backend persistence of completed calendar sessions
 // ---------------------------------------------------------------------------
 
-function isDayFullyLogged(dateIso: string): boolean {
+/** Every planned exercise has all its sets checked. Gates the deck's
+ *  "Complete Workout" button — the day view's shows from the first logged set. */
+export function isDayFullyLogged(dateIso: string): boolean {
   const day = plannedDayForDate(dateIso);
   if (day.exercises.length === 0) return false;
   return day.exercises.every(
@@ -1392,17 +1404,10 @@ function isDayFullyLogged(dateIso: string): boolean {
   );
 }
 
-/** '5–8' → 8, '12' → 12, '10 min' → 0 (time work carries no rep count). */
-function repsNumber(reps: string): number {
-  const nums = reps.match(/\d+/g);
-  if (!nums || /min|sec/i.test(reps)) return 0;
-  return Number(nums[nums.length - 1]) || 0;
-}
-
-/** '185 lb' → 185; 'Bodyweight' / '—' → undefined. */
-function weightLb(weight: string): number | undefined {
-  const m = weight.match(/[\d.]+/);
-  return m ? Number(m[0]) : undefined;
+/** First-set timestamp of the day's live session — the celebration screen's
+ *  duration source. Null once the 14-day prune drops it or before any set. */
+export function sessionStartIso(dateIso: string): string | null {
+  return dayStartTimes.get(dateIso) ?? null;
 }
 
 /**
@@ -1558,6 +1563,10 @@ export function dayHasLocalLogs(dateIso: string): boolean {
  * An unfinished session on a day: some sets logged, nothing submitted yet.
  * Powers Home's "Resume workout" card. Counts straight off the log map so it
  * works even before the plan fetch lands (logs hydrate independently).
+ *
+ * A FULLY-logged day still counts as in progress until "Complete Workout" is
+ * pressed — the log only POSTs from that button now, so resume surfaces must
+ * keep pointing at the day until it is genuinely submitted.
  */
 export function inProgressSession(
   dateIso: string,
@@ -1569,15 +1578,95 @@ export function inProgressSession(
   if (logged === 0 || isDayLogged(dateIso)) return null;
   const day = plannedDayForDate(dateIso);
   const total = day.exercises.reduce((sum, ex) => sum + ex.sets, 0);
-  const complete =
-    day.exercises.length > 0 &&
-    day.exercises.every(
-      (ex, i) => (setLogs.get(slotKey(dateIso, i))?.length ?? 0) >= ex.sets,
-    );
-  if (complete) return null;
   return {
     title: day.exercises.length > 0 ? day.title : 'Workout in progress',
     loggedSets: logged,
     totalSets: Math.max(total, logged),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Celebration baselines + "Save this workout"
+// ---------------------------------------------------------------------------
+
+export type CelebrationBaselines = {
+  lastPerformance: LastPerformanceMap;
+  personalBests: PersonalBestMap;
+  statsSessions: WorkoutStatsSession[];
+};
+
+const celebrationBaselineCache = new Map<string, CelebrationBaselines>();
+const celebrationBaselinePromises = new Map<string, Promise<void>>();
+
+/**
+ * Fetch the "what did this beat" baselines for a day's celebration: last
+ * performance + all-time personal bests for the day's exercises, and the
+ * stats sessions the streak counts. MUST resolve before the day's workout log
+ * POSTs — once the log lands, the new lift IS the server-side record and
+ * every claim silently vanishes (the trap the legacy WorkoutSession
+ * documents). The day view primes this on mount; the Complete Workout
+ * handler awaits it again (a no-op when already cached) before syncing.
+ */
+export function primeCelebrationBaselines(dateIso: string): Promise<void> {
+  if (celebrationBaselineCache.has(dateIso)) return Promise.resolve();
+  const pending = celebrationBaselinePromises.get(dateIso);
+  if (pending) return pending;
+  if (liveStatus !== 'ready') return Promise.resolve();
+  const ids = [
+    ...new Set(
+      plannedDayForDate(dateIso)
+        .exercises.map((ex) => ex.exerciseId)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  const p = (async () => {
+    const [lastPerformance, personalBests, stats] = await Promise.all([
+      getLastPerformance(ids).catch(() => ({}) as LastPerformanceMap),
+      getPersonalBests(ids).catch(() => ({}) as PersonalBestMap),
+      getWorkoutStats().catch(() => null),
+    ]);
+    celebrationBaselineCache.set(dateIso, {
+      lastPerformance,
+      personalBests,
+      statsSessions: stats?.sessions ?? [],
+    });
+    emit();
+  })().finally(() => celebrationBaselinePromises.delete(dateIso));
+  celebrationBaselinePromises.set(dateIso, p);
+  return p;
+}
+
+/** The primed baselines for a day, or null while the fetch is in flight
+ *  (subscribers re-render when it lands). */
+export function celebrationBaselines(dateIso: string): CelebrationBaselines | null {
+  return celebrationBaselineCache.get(dateIso) ?? null;
+}
+
+/**
+ * "Save this workout" on the celebration screen: mint a real Workout row and
+ * bookmark it, so the session lands in Saved workouts to run again. Saves the
+ * day's PRESCRIPTIONS (sets × planned reps/bands) rather than the logged
+ * delta — a cut-short session still saves the full session shape. Same
+ * payload grammar as syncDayCompletion's rest-day path.
+ */
+export async function saveDayAsWorkout(dateIso: string): Promise<void> {
+  const day = plannedDayForDate(dateIso);
+  if (day.exercises.length === 0) throw new Error('Nothing to save');
+  const created = await createWorkout({
+    name: day.title,
+    day: day.weekday,
+    exercises: day.exercises.map((ex, i) => {
+      const range = ex.reps.match(/(\d+)\s*[–-]\s*(\d+)/);
+      return {
+        name: ex.name,
+        sets: ex.sets,
+        reps: Math.max(1, repsNumber(ex.reps)),
+        ...(range ? { repsMin: Number(range[1]), repsMax: Number(range[2]) } : null),
+        weight: weightLb(ex.weight),
+        exerciseId: ex.exerciseId,
+        orderIndex: i,
+      };
+    }),
+  });
+  if (created.id) await saveWorkout(created.id);
 }

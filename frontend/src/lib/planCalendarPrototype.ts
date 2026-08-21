@@ -30,6 +30,10 @@ export type PlanCalendarParamList = {
   /** `exerciseIndex` is the slot in the day (survives a replace); the name is
    *  display-only for the header title. */
   PlanCalendarWorkout: { dateIso: string; exerciseIndex: number; exerciseName: string };
+  /** The celebration flow after "Complete Workout": the Moment (charcoal
+   *  poster) morphing into the Ledger (session receipt). Draws its own
+   *  header pills, so it mounts headerless. */
+  PlanCalendarWorkoutComplete: { dateIso: string };
   /** The library-as-picker sheet: replace one slot or multi-add to the day. */
   PlanCalendarExercisePicker:
     | { dateIso: string; mode: 'replace'; exerciseIndex: number }
@@ -164,6 +168,27 @@ export function mixWithWhite(hex: string, colorFraction: number): string {
       .toString(16)
       .padStart(2, '0');
   return `#${channel((n >> 16) & 0xff)}${channel((n >> 8) & 0xff)}${channel(n & 0xff)}`;
+}
+
+/**
+ * Ink for a DONE day card (the 0.55-dimmed state). Dimming composites the
+ * card toward the page: on the dark background the light fills (Shoulders,
+ * Back, Forearms) darken to where their near-black ink drops below 4.5:1, so
+ * those flip to white. Cardio's white card dims toward grey, where dark ink
+ * still wins. Light mode dims toward white — the original ink map stands.
+ */
+export function muscleInkDone(m: PrototypeMuscle, darkMode: boolean): string {
+  if (!darkMode || m === 'Cardio') return MUSCLE_INK[m];
+  return '#FFFFFF';
+}
+
+/** Chip frost for a DONE day card — tracks the ink flip above: white ink on a
+ *  dimmed light fill needs a dark frost behind it, not a white one. */
+export function muscleChipFrostDone(m: PrototypeMuscle, darkMode: boolean): string {
+  if (darkMode && m !== 'Cardio' && MUSCLE_INK[m] === '#1C1C1E') {
+    return 'rgba(0,0,0,0.2)';
+  }
+  return muscleChipFrost(m);
 }
 
 /** Frosted muscle-chip fill on a gradient day card. Cardio's card is
