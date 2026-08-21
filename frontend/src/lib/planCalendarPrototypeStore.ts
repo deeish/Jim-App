@@ -393,13 +393,23 @@ function toPlannedExercise(ex: ApiPlanExercise, slot: ApiPlanWorkout): PlannedEx
   const meta = ex.exerciseId ? exerciseMeta.get(ex.exerciseId) : undefined;
   const isCardio = slot.type === 'cardio';
   const name = ex.name ?? 'Exercise';
+  // An unloaded slot is only "Bodyweight" when the movement actually is (same
+  // rule as plannedExerciseFromCatalog) — an unweighted barbell slot reads '—'
+  // until a weight exists. No meta yet keeps the bodyweight default.
+  const bodyweightOnly =
+    meta == null || meta.equipment === '—' || /bodyweight/i.test(meta.equipment);
   return {
     name,
     exerciseId: ex.exerciseId ?? undefined,
     muscle: meta?.muscle ?? guessMuscleFromName(name, isCardio),
     sets: ex.sets > 0 ? ex.sets : 1,
     reps: formatRepsDisplay(ex),
-    weight: ex.weight != null && ex.weight > 0 ? `${ex.weight} lb` : 'Bodyweight',
+    weight:
+      ex.weight != null && ex.weight > 0
+        ? `${ex.weight} lb`
+        : bodyweightOnly
+          ? 'Bodyweight'
+          : '—',
     rest: isCardio ? '—' : restHeuristic(name, ex.sets),
     equipment: meta?.equipment ?? '—',
     note: ex.notes ?? '',
