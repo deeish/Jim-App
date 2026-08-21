@@ -64,6 +64,28 @@ function roundToStep(lb: number, unit: WeightUnit): number {
   return Math.round(lb / 5) * 5;
 }
 
+/**
+ * Calendar prescriptions carry reps as a display string. '8–12' (en dash or
+ * hyphen) → band; '8' → degenerate band; timed/unparseable ('10 min', 'AMRAP',
+ * '—') → null, meaning the rule has no band to progress inside.
+ */
+export function parseRepsBand(
+  reps: string,
+): { min: number; max: number } | null {
+  const band = reps.trim().match(/^(\d+)\s*[–-]\s*(\d+)$/);
+  if (band) {
+    const min = Number(band[1]);
+    const max = Number(band[2]);
+    return min >= 1 && max >= min ? { min, max } : null;
+  }
+  const single = reps.trim().match(/^(\d+)$/);
+  if (single) {
+    const n = Number(single[1]);
+    return n >= 1 ? { min: n, max: n } : null;
+  }
+  return null;
+}
+
 export function suggestNextTarget(
   input: SuggestNextTargetInput,
 ): NextTargetSuggestion | null {
