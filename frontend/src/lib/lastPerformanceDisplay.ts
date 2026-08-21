@@ -64,6 +64,113 @@ export function formatLastTimeLine(
   return `Last time (${dateLabel}): ${body}`;
 }
 
+/** One set as both the workout-log map and the exercise-history endpoint shape it. */
+interface AnyLoggedSet {
+  reps: number;
+  /** Canonical pounds; null/0 for bodyweight sets. */
+  weight?: number | null;
+}
+
+export interface LastSetPick {
+  reps: number;
+  /** Canonical pounds; null when the set was bodyweight. */
+  weightLb: number | null;
+  /** Set `setNumber` didn't exist last session — this is its best set instead. */
+  isBestFallback: boolean;
+}
+
+/**
+ * Last session's set matching a 1-based set number. Past the end (today runs
+ * more sets than last time), falls back to the session's best set: heaviest
+ * weighted set (ties prefer reps), or the most reps when nothing was weighted.
+ */
+export function lastSetForIndex(
+  sets: AnyLoggedSet[],
+  setNumber: number,
+): LastSetPick | null {
+  if (sets.length === 0 || setNumber < 1) return null;
+  const pick = (s: AnyLoggedSet, isBestFallback: boolean): LastSetPick => ({
+    reps: s.reps,
+    weightLb: s.weight != null && s.weight > 0 ? s.weight : null,
+    isBestFallback,
+  });
+  const direct = sets[setNumber - 1];
+  if (direct) return pick(direct, false);
+  let best = sets[0];
+  for (const s of sets) {
+    const w = s.weight ?? 0;
+    const bw = best.weight ?? 0;
+    if (w > bw || (w === bw && s.reps > best.reps)) best = s;
+  }
+  return pick(best, true);
+}
+
+/**
+ * Set-aware "Last time" line for the calendar set deck, e.g.
+ *   weighted:   `Last time, set 2 (Aug 14): 8 × 135 lb`
+ *   bodyweight: `Last time, set 2 (Aug 14): 9 reps`
+ *   time-based: `Last time, set 2 (Aug 14): 45s @ 50 lb`
+ *   fallback:   `Last time (best): 6 × 140 lb`  (today runs longer than last session)
+ * Returns null when there is nothing plausible to show.
+ */
+export function formatLastTimeForSet(
+  perf: { performedAt: string; sets: AnyLoggedSet[] } | null | undefined,
+  setNumber: number,
+  unit: WeightUnit,
+  isTimeBased: boolean,
+): string | null {
+  if (!perf || perf.sets.length === 0) return null;
+  const date = new Date(perf.performedAt);
+  if (Number.isNaN(date.getTime())) return null;
+  const dateLabel = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+
+  let chosen: LastSetPick | null;
+  if (isTimeBased) {
+    // Same legacy-cardio guard as formatLastTimeLine: only plausible
+    // durations render, and an implausible direct match falls back to the
+    // longest plausible one rather than showing "1s".
+    const plausible = perf.sets.filter(
+      (s) => s.reps >= MIN_PLAUSIBLE_DURATION_SECONDS,
+    );
+    if (plausible.length === 0) return null;
+    const direct = perf.sets[setNumber - 1];
+    if (direct && direct.reps >= MIN_PLAUSIBLE_DURATION_SECONDS) {
+      chosen = {
+        reps: direct.reps,
+        weightLb: direct.weight != null && direct.weight > 0 ? direct.weight : null,
+        isBestFallback: false,
+      };
+    } else {
+      const longest = plausible.reduce((a, b) => (b.reps > a.reps ? b : a));
+      chosen = {
+        reps: longest.reps,
+        weightLb: longest.weight != null && longest.weight > 0 ? longest.weight : null,
+        isBestFallback: true,
+      };
+    }
+  } else {
+    chosen = lastSetForIndex(perf.sets, setNumber);
+  }
+  if (!chosen) return null;
+
+  let body: string;
+  if (isTimeBased) {
+    const dur = formatRestSecondsForPreview(chosen.reps);
+    const w = chosen.weightLb != null ? formatWeightCompactFromLb(chosen.weightLb, unit) : '';
+    body = w ? `${dur} @ ${w}` : dur;
+  } else if (chosen.weightLb == null) {
+    body = `${chosen.reps} reps`;
+  } else {
+    body = `${chosen.reps} × ${formatWeightCompactFromLb(chosen.weightLb, unit) || '—'}`;
+  }
+  return chosen.isBestFallback
+    ? `Last time (best): ${body}`
+    : `Last time, set ${setNumber} (${dateLabel}): ${body}`;
+}
+
 /** Heaviest completed weight (lb) from the last performance, if any. */
 export function lastTopWeightLb(
   perf: LastExercisePerformance | undefined,

@@ -25,12 +25,16 @@ import {
   weekdayIndex,
 } from '../lib/planCalendarPrototype';
 import {
+  canMoveDay,
   canReceiveSwap,
   commitMoves,
+  dayHasLocalLogs,
+  isDaySkipped,
   moveTargetsForDay,
   plannedDayForDate,
-  skipMissedDay,
+  skipDay,
   stagedSessionsForDate,
+  unskipDay,
   type MoveTarget,
   type PendingMove,
 } from '../lib/planCalendarPrototypeStore';
@@ -38,7 +42,8 @@ import {
 type Props = {
   /** The day the sheet acts on; null = closed. */
   dateIso: string | null;
-  /** 'missed' = the rescue door (pill/banner); 'move' = long-press any day. */
+  /** 'missed' = the rescue door (pill/banner); 'move' = the day-actions door
+   *  (week-card long-press, day-view ⋯). */
   mode: 'missed' | 'move';
   /** 'day' hides "Edit this day" — the user is already looking at it. */
   context: 'week' | 'day';
@@ -47,6 +52,9 @@ type Props = {
   onEditDay: (dateIso: string) => void;
   /** The chain committed; `targetIso` is where the ORIGINAL day's workout went. */
   onMoved: (targetIso: string) => void;
+  /** "Quick workout" (day context, TODAY only): open the quick-session
+   *  builder — its own sheet handles replace/add + the trained-day confirm. */
+  onQuickWorkout?: () => void;
 };
 
 /**
@@ -66,11 +74,11 @@ type Frame = {
 
 /**
  * The workout-move sheet ("Make Room", Dylan's approved design): the rescue
- * actions for missed days, free moving for any un-logged upcoming day, and —
- * when the chosen target is busy — the make-room step: swap, send the
- * displaced workout to the nearest open day, place it yourself (recursively),
- * or deliberately keep both. Doubling is never a default: it's the quiet
- * last row, labeled for what it is.
+ * actions for missed days, free moving + skipping for any un-logged upcoming
+ * day, and — when the chosen target is busy — the make-room step: swap, send
+ * the displaced workout to the nearest open day, place it yourself
+ * (recursively), or deliberately keep both. Doubling is never a default: it's
+ * the quiet last row, labeled for what it is.
  */
 export default function WorkoutMoveSheet({
   dateIso,
@@ -79,6 +87,7 @@ export default function WorkoutMoveSheet({
   onClose,
   onEditDay,
   onMoved,
+  onQuickWorkout,
 }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -186,6 +195,13 @@ export default function WorkoutMoveSheet({
     if (!day || !date || !dateIso) return null;
     const todayState = moveTargetsForDay()[0].state;
     const todayBlocked = todayState === 'logged' || todayState === 'beyond';
+    // 'move' mode can open on days that can't actually move (the day-view ⋯
+    // shows why instead of hiding the door): started days keep their
+    // date-keyed set logs, so Move and Skip grey out with the reason.
+    const started = dayHasLocalLogs(dateIso);
+    const skipped = isDaySkipped(dateIso);
+    const isPast = dateIso < today;
+    const moveBlocked = mode === 'move' && !canMoveDay(dateIso);
     return (
       <>
         <Text style={styles.title}>
@@ -228,23 +244,54 @@ export default function WorkoutMoveSheet({
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity
-          style={[styles.row, busy !== '' && styles.rowDisabled]}
-          activeOpacity={0.7}
-          disabled={busy !== ''}
-          onPress={startMoveFlow}
-          accessibilityRole="button"
-          accessibilityLabel="Move to another day"
-        >
-          <View style={styles.iconTile}>
-            <Ionicons name="swap-horizontal" size={19} color={colors.primary} />
-          </View>
-          <View style={styles.rowMain}>
-            <Text style={styles.rowLabel}>Move to another day</Text>
-            <Text style={styles.rowSub}>Pick a day this week or next</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-        </TouchableOpacity>
+        {(mode === 'missed' || !isPast) && (
+          <TouchableOpacity
+            style={[styles.row, (moveBlocked || busy !== '') && styles.rowDisabled]}
+            activeOpacity={0.7}
+            disabled={moveBlocked || busy !== ''}
+            onPress={startMoveFlow}
+            accessibilityRole="button"
+            accessibilityLabel="Move to another day"
+            accessibilityState={{ disabled: moveBlocked }}
+          >
+            <View style={styles.iconTile}>
+              <Ionicons name="swap-horizontal" size={19} color={colors.primary} />
+            </View>
+            <View style={styles.rowMain}>
+              <Text style={styles.rowLabel}>Move to another day</Text>
+              <Text style={styles.rowSub}>
+                {moveBlocked
+                  ? 'You’ve logged sets here — they stay with their day'
+                  : 'Pick a day this week or next'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+        )}
+
+        {mode === 'move' && dateIso === today && onQuickWorkout != null && (
+          <TouchableOpacity
+            style={[styles.row, busy !== '' && styles.rowDisabled]}
+            activeOpacity={0.7}
+            disabled={busy !== ''}
+            onPress={() => {
+              buzzTap();
+              onClose();
+              onQuickWorkout();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Quick workout"
+          >
+            <View style={styles.iconTile}>
+              <Ionicons name="flash-outline" size={19} color={colors.primary} />
+            </View>
+            <View style={styles.rowMain}>
+              <Text style={styles.rowLabel}>Quick workout</Text>
+              <Text style={styles.rowSub}>Build a fresh session for today</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+        )}
 
         {context === 'week' && (
           <TouchableOpacity
@@ -277,7 +324,7 @@ export default function WorkoutMoveSheet({
             disabled={busy !== ''}
             onPress={() => {
               if (!dateIso || busy) return;
-              skipMissedDay(dateIso);
+              skipDay(dateIso);
               buzzEditApplied();
               onClose();
             }}
@@ -290,6 +337,59 @@ export default function WorkoutMoveSheet({
             <View style={styles.rowMain}>
               <Text style={[styles.rowLabel, styles.rowLabelMuted]}>Skip this workout</Text>
               <Text style={styles.rowSub}>Marks it skipped — the plan stays unchanged</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {mode === 'move' && skipped && (
+          <TouchableOpacity
+            style={[styles.row, styles.lastRow, busy !== '' && styles.rowDisabled]}
+            activeOpacity={0.7}
+            disabled={busy !== ''}
+            onPress={() => {
+              if (!dateIso || busy) return;
+              unskipDay(dateIso);
+              buzzEditApplied();
+              onClose();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Undo skip"
+          >
+            <View style={styles.iconTile}>
+              <Ionicons name="arrow-undo-outline" size={19} color={colors.primary} />
+            </View>
+            <View style={styles.rowMain}>
+              <Text style={styles.rowLabel}>Undo skip</Text>
+              <Text style={styles.rowSub}>It counts as planned again</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {mode === 'move' && !skipped && !isPast && (
+          <TouchableOpacity
+            style={[styles.row, styles.lastRow, (started || busy !== '') && styles.rowDisabled]}
+            activeOpacity={0.7}
+            disabled={started || busy !== ''}
+            onPress={() => {
+              if (!dateIso || busy) return;
+              skipDay(dateIso);
+              buzzEditApplied();
+              onClose();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Skip this workout"
+            accessibilityState={{ disabled: started }}
+          >
+            <View style={[styles.iconTile, styles.iconTileGrey]}>
+              <Ionicons name="close-circle-outline" size={19} color={colors.textTertiary} />
+            </View>
+            <View style={styles.rowMain}>
+              <Text style={[styles.rowLabel, styles.rowLabelMuted]}>Skip this workout</Text>
+              <Text style={styles.rowSub}>
+                {started
+                  ? 'You’ve already logged sets on this day'
+                  : 'Marks it skipped — the plan stays unchanged'}
+              </Text>
             </View>
           </TouchableOpacity>
         )}

@@ -55,4 +55,29 @@ export class ReplaceExerciseDto {
   @IsArray()
   @IsString({ each: true })
   avoid?: string[];
+
+  /** Catalog ids planned/logged on OTHER days of the same week — variety
+   *  ranking demotes these so Thursday isn't handed Monday's lift. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  weekExerciseIds?: string[];
+
+  /** Names planned/logged on OTHER days of the same week (id-less rows). */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  weekExerciseNames?: string[];
+
+  /** The user's training goal (e.g. 'Strength', 'Hypertrophy', 'Fat loss').
+   *  Free string — normalized server-side so client version skew is safe. */
+  @IsOptional()
+  @IsString()
+  goal?: string;
+
+  /** The user's experience level ('Beginner' | 'Intermediate' | 'Advanced').
+   *  Free string — normalized server-side. Beginner sinks high-skill lifts. */
+  @IsOptional()
+  @IsString()
+  experience?: string;
 }

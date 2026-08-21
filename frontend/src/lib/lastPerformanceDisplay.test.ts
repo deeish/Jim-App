@@ -1,6 +1,8 @@
 import {
   applyLastPerformancePrefill,
+  formatLastTimeForSet,
   formatLastTimeLine,
+  lastSetForIndex,
   lastTopWeightLb,
 } from './lastPerformanceDisplay';
 import type {
@@ -224,5 +226,117 @@ describe('applyLastPerformancePrefill', () => {
       () => null,
     );
     expect(fallback[0].completedSets[0].weight).toBe(135);
+  });
+});
+
+describe('lastSetForIndex', () => {
+  const sets = [
+    { reps: 8, weight: 135 },
+    { reps: 8, weight: 135 },
+    { reps: 6, weight: 140 },
+    { reps: 5, weight: 140 },
+  ];
+
+  it('returns the matching 1-based set', () => {
+    expect(lastSetForIndex(sets, 2)).toEqual({
+      reps: 8,
+      weightLb: 135,
+      isBestFallback: false,
+    });
+    expect(lastSetForIndex(sets, 4)).toEqual({
+      reps: 5,
+      weightLb: 140,
+      isBestFallback: false,
+    });
+  });
+
+  it('falls back to the best set past the end, ties preferring reps', () => {
+    expect(lastSetForIndex(sets, 5)).toEqual({
+      reps: 6,
+      weightLb: 140,
+      isBestFallback: true,
+    });
+  });
+
+  it('bodyweight fallback picks the most reps', () => {
+    const bw = [
+      { reps: 9, weight: null },
+      { reps: 10, weight: null },
+      { reps: 8, weight: null },
+    ];
+    expect(lastSetForIndex(bw, 4)).toEqual({
+      reps: 10,
+      weightLb: null,
+      isBestFallback: true,
+    });
+  });
+
+  it('returns null on empty history or a bad index', () => {
+    expect(lastSetForIndex([], 1)).toBeNull();
+    expect(lastSetForIndex(sets, 0)).toBeNull();
+  });
+});
+
+describe('formatLastTimeForSet', () => {
+  const session = (sets: Array<{ reps: number; weight: number | null }>) => ({
+    performedAt: '2026-07-10T12:00:00.000Z',
+    sets,
+  });
+  const weighted = session([
+    { reps: 8, weight: 135 },
+    { reps: 6, weight: 140 },
+  ]);
+
+  it('formats the matching set with its set number and date', () => {
+    expect(formatLastTimeForSet(weighted, 2, 'lb', false)).toBe(
+      `Last time, set 2 (${JUL10}): 6 × 140 lb`,
+    );
+  });
+
+  it('labels the past-the-end fallback as best, without a set number', () => {
+    expect(formatLastTimeForSet(weighted, 3, 'lb', false)).toBe(
+      'Last time (best): 6 × 140 lb',
+    );
+  });
+
+  it('converts to kg for kg users', () => {
+    expect(formatLastTimeForSet(weighted, 1, 'kg', false)).toBe(
+      `Last time, set 1 (${JUL10}): 8 × 61 kg`,
+    );
+  });
+
+  it('renders bodyweight sets as bare reps', () => {
+    const bw = session([{ reps: 9, weight: null }]);
+    expect(formatLastTimeForSet(bw, 1, 'lb', false)).toBe(
+      `Last time, set 1 (${JUL10}): 9 reps`,
+    );
+  });
+
+  it('renders plausible durations for time-based rows', () => {
+    const timed = session([
+      { reps: 45, weight: null },
+      { reps: 45, weight: 50 },
+    ]);
+    expect(formatLastTimeForSet(timed, 2, 'lb', true)).toBe(
+      `Last time, set 2 (${JUL10}): 45s @ 50 lb`,
+    );
+  });
+
+  it('time-based: implausible direct match falls back to the longest plausible set', () => {
+    const timed = session([
+      { reps: 1, weight: null },
+      { reps: 45, weight: null },
+    ]);
+    expect(formatLastTimeForSet(timed, 1, 'lb', true)).toBe(
+      'Last time (best): 45s',
+    );
+    expect(formatLastTimeForSet(session([{ reps: 1, weight: null }]), 1, 'lb', true)).toBeNull();
+  });
+
+  it('returns null for missing history or an unparseable date', () => {
+    expect(formatLastTimeForSet(null, 1, 'lb', false)).toBeNull();
+    expect(
+      formatLastTimeForSet({ performedAt: 'garbage', sets: weighted.sets }, 1, 'lb', false),
+    ).toBeNull();
   });
 });

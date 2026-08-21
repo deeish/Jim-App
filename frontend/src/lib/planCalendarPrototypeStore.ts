@@ -49,12 +49,25 @@ import {
 } from '../services/planService';
 import {
   createWorkout,
+  getLastPerformance,
+  getPersonalBests,
   getWorkoutLogs,
+  getWorkoutStats,
   materializePlanSlotWorkout,
+  saveWorkout,
   type QuickSession,
 } from '../services/workoutService';
 import { getExerciseById, type Exercise as CatalogExercise } from '../services/exerciseService';
-import type { Workout } from '../types/workout';
+import type {
+  LastPerformanceMap,
+  PersonalBestMap,
+  Workout,
+  WorkoutStatsSession,
+} from '../types/workout';
+import {
+  parseRepsCount as repsNumber,
+  parseWeightLb as weightLb,
+} from './sessionCelebration';
 import { api } from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -96,6 +109,16 @@ export function subscribePlanCalendar(listener: () => void): () => void {
 const dayStartTimes = new Map<string, string>();
 /** Days whose completed log has been (or is being) written to the backend. */
 const syncedDays = new Set<string>();
+/** Days whose synced log was REOPENED by a quick session landing on them —
+ *  isDayLogged goes false again (deck unlocks, "Session logged." banner
+ *  hides) and the next completion syncs a SECOND log for the date. Cleared
+ *  when that sync succeeds. The month/week seal (isDayCompleted) is NOT
+ *  affected: the original workout still happened. */
+const reopenedDays = new Set<string>();
+/** dateIso → per-exercise-index set counts already covered by a synced log.
+ *  syncDayCompletion subtracts these so a reopened day's second log carries
+ *  only the NEW work — never a double-count of the morning session. */
+const syncedSetCounts = new Map<string, number[]>();
 /** Missed days the user dismissed via "Skip this workout" (dates, not slots —
  *  the plan itself is never touched, so repeating weeks keep the workout). */
 const skippedDays = new Set<string>();
@@ -125,6 +148,8 @@ const sessionHydrated: Promise<void> = (async () => {
       setLogs?: Record<string, SetLog[]>;
       dayStartTimes?: Record<string, string>;
       syncedDays?: string[];
+      reopenedDays?: string[];
+      syncedSetCounts?: Record<string, number[]>;
       skippedDates?: string[];
       movedRecords?: Array<{ slotId: string; fromIso: string; title: string }>;
       lastSeenPlanId?: string | null;
@@ -138,6 +163,12 @@ const sessionHydrated: Promise<void> = (async () => {
     }
     for (const d of data.syncedDays ?? []) {
       if (d >= cutoff) syncedDays.add(d);
+    }
+    for (const d of data.reopenedDays ?? []) {
+      if (d >= cutoff) reopenedDays.add(d);
+    }
+    for (const [k, v] of Object.entries(data.syncedSetCounts ?? {})) {
+      if (k >= cutoff && !syncedSetCounts.has(k)) syncedSetCounts.set(k, v);
     }
     for (const d of data.skippedDates ?? []) {
       if (d >= cutoff) skippedDays.add(d);
@@ -167,6 +198,8 @@ function scheduleSessionSave(): void {
           setLogs: Object.fromEntries(setLogs),
           dayStartTimes: Object.fromEntries(dayStartTimes),
           syncedDays: [...syncedDays],
+          reopenedDays: [...reopenedDays],
+          syncedSetCounts: Object.fromEntries(syncedSetCounts),
           skippedDates: [...skippedDays],
           movedRecords,
           lastSeenPlanId,
@@ -373,13 +406,23 @@ function toPlannedExercise(ex: ApiPlanExercise, slot: ApiPlanWorkout): PlannedEx
   const meta = ex.exerciseId ? exerciseMeta.get(ex.exerciseId) : undefined;
   const isCardio = slot.type === 'cardio';
   const name = ex.name ?? 'Exercise';
+  // An unloaded slot is only "Bodyweight" when the movement actually is (same
+  // rule as plannedExerciseFromCatalog) — an unweighted barbell slot reads '—'
+  // until a weight exists. No meta yet keeps the bodyweight default.
+  const bodyweightOnly =
+    meta == null || meta.equipment === '—' || /bodyweight/i.test(meta.equipment);
   return {
     name,
     exerciseId: ex.exerciseId ?? undefined,
     muscle: meta?.muscle ?? guessMuscleFromName(name, isCardio),
     sets: ex.sets > 0 ? ex.sets : 1,
     reps: formatRepsDisplay(ex),
-    weight: ex.weight != null && ex.weight > 0 ? `${ex.weight} lb` : 'Bodyweight',
+    weight:
+      ex.weight != null && ex.weight > 0
+        ? `${ex.weight} lb`
+        : bodyweightOnly
+          ? 'Bodyweight'
+          : '—',
     rest: isCardio ? '—' : restHeuristic(name, ex.sets),
     equipment: meta?.equipment ?? '—',
     note: ex.notes ?? '',
@@ -569,6 +612,30 @@ export function plannedDayForDate(dateIso: string): PlannedDay {
 }
 
 /**
+ * What the REST of dateIso's week trains: the exercises planned on its other
+ * six days (with replacements/removals/additions applied). The replace/add
+ * pickers send this so the recommendation brain keeps the week varied —
+ * Thursday's rail never tops out with Monday's lift.
+ */
+export function weekExerciseContext(dateIso: string): {
+  ids: string[];
+  names: string[];
+} {
+  const monday = mondayOf(fromIso(dateIso));
+  const ids = new Set<string>();
+  const names = new Set<string>();
+  for (let i = 0; i < 7; i++) {
+    const iso = toIso(addDays(monday, i));
+    if (iso === dateIso) continue;
+    for (const ex of plannedDayForDate(iso).exercises) {
+      if (ex.exerciseId) ids.add(ex.exerciseId);
+      names.add(ex.name);
+    }
+  }
+  return { ids: [...ids], names: [...names] };
+}
+
+/**
  * Build a calendar exercise from a CATALOG row (the replace/add picker).
  * A replacement inherits the outgoing slot's prescription — same role in the
  * workout — except the weight, which only carries over when the new exercise
@@ -682,9 +749,19 @@ export function canRescueDay(dateIso: string): boolean {
   return plannedDayForDate(dateIso).exercises.length > 0;
 }
 
-/** Mark a missed day dismissed. Local-only — the plan is never touched. */
-export function skipMissedDay(dateIso: string): void {
+/** Mark a day skipped — dismissing a missed day, or declaring ahead of time
+ *  that a planned day won't happen. Local-only — the plan is never touched,
+ *  and the workout stays visible (logging it anyway simply wins). */
+export function skipDay(dateIso: string): void {
   skippedDays.add(dateIso);
+  scheduleSessionSave();
+  emit();
+}
+
+/** Undo a skip: the day counts as planned again (a past day's missed-rescue
+ *  affordances come back with it). */
+export function unskipDay(dateIso: string): void {
+  skippedDays.delete(dateIso);
   scheduleSessionSave();
   emit();
 }
@@ -904,8 +981,55 @@ export async function commitMoves(pending: PendingMove[]): Promise<void> {
       .filter((p) => !known.has(p.slotId))
       .map((p) => ({ slotId: p.slotId, fromIso: p.fromIso, title: p.title })),
   ].slice(-MOVED_RECORDS_CAP);
+  // A day that just RECEIVED a workout isn't skipped any more — the mark
+  // described whatever used to be there.
+  for (const p of pending) skippedDays.delete(p.targetIso);
   scheduleSessionSave();
   emit();
+}
+
+/** How a Quick Workout lands when today already has a session: 'replace'
+ *  swaps the day's plan for the new session (the default — two full sessions
+ *  merged into one 11-exercise day is never what "give me a push day" means);
+ *  'add' keeps the existing workout and appends (the deliberate two-a-day). */
+export type QuickSessionLanding = 'replace' | 'add';
+
+/** Drop every session-local overlay for a date whose exercises are being
+ *  replaced wholesale — edits, additions, removals, title, and the
+ *  index-keyed set logs that would otherwise attach to the NEW session's
+ *  rows at the same positions. */
+function clearDayOverlays(dateIso: string): void {
+  for (const key of [...replacements.keys()]) {
+    if (key.startsWith(`${dateIso}#`)) replacements.delete(key);
+  }
+  for (const key of [...setLogs.keys()]) {
+    if (key.startsWith(`${dateIso}#`)) setLogs.delete(key);
+  }
+  additions.delete(dateIso);
+  removals.delete(dateIso);
+  customDayTitles.delete(dateIso);
+  // The replacement session times from ITS first set, and its log must not
+  // subtract counts that belonged to the removed exercises.
+  dayStartTimes.delete(dateIso);
+  syncedSetCounts.delete(dateIso);
+}
+
+/** A quick session just landed on a day that already has a synced/fetched
+ *  workout log: reopen it. The deck unlocks for the new work, the next
+ *  completion syncs a SECOND log, and the per-index counts snapshot makes
+ *  that log a pure delta (an added session never re-logs the morning's
+ *  sets; a replaced day starts from zero because its logs were cleared). */
+function reopenLoggedDay(dateIso: string): void {
+  reopenedDays.add(dateIso);
+  syncedDays.delete(dateIso);
+  dayStartTimes.delete(dateIso);
+  const day = plannedDayForDate(dateIso);
+  const counts = day.exercises.map(
+    (_, i) => setLogs.get(slotKey(dateIso, i))?.length ?? 0,
+  );
+  if (counts.some((c) => c > 0)) syncedSetCounts.set(dateIso, counts);
+  else syncedSetCounts.delete(dateIso);
+  scheduleSessionSave();
 }
 
 /**
@@ -919,11 +1043,18 @@ export async function commitMoves(pending: PendingMove[]): Promise<void> {
  * deliberately avoided: a slot beyond max(weekNumber) would silently grow
  * "Week N of M", and a pre-anchor slot cannot exist below weekNumber 1.)
  */
-export async function addQuickSessionToday(session: QuickSession): Promise<string> {
+export async function addQuickSessionToday(
+  session: QuickSession,
+  landing: QuickSessionLanding = 'replace',
+): Promise<string> {
   const today = todayIso();
   const todayMondayIso = toIso(mondayOf(fromIso(today)));
   const weekInfo =
     liveStatus === 'ready' && livePlan ? programWeekInfoFor(todayMondayIso) : null;
+  // Raw log check (not isDayLogged — that already discounts reopened days):
+  // landing on a day with a synced log must reopen it either way, or the new
+  // session arrives with a closed deck and a sync guard that swallows it.
+  const wasLogged = completedLogDays.has(today) || syncedDays.has(today);
 
   if (livePlan && weekInfo?.state === 'in') {
     const anchor = planAnchorMonday(livePlan);
@@ -931,6 +1062,7 @@ export async function addQuickSessionToday(session: QuickSession): Promise<strin
     const programWeek =
       Math.round((mondayOf(fromIso(today)).getTime() - anchor.getTime()) / WEEK_MS) + 1;
     const existing = liveSlotsForDate(today);
+    const replacing = landing === 'replace' && existing.length > 0;
     const slot: PlanSlot = {
       weekNumber: Math.max(1, programWeek - offset),
       dayOfWeek: WEEKDAYS[weekdayIndex(fromIso(today))],
@@ -938,7 +1070,9 @@ export async function addQuickSessionToday(session: QuickSession): Promise<strin
       type: session.type,
       durationMinutes: session.durationMinutes,
       orderInDay:
-        existing.length > 0 ? Math.max(...existing.map((s) => s.orderInDay)) + 1 : 0,
+        !replacing && existing.length > 0
+          ? Math.max(...existing.map((s) => s.orderInDay)) + 1
+          : 0,
       exercises: session.exercises.map((ex, i) => ({
         exerciseId: ex.exerciseId,
         name: ex.name,
@@ -956,14 +1090,32 @@ export async function addQuickSessionToday(session: QuickSession): Promise<strin
           : null),
       })),
     };
-    const plan = await addPlanSlot(livePlan.id, slot);
+    // Add first, then remove — the same crash-safe order persistDayEdits
+    // uses, so a failure mid-way leaves the day over-full, never empty.
+    let plan = await addPlanSlot(livePlan.id, slot);
+    if (replacing) {
+      for (const old of existing) {
+        plan = await removePlanSlot(livePlan.id, old.id);
+      }
+      // The replaced day's session-local edits described exercises that no
+      // longer exist — without this they'd re-apply onto the new session.
+      clearDayOverlays(today);
+    }
     livePlan = plan;
     lastSeenPlanId = plan.id;
+    if (wasLogged) reopenLoggedDay(today);
+    // Building a session for today is the opposite of skipping it.
+    if (skippedDays.delete(today)) scheduleSessionSave();
     emit();
     void loadExerciseMeta(plan);
     return today;
   }
 
+  if (landing === 'replace') {
+    // Session-local day: replacing simply drops what "+ Add Exercise" or an
+    // earlier quick session stacked onto today (base is empty out-of-plan).
+    clearDayOverlays(today);
+  }
   customDayTitles.set(today, session.title);
   for (const ex of session.exercises) {
     additions.set(today, [
@@ -986,6 +1138,8 @@ export async function addQuickSessionToday(session: QuickSession): Promise<strin
       },
     ]);
   }
+  if (wasLogged) reopenLoggedDay(today);
+  if (skippedDays.delete(today)) scheduleSessionSave();
   emit();
   return today;
 }
@@ -1083,13 +1237,9 @@ export function removeExerciseFromDay(dateIso: string, exerciseIndex: number): v
   }
   scheduleSessionSave();
   queuePersistDayEdits(dateIso);
-  // Removing the last unlogged exercise can complete the day: sync the log
-  // (the "Finish & Log Session" row disappears once all done). Queued BEHIND
-  // the slot rebuild — syncing immediately would materialize the very slot
-  // the rebuild is about to delete.
-  if (isDayFullyLogged(dateIso)) {
-    persistChain = persistChain.then(() => syncDayCompletion(dateIso)).catch(() => {});
-  }
+  // Removing the last unlogged exercise can complete the day — but the log
+  // still waits for the explicit "Complete Workout" press (the button shows
+  // whenever any set is logged, so the door is already on screen).
   emit();
 }
 
@@ -1234,8 +1384,9 @@ export function logSet(dateIso: string, exerciseIndex: number, log: SetLog): voi
   }
   setLogs.set(key, [...(setLogs.get(key) ?? []), log]);
   scheduleSessionSave();
-  // The day's last set: persist the whole session as a real workout log.
-  if (isDayFullyLogged(dateIso)) void syncDayCompletion(dateIso);
+  // Deliberately NO auto-sync on the day's last set: the explicit "Complete
+  // Workout" button is the only door to the log POST, so adding one more
+  // exercise after the planned list stays possible right up to that press.
   emit();
 }
 
@@ -1243,7 +1394,9 @@ export function logSet(dateIso: string, exerciseIndex: number, log: SetLog): voi
 // Backend persistence of completed calendar sessions
 // ---------------------------------------------------------------------------
 
-function isDayFullyLogged(dateIso: string): boolean {
+/** Every planned exercise has all its sets checked. Gates the deck's
+ *  "Complete Workout" button — the day view's shows from the first logged set. */
+export function isDayFullyLogged(dateIso: string): boolean {
   const day = plannedDayForDate(dateIso);
   if (day.exercises.length === 0) return false;
   return day.exercises.every(
@@ -1251,17 +1404,10 @@ function isDayFullyLogged(dateIso: string): boolean {
   );
 }
 
-/** '5–8' → 8, '12' → 12, '10 min' → 0 (time work carries no rep count). */
-function repsNumber(reps: string): number {
-  const nums = reps.match(/\d+/g);
-  if (!nums || /min|sec/i.test(reps)) return 0;
-  return Number(nums[nums.length - 1]) || 0;
-}
-
-/** '185 lb' → 185; 'Bodyweight' / '—' → undefined. */
-function weightLb(weight: string): number | undefined {
-  const m = weight.match(/[\d.]+/);
-  return m ? Number(m[0]) : undefined;
+/** First-set timestamp of the day's live session — the celebration screen's
+ *  duration source. Null once the 14-day prune drops it or before any set. */
+export function sessionStartIso(dateIso: string): string | null {
+  return dayStartTimes.get(dateIso) ?? null;
 }
 
 /**
@@ -1322,9 +1468,14 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
     let totalSets = 0;
     let totalVolume = 0;
     // Only exercises with at least one logged set — this is what makes a
-    // PARTIAL finish log exactly what was done.
+    // PARTIAL finish log exactly what was done. Sets a previous log for this
+    // date already covered (a reopened day's morning session) are skipped,
+    // so the second log is a pure delta.
+    const already = syncedSetCounts.get(dateIso) ?? [];
     const entries = day.exercises.flatMap((ex, i) => {
-      const logs = setLogs.get(slotKey(dateIso, i)) ?? [];
+      const logs = (setLogs.get(slotKey(dateIso, i)) ?? []).slice(
+        already[i] ?? 0,
+      );
       if (logs.length === 0) return [];
       totalSets += logs.length;
       return [{
@@ -1356,6 +1507,16 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
       entries,
     });
     completedLogDays.add(dateIso);
+    // The day is sealed again; a LATER quick session re-runs the reopen
+    // flow, and the refreshed counts make its log the next pure delta.
+    reopenedDays.delete(dateIso);
+    syncedSetCounts.set(
+      dateIso,
+      day.exercises.map(
+        (_, i) => setLogs.get(slotKey(dateIso, i))?.length ?? 0,
+      ),
+    );
+    scheduleSessionSave();
     emit();
   } catch (err) {
     // Keep the local completion; the seal still shows for this session.
@@ -1379,9 +1540,14 @@ export function finishDaySession(dateIso: string): void {
 }
 
 /** The day has a workout log — synced from this device (persisted, so it
- *  survives a restart before any history fetch) or fetched from history. */
+ *  survives a restart before any history fetch) or fetched from history.
+ *  A REOPENED day (quick session landed after the log) reads unlogged again
+ *  so its new session is trainable; the seal (isDayCompleted) is unaffected. */
 export function isDayLogged(dateIso: string): boolean {
-  return completedLogDays.has(dateIso) || syncedDays.has(dateIso);
+  return (
+    (completedLogDays.has(dateIso) || syncedDays.has(dateIso)) &&
+    !reopenedDays.has(dateIso)
+  );
 }
 
 /** Any sets logged locally for this date. When true, the local record is
@@ -1397,6 +1563,10 @@ export function dayHasLocalLogs(dateIso: string): boolean {
  * An unfinished session on a day: some sets logged, nothing submitted yet.
  * Powers Home's "Resume workout" card. Counts straight off the log map so it
  * works even before the plan fetch lands (logs hydrate independently).
+ *
+ * A FULLY-logged day still counts as in progress until "Complete Workout" is
+ * pressed — the log only POSTs from that button now, so resume surfaces must
+ * keep pointing at the day until it is genuinely submitted.
  */
 export function inProgressSession(
   dateIso: string,
@@ -1408,15 +1578,95 @@ export function inProgressSession(
   if (logged === 0 || isDayLogged(dateIso)) return null;
   const day = plannedDayForDate(dateIso);
   const total = day.exercises.reduce((sum, ex) => sum + ex.sets, 0);
-  const complete =
-    day.exercises.length > 0 &&
-    day.exercises.every(
-      (ex, i) => (setLogs.get(slotKey(dateIso, i))?.length ?? 0) >= ex.sets,
-    );
-  if (complete) return null;
   return {
     title: day.exercises.length > 0 ? day.title : 'Workout in progress',
     loggedSets: logged,
     totalSets: Math.max(total, logged),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Celebration baselines + "Save this workout"
+// ---------------------------------------------------------------------------
+
+export type CelebrationBaselines = {
+  lastPerformance: LastPerformanceMap;
+  personalBests: PersonalBestMap;
+  statsSessions: WorkoutStatsSession[];
+};
+
+const celebrationBaselineCache = new Map<string, CelebrationBaselines>();
+const celebrationBaselinePromises = new Map<string, Promise<void>>();
+
+/**
+ * Fetch the "what did this beat" baselines for a day's celebration: last
+ * performance + all-time personal bests for the day's exercises, and the
+ * stats sessions the streak counts. MUST resolve before the day's workout log
+ * POSTs — once the log lands, the new lift IS the server-side record and
+ * every claim silently vanishes (the trap the legacy WorkoutSession
+ * documents). The day view primes this on mount; the Complete Workout
+ * handler awaits it again (a no-op when already cached) before syncing.
+ */
+export function primeCelebrationBaselines(dateIso: string): Promise<void> {
+  if (celebrationBaselineCache.has(dateIso)) return Promise.resolve();
+  const pending = celebrationBaselinePromises.get(dateIso);
+  if (pending) return pending;
+  if (liveStatus !== 'ready') return Promise.resolve();
+  const ids = [
+    ...new Set(
+      plannedDayForDate(dateIso)
+        .exercises.map((ex) => ex.exerciseId)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  const p = (async () => {
+    const [lastPerformance, personalBests, stats] = await Promise.all([
+      getLastPerformance(ids).catch(() => ({}) as LastPerformanceMap),
+      getPersonalBests(ids).catch(() => ({}) as PersonalBestMap),
+      getWorkoutStats().catch(() => null),
+    ]);
+    celebrationBaselineCache.set(dateIso, {
+      lastPerformance,
+      personalBests,
+      statsSessions: stats?.sessions ?? [],
+    });
+    emit();
+  })().finally(() => celebrationBaselinePromises.delete(dateIso));
+  celebrationBaselinePromises.set(dateIso, p);
+  return p;
+}
+
+/** The primed baselines for a day, or null while the fetch is in flight
+ *  (subscribers re-render when it lands). */
+export function celebrationBaselines(dateIso: string): CelebrationBaselines | null {
+  return celebrationBaselineCache.get(dateIso) ?? null;
+}
+
+/**
+ * "Save this workout" on the celebration screen: mint a real Workout row and
+ * bookmark it, so the session lands in Saved workouts to run again. Saves the
+ * day's PRESCRIPTIONS (sets × planned reps/bands) rather than the logged
+ * delta — a cut-short session still saves the full session shape. Same
+ * payload grammar as syncDayCompletion's rest-day path.
+ */
+export async function saveDayAsWorkout(dateIso: string): Promise<void> {
+  const day = plannedDayForDate(dateIso);
+  if (day.exercises.length === 0) throw new Error('Nothing to save');
+  const created = await createWorkout({
+    name: day.title,
+    day: day.weekday,
+    exercises: day.exercises.map((ex, i) => {
+      const range = ex.reps.match(/(\d+)\s*[–-]\s*(\d+)/);
+      return {
+        name: ex.name,
+        sets: ex.sets,
+        reps: Math.max(1, repsNumber(ex.reps)),
+        ...(range ? { repsMin: Number(range[1]), repsMax: Number(range[2]) } : null),
+        weight: weightLb(ex.weight),
+        exerciseId: ex.exerciseId,
+        orderIndex: i,
+      };
+    }),
+  });
+  if (created.id) await saveWorkout(created.id);
 }

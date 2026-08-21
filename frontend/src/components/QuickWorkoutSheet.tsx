@@ -21,7 +21,14 @@ import {
   sfPro,
   type PrototypeMuscle,
 } from '../lib/planCalendarPrototype';
-import { addQuickSessionToday, plannedDayForDate } from '../lib/planCalendarPrototypeStore';
+import {
+  addQuickSessionToday,
+  dayHasLocalLogs,
+  isDayCompleted,
+  plannedDayForDate,
+  type QuickSessionLanding,
+} from '../lib/planCalendarPrototypeStore';
+import { showConfirmDialog } from '../lib/confirmAlert';
 import { buildQuickSession } from '../services/workoutService';
 import { todayIso } from '../lib/planCalendarPrototype';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
@@ -98,12 +105,27 @@ export default function QuickWorkoutSheet({ visible, onClose, onLanded }: Props)
   const [selected, setSelected] = useState<Set<PrototypeMuscle>>(new Set());
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState('');
+  /** How many exercises today already holds — a second session must be an
+   *  explicit choice, never a silent 11-exercise merge on the day view. */
+  const [todayCount, setTodayCount] = useState(0);
+  /** fresh = planned but untouched (replacing is a benign plan swap);
+   *  partial = sets logged but unfinished; logged = completed/synced.
+   *  Trained days default to ADD, and replacing one demands a confirm. */
+  const [dayState, setDayState] = useState<'fresh' | 'partial' | 'logged'>('fresh');
+  const [landing, setLanding] = useState<QuickSessionLanding>('replace');
 
   useEffect(() => {
     if (visible) {
       setSelected(new Set());
       setBuilding(false);
       setError('');
+      const today = todayIso();
+      const count = plannedDayForDate(today).exercises.length;
+      const done = isDayCompleted(today);
+      const partial = !done && dayHasLocalLogs(today);
+      setTodayCount(count);
+      setDayState(done ? 'logged' : partial ? 'partial' : 'fresh');
+      setLanding(done || partial ? 'add' : 'replace');
     }
   }, [visible]);
 
@@ -130,24 +152,27 @@ export default function QuickWorkoutSheet({ visible, onClose, onLanded }: Props)
   const presetActive = (muscles: PrototypeMuscle[]) =>
     muscles.length === selected.size && muscles.every((m) => selected.has(m));
 
-  const build = async () => {
-    if (building || selectedList.length === 0) return;
-    buzzTap();
+  const runBuild = async (effectiveLanding: QuickSessionLanding) => {
     setBuilding(true);
     setError('');
     try {
-      // A second quick session today must not repeat what's already on the
-      // day (the same-seed builder would otherwise serve identical picks).
-      const alreadyToday = plannedDayForDate(todayIso())
-        .exercises.map((ex) => ex.exerciseId)
-        .filter((id): id is string => !!id);
+      // Only an ADDED second session must avoid repeating what's already on
+      // the day (the same-seed builder would otherwise serve identical
+      // picks) — a REPLACED day's exercises are gone, so bench press is
+      // allowed to come back.
+      const alreadyToday =
+        effectiveLanding === 'add'
+          ? plannedDayForDate(todayIso())
+              .exercises.map((ex) => ex.exerciseId)
+              .filter((id): id is string => !!id)
+          : [];
       const session = await buildQuickSession({
         muscles: selectedList,
         goal,
         experience,
         ...(alreadyToday.length > 0 ? { excludeIds: alreadyToday } : null),
       });
-      const landedOn = await addQuickSessionToday(session);
+      const landedOn = await addQuickSessionToday(session, effectiveLanding);
       buzzEditApplied();
       onClose();
       onLanded(landedOn);
@@ -155,6 +180,32 @@ export default function QuickWorkoutSheet({ visible, onClose, onLanded }: Props)
       setError('Couldn’t build the session — check your connection and try again.');
       setBuilding(false);
     }
+  };
+
+  const build = () => {
+    if (building || selectedList.length === 0) return;
+    buzzTap();
+    // A workout appeared on today AFTER the sheet opened (plan finished
+    // loading mid-flow): the user never saw the notice, so never replace it.
+    const nowCount = plannedDayForDate(todayIso()).exercises.length;
+    const effectiveLanding: QuickSessionLanding =
+      todayCount === 0 && nowCount > 0 ? 'add' : landing;
+    // Replacing TRAINED work is destructive enough to demand a confirm —
+    // swapping an untouched plan day is not.
+    if (effectiveLanding === 'replace' && todayCount > 0 && dayState !== 'fresh') {
+      showConfirmDialog({
+        title: 'Replace today’s workout?',
+        message:
+          dayState === 'logged'
+            ? 'Today’s session is already logged — it stays in your history, but today’s plan becomes this new workout.'
+            : 'You’ve logged sets today that aren’t finished. Replacing discards them.',
+        confirmText: 'Replace',
+        destructive: true,
+        onConfirm: () => void runBuild('replace'),
+      });
+      return;
+    }
+    void runBuild(effectiveLanding);
   };
 
   return (
@@ -248,6 +299,52 @@ export default function QuickWorkoutSheet({ visible, onClose, onLanded }: Props)
                 </>
               )}
             </Text>
+
+            {todayCount > 0 && (
+              <View style={styles.landingWrap}>
+                <Text style={styles.landingLabel}>
+                  {dayState === 'logged'
+                    ? 'Today’s workout is already logged'
+                    : dayState === 'partial'
+                      ? 'Today’s workout is in progress'
+                      : 'Today already has a workout'}{' '}
+                  ({todayCount} {todayCount === 1 ? 'exercise' : 'exercises'})
+                </Text>
+                <View style={styles.landingSeg}>
+                  {(
+                    [
+                      { key: 'replace', label: 'Replace it' },
+                      { key: 'add', label: 'Add to it' },
+                    ] as const
+                  ).map((opt) => {
+                    const active = landing === opt.key;
+                    return (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={[styles.landingOption, active && styles.landingOptionActive]}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          buzzTap();
+                          setLanding(opt.key);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={opt.label}
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Text
+                          style={[
+                            styles.landingOptionLabel,
+                            active && styles.landingOptionLabelActive,
+                          ]}
+                        >
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
 
             <TouchableOpacity
               style={[styles.cta, selectedList.length === 0 && styles.ctaDisabled]}
@@ -366,6 +463,41 @@ function createStyles(c: ColorPalette) {
       ...sfPro,
       fontWeight: weight.bold,
       color: c.text,
+    },
+    landingWrap: {
+      marginBottom: spacing.md,
+      gap: spacing.xs,
+    },
+    landingLabel: {
+      ...sfPro,
+      fontSize: text.footnote,
+      color: c.textMuted,
+      textAlign: 'center',
+    },
+    landingSeg: {
+      flexDirection: 'row',
+      backgroundColor: c.segmentTrack,
+      borderRadius: radius.pill,
+      padding: 2,
+    },
+    landingOption: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+    },
+    landingOptionActive: {
+      backgroundColor: c.surface,
+    },
+    landingOptionLabel: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      color: c.textSecondary,
+    },
+    landingOptionLabelActive: {
+      color: c.text,
+      fontWeight: weight.bold,
     },
     cta: {
       backgroundColor: c.primary,

@@ -14,6 +14,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  elevation,
   radius,
   spacing,
   text,
@@ -39,7 +40,9 @@ import {
   fromIso,
   mondayOf,
   muscleChipFrost,
+  muscleChipFrostDone,
   muscleGradient,
+  muscleInkDone,
   sfPro,
   shortDate,
   todayIso,
@@ -57,11 +60,14 @@ import {
   finishDaySession,
   getSetLogs,
   isDayLogged,
+  isDaySkipped,
   moveMissedDay,
   moveTargetsForDay,
   plannedDayForDate,
+  primeCelebrationBaselines,
   removeExerciseFromDay,
   subscribePlanCalendar,
+  unskipDay,
 } from '../lib/planCalendarPrototypeStore';
 
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarDay'>;
@@ -79,7 +85,7 @@ type SlotTarget = { index: number; exercise: PlannedExercise };
 export default function PlanCalendarDayScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { colors } = useTheme();
+  const { colors, mode } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const tabBarInset = useTabBarInset();
   const insets = useSafeAreaInsets();
@@ -126,17 +132,27 @@ export default function PlanCalendarDayScreen() {
     ensureLogsForMonth(fromIso(dateIso));
   }, [dateIso]);
 
+  // Warm the celebration's "what did this beat" baselines while the day is
+  // being trained. They must exist BEFORE the workout log POSTs — once the
+  // log lands, the new lift IS the server-side record and every personal-best
+  // claim on the finish screen silently vanishes.
+  useEffect(() => {
+    void primeCelebrationBaselines(dateIso);
+  }, [dateIso]);
+
   /** Long-press menu (small sheet); Replace/Add push the picker screen. */
   const [menuFor, setMenuFor] = useState<SlotTarget | null>(null);
 
   // Quick Workout door on TODAY's rest day (the at-the-gym scenario).
   const [quickVisible, setQuickVisible] = useState(false);
 
-  // Missed-day rescue: the banner's one-tap action + the shared sheet.
-  const [rescueSheetOpen, setRescueSheetOpen] = useState(false);
+  // The day-actions sheet (shared with the week view): 'missed' via the
+  // rescue banner, 'missed'/'move' via the header's ⋯ button.
+  const [daySheetMode, setDaySheetMode] = useState<'missed' | 'move' | null>(null);
   const [rescueBusy, setRescueBusy] = useState(false);
   const [rescueError, setRescueError] = useState('');
   const rescuable = canRescueDay(dateIso);
+  const skippedHere = isDaySkipped(dateIso);
   // The banner's one-tap "Do it today" shows only when today is genuinely
   // OPEN (picker row 0's state): a logged or beyond-program today blocks it,
   // and an occupied today needs the make-room step — the sheet ("Options")
@@ -165,6 +181,37 @@ export default function PlanCalendarDayScreen() {
   const allDone = plan.exercises.length > 0 && doneCount === plan.exercises.length;
   const anyLogged = plan.exercises.some((_, i) => getSetLogs(dateIso, i).length > 0);
   const dayLogged = isDayLogged(dateIso);
+
+  // The header's ⋯ — the VISIBLE door to day-level actions (move, skip,
+  // quick workout). The week-card long-press stays as the shortcut; HIG says
+  // a hold must never be the only path. Hidden where nothing can act:
+  // completed/logged days (write-once log), rest days, old quiet misses,
+  // and sample/offline data (nothing to persist against).
+  const dayActionable =
+    calendarDataMode() === 'live' &&
+    plan.exercises.length > 0 &&
+    !allDone &&
+    !dayLogged &&
+    (rescuable || skippedHere || dateIso >= todayIso());
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: dayActionable
+        ? () => (
+            <TouchableOpacity
+              onPress={() => {
+                buzzMenuOpen();
+                setDaySheetMode(rescuable ? 'missed' : 'move');
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Day options"
+            >
+              <Ionicons name="ellipsis-horizontal-circle" size={26} color={colors.primary} />
+            </TouchableOpacity>
+          )
+        : undefined,
+    });
+  }, [navigation, dayActionable, rescuable, colors.primary]);
 
   // Swipe pages between days; taps are swallowed briefly after a swipe (on
   // web the release click can land on a card of the re-rendered day).
@@ -245,7 +292,7 @@ export default function PlanCalendarDayScreen() {
               disabled={rescueBusy}
               onPress={() => {
                 buzzTap();
-                setRescueSheetOpen(true);
+                setDaySheetMode('missed');
               }}
               accessibilityRole="button"
               accessibilityLabel="More options for this missed workout"
@@ -259,12 +306,33 @@ export default function PlanCalendarDayScreen() {
         </View>
       )}
 
-      {(allDone || dayLogged) && (
+      {/* Only a SUBMITTED day gets the banner — an all-done day that hasn't
+          been through "Complete Workout" still shows the button below. */}
+      {dayLogged && (
         <View style={styles.completeBanner}>
           <Ionicons name="checkmark-circle" size={20} color={GOLD} />
           <Text style={styles.completeBannerText}>
             {allDone ? 'Workout complete — great work.' : 'Session logged.'}
           </Text>
+        </View>
+      )}
+
+      {skippedHere && !allDone && !dayLogged && plan.exercises.length > 0 && (
+        // The skipped state's undo home — a skip is a mark, never a deletion.
+        <View style={styles.skippedBanner}>
+          <Ionicons name="close-circle-outline" size={17} color={colors.textMuted} />
+          <Text style={styles.skippedBannerText}>You skipped this workout.</Text>
+          <TouchableOpacity
+            onPress={() => {
+              buzzTap();
+              unskipDay(dateIso);
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Undo skip"
+          >
+            <Text style={styles.skippedBannerAction}>Undo</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -295,6 +363,13 @@ export default function PlanCalendarDayScreen() {
 
       {plan.exercises.map((ex, index) => {
         const done = getSetLogs(dateIso, index).length >= ex.sets;
+        // Done cards dim to 0.55, compositing light fills toward the dark
+        // page — their near-black ink drops below 4.5:1 there, so it flips
+        // to white (dark mode only; light mode dims toward white).
+        const ink = done ? muscleInkDone(ex.muscle, mode === 'dark') : MUSCLE_INK[ex.muscle];
+        const frost = done
+          ? muscleChipFrostDone(ex.muscle, mode === 'dark')
+          : muscleChipFrost(ex.muscle);
         return (
           <TouchableOpacity
             key={`${index}-${ex.name}`}
@@ -330,25 +405,23 @@ export default function PlanCalendarDayScreen() {
                   Dumbbell Overhead Triceps Extension") still truncated at 2
                   on device. Only long names pay the taller card. */}
               <Text
-                style={[styles.exerciseName, { color: MUSCLE_INK[ex.muscle] }]}
+                style={[styles.exerciseName, { color: ink }]}
                 numberOfLines={3}
               >
                 {ex.name}
               </Text>
-              <View
-                style={[styles.muscleChip, { backgroundColor: muscleChipFrost(ex.muscle) }]}
-              >
-                <Text style={[styles.muscleChipLabel, { color: MUSCLE_INK[ex.muscle] }]}>
+              <View style={[styles.muscleChip, { backgroundColor: frost }]}>
+                <Text style={[styles.muscleChipLabel, { color: ink }]}>
                   {ex.muscle}
                 </Text>
               </View>
               {done ? (
-                <Ionicons name="checkmark-circle" size={19} color={MUSCLE_INK[ex.muscle]} />
+                <Ionicons name="checkmark-circle" size={19} color={ink} />
               ) : (
                 <Ionicons
                   name="chevron-forward"
                   size={17}
-                  color={MUSCLE_INK[ex.muscle]}
+                  color={ink}
                   style={styles.exerciseChevron}
                 />
               )}
@@ -372,21 +445,29 @@ export default function PlanCalendarDayScreen() {
         <Text style={styles.addRowLabel}>Add Exercise</Text>
       </TouchableOpacity>
 
-      {anyLogged && !allDone && !dayLogged && (
+      {anyLogged && !dayLogged && (
+        // The ONE door to the workout log + celebration, full or cut-short.
+        // Nothing fires when the last set is checked, so "one more exercise"
+        // stays possible right up to this press — the press IS the confirm.
         <TouchableOpacity
-          style={styles.finishRow}
+          style={styles.completeButton}
           activeOpacity={0.85}
           onPress={() => {
-            // The session-complete thump — same success pattern as an
-            // exercise's last set; fires on the action, not the server ack.
+            // The session-complete thump fires on the action, not the ack.
             buzzAllSetsComplete();
-            finishDaySession(dateIso);
+            navigation.navigate('PlanCalendarWorkoutComplete', { dateIso });
+            // Celebrate immediately; sync AFTER the baselines land — a log
+            // that POSTs first becomes the record its own claims compare to.
+            void (async () => {
+              await primeCelebrationBaselines(dateIso).catch(() => {});
+              finishDaySession(dateIso);
+            })();
           }}
           accessibilityRole="button"
-          accessibilityLabel="Finish and log session"
+          accessibilityLabel="Complete workout"
         >
-          <Ionicons name="flag-outline" size={18} color={GOLD} />
-          <Text style={styles.finishRowLabel}>Finish & Log Session</Text>
+          <Ionicons name="checkmark" size={20} color="#1C1C1E" />
+          <Text style={styles.completeButtonLabel}>Complete Workout</Text>
         </TouchableOpacity>
       )}
 
@@ -475,13 +556,14 @@ export default function PlanCalendarDayScreen() {
     />
 
     <WorkoutMoveSheet
-      dateIso={rescueSheetOpen ? dateIso : null}
-      mode="missed"
+      dateIso={daySheetMode ? dateIso : null}
+      mode={daySheetMode ?? 'missed'}
       context="day"
-      onClose={() => setRescueSheetOpen(false)}
+      onClose={() => setDaySheetMode(null)}
       onEditDay={() => {}}
       // Follow the workout to its new day.
       onMoved={(targetIso) => navigation.setParams({ dateIso: targetIso })}
+      onQuickWorkout={() => setQuickVisible(true)}
     />
     </View>
   );
@@ -580,6 +662,27 @@ function createStyles(c: ColorPalette) {
       fontWeight: weight.semibold,
       color: c.primary,
     },
+    skippedBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: c.surface,
+      borderRadius: radius.lg,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+    },
+    skippedBannerText: {
+      ...sfPro,
+      flex: 1,
+      fontSize: text.footnote,
+      color: c.textMuted,
+    },
+    skippedBannerAction: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      color: c.primary,
+    },
     missedBannerError: {
       ...sfPro,
       fontSize: text.footnote,
@@ -646,22 +749,23 @@ function createStyles(c: ColorPalette) {
     dayPager: {
       gap: spacing.md,
     },
-    finishRow: {
+    completeButton: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: spacing.sm,
-      borderRadius: radius.lg,
-      borderWidth: 2,
-      borderColor: GOLD,
-      backgroundColor: c.surface,
-      paddingVertical: spacing.md,
+      height: 50,
+      borderRadius: radius.pill,
+      backgroundColor: GOLD,
+      shadowColor: c.shadow,
+      ...elevation.level2,
     },
-    finishRowLabel: {
+    completeButtonLabel: {
       ...sfPro,
       fontSize: text.callout,
       fontWeight: weight.semibold,
-      color: c.text,
+      // Constant near-black on the theme-invariant gold (white fails 4.5:1).
+      color: '#1C1C1E',
     },
     addRow: {
       flexDirection: 'row',

@@ -24,7 +24,43 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
-  // The ONE card for the next release: everything on this branch since
+  // The ONE card for this OTA: everything since build 26 (the finish
+  // celebration + save, the day-actions menu + skip, set-aware Last time +
+  // Target on the deck, history-aware recommendations). Trained-day
+  // guardrails and the quick-workout landing fix are polish and stay out.
+  {
+    id: '2026-08-21',
+    version: '1.1.0',
+    date: '2026-08-21',
+    title: 'Finish, celebrate, save',
+    changes: [
+      {
+        type: 'new',
+        text: 'Finishing a workout is now a moment: press Complete Workout for a celebration with your time, your streak, and any records you set, then a full session summary.',
+      },
+      {
+        type: 'new',
+        text: 'Save any finished workout to your library with one tap and run it again whenever you want.',
+      },
+      {
+        type: 'improved',
+        text: 'Nothing logs until you say so. Check your last set, add one more exercise if you feel like it, and press Complete Workout when you are done. Cut a session short and it still counts.',
+      },
+      {
+        type: 'new',
+        text: 'Every day now has a menu: skip a workout ahead of time, move it, or start a quick workout, right from the day view. Undo a skip anytime.',
+      },
+      {
+        type: 'improved',
+        text: 'Each set card now shows what you did for that exact set last time, plus a Target that moves you up when you are ready.',
+      },
+      {
+        type: 'improved',
+        text: 'Exercise recommendations now learn from your history, your goal, and the rest of your week.',
+      },
+    ],
+  },
+  // The ONE card for build 26: everything on this branch since
   // build 25 (Quick Workout, dark mode, missed day rescue + Make Room,
   // add another set, the library picker + remove exercise, gradient
   // month/week + legend sheet, haptics baseline).

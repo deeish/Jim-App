@@ -51,12 +51,15 @@ import {
 import {
   canMoveDay,
   dayHasLocalLogs,
+  finishDaySession,
   getSetLogs,
+  isDayFullyLogged,
   isDayLogged,
   logSet,
   moveMissedDay,
   moveTargetsForDay,
   plannedDayForDate,
+  primeCelebrationBaselines,
   subscribePlanCalendar,
   type SetLog,
 } from '../lib/planCalendarPrototypeStore';
@@ -69,6 +72,16 @@ import {
   type WeightUnit,
 } from '../lib/weightDisplay';
 import { getExerciseHistory } from '../services/workoutService';
+import type { HistorySet } from '../lib/exerciseHistory';
+import {
+  formatLastTimeForSet,
+  lastSetForIndex,
+} from '../lib/lastPerformanceDisplay';
+import {
+  isLowerBodyExercise,
+  parseRepsBand,
+  suggestNextTarget,
+} from '../lib/nextTargetSuggestion';
 import { buzzRestOver } from '../lib/planCalendarPrototype';
 
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarWorkout'>;
@@ -77,6 +90,24 @@ type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWorkout
 const SCREEN_W = Dimensions.get('window').width;
 /** How long the gold outline shows before the card swipes to the back. */
 const GOLD_HOLD_MS = 500;
+
+/**
+ * A last log older than this stops driving the Target suggestion — a
+ * two-month-old top set is evidence of what you once lifted, not what to load
+ * today. The "Last time" line keeps rendering regardless: it shows its date.
+ */
+const SUGGESTION_STALE_DAYS = 60;
+
+/** Muscles that take the bigger lower-body increment in the progression rule. */
+const LOWER_MUSCLES: ReadonlySet<string> = new Set([
+  'Quads',
+  'Hamstrings',
+  'Glutes',
+  'Calves',
+]);
+
+/** The last logged session of the exercise, as the deck consumes it. */
+type LastSession = { performedAt: string; sets: HistorySet[] };
 
 /** '185 lb' → the user's unit ('84 kg'); non-weights pass through. An
  *  additive weight keeps its '+' ('+25 lb' → '+11 kg') — it means
@@ -133,34 +164,65 @@ export default function PlanCalendarWorkoutScreen() {
   const { weightUnit } = useUserPreferences();
   const unit: WeightUnit = weightUnit === 'kg' ? 'kg' : 'lb';
 
-  // Last logged performance for this exercise — prefills the deck and shows a
-  // "Last time" line. Catalog-linked exercises only; failures stay silent.
-  const [lastTop, setLastTop] = useState<{ weightLb: number; reps: number } | null>(null);
+  // Last logged session of this exercise — drives the set-aware "Last time"
+  // line, the ghost inputs, and the next-target Target in the deck header.
+  // Catalog-linked exercises only; failures stay silent.
+  const [lastPerf, setLastPerf] = useState<LastSession | null>(null);
   const historyExerciseId = exercise?.exerciseId;
   useEffect(() => {
-    setLastTop(null);
+    setLastPerf(null);
     if (!historyExerciseId) return;
     let stale = false;
     getExerciseHistory(historyExerciseId, 1)
       .then((h) => {
         if (stale) return;
-        // Heaviest weighted set of the most recent session (weights are
-        // canonical pounds; bodyweight-only sessions yield nothing).
-        const sets = h.sessions[0]?.sets ?? [];
-        const top = sets.reduce<{ weightLb: number; reps: number } | null>(
-          (best, s) =>
-            s.weight != null && s.weight > 0 && (best == null || s.weight > best.weightLb)
-              ? { weightLb: s.weight, reps: s.reps }
-              : best,
-          null,
+        const session = h.sessions[0];
+        setLastPerf(
+          session && session.sets.length > 0
+            ? { performedAt: session.performedAt, sets: session.sets }
+            : null,
         );
-        setLastTop(top);
       })
       .catch(() => {});
     return () => {
       stale = true;
     };
   }, [historyExerciseId]);
+
+  // Deck-header Target: the double-progression verdict from the last session
+  // (nextTargetSuggestion.ts — the same rule as the legacy Train flow), falling
+  // back to the plan prescription when history is absent, stale, or bandless.
+  const targetLine = useMemo(() => {
+    if (!exercise) return '';
+    if (lastPerf) {
+      const ageDays =
+        (Date.now() - new Date(lastPerf.performedAt).getTime()) / 86_400_000;
+      const band = parseRepsBand(exercise.reps);
+      if (band && Number.isFinite(ageDays) && ageDays <= SUGGESTION_STALE_DAYS) {
+        const s = suggestNextTarget({
+          lastSets: lastPerf.sets,
+          repsMin: band.min,
+          repsMax: band.max,
+          reps: band.min,
+          isTimeBased: false,
+          isLowerBody:
+            LOWER_MUSCLES.has(exercise.muscle) ||
+            isLowerBodyExercise(undefined, exercise.name),
+          unit,
+        });
+        if (s) {
+          if (s.weightLb == null) return `Target ${s.targetReps} reps`;
+          const w = formatWeightFromLb(s.weightLb, unit);
+          const arrow =
+            s.kind === 'increase_weight' ? ' ↑' : s.kind === 'reduce_weight' ? ' ↓' : '';
+          return `Target ${s.targetReps} · ${w}${arrow}`;
+        }
+      }
+    }
+    return exercise.weight === '—'
+      ? `Target ${exercise.reps}`
+      : `Target ${exercise.reps} · ${displayWeight(exercise.weight, unit)}`;
+  }, [exercise, lastPerf, unit]);
 
   const logs = getSetLogs(dateIso, exerciseIndex);
 
@@ -387,6 +449,31 @@ export default function PlanCalendarWorkoutScreen() {
             <Text style={styles.addSetLabel}>Add another set</Text>
           </TouchableOpacity>
         )}
+        {/* The whole day's last set usually lands here — offer the same
+            explicit door the day view has, right where the moment happens.
+            Only when the FULL day is logged: a partial finish belongs to the
+            day view's button, not a screen showing one exercise. */}
+        {isDayFullyLogged(dateIso) && !dayLogged && (
+          <TouchableOpacity
+            style={styles.completeButton}
+            activeOpacity={0.85}
+            onPress={() => {
+              buzzAllSetsComplete();
+              navigation.navigate('PlanCalendarWorkoutComplete', { dateIso });
+              // Celebrate immediately; sync AFTER the baselines land — a log
+              // that POSTs first becomes the record its own claims compare to.
+              void (async () => {
+                await primeCelebrationBaselines(dateIso).catch(() => {});
+                finishDaySession(dateIso);
+              })();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Complete workout"
+          >
+            <Ionicons name="checkmark" size={20} color="#1C1C1E" />
+            <Text style={styles.completeButtonLabel}>Complete Workout</Text>
+          </TouchableOpacity>
+        )}
         </>
       ) : (
         <SetDeck
@@ -397,7 +484,8 @@ export default function PlanCalendarWorkoutScreen() {
           styles={styles}
           colors={colors}
           unit={unit}
-          lastTop={lastTop}
+          lastPerf={lastPerf}
+          targetLine={targetLine}
           onLog={(log, isLast) => {
             logSet(dateIso, exerciseIndex, log);
             if (isLast) buzzAllSetsComplete();
@@ -486,7 +574,8 @@ function SetDeck({
   styles,
   colors,
   unit,
-  lastTop,
+  lastPerf,
+  targetLine,
 }: {
   exercise: PlannedExercise;
   completed: number;
@@ -494,7 +583,8 @@ function SetDeck({
   styles: ReturnType<typeof createStyles>;
   colors: ColorPalette;
   unit: WeightUnit;
-  lastTop: { weightLb: number; reps: number } | null;
+  lastPerf: LastSession | null;
+  targetLine: string;
 }) {
   const [reps, setReps] = useState('');
   const [weightIn, setWeightIn] = useState('');
@@ -532,12 +622,25 @@ function SetDeck({
   const timedMatch = exercise.reps.match(/(\d+)\s*(min|sec)/i);
   const timedUnit = timedMatch ? timedMatch[2].toLowerCase() : null;
 
+  // This card's memory: the SAME set of the last session (set 2 shows last
+  // time's set 2), falling back to that session's best set when today runs
+  // longer. Line, ghost inputs, and the empty-check log all read this pick.
+  const setNumber = completed + 1;
+  const lastSet =
+    !timedUnit && lastPerf ? lastSetForIndex(lastPerf.sets, setNumber) : null;
+  const lastTimeLine = formatLastTimeForSet(
+    lastPerf,
+    setNumber,
+    unit,
+    timedUnit != null,
+  );
+
   const onCheck = () => {
     if (busy.current) return;
     busy.current = true;
     // Typed weight arrives in the user's unit; the store (and backend logs)
     // stay canonical in POUNDS. Empty inputs log what the placeholder shows
-    // (last performance when known, the prescription otherwise).
+    // (this set's last performance when known, the prescription otherwise).
     const typedWeight = Number(weightIn.trim());
     const weightValid = weightIn.trim() !== '' && Number.isFinite(typedWeight) && typedWeight > 0;
     const typedReps = Number(reps.trim());
@@ -549,13 +652,13 @@ function SetDeck({
           : exercise.reps
         : repsValid
           ? String(typedReps)
-          : lastTop
-            ? String(lastTop.reps)
+          : lastSet
+            ? String(lastSet.reps)
             : exercise.reps,
       weight: weightValid
         ? `${roundLb(unit === 'kg' ? kgToLb(typedWeight) : typedWeight)} lb`
-        : lastTop
-          ? `${roundLb(lastTop.weightLb)} lb`
+        : lastSet?.weightLb != null
+          ? `${roundLb(lastSet.weightLb)} lb`
           : exercise.weight,
     };
     const isLast = completed + 1 >= exercise.sets;
@@ -585,14 +688,10 @@ function SetDeck({
           <Text style={styles.setCardTitle}>
             Set {completed + 1} of {exercise.sets}
           </Text>
-          <Text style={styles.setCardTarget}>
-            Target {exercise.reps} · {displayWeight(exercise.weight, unit)}
-          </Text>
+          <Text style={styles.setCardTarget}>{targetLine}</Text>
         </View>
-        {lastTop && (
-          <Text style={styles.lastTimeLine}>
-            Last time: {formatWeightFromLb(lastTop.weightLb, unit)} × {lastTop.reps}
-          </Text>
+        {lastTimeLine != null && (
+          <Text style={styles.lastTimeLine}>{lastTimeLine}</Text>
         )}
         <View style={styles.inputRow}>
           <View style={styles.inputBox}>
@@ -606,8 +705,8 @@ function SetDeck({
               placeholder={
                 timedUnit
                   ? timedMatch![1]
-                  : lastTop
-                    ? String(lastTop.reps)
+                  : lastSet
+                    ? String(lastSet.reps)
                     : exercise.reps
               }
               placeholderTextColor={colors.textMuted}
@@ -622,8 +721,10 @@ function SetDeck({
               value={weightIn}
               onChangeText={setWeightIn}
               placeholder={
-                lastTop
-                  ? String(Math.round(unit === 'kg' ? lbToKg(lastTop.weightLb) : lastTop.weightLb))
+                lastSet?.weightLb != null
+                  ? String(
+                      Math.round(unit === 'kg' ? lbToKg(lastSet.weightLb) : lastSet.weightLb),
+                    )
                   : weightInputPlaceholder(exercise.weight, unit)
               }
               placeholderTextColor={colors.textMuted}
@@ -686,6 +787,25 @@ function createStyles(c: ColorPalette) {
       fontSize: text.footnote,
       fontWeight: weight.semibold,
       color: c.primary,
+    },
+    completeButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      height: 50,
+      borderRadius: radius.pill,
+      backgroundColor: GOLD,
+      marginTop: spacing.md,
+      shadowColor: c.shadow,
+      ...elevation.level2,
+    },
+    completeButtonLabel: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      // Constant near-black on the theme-invariant gold (white fails 4.5:1).
+      color: '#1C1C1E',
     },
     todayNudgeWrap: {
       marginBottom: spacing.md,

@@ -1,6 +1,7 @@
 import {
   formatSuggestionLine,
   isLowerBodyExercise,
+  parseRepsBand,
   suggestNextTarget,
   suggestNextTargetForExercise,
   SuggestNextTargetInput,
@@ -350,5 +351,26 @@ describe('formatSuggestionLine', () => {
 
   it('returns null for a null suggestion', () => {
     expect(formatSuggestionLine(null, 'lb')).toBeNull();
+  });
+});
+
+describe('parseRepsBand', () => {
+  it('parses en-dash and hyphen bands', () => {
+    expect(parseRepsBand('8–12')).toEqual({ min: 8, max: 12 });
+    expect(parseRepsBand('8-12')).toEqual({ min: 8, max: 12 });
+    expect(parseRepsBand(' 5 – 8 ')).toEqual({ min: 5, max: 8 });
+  });
+
+  it('parses a single number as a degenerate band', () => {
+    expect(parseRepsBand('8')).toEqual({ min: 8, max: 8 });
+  });
+
+  it('rejects timed, inverted, zero, and unparseable prescriptions', () => {
+    expect(parseRepsBand('10 min')).toBeNull();
+    expect(parseRepsBand('45 sec')).toBeNull();
+    expect(parseRepsBand('12–8')).toBeNull();
+    expect(parseRepsBand('0')).toBeNull();
+    expect(parseRepsBand('AMRAP')).toBeNull();
+    expect(parseRepsBand('—')).toBeNull();
   });
 });

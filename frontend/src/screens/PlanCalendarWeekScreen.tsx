@@ -102,6 +102,18 @@ export default function PlanCalendarWeekScreen() {
   const mode = calendarDataMode();
   const weekInfo = mode === 'live' ? programWeekInfoFor(weekMondayIso) : null;
 
+  // The hold gesture needs a signifier (HIG: a long-press is an accelerator,
+  // never the only path — the ⋯ on the day view is the visible door). Shown
+  // only when holding some card this week would actually open the sheet.
+  const anyHoldable =
+    mode === 'live' &&
+    days.some((date) => {
+      const iso = toIso(date);
+      if (plannedDayForDate(iso).exercises.length === 0) return false;
+      if (isDayCompleted(iso)) return false;
+      return canRescueDay(iso) || canMoveDay(iso) || isDaySkipped(iso);
+    });
+
   // Own the navigator's frozen Month|Week|Day bar while this screen is up
   // (the 'PlanList' alias registers as 'week' too — same component).
   const onScopeNavigate = useCallback(
@@ -246,7 +258,9 @@ export default function PlanCalendarWeekScreen() {
         const completed = !rest && isDayCompleted(iso);
         const missed = !rest && !completed && iso < todayIso();
         const rescuable = !rest && missed && canRescueDay(iso);
-        const skipped = !rest && missed && isDaySkipped(iso);
+        // Skips cover future days too now ("traveling Friday") — the label
+        // shows wherever the mark stands and the workout isn't trained.
+        const skipped = !rest && !completed && isDaySkipped(iso);
         const movable = !rest && !missed && !completed && canMoveDay(iso);
         const movedFrom = !rest ? dayMovedFrom(iso) : null;
 
@@ -327,7 +341,9 @@ export default function PlanCalendarWeekScreen() {
               if (rescuable) {
                 buzzMenuOpen();
                 setSheetFor({ dateIso: iso, mode: 'missed' });
-              } else if (movable) {
+              } else if (movable || skipped) {
+                // A skipped day's hold offers the undo (mode 'move' shows
+                // "Undo skip" in place of "Skip this workout").
                 buzzMenuOpen();
                 setSheetFor({ dateIso: iso, mode: 'move' });
               }
@@ -393,6 +409,10 @@ export default function PlanCalendarWeekScreen() {
       </Animated.View>
       )}
 
+      {anyHoldable && (
+        // Same teaching grammar as the day view's "Hold an exercise…" line.
+        <Text style={styles.holdHint}>Hold a workout to move or skip it</Text>
+      )}
       {mode === 'offline' && (
         <Text style={styles.footerNote}>Offline — can’t reach the server</Text>
       )}
@@ -563,6 +583,13 @@ function createStyles(c: ColorPalette) {
       color: c.textMuted,
       textAlign: 'center',
       marginTop: spacing.md,
+    },
+    holdHint: {
+      ...sfPro,
+      fontSize: text.footnote,
+      color: c.textMuted,
+      textAlign: 'center',
+      marginTop: spacing.sm,
     },
     contextLine: {
       ...sfPro,

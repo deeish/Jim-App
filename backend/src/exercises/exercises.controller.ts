@@ -6,6 +6,7 @@ import {
   Param,
   Query,
   Delete,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -17,10 +18,21 @@ import { getExerciseProgressions } from '../data/exercise-progressions';
 import { getFormCues } from '../data/exercise-form-cues';
 import { getJointDemands, JOINT_LABELS } from '../data/exercise-joint-demands';
 import { SavedExercisesService } from './saved-exercises.service';
+import {
+  UserTrainingHistoryService,
+  UserTrainingHistory,
+} from './user-training-history.service';
 import { SearchExercisesDto } from './dto/search-exercises.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
+import { SuggestAdditionsDto } from './dto/suggest-additions.dto';
 import { AuthGuard } from '../auth/auth.guard';
+import { AuthService } from '../auth/auth.service';
 import { UserId } from '../auth/user-id.decorator';
+
+/** The slice of the request the optional-identity read needs. */
+interface MaybeAuthedRequest {
+  headers?: { authorization?: string };
+}
 
 /**
  * Public catalog routes use default ThrottlerGuard (per IP). AI throttlers are skipped so
@@ -33,7 +45,31 @@ export class ExercisesController {
   constructor(
     private readonly exercisesService: ExercisesService,
     private readonly savedExercisesService: SavedExercisesService,
+    private readonly authService: AuthService,
+    private readonly trainingHistory: UserTrainingHistoryService,
   ) {}
+
+  /**
+   * The replace/add recommendation routes are PUBLIC (catalog data) but rank
+   * better when they know who is asking: the app attaches the Supabase JWT
+   * to every request, so a valid token buys history-aware ranking and an
+   * absent/invalid one silently degrades to catalog-only. Never throws —
+   * personalization must not turn a public route into an authed one.
+   */
+  private async optionalHistory(
+    req: MaybeAuthedRequest,
+  ): Promise<UserTrainingHistory | undefined> {
+    const header = req.headers?.authorization;
+    const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
+    if (!token) return undefined;
+    try {
+      const payload = await this.authService.verifyToken(token);
+      if (!payload.sub) return undefined;
+      return await this.trainingHistory.historyFor(payload.sub);
+    } catch {
+      return undefined;
+    }
+  }
 
   @Get()
   findAll() {
@@ -68,17 +104,42 @@ export class ExercisesController {
   /** Pick one catalog exercise to swap in for a single exercise in a day. */
   @Post('replace')
   @HttpCode(HttpStatus.OK)
-  replace(@Body() dto: ReplaceExerciseDto) {
-    return { exercise: this.exercisesService.pickReplacement(dto) };
+  async replace(
+    @Body() dto: ReplaceExerciseDto,
+    @Req() req: MaybeAuthedRequest,
+  ) {
+    const history = await this.optionalHistory(req);
+    return { exercise: this.exercisesService.pickReplacement(dto, history) };
   }
 
   /** Ranked top-N alternatives for one exercise, each with why-tags — the
    *  replace picker's recommendation rail. */
   @Post('replace-suggestions')
   @HttpCode(HttpStatus.OK)
-  replaceSuggestions(@Body() dto: ReplaceExerciseDto) {
+  async replaceSuggestions(
+    @Body() dto: ReplaceExerciseDto,
+    @Req() req: MaybeAuthedRequest,
+  ) {
+    const history = await this.optionalHistory(req);
     return {
-      suggestions: this.exercisesService.pickReplacementSuggestions(dto),
+      suggestions: this.exercisesService.pickReplacementSuggestions(
+        dto,
+        history,
+      ),
+    };
+  }
+
+  /** Ranked exercises that COMPLETE a day (coverage gaps, anchor/finisher
+   *  balance, history-aware) — the add picker's recommendation rail. */
+  @Post('add-suggestions')
+  @HttpCode(HttpStatus.OK)
+  async addSuggestions(
+    @Body() dto: SuggestAdditionsDto,
+    @Req() req: MaybeAuthedRequest,
+  ) {
+    const history = await this.optionalHistory(req);
+    return {
+      suggestions: this.exercisesService.pickAdditionSuggestions(dto, history),
     };
   }
 

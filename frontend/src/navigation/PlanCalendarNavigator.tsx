@@ -10,6 +10,7 @@ import PlanCalendarMonthScreen from '../screens/PlanCalendarMonthScreen';
 import PlanCalendarWeekScreen from '../screens/PlanCalendarWeekScreen';
 import PlanCalendarDayScreen from '../screens/PlanCalendarDayScreen';
 import PlanCalendarWorkoutScreen from '../screens/PlanCalendarWorkoutScreen';
+import PlanCalendarWorkoutCompleteScreen from '../screens/PlanCalendarWorkoutCompleteScreen';
 import PlanCalendarExercisePickerScreen from '../screens/PlanCalendarExercisePickerScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import ProgressScreen from '../screens/ProgressScreen';
@@ -183,6 +184,15 @@ export default function PlanCalendarNavigator() {
           title: route.params.exerciseName,
           headerLeft: () => <BackTo label="Day" onPress={() => navigation.goBack()} />,
         })}
+      />
+
+      {/* The celebration flow behind "Complete Workout" (Moment → Ledger).
+          Headerless — it draws its own back pills — and it fades in over the
+          day view instead of sliding, per the reveal choreography. */}
+      <Stack.Screen
+        name="PlanCalendarWorkoutComplete"
+        component={PlanCalendarWorkoutCompleteScreen}
+        options={{ animation: 'fade', animationDuration: 240 }}
       />
 
       {/* The library-as-picker sheet (Replace / Add on the day view). An iOS

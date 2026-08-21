@@ -6,8 +6,11 @@
  *
  *  - a pinned recommendation rail. Replace mode is fed by
  *    POST /exercises/replace-suggestions (ranked, with why-tags like "Easier
- *    version · Same lift, different equipment"); add mode pins the top
- *    recommended-tier picks for the day's muscles.
+ *    version · Same lift, different equipment"); add mode by
+ *    POST /exercises/add-suggestions (gap-aware: "Adds Lower Chest ·
+ *    Isolation finisher"). Both are personalized — the request carries the
+ *    rest of the week's plan, the user's gear, and their goal/experience,
+ *    and the backend folds in their real logged history via the JWT.
  *  - replace mode opens PRE-FILTERED to the outgoing exercise's muscle group,
  *    which also expands the library's sub-muscle refine row (one tap from
  *    "Chest" to "Lower Chest") — the chip clears like any other filter, and
@@ -19,19 +22,19 @@
  * hiding read as "the app lost Push-Ups".
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Text, TouchableOpacity, View, StyleSheet } from 'react-native';
+import { Platform, Text, TouchableOpacity, View, StyleSheet } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { radius, spacing, text, tracking, useTheme, weight, type ColorPalette } from '../theme';
-import { useTabBarInset } from '../navigation/useTabBarInset';
 import Button from '../components/Button';
 import ExerciseLibrary, {
   useExerciseLibraryFilters,
   useSavedExercises,
 } from '../components/ExerciseLibrary';
 import {
+  getAddSuggestions,
   getReplaceSuggestions,
   searchExercises,
   type Exercise as CatalogExercise,
@@ -52,6 +55,7 @@ import {
   plannedDayForDate,
   plannedExerciseFromCatalog,
   replaceExercise,
+  weekExerciseContext,
 } from '../lib/planCalendarPrototypeStore';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
@@ -66,9 +70,21 @@ export default function PlanCalendarExercisePickerScreen() {
   const route = useRoute<Route>();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const tabBarInset = useTabBarInset();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { equipment: profileGear } = useUserPreferences();
+
+  // ⚠ Sheet insets, not screen insets. This screen is presented as an iOS
+  // page-sheet modal (see PlanCalendarNavigator), so the card already starts
+  // BELOW the status bar and already covers the floating tab bar — but
+  // useSafeAreaInsets() reports the window's insets (one root SafeAreaProvider
+  // in App.tsx) and BottomTabBarHeightContext still resolves through React
+  // context even though no tab bar is visible behind the sheet. Padding by
+  // either one stacks dead space onto a sheet that needs none: 71pt of header
+  // padding where 16 was wanted, and 104pt under the footer button (16 + the
+  // 88pt bar in NavBar.tsx) where the home indicator's 34 was wanted. Android
+  // renders `presentation: 'modal'` full-bleed, so there the top inset is real.
+  const sheetTopInset = Platform.OS === 'ios' ? spacing.lg : insets.top + spacing.md;
+  const sheetBottomInset = Math.max(insets.bottom, spacing.lg);
+  const { equipment: profileGear, goal, experience } = useUserPreferences();
 
   const params = route.params;
   const { dateIso, mode } = params;
@@ -106,16 +122,28 @@ export default function PlanCalendarExercisePickerScreen() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      // Everything the ranking brain personalizes with: the rest of the
+      // week's plan (variety), the user's gear, and their goal/experience.
+      // All optional server-side — old backends just ignore the extras.
+      const week = weekExerciseContext(dateIso);
+      const personalization = {
+        ...(profileGear.length > 0 ? { equipment: [...profileGear] } : null),
+        ...(week.ids.length > 0 ? { weekExerciseIds: week.ids } : null),
+        ...(week.names.length > 0 ? { weekExerciseNames: week.names } : null),
+        goal,
+        experience,
+      };
+      const dayIds = day.exercises
+        .map((e) => e.exerciseId)
+        .filter((id): id is string => id != null);
       try {
         if (outgoing) {
           const suggestions = await getReplaceSuggestions({
             targetName: outgoing.name,
             targetExerciseId: outgoing.exerciseId,
             dayExerciseNames: day.exercises.map((e) => e.name),
-            dayExerciseIds: day.exercises
-              .map((e) => e.exerciseId)
-              .filter((id): id is string => id != null),
-            ...(profileGear.length > 0 ? { equipment: [...profileGear] } : null),
+            dayExerciseIds: dayIds,
+            ...personalization,
             count: 3,
           });
           if (cancelled) return;
@@ -126,25 +154,44 @@ export default function PlanCalendarExercisePickerScreen() {
             })),
           );
         } else {
-          // Add mode: the top recommended-tier picks for the day's muscles
-          // (whole catalog on an empty/custom day).
-          const groups = [...new Set(day.exercises.map((e) => catalogGroupForMuscle(e.muscle)))];
-          const res = await searchExercises(
-            groups.length
-              ? { muscleGroups: groups, recommendedOnly: true, limit: 25 }
-              : { recommendedOnly: true, limit: 25 },
-          );
-          if (cancelled) return;
-          const dayNames = new Set(day.exercises.map((e) => e.name.toLowerCase()));
-          setRail(
-            res.exercises
-              .filter((e) => !dayNames.has(e.name.toLowerCase()))
-              .slice(0, 3)
-              .map((e) => ({
-                exercise: e,
-                caption: muscleFromCatalog(e.primaryMuscleGroup, e.subMuscles, e.name),
+          // Add mode: the gap-aware rail — what would COMPLETE this day
+          // (uncovered sub-muscles, missing anchor/finisher), not just more
+          // top-tier rows for the same muscles.
+          try {
+            const suggestions = await getAddSuggestions({
+              dayExerciseNames: day.exercises.map((e) => e.name),
+              dayExerciseIds: dayIds,
+              ...personalization,
+              count: 3,
+            });
+            if (cancelled) return;
+            setRail(
+              suggestions.map((s) => ({
+                exercise: s.exercise,
+                caption: s.reasons.join(' · '),
               })),
-          );
+            );
+          } catch {
+            // Backend without /exercises/add-suggestions yet (or transient
+            // failure): the old flat recommended-tier rail still works.
+            const groups = [...new Set(day.exercises.map((e) => catalogGroupForMuscle(e.muscle)))];
+            const res = await searchExercises(
+              groups.length
+                ? { muscleGroups: groups, recommendedOnly: true, limit: 25 }
+                : { recommendedOnly: true, limit: 25 },
+            );
+            if (cancelled) return;
+            const dayNames = new Set(day.exercises.map((e) => e.name.toLowerCase()));
+            setRail(
+              res.exercises
+                .filter((e) => !dayNames.has(e.name.toLowerCase()))
+                .slice(0, 3)
+                .map((e) => ({
+                  exercise: e,
+                  caption: muscleFromCatalog(e.primaryMuscleGroup, e.subMuscles, e.name),
+                })),
+            );
+          }
         }
       } catch {
         // Offline or error: no rail — the library below shows its own state.
@@ -275,7 +322,7 @@ export default function PlanCalendarExercisePickerScreen() {
     ) : undefined;
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top + spacing.md }]}>
+    <View style={[styles.root, { paddingTop: sheetTopInset }]}>
       {/* Header — the sheet's own chrome (the navigator hides its header). */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -312,11 +359,11 @@ export default function PlanCalendarExercisePickerScreen() {
         onToggleLike={saved.onToggleLike}
         headerSlot={railNode}
         compact
-        bottomInset={mode === 'add' ? 0 : tabBarInset}
+        bottomInset={mode === 'add' ? 0 : sheetBottomInset}
       />
 
       {mode === 'add' && (
-        <View style={[styles.footer, { paddingBottom: spacing.lg + tabBarInset }]}>
+        <View style={[styles.footer, { paddingBottom: sheetBottomInset }]}>
           <Text style={styles.footerCount}>
             {selectedIds.size === 0
               ? 'Tap exercises to select'
