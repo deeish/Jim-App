@@ -188,11 +188,17 @@ export default function PlanCalendarNavigator() {
 
       {/* The celebration flow behind "Complete Workout" (Moment → Ledger).
           Headerless — it draws its own back pills — and it fades in over the
-          day view instead of sliding, per the reveal choreography. */}
+          day view instead of sliding, per the reveal choreography. A RECAP
+          (the day view's "Review session") is ordinary navigation, not a
+          reveal, so it pushes normally. */}
       <Stack.Screen
         name="PlanCalendarWorkoutComplete"
         component={PlanCalendarWorkoutCompleteScreen}
-        options={{ animation: 'fade', animationDuration: 240 }}
+        options={({ route }) =>
+          route.params?.mode === 'recap'
+            ? { animation: 'default' }
+            : { animation: 'fade', animationDuration: 240 }
+        }
       />
 
       {/* The library-as-picker sheet (Replace / Add on the day view). An iOS

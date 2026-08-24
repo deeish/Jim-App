@@ -56,6 +56,7 @@ import QuickWorkoutSheet from '../components/QuickWorkoutSheet';
 import {
   calendarDataMode,
   canRescueDay,
+  canReviewDay,
   ensureLogsForMonth,
   finishDaySession,
   getSetLogs,
@@ -181,6 +182,12 @@ export default function PlanCalendarDayScreen() {
   const allDone = plan.exercises.length > 0 && doneCount === plan.exercises.length;
   const anyLogged = plan.exercises.some((_, i) => getSetLogs(dateIso, i).length > 0);
   const dayLogged = isDayLogged(dateIso);
+  // The logged banner doubles as the door back to the finish screen. It needs
+  // something to show: this device's own set logs, or the stored workout log
+  // the month fetch brings back for a day trained somewhere else. A sealed
+  // date with neither (offline, or the fetch hasn't landed) keeps the plain
+  // banner rather than opening an empty receipt.
+  const reviewable = dayLogged && canReviewDay(dateIso);
 
   // The header's ⋯ — the VISIBLE door to day-level actions (move, skip,
   // quick workout). The week-card long-press stays as the shortcut; HIG says
@@ -307,14 +314,46 @@ export default function PlanCalendarDayScreen() {
       )}
 
       {/* Only a SUBMITTED day gets the banner — an all-done day that hasn't
-          been through "Complete Workout" still shows the button below. */}
+          been through "Complete Workout" still shows the button below.
+          It doubles as the way BACK to the finish screen: without this the
+          celebration was a one-shot page you could never see again. */}
       {dayLogged && (
-        <View style={styles.completeBanner}>
-          <Ionicons name="checkmark-circle" size={20} color={GOLD} />
-          <Text style={styles.completeBannerText}>
-            {allDone ? 'Workout complete — great work.' : 'Session logged.'}
-          </Text>
-        </View>
+        <TouchableOpacity
+          style={styles.completeBanner}
+          activeOpacity={reviewable ? 0.85 : 1}
+          disabled={!reviewable}
+          onPress={() => {
+            buzzTap();
+            navigation.navigate('PlanCalendarWorkoutComplete', {
+              dateIso,
+              mode: 'recap',
+            });
+          }}
+          accessibilityRole={reviewable ? 'button' : 'text'}
+          accessibilityLabel={
+            reviewable
+              ? 'Review this session'
+              : allDone
+                ? 'Workout complete'
+                : 'Session logged'
+          }
+        >
+          <View style={styles.completeBannerRow}>
+            <Ionicons name="checkmark-circle" size={20} color={GOLD} />
+            <Text style={styles.completeBannerText}>
+              {allDone ? 'Workout complete — great work.' : 'Session logged.'}
+            </Text>
+          </View>
+          {reviewable && (
+            // A real pill, not a text link: this is the ONLY way back to the
+            // finish screen, so it has to read as a button at a glance.
+            <View style={styles.completeBannerButton}>
+              <Ionicons name="stats-chart" size={15} color={colors.primary} />
+              <Text style={styles.completeBannerAction}>Review session</Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+            </View>
+          )}
+        </TouchableOpacity>
       )}
 
       {skippedHere && !allDone && !dayLogged && plan.exercises.length > 0 && (
@@ -729,22 +768,53 @@ function createStyles(c: ColorPalette) {
     exerciseCardDone: {
       opacity: 0.55,
     },
+    // Two centred rows (status, then the review action) rather than one row
+    // with the action pinned right: "Workout complete — great work." plus a
+    // right-edge label collides on a 375pt screen.
     completeBanner: {
-      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      gap: spacing.sm,
+      gap: spacing.xxs,
       backgroundColor: c.surface,
       borderRadius: radius.lg,
       borderWidth: 2,
       borderColor: GOLD,
       paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
+    },
+    completeBannerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
     },
     completeBannerText: {
       ...sfPro,
+      // Wraps inside the row rather than pushing past the card at large
+      // Dynamic Type sizes — the banner now has horizontal padding to respect.
+      flexShrink: 1,
       fontSize: text.callout,
       fontWeight: weight.semibold,
       color: c.text,
+    },
+    // Same tinted pill the missed-day banner uses for its secondary action.
+    completeBannerButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: c.primarySoft,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    // The action reads in the app's ACTION colour, not the banner's gold:
+    // GOLD on the light surface is ~2:1, nowhere near 4.5:1 at this size, and
+    // every other tappable label on this screen (Add Exercise, Undo, Options)
+    // is already primary. Gold stays the completion mark — the border and ✓.
+    completeBannerAction: {
+      ...sfPro,
+      fontSize: text.body,
+      fontWeight: weight.semibold,
+      color: c.primary,
     },
     dayPager: {
       gap: spacing.md,

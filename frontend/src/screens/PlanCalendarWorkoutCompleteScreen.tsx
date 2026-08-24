@@ -61,8 +61,10 @@ import {
 } from '../lib/planCalendarPrototype';
 import {
   celebrationBaselines,
+  dayHasLocalLogs,
   getSetLogs,
   isDayFullyLogged,
+  loggedSessionsFor,
   plannedDayForDate,
   saveDayAsWorkout,
   sessionStartIso,
@@ -73,8 +75,10 @@ import {
   calendarSessionsFromLogs,
   dominantMuscle,
   formatClock,
+  loggedDurationSeconds,
   parseRepsCount,
   parseWeightLb,
+  sessionsFromWorkoutLogs,
   streakWithSession,
 } from '../lib/sessionCelebration';
 import {
@@ -112,7 +116,8 @@ const PARTICLES: Array<{ dx: number; dy: number; size: number; color: string }> 
 type LedgerRow = {
   key: string;
   name: string;
-  muscle: PrototypeMuscle;
+  /** Null for a history row whose exercise the plan no longer carries. */
+  muscle: PrototypeMuscle | null;
   /** Best effort, in the deck's reps × weight grammar. */
   main: string;
   /** Set count — '4 sets', '2 of 3 sets', 'Not logged'. */
@@ -181,6 +186,11 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { dateIso } = route.params;
+  // RECAP: the same page re-opened later from the day view's logged banner.
+  // Same content, none of the first-run choreography — it lands on the
+  // Ledger, nothing stamps or auto-advances, and the duration is withheld
+  // (see heroSeconds). 'celebrate' is the finish-a-workout run.
+  const recap = route.params.mode === 'recap';
   const { colors, mode } = useTheme();
   const dark = mode === 'dark';
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -197,12 +207,26 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   const date = fromIso(dateIso);
   const subtitle = `${day.title} · ${WEEKDAYS[weekdayIndex(date)]}, ${shortDate(date)}`;
 
-  const sessions = calendarSessionsFromLogs(day.exercises, (i) => getSetLogs(dateIso, i));
+  // Two sources, one page. This device's own set logs are richer — they know
+  // the day's PLAN, so a cut-short session still lists what went unlogged —
+  // and they are what the finish run itself renders. A day trained elsewhere
+  // (another phone, before a reinstall, past the 14-day set-log window) has
+  // none, and reads back from its stored workout log instead.
+  const storedLogs = loggedSessionsFor(dateIso);
+  const fromHistory = !dayHasLocalLogs(dateIso) && storedLogs.length > 0;
+  const sessions = fromHistory
+    ? sessionsFromWorkoutLogs(storedLogs)
+    : calendarSessionsFromLogs(day.exercises, (i) => getSetLogs(dateIso, i));
   const totals = summarizeSessionTotals(sessions);
   const baselines = celebrationBaselines(dateIso);
-  const achievements = baselines
-    ? collectSessionAchievements(sessions, baselines.lastPerformance, baselines.personalBests)
-    : [];
+  // Claims only from baselines captured before this day was logged — see
+  // CelebrationBaselines.preLog. A recap of an older day has none, so it shows
+  // the receipt without records rather than inventing one out of a later,
+  // lighter session.
+  const achievements =
+    baselines?.preLog
+      ? collectSessionAchievements(sessions, baselines.lastPerformance, baselines.personalBests)
+      : [];
   const momentClaims = achievements.slice(0, 2);
   const badgeByExercise = new Map(achievements.map((a) => [a.exerciseId, a.kind]));
   const streak = baselines ? streakWithSession(baselines.statsSessions, date) : 0;
@@ -210,14 +234,21 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   // Duration is real only for a live TODAY session — a backdated log's
   // elapsed time means nothing, so the hero falls back to the exercise count
   // (which the Ledger doesn't show, keeping the phase split clean).
-  const [heroSeconds] = useState<number | null>(() => {
+  //
+  // ⚠ A RECAP must never recompute it: this measures now − first-set, so
+  // revisiting at 9pm a session finished at 6am read "15:03:41". A recap takes
+  // the elapsed time the workout log STORED instead, and shows the exercise
+  // count when even that is unknown.
+  const [liveSeconds] = useState<number | null>(() => {
     const start = sessionStartIso(dateIso);
-    if (!start || dateIso !== todayIso()) return null;
+    if (recap || !start || dateIso !== todayIso()) return null;
     return Math.max(0, Math.round((Date.now() - Date.parse(start)) / 1000));
   });
+  const heroSeconds = recap ? loggedDurationSeconds(storedLogs) : liveSeconds;
   const [shownSeconds, setShownSeconds] = useState(0);
   useEffect(() => {
-    if (heroSeconds == null) return;
+    // The count-up belongs to the finish moment; a recap shows the final time.
+    if (recap || heroSeconds == null) return;
     const t0 = Date.now();
     const id = setInterval(() => {
       // Hold through the seal stamp, then ease the count up over 600ms.
@@ -226,14 +257,20 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       if (k >= 1) clearInterval(id);
     }, 33);
     return () => clearInterval(id);
-  }, [heroSeconds]);
+  }, [heroSeconds, recap]);
+  const displaySeconds = recap ? (heroSeconds ?? 0) : shownSeconds;
 
   // ---- The Moment's wash: charcoal in dark mode, muscle gradient in light.
+  const historyIds = new Set(
+    sessions.map((s) => s.exercise.exerciseId).filter((id): id is string => !!id),
+  );
   const domMuscle =
     dominantMuscle(
       day.exercises.map((ex, i) => ({
         muscle: ex.muscle,
-        logged: getSetLogs(dateIso, i).length > 0,
+        logged: fromHistory
+          ? !!ex.exerciseId && historyIds.has(ex.exerciseId)
+          : getSetLogs(dateIso, i).length > 0,
       })),
     ) ?? 'Chest';
   const momentBg: [string, string, ...string[]] = dark
@@ -246,9 +283,11 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   const pillBg = whiteInk ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.4)';
 
   // ---- Phase machinery ----------------------------------------------------
-  const [phase, setPhase] = useState<'moment' | 'ledger'>('moment');
-  const phaseRef = useRef<'moment' | 'ledger'>('moment');
-  const phaseT = useSharedValue(0);
+  // A recap opens ON the Ledger — the receipt is what someone comes back for.
+  // The Moment stays one "‹ Summary" tap away.
+  const [phase, setPhase] = useState<'moment' | 'ledger'>(recap ? 'ledger' : 'moment');
+  const phaseRef = useRef<'moment' | 'ledger'>(recap ? 'ledger' : 'moment');
+  const phaseT = useSharedValue(recap ? 1 : 0);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const goLedger = useCallback(() => {
@@ -279,6 +318,8 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   }, [phaseT]);
 
   useEffect(() => {
+    // A recap already starts on the Ledger; nothing to advance to.
+    if (recap) return;
     autoTimer.current = setTimeout(goLedger, AUTO_ADVANCE_MS);
     return () => {
       if (autoTimer.current) clearTimeout(autoTimer.current);
@@ -306,11 +347,29 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   // ---- Entry + morph animation --------------------------------------------
   // One entry timeline staggers the Moment's rows; the seal gets its own
   // spring stamp; phaseT crossfades the layers and drives the seal morph.
-  const entry = useSharedValue(0);
-  const stamp = useSharedValue(2.1);
+  const entry = useSharedValue(recap ? 1 : 0);
+  const stamp = useSharedValue(recap ? 1 : 2.1);
   const sealOpacity = useSharedValue(0);
   const bob = useSharedValue(0);
   useEffect(() => {
+    // A recap opens already at rest: the seal sits in the ledger header, the
+    // rows are up. Nothing stamps in — you're re-reading a receipt, not
+    // finishing a workout. (The bob still runs: it's the Moment's "swipe up
+    // for details" hint, which still applies if you tap back to the poster.)
+    if (recap) {
+      // Short beat before the seal appears: the header anchor is only known
+      // after its onLayout measures, and fading in over that hides the snap
+      // from the pre-measure default position.
+      sealOpacity.value = withDelay(80, withTiming(1, { duration: 160 }));
+      bob.value = withRepeat(
+        withSequence(
+          withTiming(-5, { duration: 700, easing: Easing.bezier(...motionEasing.inOut) }),
+          withTiming(0, { duration: 700, easing: Easing.bezier(...motionEasing.inOut) }),
+        ),
+        -1,
+      );
+      return;
+    }
     entry.value = withDelay(
       350,
       withTiming(1, { duration: 700, easing: Easing.bezier(...motionEasing.standard) }),
@@ -411,7 +470,46 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   }, [dateIso]);
 
   // ---- Ledger rows ---------------------------------------------------------
-  const rows: LedgerRow[] = day.exercises.map((ex, i) => {
+  // A day read back from history lists what the LOG holds, in the order it was
+  // performed — not today's plan for that weekday, which may have been edited
+  // or replaced since. Nothing is "Not logged" there: an unrecorded set left
+  // no trace to report. Muscle colour is recovered by matching the plan's
+  // exercise ids; anything the plan no longer carries gets a neutral dot.
+  const muscleById = new Map(
+    day.exercises.filter((ex) => ex.exerciseId).map((ex) => [ex.exerciseId as string, ex.muscle]),
+  );
+  const historyRows: LedgerRow[] = sessions.map((s, i) => {
+    const best = s.completedSets.reduce<{ reps: number; weight?: number } | null>((acc, cur) => {
+      if (!acc) return { reps: cur.reps, weight: cur.weight };
+      const aw = acc.weight ?? 0;
+      const cw = cur.weight ?? 0;
+      return cw > aw || (cw === aw && cur.reps > acc.reps)
+        ? { reps: cur.reps, weight: cur.weight }
+        : acc;
+    }, null);
+    const count = s.completedSets.length;
+    // Timed work (planks, cardio bouts) logs zero reps and the log keeps no
+    // duration per set, so there is no honest rep figure to print — the set
+    // count below carries the row instead of a bogus "0 reps".
+    const weightText = best?.weight != null ? formatWeightCompactFromLb(best.weight, unit) : null;
+    const main = !best
+      ? '—'
+      : best.reps > 0
+        ? weightText != null
+          ? `${best.reps} × ${weightText}`
+          : `${best.reps} reps`
+        : (weightText ?? '—');
+    return {
+      key: `${i}-${s.exercise.name}`,
+      name: s.exercise.name,
+      muscle: (s.exercise.exerciseId && muscleById.get(s.exercise.exerciseId)) || null,
+      main,
+      sub: `${count} ${count === 1 ? 'set' : 'sets'}`,
+      state: 'done',
+      badge: (s.exercise.exerciseId && badgeByExercise.get(s.exercise.exerciseId)) || null,
+    };
+  });
+  const planRows: LedgerRow[] = day.exercises.map((ex, i) => {
     const logs = getSetLogs(dateIso, i);
     const state: LedgerRow['state'] =
       logs.length === 0 ? 'empty' : logs.length >= ex.sets ? 'done' : 'partial';
@@ -445,7 +543,10 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       badge: (ex.exerciseId && badgeByExercise.get(ex.exerciseId)) || null,
     };
   });
-  const cutShort = !isDayFullyLogged(dateIso);
+  const rows = fromHistory ? historyRows : planRows;
+  // Only the local record knows what was skipped; a stored log carries no
+  // record of the sets that were never performed.
+  const cutShort = !fromHistory && !isDayFullyLogged(dateIso);
 
   return (
     <View ref={rootRef} style={styles.root} collapsable={false}>
@@ -525,10 +626,12 @@ export default function PlanCalendarWorkoutCompleteScreen() {
                 <View
                   style={[
                     styles.muscleDot,
-                    {
-                      backgroundColor: MUSCLE_COLORS[row.muscle],
-                      borderColor: MUSCLE_EDGE[row.muscle],
-                    },
+                    row.muscle
+                      ? {
+                          backgroundColor: MUSCLE_COLORS[row.muscle],
+                          borderColor: MUSCLE_EDGE[row.muscle],
+                        }
+                      : { backgroundColor: colors.textMuted, borderColor: colors.textMuted },
                   ]}
                 />
                 <Text
@@ -560,6 +663,11 @@ export default function PlanCalendarWorkoutCompleteScreen() {
             ))}
           </View>
 
+          {/* saveDayAsWorkout saves the DAY'S prescriptions, so it needs a day
+              to save. A history recap whose plan slot is gone (program ended,
+              slot removed) has none — offering the button would only ever
+              return "Couldn't save". */}
+          {day.exercises.length > 0 && (
           <View style={styles.saveCard}>
             <Ionicons name="bookmark-outline" size={18} color={GOLD} />
             <View style={styles.saveTextCol}>
@@ -589,6 +697,7 @@ export default function PlanCalendarWorkoutCompleteScreen() {
               )}
             </TouchableOpacity>
           </View>
+          )}
         </ScrollView>
 
         <View style={[styles.doneBar, { paddingBottom: tabBarInset + spacing.md }]}>
@@ -669,7 +778,7 @@ export default function PlanCalendarWorkoutCompleteScreen() {
 
             <Rise timeline={entry} start={0.25} end={0.5} style={styles.heroStatWrap}>
               <Text style={[styles.heroStatValue, { color: ink }]}>
-                {heroSeconds != null ? formatClock(shownSeconds) : String(totals.exercisesWorked)}
+                {heroSeconds != null ? formatClock(displaySeconds) : String(totals.exercisesWorked)}
               </Text>
               <Text style={[styles.heroStatLabel, { color: inkSoft }]}>
                 {heroSeconds != null ? 'DURATION' : 'EXERCISES'}
