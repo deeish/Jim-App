@@ -106,44 +106,6 @@ function splitUnit(compact: string): SetDetail {
     : { text: compact };
 }
 
-/** One muscle's share of a session, in set-equivalents. */
-export type MuscleSets = { muscle: string; sets: number };
-
-/**
- * What the session actually trained, by muscle, in set-equivalents: a set
- * counts 1 for the muscle it targets and 0.5 for each muscle it also works.
- *
- * The half is the convention the hypertrophy literature uses for synergists,
- * and it is why this is labelled "sets by muscle" rather than "hard sets" —
- * nothing here can see how close a set was to failure, which is what would
- * make it a hard set.
- *
- * Because a set is credited to more than one muscle, these deliberately sum to
- * MORE than the session's set count. They describe stimulus per muscle, not a
- * division of the sets.
- */
-export function setsByMuscle(
-  entries: Array<{ sets: number; muscle: string | null; secondary?: string[] }>,
-): MuscleSets[] {
-  const totals = new Map<string, number>();
-  const add = (muscle: string, credit: number) => {
-    totals.set(muscle, (totals.get(muscle) ?? 0) + credit);
-  };
-  for (const entry of entries) {
-    if (entry.sets <= 0) continue;
-    if (entry.muscle) add(entry.muscle, entry.sets);
-    for (const s of entry.secondary ?? []) {
-      if (s && s !== entry.muscle) add(s, entry.sets * 0.5);
-    }
-  }
-  return [...totals.entries()]
-    .map(([muscle, sets]) => ({ muscle, sets: Math.round(sets * 2) / 2 }))
-    .filter((m) => m.sets > 0)
-    // Biggest share first; ties keep a stable alphabetical order so the strip
-    // does not reshuffle between two sessions that trained the same amount.
-    .sort((a, b) => b.sets - a.sets || a.muscle.localeCompare(b.muscle));
-}
-
 /**
  * What an exercise's row says before it is opened: the LOAD it was trained
  * with, as a range — '135–145 lb' when the weight moved, '95 lb' when it held.

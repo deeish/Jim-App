@@ -64,7 +64,6 @@ import {
 import {
   celebrationBaselines,
   dayHasLocalLogs,
-  exerciseSecondaryMuscles,
   getSetLogs,
   isDayFullyLogged,
   loggedSessionsFor,
@@ -83,7 +82,6 @@ import {
   parseRepsCount,
   parseWeightLb,
   sessionsFromWorkoutLogs,
-  setsByMuscle,
   storedSetDetail,
   streakWithSession,
   summariseSetLoads,
@@ -679,24 +677,6 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     };
   });
   const rows = fromHistory ? historyRows : planRows;
-  // What the session trained, by muscle. Primary at full credit, each muscle
-  // the movement also works at half — see setsByMuscle. A row whose muscle the
-  // plan no longer names contributes nothing rather than a mystery segment.
-  const muscleSets = setsByMuscle(
-    (fromHistory ? sessions : day.exercises).map((entry, i) => {
-      const exerciseId = fromHistory
-        ? (entry as (typeof sessions)[number]).exercise.exerciseId
-        : (entry as (typeof day.exercises)[number]).exerciseId;
-      return {
-        sets: fromHistory
-          ? (entry as (typeof sessions)[number]).completedSets.length
-          : getSetLogs(dateIso, i).length,
-        muscle: rows[i]?.muscle ?? null,
-        secondary: exerciseSecondaryMuscles(exerciseId),
-      };
-    }),
-  );
-  const muscleTotal = muscleSets.reduce((sum, m) => sum + m.sets, 0);
   // Only the local record knows what was skipped; a stored log carries no
   // record of the sets that were never performed.
   const cutShort = !fromHistory && !isDayFullyLogged(dateIso);
@@ -778,43 +758,6 @@ export default function PlanCalendarWorkoutCompleteScreen() {
               .filter(Boolean)
               .join(' · ')}
           </Text>
-
-          {muscleSets.length > 0 && muscleTotal > 0 && (
-            <View style={styles.muscleBlock}>
-              {/* "Sets by muscle", never "hard sets": nothing here can see how
-                  close a set came to failure, which is what would make it one. */}
-              <Text style={styles.sectionLabel}>SETS BY MUSCLE</Text>
-              <View style={styles.muscleBar}>
-                {muscleSets.map((m) => (
-                  <View
-                    key={m.muscle}
-                    style={{
-                      flexGrow: m.sets,
-                      backgroundColor: MUSCLE_COLORS[m.muscle as PrototypeMuscle],
-                    }}
-                  />
-                ))}
-              </View>
-              <View style={styles.muscleLegend}>
-                {muscleSets.map((m) => (
-                  <View key={m.muscle} style={styles.muscleLegendItem}>
-                    <View
-                      style={[
-                        styles.muscleLegendDot,
-                        {
-                          backgroundColor: MUSCLE_COLORS[m.muscle as PrototypeMuscle],
-                          borderColor: MUSCLE_EDGE[m.muscle as PrototypeMuscle],
-                        },
-                      ]}
-                    />
-                    <Text style={styles.muscleLegendLabel}>
-                      {m.muscle} {m.sets}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
 
           <Text style={styles.sectionLabel}>EXERCISES</Text>
           <View style={styles.rowsWrap}>
@@ -1418,40 +1361,6 @@ function createStyles(c: ColorPalette) {
       lineHeight: leading.footnote,
       fontVariant: ['tabular-nums'],
       color: c.textMuted,
-    },
-    muscleBlock: {
-      marginBottom: spacing.lg,
-    },
-    muscleBar: {
-      flexDirection: 'row',
-      height: 8,
-      borderRadius: radius.pill,
-      overflow: 'hidden',
-      gap: 2,
-    },
-    muscleLegend: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: spacing.md,
-      marginTop: spacing.sm + 1,
-    },
-    muscleLegendItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.xs + 2,
-    },
-    muscleLegendDot: {
-      width: 8,
-      height: 8,
-      borderRadius: radius.pill,
-      borderWidth: 1,
-    },
-    muscleLegendLabel: {
-      ...sfPro,
-      fontSize: text.footnote,
-      lineHeight: leading.footnote,
-      fontVariant: ['tabular-nums'],
-      color: c.textSecondary,
     },
     claimChip: {
       borderRadius: radius.pill,

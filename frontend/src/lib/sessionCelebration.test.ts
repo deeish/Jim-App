@@ -8,7 +8,6 @@ import {
   parseRepsCount,
   parseWeightLb,
   sessionsFromWorkoutLogs,
-  setsByMuscle,
   streakWithSession,
   summariseSetLoads,
   type CelebrationExercise,
@@ -384,63 +383,5 @@ describe('summariseSetLoads', () => {
     // Timed work read back from a stored log: zero reps, no duration kept.
     expect(summariseSetLoads([{ reps: 0 }, { reps: 0 }, { reps: 0 }], 'lb')).toBe('—');
     expect(summariseSetLoads([], 'lb')).toBe('—');
-  });
-});
-
-describe('setsByMuscle', () => {
-  it('credits the target in full and everything else it works at half', () => {
-    // One bench press slot: 4 sets of chest, plus shoulders and triceps along
-    // for the ride.
-    expect(
-      setsByMuscle([{ sets: 4, muscle: 'Chest', secondary: ['Shoulders', 'Triceps'] }]),
-    ).toEqual([
-      { muscle: 'Chest', sets: 4 },
-      { muscle: 'Shoulders', sets: 2 },
-      { muscle: 'Triceps', sets: 2 },
-    ]);
-  });
-
-  it('adds a muscle up across the exercises that worked it', () => {
-    const out = setsByMuscle([
-      { sets: 4, muscle: 'Chest', secondary: ['Triceps'] },
-      { sets: 3, muscle: 'Triceps', secondary: [] },
-    ]);
-    // Triceps: 3 of its own plus half of the four bench sets.
-    expect(out).toEqual([
-      { muscle: 'Triceps', sets: 5 },
-      { muscle: 'Chest', sets: 4 },
-    ]);
-  });
-
-  it('never counts one muscle twice for the same exercise', () => {
-    expect(setsByMuscle([{ sets: 3, muscle: 'Back', secondary: ['Back', 'Biceps'] }])).toEqual([
-      { muscle: 'Back', sets: 3 },
-      { muscle: 'Biceps', sets: 1.5 },
-    ]);
-  });
-
-  it('keeps the half-set rather than rounding it away', () => {
-    expect(setsByMuscle([{ sets: 1, muscle: 'Chest', secondary: ['Triceps'] }])).toEqual([
-      { muscle: 'Chest', sets: 1 },
-      { muscle: 'Triceps', sets: 0.5 },
-    ]);
-  });
-
-  it('skips exercises with nothing logged and muscles it cannot name', () => {
-    expect(
-      setsByMuscle([
-        { sets: 0, muscle: 'Chest', secondary: ['Triceps'] },
-        { sets: 2, muscle: null, secondary: [] },
-        { sets: 2, muscle: 'Quads', secondary: [] },
-      ]),
-    ).toEqual([{ muscle: 'Quads', sets: 2 }]);
-  });
-
-  it('orders by share, and breaks ties stably so the strip does not reshuffle', () => {
-    const out = setsByMuscle([
-      { sets: 3, muscle: 'Shoulders', secondary: [] },
-      { sets: 3, muscle: 'Back', secondary: [] },
-    ]);
-    expect(out.map((m) => m.muscle)).toEqual(['Back', 'Shoulders']);
   });
 });
