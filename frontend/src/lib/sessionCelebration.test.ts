@@ -2,6 +2,8 @@ import {
   calendarSessionsFromLogs,
   dominantMuscle,
   formatClock,
+  formatLoggedSetDetail,
+  formatStoredSetDetail,
   loggedDurationSeconds,
   parseRepsCount,
   parseWeightLb,
@@ -278,5 +280,57 @@ describe('loggedDurationSeconds', () => {
   it('is null when nothing carries a duration, so the hero falls back', () => {
     expect(loggedDurationSeconds([])).toBeNull();
     expect(loggedDurationSeconds([makeLog('a', '2026-08-20T09:00:00.000Z', null, [])])).toBeNull();
+  });
+});
+
+describe('formatLoggedSetDetail', () => {
+  it('prints the deck record in reps × weight, converting for kg readers', () => {
+    expect(formatLoggedSetDetail('8', '135 lb', 'lb')).toBe('8 × 135 lb');
+    // Stored weights are always pounds, so kg is a conversion, not a relabel.
+    expect(formatLoggedSetDetail('8', '135 lb', 'kg')).toBe('8 × 61 kg');
+  });
+
+  it('reads unweighted work as reps alone', () => {
+    expect(formatLoggedSetDetail('9', 'Bodyweight', 'lb')).toBe('9 reps');
+    expect(formatLoggedSetDetail('9', '—', 'lb')).toBe('9 reps');
+  });
+
+  it('keeps timed sets as their duration, with any load appended', () => {
+    expect(formatLoggedSetDetail('45 sec', '—', 'lb')).toBe('45 sec');
+    expect(formatLoggedSetDetail('45 sec', '25 lb', 'lb')).toBe('45 sec @ 25 lb');
+    expect(formatLoggedSetDetail('10 min', 'Bodyweight', 'lb')).toBe('10 min');
+  });
+
+  it('falls back to the load, then a dash, when no rep count survives', () => {
+    expect(formatLoggedSetDetail('AMRAP', '95 lb', 'lb')).toBe('95 lb');
+    expect(formatLoggedSetDetail('AMRAP', 'Bodyweight', 'lb')).toBe('—');
+  });
+});
+
+describe('formatStoredSetDetail', () => {
+  it('prints a stored set in the same grammar as a live one', () => {
+    expect(formatStoredSetDetail(8, 135, 'lb')).toBe('8 × 135 lb');
+    expect(formatStoredSetDetail(9, undefined, 'lb')).toBe('9 reps');
+  });
+
+  it('never prints "0 reps" for the zero a timed set stores', () => {
+    expect(formatStoredSetDetail(0, undefined, 'lb')).toBe('—');
+    expect(formatStoredSetDetail(0, 25, 'lb')).toBe('25 lb');
+  });
+
+  it('describes a set that changed weight mid-exercise on its own terms', () => {
+    // The case a one-line summary cannot show: four sets, two loads.
+    const sets = [
+      { reps: 8, weight: 135 },
+      { reps: 8, weight: 135 },
+      { reps: 6, weight: 145 },
+      { reps: 5, weight: 145 },
+    ];
+    expect(sets.map((s) => formatStoredSetDetail(s.reps, s.weight, 'lb'))).toEqual([
+      '8 × 135 lb',
+      '8 × 135 lb',
+      '6 × 145 lb',
+      '5 × 145 lb',
+    ]);
   });
 });

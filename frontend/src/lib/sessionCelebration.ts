@@ -1,6 +1,7 @@
 import type { ExerciseSession, WorkoutLog, WorkoutStatsSession } from '../types/workout';
 import { formatLocalYmd, getWeekStartMonday } from './planCalendar';
 import { sessionLocalWeek, weekStreak } from './progressStats';
+import { formatWeightCompactFromLb, type WeightUnit } from './weightDisplay';
 
 /**
  * Pure logic behind the workout-complete celebration flow (the Moment →
@@ -82,6 +83,46 @@ export function calendarSessionsFromLogs(
     });
   });
   return sessions;
+}
+
+/**
+ * One set as the receipt prints it when an exercise is opened: '9 × 105 lb',
+ * '9 reps' for unweighted work, '45 sec' for timed. Same reps × weight
+ * grammar the deck's "Last time" line and the receipt's summary already use,
+ * so a session reads identically wherever it appears.
+ *
+ * This is the DECK's record: reps and weight arrive as the display strings it
+ * stored, and the weight string is always pounds (the deck normalises on the
+ * way in), so kg readers convert here like everywhere else.
+ */
+export function formatLoggedSetDetail(
+  reps: string,
+  weight: string,
+  unit: WeightUnit,
+): string {
+  const weightLb = parseWeightLb(weight);
+  const weightText = weightLb != null ? formatWeightCompactFromLb(weightLb, unit) : null;
+  if (/min|sec/i.test(reps)) {
+    return weightText != null ? `${reps} @ ${weightText}` : reps;
+  }
+  const count = parseRepsCount(reps);
+  if (count <= 0) return weightText ?? '—';
+  return weightText != null ? `${count} × ${weightText}` : `${count} reps`;
+}
+
+/**
+ * The same line for a set read back from a STORED log, where reps and weight
+ * are numbers. Timed work stores zero reps and keeps no duration, so those
+ * sets print their load alone — never a meaningless "0 reps".
+ */
+export function formatStoredSetDetail(
+  reps: number,
+  weightLb: number | undefined,
+  unit: WeightUnit,
+): string {
+  const weightText = weightLb != null ? formatWeightCompactFromLb(weightLb, unit) : null;
+  if (!reps || reps <= 0) return weightText ?? '—';
+  return weightText != null ? `${reps} × ${weightText}` : `${reps} reps`;
 }
 
 /**

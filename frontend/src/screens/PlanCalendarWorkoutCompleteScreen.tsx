@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   Easing,
+  FadeIn,
   interpolate,
   runOnJS,
   useAnimatedStyle,
@@ -76,6 +77,8 @@ import {
   calendarSessionsFromLogs,
   dominantMuscle,
   formatClock,
+  formatLoggedSetDetail,
+  formatStoredSetDetail,
   loggedDurationSeconds,
   parseRepsCount,
   parseWeightLb,
@@ -123,9 +126,21 @@ type LedgerRow = {
   main: string;
   /** Set count — '4 sets', '2 of 3 sets', 'Not logged'. */
   sub: string;
+  /** Every set, printed, for the row's expanded state. Empty = nothing to open. */
+  setLines: string[];
   state: 'done' | 'partial' | 'empty';
   badge: SessionAchievement['kind'] | null;
 };
+
+/**
+ * Set lines worth opening a row for. Timed work read back from a stored log
+ * has no reps and no duration, so every line would print '—' — three dashes
+ * under a chevron is worse than the "3 sets" already on the row, so those
+ * rows stay closed and unmarked.
+ */
+function usefulSetLines(lines: string[]): string[] {
+  return lines.some((line) => line !== '—') ? lines : [];
+}
 
 function bestLoggedSet(logs: SetLog[]): { reps: number; weightLb?: number } | null {
   let best: { reps: number; weightLb?: number } | null = null;
@@ -475,6 +490,10 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     transform: [{ scale: interpolate(entry.value, [0.15, 0.4], [0.3, 1], 'clamp') }],
   }));
 
+  // Which exercises have been opened to show their sets. Independent per row:
+  // the receipt is read one lift at a time, not toggled wholesale.
+  const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
+
   // ---- Save this workout ---------------------------------------------------
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const onSave = useCallback(async () => {
@@ -525,6 +544,9 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       muscle: (s.exercise.exerciseId && muscleById.get(s.exercise.exerciseId)) || null,
       main,
       sub: `${count} ${count === 1 ? 'set' : 'sets'}`,
+      setLines: usefulSetLines(
+        s.completedSets.map((set) => formatStoredSetDetail(set.reps, set.weight, unit)),
+      ),
       state: 'done',
       badge: (s.exercise.exerciseId && badgeByExercise.get(s.exercise.exerciseId)) || null,
     };
@@ -559,6 +581,9 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       muscle: ex.muscle,
       main,
       sub,
+      setLines: usefulSetLines(
+        logs.map((l) => formatLoggedSetDetail(l.reps, l.weight, unit)),
+      ),
       state,
       badge: (ex.exerciseId && badgeByExercise.get(ex.exerciseId)) || null,
     };
@@ -650,46 +675,91 @@ export default function PlanCalendarWorkoutCompleteScreen() {
 
           <Text style={styles.sectionLabel}>EXERCISES</Text>
           <View style={styles.rowsWrap}>
-            {rows.map((row) => (
+            {rows.map((row) => {
+              // A row opens onto its own sets. Rows with nothing recorded
+              // (a slot that was never trained) have nothing to open, so they
+              // stay inert and show no chevron.
+              const openable = row.setLines.length > 0;
+              const open = openable && !!openRows[row.key];
+              return (
               <View key={row.key} style={styles.exRow}>
-                <View
-                  style={[
-                    styles.muscleDot,
-                    row.muscle
-                      ? {
-                          backgroundColor: MUSCLE_COLORS[row.muscle],
-                          borderColor: MUSCLE_EDGE[row.muscle],
-                        }
-                      : { backgroundColor: colors.textMuted, borderColor: colors.textMuted },
-                  ]}
-                />
-                <Text
-                  style={[styles.exName, row.state !== 'done' && styles.exNameMuted]}
-                  numberOfLines={1}
+                <TouchableOpacity
+                  style={styles.exRowHead}
+                  activeOpacity={openable ? 0.7 : 1}
+                  disabled={!openable}
+                  onPress={() => {
+                    buzzTap();
+                    setOpenRows((prev) => ({ ...prev, [row.key]: !prev[row.key] }));
+                  }}
+                  accessibilityRole={openable ? 'button' : 'text'}
+                  accessibilityState={openable ? { expanded: open } : undefined}
+                  accessibilityLabel={
+                    openable
+                      ? `${row.name}, ${row.main}, ${row.sub}. ${open ? 'Hide' : 'Show'} each set`
+                      : `${row.name}, ${row.sub}`
+                  }
                 >
-                  {row.name}
-                </Text>
-                {row.badge === 'personal-best' && (
-                  <View style={styles.pbPill}>
-                    <Text style={styles.pbPillLabel}>PB</Text>
-                  </View>
-                )}
-                {row.badge === 'beat-last-time' && (
-                  <Ionicons name="trending-up-outline" size={14} color={colors.secondary} />
-                )}
-                <View style={styles.exValues}>
-                  <Text style={[styles.exMain, row.state !== 'done' && styles.exValueMuted]}>
-                    {row.main}
+                  <View
+                    style={[
+                      styles.muscleDot,
+                      row.muscle
+                        ? {
+                            backgroundColor: MUSCLE_COLORS[row.muscle],
+                            borderColor: MUSCLE_EDGE[row.muscle],
+                          }
+                        : { backgroundColor: colors.textMuted, borderColor: colors.textMuted },
+                    ]}
+                  />
+                  <Text
+                    style={[styles.exName, row.state !== 'done' && styles.exNameMuted]}
+                    numberOfLines={1}
+                  >
+                    {row.name}
                   </Text>
-                  <Text style={styles.exSub}>{row.sub}</Text>
-                </View>
-                {row.state === 'done' ? (
-                  <Ionicons name="checkmark-circle" size={16} color={GOLD} />
-                ) : (
-                  <Ionicons name="remove-circle-outline" size={16} color={colors.textMuted} />
+                  {row.badge === 'personal-best' && (
+                    <View style={styles.pbPill}>
+                      <Text style={styles.pbPillLabel}>PB</Text>
+                    </View>
+                  )}
+                  {row.badge === 'beat-last-time' && (
+                    <Ionicons name="trending-up-outline" size={14} color={colors.secondary} />
+                  )}
+                  <View style={styles.exValues}>
+                    <Text style={[styles.exMain, row.state !== 'done' && styles.exValueMuted]}>
+                      {row.main}
+                    </Text>
+                    <Text style={styles.exSub}>{row.sub}</Text>
+                  </View>
+                  {row.state === 'done' ? (
+                    <Ionicons name="checkmark-circle" size={16} color={GOLD} />
+                  ) : (
+                    <Ionicons name="remove-circle-outline" size={16} color={colors.textMuted} />
+                  )}
+                  {openable && (
+                    <Ionicons
+                      name={open ? 'chevron-up' : 'chevron-down'}
+                      size={13}
+                      color={colors.textMuted}
+                    />
+                  )}
+                </TouchableOpacity>
+
+                {open && (
+                  // Numbered and stacked, so the shape of the session reads
+                  // down the column — a last set that dropped off is visible
+                  // without comparing numbers side by side.
+                  <Animated.View entering={FadeIn.duration(160)} style={styles.setList}>
+                    {row.setLines.map((line, i) => (
+                      <View key={i} style={styles.setLine}>
+                        <Text style={styles.setIndex}>{i + 1}</Text>
+                        <Text style={styles.setValue}>{line}</Text>
+                      </View>
+                    ))}
+                  </Animated.View>
                 )}
               </View>
-            ))}
+              );
+            })}
           </View>
 
           {/* saveDayAsWorkout saves the DAY'S prescriptions, so it needs a day
@@ -1194,16 +1264,47 @@ function createStyles(c: ColorPalette) {
     rowsWrap: {
       gap: spacing.sm,
     },
+    // The card; its head is the tappable summary and the set list drops in
+    // beneath, inside the same border.
     exRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm + 2,
       backgroundColor: c.surface,
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: radius.md,
       paddingVertical: spacing.sm + 2,
       paddingHorizontal: spacing.lg - 2,
+    },
+    exRowHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm + 2,
+    },
+    setList: {
+      marginTop: spacing.sm,
+      paddingTop: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+      gap: spacing.xxs,
+    },
+    setLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      // Clears the muscle dot so the numbers sit under the exercise name.
+      paddingLeft: 10 + spacing.sm + 2,
+      gap: spacing.md,
+    },
+    setIndex: {
+      ...sfPro,
+      width: 14,
+      fontSize: text.caption,
+      lineHeight: leading.footnote,
+      color: c.textMuted,
+    },
+    setValue: {
+      ...sfPro,
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+      color: c.textSecondary,
     },
     muscleDot: {
       width: 10,
