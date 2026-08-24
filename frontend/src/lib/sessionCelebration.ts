@@ -141,6 +141,48 @@ export function summariseSetLoads(
   return low === high ? `${high} reps` : `${low}–${high} reps`;
 }
 
+/** '45 sec' → 45s; '2 min' → 120s, keeping the text and unit it was logged with. */
+function parseDuration(raw: string): { seconds: number; text: string; unit: string } | null {
+  const m = raw.match(/(\d+(?:\.\d+)?)\s*(min|sec)/i);
+  if (!m) return null;
+  const value = Number(m[1]);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  const unit = m[2].toLowerCase();
+  return { seconds: unit === 'min' ? value * 60 : value, text: m[1], unit };
+}
+
+/**
+ * Timed work as a range of DURATIONS — '30–60 sec' when the hold varied,
+ * '45 sec' when it held. The same grammar `summariseSetLoads` uses for load,
+ * and deliberately so: a row that quotes one set out of three reads as though
+ * that set were every set.
+ *
+ * Before this the row printed whichever set was logged LAST, so a plank that
+ * fell 60 → 45 → 30 reported itself as '30 sec' — the shortest hold of the
+ * three, and the only one the user could see without opening the row.
+ *
+ * Compared in seconds so a run that mixes units still orders correctly, and
+ * each end prints in the unit it was logged with ('90 sec–2 min'). A set with
+ * no readable duration is skipped; a row with none gets the em dash.
+ */
+export function summariseSetDurations(reps: string[]): string {
+  const parsed = reps
+    .map(parseDuration)
+    .filter((d): d is { seconds: number; text: string; unit: string } => d !== null);
+  if (parsed.length === 0) return '—';
+  let low = parsed[0];
+  let high = parsed[0];
+  for (const d of parsed) {
+    if (d.seconds < low.seconds) low = d;
+    if (d.seconds > high.seconds) high = d;
+  }
+  if (low.seconds === high.seconds) return `${high.text} ${high.unit}`;
+  // One unit when both ends share it, so the range reads as one measurement.
+  return low.unit === high.unit
+    ? `${low.text}–${high.text} ${high.unit}`
+    : `${low.text} ${low.unit}–${high.text} ${high.unit}`;
+}
+
 /**
  * A set from the DECK's record, where reps and weight are the display strings
  * it stored. The weight string is always pounds (the deck normalises on the

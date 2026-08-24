@@ -9,6 +9,7 @@ import {
   parseWeightLb,
   sessionsFromWorkoutLogs,
   streakWithSession,
+  summariseSetDurations,
   summariseSetLoads,
   type CelebrationExercise,
   type LoggedSetStrings,
@@ -383,5 +384,44 @@ describe('summariseSetLoads', () => {
     // Timed work read back from a stored log: zero reps, no duration kept.
     expect(summariseSetLoads([{ reps: 0 }, { reps: 0 }, { reps: 0 }], 'lb')).toBe('—');
     expect(summariseSetLoads([], 'lb')).toBe('—');
+  });
+});
+
+describe('summariseSetDurations', () => {
+  it('ranges over the hold when it varied, and states it once when it held', () => {
+    // The regression this exists for: the row used to print the LAST set, so
+    // a plank that fell 60 → 45 → 30 reported its shortest hold as the whole
+    // exercise.
+    expect(summariseSetDurations(['60 sec', '45 sec', '30 sec'])).toBe('30–60 sec');
+    expect(summariseSetDurations(['45 sec', '45 sec', '45 sec'])).toBe('45 sec');
+  });
+
+  it('keeps the unit it was logged with', () => {
+    expect(summariseSetDurations(['2 min', '1 min'])).toBe('1–2 min');
+    expect(summariseSetDurations(['90 sec'])).toBe('90 sec');
+  });
+
+  it('orders a mixed-unit run by real elapsed time, printing each end in its own unit', () => {
+    // 2 min is the longer hold even though 90 is the larger number.
+    expect(summariseSetDurations(['90 sec', '2 min'])).toBe('90 sec–2 min');
+    expect(summariseSetDurations(['3 min', '30 sec'])).toBe('30 sec–3 min');
+  });
+
+  it('treats equal durations written differently as one value', () => {
+    expect(summariseSetDurations(['60 sec', '1 min'])).toBe('60 sec');
+  });
+
+  it('keeps a fractional duration rather than rounding it away', () => {
+    expect(summariseSetDurations(['1.5 min', '1 min'])).toBe('1–1.5 min');
+  });
+
+  it('skips a set with no readable duration instead of dropping the row', () => {
+    expect(summariseSetDurations(['45 sec', '', '60 sec'])).toBe('45–60 sec');
+    expect(summariseSetDurations(['0 sec', '30 sec'])).toBe('30 sec');
+  });
+
+  it('gives the em dash when nothing carries a duration', () => {
+    expect(summariseSetDurations([])).toBe('—');
+    expect(summariseSetDurations(['8', '10'])).toBe('—');
   });
 });

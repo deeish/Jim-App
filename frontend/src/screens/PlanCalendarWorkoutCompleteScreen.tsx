@@ -84,6 +84,7 @@ import {
   sessionsFromWorkoutLogs,
   storedSetDetail,
   streakWithSession,
+  summariseSetDurations,
   summariseSetLoads,
   type SetDetail,
 } from '../lib/sessionCelebration';
@@ -643,11 +644,17 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     let main = '—';
     if (best) {
       if (/min|sec/i.test(ex.reps)) {
-        // Timed work is described by its duration, which no range improves on.
-        const raw = logs[logs.length - 1];
-        main = best.weightLb != null
-          ? `${raw.reps} @ ${formatWeightCompactFromLb(best.weightLb, unit)}`
-          : raw.reps;
+        // Timed work ranges over its DURATION, exactly as loaded work ranges
+        // over weight. This printed whichever set was logged LAST before now,
+        // so a hold that fell 60 → 45 → 30 reported '30 sec' — the shortest of
+        // the three, and the only one visible without opening the row.
+        const span = summariseSetDurations(logs.map((l) => l.reps));
+        // A loaded carry ranges over both, each in its own grammar. Reps are
+        // zeroed because a timed set keeps its seconds in the reps field, and
+        // summariseSetLoads would otherwise range over them as rep counts.
+        const loadSets = logs.map((l) => ({ reps: 0, weightLb: parseWeightLb(l.weight) }));
+        const loaded = loadSets.some((s) => s.weightLb != null && s.weightLb > 0);
+        main = loaded ? `${span} @ ${summariseSetLoads(loadSets, unit)}` : span;
       } else {
         main = summariseSetLoads(
           logs.map((l) => ({ reps: parseRepsCount(l.reps), weightLb: parseWeightLb(l.weight) })),
