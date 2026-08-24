@@ -15,6 +15,7 @@ import {
   nearestOpenIso,
   shortWeekday,
   upcomingDatesFrom,
+  secondaryMusclesFromCatalog,
 } from './planCalendarPrototype';
 
 describe('mixWithWhite', () => {
@@ -123,5 +124,43 @@ describe('movedToLabel / shortWeekday', () => {
     expect(movedToLabel('2026-08-19', '2026-08-18')).toBe('Wed');
     expect(shortWeekday('2026-08-17')).toBe('Mon');
     expect(shortWeekday('2026-08-23')).toBe('Sun');
+  });
+});
+
+describe('secondaryMusclesFromCatalog', () => {
+  it('maps the groups that name one muscle on their own', () => {
+    expect(
+      secondaryMusclesFromCatalog(['Shoulders', 'Core'], ['Push'], 'Chest'),
+    ).toEqual(['Shoulders', 'Core']);
+  });
+
+  it('reads "Arms" off the movement: triceps on a push, biceps on a pull', () => {
+    expect(secondaryMusclesFromCatalog(['Arms'], ['Push'], 'Chest')).toEqual(['Triceps']);
+    expect(secondaryMusclesFromCatalog(['Arms'], ['Pull'], 'Back')).toEqual(['Biceps']);
+  });
+
+  it('reads "Legs" off the movement: hamstrings on a hinge, quads on a squat', () => {
+    expect(secondaryMusclesFromCatalog(['Legs'], ['Hinge'], 'Back')).toEqual(['Hamstrings']);
+    expect(secondaryMusclesFromCatalog(['Legs'], ['Squat'], 'Glutes')).toEqual(['Quads']);
+    expect(secondaryMusclesFromCatalog(['Legs'], ['Lunge'], 'Glutes')).toEqual(['Quads']);
+  });
+
+  it('skips a group it cannot pin to one muscle rather than guessing', () => {
+    // A carry works arms, but which? Crediting a guess would claim the session
+    // trained something it may not have.
+    expect(secondaryMusclesFromCatalog(['Arms'], ['Carry'], 'Core')).toEqual([]);
+    expect(secondaryMusclesFromCatalog(['Legs'], ['Carry'], 'Core')).toEqual([]);
+    expect(secondaryMusclesFromCatalog(['Arms', 'Legs'], [], 'Core')).toEqual([]);
+    expect(secondaryMusclesFromCatalog(['Cardio'], ['Cardio'], 'Cardio')).toEqual([]);
+  });
+
+  it('never repeats the primary, or itself', () => {
+    // A bench press listing Chest as both is one muscle, credited once.
+    expect(secondaryMusclesFromCatalog(['Chest', 'Chest'], ['Push'], 'Chest')).toEqual([]);
+    expect(secondaryMusclesFromCatalog(['Back', 'Back'], ['Pull'], 'Biceps')).toEqual(['Back']);
+  });
+
+  it('handles a missing list', () => {
+    expect(secondaryMusclesFromCatalog(undefined, undefined, 'Chest')).toEqual([]);
   });
 });

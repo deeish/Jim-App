@@ -28,6 +28,7 @@ import {
   fromIso,
   isWithinRescueWindow,
   mondayOf,
+  secondaryMusclesFromCatalog,
   todayIso,
   toIso,
   upcomingDatesFrom,
@@ -228,7 +229,10 @@ let liveWorkouts: Workout[] = [];
 let anchorAutoJumpConsumed = false;
 let lastFetchMs = 0;
 /** exerciseId → resolved catalog metadata. */
-const exerciseMeta = new Map<string, { muscle: PrototypeMuscle; equipment: string }>();
+const exerciseMeta = new Map<
+  string,
+  { muscle: PrototypeMuscle; equipment: string; secondary: PrototypeMuscle[] }
+>();
 const pendingMetaIds = new Set<string>();
 /** LOCAL days with a completed workout log. */
 const completedLogDays = new Set<string>();
@@ -246,6 +250,15 @@ function recordLoggedSession(dateIso: string, log: WorkoutLog): void {
   const existing = loggedSessions.get(dateIso) ?? [];
   if (existing.some((l) => l.id === log.id)) return;
   loggedSessions.set(dateIso, [...existing, log]);
+}
+
+/**
+ * The muscles an exercise also works, for the receipt's sets-by-muscle strip.
+ * Empty until the catalog fetch for that id lands — and empty is honest: no
+ * credit is better than credit invented from a name.
+ */
+export function exerciseSecondaryMuscles(exerciseId: string | undefined): PrototypeMuscle[] {
+  return (exerciseId && exerciseMeta.get(exerciseId)?.secondary) || [];
 }
 
 /** The stored workout logs for a date (empty when none are known here). */
@@ -371,9 +384,15 @@ async function loadExerciseMeta(plan: ApiPlan): Promise<void> {
       batch.map(async (id) => {
         try {
           const ex = await getExerciseById(id);
+          const muscle = muscleFromCatalog(ex.primaryMuscleGroup, ex.subMuscles, ex.name);
           exerciseMeta.set(id, {
-            muscle: muscleFromCatalog(ex.primaryMuscleGroup, ex.subMuscles, ex.name),
+            muscle,
             equipment: formatEquipment(ex.equipment),
+            secondary: secondaryMusclesFromCatalog(
+              ex.secondaryMuscleGroups,
+              ex.movementPatterns,
+              muscle,
+            ),
           });
         } catch {
           // Heuristic colouring stays for this id.

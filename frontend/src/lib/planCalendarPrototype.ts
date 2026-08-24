@@ -161,6 +161,55 @@ export const MUSCLE_EDGE: Record<PrototypeMuscle, string> = {
  * stays MUSCLE_INK — text sits on the full-colour corner, exactly the
  * surface the ink map was tuned for.
  */
+/**
+ * The muscles an exercise works BESIDES its primary one, in the palette's
+ * vocabulary — what lets a bench press credit shoulders and triceps instead of
+ * reporting "Chest 4, Triceps 0".
+ *
+ * The catalog stores secondaries in the same seven coarse groups it uses for
+ * primaries (Chest, Back, Legs, Shoulders, Arms, Core, Cardio) with none of
+ * the sub-muscle detail, so two of them name no single muscle on their own.
+ * Those are resolved by what the movement DOES, and skipped when even that
+ * cannot say:
+ *
+ *   Arms → Triceps on a push, Biceps on a pull.
+ *   Legs → Hamstrings on a hinge, Quads on a squat or lunge.
+ *
+ * Skipping under-credits a muscle. Guessing would claim a session trained
+ * something it did not, which is the worse of the two.
+ */
+export function secondaryMusclesFromCatalog(
+  secondaryGroups: string[] | undefined,
+  movementPatterns: string[] | undefined,
+  primary: PrototypeMuscle,
+): PrototypeMuscle[] {
+  const patterns = (movementPatterns ?? []).map((p) => p.toLowerCase());
+  const has = (p: string) => patterns.includes(p);
+  const out: PrototypeMuscle[] = [];
+  for (const raw of secondaryGroups ?? []) {
+    let m: PrototypeMuscle | null = null;
+    switch (raw.toLowerCase()) {
+      case 'chest': m = 'Chest'; break;
+      case 'back': m = 'Back'; break;
+      case 'shoulders': m = 'Shoulders'; break;
+      case 'core': m = 'Core'; break;
+      case 'arms':
+        m = has('push') ? 'Triceps' : has('pull') ? 'Biceps' : null;
+        break;
+      case 'legs':
+        m = has('hinge') ? 'Hamstrings' : has('squat') || has('lunge') ? 'Quads' : null;
+        break;
+      default:
+        // 'Cardio' as a secondary names no muscle to colour.
+        m = null;
+    }
+    // A muscle already carrying the full primary credit must not be counted
+    // again at half — a squat listing Legs both ways is one muscle, once.
+    if (m && m !== primary && !out.includes(m)) out.push(m);
+  }
+  return out;
+}
+
 export function muscleGradient(m: PrototypeMuscle): [string, string] {
   return [MUSCLE_COLORS[m], mixWithWhite(MUSCLE_COLORS[m], 0.62)];
 }
