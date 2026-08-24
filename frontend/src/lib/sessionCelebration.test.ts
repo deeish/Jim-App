@@ -9,6 +9,7 @@ import {
   parseWeightLb,
   sessionsFromWorkoutLogs,
   streakWithSession,
+  summariseSetLoads,
   type CelebrationExercise,
   type LoggedSetStrings,
 } from './sessionCelebration';
@@ -336,5 +337,51 @@ describe('storedSetDetail', () => {
       { text: '6 × 145', unit: 'lb' },
       { text: '5 × 145', unit: 'lb' },
     ]);
+  });
+});
+
+describe('summariseSetLoads', () => {
+  it('ranges over the load when the weight moved, and states it once when it held', () => {
+    expect(
+      summariseSetLoads(
+        [
+          { reps: 8, weightLb: 135 },
+          { reps: 8, weightLb: 135 },
+          { reps: 6, weightLb: 145 },
+          { reps: 5, weightLb: 145 },
+        ],
+        'lb',
+      ),
+    ).toBe('135–145 lb');
+    expect(
+      summariseSetLoads([{ reps: 10, weightLb: 95 }, { reps: 10, weightLb: 95 }], 'lb'),
+    ).toBe('95 lb');
+  });
+
+  it('never claims a range the printed numbers do not show', () => {
+    // 134 lb and 135 lb both print as 61 kg — that is one number, not a range.
+    expect(
+      summariseSetLoads([{ reps: 8, weightLb: 134 }, { reps: 8, weightLb: 135 }], 'kg'),
+    ).toBe('61 kg');
+    expect(
+      summariseSetLoads([{ reps: 8, weightLb: 135 }, { reps: 6, weightLb: 165 }], 'kg'),
+    ).toBe('61–75 kg');
+  });
+
+  it('ranges over reps when there is no load to range over', () => {
+    expect(
+      summariseSetLoads([{ reps: 10 }, { reps: 9 }, { reps: 7 }], 'lb'),
+    ).toBe('7–10 reps');
+    expect(summariseSetLoads([{ reps: 8 }, { reps: 8 }], 'lb')).toBe('8 reps');
+  });
+
+  it('ignores a zero load rather than reading it as a lift', () => {
+    expect(summariseSetLoads([{ reps: 9, weightLb: 0 }], 'lb')).toBe('9 reps');
+  });
+
+  it('gives the em dash to a session with neither reps nor load', () => {
+    // Timed work read back from a stored log: zero reps, no duration kept.
+    expect(summariseSetLoads([{ reps: 0 }, { reps: 0 }, { reps: 0 }], 'lb')).toBe('—');
+    expect(summariseSetLoads([], 'lb')).toBe('—');
   });
 });

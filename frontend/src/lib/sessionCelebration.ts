@@ -107,6 +107,41 @@ function splitUnit(compact: string): SetDetail {
 }
 
 /**
+ * What an exercise's row says before it is opened: the LOAD it was trained
+ * with, as a range — '135–145 lb' when the weight moved, '95 lb' when it held.
+ *
+ * Deliberately not a set. Quoting one set out of four ('6 × 145 lb') reads the
+ * same whether that was every set or the one good one, and now that every set
+ * is a tap away an unlabelled stand-in for them is worse than none. A range
+ * claims nothing about reps, so there is nothing to misread — and it still
+ * answers the question the row is usually opened for: what did I lift.
+ *
+ * Unweighted work has no load to range over, so it ranges over reps instead;
+ * a session with neither recorded gets the em dash.
+ */
+export function summariseSetLoads(
+  sets: Array<{ reps: number; weightLb?: number }>,
+  unit: WeightUnit,
+): string {
+  const loads = sets
+    .map((s) => s.weightLb)
+    .filter((lb): lb is number => lb != null && lb > 0);
+  if (loads.length > 0) {
+    // Compare what will be PRINTED, not the stored pounds: two loads a pound
+    // apart round to the same kilogram, and '61–61 kg' is not a range.
+    const low = splitUnit(formatWeightCompactFromLb(Math.min(...loads), unit));
+    const high = splitUnit(formatWeightCompactFromLb(Math.max(...loads), unit));
+    if (low.text === high.text) return `${high.text} ${high.unit ?? ''}`.trim();
+    return `${low.text}–${high.text} ${high.unit ?? ''}`.trim();
+  }
+  const reps = sets.map((s) => s.reps).filter((r) => r > 0);
+  if (reps.length === 0) return '—';
+  const low = Math.min(...reps);
+  const high = Math.max(...reps);
+  return low === high ? `${high} reps` : `${low}–${high} reps`;
+}
+
+/**
  * A set from the DECK's record, where reps and weight are the display strings
  * it stored. The weight string is always pounds (the deck normalises on the
  * way in), so kg readers convert here like everywhere else. Same reps × weight

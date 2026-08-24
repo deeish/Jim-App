@@ -84,6 +84,7 @@ import {
   sessionsFromWorkoutLogs,
   storedSetDetail,
   streakWithSession,
+  summariseSetLoads,
   type SetDetail,
 } from '../lib/sessionCelebration';
 import {
@@ -130,9 +131,10 @@ type LedgerRow = {
   /** Every set, printed, for the row's expanded state. Empty = nothing to open. */
   setLines: SetDetail[];
   /**
-   * The set the row's summary quotes, marked in the opened list so the two
-   * agree. Null when the sets tie for best — on a straight 3 × 10 there is no
-   * standout to point at, and gilding the first one would invent a story.
+   * The session's best set, marked in the opened list — it shows WHICH set hit
+   * the top of the load range the closed row reports. Null when the sets tie
+   * for best: on a straight 3 × 10 there is no standout to point at, and
+   * gilding the first one would invent a story.
    */
   topSetIndex: number | null;
   state: 'done' | 'partial' | 'empty';
@@ -548,26 +550,15 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     day.exercises.filter((ex) => ex.exerciseId).map((ex) => [ex.exerciseId as string, ex.muscle]),
   );
   const historyRows: LedgerRow[] = sessions.map((s, i) => {
-    const best = s.completedSets.reduce<{ reps: number; weight?: number } | null>((acc, cur) => {
-      if (!acc) return { reps: cur.reps, weight: cur.weight };
-      const aw = acc.weight ?? 0;
-      const cw = cur.weight ?? 0;
-      return cw > aw || (cw === aw && cur.reps > acc.reps)
-        ? { reps: cur.reps, weight: cur.weight }
-        : acc;
-    }, null);
     const count = s.completedSets.length;
     // Timed work (planks, cardio bouts) logs zero reps and the log keeps no
-    // duration per set, so there is no honest rep figure to print — the set
-    // count below carries the row instead of a bogus "0 reps".
-    const weightText = best?.weight != null ? formatWeightCompactFromLb(best.weight, unit) : null;
-    const main = !best
-      ? '—'
-      : best.reps > 0
-        ? weightText != null
-          ? `${best.reps} × ${weightText}`
-          : `${best.reps} reps`
-        : (weightText ?? '—');
+    // duration per set, so it has neither a load nor a rep count to range
+    // over — summariseSetLoads gives it the em dash and the set count below
+    // carries the row.
+    const main = summariseSetLoads(
+      s.completedSets.map((set) => ({ reps: set.reps, weightLb: set.weight })),
+      unit,
+    );
     return {
       key: `${i}-${s.exercise.name}`,
       name: s.exercise.name,
@@ -592,14 +583,16 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     let main = '—';
     if (best) {
       if (/min|sec/i.test(ex.reps)) {
+        // Timed work is described by its duration, which no range improves on.
         const raw = logs[logs.length - 1];
         main = best.weightLb != null
           ? `${raw.reps} @ ${formatWeightCompactFromLb(best.weightLb, unit)}`
           : raw.reps;
-      } else if (best.weightLb != null) {
-        main = `${best.reps} × ${formatWeightCompactFromLb(best.weightLb, unit)}`;
       } else {
-        main = `${Math.max(...logs.map((l) => parseRepsCount(l.reps)))} reps`;
+        main = summariseSetLoads(
+          logs.map((l) => ({ reps: parseRepsCount(l.reps), weightLb: parseWeightLb(l.weight) })),
+          unit,
+        );
       }
     }
     const sub =
