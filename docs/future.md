@@ -278,7 +278,7 @@ Do one on-device test covering focus **and** scope together once this lands.
 
 ## Sets by muscle on the receipt (needs real secondary credit first)
 
-Shipped as `ae9b953` on 2026-08-24 and **reverted the same day** (`a0142d9`) — deferred by
+Shipped as `ae9b953` on 2026-08-24 and **reverted the same day** (`0d5b889`) — deferred by
 product call, not a rejection of the idea. The receipt keeps the facts line from `c88d61f`;
 nothing on the completion or summary screens counts muscles now.
 
@@ -316,3 +316,20 @@ that with a movement-pattern volume cap (cap presses per session regardless of w
 each slot claims) — no per-row authoring, and no number shown to the user.
 
 Full argument with the figures: https://claude.ai/code/artifact/67dc0339-8a8a-4290-a277-1d1e950e7d7b
+
+## Replacing a timed exercise leaves the new one with a timed prescription
+
+Found during review of the timed-row fix, 2026-08-24. Pre-existing, not caused by it.
+
+`plannedExerciseFromCatalog` (`frontend/src/lib/planCalendarPrototypeStore.ts:734`) carries the
+outgoing slot's prescription forward with `reps: inherit?.reps ?? …`. Replace a Plank
+(`'45 sec'`) with a Barbell Bench Press and the bench press inherits `'45 sec'`: the deck then
+labels its input "TIME (SEC)" for a barbell lift, and the receipt row reads it as timed work.
+
+The receipt is wrong here both before and after the timed-row change (`'8 sec @ 135 lb'`
+became `'8–10 sec @ 135 lb'`), so it is not a regression — but it is the one path by which a
+non-timed exercise can reach the timed branch at all.
+
+**Fix:** on replace, inherit the prescription only when the incoming exercise's
+`prescriptionType` matches the outgoing one; otherwise take the catalog's own prescription for
+the new exercise. Worth a test covering timed to loaded and loaded to timed in both directions.
