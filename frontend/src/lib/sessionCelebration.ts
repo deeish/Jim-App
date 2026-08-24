@@ -1,4 +1,4 @@
-import type { ExerciseSession, WorkoutStatsSession } from '../types/workout';
+import type { ExerciseSession, WorkoutLog, WorkoutStatsSession } from '../types/workout';
 import { formatLocalYmd, getWeekStartMonday } from './planCalendar';
 import { sessionLocalWeek, weekStreak } from './progressStats';
 
@@ -82,6 +82,61 @@ export function calendarSessionsFromLogs(
     });
   });
   return sessions;
+}
+
+/**
+ * The same day's work read back from its STORED workout logs — the history
+ * path behind "Review session" on a day this device never trained (logged on
+ * another phone, before a reinstall, or older than the 14-day set-log window).
+ *
+ * The receipt is the log, not the plan: an old session shows what was done
+ * that day even if the day's exercises have been replaced since. A reopened
+ * day has two logs for the date; they concatenate in the order they were
+ * started, which is the order they were performed.
+ */
+export function sessionsFromWorkoutLogs(logs: WorkoutLog[]): ExerciseSession[] {
+  const ordered = [...logs].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  const sessions: ExerciseSession[] = [];
+  for (const log of ordered) {
+    const entries = [...(log.entries ?? [])].sort((a, b) => a.orderIndex - b.orderIndex);
+    for (const entry of entries) {
+      const sets = (entry.completedSets ?? []).filter((s) => s.completed);
+      if (sets.length === 0) continue;
+      sessions.push({
+        exerciseIndex: sessions.length,
+        exercise: {
+          name: entry.name ?? 'Exercise',
+          sets: sets.length,
+          reps: Math.max(1, ...sets.map((s) => s.reps || 0)),
+          exerciseId: entry.exerciseId || undefined,
+          prescriptionType: 'reps',
+        },
+        completedSets: sets.map((s, i) => ({
+          setNumber: i + 1,
+          reps: s.reps,
+          ...(s.weight != null ? { weight: s.weight } : null),
+          completed: true,
+        })),
+      });
+    }
+  }
+  return sessions;
+}
+
+/**
+ * How long the stored session took, in seconds — the honest duration for a
+ * recap, which cannot recompute one (see the screen's heroSeconds note). Null
+ * when the logs carry no timing, so the hero falls back to the exercise count.
+ */
+export function loggedDurationSeconds(logs: WorkoutLog[]): number | null {
+  let total = 0;
+  let known = false;
+  for (const log of logs) {
+    if (log.totalTimeSeconds == null) continue;
+    known = true;
+    total += Math.max(0, log.totalTimeSeconds);
+  }
+  return known ? total : null;
 }
 
 /**

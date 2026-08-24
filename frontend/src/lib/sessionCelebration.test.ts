@@ -2,14 +2,16 @@ import {
   calendarSessionsFromLogs,
   dominantMuscle,
   formatClock,
+  loggedDurationSeconds,
   parseRepsCount,
   parseWeightLb,
+  sessionsFromWorkoutLogs,
   streakWithSession,
   type CelebrationExercise,
   type LoggedSetStrings,
 } from './sessionCelebration';
 import { summarizeSessionTotals } from './sessionAchievements';
-import type { WorkoutStatsSession } from '../types/workout';
+import type { WorkoutLog, WorkoutStatsSession } from '../types/workout';
 
 describe('parseRepsCount', () => {
   it('takes the top of a band and plain numbers', () => {
@@ -157,5 +159,124 @@ describe('dominantMuscle', () => {
       ]),
     ).toBe('Back');
     expect(dominantMuscle([])).toBeNull();
+  });
+});
+
+/** Minimal stored log — only the fields the recap reads. */
+function makeLog(
+  id: string,
+  startedAt: string,
+  totalTimeSeconds: number | null,
+  entries: Array<{
+    exerciseId: string;
+    name: string | null;
+    orderIndex: number;
+    sets: Array<{ reps: number; weight?: number; completed?: boolean }>;
+  }>,
+): WorkoutLog {
+  return {
+    id,
+    workoutId: `w-${id}`,
+    startedAt,
+    completedAt: startedAt,
+    totalTimeSeconds,
+    totalSets: null,
+    totalVolume: null,
+    overallNotes: null,
+    workout: { id: `w-${id}`, name: 'Session', exercises: [] } as unknown as WorkoutLog['workout'],
+    entries: entries.map((e, i) => ({
+      id: `${id}-e${i}`,
+      exerciseId: e.exerciseId,
+      name: e.name,
+      orderIndex: e.orderIndex,
+      notes: null,
+      completedSets: e.sets.map((s, si) => ({
+        setNumber: si + 1,
+        reps: s.reps,
+        ...(s.weight != null ? { weight: s.weight } : null),
+        completed: s.completed ?? true,
+      })),
+    })),
+  };
+}
+
+describe('sessionsFromWorkoutLogs', () => {
+  it('reads a stored log back into the shape the finish screen consumes', () => {
+    const sessions = sessionsFromWorkoutLogs([
+      makeLog('a', '2026-08-20T12:00:00.000Z', 2700, [
+        {
+          exerciseId: 'flat_barbell_bench_press',
+          name: 'Flat Barbell Bench Press',
+          orderIndex: 0,
+          sets: [
+            { reps: 8, weight: 135 },
+            { reps: 6, weight: 145 },
+          ],
+        },
+      ]),
+    ]);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].exercise.name).toBe('Flat Barbell Bench Press');
+    expect(sessions[0].exercise.exerciseId).toBe('flat_barbell_bench_press');
+    expect(sessions[0].completedSets).toEqual([
+      { setNumber: 1, reps: 8, weight: 135, completed: true },
+      { setNumber: 2, reps: 6, weight: 145, completed: true },
+    ]);
+    // Totals must match what the same session produced when it was live.
+    expect(summarizeSessionTotals(sessions)).toMatchObject({
+      completedSets: 2,
+      exercisesWorked: 1,
+      volumeLb: 8 * 135 + 6 * 145,
+      hasWeightedWork: true,
+    });
+  });
+
+  it('orders entries by orderIndex and concatenates a reopened day by start time', () => {
+    const later = makeLog('later', '2026-08-20T18:00:00.000Z', 600, [
+      { exerciseId: 'pull_up', name: 'Pull-Up', orderIndex: 0, sets: [{ reps: 9 }] },
+    ]);
+    const earlier = makeLog('earlier', '2026-08-20T09:00:00.000Z', 1800, [
+      { exerciseId: 'b', name: 'Second', orderIndex: 1, sets: [{ reps: 5, weight: 50 }] },
+      { exerciseId: 'a', name: 'First', orderIndex: 0, sets: [{ reps: 5, weight: 60 }] },
+    ]);
+    const names = sessionsFromWorkoutLogs([later, earlier]).map((s) => s.exercise.name);
+    expect(names).toEqual(['First', 'Second', 'Pull-Up']);
+  });
+
+  it('drops entries with no completed sets and survives a missing name', () => {
+    const sessions = sessionsFromWorkoutLogs([
+      makeLog('a', '2026-08-20T12:00:00.000Z', null, [
+        { exerciseId: 'skipped', name: 'Skipped', orderIndex: 0, sets: [] },
+        {
+          exerciseId: 'unnamed',
+          name: null,
+          orderIndex: 1,
+          sets: [{ reps: 10 }, { reps: 10, completed: false }],
+        },
+      ]),
+    ]);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].exercise.name).toBe('Exercise');
+    expect(sessions[0].completedSets).toHaveLength(1);
+  });
+
+  it('returns nothing for an empty history', () => {
+    expect(sessionsFromWorkoutLogs([])).toEqual([]);
+  });
+});
+
+describe('loggedDurationSeconds', () => {
+  it('sums the stored elapsed time across a day of logs', () => {
+    expect(
+      loggedDurationSeconds([
+        makeLog('a', '2026-08-20T09:00:00.000Z', 2700, []),
+        makeLog('b', '2026-08-20T18:00:00.000Z', 900, []),
+      ]),
+    ).toBe(3600);
+  });
+
+  it('is null when nothing carries a duration, so the hero falls back', () => {
+    expect(loggedDurationSeconds([])).toBeNull();
+    expect(loggedDurationSeconds([makeLog('a', '2026-08-20T09:00:00.000Z', null, [])])).toBeNull();
   });
 });
