@@ -86,43 +86,70 @@ export function calendarSessionsFromLogs(
 }
 
 /**
- * One set as the receipt prints it when an exercise is opened: '9 × 105 lb',
- * '9 reps' for unweighted work, '45 sec' for timed. Same reps × weight
- * grammar the deck's "Last time" line and the receipt's summary already use,
- * so a session reads identically wherever it appears.
- *
- * This is the DECK's record: reps and weight arrive as the display strings it
- * stored, and the weight string is always pounds (the deck normalises on the
- * way in), so kg readers convert here like everywhere else.
+ * One set as the receipt prints it when an exercise is opened, split so the
+ * unit can render a step down and muted — the type scale keeps `caption` and
+ * `footnote` as separate steps precisely so a dense data row can size its
+ * value and its unit suffix differently.
  */
-export function formatLoggedSetDetail(
-  reps: string,
-  weight: string,
-  unit: WeightUnit,
-): string {
-  const weightLb = parseWeightLb(weight);
-  const weightText = weightLb != null ? formatWeightCompactFromLb(weightLb, unit) : null;
-  if (/min|sec/i.test(reps)) {
-    return weightText != null ? `${reps} @ ${weightText}` : reps;
-  }
-  const count = parseRepsCount(reps);
-  if (count <= 0) return weightText ?? '—';
-  return weightText != null ? `${count} × ${weightText}` : `${count} reps`;
+export type SetDetail = {
+  /** The numbers: '8 × 135', '10', '45 sec'. */
+  text: string;
+  /** Trailing unit, quieter than the value: 'lb', 'kg', 'reps'. */
+  unit?: string;
+};
+
+/** '185 lb' → { text: '185', unit: 'lb' }; an unsplittable string stays whole. */
+function splitUnit(compact: string): SetDetail {
+  const cut = compact.lastIndexOf(' ');
+  return cut > 0
+    ? { text: compact.slice(0, cut), unit: compact.slice(cut + 1) }
+    : { text: compact };
 }
 
 /**
- * The same line for a set read back from a STORED log, where reps and weight
- * are numbers. Timed work stores zero reps and keeps no duration, so those
- * sets print their load alone — never a meaningless "0 reps".
+ * A set from the DECK's record, where reps and weight are the display strings
+ * it stored. The weight string is always pounds (the deck normalises on the
+ * way in), so kg readers convert here like everywhere else. Same reps × weight
+ * grammar the deck's "Last time" line uses, so a session reads identically
+ * wherever it appears.
  */
-export function formatStoredSetDetail(
+export function loggedSetDetail(
+  reps: string,
+  weight: string,
+  unit: WeightUnit,
+): SetDetail {
+  const weightLb = parseWeightLb(weight);
+  // '' comes back for a zero/absent load — no weight, not a blank one.
+  const compact = weightLb != null ? formatWeightCompactFromLb(weightLb, unit) : '';
+  const load = compact !== '' ? splitUnit(compact) : null;
+  // Timed work reads as its own duration; a load on top is rare enough to
+  // stay in one run rather than invent a second unit slot.
+  if (/min|sec/i.test(reps)) {
+    return { text: load ? `${reps} @ ${load.text} ${load.unit ?? ''}`.trim() : reps };
+  }
+  const count = parseRepsCount(reps);
+  if (count <= 0) return load ?? { text: '—' };
+  return load
+    ? { text: `${count} × ${load.text}`, unit: load.unit }
+    : { text: String(count), unit: 'reps' };
+}
+
+/**
+ * The same set read back from a STORED log, where reps and weight are numbers.
+ * Timed work stores zero reps and keeps no duration, so those sets show their
+ * load alone — never a meaningless "0 reps".
+ */
+export function storedSetDetail(
   reps: number,
   weightLb: number | undefined,
   unit: WeightUnit,
-): string {
-  const weightText = weightLb != null ? formatWeightCompactFromLb(weightLb, unit) : null;
-  if (!reps || reps <= 0) return weightText ?? '—';
-  return weightText != null ? `${reps} × ${weightText}` : `${reps} reps`;
+): SetDetail {
+  const compact = weightLb != null ? formatWeightCompactFromLb(weightLb, unit) : '';
+  const load = compact !== '' ? splitUnit(compact) : null;
+  if (!reps || reps <= 0) return load ?? { text: '—' };
+  return load
+    ? { text: `${reps} × ${load.text}`, unit: load.unit }
+    : { text: String(reps), unit: 'reps' };
 }
 
 /**

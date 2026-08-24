@@ -77,13 +77,14 @@ import {
   calendarSessionsFromLogs,
   dominantMuscle,
   formatClock,
-  formatLoggedSetDetail,
-  formatStoredSetDetail,
   loggedDurationSeconds,
+  loggedSetDetail,
   parseRepsCount,
   parseWeightLb,
   sessionsFromWorkoutLogs,
+  storedSetDetail,
   streakWithSession,
+  type SetDetail,
 } from '../lib/sessionCelebration';
 import {
   collectSessionAchievements,
@@ -127,7 +128,13 @@ type LedgerRow = {
   /** Set count — '4 sets', '2 of 3 sets', 'Not logged'. */
   sub: string;
   /** Every set, printed, for the row's expanded state. Empty = nothing to open. */
-  setLines: string[];
+  setLines: SetDetail[];
+  /**
+   * The set the row's summary quotes, marked in the opened list so the two
+   * agree. Null when the sets tie for best — on a straight 3 × 10 there is no
+   * standout to point at, and gilding the first one would invent a story.
+   */
+  topSetIndex: number | null;
   state: 'done' | 'partial' | 'empty';
   badge: SessionAchievement['kind'] | null;
 };
@@ -138,8 +145,31 @@ type LedgerRow = {
  * under a chevron is worse than the "3 sets" already on the row, so those
  * rows stay closed and unmarked.
  */
-function usefulSetLines(lines: string[]): string[] {
-  return lines.some((line) => line !== '—') ? lines : [];
+function usefulSetLines(lines: SetDetail[]): SetDetail[] {
+  return lines.some((line) => line.text !== '—') ? lines : [];
+}
+
+/**
+ * Which set the summary is quoting: the heaviest, and on equal load the one
+ * with the most reps — the rule `bestLoggedSet` already uses, so the marked
+ * chip and the row's headline value can never disagree. Null unless that set
+ * beats every other one outright.
+ */
+function uniqueTopSetIndex(sets: Array<{ reps: number; weightLb?: number }>): number | null {
+  if (sets.length < 2) return null;
+  let best = 0;
+  for (let i = 1; i < sets.length; i += 1) {
+    const a = sets[i];
+    const b = sets[best];
+    const aw = a.weightLb ?? 0;
+    const bw = b.weightLb ?? 0;
+    if (aw > bw || (aw === bw && a.reps > b.reps)) best = i;
+  }
+  const top = sets[best];
+  const tied = sets.some(
+    (s, i) => i !== best && (s.weightLb ?? 0) === (top.weightLb ?? 0) && s.reps === top.reps,
+  );
+  return tied ? null : best;
 }
 
 function bestLoggedSet(logs: SetLog[]): { reps: number; weightLb?: number } | null {
@@ -545,7 +575,10 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       main,
       sub: `${count} ${count === 1 ? 'set' : 'sets'}`,
       setLines: usefulSetLines(
-        s.completedSets.map((set) => formatStoredSetDetail(set.reps, set.weight, unit)),
+        s.completedSets.map((set) => storedSetDetail(set.reps, set.weight, unit)),
+      ),
+      topSetIndex: uniqueTopSetIndex(
+        s.completedSets.map((set) => ({ reps: set.reps, weightLb: set.weight })),
       ),
       state: 'done',
       badge: (s.exercise.exerciseId && badgeByExercise.get(s.exercise.exerciseId)) || null,
@@ -581,8 +614,9 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       muscle: ex.muscle,
       main,
       sub,
-      setLines: usefulSetLines(
-        logs.map((l) => formatLoggedSetDetail(l.reps, l.weight, unit)),
+      setLines: usefulSetLines(logs.map((l) => loggedSetDetail(l.reps, l.weight, unit))),
+      topSetIndex: uniqueTopSetIndex(
+        logs.map((l) => ({ reps: parseRepsCount(l.reps), weightLb: parseWeightLb(l.weight) })),
       ),
       state,
       badge: (ex.exerciseId && badgeByExercise.get(ex.exerciseId)) || null,
@@ -745,16 +779,35 @@ export default function PlanCalendarWorkoutCompleteScreen() {
                 </TouchableOpacity>
 
                 {open && (
-                  // Numbered and stacked, so the shape of the session reads
-                  // down the column — a last set that dropped off is visible
-                  // without comparing numbers side by side.
-                  <Animated.View entering={FadeIn.duration(160)} style={styles.setList}>
-                    {row.setLines.map((line, i) => (
-                      <View key={i} style={styles.setLine}>
-                        <Text style={styles.setIndex}>{i + 1}</Text>
-                        <Text style={styles.setValue}>{line}</Text>
-                      </View>
-                    ))}
+                  // A run of chips rather than a stacked table: an opened
+                  // exercise grows by a line or two instead of one row per
+                  // set, which keeps the receipt readable in a glance on a
+                  // long session. Tabular figures so the digits hold their
+                  // width, units a step down and muted so the numbers carry,
+                  // and the set the headline quotes wears the gold.
+                  <Animated.View entering={FadeIn.duration(160)} style={styles.setChips}>
+                    {row.setLines.map((detail, i) => {
+                      const top = i === row.topSetIndex;
+                      return (
+                        <View
+                          key={i}
+                          style={[
+                            styles.setChip,
+                            dark ? styles.setChipDark : styles.setChipLight,
+                            top && styles.setChipTop,
+                          ]}
+                        >
+                          <Text style={[styles.setChipText, top && styles.setChipTextTop]}>
+                            {detail.text}
+                            {detail.unit ? (
+                              <Text style={[styles.setChipUnit, top && styles.setChipUnitTop]}>
+                                {` ${detail.unit}`}
+                              </Text>
+                            ) : null}
+                          </Text>
+                        </View>
+                      );
+                    })}
                   </Animated.View>
                 )}
               </View>
@@ -1279,31 +1332,53 @@ function createStyles(c: ColorPalette) {
       alignItems: 'center',
       gap: spacing.sm + 2,
     },
-    setList: {
-      marginTop: spacing.sm,
-      paddingTop: spacing.sm,
+    setChips: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.xs + 2,
+      marginTop: spacing.sm + 2,
+      paddingTop: spacing.sm + 2,
       borderTopWidth: 1,
       borderTopColor: c.border,
-      gap: spacing.xxs,
     },
-    setLine: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      // Clears the muscle dot so the numbers sit under the exercise name.
-      paddingLeft: 10 + spacing.sm + 2,
-      gap: spacing.md,
+    setChip: {
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: spacing.sm + 1,
+      paddingVertical: 3,
     },
-    setIndex: {
-      ...sfPro,
-      width: 14,
-      fontSize: text.caption,
-      lineHeight: leading.footnote,
-      color: c.textMuted,
+    // The fill is a whisper of the ground, so it has to invert with the theme
+    // — a white wash is invisible on the light surface.
+    setChipDark: {
+      backgroundColor: 'rgba(255,255,255,0.05)',
     },
-    setValue: {
+    setChipLight: {
+      backgroundColor: 'rgba(0,0,0,0.035)',
+    },
+    /** The set the row's headline quotes. Border and ink only — the ledger
+     *  review already found gold FILLS drown the PB pill they sit beside. */
+    setChipTop: {
+      borderColor: 'rgba(245,166,35,0.55)',
+    },
+    setChipText: {
       ...sfPro,
       fontSize: text.footnote,
       lineHeight: leading.footnote,
+      // Digits keep one width, so chips of different rep counts stay the same
+      // shape and the run reads as a row rather than a ragged line.
+      fontVariant: ['tabular-nums'],
+      color: c.textSecondary,
+    },
+    setChipTextTop: {
+      color: c.text,
+      fontWeight: weight.semibold,
+    },
+    setChipUnit: {
+      fontSize: text.caption,
+      color: c.textMuted,
+    },
+    setChipUnitTop: {
       color: c.textSecondary,
     },
     muscleDot: {

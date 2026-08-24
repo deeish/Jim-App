@@ -2,8 +2,8 @@ import {
   calendarSessionsFromLogs,
   dominantMuscle,
   formatClock,
-  formatLoggedSetDetail,
-  formatStoredSetDetail,
+  loggedSetDetail,
+  storedSetDetail,
   loggedDurationSeconds,
   parseRepsCount,
   parseWeightLb,
@@ -283,39 +283,43 @@ describe('loggedDurationSeconds', () => {
   });
 });
 
-describe('formatLoggedSetDetail', () => {
-  it('prints the deck record in reps × weight, converting for kg readers', () => {
-    expect(formatLoggedSetDetail('8', '135 lb', 'lb')).toBe('8 × 135 lb');
+describe('loggedSetDetail', () => {
+  it('splits the load so the unit can render quieter than the value', () => {
+    expect(loggedSetDetail('8', '135 lb', 'lb')).toEqual({ text: '8 × 135', unit: 'lb' });
     // Stored weights are always pounds, so kg is a conversion, not a relabel.
-    expect(formatLoggedSetDetail('8', '135 lb', 'kg')).toBe('8 × 61 kg');
+    expect(loggedSetDetail('8', '135 lb', 'kg')).toEqual({ text: '8 × 61', unit: 'kg' });
   });
 
-  it('reads unweighted work as reps alone', () => {
-    expect(formatLoggedSetDetail('9', 'Bodyweight', 'lb')).toBe('9 reps');
-    expect(formatLoggedSetDetail('9', '—', 'lb')).toBe('9 reps');
+  it('treats "reps" as the unit for unweighted work', () => {
+    expect(loggedSetDetail('9', 'Bodyweight', 'lb')).toEqual({ text: '9', unit: 'reps' });
+    expect(loggedSetDetail('9', '—', 'lb')).toEqual({ text: '9', unit: 'reps' });
   });
 
-  it('keeps timed sets as their duration, with any load appended', () => {
-    expect(formatLoggedSetDetail('45 sec', '—', 'lb')).toBe('45 sec');
-    expect(formatLoggedSetDetail('45 sec', '25 lb', 'lb')).toBe('45 sec @ 25 lb');
-    expect(formatLoggedSetDetail('10 min', 'Bodyweight', 'lb')).toBe('10 min');
+  it('keeps a timed set whole rather than inventing a second unit slot', () => {
+    expect(loggedSetDetail('45 sec', '—', 'lb')).toEqual({ text: '45 sec' });
+    expect(loggedSetDetail('45 sec', '25 lb', 'lb')).toEqual({ text: '45 sec @ 25 lb' });
+    expect(loggedSetDetail('10 min', 'Bodyweight', 'lb')).toEqual({ text: '10 min' });
   });
 
   it('falls back to the load, then a dash, when no rep count survives', () => {
-    expect(formatLoggedSetDetail('AMRAP', '95 lb', 'lb')).toBe('95 lb');
-    expect(formatLoggedSetDetail('AMRAP', 'Bodyweight', 'lb')).toBe('—');
+    expect(loggedSetDetail('AMRAP', '95 lb', 'lb')).toEqual({ text: '95', unit: 'lb' });
+    expect(loggedSetDetail('AMRAP', 'Bodyweight', 'lb')).toEqual({ text: '—' });
+  });
+
+  it('reads a zero load as no load, not a blank one', () => {
+    expect(loggedSetDetail('8', '0 lb', 'lb')).toEqual({ text: '8', unit: 'reps' });
   });
 });
 
-describe('formatStoredSetDetail', () => {
+describe('storedSetDetail', () => {
   it('prints a stored set in the same grammar as a live one', () => {
-    expect(formatStoredSetDetail(8, 135, 'lb')).toBe('8 × 135 lb');
-    expect(formatStoredSetDetail(9, undefined, 'lb')).toBe('9 reps');
+    expect(storedSetDetail(8, 135, 'lb')).toEqual({ text: '8 × 135', unit: 'lb' });
+    expect(storedSetDetail(9, undefined, 'lb')).toEqual({ text: '9', unit: 'reps' });
   });
 
   it('never prints "0 reps" for the zero a timed set stores', () => {
-    expect(formatStoredSetDetail(0, undefined, 'lb')).toBe('—');
-    expect(formatStoredSetDetail(0, 25, 'lb')).toBe('25 lb');
+    expect(storedSetDetail(0, undefined, 'lb')).toEqual({ text: '—' });
+    expect(storedSetDetail(0, 25, 'lb')).toEqual({ text: '25', unit: 'lb' });
   });
 
   it('describes a set that changed weight mid-exercise on its own terms', () => {
@@ -326,11 +330,11 @@ describe('formatStoredSetDetail', () => {
       { reps: 6, weight: 145 },
       { reps: 5, weight: 145 },
     ];
-    expect(sets.map((s) => formatStoredSetDetail(s.reps, s.weight, 'lb'))).toEqual([
-      '8 × 135 lb',
-      '8 × 135 lb',
-      '6 × 145 lb',
-      '5 × 145 lb',
+    expect(sets.map((s) => storedSetDetail(s.reps, s.weight, 'lb'))).toEqual([
+      { text: '8 × 135', unit: 'lb' },
+      { text: '8 × 135', unit: 'lb' },
+      { text: '6 × 145', unit: 'lb' },
+      { text: '5 × 145', unit: 'lb' },
     ]);
   });
 });
