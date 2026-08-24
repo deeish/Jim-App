@@ -94,7 +94,8 @@ import {
   summarizeSessionTotals,
   type SessionAchievement,
 } from '../lib/sessionAchievements';
-import { formatVolumeFromLb, formatWeightCompactFromLb, type WeightUnit } from '../lib/weightDisplay';
+import { formatLastTimeLine } from '../lib/lastPerformanceDisplay';
+import { formatWeightCompactFromLb, type WeightUnit } from '../lib/weightDisplay';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWorkoutComplete'>;
@@ -107,6 +108,23 @@ const HEADER_SEAL = 26;
 const LAYER_SHIFT = 32;
 /** The Moment advances to the Ledger on its own after this long. */
 const AUTO_ADVANCE_MS = 2800;
+
+/**
+ * Past this, a "session" is a log somebody left open — two sets before work
+ * and Complete pressed at bedtime. The elapsed span is real but it does not
+ * describe a workout, and the receipt would reprint it forever.
+ */
+const MAX_PLAUSIBLE_SESSION_SECONDS = 4 * 60 * 60;
+
+function plausibleDuration(seconds: number | null): number | null {
+  if (seconds == null || seconds <= 0) return null;
+  return seconds > MAX_PLAUSIBLE_SESSION_SECONDS ? null : seconds;
+}
+
+/** '47 min' — the receipt's grammar for a duration; the poster keeps the clock. */
+function formatMinutes(seconds: number): string {
+  return `${Math.max(1, Math.round(seconds / 60))} min`;
+}
 
 /** The Moment's celebratory dot burst — offsets from the hero seal's box. */
 const PARTICLES: Array<{ dx: number; dy: number; size: number; color: string }> = [
@@ -138,8 +156,25 @@ type LedgerRow = {
    */
   topSetIndex: number | null;
   state: 'done' | 'partial' | 'empty';
-  badge: SessionAchievement['kind'] | null;
+  /** The record or gain this exercise earned, if any — drives the delta chip. */
+  claim: SessionAchievement | null;
+  /** Last session's sets, already formatted. Null when there is no honest
+   *  comparison to draw (see the pre-log gate). */
+  lastTimeLine: string | null;
 };
+
+/** `PB`, `+5 lb`, `+2 reps` — what the row's chip says, or null for no news. */
+function claimChipLabel(claim: SessionAchievement | null, unit: WeightUnit): string | null {
+  if (!claim) return null;
+  if (claim.kind === 'personal-best') return 'PB';
+  if (claim.basis === 'weight' && claim.gainLb > 0) {
+    return `+${formatWeightCompactFromLb(claim.gainLb, unit)}`;
+  }
+  if (claim.gainReps > 0) {
+    return `+${claim.gainReps} ${claim.gainReps === 1 ? 'rep' : 'reps'}`;
+  }
+  return null;
+}
 
 /**
  * Set lines worth opening a row for. Timed work read back from a stored log
@@ -273,10 +308,19 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   // lighter session.
   const achievements =
     baselines?.preLog
-      ? collectSessionAchievements(sessions, baselines.lastPerformance, baselines.personalBests)
+      ? collectSessionAchievements(
+          sessions,
+          baselines.lastPerformance,
+          baselines.personalBests,
+          // Local midnight of the day being celebrated: nothing recorded at or
+          // after it is something this session beat.
+          fromIso(dateIso).toISOString(),
+        )
       : [];
   const momentClaims = achievements.slice(0, 2);
-  const badgeByExercise = new Map(achievements.map((a) => [a.exerciseId, a.kind]));
+  // The poster shows two; the receipt lists them all, so it needs the whole
+  // claim per exercise, not just its kind.
+  const claimByExercise = new Map(achievements.map((a) => [a.exerciseId, a]));
   const streak = baselines ? streakWithSession(baselines.statsSessions, date) : 0;
 
   // Duration is real only for a live TODAY session — a backdated log's
@@ -292,7 +336,9 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     if (recap || !start || dateIso !== todayIso()) return null;
     return Math.max(0, Math.round((Date.now() - Date.parse(start)) / 1000));
   });
-  const heroSeconds = recap ? loggedDurationSeconds(storedLogs) : liveSeconds;
+  const heroSeconds = plausibleDuration(
+    recap ? loggedDurationSeconds(storedLogs) : liveSeconds,
+  );
   const [shownSeconds, setShownSeconds] = useState(0);
   useEffect(() => {
     // The count-up belongs to the finish moment; a recap shows the final time.
@@ -541,6 +587,19 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   }, [dateIso]);
 
   // ---- Ledger rows ---------------------------------------------------------
+  /** The claim this SLOT earned. A lift filling two slots only decorates the
+   *  one whose set actually set the mark. */
+  const claimForSlot = (exerciseId: string | undefined, index: number): SessionAchievement | null => {
+    if (!exerciseId) return null;
+    const claim = claimByExercise.get(exerciseId);
+    return claim && claim.exerciseIndex === index ? claim : null;
+  };
+  /** Last session's sets, spelled out. Behind the same gate as the claims:
+   *  without it "last time" can describe a session performed AFTER this one. */
+  const lastTimeFor = (exerciseId: string | undefined, isTimeBased: boolean): string | null => {
+    if (!exerciseId || !baselines?.preLog) return null;
+    return formatLastTimeLine(baselines.lastPerformance[exerciseId], unit, isTimeBased);
+  };
   // A day read back from history lists what the LOG holds, in the order it was
   // performed — not today's plan for that weekday, which may have been edited
   // or replaced since. Nothing is "Not logged" there: an unrecorded set left
@@ -572,7 +631,8 @@ export default function PlanCalendarWorkoutCompleteScreen() {
         s.completedSets.map((set) => ({ reps: set.reps, weightLb: set.weight })),
       ),
       state: 'done',
-      badge: (s.exercise.exerciseId && badgeByExercise.get(s.exercise.exerciseId)) || null,
+      claim: claimForSlot(s.exercise.exerciseId, i),
+      lastTimeLine: lastTimeFor(s.exercise.exerciseId, false),
     };
   });
   const planRows: LedgerRow[] = day.exercises.map((ex, i) => {
@@ -612,7 +672,8 @@ export default function PlanCalendarWorkoutCompleteScreen() {
         logs.map((l) => ({ reps: parseRepsCount(l.reps), weightLb: parseWeightLb(l.weight) })),
       ),
       state,
-      badge: (ex.exerciseId && badgeByExercise.get(ex.exerciseId)) || null,
+      claim: claimForSlot(ex.exerciseId, i),
+      lastTimeLine: lastTimeFor(ex.exerciseId, /min|sec/i.test(ex.reps)),
     };
   });
   const rows = fromHistory ? historyRows : planRows;
@@ -685,20 +746,18 @@ export default function PlanCalendarWorkoutCompleteScreen() {
           </View>
           <Text style={styles.ledgerSub}>{subtitle}</Text>
 
-          <View style={styles.tileRow}>
-            <View style={styles.tile}>
-              <Text style={styles.tileLabel}>SETS</Text>
-              <Text style={styles.tileValue}>{totals.completedSets}</Text>
-            </View>
-            {totals.hasWeightedWork && (
-              <View style={styles.tile}>
-                <Text style={styles.tileLabel}>VOLUME</Text>
-                <Text style={styles.tileValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                  {formatVolumeFromLb(totals.volumeLb, unit)}
-                </Text>
-              </View>
-            )}
-          </View>
+          {/* Facts, not tiles. A tile asserts headline importance, and neither
+              of these earns it: tonnage scores bodyweight work at zero, and a
+              session set total has no reader. Both already live on Progress
+              with the cumulative framing that suits them. */}
+          <Text style={styles.factsLine}>
+            {[
+              heroSeconds != null ? formatMinutes(heroSeconds) : null,
+              `${totals.completedSets} ${totals.completedSets === 1 ? 'set' : 'sets'}`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
 
           <Text style={styles.sectionLabel}>EXERCISES</Text>
           <View style={styles.rowsWrap}>
@@ -743,14 +802,20 @@ export default function PlanCalendarWorkoutCompleteScreen() {
                   >
                     {row.name}
                   </Text>
-                  {row.badge === 'personal-best' && (
-                    <View style={styles.pbPill}>
-                      <Text style={styles.pbPillLabel}>PB</Text>
-                    </View>
-                  )}
-                  {row.badge === 'beat-last-time' && (
-                    <Ionicons name="trending-up-outline" size={14} color={colors.secondary} />
-                  )}
+                  {(() => {
+                    // One chip, three states: a gold PB, a green gain, or
+                    // nothing at all when the exercise matched last time.
+                    const label = claimChipLabel(row.claim, unit);
+                    if (!label) return null;
+                    const isPb = row.claim?.kind === 'personal-best';
+                    return (
+                      <View style={[styles.claimChip, isPb ? styles.claimChipPb : styles.claimChipGain]}>
+                        <Text style={[styles.claimChipLabel, isPb ? styles.claimChipLabelPb : styles.claimChipLabelGain]}>
+                          {label}
+                        </Text>
+                      </View>
+                    );
+                  })()}
                   <View style={styles.exValues}>
                     <Text style={[styles.exMain, row.state !== 'done' && styles.exValueMuted]}>
                       {row.main}
@@ -801,6 +866,11 @@ export default function PlanCalendarWorkoutCompleteScreen() {
                         </View>
                       );
                     })}
+                    {row.lastTimeLine && (
+                      // Without this the chip is an assertion; with it the
+                      // claim can be checked in a glance.
+                      <Text style={styles.lastTimeLine}>{row.lastTimeLine}</Text>
+                    )}
                   </Animated.View>
                 )}
               </View>
@@ -889,6 +959,11 @@ export default function PlanCalendarWorkoutCompleteScreen() {
               </TouchableOpacity>
               <Text style={[styles.momentDate, { color: inkSoft }]}>{subtitle}</Text>
             </View>
+
+            {/* Paired with the spacer above the hint: the block sits in the
+                middle of the poster, so a session that beat nothing reads as a
+                short poster rather than a truncated one. */}
+            <View style={styles.momentSpacer} />
 
             {/* The stamp target: an empty slot the overlay seal covers. */}
             <View style={styles.heroSealWrap}>
@@ -992,10 +1067,20 @@ export default function PlanCalendarWorkoutCompleteScreen() {
               </Rise>
             )}
 
+            {achievements.length > momentClaims.length && (
+              <Rise timeline={entry} start={0.62} end={0.9}>
+                <Text style={[styles.moreClaims, { color: inkFaint }]}>
+                  +{achievements.length - momentClaims.length} more on your receipt
+                </Text>
+              </Rise>
+            )}
+
             {cutShort && (
               <Rise timeline={entry} start={0.6} end={0.85}>
                 <Text style={[styles.cutShortNote, { color: inkFaint }]}>
-                  {totals.completedSets} sets logged — cut short still counts.
+                  {totals.completedSets}{' '}
+                  {totals.completedSets === 1 ? 'set' : 'sets'} logged — cut short
+                  still counts.
                 </Text>
               </Rise>
             )}
@@ -1267,6 +1352,56 @@ function createStyles(c: ColorPalette) {
       fontSize: text.footnote,
       lineHeight: leading.footnote,
       color: c.textMuted,
+    },
+    // Quiet by design: the receipt's job is per-exercise, and this line is
+    // context for it rather than a headline of its own.
+    factsLine: {
+      ...sfPro,
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+      fontVariant: ['tabular-nums'],
+      color: c.textMuted,
+    },
+    claimChip: {
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+    },
+    /** Gold is the record mark, as everywhere else on this screen. */
+    claimChipPb: {
+      backgroundColor: `${GOLD}2E`,
+    },
+    /** Green is "you beat last time" — the same colour that indicator used. */
+    claimChipGain: {
+      backgroundColor: `${c.secondary}29`,
+    },
+    claimChipLabel: {
+      ...sfPro,
+      fontSize: text.caption,
+      lineHeight: leading.caption,
+      fontWeight: weight.bold,
+      fontVariant: ['tabular-nums'],
+    },
+    claimChipLabelPb: {
+      color: GOLD,
+      letterSpacing: tracking.wide,
+    },
+    claimChipLabelGain: {
+      color: c.secondary,
+    },
+    lastTimeLine: {
+      ...sfPro,
+      marginTop: spacing.sm,
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+      fontVariant: ['tabular-nums'],
+      color: c.textMuted,
+    },
+    moreClaims: {
+      ...sfPro,
+      marginTop: spacing.sm,
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
     },
     tileRow: {
       flexDirection: 'row',
