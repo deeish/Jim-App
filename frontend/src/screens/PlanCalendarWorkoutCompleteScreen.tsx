@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   Easing,
   interpolate,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -289,6 +290,10 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   const phaseRef = useRef<'moment' | 'ledger'>(recap ? 'ledger' : 'moment');
   const phaseT = useSharedValue(recap ? 1 : 0);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The morph is over and the seal now belongs to the Ledger's scrolling
+  // content rather than to the screen-positioned overlay. A recap never
+  // morphs, so it is settled from the first frame.
+  const [sealSettled, setSealSettled] = useState(recap);
 
   const goLedger = useCallback(() => {
     if (autoTimer.current) clearTimeout(autoTimer.current);
@@ -297,10 +302,20 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     phaseRef.current = 'ledger';
     buzzSelection();
     setPhase('ledger');
-    phaseT.value = withTiming(1, {
-      duration: motionDuration.slow,
-      easing: Easing.bezier(...motionEasing.inOut),
-    });
+    phaseT.value = withTiming(
+      1,
+      {
+        duration: motionDuration.slow,
+        easing: Easing.bezier(...motionEasing.inOut),
+      },
+      // Hand the seal over to the Ledger's own content the moment it lands.
+      // Not on an interrupted run: "‹ Summary" mid-morph must keep the
+      // overlay, which is what carries it back to the hero slot.
+      (finished) => {
+        'worklet';
+        if (finished) runOnJS(setSealSettled)(true);
+      },
+    );
   }, [phaseT]);
 
   // "‹ Summary" — returning disables the auto-advance so the Moment holds.
@@ -311,6 +326,8 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     phaseRef.current = 'moment';
     buzzTap();
     setPhase('moment');
+    // Overlay takes the seal back before the reverse morph starts.
+    setSealSettled(false);
     phaseT.value = withTiming(0, {
       duration: motionDuration.slow,
       easing: Easing.bezier(...motionEasing.inOut),
@@ -357,10 +374,10 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     // finishing a workout. (The bob still runs: it's the Moment's "swipe up
     // for details" hint, which still applies if you tap back to the poster.)
     if (recap) {
-      // Short beat before the seal appears: the header anchor is only known
-      // after its onLayout measures, and fading in over that hides the snap
-      // from the pre-measure default position.
-      sealOpacity.value = withDelay(80, withTiming(1, { duration: 160 }));
+      // The inline seal is already in the header slot, so the overlay is
+      // hidden here — it only needs to be ready in case "‹ Summary" sends it
+      // back to the hero.
+      sealOpacity.value = 1;
       bob.value = withRepeat(
         withSequence(
           withTiming(-5, { duration: 700, easing: Easing.bezier(...motionEasing.inOut) }),
@@ -441,14 +458,17 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     const x = interpolate(phaseT.value, [0, 1], [heroAnchor.value.x, headerAnchor.value.x]);
     const y = interpolate(phaseT.value, [0, 1], [heroAnchor.value.y, headerAnchor.value.y]);
     return {
-      opacity: sealOpacity.value,
+      // Yields to the inline seal once the morph lands, so nothing hovers
+      // over the receipt while it scrolls.
+      opacity: sealSettled ? 0 : sealOpacity.value,
       transform: [
         { translateX: x - (HERO_SEAL * (1 - s)) / 2 },
         { translateY: y - (HERO_SEAL * (1 - s)) / 2 },
         { scale: s },
       ],
     };
-  });
+    // Explicit dep: sealSettled is plain React state, not a shared value.
+  }, [sealSettled]);
   const bobStyle = useAnimatedStyle(() => ({ transform: [{ translateY: bob.value }] }));
   const particleStyle = useAnimatedStyle(() => ({
     opacity: interpolate(entry.value, [0.15, 0.4, 1], [0, 0.85, 0.4], 'clamp'),
@@ -593,13 +613,22 @@ export default function PlanCalendarWorkoutCompleteScreen() {
           </TouchableOpacity>
 
           <View style={styles.ledgerHeaderRow}>
-            {/* The morphing seal LANDS here — this slot only reserves its box. */}
+            {/* The morphing seal lands here, and once it has, the REAL seal
+                takes over inside this slot — see sealSettled. The overlay is
+                screen-positioned, so leaving it in charge left the seal
+                hovering over the list as the receipt scrolled under it. */}
             <View
               ref={headerSlotRef}
               collapsable={false}
               onLayout={measureAnchor('header')}
-              style={{ width: HEADER_SEAL, height: HEADER_SEAL }}
-            />
+              style={styles.headerSealSlot}
+            >
+              {sealSettled && (
+                <View style={styles.headerSealInline} pointerEvents="none">
+                  <RosetteSeal size={HERO_SEAL} />
+                </View>
+              )}
+            </View>
             <Text style={styles.ledgerTitle}>Workout complete</Text>
           </View>
           <Text style={styles.ledgerSub}>{subtitle}</Text>
@@ -898,6 +927,22 @@ function createStyles(c: ColorPalette) {
       left: 0,
       width: HERO_SEAL,
       height: HERO_SEAL,
+    },
+    headerSealSlot: {
+      width: HEADER_SEAL,
+      height: HEADER_SEAL,
+    },
+    // The settled seal renders at HERO_SEAL and is scaled down by exactly the
+    // factor the morph ends on, so the hand-off from the overlay is pixel-for-
+    // pixel — a natively-drawn 26px rosette would rasterise differently and
+    // pop. Absolute + centred on the slot: it must not resize the header row.
+    headerSealInline: {
+      position: 'absolute',
+      left: -(HERO_SEAL - HEADER_SEAL) / 2,
+      top: -(HERO_SEAL - HEADER_SEAL) / 2,
+      width: HERO_SEAL,
+      height: HERO_SEAL,
+      transform: [{ scale: HEADER_SEAL / HERO_SEAL }],
     },
 
     // ---- Moment ----
