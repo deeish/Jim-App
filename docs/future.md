@@ -275,3 +275,44 @@ inputs columns, `User` has no profile row). They live only in frontend
    Pairs naturally with the [Server-side user preferences] item above.
 
 Do one on-device test covering focus **and** scope together once this lands.
+
+## Sets by muscle on the receipt (needs real secondary credit first)
+
+Shipped as `ae9b953` on 2026-08-24 and **reverted the same day** (`a0142d9`) — deferred by
+product call, not a rejection of the idea. The receipt keeps the facts line from `c88d61f`;
+nothing on the completion or summary screens counts muscles now.
+
+What it did: a stacked bar plus `Back 2 · Chest 2 · Shoulders 1 · Triceps 1`, crediting a set
+1 to the muscle it targets and 0.5 to each muscle it also works.
+
+**Why it cannot be derived from the catalog as it stands.** `secondaryMuscleGroupIds` uses the
+same seven coarse groups as primary (`exercise-mappings.ts:14`) with none of the sub-muscle
+detail. Measured against `backend/data/exercises_5000plus.json` (1,342 rows):
+
+| Measure | Count |
+| --- | --- |
+| rows carrying at least one secondary group | 1,161 (86.5%) |
+| of those, rows tagging `arms` or `legs` — groups naming no single muscle | 453 (39%) |
+| `arms` secondaries on pulls (means biceps) vs presses (means triceps) | 152 vs 94 |
+| sub-muscle ids describing a secondary rather than the primary | 0 of 1,732 |
+
+`ae9b953` resolved the two ambiguous groups off the movement pattern (Arms to Triceps on a
+push, Biceps on a pull; Legs to Hamstrings on a hinge, Quads on a squat or lunge) and skipped
+what it could not pin. That is the best available read, but it under-credits silently — a
+carry, a cardio row, or any exercise whose catalog fetch has not landed yet contributes
+nothing — and the printed number cannot be audited against what the user actually did. Note
+also that `core` is tagged on 605 rows, over half of everything tagged, so half-set credit
+hands core the largest share of most sessions on the strength of isometric bracing.
+
+**What doing it properly takes:** a fourth per-row sidecar in the shape of the tiers /
+ladders / joint-demand layers — `EXERCISE_CONTRIBUTIONS: Record<string, { muscle, fraction }[]>`
+authored at sub-muscle granularity, because the fraction is a property of the exercise (a
+dip's triceps around 0.75, a wide-grip bench's around 0.35). Roughly 1,161 rows need a
+judgement call each, and unlike tiers there is no defensible way to bulk-infer them.
+
+**Cheaper win in the meantime:** the per-muscle ceiling in `quick-session-builder.ts:1316`
+counts primaries only, so a solo Chest day can push triceps past 13 hard sets undetected. Fix
+that with a movement-pattern volume cap (cap presses per session regardless of which muscle
+each slot claims) — no per-row authoring, and no number shown to the user.
+
+Full argument with the figures: https://claude.ai/code/artifact/67dc0339-8a8a-4290-a277-1d1e950e7d7b
