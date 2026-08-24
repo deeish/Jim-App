@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   elevation,
+  leading,
   radius,
   spacing,
   text,
@@ -319,7 +320,10 @@ export default function PlanCalendarDayScreen() {
           celebration was a one-shot page you could never see again. */}
       {dayLogged && (
         <TouchableOpacity
-          style={styles.completeBanner}
+          style={[
+            styles.completeBanner,
+            mode === 'dark' ? styles.completeBannerDark : styles.completeBannerLight,
+          ]}
           activeOpacity={reviewable ? 0.85 : 1}
           disabled={!reviewable}
           onPress={() => {
@@ -338,20 +342,19 @@ export default function PlanCalendarDayScreen() {
                 : 'Session logged'
           }
         >
-          <View style={styles.completeBannerRow}>
-            <Ionicons name="checkmark-circle" size={20} color={GOLD} />
-            <Text style={styles.completeBannerText}>
-              {allDone ? 'Workout complete — great work.' : 'Session logged.'}
-            </Text>
-          </View>
+          <Ionicons name="checkmark-circle" size={17} color={GOLD} />
+          <Text style={styles.completeBannerText}>
+            {allDone ? 'Workout complete' : 'Session logged'}
+          </Text>
           {reviewable && (
-            // A real pill, not a text link: this is the ONLY way back to the
-            // finish screen, so it has to read as a button at a glance.
-            <View style={styles.completeBannerButton}>
-              <Ionicons name="stats-chart" size={15} color={colors.primary} />
+            // Label plus chevron, not a pill: the whole strip is the target,
+            // and chevron-forward is this screen's own "pushes a page" mark
+            // (the exercise cards use it). A pill inside a 44pt row is both a
+            // second affordance and, at ~33pt, a smaller one than the row.
+            <>
               <Text style={styles.completeBannerAction}>Review session</Text>
               <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-            </View>
+            </>
           )}
         </TouchableOpacity>
       )}
@@ -768,51 +771,48 @@ function createStyles(c: ColorPalette) {
     exerciseCardDone: {
       opacity: 0.55,
     },
-    // Two centred rows (status, then the review action) rather than one row
-    // with the action pinned right: "Workout complete — great work." plus a
-    // right-edge label collides on a 375pt screen.
+    // One row — status left, action right — in the shape the skipped banner
+    // next door already uses. The gold now arrives as a TINT, not a 2px frame:
+    // no other banner on this screen carries a border, which is what made this
+    // one shout over the exercise list it sits above. 12 + 20 + 12 = 44pt, the
+    // touch minimum, down from ~87 as two rows.
     completeBanner: {
-      alignItems: 'center',
-      gap: spacing.xxs,
-      backgroundColor: c.surface,
-      borderRadius: radius.lg,
-      borderWidth: 2,
-      borderColor: GOLD,
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.md,
-    },
-    completeBannerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-    },
-    completeBannerText: {
-      ...sfPro,
-      // Wraps inside the row rather than pushing past the card at large
-      // Dynamic Type sizes — the banner now has horizontal padding to respect.
-      flexShrink: 1,
-      fontSize: text.callout,
-      fontWeight: weight.semibold,
-      color: c.text,
-    },
-    // Same tinted pill the missed-day banner uses for its secondary action.
-    completeBannerButton: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.xs,
-      backgroundColor: c.primarySoft,
-      borderRadius: radius.pill,
+      borderRadius: radius.lg,
       paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.sm,
-      marginTop: spacing.xs,
+      paddingVertical: spacing.md,
+    },
+    // Gold at the palette's own soft-fill strengths (SOFT_ALPHA and
+    // DARK_SOFT_ALPHA in colors.ts — dark tints run stronger before their
+    // colour reads). GOLD is a prototype constant, so there is no goldSoft
+    // token to reach for, and warningSoft would say "missed", not "done".
+    completeBannerLight: {
+      backgroundColor: `${GOLD}1A`,
+    },
+    completeBannerDark: {
+      backgroundColor: `${GOLD}26`,
+    },
+    completeBannerText: {
+      ...sfPro,
+      // Takes the slack and wraps at large Dynamic Type, so the action keeps
+      // its place instead of being pushed off the row.
+      flex: 1,
+      fontSize: text.body,
+      lineHeight: leading.body,
+      fontWeight: weight.semibold,
+      color: c.text,
     },
     // The action reads in the app's ACTION colour, not the banner's gold:
     // GOLD on the light surface is ~2:1, nowhere near 4.5:1 at this size, and
     // every other tappable label on this screen (Add Exercise, Undo, Options)
-    // is already primary. Gold stays the completion mark — the border and ✓.
+    // is already primary. Gold stays the completion mark — the tint and the ✓.
     completeBannerAction: {
       ...sfPro,
+      flexShrink: 0,
       fontSize: text.body,
+      lineHeight: leading.body,
       fontWeight: weight.semibold,
       color: c.primary,
     },
