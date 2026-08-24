@@ -141,14 +141,36 @@ export function summariseSetLoads(
   return low === high ? `${high} reps` : `${low}–${high} reps`;
 }
 
-/** '45 sec' → 45s; '2 min' → 120s, keeping the text and unit it was logged with. */
-function parseDuration(raw: string): { seconds: number; text: string; unit: string } | null {
-  const m = raw.match(/(\d+(?:\.\d+)?)\s*(min|sec)/i);
-  if (!m) return null;
-  const value = Number(m[1]);
+type Duration = { seconds: number; text: string; unit: string };
+
+/** '45' + 'sec' → 45s; '2' + 'min' → 120s, keeping the text as it was written. */
+function toDuration(text: string, unit: string): Duration | null {
+  const value = Number(text);
   if (!Number.isFinite(value) || value <= 0) return null;
-  const unit = m[2].toLowerCase();
-  return { seconds: unit === 'min' ? value * 60 : value, text: m[1], unit };
+  return { seconds: unit === 'min' ? value * 60 : value, text, unit };
+}
+
+/**
+ * The durations one logged string carries: one for '45 sec', BOTH ends for a
+ * band like '20–45 sec'.
+ *
+ * Bands matter because the deck writes the prescription through verbatim when
+ * a set is checked off without typing — the normal path for someone who did
+ * exactly what was asked. Reading only the number nearest the unit would take
+ * '20–45 sec' as a flat 45 and report a hold the user never claimed.
+ */
+function parseDurations(raw: string): Duration[] {
+  const band = raw.match(/(\d+(?:\.\d+)?)\s*[–—-]\s*(\d+(?:\.\d+)?)\s*(min|sec)/i);
+  if (band) {
+    const unit = band[3].toLowerCase();
+    return [toDuration(band[1], unit), toDuration(band[2], unit)].filter(
+      (d): d is Duration => d !== null,
+    );
+  }
+  const one = raw.match(/(\d+(?:\.\d+)?)\s*(min|sec)/i);
+  if (!one) return [];
+  const d = toDuration(one[1], one[2].toLowerCase());
+  return d ? [d] : [];
 }
 
 /**
@@ -163,12 +185,12 @@ function parseDuration(raw: string): { seconds: number; text: string; unit: stri
  *
  * Compared in seconds so a run that mixes units still orders correctly, and
  * each end prints in the unit it was logged with ('90 sec–2 min'). A set with
- * no readable duration is skipped; a row with none gets the em dash.
+ * no readable duration is skipped; a row with none gets the em dash. A set
+ * logged as a band contributes both of its ends, so '20–45 sec' stays the
+ * band it was rather than collapsing to its top.
  */
 export function summariseSetDurations(reps: string[]): string {
-  const parsed = reps
-    .map(parseDuration)
-    .filter((d): d is { seconds: number; text: string; unit: string } => d !== null);
+  const parsed = reps.flatMap(parseDurations);
   if (parsed.length === 0) return '—';
   let low = parsed[0];
   let high = parsed[0];

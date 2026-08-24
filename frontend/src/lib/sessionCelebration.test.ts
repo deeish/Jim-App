@@ -424,4 +424,21 @@ describe('summariseSetDurations', () => {
     expect(summariseSetDurations([])).toBe('—');
     expect(summariseSetDurations(['8', '10'])).toBe('—');
   });
+
+  it('keeps a banded set as the band it was, rather than its top end', () => {
+    // The deck writes the PRESCRIPTION through verbatim when a set is checked
+    // off without typing, so a banded prescription arrives here intact.
+    // Reading only the number touching the unit would report '20–45 sec' as a
+    // flat 45 — a hold the user never claimed.
+    expect(summariseSetDurations(['20–45 sec'])).toBe('20–45 sec');
+    expect(summariseSetDurations(['8–12 min'])).toBe('8–12 min');
+    // Plain hyphen and em dash are written by different sources; both read.
+    expect(summariseSetDurations(['20-45 sec'])).toBe('20–45 sec');
+    expect(summariseSetDurations(['20—45 sec'])).toBe('20–45 sec');
+  });
+
+  it('spans a band together with the sets logged around it', () => {
+    expect(summariseSetDurations(['20–45 sec', '60 sec'])).toBe('20–60 sec');
+    expect(summariseSetDurations(['30 sec', '8–12 min'])).toBe('30 sec–12 min');
+  });
 });
