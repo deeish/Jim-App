@@ -58,18 +58,6 @@ export function buildPlanByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, 
   return byWeek;
 }
 
-/**
- * "Bench Press · Incline DB Press · Cable Fly +3 more" — the Today hero's
- * one-line glance at what the session actually is.
- */
-export function heroExercisePreviewLine(names: string[], max = 3): string {
-  const shown = names.map((n) => n.trim()).filter((n) => n.length > 0);
-  if (shown.length === 0) return '';
-  const head = shown.slice(0, max).join(' · ');
-  const extra = shown.length - Math.min(max, shown.length);
-  return extra > 0 ? `${head} +${extra} more` : head;
-}
-
 /** First word of a day title for the week strip's mini tiles ("Push Day A" → "Push"). */
 export function tileDayTitle(title: string): string {
   return title.trim().split(/\s+/)[0] ?? '';

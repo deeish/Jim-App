@@ -1,7 +1,6 @@
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import type { Workout } from '../types/workout';
 import {
-  heroExercisePreviewLine,
   latestCompletedSession,
   planSlotLinksWeeklyWorkout,
   recentDayLabel,
@@ -183,24 +182,6 @@ describe('resolveHomeToday', () => {
     const r = resolveHomeToday(plan, []);
     expect(r.status).toBe('out_of_program');
     expect(r.repeatingWeek).toBeUndefined();
-  });
-});
-
-describe('heroExercisePreviewLine', () => {
-  it('joins up to three names and counts the rest', () => {
-    expect(
-      heroExercisePreviewLine(['Bench Press', 'Incline DB Press', 'Cable Fly', 'OHP', 'Lateral Raise', 'Pushdown']),
-    ).toBe('Bench Press · Incline DB Press · Cable Fly +3 more');
-  });
-
-  it('omits the suffix when everything fits', () => {
-    expect(heroExercisePreviewLine(['Bench Press', 'Cable Fly'])).toBe('Bench Press · Cable Fly');
-  });
-
-  it('skips blank names and returns empty for an empty day', () => {
-    expect(heroExercisePreviewLine(['', '  '])).toBe('');
-    expect(heroExercisePreviewLine([])).toBe('');
-    expect(heroExercisePreviewLine([' Bench Press ', ''])).toBe('Bench Press');
   });
 });
 

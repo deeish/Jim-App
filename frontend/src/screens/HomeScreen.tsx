@@ -46,15 +46,13 @@ import {
 } from '../lib/planCalendarPrototypeStore';
 import type { Workout, WorkoutStats } from '../types/workout';
 import {
-  heroExercisePreviewLine,
   latestCompletedSession,
   recentDayLabel,
   resolveHomeToday,
   tileDayTitle,
   type HomeTodayResult,
 } from '../lib/homeToday';
-import { sessionLocalDay, summarizeProgress } from '../lib/progressStats';
-import { formatVolumeFromLb } from '../lib/weightDisplay';
+import { formatTotalDuration, sessionLocalDay, summarizeProgress } from '../lib/progressStats';
 import {
   resolveProgramWeekForCalendarOffset,
   lastContiguousProgramWeek,
@@ -90,26 +88,15 @@ function formatTodayDateLine(): string {
   });
 }
 
+// Time + count only: the muscle chips above the title now carry what the
+// plan's focus text used to say, and glanceability research caps a card at
+// one short meta line — the hero must read in three beats (what / how much / go).
 function buildTodayMetaLine(workout: Workout, planSlot: ApiPlanWorkout | undefined): string {
   const parts: string[] = [];
   const displayMin = resolveWorkoutEtaMinutes(workout, planSlot ?? null);
-  const plannedStrip = workout.estimatedDuration ?? planSlot?.durationMinutes ?? null;
   const n = workout.exercises?.length ?? 0;
   if (displayMin != null) parts.push(`Est. ${displayMin} min`);
-  const exercisePhrase = `${n} ${n === 1 ? 'exercise' : 'exercises'}`;
-  const focusCleaned = stripCoachAdviceBullets(workout.focus ?? '');
-  if (focusCleaned) {
-    const segments = focusCleaned.split(/\s*•\s*/).map((s) => s.trim()).filter(Boolean);
-    for (const seg of segments) {
-      if (/^\d+\s*min$/i.test(seg)) {
-        const m = parseInt(seg, 10);
-        if (m === displayMin || m === plannedStrip) continue;
-      }
-      if (/^\d+\s*exercises?$/i.test(seg)) continue;
-      parts.push(seg);
-    }
-  }
-  parts.push(exercisePhrase);
+  parts.push(`${n} ${n === 1 ? 'exercise' : 'exercises'}`);
   return parts.join(' · ');
 }
 
@@ -144,7 +131,7 @@ export default function HomeScreen() {
   // The tab bar floats over this screen; keep the last cards clear of it.
   const tabBarInset = useTabBarInset();
   const { user } = useAuth();
-  const { profileAvatarId, profileDisplayName, weightUnit } = useUserPreferences();
+  const { profileAvatarId, profileDisplayName } = useUserPreferences();
   const displayName = (profileDisplayName || user?.email?.split('@')[0] || '').split(' ')[0];
 
   const [whatsNewVisible, setWhatsNewVisible] = useState(false);
@@ -375,22 +362,16 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calVersion, loading]);
   const heroMuscles = todayPlanned ? dayMuscles(todayPlanned).slice(0, 4) : [];
-  const heroPreview = heroExercisePreviewLine(
-    (todayPlanned?.exercises ?? scheduledWorkout?.exercises ?? []).map((e) => e.name ?? ''),
-  );
 
   const summary = useMemo(() => (stats ? summarizeProgress(stats, new Date()) : null), [stats]);
   const lastSession = useMemo(() => (stats ? latestCompletedSession(stats.sessions) : null), [stats]);
   const lastSessionDay = lastSession ? sessionLocalDay(lastSession) : null;
+  // Duration, not sets/volume: raw tonnage means little to a general-population
+  // user days later — time trained is the number everyone understands.
   const lastMeta = useMemo(() => {
-    if (!lastSession) return '';
-    const parts: string[] = [];
-    if ((lastSession.totalSets ?? 0) > 0) parts.push(`${lastSession.totalSets} sets`);
-    // Gated on raw volume > 0 so a bodyweight-only session never reads "0 lb".
-    if ((lastSession.totalVolume ?? 0) > 0)
-      parts.push(formatVolumeFromLb(lastSession.totalVolume ?? 0, weightUnit));
-    return parts.length ? parts.join(' · ') : 'Completed';
-  }, [lastSession, weightUnit]);
+    const secs = lastSession?.totalTimeSeconds ?? 0;
+    return secs > 0 ? formatTotalDuration(secs) : '';
+  }, [lastSession]);
 
   return (
     <SafeAreaView
@@ -551,10 +532,6 @@ export default function HomeScreen() {
                 {resumeSession ? (
                   <Text style={[styles.heroPreview, { color: colors.primary, fontWeight: weight.bold }]}>
                     {resumeSession.loggedSets} of {resumeSession.totalSets} sets logged · keep going
-                  </Text>
-                ) : heroPreview ? (
-                  <Text style={[styles.heroPreview, { color: colors.textMuted }]} numberOfLines={1}>
-                    {heroPreview}
                   </Text>
                 ) : null}
                 <TouchableOpacity
@@ -839,7 +816,9 @@ export default function HomeScreen() {
                   <Text style={[styles.rowCardTitle, { color: colors.text }]} numberOfLines={1}>
                     {lastSession.workoutName ?? 'Workout'}
                   </Text>
-                  <Text style={[styles.rowCardSub, { color: colors.textMuted }]}>{lastMeta}</Text>
+                  {lastMeta ? (
+                    <Text style={[styles.rowCardSub, { color: colors.textMuted }]}>{lastMeta}</Text>
+                  ) : null}
                 </View>
                 <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
               </TouchableOpacity>
