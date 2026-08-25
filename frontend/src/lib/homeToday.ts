@@ -3,7 +3,7 @@
  * (calendar week 0 + program week mapping + day slots + linked weekly workouts).
  */
 
-import type { Workout, WorkoutLog } from '../types/workout';
+import type { Workout } from '../types/workout';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import {
   isRestPlanSlotTitle,
@@ -11,6 +11,7 @@ import {
   normalizePlanAnchorYmd,
   normalizePlanDayOfWeek,
   normalizeProgramWeekNumber,
+  parseLocalYmd,
   planWeekdayNameLocal,
   resolveProgramWeekForCalendarOffset,
 } from './planCalendar';
@@ -57,40 +58,47 @@ export function buildPlanByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, 
   return byWeek;
 }
 
-export type HomeWeekDotStatus = 'completed' | 'today' | 'scheduled' | 'rest';
-export type HomeWeekDot = { status: HomeWeekDotStatus; name: string | null };
+/**
+ * "Bench Press · Incline DB Press · Cable Fly +3 more" — the Today hero's
+ * one-line glance at what the session actually is.
+ */
+export function heroExercisePreviewLine(names: string[], max = 3): string {
+  const shown = names.map((n) => n.trim()).filter((n) => n.length > 0);
+  if (shown.length === 0) return '';
+  const head = shown.slice(0, max).join(' · ');
+  const extra = shown.length - Math.min(max, shown.length);
+  return extra > 0 ? `${head} +${extra} more` : head;
+}
+
+/** First word of a day title for the week strip's mini tiles ("Push Day A" → "Push"). */
+export function tileDayTitle(title: string): string {
+  return title.trim().split(/\s+/)[0] ?? '';
+}
+
+/** Newest completed session — the list usually arrives newest-first, but sorted defensively. */
+export function latestCompletedSession<T extends { startedAt: string; completedAt: string | null }>(
+  sessions: T[],
+): T | null {
+  let best: T | null = null;
+  for (const s of sessions) {
+    if (s.completedAt == null) continue;
+    if (!best || Date.parse(s.startedAt) > Date.parse(best.startedAt)) best = s;
+  }
+  return best;
+}
 
 /**
- * Week-strip dots for Home (Monday-first). A day is "completed" only when a
- * completed WorkoutLog from the current calendar week points at a workout
- * linked to one of its slots. Applying a plan materializes Workout rows for
- * every slot upfront, so row existence must never be used as a done signal
- * (that made every dot render solid the moment a generated plan was applied).
+ * "Today" / "Yesterday" / "Tue" (within the past week) / "Aug 12" — the
+ * last-workout card's day label. Both arguments are LOCAL `YYYY-MM-DD` days.
  */
-export function buildHomeWeekDots(
-  plan: ApiPlan | null | undefined,
-  weeklyWorkouts: Workout[],
-  completedLogs: Pick<WorkoutLog, 'workoutId' | 'completedAt'>[],
-  currentProgramWeek: number | null,
-): HomeWeekDot[] {
-  const list = plan?.planWorkouts;
-  if (!list?.length || currentProgramWeek == null) return [];
-  const thisWeek = buildPlanByWeek(list)[currentProgramWeek] ?? {};
-  const todayName = planWeekdayNameLocal();
-  return DAYS.map((day) => {
-    const slots = thisWeek[day] ?? [];
-    const nonRest = slots.filter((s) => !isRestPlanSlotTitle(s.title));
-    if (!nonRest.length) return { status: 'rest', name: null };
-    const name = nonRest[0].title ?? null;
-    const completed = nonRest.some((s) => {
-      const linked = weeklyWorkouts.find((w) => planSlotLinksWeeklyWorkout(s.id, w.planWorkoutId));
-      if (!linked?.id) return false;
-      return completedLogs.some((l) => l.completedAt != null && l.workoutId === linked.id);
-    });
-    if (completed) return { status: 'completed', name };
-    if (day === todayName) return { status: 'today', name };
-    return { status: 'scheduled', name };
-  });
+export function recentDayLabel(ymd: string, todayYmd: string): string {
+  const d = parseLocalYmd(ymd);
+  const today = parseLocalYmd(todayYmd);
+  const days = Math.round((today.getTime() - d.getTime()) / 86400000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return d.toLocaleDateString('en-US', { weekday: 'short' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export type HomeTodayResult = (

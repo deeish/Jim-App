@@ -1,6 +1,13 @@
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import type { Workout } from '../types/workout';
-import { buildHomeWeekDots, planSlotLinksWeeklyWorkout, resolveHomeToday } from './homeToday';
+import {
+  heroExercisePreviewLine,
+  latestCompletedSession,
+  planSlotLinksWeeklyWorkout,
+  recentDayLabel,
+  resolveHomeToday,
+  tileDayTitle,
+} from './homeToday';
 
 describe('planSlotLinksWeeklyWorkout', () => {
   it('returns true when string ids match', () => {
@@ -179,89 +186,63 @@ describe('resolveHomeToday', () => {
   });
 });
 
-describe('buildHomeWeekDots', () => {
-  beforeEach(() => {
-    jest.useFakeTimers();
-    // Monday Apr 6, 2026 (local) — matches planCalendar tests
-    jest.setSystemTime(new Date(2026, 3, 6, 12, 0, 0));
+describe('heroExercisePreviewLine', () => {
+  it('joins up to three names and counts the rest', () => {
+    expect(
+      heroExercisePreviewLine(['Bench Press', 'Incline DB Press', 'Cable Fly', 'OHP', 'Lateral Raise', 'Pushdown']),
+    ).toBe('Bench Press · Incline DB Press · Cable Fly +3 more');
   });
 
-  afterEach(() => {
-    jest.useRealTimers();
+  it('omits the suffix when everything fits', () => {
+    expect(heroExercisePreviewLine(['Bench Press', 'Cable Fly'])).toBe('Bench Press · Cable Fly');
   });
 
-  const slot = (id: string, dayOfWeek: string, title = 'Push'): ApiPlanWorkout => ({
-    id,
-    workoutPlanId: 'p1',
-    weekNumber: 1,
-    dayOfWeek,
-    title,
-    detailLine: null,
-    type: 'strength',
-    durationMinutes: 45,
-    intensity: null,
-    orderInDay: 0,
+  it('skips blank names and returns empty for an empty day', () => {
+    expect(heroExercisePreviewLine(['', '  '])).toBe('');
+    expect(heroExercisePreviewLine([])).toBe('');
+    expect(heroExercisePreviewLine([' Bench Press ', ''])).toBe('Bench Press');
+  });
+});
+
+describe('tileDayTitle', () => {
+  it('keeps the first word of the day title', () => {
+    expect(tileDayTitle('Push Day A')).toBe('Push');
+    expect(tileDayTitle('Upper Body')).toBe('Upper');
+    expect(tileDayTitle('  Legs ')).toBe('Legs');
+    expect(tileDayTitle('')).toBe('');
+  });
+});
+
+describe('latestCompletedSession', () => {
+  const s = (startedAt: string, completedAt: string | null) => ({ startedAt, completedAt });
+
+  it('picks the newest completed session even when the list is unsorted', () => {
+    const older = s('2026-04-01T10:00:00.000Z', '2026-04-01T11:00:00.000Z');
+    const newest = s('2026-04-05T10:00:00.000Z', '2026-04-05T11:00:00.000Z');
+    const inProgress = s('2026-04-06T10:00:00.000Z', null);
+    expect(latestCompletedSession([older, inProgress, newest])).toBe(newest);
   });
 
-  const planWith = (slots: ApiPlanWorkout[]): ApiPlan => ({
-    id: 'p1',
-    name: 'Test',
-    userId: 'u1',
-    createdAt: '',
-    updatedAt: '',
-    planWorkouts: slots,
+  it('returns null when nothing has completed', () => {
+    expect(latestCompletedSession([s('2026-04-06T10:00:00.000Z', null)])).toBeNull();
+    expect(latestCompletedSession([])).toBeNull();
+  });
+});
+
+describe('recentDayLabel', () => {
+  const today = '2026-04-06'; // Monday
+
+  it('names today and yesterday', () => {
+    expect(recentDayLabel('2026-04-06', today)).toBe('Today');
+    expect(recentDayLabel('2026-04-05', today)).toBe('Yesterday');
   });
 
-  const linked = (workoutId: string, slotId: string): Workout => ({
-    id: workoutId,
-    name: 'Push',
-    exercises: [],
-    planWorkoutId: slotId,
+  it('uses the short weekday inside the past week', () => {
+    expect(recentDayLabel('2026-04-04', today)).toBe('Sat');
+    expect(recentDayLabel('2026-03-31', today)).toBe('Tue');
   });
 
-  it('does not mark a day completed just because its workout row was materialized', () => {
-    // Applying an AI plan materializes Workout rows for every slot upfront —
-    // with no completed log, today must stay "today", not flip to "completed".
-    const plan = planWith([slot('slot-mon', 'Monday'), slot('slot-wed', 'Wednesday')]);
-    const weekly = [linked('w-mon', 'slot-mon'), linked('w-wed', 'slot-wed')];
-    const dots = buildHomeWeekDots(plan, weekly, [], 1);
-    expect(dots[0]).toEqual({ status: 'today', name: 'Push' });
-    expect(dots[2]).toEqual({ status: 'scheduled', name: 'Push' });
-  });
-
-  it('marks a day completed only from a completed log for its linked workout', () => {
-    const plan = planWith([slot('slot-mon', 'Monday'), slot('slot-wed', 'Wednesday')]);
-    const weekly = [linked('w-mon', 'slot-mon'), linked('w-wed', 'slot-wed')];
-    const dots = buildHomeWeekDots(
-      plan,
-      weekly,
-      [{ workoutId: 'w-mon', completedAt: '2026-04-06T10:00:00.000Z' }],
-      1,
-    );
-    expect(dots[0]).toEqual({ status: 'completed', name: 'Push' });
-    expect(dots[2]).toEqual({ status: 'scheduled', name: 'Push' });
-  });
-
-  it('ignores logs without completedAt and logs for unrelated workouts', () => {
-    const plan = planWith([slot('slot-mon', 'Monday')]);
-    const weekly = [linked('w-mon', 'slot-mon')];
-    const dots = buildHomeWeekDots(
-      plan,
-      weekly,
-      [
-        { workoutId: 'w-mon', completedAt: null },
-        { workoutId: 'w-other', completedAt: '2026-04-06T10:00:00.000Z' },
-      ],
-      1,
-    );
-    expect(dots[0].status).toBe('today');
-  });
-
-  it('renders rest for days without slots and returns [] outside the program', () => {
-    const plan = planWith([slot('slot-mon', 'Monday')]);
-    const dots = buildHomeWeekDots(plan, [], [], 1);
-    expect(dots[1]).toEqual({ status: 'rest', name: null });
-    expect(buildHomeWeekDots(plan, [], [], null)).toEqual([]);
-    expect(buildHomeWeekDots(null, [], [], 1)).toEqual([]);
+  it('falls back to a short date beyond a week', () => {
+    expect(recentDayLabel('2026-03-12', today)).toBe('Mar 12');
   });
 });
