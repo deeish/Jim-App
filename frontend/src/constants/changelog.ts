@@ -24,6 +24,29 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  // The ONE card for this wave: the Home "Launchpad" redesign and the
+  // goal-adaptive Profile "Athlete card". The week-tile split codes, recap
+  // trims and haptics sweep are part of those stories, not separate lines.
+  {
+    id: '2026-08-25',
+    version: '1.1.0',
+    date: '2026-08-25',
+    title: 'A new Home and Profile',
+    changes: [
+      {
+        type: 'new',
+        text: 'Home is now your launchpad: today’s session up front with its muscle colors, a tappable week at a glance, your streak, your last workout, and Quick Workout one tap away.',
+      },
+      {
+        type: 'new',
+        text: 'Your profile is now an athlete card: your name and gym cred, your best lifts, your body weight trend, and cleaner settings below.',
+      },
+      {
+        type: 'improved',
+        text: 'The profile adapts to your goal. Strength and muscle goals lead with your best lifts; fat loss goals lead with your body weight.',
+      },
+    ],
+  },
   // The ONE card for this OTA: everything since build 26 (the finish
   // celebration + save, the day-actions menu + skip, set-aware Last time +
   // Target on the deck, history-aware recommendations). Trained-day
