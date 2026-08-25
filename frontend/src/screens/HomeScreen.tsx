@@ -20,30 +20,49 @@ import { LATEST_CHANGELOG_ID } from '../constants/changelog';
 import { getSeenChangelogId, setSeenChangelogId } from '../lib/whatsNewStorage';
 import type { RootNavigatorParamList } from '../types/navigation';
 import { RootTabParamList } from '../components/NavBar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { getCurrentPlanWithWeekly, planSlotForWorkout } from '../services/planService';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
-import { getWorkoutLogs } from '../services/workoutService';
-import { todayIso } from '../lib/planCalendarPrototype';
+import { getWorkoutStats } from '../services/workoutService';
 import {
+  MUSCLE_EDGE,
+  MUSCLE_INK,
+  addDays,
+  dayMuscles,
+  mondayOf,
+  muscleGradient,
+  todayIso,
+  toIso,
+} from '../lib/planCalendarPrototype';
+import {
+  calendarDataMode,
   ensureLiveCalendarData,
+  ensureLogsForMonth,
   inProgressSession,
+  isDayCompleted,
+  isDaySkipped,
+  plannedDayForDate,
   subscribePlanCalendar,
 } from '../lib/planCalendarPrototypeStore';
-import type { Workout, WorkoutLog } from '../types/workout';
+import type { Workout, WorkoutStats } from '../types/workout';
 import {
+  heroExercisePreviewLine,
+  latestCompletedSession,
+  recentDayLabel,
   resolveHomeToday,
-  buildHomeWeekDots,
+  tileDayTitle,
   type HomeTodayResult,
-  type HomeWeekDotStatus,
 } from '../lib/homeToday';
+import { sessionLocalDay, summarizeProgress } from '../lib/progressStats';
+import { formatVolumeFromLb } from '../lib/weightDisplay';
 import {
   resolveProgramWeekForCalendarOffset,
   lastContiguousProgramWeek,
   normalizeProgramWeekNumber,
-  getCalendarWeekRange,
-  formatLocalYmd,
   PLAN_WEEKDAY_NAMES_MONDAY_FIRST,
 } from '../lib/planCalendar';
+import RosetteSeal from '../components/RosetteSeal';
+import QuickWorkoutSheet from '../components/QuickWorkoutSheet';
 import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
 import { leading, radius, spacing, text, tracking, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
@@ -125,7 +144,7 @@ export default function HomeScreen() {
   // The tab bar floats over this screen; keep the last cards clear of it.
   const tabBarInset = useTabBarInset();
   const { user } = useAuth();
-  const { profileAvatarId, profileDisplayName } = useUserPreferences();
+  const { profileAvatarId, profileDisplayName, weightUnit } = useUserPreferences();
   const displayName = (profileDisplayName || user?.email?.split('@')[0] || '').split(' ')[0];
 
   const [whatsNewVisible, setWhatsNewVisible] = useState(false);
@@ -134,17 +153,28 @@ export default function HomeScreen() {
   const whatsNewAutoShown = useRef(false);
   const [homeToday, setHomeToday] = useState<HomeTodayResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // Calendar in-progress session (crash-safe store) → the Resume card.
+  // Calendar in-progress session (crash-safe store) → the Resume state.
   const [resumeSession, setResumeSession] = useState<ReturnType<typeof inProgressSession>>(null);
+  // Bumped on every calendar-store emit so the week strip re-derives from it.
+  const [calVersion, setCalVersion] = useState(0);
   useEffect(() => {
     ensureLiveCalendarData();
+    // The strip's "done" seals come from logged days; the current week can
+    // straddle a month boundary, so warm both months.
+    const monday = mondayOf(new Date());
+    ensureLogsForMonth(monday);
+    ensureLogsForMonth(addDays(monday, 6));
     setResumeSession(inProgressSession(todayIso()));
-    return subscribePlanCalendar(() => setResumeSession(inProgressSession(todayIso())));
+    return subscribePlanCalendar(() => {
+      setResumeSession(inProgressSession(todayIso()));
+      setCalVersion((v) => v + 1);
+    });
   }, []);
   const [plan, setPlan] = useState<ApiPlan | null>(null);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
-  /** Completed logs for the current calendar week — the only valid "done" signal for week dots. */
-  const [weekCompletedLogs, setWeekCompletedLogs] = useState<WorkoutLog[]>([]);
+  /** Session history summary — powers the streak, sessions and last-workout cards. */
+  const [stats, setStats] = useState<WorkoutStats | null>(null);
+  const [quickVisible, setQuickVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isFirstLoad = useRef(true);
@@ -197,17 +227,16 @@ export default function HomeScreen() {
     try {
       setResumeSession(inProgressSession(todayIso()));
 
-      const { start, end } = getCalendarWeekRange(0);
-      const [{ plan: fetchedPlan, weeklyWorkouts: fetchedWeekly }, logs] = await Promise.all([
+      const [{ plan: fetchedPlan, weeklyWorkouts: fetchedWeekly }, fetchedStats] = await Promise.all([
         getCurrentPlanWithWeekly(),
-        // Graceful degradation: on error the dots simply show no completion.
-        getWorkoutLogs({ from: formatLocalYmd(start), to: formatLocalYmd(end) }).catch(
-          (): WorkoutLog[] => [],
-        ),
+        // Same endpoint and window as the Progress screen, so the streak on
+        // Home can never disagree with it. Graceful: on error the momentum
+        // and last-workout cards simply don't render.
+        getWorkoutStats().catch((): WorkoutStats | null => null),
       ]);
       setPlan(fetchedPlan ?? null);
       setWeeklyWorkouts(fetchedWeekly ?? []);
-      setWeekCompletedLogs(logs.filter((l) => l.completedAt != null));
+      setStats(fetchedStats);
       setHomeToday(resolveHomeToday(fetchedPlan, fetchedWeekly ?? []));
       setLoadError(null);
     } catch (err) {
@@ -238,13 +267,7 @@ export default function HomeScreen() {
   // Home entry point routes into it: overview links land on the month or week,
   // anything workout-shaped lands on today's day view. `initial: false` on the
   // day view mounts the week landing beneath it, so Back reads Day → Week.
-  // History/Progress are the REAL screens, re-homed into the Calendar stack.
-  // `initial: false` mounts the week landing beneath them so Back works.
-  const goToHistory = () => {
-    haptics.tap();
-    navigation.navigate('Calendar', { screen: 'History', initial: false });
-  };
-
+  // Progress is the REAL screen, re-homed into the Calendar stack.
   const goToProgress = () => {
     haptics.tap();
     navigation.navigate('Calendar', { screen: 'Progress', initial: false });
@@ -260,23 +283,16 @@ export default function HomeScreen() {
     navigation.navigate('Calendar');
   };
 
-  const goToWorkout = () => {
+  const goToDay = (dateIso: string) => {
     haptics.tap();
     navigation.navigate('Calendar', {
       screen: 'PlanCalendarDay',
-      params: { dateIso: todayIso() },
+      params: { dateIso },
       initial: false,
     });
   };
 
-  const goToTodaysWorkoutSession = (_workout: Workout) => {
-    haptics.tap();
-    navigation.navigate('Calendar', {
-      screen: 'PlanCalendarDay',
-      params: { dateIso: todayIso() },
-      initial: false,
-    });
-  };
+  const goToWorkout = () => goToDay(todayIso());
 
   const themedStyles = useMemo(
     () => ({
@@ -312,11 +328,6 @@ export default function HomeScreen() {
     return { current: r.week, total: maxWeek, repeating: r.repeatingLastWeek };
   }, [plan]);
 
-  const weekDots = useMemo(
-    () => buildHomeWeekDots(plan, weeklyWorkouts, weekCompletedLogs, programWeekInfo?.current ?? null),
-    [plan, weeklyWorkouts, weekCompletedLogs, programWeekInfo],
-  );
-
   const scheduledWorkout = homeToday?.status === 'scheduled' ? homeToday.workout : null;
   const homeTodayPlanSlot = useMemo(
     () =>
@@ -325,8 +336,61 @@ export default function HomeScreen() {
   );
   const metaLine = scheduledWorkout ? buildTodayMetaLine(scheduledWorkout, homeTodayPlanSlot) : '';
   const hasExercises = (scheduledWorkout?.exercises?.length ?? 0) > 0;
-  // Monday-first weekday name for "today" (so the label/marker highlights even on rest days).
-  const todayWeekdayName = PLAN_WEEKDAY_NAMES_MONDAY_FIRST[(new Date().getDay() + 6) % 7];
+
+  // One tile per day of the current calendar week, derived from the SAME store
+  // the Calendar tab renders — Home and Calendar can never disagree. The store
+  // getters read module state, so `calVersion` (bumped on every store emit) is
+  // the memo's change signal.
+  const weekTiles = useMemo(() => {
+    if (loading || calendarDataMode() !== 'live') return [];
+    const monday = mondayOf(new Date());
+    return Array.from({ length: 7 }, (_, i) => {
+      const iso = toIso(addDays(monday, i));
+      const day = plannedDayForDate(iso);
+      const rest = day.exercises.length === 0;
+      const completed = !rest && isDayCompleted(iso);
+      return {
+        iso,
+        label: PLAN_WEEKDAY_NAMES_MONDAY_FIRST[i].slice(0, 2),
+        rest,
+        muscle: rest ? null : dayMuscles(day)[0] ?? null,
+        title: rest ? '' : tileDayTitle(day.title),
+        completed,
+        skipped: !rest && !completed && isDaySkipped(iso),
+        today: iso === todayIso(),
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calVersion, loading]);
+  const weekPlannedCount = weekTiles.filter((t) => !t.rest && !t.skipped).length;
+  const weekDoneCount = weekTiles.filter((t) => t.completed).length;
+  const showWeekStrip = weekTiles.some((t) => !t.rest);
+
+  // Today's day from the calendar store: it carries replacements/additions the
+  // API's weekly rows don't, so the hero's chips + preview stay honest.
+  const todayPlanned = useMemo(() => {
+    if (loading || calendarDataMode() !== 'live') return null;
+    const day = plannedDayForDate(todayIso());
+    return day.exercises.length > 0 ? day : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calVersion, loading]);
+  const heroMuscles = todayPlanned ? dayMuscles(todayPlanned).slice(0, 4) : [];
+  const heroPreview = heroExercisePreviewLine(
+    (todayPlanned?.exercises ?? scheduledWorkout?.exercises ?? []).map((e) => e.name ?? ''),
+  );
+
+  const summary = useMemo(() => (stats ? summarizeProgress(stats, new Date()) : null), [stats]);
+  const lastSession = useMemo(() => (stats ? latestCompletedSession(stats.sessions) : null), [stats]);
+  const lastSessionDay = lastSession ? sessionLocalDay(lastSession) : null;
+  const lastMeta = useMemo(() => {
+    if (!lastSession) return '';
+    const parts: string[] = [];
+    if ((lastSession.totalSets ?? 0) > 0) parts.push(`${lastSession.totalSets} sets`);
+    // Gated on raw volume > 0 so a bodyweight-only session never reads "0 lb".
+    if ((lastSession.totalVolume ?? 0) > 0)
+      parts.push(formatVolumeFromLb(lastSession.totalVolume ?? 0, weightUnit));
+    return parts.length ? parts.join(' · ') : 'Completed';
+  }, [lastSession, weightUnit]);
 
   return (
     <SafeAreaView
@@ -404,7 +468,7 @@ export default function HomeScreen() {
               <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>Today</Text>
             )}
 
-            {resumeSession ? (
+            {resumeSession && homeToday?.status !== 'scheduled' ? (
               <TouchableOpacity
                 style={[styles.card, styles.resumeCard, themedStyles.resumeCard]}
                 onPress={goToWorkout}
@@ -452,34 +516,58 @@ export default function HomeScreen() {
             ) : null}
 
             {!loadError && homeToday?.status === 'scheduled' && scheduledWorkout ? (
-              <View style={[styles.card, styles.todayHero, themedStyles.todayCard, themedStyles.heroRing]}>
-                <View style={styles.todayHeroTop}>
-                  <View style={[styles.cardIconCircle, { backgroundColor: colors.primary + '20' }]}>
-                    <Ionicons name="barbell-outline" size={24} color={colors.primary} />
+              <View
+                style={[
+                  styles.card,
+                  styles.todayHero,
+                  themedStyles.todayCard,
+                  themedStyles.heroRing,
+                  resumeSession ? themedStyles.resumeCard : null,
+                ]}
+              >
+                {heroMuscles.length > 0 ? (
+                  <View style={styles.heroChipRow}>
+                    {heroMuscles.map((m) => (
+                      <LinearGradient
+                        key={m}
+                        colors={muscleGradient(m)}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.heroChip, { borderColor: MUSCLE_EDGE[m] }]}
+                      >
+                        <Text style={[styles.heroChipLabel, { color: MUSCLE_INK[m] }]}>{m}</Text>
+                      </LinearGradient>
+                    ))}
                   </View>
-                  <View style={styles.cardTextBlock}>
-                    <Text style={[styles.cardEyebrow, { color: colors.textMuted }]}>Today's session</Text>
-                    <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
-                      {scheduledWorkout.name}
-                    </Text>
-                    {metaLine ? (
-                      <Text style={[styles.cardMeta, { color: colors.textSecondary }]} numberOfLines={2}>
-                        {metaLine}
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
+                ) : null}
+                <Text style={[styles.heroTitle, { color: colors.text }]} numberOfLines={2}>
+                  {todayPlanned?.title ?? scheduledWorkout.name}
+                </Text>
+                {metaLine ? (
+                  <Text style={[styles.cardMeta, { color: colors.textSecondary }]} numberOfLines={2}>
+                    {metaLine}
+                  </Text>
+                ) : null}
+                {resumeSession ? (
+                  <Text style={[styles.heroPreview, { color: colors.primary, fontWeight: weight.bold }]}>
+                    {resumeSession.loggedSets} of {resumeSession.totalSets} sets logged · keep going
+                  </Text>
+                ) : heroPreview ? (
+                  <Text style={[styles.heroPreview, { color: colors.textMuted }]} numberOfLines={1}>
+                    {heroPreview}
+                  </Text>
+                ) : null}
                 <TouchableOpacity
-                  style={[styles.primaryButton, themedStyles.primaryCta]}
-                  onPress={() => goToTodaysWorkoutSession(scheduledWorkout)}
+                  style={[styles.primaryButton, styles.heroButton, themedStyles.primaryCta]}
+                  onPress={goToWorkout}
                   activeOpacity={0.85}
                 >
                   <Text style={[styles.primaryButtonText, themedStyles.primaryCtaText]}>
-                    Open workout
+                    {resumeSession ? 'Resume workout' : 'Start workout'}
                   </Text>
                   <Ionicons name="arrow-forward" size={18} color={colors.background} />
                 </TouchableOpacity>
-                {!hasExercises ? (
+                {!hasExercises && !resumeSession ? (
                   <Text style={[styles.hintBelow, { color: colors.textMuted }]}>
                     Your list is empty. Add movements on the next screen or from Plan.
                   </Text>
@@ -629,97 +717,167 @@ export default function HomeScreen() {
               </TouchableOpacity>
             ) : null}
 
-            {!loadError && weekDots.length > 0 && (
-              <View style={styles.weekDotsSection}>
-                <Text style={[styles.sectionLabel, styles.sectionSpaced, themedStyles.sectionLabel]}>This week</Text>
-                <View style={styles.dotsRow}>
-                  {PLAN_WEEKDAY_NAMES_MONDAY_FIRST.map((day, i) => {
-                    const { status } = weekDots[i] ?? { status: 'rest' as HomeWeekDotStatus };
-                    const isToday = day === todayWeekdayName;
-                    const isTraining = status !== 'rest';
-                    return (
-                      <View key={day} style={styles.dotWrapper}>
-                        <Text style={[styles.dotDayLabel, { color: isToday ? colors.primary : colors.textMuted, fontWeight: isToday ? '700' : '500' }]}>
-                          {day.slice(0, 2)}
-                        </Text>
-                        <View style={styles.dotSlot}>
-                          {isTraining ? (
-                            // Training day. Hollow gold ring = planned; fills solid when completed.
-                            <View
-                              style={[
-                                styles.dot,
-                                status === 'scheduled'
-                                  ? { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.primary }
-                                  : { backgroundColor: colors.primary },
-                                isToday && styles.dotToday,
-                              ]}
-                            />
-                          ) : (
-                            // Rest day — an intentional muted dash (gold-tinted if it's today).
-                            <View
-                              style={[
-                                styles.restDash,
-                                { backgroundColor: (isToday ? colors.primary : colors.textMuted) + (isToday ? 'CC' : '55') },
-                              ]}
-                            />
-                          )}
+            {!loadError && showWeekStrip && (
+              <View>
+                <View style={[styles.weekHeaderRow, styles.sectionSpaced]}>
+                  <Text style={[styles.sectionLabel, styles.sectionLabelInRow, themedStyles.sectionLabel]}>
+                    This week
+                  </Text>
+                  {weekPlannedCount > 0 ? (
+                    <Text style={[styles.weekCount, { color: colors.textMuted }]}>
+                      {weekDoneCount} of {weekPlannedCount} done
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={styles.tileRow}>
+                  {weekTiles.map((t) => (
+                    <TouchableOpacity
+                      key={t.iso}
+                      style={[styles.tileTap, t.today && { borderColor: colors.primary }]}
+                      activeOpacity={0.8}
+                      onPress={() => goToDay(t.iso)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t.label}${t.rest ? ', rest day' : `, ${t.title}${t.completed ? ', completed' : ''}`}`}
+                    >
+                      {t.rest || t.skipped || !t.muscle ? (
+                        <View style={[styles.weekTile, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
+                          <Text style={[styles.tileDay, { color: colors.textMuted }]}>{t.label}</Text>
+                          <View style={[styles.tileDash, { backgroundColor: colors.textMuted + '55' }]} />
                         </View>
-                      </View>
-                    );
-                  })}
+                      ) : (
+                        <LinearGradient
+                          colors={muscleGradient(t.muscle)}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={[styles.weekTile, { borderWidth: 1, borderColor: MUSCLE_EDGE[t.muscle] }]}
+                        >
+                          <Text style={[styles.tileDay, { color: MUSCLE_INK[t.muscle] }]}>{t.label}</Text>
+                          {t.completed ? (
+                            <Ionicons name="checkmark-sharp" size={14} color={MUSCLE_INK[t.muscle]} />
+                          ) : (
+                            <Text
+                              style={[styles.tileTitle, { color: MUSCLE_INK[t.muscle] }]}
+                              numberOfLines={1}
+                              adjustsFontSizeToFit
+                              minimumFontScale={0.7}
+                            >
+                              {t.title}
+                            </Text>
+                          )}
+                        </LinearGradient>
+                      )}
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
             )}
 
-            <Text style={[styles.sectionLabel, styles.sectionSpaced, themedStyles.sectionLabel]}>Shortcuts</Text>
+            {!loadError && summary && summary.sessionCount > 0 && (
+              <View style={styles.momentumRow}>
+                <TouchableOpacity
+                  style={[styles.card, styles.momentumTile, themedStyles.secondaryCard]}
+                  onPress={goToProgress}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityHint="Opens Progress"
+                >
+                  <Text style={[styles.momentumCaption, themedStyles.sectionLabel]}>Week streak</Text>
+                  <View style={styles.momentumValueRow}>
+                    <Ionicons name="flame" size={22} color={colors.accent} />
+                    <Text style={[styles.momentumValue, { color: colors.text }]}>{summary.weekStreak}</Text>
+                    <Text style={[styles.momentumUnit, { color: colors.textMuted }]}>
+                      {summary.weekStreak === 1 ? 'week' : 'weeks'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.card, styles.momentumTile, themedStyles.secondaryCard]}
+                  onPress={goToProgress}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityHint="Opens Progress"
+                >
+                  <Text style={[styles.momentumCaption, themedStyles.sectionLabel]}>Sessions</Text>
+                  <View style={styles.momentumValueRow}>
+                    <Text style={[styles.momentumValue, { color: colors.text }]}>{summary.sessionsThisWeek}</Text>
+                    <Text style={[styles.momentumUnit, { color: colors.textMuted }]}>
+                      {weekPlannedCount > 0 ? `of ${weekPlannedCount} this week` : 'this week'}
+                    </Text>
+                  </View>
+                  {weekPlannedCount > 0 ? (
+                    <View style={[styles.momentumBarTrack, { backgroundColor: colors.segmentTrack }]}>
+                      <View
+                        style={[
+                          styles.momentumBarFill,
+                          {
+                            backgroundColor: colors.success,
+                            width: `${Math.min(100, (summary.sessionsThisWeek / weekPlannedCount) * 100)}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              </View>
+            )}
 
-            <TouchableOpacity
-              style={[styles.card, styles.rowCard, themedStyles.secondaryCard]}
-              onPress={goToPlan}
-              activeOpacity={0.88}
-            >
-              <View style={[styles.cardIconCircle, { backgroundColor: colors.secondary + '22' }]}>
-                <Ionicons name="calendar-outline" size={24} color={colors.secondary} />
-              </View>
-              <View style={styles.cardTextBlock}>
-                <Text style={[styles.rowCardTitle, { color: colors.text }]}>Weekly plan</Text>
-                <Text style={[styles.rowCardSub, { color: colors.textMuted }]}>Calendar, generate, edit days</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
-            </TouchableOpacity>
+            {!loadError && lastSession && lastSessionDay ? (
+              <TouchableOpacity
+                style={[styles.card, styles.rowCard, themedStyles.secondaryCard]}
+                onPress={() => goToDay(lastSessionDay)}
+                activeOpacity={0.88}
+                accessibilityRole="button"
+                accessibilityHint="Opens that day in the Calendar"
+              >
+                <View style={[styles.cardIconCircle, { backgroundColor: colors.warningSoft }]}>
+                  <RosetteSeal size={30} />
+                </View>
+                <View style={styles.cardTextBlock}>
+                  <Text style={[styles.rowEyebrow, { color: colors.textMuted }]}>
+                    Last workout · {recentDayLabel(lastSessionDay, todayIso())}
+                  </Text>
+                  <Text style={[styles.rowCardTitle, { color: colors.text }]} numberOfLines={1}>
+                    {lastSession.workoutName ?? 'Workout'}
+                  </Text>
+                  <Text style={[styles.rowCardSub, { color: colors.textMuted }]}>{lastMeta}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
 
-            <TouchableOpacity
-              style={[styles.card, styles.rowCard, themedStyles.secondaryCard]}
-              onPress={goToHistory}
-              activeOpacity={0.88}
-            >
-              <View style={[styles.cardIconCircle, { backgroundColor: colors.primary + '20' }]}>
-                <Ionicons name="time-outline" size={24} color={colors.primary} />
-              </View>
-              <View style={styles.cardTextBlock}>
-                <Text style={[styles.rowCardTitle, { color: colors.text }]}>Workout history</Text>
-                <Text style={[styles.rowCardSub, { color: colors.textMuted }]}>Past sessions and logs by day</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.card, styles.rowCard, themedStyles.secondaryCard]}
-              onPress={goToProgress}
-              activeOpacity={0.88}
-            >
-              <View style={[styles.cardIconCircle, { backgroundColor: colors.secondary + '22' }]}>
-                <Ionicons name="trending-up-outline" size={24} color={colors.secondary} />
-              </View>
-              <View style={styles.cardTextBlock}>
-                <Text style={[styles.rowCardTitle, { color: colors.text }]}>Progress</Text>
-                <Text style={[styles.rowCardSub, { color: colors.textMuted }]}>Streak, totals and weekly trend</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
-            </TouchableOpacity>
+            {!loadError ? (
+              <TouchableOpacity
+                style={[styles.card, styles.rowCard, themedStyles.secondaryCard]}
+                onPress={() => {
+                  haptics.tap();
+                  setQuickVisible(true);
+                }}
+                activeOpacity={0.88}
+                accessibilityRole="button"
+                accessibilityHint="Builds a session for today"
+              >
+                <View style={[styles.cardIconCircle, { backgroundColor: colors.primarySoft }]}>
+                  <Ionicons name="flash-outline" size={24} color={colors.primary} />
+                </View>
+                <View style={styles.cardTextBlock}>
+                  <Text style={[styles.rowCardTitle, { color: colors.text }]}>Quick workout</Text>
+                  <Text style={[styles.rowCardSub, { color: colors.textMuted }]}>Build a session for right now</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
           </>
         )}
       </ScrollView>
+
+      <QuickWorkoutSheet
+        visible={quickVisible}
+        onClose={() => setQuickVisible(false)}
+        onLanded={(dateIso) => {
+          setQuickVisible(false);
+          goToDay(dateIso);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -946,40 +1104,133 @@ const styles = StyleSheet.create({
     lineHeight: leading.body,
     fontWeight: weight.medium,
   },
-  weekDotsSection: {},
-  dotsRow: {
+  // --- Today hero (design A: muscle chips + preview line) ---
+  heroChipRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xs,
-    marginBottom: spacing.xs,
-  },
-  dotWrapper: {
-    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  heroChip: {
+    borderRadius: radius.pill,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+  },
+  heroChipLabel: {
+    fontSize: text.caption,
+    fontWeight: weight.bold,
+  },
+  heroTitle: {
+    fontSize: text.title,
+    fontWeight: weight.bold,
+    lineHeight: leading.title,
+  },
+  heroPreview: {
+    fontSize: text.footnote,
+    marginTop: spacing.xs,
+    fontWeight: weight.medium,
+  },
+  heroButton: {
+    marginTop: spacing.lg,
+  },
+  // --- This-week strip: mini day tiles in the calendar day-card language ---
+  weekHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  sectionLabelInRow: {
+    marginBottom: 0,
+  },
+  weekCount: {
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
+  },
+  tileRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  // The ring wrapper carries a transparent border on EVERY tile so today's
+  // blue ring never changes the tile's size next to its neighbours.
+  tileTap: {
     flex: 1,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    borderRadius: radius.lg,
+    padding: 2,
   },
-  dotSlot: {
-    height: 14,
+  weekTile: {
+    height: 56,
+    borderRadius: radius.md,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
   },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: radius.pill,
+  tileDay: {
+    fontSize: text.caption,
+    fontWeight: weight.bold,
   },
-  dotToday: {
-    width: 13,
-    height: 13,
-    borderRadius: radius.pill,
+  tileTitle: {
+    fontSize: text.caption,
+    fontWeight: weight.heavy,
+    maxWidth: '92%',
   },
-  restDash: {
+  tileDash: {
     width: 12,
     height: 3,
     borderRadius: radius.xs,
+    marginBottom: spacing.xs,
   },
-  dotDayLabel: {
+  // --- Momentum tiles (streak + sessions) ---
+  momentumRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  momentumTile: {
+    flex: 1,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    marginBottom: 0,
+  },
+  momentumCaption: {
     fontSize: text.caption,
+    fontWeight: weight.heavy,
+    letterSpacing: tracking.widest,
     textTransform: 'uppercase',
+  },
+  momentumValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  momentumValue: {
+    fontSize: text.title,
+    fontWeight: weight.heavy,
+    letterSpacing: tracking.tight,
+  },
+  momentumUnit: {
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
+    flexShrink: 1,
+  },
+  momentumBarTrack: {
+    height: 6,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
+  momentumBarFill: {
+    height: '100%',
+    borderRadius: radius.pill,
+  },
+  rowEyebrow: {
+    fontSize: text.caption,
+    fontWeight: weight.heavy,
+    textTransform: 'uppercase',
+    letterSpacing: tracking.wider,
+    marginBottom: spacing.xxs,
   },
 });
