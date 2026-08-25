@@ -5,6 +5,9 @@
 
 import type { Workout } from '../types/workout';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
+// Type-only on purpose: the module behind it imports react-native and
+// expo-haptics, which this file's jest environment has no transform for.
+import type { PrototypeMuscle } from './planCalendarPrototype';
 import {
   isRestPlanSlotTitle,
   lastContiguousProgramWeek,
@@ -58,9 +61,56 @@ export function buildPlanByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, 
   return byWeek;
 }
 
-/** First word of a day title for the week strip's mini tiles ("Push Day A" → "Push"). */
-export function tileDayTitle(title: string): string {
-  return title.trim().split(/\s+/)[0] ?? '';
+// ---------------------------------------------------------------------------
+// Week-tile split codes
+// ---------------------------------------------------------------------------
+
+const PUSH_SET: ReadonlySet<PrototypeMuscle> = new Set(['Chest', 'Shoulders', 'Triceps']);
+const PULL_SET: ReadonlySet<PrototypeMuscle> = new Set(['Back', 'Biceps', 'Forearms']);
+const LOWER_SET: ReadonlySet<PrototypeMuscle> = new Set(['Quads', 'Hamstrings', 'Glutes', 'Calves']);
+const ARMS_SET: ReadonlySet<PrototypeMuscle> = new Set(['Biceps', 'Triceps', 'Forearms']);
+
+/** Single-muscle tile codes — every value fits a week tile (≤6 chars). */
+const MUSCLE_CODE: Record<PrototypeMuscle, string> = {
+  Chest: 'Chest',
+  Back: 'Back',
+  Shoulders: 'Delts',
+  Biceps: 'Bis',
+  Triceps: 'Tris',
+  Quads: 'Quads',
+  Hamstrings: 'Hams',
+  Glutes: 'Glutes',
+  Calves: 'Calves',
+  Core: 'Core',
+  Cardio: 'Cardio',
+  Forearms: 'Grip',
+};
+
+const isSubset = (s: PrototypeMuscle[], of: ReadonlySet<PrototypeMuscle>) =>
+  s.every((m) => of.has(m));
+
+/**
+ * The week strip's tile label, named after the SPLIT the day's muscle set
+ * forms — the vocabulary the Quick Workout presets (and Fitbod's split
+ * options) already use — never after the free-text day title, whose first
+ * word overflows ("Hamstrings"), keeps punctuation ("Chest,") or says
+ * nothing ("Day 1"). A muscle code only when the day genuinely trains one
+ * muscle. Every label is ≤6 characters and always true of the day.
+ */
+export function weekTileLabel(muscles: PrototypeMuscle[]): string {
+  const unique = [...new Set(muscles)];
+  if (unique.length === 0) return '';
+  // Core and cardio ride along on most days — garnish, not identity.
+  const main = unique.filter((m) => m !== 'Core' && m !== 'Cardio');
+  if (main.length === 0) return unique.includes('Core') ? 'Core' : 'Cardio';
+  if (main.length === 1) return MUSCLE_CODE[main[0]];
+  if (isSubset(main, ARMS_SET)) return 'Arms';
+  if (isSubset(main, PUSH_SET)) return 'Push';
+  if (isSubset(main, PULL_SET)) return 'Pull';
+  if (isSubset(main, LOWER_SET)) return 'Legs';
+  const upper = (m: PrototypeMuscle) => PUSH_SET.has(m) || PULL_SET.has(m);
+  if (main.every(upper)) return 'Upper';
+  return 'Full';
 }
 
 /** Newest completed session — the list usually arrives newest-first, but sorted defensively. */

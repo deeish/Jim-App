@@ -5,7 +5,7 @@ import {
   planSlotLinksWeeklyWorkout,
   recentDayLabel,
   resolveHomeToday,
-  tileDayTitle,
+  weekTileLabel,
 } from './homeToday';
 
 describe('planSlotLinksWeeklyWorkout', () => {
@@ -185,12 +185,50 @@ describe('resolveHomeToday', () => {
   });
 });
 
-describe('tileDayTitle', () => {
-  it('keeps the first word of the day title', () => {
-    expect(tileDayTitle('Push Day A')).toBe('Push');
-    expect(tileDayTitle('Upper Body')).toBe('Upper');
-    expect(tileDayTitle('  Legs ')).toBe('Legs');
-    expect(tileDayTitle('')).toBe('');
+describe('weekTileLabel', () => {
+  it('names the classic splits from the muscle set', () => {
+    expect(weekTileLabel(['Chest', 'Shoulders', 'Triceps'])).toBe('Push');
+    expect(weekTileLabel(['Chest', 'Triceps'])).toBe('Push');
+    expect(weekTileLabel(['Back', 'Biceps'])).toBe('Pull');
+    expect(weekTileLabel(['Quads', 'Hamstrings', 'Glutes', 'Calves'])).toBe('Legs');
+    expect(weekTileLabel(['Biceps', 'Triceps'])).toBe('Arms');
+  });
+
+  it('names upper mixes Upper and upper+lower mixes Full', () => {
+    expect(weekTileLabel(['Chest', 'Back', 'Shoulders'])).toBe('Upper');
+    // Dylan's 3-muscle concern: back + chest + legs must not read as one muscle.
+    expect(weekTileLabel(['Chest', 'Back', 'Quads'])).toBe('Full');
+    expect(weekTileLabel(['Shoulders', 'Hamstrings'])).toBe('Full');
+  });
+
+  it('falls back to a muscle code only for genuine single-muscle days', () => {
+    expect(weekTileLabel(['Shoulders'])).toBe('Delts');
+    expect(weekTileLabel(['Hamstrings'])).toBe('Hams');
+    expect(weekTileLabel(['Forearms'])).toBe('Grip');
+    expect(weekTileLabel(['Back'])).toBe('Back');
+  });
+
+  it('treats core and cardio as garnish unless they are the whole day', () => {
+    expect(weekTileLabel(['Chest', 'Core'])).toBe('Chest');
+    expect(weekTileLabel(['Quads', 'Glutes', 'Cardio'])).toBe('Legs');
+    expect(weekTileLabel(['Core'])).toBe('Core');
+    expect(weekTileLabel(['Cardio'])).toBe('Cardio');
+    expect(weekTileLabel(['Core', 'Cardio'])).toBe('Core');
+  });
+
+  it('never exceeds six characters, for every possible muscle combination class', () => {
+    const all = [
+      'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Quads',
+      'Hamstrings', 'Glutes', 'Calves', 'Core', 'Cardio', 'Forearms',
+    ] as const;
+    for (const m of all) expect(weekTileLabel([m]).length).toBeLessThanOrEqual(6);
+    for (const a of all) {
+      for (const b of all) {
+        expect(weekTileLabel([a, b]).length).toBeLessThanOrEqual(6);
+      }
+    }
+    expect(weekTileLabel([...all]).length).toBeLessThanOrEqual(6);
+    expect(weekTileLabel([])).toBe('');
   });
 });
 

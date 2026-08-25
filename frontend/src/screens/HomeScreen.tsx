@@ -49,7 +49,7 @@ import {
   latestCompletedSession,
   recentDayLabel,
   resolveHomeToday,
-  tileDayTitle,
+  weekTileLabel,
   type HomeTodayResult,
 } from '../lib/homeToday';
 import { formatTotalDuration, sessionLocalDay, summarizeProgress } from '../lib/progressStats';
@@ -336,12 +336,15 @@ export default function HomeScreen() {
       const day = plannedDayForDate(iso);
       const rest = day.exercises.length === 0;
       const completed = !rest && isDayCompleted(iso);
+      const muscles = rest ? [] : dayMuscles(day);
       return {
         iso,
         label: PLAN_WEEKDAY_NAMES_MONDAY_FIRST[i].slice(0, 2),
         rest,
-        muscle: rest ? null : dayMuscles(day)[0] ?? null,
-        title: rest ? '' : tileDayTitle(day.title),
+        muscle: muscles[0] ?? null,
+        // Split code from the muscle SET (Push/Pull/Legs/Upper/Full/Arms, or a
+        // muscle code for single-muscle days) — never the free-text title.
+        title: weekTileLabel(muscles),
         completed,
         skipped: !rest && !completed && isDaySkipped(iso),
         today: iso === todayIso(),
