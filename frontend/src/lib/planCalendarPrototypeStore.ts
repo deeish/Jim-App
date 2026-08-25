@@ -571,7 +571,9 @@ function guessMuscleFromName(name: string, isCardio: boolean): PrototypeMuscle {
   if (/(wrist|forearm|carry|grip|dead hang)/.test(n)) return 'Forearms';
   if (/curl/.test(n)) return 'Biceps';
   if (/(pushdown|push-down|skull|tricep|close-grip|dip)/.test(n)) return 'Triceps';
-  if (/(row|pull-up|pullup|pulldown|pull-down|pullover|chin-up|chinup|lat |shrug)/.test(n)) return 'Back';
+  // \b guards 'lat': "Flat Barbell Bench Press" contains 'lat ' and classified
+  // every flat press as Back until the profile's best-lift discs surfaced it.
+  if (/(row|pull-up|pullup|pulldown|pull-down|pullover|chin-up|chinup|\blat |shrug)/.test(n)) return 'Back';
   if (/(lateral raise|front raise|rear delt|face pull|shoulder|overhead press|arnold|military|delt)/.test(n)) return 'Shoulders';
   if (/(bench|push-up|pushup|chest|fly|press)/.test(n)) return 'Chest';
   return 'Chest';
