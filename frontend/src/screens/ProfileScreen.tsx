@@ -714,6 +714,7 @@ export default function ProfileScreen() {
   }, [equipment]);
 
   const toggleEquipmentDraft = useCallback((opt: EquipmentOption) => {
+    haptics.select();
     setEquipmentDraft((prev) =>
       prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt],
     );
@@ -940,6 +941,8 @@ export default function ProfileScreen() {
                 haptics.tap();
                 navigation.navigate('WeightTracker');
               }}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
               accessibilityLabel="Log weight"
             >
@@ -1250,7 +1253,10 @@ export default function ProfileScreen() {
               <View style={[styles.rowDivider, themedStyles.rowDivider]} />
               <TouchableOpacity
                 style={accountDeleting ? { opacity: 0.65 } : null}
-                onPress={handleDeleteAccount}
+                onPress={() => {
+                  haptics.tap();
+                  handleDeleteAccount();
+                }}
                 disabled={accountDeleting}
                 accessibilityRole="button"
                 accessibilityLabel="Delete account"
@@ -1320,7 +1326,10 @@ export default function ProfileScreen() {
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
           <TouchableOpacity
             style={styles.signOutRow}
-            onPress={handleSignOut}
+            onPress={() => {
+              haptics.tap();
+              handleSignOut();
+            }}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Sign out"
@@ -1370,6 +1379,7 @@ export default function ProfileScreen() {
                   key={opt}
                   style={styles.equipRow}
                   onPress={() => {
+                    haptics.select();
                     if (listPicker === 'goal') {
                       setGoal(opt as (typeof GOAL_OPTIONS)[number]);
                     } else if (listPicker === 'secondaryGoal') {
@@ -1400,7 +1410,10 @@ export default function ProfileScreen() {
               // outside, both choices reachable inside.
               <TouchableOpacity
                 style={styles.equipRow}
-                onPress={pickSecondaryGoal}
+                onPress={() => {
+                  haptics.tap();
+                  pickSecondaryGoal();
+                }}
                 activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel="Secondary goal"
@@ -1468,7 +1481,10 @@ export default function ProfileScreen() {
                   <TouchableOpacity
                     key={opt.id}
                     style={styles.avatarCell}
-                    onPress={() => setProfileAvatarId(opt.id)}
+                    onPress={() => {
+                      haptics.select();
+                      setProfileAvatarId(opt.id);
+                    }}
                     activeOpacity={0.75}
                     accessibilityRole="button"
                     accessibilityLabel={`Avatar ${opt.name}`}
