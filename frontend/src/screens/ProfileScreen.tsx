@@ -37,8 +37,31 @@ import {
   TERMS_OF_SERVICE_URL,
 } from '../constants/legalUrls';
 import { exportMyData, deleteMyAccount } from '../services/userService';
-import { listWeighIns } from '../services/bodyWeightService';
+import { listWeighIns, type BodyWeightEntry } from '../services/bodyWeightService';
+import {
+  getPersonalBests,
+  getWorkoutLogs,
+  getWorkoutStats,
+} from '../services/workoutService';
+import type { WorkoutStats } from '../types/workout';
 import { formatWeightFromLb } from '../lib/weightDisplay';
+import { formatLocalYmd } from '../lib/planCalendar';
+import { formatWeekLabel } from '../lib/progressStats';
+import { recentDayLabel } from '../lib/homeToday';
+import {
+  monthLabel,
+  mostTrainedExercises,
+  overallWeightDelta,
+  pickBestLifts,
+  resolveProfileBand,
+  weeklyWeightSeries,
+  weighInDelta30,
+  weighInsWithin,
+  type BestLift,
+} from '../lib/profileBand';
+import { MUSCLE_EDGE, MUSCLE_INK, muscleGradient } from '../lib/planCalendarPrototype';
+import { muscleFromCatalog } from '../lib/planCalendarPrototypeStore';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { RootNavigatorParamList } from '../types/navigation';
 import { shareJsonExport } from '../lib/shareDataExport';
 import { showConfirmDialog } from '../lib/confirmAlert';
@@ -52,35 +75,48 @@ function SectionHeader({ title, colors }: { title: string; colors: ColorPalette 
   );
 }
 
-function Row({
+/** iOS-Settings row grammar: colored icon chip, label, value, chevron. */
+function ChipRow({
+  icon,
+  tint,
   label,
   value,
   onPress,
   right,
   colors,
-  showChevron,
+  labelColor,
 }: {
+  icon: keyof typeof Ionicons.glyphMap;
+  tint: string;
   label: string;
   value?: string;
   onPress?: () => void;
   right?: React.ReactNode;
   colors: ColorPalette;
-  showChevron?: boolean;
+  labelColor?: string;
 }) {
   const content = (
-    <View style={styles.row}>
-      <Text style={[styles.rowLabel, { color: colors.text }]}>{label}</Text>
+    <View style={styles.chipRow}>
+      <View style={[styles.chip, { backgroundColor: tint }]}>
+        <Ionicons name={icon} size={16} color={colors.onPrimary} />
+      </View>
+      <Text
+        style={[styles.chipRowLabel, { color: labelColor ?? colors.text }]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
       <View style={styles.rowRight}>
         {value != null && (
           <Text
             style={[styles.rowValue, { color: colors.textSecondary }]}
-            numberOfLines={2}
+            numberOfLines={1}
           >
             {value}
           </Text>
         )}
         {right}
-        {showChevron ? (
+        {onPress ? (
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         ) : null}
       </View>
@@ -324,7 +360,167 @@ const layoutStyles = StyleSheet.create({
   },
 });
 
-const styles = { ...staticStyles, ...layoutStyles };
+const bandStyles = StyleSheet.create({
+  // --- Identity (Apple-ID card) ---
+  identityCard: {
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    marginBottom: spacing.xxl,
+  },
+  identityText: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xxs,
+  },
+  identityName: {
+    fontSize: text.title,
+    fontWeight: weight.bold,
+    letterSpacing: tracking.tight,
+  },
+  identityEmail: {
+    fontSize: text.body,
+    fontWeight: weight.medium,
+  },
+  identityCaption: {
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
+    marginTop: spacing.xxs,
+  },
+  // --- iOS icon-chip rows ---
+  chip: {
+    width: 29,
+    height: 29,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  chipRowLabel: {
+    fontSize: text.callout,
+    flex: 1,
+  },
+  // --- Best lifts ---
+  liftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  liftDisc: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  liftText: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xxs,
+  },
+  liftName: {
+    fontSize: text.callout,
+    fontWeight: weight.semibold,
+  },
+  liftDate: {
+    fontSize: text.caption,
+    fontWeight: weight.medium,
+  },
+  liftValue: {
+    fontSize: text.callout,
+    fontWeight: weight.bold,
+  },
+  // --- Body weight card ---
+  weightCardPad: {
+    padding: spacing.lg,
+  },
+  weightCardTop: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.md,
+    flexWrap: 'wrap',
+  },
+  weightCardValue: {
+    fontSize: text.display,
+    fontWeight: weight.heavy,
+    letterSpacing: tracking.tight,
+  },
+  weightDeltaChip: {
+    borderRadius: radius.pill,
+    paddingVertical: spacing.xxs,
+    paddingHorizontal: spacing.sm,
+  },
+  weightDeltaChipText: {
+    fontSize: text.caption,
+    fontWeight: weight.heavy,
+  },
+  weightBarsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+    height: 34,
+    marginTop: spacing.md,
+  },
+  weightBar: {
+    flex: 1,
+    borderRadius: radius.xs,
+  },
+  weightCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+  },
+  weightCardUpdated: {
+    fontSize: text.caption,
+    fontWeight: weight.medium,
+  },
+  weightCardLog: {
+    fontSize: text.body,
+    fontWeight: weight.bold,
+  },
+  // --- Best-lifts strip (the demoted form) ---
+  stripCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
+  stripText: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xxs,
+  },
+  stripCaption: {
+    fontSize: text.caption,
+    fontWeight: weight.heavy,
+    textTransform: 'uppercase',
+    letterSpacing: tracking.wider,
+  },
+  stripLine: {
+    fontSize: text.body,
+    fontWeight: weight.semibold,
+  },
+  // --- Edit-profile sheet ---
+  sheetNameField: {
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+});
+
+const styles = { ...staticStyles, ...layoutStyles, ...bandStyles };
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootNavigatorParamList>>();
@@ -356,7 +552,11 @@ export default function ProfileScreen() {
   >(null);
   const [dataExporting, setDataExporting] = useState(false);
   const [accountDeleting, setAccountDeleting] = useState(false);
-  const [latestWeightLb, setLatestWeightLb] = useState<number | null>(null);
+  // The adaptive band's inputs — all load gracefully; the band degrades to
+  // whatever arrived (worst case: a settings-only page, which still works).
+  const [weighIns, setWeighIns] = useState<BodyWeightEntry[]>([]);
+  const [stats, setStats] = useState<WorkoutStats | null>(null);
+  const [bestLifts, setBestLifts] = useState<BestLift[]>([]);
   // Hidden support tool: long-press the App version row to toggle the Liquid
   // Glass diagnostic. Deliberately undiscoverable — it exists so a TestFlight
   // screenshot can report, from the device itself, whether the glass module is
@@ -388,24 +588,98 @@ export default function ProfileScreen() {
     setProfileDisplayName(trimmed);
   }, [nameDraft, setProfileDisplayName]);
 
-  // Latest weigh-in for the Body weight row; refreshes when returning from the tracker.
+  // The band's data; refreshes on focus so returning from the tracker or a
+  // finished workout updates what leads.
   useFocusEffect(
     useCallback(() => {
       if (!user) {
-        setLatestWeightLb(null);
+        setWeighIns([]);
+        setStats(null);
+        setBestLifts([]);
         return;
       }
       let active = true;
-      listWeighIns(1)
+      listWeighIns(180)
         .then((rows) => {
-          if (active) setLatestWeightLb(rows[0]?.weightLb ?? null);
+          if (active) setWeighIns(rows);
         })
         .catch(() => {});
+      getWorkoutStats()
+        .then((s) => {
+          if (active) setStats(s);
+        })
+        .catch(() => {});
+      (async () => {
+        try {
+          // Frequency from a recent window; VALUES from the lifetime records —
+          // a best must never be a recency artifact.
+          const from = new Date();
+          from.setDate(from.getDate() - 120);
+          const logs = await getWorkoutLogs({
+            from: formatLocalYmd(from),
+            to: formatLocalYmd(new Date()),
+          });
+          const ranked = mostTrainedExercises(logs, 6);
+          if (ranked.length === 0) {
+            if (active) setBestLifts([]);
+            return;
+          }
+          const bests = await getPersonalBests(ranked.map((r) => r.exerciseId));
+          if (active) setBestLifts(pickBestLifts(ranked, bests, 3));
+        } catch {
+          // Leave whatever was shown before; the band handles absence.
+        }
+      })();
       return () => {
         active = false;
       };
     }, [user]),
   );
+
+  const band = useMemo(
+    () =>
+      resolveProfileBand({
+        goal,
+        secondaryGoal: secondaryGoal ?? null,
+        hasLiftRecords: bestLifts.length > 0,
+        weighInsLast30: weighInsWithin(weighIns, 30, new Date()),
+        hasAnyWeighIn: weighIns.length > 0,
+      }),
+    [goal, secondaryGoal, bestLifts.length, weighIns],
+  );
+  const latestWeighIn = useMemo(
+    () =>
+      weighIns.reduce<BodyWeightEntry | null>(
+        (best, e) =>
+          !best || Date.parse(e.loggedAt) > Date.parse(best.loggedAt) ? e : best,
+        null,
+      ),
+    [weighIns],
+  );
+  const latestWeightLb = latestWeighIn?.weightLb ?? null;
+  const weightDelta30 = useMemo(() => weighInDelta30(weighIns, new Date()), [weighIns]);
+  const weightSeries = useMemo(
+    () => weeklyWeightSeries(weighIns, 12, new Date()),
+    [weighIns],
+  );
+  const overallDelta = useMemo(() => overallWeightDelta(weighIns), [weighIns]);
+
+  // The identity card's gym-cred line (rule 5: it follows what leads).
+  const identityCaption = useMemo(() => {
+    const parts: string[] = [];
+    const count = stats?.totals.sessionCount ?? 0;
+    if (count > 0) parts.push(`${count} ${count === 1 ? 'workout' : 'workouts'}`);
+    if (band.caption === 'weightDelta' && overallDelta) {
+      const arrow = overallDelta.deltaLb <= 0 ? '▼' : '▲';
+      parts.push(
+        `${arrow} ${formatWeightFromLb(Math.abs(overallDelta.deltaLb), weightUnit)} since ${monthLabel(overallDelta.sinceIso, new Date())}`,
+      );
+    } else if (user?.created_at) {
+      const since = monthLabel(user.created_at, new Date());
+      if (since) parts.push(`training since ${since}`);
+    }
+    return parts.join(' · ');
+  }, [stats, band.caption, overallDelta, user?.created_at, weightUnit]);
 
   const themedStyles = useMemo(
     () => ({
@@ -567,6 +841,137 @@ export default function ProfileScreen() {
     ? OFFERED_PROFILE_AVATARS
     : [getProfileAvatar(profileAvatarId), ...OFFERED_PROFILE_AVATARS];
 
+  // --- The adaptive band's three building blocks -------------------------
+
+  const bestLiftsCard =
+    bestLifts.length > 0 ? (
+      <>
+        <SectionHeader title="Best lifts" colors={colors} />
+        <View style={[styles.sectionCard, themedStyles.sectionCard]}>
+          {bestLifts.map((l, i) => {
+            const m = muscleFromCatalog(undefined, undefined, l.name);
+            return (
+              <View key={l.exerciseId}>
+                {i > 0 ? <View style={[styles.rowDivider, themedStyles.rowDivider]} /> : null}
+                <View style={styles.liftRow}>
+                  <LinearGradient
+                    colors={muscleGradient(m)}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.liftDisc, { borderWidth: 1, borderColor: MUSCLE_EDGE[m] }]}
+                  >
+                    <Ionicons name="barbell-outline" size={16} color={MUSCLE_INK[m]} />
+                  </LinearGradient>
+                  <View style={styles.liftText}>
+                    <Text style={[styles.liftName, { color: colors.text }]} numberOfLines={1}>
+                      {l.name}
+                    </Text>
+                    <Text style={[styles.liftDate, { color: colors.textMuted }]}>
+                      {formatWeekLabel(l.best.performedAt.slice(0, 10))}
+                    </Text>
+                  </View>
+                  <Text style={[styles.liftValue, { color: colors.text }]}>
+                    {formatWeightFromLb(l.best.weightLb, weightUnit)} × {l.best.reps}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </>
+    ) : null;
+
+  const seriesVals = weightSeries.filter((v): v is number => v != null);
+  const seriesMin = seriesVals.length ? Math.min(...seriesVals) : 0;
+  const seriesMax = seriesVals.length ? Math.max(...seriesVals) : 0;
+  const barHeightPct = (v: number | null): number =>
+    v == null ? 0 : seriesMax === seriesMin ? 60 : 30 + 65 * ((v - seriesMin) / (seriesMax - seriesMin));
+
+  const bodyWeightSection =
+    latestWeightLb != null && latestWeighIn != null ? (
+      <>
+        <SectionHeader title="Body weight" colors={colors} />
+        <View style={[styles.sectionCard, themedStyles.sectionCard, styles.weightCardPad]}>
+          <View style={styles.weightCardTop}>
+            <Text style={[styles.weightCardValue, { color: colors.text }]}>
+              {formatWeightFromLb(latestWeightLb, weightUnit)}
+            </Text>
+            {weightDelta30 != null && Math.abs(weightDelta30) >= 0.5 ? (
+              <View
+                style={[
+                  styles.weightDeltaChip,
+                  { backgroundColor: weightDelta30 <= 0 ? colors.successSoft : colors.warningSoft },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.weightDeltaChipText,
+                    { color: weightDelta30 <= 0 ? colors.success : colors.warning },
+                  ]}
+                >
+                  {weightDelta30 <= 0 ? '▼' : '▲'}{' '}
+                  {formatWeightFromLb(Math.abs(weightDelta30), weightUnit)} this month
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.weightBarsRow}>
+            {weightSeries.map((v, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.weightBar,
+                  {
+                    height: `${barHeightPct(v)}%`,
+                    backgroundColor:
+                      i === weightSeries.length - 1 ? colors.primary : colors.segmentTrack,
+                    opacity: v == null ? 0 : 1,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+          <View style={styles.weightCardFooter}>
+            <Text style={[styles.weightCardUpdated, { color: colors.textMuted }]}>
+              {recentDayLabel(latestWeighIn.dayKey, formatLocalYmd(new Date()))}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                haptics.tap();
+                navigation.navigate('WeightTracker');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Log weight"
+            >
+              <Text style={[styles.weightCardLog, { color: colors.primary }]}>Log weight ›</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </>
+    ) : null;
+
+  const liftsStrip =
+    bestLifts.length > 0 ? (
+      <View style={[styles.sectionCard, themedStyles.sectionCard, styles.stripCard]}>
+        <View style={[styles.liftDisc, { backgroundColor: colors.primarySoft }]}>
+          <Ionicons name="barbell-outline" size={15} color={colors.primary} />
+        </View>
+        <View style={styles.stripText}>
+          <Text style={[styles.stripCaption, { color: colors.textMuted }]}>Best lifts</Text>
+          <Text style={[styles.stripLine, { color: colors.text }]} numberOfLines={1}>
+            {bestLifts
+              // The LAST word is a lift's natural short name: "…Bench Press" →
+              // "Press", "Back Squat" → "Squat", "Bent-Over Row" → "Row".
+              .map(
+                (l) =>
+                  `${l.name.trim().split(/\s+/).pop()} ${formatWeightFromLb(l.best.weightLb, weightUnit)}`,
+              )
+              .join(' · ')}
+          </Text>
+        </View>
+      </View>
+    ) : null;
+
   return (
     <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
       <View style={styles.header}>
@@ -590,69 +995,91 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <SectionHeader title="Account" colors={colors} />
-        <View style={[styles.profileCard, themedStyles.profileCard]}>
-          {/* Contacts/Apple ID pattern: the avatar itself is the edit affordance. */}
-          <TouchableOpacity
-            style={styles.avatarWrap}
-            onPress={() => setAvatarSheetOpen(true)}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Edit avatar"
-          >
-            <ProfileAvatarDisc
-              avatarId={profileAvatarId}
-              size={64}
-              colors={colors}
-              initial={nameDraft.trim() || namePlaceholder}
-            />
-            <View style={[styles.avatarEditBadge, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
-              <Ionicons name="pencil" size={11} color={colors.onPrimary} />
-            </View>
-          </TouchableOpacity>
-          <View style={styles.nameFieldWrap}>
-            <View style={{ width: '100%', maxWidth: 240 }}>
-              <Text style={[styles.profileFieldLabel, { color: colors.textMuted }]}>
-                Display name
-              </Text>
-              <TextInput
-                style={[
-                  styles.profileNameInput,
-                  themedStyles.profileNameInputThemed,
-                ]}
-                value={nameDraft}
-                onChangeText={setNameDraft}
-                onBlur={commitDisplayName}
-                onEndEditing={commitDisplayName}
-                onSubmitEditing={commitDisplayName}
-                returnKeyType="done"
-                placeholder={namePlaceholder}
-                placeholderTextColor={colors.textMuted}
-                maxLength={80}
-                autoCapitalize="words"
-                autoCorrect
-                accessibilityLabel="Display name"
-              />
-              {nameDraft.length > 0 && (
-                <Text style={{ color: colors.textMuted, fontSize: text.caption, textAlign: 'right', marginTop: spacing.xxs }}>
-                  {nameDraft.length}/80
-                </Text>
-              )}
-            </View>
-          </View>
-          <View style={styles.profileEmailBlock}>
-            <Text style={[styles.profileEmail, themedStyles.profileEmail]}>
+        {/* Identity, Apple-ID pattern: display, not a form — tap opens the edit sheet. */}
+        <TouchableOpacity
+          style={[styles.identityCard, themedStyles.sectionCard]}
+          onPress={() => {
+            haptics.tap();
+            setAvatarSheetOpen(true);
+          }}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Edit profile"
+        >
+          <ProfileAvatarDisc
+            avatarId={profileAvatarId}
+            size={56}
+            colors={colors}
+            initial={(profileDisplayName || namePlaceholder).trim()}
+          />
+          <View style={styles.identityText}>
+            <Text style={[styles.identityName, { color: colors.text }]} numberOfLines={1}>
+              {profileDisplayName.trim() || namePlaceholder}
+            </Text>
+            <Text style={[styles.identityEmail, { color: colors.textMuted }]} numberOfLines={1}>
               {user?.email ?? 'Not signed in'}
             </Text>
+            {identityCaption ? (
+              <Text
+                style={[styles.identityCaption, { color: colors.textSecondary }]}
+                numberOfLines={1}
+              >
+                {identityCaption}
+              </Text>
+            ) : null}
           </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+
+        {/* The goal-adaptive band (rules 1–5 live in lib/profileBand.ts). */}
+        {band.lead === 'lifts' ? bestLiftsCard : band.lead === 'weight' ? bodyWeightSection : null}
+        {band.second === 'weightCard'
+          ? bodyWeightSection
+          : band.second === 'liftsStrip'
+            ? liftsStrip
+            : null}
+
+        <SectionHeader title="Training" colors={colors} />
+        <View style={[styles.sectionCard, themedStyles.sectionCard]}>
+          <ChipRow
+            icon="locate-outline"
+            tint={colors.primary}
+            label="Goal"
+            value={
+              secondaryGoal
+                ? `${GOAL_LABELS[goal]} · ${GOAL_LABELS[secondaryGoal]}`
+                : GOAL_LABELS[goal]
+            }
+            onPress={pickGoal}
+            colors={colors}
+          />
+          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+          <ChipRow
+            icon="stats-chart-outline"
+            tint={colors.secondary}
+            label="Experience"
+            value={experience}
+            onPress={pickExperience}
+            colors={colors}
+          />
+          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+          <ChipRow
+            icon="barbell-outline"
+            tint={colors.accent}
+            label="Equipment"
+            value={equipmentSummary}
+            onPress={openEquipmentModal}
+            colors={colors}
+          />
         </View>
 
-        <SectionHeader title="Weight" colors={colors} />
+        <SectionHeader title="Preferences" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
-          <View style={styles.weightRow}>
-            <View style={styles.weightRowLabelCol}>
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Units</Text>
+          <View style={styles.chipRow}>
+            <View style={[styles.chip, { backgroundColor: colors.workoutCardio }]}>
+              <Ionicons name="scale-outline" size={16} color={colors.onPrimary} />
             </View>
+            <Text style={[styles.chipRowLabel, { color: colors.text }]}>Units</Text>
             <View
               style={[styles.weightSegment, { borderColor: colors.border }]}
               accessibilityRole="radiogroup"
@@ -714,26 +1141,29 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          {band.second === 'weightRow' ? (
+            <>
+              <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+              <ChipRow
+                icon="body-outline"
+                tint={colors.secondary}
+                label="Body weight"
+                value={
+                  latestWeightLb != null
+                    ? formatWeightFromLb(latestWeightLb, weightUnit)
+                    : 'Not set'
+                }
+                onPress={() => navigation.navigate('WeightTracker')}
+                colors={colors}
+              />
+            </>
+          ) : null}
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <Row
-            label="Body weight"
-            value={
-              latestWeightLb != null
-                ? formatWeightFromLb(latestWeightLb, weightUnit)
-                : 'Not set'
-            }
-            onPress={() => navigation.navigate('WeightTracker')}
-            colors={colors}
-            showChevron
-          />
-        </View>
-
-        <SectionHeader title="Appearance" colors={colors} />
-        <View style={[styles.sectionCard, themedStyles.sectionCard]}>
-          <View style={styles.weightRow}>
-            <View style={styles.weightRowLabelCol}>
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Theme</Text>
+          <View style={styles.chipRow}>
+            <View style={[styles.chip, { backgroundColor: colors.workoutRecovery }]}>
+              <Ionicons name="moon-outline" size={16} color={colors.onPrimary} />
             </View>
+            <Text style={[styles.chipRowLabel, { color: colors.text }]}>Theme</Text>
             <View
               style={[styles.weightSegment, { borderColor: colors.border }]}
               accessibilityRole="radiogroup"
@@ -791,85 +1221,58 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <SectionHeader title="Sharing" colors={colors} />
+        <SectionHeader title="Account" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
-          <Row
+          <ChipRow
+            icon="gift-outline"
+            tint={colors.primary}
             label="Redeem a share code"
             onPress={() => navigation.navigate('ShareRedeem')}
             colors={colors}
-            showChevron
           />
+          {user ? (
+            <>
+              <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+              <ChipRow
+                icon="download-outline"
+                tint={colors.textMuted}
+                label="Export my data"
+                onPress={() => {
+                  void handleExportMyData();
+                }}
+                colors={colors}
+                right={
+                  dataExporting ? (
+                    <ActivityIndicator color={colors.primary} size="small" />
+                  ) : undefined
+                }
+              />
+              <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+              <TouchableOpacity
+                style={accountDeleting ? { opacity: 0.65 } : null}
+                onPress={handleDeleteAccount}
+                disabled={accountDeleting}
+                accessibilityRole="button"
+                accessibilityLabel="Delete account"
+                activeOpacity={0.7}
+              >
+                <View style={styles.chipRow}>
+                  <View style={[styles.chip, { backgroundColor: colors.error }]}>
+                    <Ionicons name="trash-outline" size={16} color={colors.onPrimary} />
+                  </View>
+                  <Text style={[styles.chipRowLabel, { color: colors.error }]}>
+                    Delete account
+                  </Text>
+                  <View style={styles.rowRight}>
+                    {accountDeleting ? (
+                      <ActivityIndicator color={colors.error} size="small" />
+                    ) : null}
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </>
+          ) : null}
         </View>
-
-        <SectionHeader title="Training" colors={colors} />
-        <View style={[styles.sectionCard, themedStyles.sectionCard]}>
-          <Row
-            label="Goal"
-            value={GOAL_LABELS[goal]}
-            onPress={pickGoal}
-            colors={colors}
-            showChevron
-          />
-          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <Row
-            label="Secondary goal"
-            value={secondaryGoal ? GOAL_LABELS[secondaryGoal] : 'None'}
-            onPress={pickSecondaryGoal}
-            colors={colors}
-            showChevron
-          />
-          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <Row
-            label="Experience"
-            value={experience}
-            onPress={pickExperience}
-            colors={colors}
-            showChevron
-          />
-          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <Row
-            label="Equipment"
-            value={equipmentSummary}
-            onPress={openEquipmentModal}
-            colors={colors}
-            showChevron
-          />
-        </View>
-
-        <SectionHeader title="Your data" colors={colors} />
-        {user ? (
-          <View style={[styles.sectionCard, themedStyles.sectionCard]}>
-            <Row
-              label="Export my data"
-              onPress={() => {
-                void handleExportMyData();
-              }}
-              colors={colors}
-              showChevron
-              right={
-                dataExporting ? (
-                  <ActivityIndicator color={colors.primary} size="small" />
-                ) : undefined
-              }
-            />
-            <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-            <TouchableOpacity
-              style={[styles.row, accountDeleting ? { opacity: 0.65 } : null]}
-              onPress={handleDeleteAccount}
-              disabled={accountDeleting}
-              accessibilityRole="button"
-              accessibilityLabel="Delete account"
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.rowLabel, { color: colors.error }]}>Delete account</Text>
-              <View style={styles.rowRight}>
-                {accountDeleting ? (
-                  <ActivityIndicator color={colors.error} size="small" />
-                ) : null}
-              </View>
-            </TouchableOpacity>
-          </View>
-        ) : null}
 
         <SectionHeader title="About" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
@@ -877,28 +1280,37 @@ export default function ProfileScreen() {
             onLongPress={() => setShowGlassDiagnostics((v) => !v)}
             delayLongPress={600}
           >
-            <Row label="App version" value={String(appVersion)} colors={colors} />
+            <ChipRow
+              icon="information-circle-outline"
+              tint={colors.textMuted}
+              label="App version"
+              value={String(appVersion)}
+              colors={colors}
+            />
           </Pressable>
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <Row
+          <ChipRow
+            icon="shield-checkmark-outline"
+            tint={colors.workoutRecovery}
             label="Privacy policy"
             onPress={() => openUrl(PRIVACY_POLICY_URL, 'Privacy policy')}
             colors={colors}
-            showChevron
           />
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <Row
+          <ChipRow
+            icon="document-text-outline"
+            tint={colors.textMuted}
             label="Terms of service"
             onPress={() => openUrl(TERMS_OF_SERVICE_URL, 'Terms')}
             colors={colors}
-            showChevron
           />
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <Row
+          <ChipRow
+            icon="mail-outline"
+            tint={colors.primary}
             label="Feedback & support"
             onPress={() => openUrl(FEEDBACK_MAILTO, 'Email')}
             colors={colors}
-            showChevron
           />
         </View>
 
@@ -983,6 +1395,24 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+            {listPicker === 'goal' ? (
+              // The secondary goal folds into the Goal sheet — one Training row
+              // outside, both choices reachable inside.
+              <TouchableOpacity
+                style={styles.equipRow}
+                onPress={pickSecondaryGoal}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Secondary goal"
+              >
+                <Text style={[styles.equipLabel, { color: colors.textSecondary }]}>
+                  Secondary goal
+                </Text>
+                <Text style={[styles.equipLabel, { color: colors.primary }]}>
+                  {secondaryGoal ? GOAL_LABELS[secondaryGoal] : 'None'} ›
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setListPicker(null)}>
                 <Text style={[styles.modalBtnText, { color: colors.textSecondary }]}>Cancel</Text>
@@ -1002,7 +1432,27 @@ export default function ProfileScreen() {
             style={[styles.modalSheet, themedStyles.modalSheet]}
             onPress={(e) => e.stopPropagation()}
           >
-            <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Avatar</Text>
+            <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Edit profile</Text>
+            <View style={styles.sheetNameField}>
+              <Text style={[styles.profileFieldLabel, { color: colors.textMuted }]}>
+                Display name
+              </Text>
+              <TextInput
+                style={[styles.profileNameInput, themedStyles.profileNameInputThemed]}
+                value={nameDraft}
+                onChangeText={setNameDraft}
+                onBlur={commitDisplayName}
+                onEndEditing={commitDisplayName}
+                onSubmitEditing={commitDisplayName}
+                returnKeyType="done"
+                placeholder={namePlaceholder}
+                placeholderTextColor={colors.textMuted}
+                maxLength={80}
+                autoCapitalize="words"
+                autoCorrect
+                accessibilityLabel="Display name"
+              />
+            </View>
             <View style={styles.avatarSheetPreview}>
               <ProfileAvatarDisc
                 avatarId={profileAvatarId}
@@ -1046,7 +1496,10 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
-                onPress={() => setAvatarSheetOpen(false)}
+                onPress={() => {
+                  commitDisplayName();
+                  setAvatarSheetOpen(false);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel="Done"
               >
