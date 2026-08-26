@@ -471,7 +471,11 @@ export default function CrewScreen() {
       } sessions. The crew went ${recapMoment.crewDone ?? 0}/${recapMoment.crewPlanned ?? 0}.`;
     }
     if (milestoneMoment) {
-      return `${milestoneMoment.milestone ?? 0} days without a missed session. Keep it alive.`;
+      // Deliberately numberless. A milestone stays live for ~3 days after it
+      // is crossed, so naming the THRESHOLD here put "7 days without a missed
+      // session" directly under a title reading "8-day crew streak". The
+      // title owns the count; this line only has to mean something.
+      return 'Nobody has missed a scheduled workout. Keep it alive.';
     }
     if (!summary || summary.streakDays <= 0) {
       return 'Train on your scheduled days and the whole crew builds one streak together.';
