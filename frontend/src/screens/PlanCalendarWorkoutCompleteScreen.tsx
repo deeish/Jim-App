@@ -109,6 +109,8 @@ const HEADER_SEAL = 26;
 const LAYER_SHIFT = 32;
 /** The Moment advances to the Ledger on its own after this long. */
 const AUTO_ADVANCE_MS = 2800;
+/** Longest the poster will hold for its record claims before going anyway. */
+const BASELINE_WAIT_CAP_MS = 4000;
 
 /**
  * Past this, a "session" is a log somebody left open — two sets before work
@@ -431,13 +433,37 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   useEffect(() => {
     // A recap already starts on the Ledger; nothing to advance to.
     if (recap) return;
-    autoTimer.current = setTimeout(goLedger, AUTO_ADVANCE_MS);
+    // Do not start counting until the baselines have landed.
+    //
+    // They are primed while the day is trained and again before the log
+    // POSTs, but they are still a network round trip: `celebrationBaselines`
+    // returns null until it resolves, and the streak pill and every record
+    // claim render nothing while it is null. A poster that started its 2.8s
+    // timer regardless could therefore slide past a personal best entirely —
+    // on the one screen whose whole purpose is to show it.
+    //
+    // Waiting on `baselines` rather than a timeout means a slow response
+    // delays the poster instead of emptying it; the user can still tap
+    // through at any point.
+    const start = () => {
+      autoTimer.current = setTimeout(goLedger, AUTO_ADVANCE_MS);
+    };
+    if (baselines) {
+      start();
+      return () => {
+        if (autoTimer.current) clearTimeout(autoTimer.current);
+      };
+    }
+    // ...but never STRAND the poster. Offline, or on a request that simply
+    // never answers, `baselines` stays null forever; the cap means a failure
+    // costs a pause, not a screen the celebration never leaves.
+    const cap = setTimeout(start, BASELINE_WAIT_CAP_MS);
     return () => {
+      clearTimeout(cap);
       if (autoTimer.current) clearTimeout(autoTimer.current);
     };
-    // Mount-only: the timer must not restart on re-renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [!!baselines]);
 
   const backToDay = useCallback(() => {
     buzzTap();
