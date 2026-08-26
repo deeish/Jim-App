@@ -40,18 +40,37 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
-  // The ONE card for this wave: the Home "Launchpad" redesign and the
-  // goal-adaptive Profile "Athlete card". The week-tile split codes, recap
-  // trims, haptics sweep, and this release sheet itself are part of those
-  // stories, not separate lines. Copy rules: headlines read on their own (no
-  // pronouns leaning on the row above) and stay plain — name the part that
-  // changed and say what's different, no marketing lines.
+  // The ONE card for this wave: the Crew tab (v0 + wave 1: names, invites
+  // with QR + link, moments, synced skips), the Home "Launchpad" redesign,
+  // and the goal-adaptive Profile "Athlete card". The week-tile split codes,
+  // recap trims, haptics sweep, and this release sheet itself are part of
+  // those stories, not separate lines. Copy rules: headlines read on their
+  // own (no pronouns leaning on the row above) and stay plain — name the
+  // part that changed and say what's different, no marketing lines.
   {
     id: '2026-08-25',
     version: '1.1.0',
-    date: '2026-08-25',
-    title: 'A new Home and Profile',
+    date: '2026-08-26',
+    title: 'Crew, Home, and Profile',
     changes: [
+      {
+        type: 'new',
+        headline: 'New Crew tab',
+        icon: 'people',
+        text: 'Train with your friends: see who trained today and build one crew streak together. A day you skip counts as rest, not a miss.',
+      },
+      {
+        type: 'new',
+        headline: 'Crew moments',
+        icon: 'sparkles',
+        text: 'New records, Monday recaps, and streak milestones show up as moments, and anyone in the crew can pound them.',
+      },
+      {
+        type: 'new',
+        headline: 'Crew invites',
+        icon: 'qr-code',
+        text: 'Name your crew, then invite friends with the code, a link, or a QR code. Tap a member to see their week.',
+      },
       {
         type: 'new',
         headline: 'New Home screen',
@@ -62,25 +81,13 @@ export const CHANGELOG: ChangelogEntry[] = [
         type: 'new',
         headline: 'New Profile page',
         icon: 'person',
-        text: 'Your profile now shows your best lifts and your body weight trend, with settings in a cleaner list below.',
-      },
-      {
-        type: 'improved',
-        headline: 'Profile follows your goal',
-        icon: 'flag',
-        text: 'Strength and muscle goals show your best lifts first. Fat loss goals show your body weight first.',
+        text: 'Your profile now shows your best lifts and your body weight trend, with settings in a cleaner list below. Strength and muscle goals lead with lifts, fat loss goals lead with body weight.',
       },
       {
         type: 'improved',
         headline: 'Slide between days and weeks',
         icon: 'swap-horizontal',
         text: 'The calendar now slides under your finger. The arrows next to the date do the same thing.',
-      },
-      {
-        type: 'new',
-        headline: 'New Crew tab',
-        icon: 'people',
-        text: 'Train with your friends: see who went today, build a shared streak, and pound their PRs. Start a crew with one code.',
       },
     ],
   },
