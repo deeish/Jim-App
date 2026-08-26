@@ -197,7 +197,7 @@ export default function CrewScreen() {
     const title = solo ? 'Delete this crew?' : 'Leave this crew?';
     const body = solo
       ? 'It only has you in it, so it goes away entirely.'
-      : 'Your crewmates will no longer see your training days.';
+      : 'The crew keeps going without you, and you can rejoin anytime with the code.';
     const confirmLabel = solo ? 'Delete' : 'Leave';
     const doLeave = async () => {
       setSheetOpen(false);
@@ -427,7 +427,10 @@ export default function CrewScreen() {
     // device instead of trusting a hardcoded inset.
     <SafeAreaView style={styles.container} edges={['top']} testID="e2e-crew-root">
       <View style={styles.header}>
-        <Text style={styles.title}>Crew</Text>
+        {/* The crew's name IS the page title (clan-page grammar). */}
+        <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+          {crew?.name || 'Crew'}
+        </Text>
         {crew ? (
           <TouchableOpacity
             style={styles.headerButton}
@@ -967,6 +970,8 @@ function createStyles(c: ColorPalette) {
       paddingBottom: spacing.sm,
     },
     title: {
+      flex: 1,
+      marginRight: spacing.md,
       fontSize: text.display,
       fontWeight: weight.heavy,
       letterSpacing: tracking.tight,
