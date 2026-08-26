@@ -42,7 +42,9 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   // The ONE card for this wave: the Home "Launchpad" redesign and the
   // goal-adaptive Profile "Athlete card". The week-tile split codes, recap
-  // trims and haptics sweep are part of those stories, not separate lines.
+  // trims, haptics sweep, and this release sheet itself are part of those
+  // stories, not separate lines. Headlines must read on their own — no
+  // pronouns leaning on the row above.
   {
     id: '2026-08-25',
     version: '1.1.0',
@@ -59,19 +61,13 @@ export const CHANGELOG: ChangelogEntry[] = [
         type: 'new',
         headline: 'Your profile is an athlete card',
         icon: 'person',
-        text: 'Your name and gym cred, your best lifts, your body weight trend, and cleaner settings below.',
+        text: 'Your best lifts, your body weight trend, and how long you have been training, with cleaner settings below.',
       },
       {
         type: 'improved',
-        headline: 'It adapts to your goal',
+        headline: 'Built around your goal',
         icon: 'flag',
-        text: 'Strength and muscle goals lead with your best lifts; fat loss goals lead with your body weight.',
-      },
-      {
-        type: 'improved',
-        headline: 'Updates, one at a time',
-        icon: 'gift',
-        text: 'What’s New now shows just the latest update, with earlier ones a tap away.',
+        text: 'Strength and muscle goals lead the profile with your best lifts; fat loss goals put your body weight first.',
       },
     ],
   },
