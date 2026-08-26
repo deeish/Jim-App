@@ -1,7 +1,7 @@
 # Crew — feature audit, 2026-08-26
 
 **Scope:** the whole Crew surface — controller, DTOs, `crew-summary.util.ts`, `crews.service.ts`, `CrewScreen.tsx`, `crewSignature.ts` — read end to end after the "one hero, one list" redesign landed.
-**Status:** all ten findings fixed and pushed, `e8820c8`…`27d263e` on `feat/calendar-tab-prototype`. Backend 814 tests, frontend 565, both green.
+**Status:** all findings fixed and pushed, `e8820c8`…`33a2ef7` on `feat/calendar-tab-prototype`. Backend 814 tests, frontend 565, both green, plus a 24-check end-to-end pass against a live rig.
 **Tags:** `[BE]` backend (auto-deploys via Render) · `[OTA]` ships over-the-air · `[DATA]` needs a one-off action against production.
 
 Two things worth carrying forward before the list:
@@ -79,6 +79,38 @@ Two things worth carrying forward before the list:
   ```
   cd backend && node scripts/seed-demo-crew.mjs --owner <email> --apply
   ```
+
+---
+
+## Found during the verification pass
+
+- [x] **12. The hero showed two different numbers for one streak** `[OTA]` — fixed in `80f40d9`
+  Folding the milestone moment into the hero's caption made it restate the *threshold* while the title carried the live count, and a milestone stays lit for ~3 days after it is crossed. The day after crossing seven, the card read **"8-day crew streak"** above **"7 days without a missed session"** — two numbers for one thing, an inch apart. The title owns the count; the caption is numberless now.
+  Caught by driving the screen, not by a test: both numbers were individually correct, and only reading them together shows the problem.
+
+---
+
+## Verification
+
+A 24-check pass against a local Postgres + API + Expo rig, from an empty database:
+
+| Area | Checks |
+|---|---|
+| Seeder / lead | owner is lead, streak survives demo mates joining "now" (7) |
+| Recap ref | `recap:<iso>` → `200 {"pounded":true}` |
+| Ref existence | junk `pr:` and `day:` refs refused, real day accepted, self-pound still refused |
+| Records | `225×8` announced with reps; a heavier `250×1` single (worse estimate) does **not** displace it |
+| Ranking | planless member reports `hasPlanThisWeek: false` while keeping a perfect raw ratio — the trap the frontend now gates on |
+| Multiple records | two records on one day both surface, each with its own chip |
+| Moderation | non-lead rotate 400, non-lead remove 400, lead-removes-self 400, lead rotate 200, **old code then 404**, lead remove 204, removed member's kudos deleted, gone from the summary |
+| Privacy | `performedAtIso` absent from the payload |
+| Performance | 5 sequential summaries in 38 ms |
+
+Frontend, driven in a browser: list order (planless member below everyone racing, bare score), both records listed in the sheet, `PR · 225 lb × 8` no longer truncating, `Remove Ava` shown to the lead, and `Offline. Showing the last update.` with cached data still on screen.
+
+**Two checks failed on the first run and both were the harness, not the code** — the crew was seconds old so the streak legitimately floored at zero, and the second record had no prior best to beat, which is a first-time lift rather than a record. Corrected fixtures, then 24/24.
+
+**Not verified by driving:** the invite-link notice (finding 10) — a `jimapp://` deep link has no web equivalent, so that branch was confirmed by reading only.
 
 ---
 
