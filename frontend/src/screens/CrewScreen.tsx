@@ -29,8 +29,6 @@ import { formatShareCode, formatShareCodeInput, isValidShareCode } from '../lib/
 import { buildCrewInviteMessage } from '../lib/shareLinks';
 import { markCrewSeen } from '../lib/crewBadgeStore';
 import { formatWeightFromLb } from '../lib/weightDisplay';
-import QrCodeView from '../components/QrCodeView';
-import { buildCrewUrl } from '../lib/shareLinks';
 import type { RootTabParamList } from '../components/NavBar';
 import {
   GOLD,
@@ -76,10 +74,25 @@ function muscleOfDay(day: CrewMemberDay): PrototypeMuscle | null {
 }
 
 /**
- * The Crew tab: a small accountability group, one scroll. Stories row (gold
- * ring = trained today), the shared crew streak, PR moments, member cards
- * with their week in muscle colors, and the consistency race. 💪 is the
- * entire social vocabulary — no feed, no comments.
+ * The Crew tab: a small accountability group, ONE HERO AND ONE LIST.
+ *
+ * The list is the whole screen. It is sorted by each person's completion
+ * ratio, so the list IS the race; the seven muscle tiles ARE their week; the
+ * `done/planned` at the row's end is their score. One row per person, one 💪
+ * per person, and you are ranked in it like everyone else.
+ *
+ * WHY IT IS SHAPED THIS WAY. The screen used to carry a stories row, a
+ * moments feed, a member card each and a race card — four parallel drawings
+ * of the same ten people, two of them redrawing the same seven days in two
+ * different visual languages. Worse, the member chip and the moment chip
+ * pounded DIFFERENT refs while showing different counts for one workout.
+ * Collapsing to one row per person is what makes that class of bug
+ * impossible: a person exists once, so their 💪 can only mean one thing.
+ *
+ * Moments did not disappear, they moved. A personal record takes over its
+ * owner's subtitle (gold) and retargets that row's 💪 at the PR. Crew-wide
+ * moments — a streak milestone, the Monday recap — become the hero's caption,
+ * which costs no new surface at all.
  */
 export default function CrewScreen() {
   const { colors } = useTheme();
@@ -270,6 +283,7 @@ export default function CrewScreen() {
             ? {
                 ...m,
                 iPoundedLatest: !m.iPoundedLatest,
+                kudosLatest: m.kudosLatest + (m.iPoundedLatest ? -1 : 1),
                 kudosWeek: m.kudosWeek + (m.iPoundedLatest ? -1 : 1),
               }
             : m,
@@ -291,7 +305,7 @@ export default function CrewScreen() {
           ...s,
           members: s.members.map((m) =>
             m.userId === toUserId && m.latestSessionRef === eventRef
-              ? { ...m, iPoundedLatest: result.pounded }
+              ? { ...m, iPoundedLatest: result.pounded, kudosLatest: result.count }
               : m,
           ),
           moments: s.moments.map((mo) =>
@@ -316,58 +330,96 @@ export default function CrewScreen() {
     ? (members.find((m) => m.userId === memberSheetId) ?? null)
     : null;
 
-  const momentCopy = (mo: CrewMoment): { title: string; caption: string } => {
-    const first = firstNameOf({
-      name: mo.name,
-      isMe: mo.userId === summary?.meUserId,
-    });
-    if (mo.kind === 'pr') {
-      return {
-        title: `${first} hit ${formatWeightFromLb(mo.weight ?? 0, weightUnit)} on ${mo.exerciseName ?? 'a lift'}`,
-        caption: `New personal record · ${recentDayLabel(mo.dateIso, today)}`,
-      };
+  /** A member's most recent personal record, if they set one this week. It
+   *  takes over their row's subtitle AND retargets their 💪 at the PR, so the
+   *  record and the chip beside it can never disagree. */
+  const prByUser = useMemo(() => {
+    const map = new Map<string, CrewMoment>();
+    for (const mo of summary?.moments ?? []) {
+      if (mo.kind === 'pr' && mo.userId && !map.has(mo.userId)) {
+        map.set(mo.userId, mo);
+      }
     }
-    if (mo.kind === 'recap') {
-      return {
-        title: `${first} won last week's race`,
-        caption: `${mo.winnerDone ?? 0} of ${mo.winnerPlanned ?? 0} sessions · crew went ${mo.crewDone ?? 0}/${mo.crewPlanned ?? 0}`,
-      };
-    }
-    return {
-      title: `${mo.milestone ?? 0}-day crew streak`,
-      caption: 'Nobody has missed a scheduled workout. Keep it alive.',
-    };
-  };
+    return map;
+  }, [summary?.moments]);
+
+  /** Crew-wide moments have no single recipient, so they have no card: they
+   *  ride the hero's caption instead. The Monday recap keeps a pound, because
+   *  its winner IS a recipient — and it is the only chip the hero ever has. */
+  const recapMoment = summary?.moments.find((mo) => mo.kind === 'recap') ?? null;
+  const milestoneMoment = summary?.moments.find((mo) => mo.kind === 'streak') ?? null;
 
   const scheduledNow = members.filter((m) => m.todayState === 'scheduled');
-  const streakCaption =
-    summary && summary.streakDays > 0
-      ? `Nobody has missed a scheduled workout in ${summary.streakDays} ${
-          summary.streakDays === 1 ? 'day' : 'days'
-        }.${
-          scheduledNow.length > 0
-            ? ` ${scheduledNow.map(firstNameOf).join(' and ')} train${
-                scheduledNow.length === 1 && !scheduledNow[0].isMe ? 's' : ''
-              } today.`
-            : ''
-        }`
-      : 'Train on your scheduled days and the whole crew builds one streak together.';
+  const streakCaption = (() => {
+    if (recapMoment) {
+      const first = firstNameOf({
+        name: recapMoment.name,
+        isMe: recapMoment.userId === summary?.meUserId,
+      });
+      return `${first} won last week with ${recapMoment.winnerDone ?? 0} of ${
+        recapMoment.winnerPlanned ?? 0
+      } sessions. The crew went ${recapMoment.crewDone ?? 0}/${recapMoment.crewPlanned ?? 0}.`;
+    }
+    if (milestoneMoment) {
+      return `${milestoneMoment.milestone ?? 0} days without a missed session. Keep it alive.`;
+    }
+    if (!summary || summary.streakDays <= 0) {
+      return 'Train on your scheduled days and the whole crew builds one streak together.';
+    }
+    const days = `${summary.streakDays} ${summary.streakDays === 1 ? 'day' : 'days'}`;
+    const who =
+      scheduledNow.length > 0
+        ? ` ${scheduledNow.map(firstNameOf).join(' and ')} train${
+            scheduledNow.length === 1 && !scheduledNow[0].isMe ? 's' : ''
+          } today.`
+        : '';
+    return `Nobody has missed a scheduled workout in ${days}.${who}`;
+  })();
+
+  /** The race ordering IS the list ordering — a planless member ranks last
+   *  rather than being trivially perfect. */
+  const raceRatio = (m: CrewMemberSummary) =>
+    m.race.planned > 0 ? m.race.done / m.race.planned : 0;
+  const ranked = useMemo(
+    () => [...members].sort((a, b) => raceRatio(b) - raceRatio(a)),
+    [members],
+  );
+
+  /** Which column is today. Read off the week the server built rather than
+   *  recomputed here, so the header letters can never drift from the tiles. */
+  const todayIndex = members[0]?.week.findIndex((d) => d.isToday) ?? -1;
 
   const storyRing = (m: CrewMemberSummary) =>
     m.todayState === 'trained'
       ? { borderColor: GOLD, borderWidth: 3, opacity: 1 }
       : m.todayState === 'scheduled'
         ? { borderColor: colors.primary, borderWidth: 3, opacity: 1 }
-        : { borderColor: colors.border, borderWidth: 1, opacity: 0.55 };
+        : // Same 3pt geometry, drawn in nothing: a rest day has no ring, and
+        // an equal-width ring is what keeps every row's avatar in column.
+        { borderColor: 'transparent', borderWidth: 3, opacity: 0.5 };
 
-  const miniTile = (day: CrewMemberDay, i: number) => {
+  /**
+   * One day of a member's week. `withLetter` is false in the list, where the
+   * day letters are drawn ONCE in the card's header strip instead of under
+   * every member's tiles — the same seven letters repeated per row was itself
+   * a small piece of the clutter.
+   */
+  const dayTile = (
+    day: CrewMemberDay,
+    i: number,
+    w: number,
+    h: number,
+    withLetter: boolean,
+  ) => {
     const muscle = muscleOfDay(day);
     const showGradient = muscle && (day.state === 'trained' || day.state === 'scheduled');
+    const seal = Math.max(11, Math.round(h * 0.375));
     return (
       <View key={day.dateIso} style={styles.tileColumn}>
         <View
           style={[
             styles.tile,
+            { width: w, height: h },
             !showGradient && styles.tileRest,
             day.state === 'scheduled' && styles.tileFuture,
             day.state === 'scheduled' && day.isToday && { borderColor: colors.primary, borderWidth: 1.5, opacity: 0.7 },
@@ -382,22 +434,29 @@ export default function CrewScreen() {
             />
           ) : null}
           {day.state === 'trained' ? (
-            <View style={styles.tileSeal}>
-              <Ionicons name="checkmark" size={9} color="#1C1C1E" />
+            <View style={[styles.tileSeal, { width: seal, height: seal }]}>
+              <Ionicons name="checkmark" size={Math.round(seal * 0.62)} color="#1C1C1E" />
             </View>
           ) : null}
         </View>
-        <Text
-          style={[
-            styles.tileDay,
-            day.isToday && { color: colors.primary, fontWeight: weight.heavy },
-          ]}
-        >
-          {DAY_LETTERS[i]}
-        </Text>
+        {withLetter ? (
+          <Text
+            style={[
+              styles.tileDay,
+              day.isToday && { color: colors.primary, fontWeight: weight.heavy },
+            ]}
+          >
+            {DAY_LETTERS[i]}
+          </Text>
+        ) : null}
       </View>
     );
   };
+
+  /** The member sheet keeps the full-size week with its own letters. */
+  const miniTile = (day: CrewMemberDay, i: number) => dayTile(day, i, 34, 40, true);
+  /** The list row's compact week; letters come from the header strip. */
+  const rowTile = (day: CrewMemberDay, i: number) => dayTile(day, i, 30, 36, false);
 
   const pumpChip = (
     count: number,
@@ -418,7 +477,17 @@ export default function CrewScreen() {
       accessibilityLabel={active ? 'Remove your pound' : 'Pound it'}
     >
       <Text style={styles.pumpEmoji}>💪</Text>
-      <Text style={[styles.pumpCount, active && styles.pumpCountActive]}>{count}</Text>
+      {/* No "0". An untouched chip is an invitation, not a score of nil. */}
+      {count > 0 ? (
+        <Text
+          style={[
+            styles.pumpCount,
+            active && (gold ? styles.pumpCountActiveGold : styles.pumpCountActive),
+          ]}
+        >
+          {count}
+        </Text>
+      ) : null}
     </TouchableOpacity>
   );
 
@@ -428,7 +497,10 @@ export default function CrewScreen() {
     <SafeAreaView style={styles.container} edges={['top']} testID="e2e-crew-root">
       <View style={styles.header}>
         {/* The crew's name IS the page title (clan-page grammar), and tapping
-            it opens the sheet where the name is edited. */}
+            it opens the sheet. There is deliberately NO second header button:
+            the icon that used to sit here opened the very same sheet the
+            title already opens, and the list's own "Invite" row is the
+            visible way in. The chevron is what makes the title read tappable. */}
         {crew ? (
           <TouchableOpacity
             style={styles.titleTap}
@@ -438,30 +510,18 @@ export default function CrewScreen() {
             }}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Edit crew name"
+            accessibilityLabel="Crew settings"
           >
             <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
               {crew.name || 'Crew'}
             </Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         ) : (
           <Text style={[styles.title, styles.titleTap]} numberOfLines={1}>
             Crew
           </Text>
         )}
-        {crew ? (
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => {
-              haptics.tap();
-              setSheetOpen(true);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Crew settings"
-          >
-            <Ionicons name="person-add-outline" size={19} color={colors.primary} />
-          </TouchableOpacity>
-        ) : null}
       </View>
 
       {loading ? (
@@ -565,38 +625,8 @@ export default function CrewScreen() {
 
           {crew ? (
             <>
-              {/* Today: the stories row. */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.storiesScroll}>
-                <View style={styles.storiesRow}>
-                  {members.map((m) => (
-                    <TouchableOpacity
-                      key={m.userId}
-                      style={styles.storyColumn}
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        haptics.select();
-                        setMemberSheetId(m.userId);
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${firstNameOf(m)}, ${m.todayState === 'trained' ? 'trained today' : m.todayState === 'scheduled' ? 'scheduled today' : 'rest day'}`}
-                    >
-                      <View style={[styles.storyRing, storyRing(m)]}>
-                        <ProfileAvatarDisc
-                          avatarId={(m.avatarId ?? 'default') as ProfileAvatarId}
-                          size={52}
-                          colors={colors}
-                          initial={initialOf(m)}
-                        />
-                      </View>
-                      <Text style={[styles.storyName, m.isMe && styles.storyNameMe]} numberOfLines={1}>
-                        {firstNameOf(m)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-
-              {/* The crew streak. */}
+              {/* The hero. One shared number, and the crew-wide moments ride
+                  its caption rather than earning cards of their own. */}
               <View style={styles.streakCard}>
                 <LinearGradient
                   colors={['#FF9F0A', '#FF3B30']}
@@ -614,183 +644,160 @@ export default function CrewScreen() {
                   </Text>
                   <Text style={styles.streakCaption}>{streakCaption}</Text>
                 </View>
+                {/* The recap's winner is a real recipient, so it keeps its
+                    pound. It is the only chip that ever sits on the hero. */}
+                {recapMoment && recapMoment.userId && recapMoment.userId !== summary!.meUserId
+                  ? pumpChip(
+                      recapMoment.kudos,
+                      recapMoment.iPounded,
+                      () => void pound(recapMoment.userId!, recapMoment.ref),
+                      true,
+                    )
+                  : null}
               </View>
 
-              {/* One-person crew: surface the code until friends arrive, and
-                  keep the accidental-tap exit in plain sight. */}
-              {members.length < 2 ? (
-                <>
-                  <View style={styles.codeCard}>
-                    <View style={styles.codeTextWrap}>
-                      <Text style={styles.codeValue}>{formatShareCode(crew.code)}</Text>
-                      <Text style={styles.codeCaption}>Your crew code. Send it to your gym friends.</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.codeShareButton}
-                      onPress={() => void shareCode(crew.code)}
-                      activeOpacity={0.85}
-                      accessibilityRole="button"
-                      accessibilityLabel="Share crew code"
-                    >
-                      <Ionicons name="share-outline" size={18} color={colors.onPrimary} />
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.undoRow}
-                    onPress={confirmLeave}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Delete this crew"
-                  >
-                    <Text style={styles.undoLabel}>Delete crew</Text>
-                  </TouchableOpacity>
-                </>
-              ) : null}
+              <Text style={styles.sectionLabel}>This week</Text>
 
-              {/* Moments: computed, never composed. */}
-              {summary!.moments.length > 0 ? (
-                <>
-                  <Text style={styles.sectionLabel}>Moments</Text>
-                  {summary!.moments.map((mo) => {
-                    const { title, caption } = momentCopy(mo);
-                    return (
-                      <View key={`${mo.userId ?? 'crew'}-${mo.ref}`} style={styles.momentCard}>
-                        {mo.userId ? (
-                          <ProfileAvatarDisc
-                            avatarId={(mo.avatarId ?? 'default') as ProfileAvatarId}
-                            size={38}
-                            colors={colors}
-                            initial={(mo.name?.trim() || 'J')[0].toUpperCase()}
-                          />
-                        ) : (
-                          <View style={styles.momentFlame}>
-                            <Ionicons name="flame" size={19} color="#FFFFFF" />
-                          </View>
-                        )}
-                        <View style={styles.momentTextWrap}>
-                          <Text style={styles.momentTitle} numberOfLines={2}>
-                            {title}
-                          </Text>
-                          <Text style={styles.momentCaption}>{caption}</Text>
-                        </View>
-                        {mo.kind !== 'streak'
-                          ? pumpChip(
-                              mo.kudos,
-                              mo.iPounded,
-                              !mo.userId || mo.userId === summary!.meUserId
-                                ? null
-                                : () => void pound(mo.userId!, mo.ref),
-                              true,
-                            )
-                          : null}
-                      </View>
-                    );
-                  })}
-                </>
-              ) : null}
-
-              {/* The crew, one card each. */}
-              {others.length > 0 ? <Text style={styles.sectionLabel}>This week</Text> : null}
-              {others.map((m) => (
-                <View key={m.userId} style={styles.memberCard}>
-                  <View style={styles.memberHeader}>
-                    <ProfileAvatarDisc
-                      avatarId={(m.avatarId ?? 'default') as ProfileAvatarId}
-                      size={38}
-                      colors={colors}
-                      initial={initialOf(m)}
-                    />
-                    <View style={styles.memberNameWrap}>
-                      <Text style={styles.memberName}>{firstNameOf(m)}</Text>
-                      {m.weekStreak > 0 ? (
-                        <View style={styles.memberStreakRow}>
-                          <Ionicons name="flame" size={11} color="#FF9F0A" />
-                          <Text style={styles.memberStreak}>
-                            {`${m.weekStreak}-week streak`}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    {pumpChip(
-                      m.kudosWeek,
-                      m.iPoundedLatest,
-                      m.latestSessionRef ? () => void pound(m.userId, m.latestSessionRef!) : null,
-                    )}
+              {/* THE LIST. Sorted by completion ratio, so it is also the race.
+                  Every person is drawn exactly once. */}
+              <View style={styles.listCard}>
+                {/* Day letters, once — not once per member. */}
+                <View style={styles.listHead}>
+                  <View style={styles.listHeadTiles}>
+                    {DAY_LETTERS.map((letter, i) => (
+                      <Text
+                        key={`${letter}-${i}`}
+                        style={[
+                          styles.tileDay,
+                          styles.listHeadDay,
+                          i === todayIndex && { color: colors.primary, fontWeight: weight.heavy },
+                        ]}
+                      >
+                        {letter}
+                      </Text>
+                    ))}
                   </View>
-                  <View style={styles.tileRow}>{m.week.map(miniTile)}</View>
-                  {m.lastSession ? (
-                    <Text style={styles.memberFooter}>
-                      {`${m.lastSession.title} · ${recentDayLabel(m.lastSession.dateIso, today)}`}
-                      {m.hasPlanThisWeek && m.race.planned > 0 && m.race.done >= m.race.planned
-                        ? ' · done for the week'
-                        : ''}
-                    </Text>
-                  ) : (
-                    <Text style={styles.memberFooter}>No sessions yet this week</Text>
-                  )}
+                  <View style={styles.rowScoreSpacer} />
                 </View>
-              ))}
 
-              {/* The week's race: consistency against your own plan. */}
-              {members.length > 1 ? (
-                <>
-                  <Text style={styles.sectionLabel}>This week’s race</Text>
-                  <View style={styles.raceCard}>
-                    {[...members]
-                      .sort((a, b) => {
-                        const ra = a.race.planned > 0 ? a.race.done / a.race.planned : 0;
-                        const rb = b.race.planned > 0 ? b.race.done / b.race.planned : 0;
-                        return rb - ra;
-                      })
-                      .map((m, idx, arr) => {
-                        const complete =
-                          m.hasPlanThisWeek && m.race.planned > 0 && m.race.done >= m.race.planned;
-                        return (
-                          <View
-                            key={m.userId}
-                            style={[styles.raceRow, idx < arr.length - 1 && styles.raceRowDivider]}
-                          >
+                {ranked.map((m, idx) => {
+                  const pr = prByUser.get(m.userId) ?? null;
+                  const complete =
+                    m.hasPlanThisWeek && m.race.planned > 0 && m.race.done >= m.race.planned;
+                  // One chip, one ref: the PR when there is one, else the
+                  // latest session. Its count is always that ref's count.
+                  const chipRef = pr ? pr.ref : m.latestSessionRef;
+                  const chipCount = pr ? pr.kudos : m.kudosLatest;
+                  const chipActive = pr ? pr.iPounded : m.iPoundedLatest;
+                  const subtitle = pr
+                    ? `PR · ${formatWeightFromLb(pr.weight ?? 0, weightUnit)} on ${pr.exerciseName ?? 'a lift'}`
+                    : m.lastSession
+                      ? `${m.lastSession.title} · ${recentDayLabel(m.lastSession.dateIso, today)}`
+                      : 'No sessions yet this week';
+                  const openSheet = () => {
+                    haptics.select();
+                    setMemberSheetId(m.userId);
+                  };
+                  const rowLabel = `${firstNameOf(m)}, ${m.race.done} of ${m.race.planned} sessions this week`;
+                  // The row is a plain View with TWO sibling touch targets, not
+                  // one Touchable wrapping everything: the 💪 must never nest
+                  // inside the row's own press target. Nested pressables are
+                  // invalid DOM on web and double-fire on native.
+                  return (
+                    <View
+                      key={m.userId}
+                      style={[styles.personRow, idx < ranked.length - 1 && styles.personRowDivider]}
+                    >
+                      <View style={styles.personTop}>
+                        <TouchableOpacity
+                          style={styles.personIdentity}
+                          activeOpacity={0.7}
+                          onPress={openSheet}
+                          accessibilityRole="button"
+                          accessibilityLabel={rowLabel}
+                        >
+                          <View style={[styles.storyRing, storyRing(m)]}>
                             <ProfileAvatarDisc
                               avatarId={(m.avatarId ?? 'default') as ProfileAvatarId}
-                              size={34}
+                              size={44}
                               colors={colors}
                               initial={initialOf(m)}
                             />
-                            <View style={styles.raceBarWrap}>
-                              <View style={styles.raceNameRow}>
-                                <Text style={styles.raceName}>{firstNameOf(m)}</Text>
-                                {complete ? (
-                                  <Text style={styles.raceDone}>done for the week</Text>
-                                ) : null}
-                              </View>
-                              {m.race.planned > 0 ? (
-                                <View style={styles.raceSegments}>
-                                  {Array.from({ length: m.race.planned }).map((_, i) => (
-                                    <View
-                                      key={i}
-                                      style={[
-                                        styles.raceSegment,
-                                        i < m.race.done &&
-                                          (complete ? styles.raceSegmentGold : styles.raceSegmentDone),
-                                      ]}
-                                    />
-                                  ))}
-                                </View>
-                              ) : (
-                                <Text style={styles.raceNoPlan}>no plan this week</Text>
-                              )}
-                            </View>
-                            <Text style={[styles.raceScore, complete && styles.raceScoreGold]}>
-                              {`${m.race.done}/${m.race.planned}`}
+                          </View>
+                          <View style={styles.personNameWrap}>
+                            <Text style={styles.personName} numberOfLines={1}>
+                              {firstNameOf(m)}
+                            </Text>
+                            <Text
+                              style={[styles.personSub, pr && styles.personSubPr]}
+                              numberOfLines={1}
+                            >
+                              {subtitle}
                             </Text>
                           </View>
-                        );
-                      })}
-                  </View>
-                  <Text style={styles.footerNote}>
-                    Resets Monday · measured against each person’s own plan
-                  </Text>
-                </>
+                        </TouchableOpacity>
+                        {!m.isMe && chipRef
+                          ? pumpChip(
+                              chipCount,
+                              chipActive,
+                              () => void pound(m.userId, chipRef),
+                              !!pr,
+                            )
+                          : null}
+                      </View>
+                      <TouchableOpacity
+                        style={styles.personBottom}
+                        activeOpacity={0.7}
+                        onPress={openSheet}
+                        accessibilityRole="button"
+                        accessibilityLabel={rowLabel}
+                      >
+                        <View style={styles.tileRowFlush}>{m.week.map(rowTile)}</View>
+                        <Text style={[styles.rowScore, complete && styles.rowScoreGold]}>
+                          {m.race.planned > 0 ? `${m.race.done}/${m.race.planned}` : '—'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+
+                {/* The empty seat. The ONLY invite affordance on this screen. */}
+                {members.length < 10 ? (
+                  <TouchableOpacity
+                    style={styles.inviteRow}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      haptics.tap();
+                      setSheetOpen(true);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Invite a friend"
+                  >
+                    <View style={styles.invitePlus}>
+                      <Ionicons name="add" size={20} color={colors.textMuted} />
+                    </View>
+                    <Text style={styles.inviteLabel}>Invite a friend</Text>
+                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              <Text style={styles.footerNote}>
+                Resets Monday · measured against each person’s own plan
+              </Text>
+
+              {/* A crew of one is usually an accident. Keep the escape in
+                  plain sight — the code itself lives in the sheet. */}
+              {members.length < 2 ? (
+                <TouchableOpacity
+                  style={styles.undoRow}
+                  onPress={confirmLeave}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete this crew"
+                >
+                  <Text style={styles.undoLabel}>Delete crew</Text>
+                </TouchableOpacity>
               ) : null}
             </>
           ) : null}
@@ -818,29 +825,32 @@ export default function CrewScreen() {
           />
           {crew ? (
             <>
+              {/* Two channels, because there are exactly two situations:
+                  someone standing next to you reads the code off the screen,
+                  and someone who isn't gets the share sheet. The QR that used
+                  to sit here beat neither and cost ~190pt of sheet — and the
+                  jimapp://crew/CODE deep link still rides inside the shared
+                  message, so no entry path went with it. */}
               <View style={styles.codeCard}>
                 <View style={styles.codeTextWrap}>
-                  <Text style={styles.codeValue}>{formatShareCode(crew.code)}</Text>
+                  <Text style={styles.codeValue} selectable>
+                    {formatShareCode(crew.code)}
+                  </Text>
                   <Text style={styles.codeCaption}>
                     {`${members.length} of 10 · anyone with the code can join`}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.codeShareButton}
-                  onPress={() => void shareCode(crew.code)}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                  accessibilityLabel="Share crew code"
-                >
-                  <Ionicons name="share-outline" size={18} color={colors.onPrimary} />
-                </TouchableOpacity>
               </View>
-              {/* The QR encodes jimapp://crew/CODE — scanning it with the
-                  camera lands the friend on this tab with the code filled. */}
-              <View style={styles.qrWrap}>
-                <QrCodeView value={buildCrewUrl(crew.code)} size={148} />
-                <Text style={styles.qrCaption}>Scan with the phone camera</Text>
-              </View>
+              <TouchableOpacity
+                style={styles.shareButton}
+                onPress={() => void shareCode(crew.code)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Share crew invite"
+              >
+                <Ionicons name="share-outline" size={18} color={colors.onPrimary} />
+                <Text style={styles.primaryButtonLabel}>Share invite</Text>
+              </TouchableOpacity>
             </>
           ) : null}
           <TouchableOpacity
@@ -990,22 +1000,15 @@ function createStyles(c: ColorPalette) {
     titleTap: {
       flex: 1,
       marginRight: spacing.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
     },
     title: {
       fontSize: text.display,
       fontWeight: weight.heavy,
       letterSpacing: tracking.tight,
       color: c.text,
-    },
-    headerButton: {
-      width: 34,
-      height: 34,
-      borderRadius: radius.pill,
-      backgroundColor: c.surface,
-      borderWidth: 1,
-      borderColor: c.border,
-      alignItems: 'center',
-      justifyContent: 'center',
     },
     loadingBox: {
       flex: 1,
@@ -1036,30 +1039,9 @@ function createStyles(c: ColorPalette) {
       color: c.textMuted,
       marginBottom: spacing.sm,
     },
-    storiesScroll: {
-      flexGrow: 0,
-    },
-    storiesRow: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-    },
-    storyColumn: {
-      alignItems: 'center',
-      gap: spacing.xs,
-      width: 66,
-    },
     storyRing: {
       padding: 3,
       borderRadius: radius.pill,
-    },
-    storyName: {
-      fontSize: text.caption,
-      fontWeight: weight.semibold,
-      color: c.textSecondary,
-    },
-    storyNameMe: {
-      color: c.text,
-      fontWeight: weight.bold,
     },
     streakCard: {
       flexDirection: 'row',
@@ -1122,71 +1104,6 @@ function createStyles(c: ColorPalette) {
       color: c.textMuted,
       marginTop: spacing.xxs,
     },
-    codeShareButton: {
-      width: 40,
-      height: 40,
-      borderRadius: radius.md,
-      backgroundColor: c.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    momentCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-      backgroundColor: c.warningSoft,
-      borderWidth: 1,
-      borderColor: GOLD + '73',
-      borderRadius: radius.lg,
-      padding: spacing.md,
-    },
-    momentTextWrap: {
-      flex: 1,
-      minWidth: 0,
-    },
-    momentTitle: {
-      fontSize: text.body,
-      fontWeight: weight.bold,
-      color: c.text,
-    },
-    momentCaption: {
-      fontSize: text.footnote,
-      fontWeight: weight.medium,
-      color: c.textMuted,
-      marginTop: 1,
-    },
-    memberCard: {
-      backgroundColor: c.surface,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: radius.lg,
-      padding: spacing.md,
-    },
-    memberHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-    },
-    memberNameWrap: {
-      flex: 1,
-      minWidth: 0,
-    },
-    memberName: {
-      fontSize: text.callout,
-      fontWeight: weight.bold,
-      color: c.text,
-    },
-    memberStreakRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 3,
-      marginTop: 1,
-    },
-    memberStreak: {
-      fontSize: text.caption,
-      fontWeight: weight.semibold,
-      color: '#FF9F0A',
-    },
     pump: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1213,7 +1130,15 @@ function createStyles(c: ColorPalette) {
       fontWeight: weight.bold,
       color: c.textSecondary,
     },
+    /** Ink on a FILLED chip. The gold fill is bright in both themes, so it
+     *  always takes dark ink. The primary fill flips (deep #0061C2 on light,
+     *  electric #3D8CFF on dark), so it takes `onPrimary` — the token that
+     *  exists precisely for a label sitting on a primary fill. One hardcoded
+     *  dark ink for both put #1C1C1E on #0061C2 at ~1.9:1 in light mode. */
     pumpCountActive: {
+      color: c.onPrimary,
+    },
+    pumpCountActiveGold: {
       color: '#1C1C1E',
     },
     tileRow: {
@@ -1221,12 +1146,150 @@ function createStyles(c: ColorPalette) {
       justifyContent: 'space-between',
       marginTop: spacing.md,
     },
+
+    /* ---- THE LIST. One card, one row per person, sorted by ratio. ---- */
+    listCard: {
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.lg,
+      paddingHorizontal: spacing.lg,
+    },
+    /** Day letters live here ONCE. Its tile block and every row's tile block
+     *  are both `flex: 1` beside a 44pt sibling with the same gap, so the
+     *  letters stay in column with the tiles at any width. */
+    listHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    listHeadTiles: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    listHeadDay: {
+      width: 30,
+      marginTop: 0,
+      textAlign: 'center',
+    },
+    personRow: {
+      paddingVertical: spacing.md + 2,
+    },
+    personRowDivider: {
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    personTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+    },
+    /** The identity half of the row: its own press target, so the 💪 beside
+     *  it stays a SIBLING rather than a pressable inside a pressable. */
+    personIdentity: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+    },
+    personNameWrap: {
+      flex: 1,
+      minWidth: 0,
+    },
+    personName: {
+      fontSize: text.callout,
+      fontWeight: weight.bold,
+      color: c.text,
+    },
+    personSub: {
+      fontSize: text.footnote,
+      fontWeight: weight.medium,
+      color: c.textMuted,
+      marginTop: 1,
+    },
+    /** A PR reads amber, but GOLD itself is ~2.1:1 on a white card and cannot
+     *  carry 12px text. `warning` is the palette's amber that clears 4.5:1 in
+     *  BOTH modes by construction (deep #9C4E00 on light, bright #FFB340 on
+     *  the dark card) — a hardcoded light-mode brown would vanish on
+     *  Blackout. The chip beside it is the one that gets to be actual gold. */
+    personSubPr: {
+      color: c.warning,
+      fontWeight: weight.semibold,
+    },
+    personBottom: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      marginTop: spacing.md,
+    },
+    tileRowFlush: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    rowScore: {
+      width: 44,
+      textAlign: 'right',
+      fontSize: text.body,
+      fontWeight: weight.heavy,
+      color: c.textSecondary,
+      fontVariant: ['tabular-nums'],
+    },
+    rowScoreGold: {
+      color: GOLD,
+    },
+    rowScoreSpacer: {
+      width: 44,
+    },
+    inviteRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.md + 2,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+    },
+    /** 44 avatar + 3pt ring padding + 3pt ring border = 56, so the empty seat
+     *  sits in the same column as every face above it. */
+    invitePlus: {
+      width: 56,
+      height: 56,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderStyle: 'dashed',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    inviteLabel: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: c.textSecondary,
+    },
+    shareButton: {
+      height: 48,
+      borderRadius: radius.md,
+      backgroundColor: c.primary,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.lg,
+    },
     tileColumn: {
       alignItems: 'center',
     },
     tile: {
-      width: 34,
-      height: 40,
       borderRadius: radius.sm + 2,
       overflow: 'hidden',
       backgroundColor: c.surface,
@@ -1243,8 +1306,6 @@ function createStyles(c: ColorPalette) {
       position: 'absolute',
       right: 2,
       top: 2,
-      width: 15,
-      height: 15,
       borderRadius: radius.pill,
       backgroundColor: GOLD,
       alignItems: 'center',
@@ -1255,80 +1316,6 @@ function createStyles(c: ColorPalette) {
       fontWeight: weight.bold,
       color: c.textMuted,
       marginTop: spacing.xs,
-    },
-    memberFooter: {
-      fontSize: text.footnote,
-      fontWeight: weight.medium,
-      color: c.textMuted,
-      marginTop: spacing.md,
-    },
-    raceCard: {
-      backgroundColor: c.surface,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: radius.lg,
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.xs,
-    },
-    raceRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-      paddingVertical: spacing.md,
-    },
-    raceRowDivider: {
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-    },
-    raceBarWrap: {
-      flex: 1,
-      minWidth: 0,
-    },
-    raceNameRow: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      gap: spacing.sm,
-    },
-    raceName: {
-      fontSize: text.body,
-      fontWeight: weight.bold,
-      color: c.text,
-    },
-    raceDone: {
-      fontSize: text.caption,
-      fontWeight: weight.bold,
-      color: GOLD,
-    },
-    raceSegments: {
-      flexDirection: 'row',
-      gap: spacing.xs,
-      marginTop: spacing.xs,
-    },
-    raceSegment: {
-      flex: 1,
-      height: 9,
-      borderRadius: radius.xs,
-      backgroundColor: c.border,
-    },
-    raceSegmentDone: {
-      backgroundColor: c.primary,
-    },
-    raceSegmentGold: {
-      backgroundColor: GOLD,
-    },
-    raceNoPlan: {
-      fontSize: text.caption,
-      fontWeight: weight.medium,
-      color: c.textMuted,
-      marginTop: spacing.xs,
-    },
-    raceScore: {
-      fontSize: text.footnote,
-      fontWeight: weight.heavy,
-      color: c.textSecondary,
-    },
-    raceScoreGold: {
-      color: GOLD,
     },
     inviteCard: {
       borderRadius: radius.xl,
@@ -1471,14 +1458,6 @@ function createStyles(c: ColorPalette) {
       fontWeight: weight.semibold,
       color: c.error,
     },
-    momentFlame: {
-      width: 38,
-      height: 38,
-      borderRadius: radius.md,
-      backgroundColor: '#FF9F0A',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     fieldLabel: {
       fontSize: text.caption,
       fontWeight: weight.heavy,
@@ -1498,16 +1477,6 @@ function createStyles(c: ColorPalette) {
       fontWeight: weight.semibold,
       color: c.text,
       marginBottom: spacing.md,
-    },
-    qrWrap: {
-      alignItems: 'center',
-      marginTop: spacing.md,
-      gap: spacing.sm,
-    },
-    qrCaption: {
-      fontSize: text.caption,
-      fontWeight: weight.medium,
-      color: c.textMuted,
     },
     memberSheetHeader: {
       flexDirection: 'row',
