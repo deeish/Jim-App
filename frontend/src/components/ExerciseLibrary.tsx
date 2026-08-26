@@ -906,7 +906,10 @@ export default function ExerciseLibrary({
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([]);
   // Total matches on the server; exceeds exercises.length when browse mode capped the list.
   const [totalMatchCount, setTotalMatchCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  // TRUE for the same reason as WorkoutDetailScreen: the first search is
+  // dispatched from an effect, so starting false painted one frame of "No
+  // exercises to show" before any request had even left.
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Toggle a main muscle group (parent). Selecting adds the parent only, which searches the

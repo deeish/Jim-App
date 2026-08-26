@@ -47,7 +47,10 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
   // The tab bar floats over this screen; keep the last exercise rows clear of it.
   const tabBarInset = useTabBarInset();
   const [workout, setWorkout] = useState<Workout | null>(null);
-  const [loading, setLoading] = useState(false);
+  // TRUE, not false: the fetch runs in an effect, which is after first
+  // paint, so starting false rendered one frame of "No workout selected"
+  // (and a Generate button) at a screen that was about to show a workout.
+  const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [saved, setSaved] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);

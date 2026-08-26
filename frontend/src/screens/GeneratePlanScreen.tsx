@@ -672,14 +672,19 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     setInputs((prev) => ({ ...prev, ...patch }));
   }, [editFromSnapshot]);
 
+  // AsyncStorage is fast, not instant, and the picker asserted "No saved
+  // splits yet" in the gap — telling a user their saved work did not exist.
+  const [splitsLoaded, setSplitsLoaded] = useState(false);
   useEffect(() => {
-    AsyncStorage.getItem('jim_saved_custom_splits').then((raw) => {
-      if (raw) {
-        try { setSavedCustomSplits(JSON.parse(raw)); } catch (e) {
-          console.warn('Failed to parse saved custom splits:', e);
+    AsyncStorage.getItem('jim_saved_custom_splits')
+      .then((raw) => {
+        if (raw) {
+          try { setSavedCustomSplits(JSON.parse(raw)); } catch (e) {
+            console.warn('Failed to parse saved custom splits:', e);
+          }
         }
-      }
-    });
+      })
+      .finally(() => setSplitsLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -2065,7 +2070,9 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
             <View style={[styles.customSplitPanel, { maxHeight: '60%' }]}>
               <Text style={styles.customSplitTitle}>Choose saved split</Text>
               <ScrollView style={styles.customSplitScroll}>
-                {savedCustomSplits.length === 0 ? (
+                {!splitsLoaded ? (
+                  <Text style={styles.customSplitPreviewLine}>Loading your splits…</Text>
+                ) : savedCustomSplits.length === 0 ? (
                   <Text style={styles.customSplitPreviewLine}>No saved splits yet. Create one in View/Edit.</Text>
                 ) : (
                   savedCustomSplits.map((s) => (
