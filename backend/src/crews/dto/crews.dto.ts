@@ -16,6 +16,13 @@ export class JoinCrewDto {
   code: string;
 }
 
+export class RenameCrewDto {
+  /** Blank clears the name (renders as "Your crew"). */
+  @IsString()
+  @MaxLength(40)
+  name: string;
+}
+
 export class KudosDto {
   @IsString()
   @IsNotEmpty()

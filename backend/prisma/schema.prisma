@@ -35,8 +35,27 @@ model User {
   crewMembership    CrewMember?
   crewKudosSent     CrewKudos[]       @relation("CrewKudosSent")
   crewKudosReceived CrewKudos[]       @relation("CrewKudosReceived")
+  skippedDays       SkippedDay[]
 
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// A deliberately skipped calendar day (server-persisted so a skip syncs
+// across devices and reads as REST — not a miss — to the user's crew).
+// ---------------------------------------------------------------------------
+model SkippedDay {
+  id        String   @id @default(uuid())
+  userId    String
+  /// Local calendar date, YYYY-MM-DD.
+  dateIso   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("skipped_days")
+  @@unique([userId, dateIso])
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------
@@ -45,6 +64,8 @@ model User {
 model Crew {
   id        String   @id @default(uuid())
   code      String   @unique // 8 chars from the share-code alphabet
+  /// Optional display name ("The 5AM Club"); null renders as "Your crew".
+  name      String?
   createdAt DateTime @default(now())
 
   members CrewMember[]

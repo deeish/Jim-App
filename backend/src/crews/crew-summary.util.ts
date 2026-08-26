@@ -81,6 +81,9 @@ export interface MemberInput {
   slots: MemberSlotInput[];
   /** Newest first, bucketed to the caller's local days. */
   logs: MemberLogInput[];
+  /** Server-persisted deliberate skips: these days read as REST here — they
+   *  never violate the crew streak and never count as planned. */
+  skippedDays: string[];
   prs: {
     dateIso: string;
     exerciseId: string;
@@ -165,11 +168,16 @@ export function crewStreakDaysOf(
   crewCreatedIso: string,
 ): number {
   // A member only participates in the streak from the day they joined —
-  // their pre-join misses are their own business.
+  // their pre-join misses are their own business — and a deliberately
+  // SKIPPED day is a rest day, never a violation.
+  const skippedByUser = new Map(
+    members.map((m) => [m.userId, new Set(m.skippedDays)] as const),
+  );
   const violated = (dateIso: string): boolean =>
     members.some(
       (m) =>
         dateIso >= m.joinedIso &&
+        !skippedByUser.get(m.userId)?.has(dateIso) &&
         scheduledSlotOn(m, dateIso) !== null &&
         !trainedByUser.get(m.userId)?.has(dateIso),
     );
@@ -238,15 +246,26 @@ export interface CrewSummaryMember {
 
 export interface CrewSummaryMoment {
   ref: string;
-  userId: string;
+  /** Null for crew-wide moments (streak milestones). */
+  userId: string | null;
   name: string | null;
   avatarId: string | null;
-  kind: 'pr';
-  exerciseName: string;
-  weight: number;
+  /** 'pr' and 'recap' belong to a member (poundable); 'streak' is crew-wide
+   *  and display-only. */
+  kind: 'pr' | 'recap' | 'streak';
   dateIso: string;
   kudos: number;
   iPounded: boolean;
+  /** pr */
+  exerciseName?: string;
+  weight?: number;
+  /** recap (userId/name/avatar = the week's winner) */
+  winnerDone?: number;
+  winnerPlanned?: number;
+  crewDone?: number;
+  crewPlanned?: number;
+  /** streak */
+  milestone?: number;
 }
 
 export interface CrewSummaryResult {
@@ -283,6 +302,7 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
 
   const summaryMembers: CrewSummaryMember[] = members.map((m) => {
     const trained = trainedByUser.get(m.userId)!;
+    const skipped = new Set(m.skippedDays);
     const logByDate = new Map(m.logs.map((l) => [l.dateIso, l] as const));
 
     const week: CrewSummaryMemberDay[] = [];
@@ -291,7 +311,9 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
     let hasPlanThisWeek = false;
     for (let i = 0; i < 7; i++) {
       const dateIso = addDaysIso(weekMondayIso, i);
-      const slot = scheduledSlotOn(m, dateIso);
+      // A skipped scheduled day is a rest day everywhere: quiet tile, not
+      // planned, never missed — the skip itself stays the member's business.
+      const slot = skipped.has(dateIso) ? null : scheduledSlotOn(m, dateIso);
       if (slot) hasPlanThisWeek = true;
       const log = logByDate.get(dateIso);
       let state: CrewDayState = 'rest';
@@ -308,7 +330,9 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
       });
     }
 
-    const todaySlot = scheduledSlotOn(m, todayIso);
+    const todaySlot = skipped.has(todayIso)
+      ? null
+      : scheduledSlotOn(m, todayIso);
     const todayState: CrewSummaryMember['todayState'] = trained.has(todayIso)
       ? 'trained'
       : todaySlot
@@ -342,7 +366,7 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
     };
   });
 
-  const moments: CrewSummaryMoment[] = members
+  const prMoments: CrewSummaryMoment[] = members
     .flatMap((m) =>
       m.prs.map((pr) => {
         // Ref by ID, not display name: null-named custom exercises must not
@@ -363,17 +387,97 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
         };
       }),
     )
-    .sort((a, b) => (a.dateIso < b.dateIso ? 1 : -1))
-    .slice(0, 5);
+    .sort((a, b) => (a.dateIso < b.dateIso ? 1 : -1));
+
+  const streakDays = crewStreakDaysOf(
+    members,
+    trainedByUser,
+    todayIso,
+    crewCreatedIso,
+  );
+
+  const moments: CrewSummaryMoment[] = [];
+
+  // Crew-streak milestone: shown for ~3 days once crossed. Crew-wide and
+  // display-only — there is no single recipient to pound.
+  const milestone = [100, 60, 30, 14, 7].find(
+    (m) => streakDays >= m && streakDays < m + 3,
+  );
+  if (milestone) {
+    moments.push({
+      ref: `crewstreak:${milestone}`,
+      userId: null,
+      name: null,
+      avatarId: null,
+      kind: 'streak',
+      dateIso: todayIso,
+      kudos: 0,
+      iPounded: false,
+      milestone,
+    });
+  }
+
+  // Monday/Tuesday recap of last week's race. The winner is the moment's
+  // face and the pound recipient; crew totals ride along for the subtitle.
+  const todayWeekday = weekdayNameOf(todayIso);
+  if (todayWeekday === 'Monday' || todayWeekday === 'Tuesday') {
+    const lastMonday = addDaysIso(weekMondayIso, -7);
+    let crewDone = 0;
+    let crewPlanned = 0;
+    const standings = members.map((m) => {
+      const trained = trainedByUser.get(m.userId)!;
+      const skipped = new Set(m.skippedDays);
+      let done = 0;
+      let planned = 0;
+      let hadPlan = false;
+      for (let i = 0; i < 7; i++) {
+        const dateIso = addDaysIso(lastMonday, i);
+        const slot = skipped.has(dateIso) ? null : scheduledSlotOn(m, dateIso);
+        if (slot) hadPlan = true;
+        const trainedDay = trained.has(dateIso);
+        if (trainedDay) done++;
+        if (trainedDay || slot) planned++;
+      }
+      crewDone += done;
+      crewPlanned += planned;
+      return { m, done, planned, hadPlan };
+    });
+    // Winner: best completion against an actual plan; planless fall back to
+    // raw sessions. Ties break by more sessions, then userId for stability.
+    const winner = standings
+      .filter((s) => s.done > 0)
+      .sort((a, b) => {
+        const ra = a.hadPlan && a.planned > 0 ? a.done / a.planned : 0;
+        const rb = b.hadPlan && b.planned > 0 ? b.done / b.planned : 0;
+        if (rb !== ra) return rb - ra;
+        if (b.done !== a.done) return b.done - a.done;
+        return a.m.userId < b.m.userId ? -1 : 1;
+      })[0];
+    if (winner) {
+      const ref = `recap:${lastMonday}`;
+      const key = `${winner.m.userId}|${ref}`;
+      moments.push({
+        ref,
+        userId: winner.m.userId,
+        name: winner.m.name,
+        avatarId: winner.m.avatarId,
+        kind: 'recap',
+        dateIso: lastMonday,
+        kudos: kudosCountByRef.get(key) ?? 0,
+        iPounded: myPoundsByRef.has(key),
+        winnerDone: winner.done,
+        winnerPlanned: winner.planned,
+        crewDone,
+        crewPlanned,
+      });
+    }
+  }
+
+  moments.push(...prMoments);
 
   return {
-    streakDays: crewStreakDaysOf(
-      members,
-      trainedByUser,
-      todayIso,
-      crewCreatedIso,
-    ),
+    streakDays,
     members: summaryMembers,
-    moments,
+    moments: moments.slice(0, 6),
   };
 }

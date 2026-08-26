@@ -30,6 +30,7 @@ const member = (
   totalWeeks: 8,
   slots: [],
   logs: [],
+  skippedDays: [],
   prs: [],
   ...over,
 });
@@ -149,6 +150,16 @@ describe('crewStreakDaysOf', () => {
     expect(crewStreakDaysOf([a], trained, '2026-08-25', '2026-08-01')).toBe(1);
   });
 
+  it('a deliberately skipped day never breaks the streak', () => {
+    // a skipped their scheduled Monday, trained Tuesday: no violation.
+    const a = member('a', {
+      slots: [slot(1, 'Monday'), slot(1, 'Tuesday')],
+      skippedDays: ['2026-08-24'],
+    });
+    const trained = new Map([['a', new Set(['2026-08-25'])]]);
+    expect(crewStreakDaysOf([a], trained, '2026-08-25', crewCreated)).toBe(1);
+  });
+
   it('a new member cannot retroactively break the streak with pre-join misses', () => {
     // a has held the streak Mon+Tue; b joined TODAY with a scheduled-but-
     // missed Monday from before joining — that miss must not count.
@@ -241,5 +252,58 @@ describe('assembleCrewSummary', () => {
     const out = assembleCrewSummary({ ...base, members: [m] });
     expect(out.members[0].latestSessionRef).toBe('day:2026-08-25');
     expect(out.members[0].lastSession?.dateIso).toBe('2026-08-25');
+  });
+
+  it('a skipped day reads as rest and leaves the race', () => {
+    const m = member('me', {
+      slots: [slot(1, 'Monday'), slot(1, 'Tuesday')],
+      skippedDays: ['2026-08-24'],
+      logs: [log('2026-08-25')],
+    });
+    const out = assembleCrewSummary({ ...base, members: [m] });
+    expect(out.members[0].week[0].state).toBe('rest'); // skipped Mon, not missed
+    expect(out.members[0].race).toEqual({ done: 1, planned: 1 });
+  });
+
+  it('emits a Monday/Tuesday recap crowning last week’s winner', () => {
+    // Last week (Aug 17-23): sam 2/2 against a plan; me 1 freestyle session.
+    const sam = member('sam', {
+      anchorMondayIso: '2026-08-17',
+      slots: [slot(1, 'Monday'), slot(1, 'Thursday')],
+      logs: [log('2026-08-17'), log('2026-08-20')],
+    });
+    const me = member('me', {
+      anchorMondayIso: null,
+      logs: [log('2026-08-19')],
+    });
+    const out = assembleCrewSummary({ ...base, members: [me, sam] });
+    const recap = out.moments.find((mo) => mo.kind === 'recap');
+    expect(recap).toMatchObject({
+      ref: 'recap:2026-08-17',
+      userId: 'sam',
+      winnerDone: 2,
+      winnerPlanned: 2,
+      crewDone: 3,
+      crewPlanned: 3,
+    });
+  });
+
+  it('emits a display-only streak milestone moment at 7 days', () => {
+    // Nobody scheduled anything; one member has trained 8 straight days.
+    const days = Array.from(
+      { length: 8 },
+      (_, i) => `2026-08-${String(18 + i).padStart(2, '0')}`,
+    );
+    const m = member('me', {
+      anchorMondayIso: null,
+      logs: days.map((d) => log(d)),
+    });
+    const out = assembleCrewSummary({ ...base, members: [m] });
+    const milestone = out.moments.find((mo) => mo.kind === 'streak');
+    expect(milestone).toMatchObject({
+      ref: 'crewstreak:7',
+      userId: null,
+      milestone: 7,
+    });
   });
 });

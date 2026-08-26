@@ -15,6 +15,7 @@ import { UsersModule } from './users/users.module';
 import { BodyWeightModule } from './body-weight/body-weight.module';
 import { SharesModule } from './shares/shares.module';
 import { CrewsModule } from './crews/crews.module';
+import { SkippedDaysModule } from './skipped-days/skipped-days.module';
 import { AiThrottlerGuard } from './common/ai-throttler.guard';
 import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
 
@@ -116,6 +117,7 @@ import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
     BodyWeightModule,
     SharesModule,
     CrewsModule,
+    SkippedDaysModule,
   ],
   providers: [
     AiThrottlerGuard,

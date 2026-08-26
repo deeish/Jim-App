@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -12,7 +13,12 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 import { CrewsService } from './crews.service';
-import { CrewSummaryQueryDto, JoinCrewDto, KudosDto } from './dto/crews.dto';
+import {
+  CrewSummaryQueryDto,
+  JoinCrewDto,
+  KudosDto,
+  RenameCrewDto,
+} from './dto/crews.dto';
 
 // ThrottlerGuard: join is a code-redemption surface (same shape as shares) and
 // must not be brute-forceable; the rest inherits the same sane per-user limits.
@@ -36,6 +42,11 @@ export class CrewsController {
   @HttpCode(204)
   async leave(@UserId() userId: string) {
     await this.crews.leaveCrew(userId);
+  }
+
+  @Patch('mine')
+  rename(@UserId() userId: string, @Body() body: RenameCrewDto) {
+    return this.crews.renameCrew(userId, body.name);
   }
 
   @Get('mine/summary')

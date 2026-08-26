@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ExercisesService } from '../exercises/exercises.service';
 import { generateShareCode, normalizeShareCode } from '../shares/share-code';
 import {
+  addDaysIso,
   assembleCrewSummary,
   type CrewSummaryResult,
   type KudosInput,
@@ -23,7 +24,7 @@ const DAY_MS = 86_400_000;
 const LOG_LOOKBACK_DAYS = 370;
 
 export interface CrewSummaryResponse extends CrewSummaryResult {
-  crew: { code: string; createdAtIso: string } | null;
+  crew: { code: string; name: string | null; createdAtIso: string } | null;
   meUserId: string;
 }
 
@@ -203,7 +204,9 @@ export class CrewsService {
     const weekStartUtc = this.localDayStartUtc(weekMondayIso, tzOffsetMinutes);
     const lookbackUtc = new Date(Date.now() - LOG_LOOKBACK_DAYS * DAY_MS);
 
-    const [plans, allLogs, weekLogs, weekSets] = await Promise.all([
+    // Skips cover the crew-streak lookback (60d) plus this week's forward days.
+    const skipsSinceIso = addDaysIso(weekMondayIso, -70);
+    const [plans, allLogs, weekLogs, weekSets, skipRows] = await Promise.all([
       this.prisma.workoutPlan.findMany({
         where: { userId: { in: memberIds }, isActive: true },
         include: {
@@ -261,7 +264,18 @@ export class CrewsService {
           },
         },
       }),
+      this.prisma.skippedDay.findMany({
+        where: { userId: { in: memberIds }, dateIso: { gte: skipsSinceIso } },
+        select: { userId: true, dateIso: true },
+      }),
     ]);
+
+    const skipsByUser = new Map<string, string[]>();
+    for (const s of skipRows) {
+      const list = skipsByUser.get(s.userId) ?? [];
+      list.push(s.dateIso);
+      skipsByUser.set(s.userId, list);
+    }
 
     // Prior bests for every exercise lifted this week (PR detection). Bounded
     // to the same one-year lookback so a staple lift can't drag the whole
@@ -401,6 +415,7 @@ export class CrewsService {
         email: u.email,
         avatarId: u.avatarId,
         joinedIso: joinedIsoByUser.get(u.id) ?? todayIso,
+        skippedDays: skipsByUser.get(u.id) ?? [],
         anchorMondayIso,
         totalWeeks,
         slots:
@@ -431,6 +446,8 @@ export class CrewsService {
         OR: [
           { createdAt: { gte: new Date(weekStartUtc.getTime() - 7 * DAY_MS) } },
           { eventRef: { in: [...surfacedRefs] } },
+          // Recap moments reference last week; their pounds must survive it.
+          { eventRef: { startsWith: 'recap:' } },
         ],
       },
     });
@@ -451,9 +468,30 @@ export class CrewsService {
     });
 
     return {
-      crew: { code: crew.code, createdAtIso: crew.createdAt.toISOString() },
+      crew: {
+        code: crew.code,
+        name: crew.name,
+        createdAtIso: crew.createdAt.toISOString(),
+      },
       meUserId: userId,
       ...assembled,
     };
+  }
+
+  /** Rename the caller's crew ("The 5AM Club"); blank clears back to null. */
+  async renameCrew(
+    userId: string,
+    name: string,
+  ): Promise<{ name: string | null }> {
+    const membership = await this.prisma.crewMember.findUnique({
+      where: { userId },
+    });
+    if (!membership) throw new NotFoundException('You are not in a crew.');
+    const trimmed = name.trim().slice(0, 40);
+    const updated = await this.prisma.crew.update({
+      where: { id: membership.crewId },
+      data: { name: trimmed.length > 0 ? trimmed : null },
+    });
+    return { name: updated.name };
   }
 }
