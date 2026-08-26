@@ -170,9 +170,12 @@ export default function CrewScreen() {
     setBusy(true);
     try {
       await createCrew(name);
+      // Load BEFORE dismissing. Closing first unmounted the only spinner and
+      // dropped the user onto "Your crew starts with one code" — the empty
+      // state — while the crew they had just made was being fetched.
+      await load();
       setCreateSheetOpen(false);
       setCreateName('');
-      await load();
     } catch {
       // A 409 (already in a crew, e.g. joined on another device) resolves
       // itself on reload; anything else reads as offline.
@@ -811,7 +814,14 @@ export default function CrewScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Join crew"
                 >
-                  <Text style={styles.primaryButtonLabel}>Join</Text>
+                  {/* `busy` reached `disabled` but never the label, so two
+                      round trips ran with no feedback at all on the one screen
+                      where the user is waiting to find out if a code worked. */}
+                  {busy ? (
+                    <ActivityIndicator size="small" color={colors.onPrimary} />
+                  ) : (
+                    <Text style={styles.primaryButtonLabel}>Join</Text>
+                  )}
                 </TouchableOpacity>
               </View>
               {joinError ? <Text style={styles.errorText}>{joinError}</Text> : null}
