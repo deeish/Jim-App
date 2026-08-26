@@ -463,6 +463,38 @@ export default function CrewScreen() {
   const milestoneMoment = summary?.moments.find((mo) => mo.kind === 'streak') ?? null;
 
   const scheduledNow = members.filter((m) => m.todayState === 'scheduled');
+  /**
+   * THE CREW'S WEEK — the one number on this screen that is OURS.
+   *
+   * Everything else here is individual: four people's weeks listed side by
+   * side, each racing their own plan. The only shared thing was the streak,
+   * which is binary and (before the make-up window) usually dead, so the tab
+   * had no headline that was alive most of the time.
+   *
+   * `planned` counts only members who actually have a plan this week —
+   * `race.planned` counts any day with a slot OR a log, so a planless member
+   * would otherwise add their own sessions to the target and drag the ratio
+   * toward 100% for doing nothing extra. `done` counts EVERYONE, so their
+   * work still pushes the crew forward. That asymmetry is deliberate: it can
+   * put the crew past its own target, which is a good state to be able to
+   * reach and something a streak has no equivalent of.
+   */
+  const crewWeek = useMemo(() => {
+    const done = members.reduce((n, m) => n + m.race.done, 0);
+    const planned = members.reduce(
+      (n, m) => n + (m.hasPlanThisWeek ? m.race.planned : 0),
+      0,
+    );
+    return { done, planned, remaining: Math.max(0, planned - done) };
+  }, [members]);
+
+  /** Nobody in the crew has a plan yet, so there is no target to measure. */
+  const noTarget = crewWeek.planned === 0;
+
+  const heroTitle = noTarget
+    ? `${crewWeek.done} ${crewWeek.done === 1 ? 'session' : 'sessions'} this week`
+    : `${crewWeek.done} of ${crewWeek.planned} sessions`;
+
   const streakCaption = (() => {
     if (recapMoment) {
       const first = firstNameOf({
@@ -473,24 +505,23 @@ export default function CrewScreen() {
         recapMoment.winnerPlanned ?? 0
       } sessions. The crew went ${recapMoment.crewDone ?? 0}/${recapMoment.crewPlanned ?? 0}.`;
     }
-    if (milestoneMoment) {
-      // Deliberately numberless. A milestone stays live for ~3 days after it
-      // is crossed, so naming the THRESHOLD here put "7 days without a missed
-      // session" directly under a title reading "8-day crew streak". The
-      // title owns the count; this line only has to mean something.
-      return 'Nobody has missed a scheduled workout. Keep it alive.';
-    }
-    if (!summary || summary.streakDays <= 0) {
-      return 'Train on your scheduled days and the whole crew builds one streak together.';
-    }
-    const days = `${summary.streakDays} ${summary.streakDays === 1 ? 'day' : 'days'}`;
     const who =
       scheduledNow.length > 0
         ? ` ${scheduledNow.map(firstNameOf).join(' and ')} train${
             scheduledNow.length === 1 && !scheduledNow[0].isMe ? 's' : ''
           } today.`
         : '';
-    return `Nobody has missed a scheduled workout in ${days}.${who}`;
+    if (noTarget) {
+      return `Add a plan and the crew gets a target to hit together.${who}`;
+    }
+    // What is LEFT, not what is done: the number that gets someone off the
+    // sofa on a Sunday is the one still owed.
+    if (crewWeek.remaining > 0) {
+      return `${crewWeek.remaining} to go.${who}`;
+    }
+    return crewWeek.done > crewWeek.planned
+      ? `Past the target, with ${crewWeek.done - crewWeek.planned} to spare.${who}`
+      : `The crew hit its week.${who}`;
   })();
 
   /**
@@ -849,21 +880,39 @@ export default function CrewScreen() {
             <>
               {/* The hero. One shared number, and the crew-wide moments ride
                   its caption rather than earning cards of their own. */}
-              <View style={styles.streakCard}>
-                <LinearGradient
-                  colors={['#FF9F0A', '#FF3B30']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.streakChip}
-                >
-                  <Ionicons name="flame" size={22} color="#FFFFFF" />
-                </LinearGradient>
+              <View style={styles.heroCard}>
+                <View style={styles.heroTopRow}>
+                  <Text style={styles.heroLabel}>This week</Text>
+                  {/* The streak, demoted. It is a real number again now that
+                      a miss can be paid back, but it is not what this tab
+                      rests on — a headline that is dead most of the time
+                      teaches people to stop reading it. */}
+                  {summary!.streakDays > 0 ? (
+                    <View style={styles.heroStreakChip}>
+                      <Ionicons name="flame" size={13} color="#E08D0C" />
+                      <Text style={styles.heroStreakLabel}>
+                        {`${summary!.streakDays}-day streak`}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text style={styles.heroTitle}>{heroTitle}</Text>
+                {!noTarget ? (
+                  <View style={styles.heroTrack}>
+                    <LinearGradient
+                      colors={['#FF9F0A', '#FF3B30']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[
+                        styles.heroFill,
+                        {
+                          width: `${Math.min(100, Math.round((crewWeek.done / crewWeek.planned) * 100))}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                ) : null}
                 <View style={styles.streakTextWrap}>
-                  <Text style={styles.streakTitle}>
-                    {summary!.streakDays > 0
-                      ? `${summary!.streakDays}-day crew streak`
-                      : 'Start the crew streak'}
-                  </Text>
                   <Text style={styles.streakCaption}>{streakCaption}</Text>
                 </View>
                 {/* The recap's winner is a real recipient, so it keeps its
@@ -893,7 +942,9 @@ export default function CrewScreen() {
                 </View>
               ) : null}
 
-              <Text style={styles.sectionLabel}>This week</Text>
+              {/* Not "This week" — the hero above owns that phrase now, and
+                  the two stacked read as a mistake. This label names the LIST. */}
+              <Text style={styles.sectionLabel}>The crew</Text>
 
               {/* THE LIST. Sorted by completion ratio, so it is also the race.
                   Every person is drawn exactly once. */}
@@ -1352,6 +1403,62 @@ function createStyles(c: ColorPalette) {
       padding: 3,
       borderRadius: radius.pill,
     },
+    heroCard: {
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+    },
+    heroTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.sm,
+    },
+    heroLabel: {
+      fontSize: text.caption,
+      fontWeight: weight.heavy,
+      letterSpacing: tracking.widest,
+      textTransform: 'uppercase',
+      color: c.textMuted,
+    },
+    heroStreakChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: c.warningSoft,
+      borderRadius: radius.pill,
+      paddingVertical: 3,
+      paddingHorizontal: spacing.sm,
+    },
+    heroStreakLabel: {
+      fontSize: text.caption,
+      fontWeight: weight.bold,
+      color: c.warning,
+    },
+    heroTitle: {
+      fontSize: text.display,
+      fontWeight: weight.heavy,
+      letterSpacing: tracking.tight,
+      color: c.text,
+      marginTop: spacing.sm,
+      fontVariant: ['tabular-nums'],
+    },
+    /** The bar is the point: a number that only ever goes up, all week. */
+    heroTrack: {
+      height: 10,
+      borderRadius: radius.pill,
+      backgroundColor: c.background,
+      borderWidth: 1,
+      borderColor: c.border,
+      overflow: 'hidden',
+      marginTop: spacing.md,
+    },
+    heroFill: {
+      height: '100%',
+      borderRadius: radius.pill,
+    },
     streakCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1372,6 +1479,7 @@ function createStyles(c: ColorPalette) {
     streakTextWrap: {
       flex: 1,
       minWidth: 0,
+      marginTop: spacing.sm,
     },
     streakTitle: {
       fontSize: text.headline,
