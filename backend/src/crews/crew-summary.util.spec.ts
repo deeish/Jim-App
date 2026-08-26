@@ -117,7 +117,10 @@ describe('crewStreakDaysOf', () => {
     expect(crewStreakDaysOf([a], trained, '2026-08-25', crewCreated)).toBe(2);
   });
 
-  it('breaks on a member missing a scheduled day', () => {
+  it('holds a fresh miss while the make-up window is still open', () => {
+    // b missed Monday; today is Tuesday, so b still has until Wednesday.
+    // The old rule broke the streak the instant anyone missed anything,
+    // which made it unsurvivable in any crew bigger than about three.
     const a = member('a', { slots: [slot(1, 'Monday')] });
     const b = member('b', { slots: [slot(1, 'Monday')] });
     const trained = new Map([
@@ -125,7 +128,51 @@ describe('crewStreakDaysOf', () => {
       ['b', new Set<string>()],
     ]);
     expect(crewStreakDaysOf([a, b], trained, '2026-08-25', crewCreated)).toBe(
+      1,
+    );
+  });
+
+  it('breaks once the make-up window closes unpaid', () => {
+    // Same miss, but it is now Thursday: Monday + 2 has passed and b never
+    // trained. Forgiveness is a window, not an amnesty.
+    const a = member('a', { slots: [slot(1, 'Monday')] });
+    const b = member('b', { slots: [slot(1, 'Monday')] });
+    const trained = new Map([
+      ['a', new Set(['2026-08-24'])],
+      ['b', new Set<string>()],
+    ]);
+    expect(crewStreakDaysOf([a, b], trained, '2026-08-27', crewCreated)).toBe(
       0,
+    );
+  });
+
+  it('a session inside the window pays the miss back', () => {
+    // b missed Monday and trained Tuesday: the streak survives, and Monday
+    // still counts. This is the whole point — a miss becomes a reason to
+    // train tomorrow instead of a loss nothing can undo.
+    const a = member('a', { slots: [slot(1, 'Monday')] });
+    const b = member('b', { slots: [slot(1, 'Monday')] });
+    const trained = new Map([
+      ['a', new Set(['2026-08-24'])],
+      ['b', new Set(['2026-08-25'])],
+    ]);
+    expect(crewStreakDaysOf([a, b], trained, '2026-08-27', crewCreated)).toBe(
+      2,
+    );
+  });
+
+  it('today is still judged strictly — forgiveness is for settled days', () => {
+    // Both scheduled today, only a has trained. Today must not count yet, or
+    // the streak would be handed out every morning and mean nothing.
+    const a = member('a', { slots: [slot(1, 'Monday'), slot(1, 'Tuesday')] });
+    const b = member('b', { slots: [slot(1, 'Monday'), slot(1, 'Tuesday')] });
+    const trained = new Map([
+      ['a', new Set(['2026-08-24', '2026-08-25'])],
+      ['b', new Set(['2026-08-24'])],
+    ]);
+    // Monday complete for both; Tuesday (today) incomplete -> streak is 1.
+    expect(crewStreakDaysOf([a, b], trained, '2026-08-25', crewCreated)).toBe(
+      1,
     );
   });
 

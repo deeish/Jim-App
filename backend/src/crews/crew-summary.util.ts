@@ -165,6 +165,17 @@ export function weekStreakOf(
  * has trained. Client-only skips look like misses here — the strict reading
  * of an accountability streak, and a documented v0 caveat.
  */
+/**
+ * How long a member has to pay back a missed scheduled day before it breaks
+ * the crew streak.
+ *
+ * Two days, because that turns a miss into a REASON TO TRAIN TOMORROW rather
+ * than a punishment for something already unfixable. Duolingo shipped streak
+ * freezes for the same reason: the pain of losing a long run is what makes
+ * people quit outright, so a streak you cannot protect is worse than none.
+ */
+export const STREAK_MAKEUP_DAYS = 2;
+
 export function crewStreakDaysOf(
   members: MemberInput[],
   trainedByUser: Map<string, Set<string>>,
@@ -177,13 +188,48 @@ export function crewStreakDaysOf(
   const skippedByUser = new Map(
     members.map((m) => [m.userId, new Set(m.skippedDays)] as const),
   );
-  const violated = (dateIso: string): boolean =>
+
+  /** One member, one scheduled day they did not train and did not skip. */
+  const missedOn = (m: MemberInput, dateIso: string): boolean =>
+    dateIso >= m.joinedIso &&
+    !skippedByUser.get(m.userId)?.has(dateIso) &&
+    scheduledSlotOn(m, dateIso) !== null &&
+    !trainedByUser.get(m.userId)?.has(dateIso);
+
+  /** Any session inside the make-up window pays the miss back. */
+  const madeUp = (m: MemberInput, dateIso: string): boolean => {
+    for (let i = 1; i <= STREAK_MAKEUP_DAYS; i++) {
+      if (trainedByUser.get(m.userId)?.has(addDaysIso(dateIso, i))) return true;
+    }
+    return false;
+  };
+
+  /** The window has not closed yet, so the miss is pending, not a break. */
+  const makeUpPending = (dateIso: string): boolean =>
+    addDaysIso(dateIso, STREAK_MAKEUP_DAYS) >= todayIso;
+
+  /**
+   * TODAY is judged strictly: it is not done until everyone scheduled has
+   * trained. That is the whole daily pull, and forgiving it would just hand
+   * the streak out every morning.
+   */
+  const violatedToday = (dateIso: string): boolean =>
+    members.some((m) => missedOn(m, dateIso));
+
+  /**
+   * SETTLED days are judged forgivingly — see STREAK_MAKEUP_DAYS.
+   *
+   * The old rule was `members.some(missed)` on every day, which meant one
+   * person missing one scheduled day killed the streak for everyone. That is
+   * not a demanding mechanic, it is an impossible one: with six people at 90%
+   * adherence the streak had roughly an 8% chance of surviving a single week,
+   * an expected life of about three days, and it usually died because of
+   * somebody else. A number that is always zero teaches people to ignore it.
+   */
+  const violatedSettled = (dateIso: string): boolean =>
     members.some(
       (m) =>
-        dateIso >= m.joinedIso &&
-        !skippedByUser.get(m.userId)?.has(dateIso) &&
-        scheduledSlotOn(m, dateIso) !== null &&
-        !trainedByUser.get(m.userId)?.has(dateIso),
+        missedOn(m, dateIso) && !madeUp(m, dateIso) && !makeUpPending(dateIso),
     );
   const anyTrained = (dateIso: string): boolean =>
     members.some((m) => trainedByUser.get(m.userId)?.has(dateIso));
@@ -197,7 +243,7 @@ export function crewStreakDaysOf(
   if (earliestLog === null) return 0;
   const floor = earliestLog > crewCreatedIso ? earliestLog : crewCreatedIso;
 
-  const todayComplete = !violated(todayIso);
+  const todayComplete = !violatedToday(todayIso);
   let d = todayComplete ? todayIso : addDaysIso(todayIso, -1);
   let streak = 0;
   let leading = true;
@@ -205,7 +251,7 @@ export function crewStreakDaysOf(
   // and leading skip-days must never eat into a real year-long streak.
   for (let i = 0; i < 400; i++) {
     if (d < floor) break;
-    if (violated(d)) break;
+    if (violatedSettled(d)) break;
     if (leading && !anyTrained(d)) {
       d = addDaysIso(d, -1);
       continue;
