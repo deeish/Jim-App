@@ -412,7 +412,13 @@ export default function CrewScreen() {
     withLetter: boolean,
   ) => {
     const muscle = muscleOfDay(day);
-    const showGradient = muscle && (day.state === 'trained' || day.state === 'scheduled');
+    // A MISSED day paints too. It is a day that was on the plan and did not
+    // happen, so drawing it exactly like a rest day is a lie — and now that
+    // these tiles are the only drawing of the week, an invisible miss leaves
+    // the score beside them ("0/4" against two visible tiles) unexplainable.
+    const showGradient = muscle && day.state !== 'rest';
+    const missed = day.state === 'missed' && muscle;
+    const base = muscle ? muscleGradient(muscle) : null;
     const seal = Math.max(11, Math.round(h * 0.375));
     return (
       <View key={day.dateIso} style={styles.tileColumn}>
@@ -423,11 +429,16 @@ export default function CrewScreen() {
             !showGradient && styles.tileRest,
             day.state === 'scheduled' && styles.tileFuture,
             day.state === 'scheduled' && day.isToday && { borderColor: colors.primary, borderWidth: 1.5, opacity: 0.7 },
+            // Outlined in its own colour, hollow inside: the shape of the
+            // session survives, the work does not. Distinct from rest (a
+            // neutral hairline, no colour at all) without a dashed border,
+            // which RN silently renders solid once a borderRadius is set.
+            missed && base ? { borderWidth: 1.5, borderColor: `${base[0]}8C` } : null,
           ]}
         >
-          {showGradient ? (
+          {showGradient && base ? (
             <LinearGradient
-              colors={muscleGradient(muscle)}
+              colors={missed ? [`${base[0]}2E`, `${base[1]}2E`] : base}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={StyleSheet.absoluteFillObject}
