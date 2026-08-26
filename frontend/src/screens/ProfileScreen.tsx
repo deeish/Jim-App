@@ -34,6 +34,7 @@ import { EQUIPMENT_OPTIONS, type EquipmentOption } from '../constants/equipment'
 import {
   FEEDBACK_MAILTO,
   PRIVACY_POLICY_URL,
+  SUPPORT_EMAIL,
   TERMS_OF_SERVICE_URL,
 } from '../constants/legalUrls';
 import { exportMyData, deleteMyAccount } from '../services/userService';
@@ -137,6 +138,59 @@ function ChipRow({
     );
   }
   return content;
+}
+
+/**
+ * A legal link that only exists when this build has a hosted page behind it.
+ * There is no placeholder URL to fall back to any more, so an unconfigured build
+ * renders nothing rather than sending users to someone else's parked domain. In
+ * development the row stays visible but inert, so the missing env var surfaces
+ * while working on the app instead of during App Store review.
+ */
+function LegalRow({
+  icon,
+  tint,
+  label,
+  url,
+  onOpen,
+  colors,
+  divider,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  tint: string;
+  label: string;
+  url: string | null;
+  onOpen: (url: string, label: string) => void;
+  colors: ColorPalette;
+  divider: React.ReactNode;
+}) {
+  if (url) {
+    return (
+      <>
+        {divider}
+        <ChipRow
+          icon={icon}
+          tint={tint}
+          label={label}
+          onPress={() => onOpen(url, label)}
+          colors={colors}
+        />
+      </>
+    );
+  }
+  if (!__DEV__) return null;
+  return (
+    <>
+      {divider}
+      <ChipRow
+        icon={icon}
+        tint={colors.textMuted}
+        label={label}
+        value="Not configured"
+        colors={colors}
+      />
+    </>
+  );
 }
 
 /** Shown as placeholder when display name is empty */
@@ -801,9 +855,12 @@ export default function ProfileScreen() {
       const result = await deleteMyAccount();
       if (!result.supabaseAuthDeleted) {
         await new Promise<void>((resolve) => {
+          // The server names the config it is missing; the user gets the
+          // consequence and a way out. What they need to know is that the
+          // login itself outlived the data, and who can finish the job.
           Alert.alert(
             'Data removed',
-            'Your app data was deleted. Sign-in may still work until the server is configured with SUPABASE_SERVICE_ROLE_KEY for full removal, or you delete the user in the Supabase dashboard.',
+            `Your workouts, plans, and account data have been deleted. Signing in with this email may still work — email ${SUPPORT_EMAIL} if you want the login removed too.`,
             [{ text: 'OK', onPress: () => resolve() }],
           );
         });
@@ -1342,21 +1399,23 @@ export default function ProfileScreen() {
               colors={colors}
             />
           </Pressable>
-          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <ChipRow
+          <LegalRow
             icon="shield-checkmark-outline"
             tint={colors.workoutRecovery}
             label="Privacy policy"
-            onPress={() => openUrl(PRIVACY_POLICY_URL, 'Privacy policy')}
+            url={PRIVACY_POLICY_URL}
+            onOpen={openUrl}
             colors={colors}
+            divider={<View style={[styles.rowDivider, themedStyles.rowDivider]} />}
           />
-          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
-          <ChipRow
+          <LegalRow
             icon="document-text-outline"
             tint={colors.textMuted}
             label="Terms of service"
-            onPress={() => openUrl(TERMS_OF_SERVICE_URL, 'Terms')}
+            url={TERMS_OF_SERVICE_URL}
+            onOpen={openUrl}
             colors={colors}
+            divider={<View style={[styles.rowDivider, themedStyles.rowDivider]} />}
           />
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
           <ChipRow
