@@ -1690,15 +1690,24 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         >
           <Text style={styles.secondaryButtonText}>Edit Inputs</Text>
         </TouchableOpacity>
+        {/* Rendered OUTSIDE the loadingPreview gate, so for the whole
+            1-2 minute generation a full-colour primary button sat here,
+            `disabled` but with no disabled styling, silently swallowing
+            taps. There is nothing to apply until the plan exists. */}
         <TouchableOpacity
-          style={styles.primaryButton}
+          style={[
+            styles.primaryButton,
+            (applying || loadingPreview || planData.length === 0) && styles.primaryButtonDisabled,
+          ]}
           onPress={handleApply}
-          disabled={applying || planData.length === 0}
+          disabled={applying || loadingPreview || planData.length === 0}
         >
           {applying ? (
             <ActivityIndicator size="small" color={colors.onPrimary} />
           ) : (
-            <Text style={styles.primaryButtonText}>Apply to Plan</Text>
+            <Text style={styles.primaryButtonText}>
+              {loadingPreview ? 'Building your plan…' : 'Apply to Plan'}
+            </Text>
           )}
         </TouchableOpacity>
       </View>
@@ -2076,6 +2085,10 @@ function createPlanPreviewStyles(colors: ColorPalette) {
     borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /** A disabled button must LOOK disabled — see the footer comment. */
+  primaryButtonDisabled: {
+    opacity: 0.45,
   },
   primaryButtonText: {
     fontSize: text.callout,

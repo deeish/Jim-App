@@ -690,9 +690,15 @@ function SetDeck({
           </Text>
           <Text style={styles.setCardTarget}>{targetLine}</Text>
         </View>
-        {lastTimeLine != null && (
-          <Text style={styles.lastTimeLine}>{lastTimeLine}</Text>
-        )}
+        {/* Always occupies its line. `lastPerf` starts null and resolves a
+            beat later, so this text used to appear from nothing and push the
+            weight and rep inputs down — while the user was reaching for them
+            mid-set. Reserving the row keeps the deck still; only the words
+            arrive. (The Target above still resolves late by design: the plan
+            prescription is a true answer until history sharpens it.) */}
+        <Text style={styles.lastTimeLine} numberOfLines={1}>
+          {lastTimeLine ?? ' '}
+        </Text>
         <View style={styles.inputRow}>
           <View style={styles.inputBox}>
             <Text style={styles.inputLabel}>
