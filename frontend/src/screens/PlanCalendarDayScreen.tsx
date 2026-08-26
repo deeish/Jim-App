@@ -24,15 +24,18 @@ import {
   type ColorPalette,
 } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import CalendarPager, {
+  calendarDayIndex,
+  calendarDayIso,
+  type CalendarPagerHandle,
+} from '../components/CalendarPager';
 import type { CalendarScope } from '../components/PlanCalendarScopeBar';
 import { SCOPE_BAR_SPACE, useFrozenScopeBar } from '../components/PlanCalendarScopeBarHost';
 import {
   GOLD,
   MUSCLE_EDGE,
   MUSCLE_INK,
-  addDays,
   buzzAllSetsComplete,
   buzzEditApplied,
   buzzMenuOpen,
@@ -75,6 +78,9 @@ import {
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarDay'>;
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarDay'>;
 
+// One nudge per device; retired the moment it has been shown once.
+const SWIPE_HINT_KEY = 'jim_calendar_swipe_hint_v1';
+
 /** The slot a long-press is acting on. */
 type SlotTarget = { index: number; exercise: PlannedExercise };
 
@@ -98,7 +104,6 @@ export default function PlanCalendarDayScreen() {
 
   const { dateIso } = route.params;
   const plan = plannedDayForDate(dateIso);
-  const date = fromIso(dateIso);
 
   // Own the navigator's frozen Month|Week|Day bar while this screen is up.
   const onScopeNavigate = useCallback(
@@ -129,9 +134,14 @@ export default function PlanCalendarDayScreen() {
   useFrozenScopeBar('day', onScopeNavigate);
 
   // A logged day must read as logged even when the app opens straight onto
-  // it — without this only the MONTH screen ever fetched workout logs.
+  // it — without this only the MONTH screen ever fetched workout logs. The
+  // pager renders both neighbours live, so month-boundary neighbours warm
+  // their own month too.
   useEffect(() => {
+    const idx = calendarDayIndex(dateIso);
     ensureLogsForMonth(fromIso(dateIso));
+    ensureLogsForMonth(fromIso(calendarDayIso(idx - 1)));
+    ensureLogsForMonth(fromIso(calendarDayIso(idx + 1)));
   }, [dateIso]);
 
   // Warm the celebration's "what did this beat" baselines while the day is
@@ -155,18 +165,14 @@ export default function PlanCalendarDayScreen() {
   const [rescueError, setRescueError] = useState('');
   const rescuable = canRescueDay(dateIso);
   const skippedHere = isDaySkipped(dateIso);
-  // The banner's one-tap "Do it today" shows only when today is genuinely
-  // OPEN (picker row 0's state): a logged or beyond-program today blocks it,
-  // and an occupied today needs the make-room step — the sheet ("Options")
-  // handles both instead of a silent double (see WorkoutMoveSheet).
-  const todayOpen = rescuable && moveTargetsForDay()[0].state === 'open';
-  const doItToday = async () => {
+  // The banner acts on the day it renders in (panes carry their own iso).
+  const doItTodayFor = async (iso: string) => {
     if (rescueBusy) return;
     buzzTap();
     setRescueBusy(true);
     setRescueError('');
     try {
-      await moveMissedDay(dateIso, todayIso());
+      await moveMissedDay(iso, todayIso());
       buzzEditApplied();
       // Follow the workout to where it went.
       navigation.setParams({ dateIso: todayIso() });
@@ -181,14 +187,7 @@ export default function PlanCalendarDayScreen() {
     (ex, i) => getSetLogs(dateIso, i).length >= ex.sets,
   ).length;
   const allDone = plan.exercises.length > 0 && doneCount === plan.exercises.length;
-  const anyLogged = plan.exercises.some((_, i) => getSetLogs(dateIso, i).length > 0);
   const dayLogged = isDayLogged(dateIso);
-  // The logged banner doubles as the door back to the finish screen. It needs
-  // something to show: this device's own set logs, or the stored workout log
-  // the month fetch brings back for a day trained somewhere else. A sealed
-  // date with neither (offline, or the fetch hasn't landed) keeps the plain
-  // banner rather than opening an empty receipt.
-  const reviewable = dayLogged && canReviewDay(dateIso);
 
   // The header's ⋯ — the VISIBLE door to day-level actions (move, skip,
   // quick workout). The week-card long-press stays as the shortcut; HIG says
@@ -221,51 +220,101 @@ export default function PlanCalendarDayScreen() {
     });
   }, [navigation, dayActionable, rescuable, colors.primary]);
 
-  // Swipe pages between days; taps are swallowed briefly after a swipe (on
-  // web the release click can land on a card of the re-rendered day).
+  // The pager commits a page: follow it in the route params. Taps are
+  // swallowed briefly after a swipe (on web the release click can land on a
+  // card of the re-rendered day).
   const lastSwipeAt = useRef(0);
-  const swipe = useMemo(
-    () =>
-      Gesture.Pan()
-        .runOnJS(true)
-        .activeOffsetX([-24, 24])
-        .failOffsetY([-16, 16])
-        .onEnd((e) => {
-          if (Math.abs(e.translationX) >= 50) {
-            lastSwipeAt.current = Date.now();
-            // The page-turn tick — only when the swipe actually commits.
-            buzzSelection();
-          }
-          if (e.translationX <= -50) {
-            navigation.setParams({ dateIso: toIso(addDays(fromIso(dateIso), 1)) });
-          } else if (e.translationX >= 50) {
-            navigation.setParams({ dateIso: toIso(addDays(fromIso(dateIso), -1)) });
-          }
-        }),
-    [navigation, dateIso],
+  const pagerRef = useRef<CalendarPagerHandle>(null);
+  const onPageChange = useCallback(
+    (next: number, fromGesture: boolean) => {
+      if (fromGesture) lastSwipeAt.current = Date.now();
+      navigation.setParams({ dateIso: calendarDayIso(next) });
+    },
+    [navigation],
   );
+  // The chevron path: same slide as a swipe (and the VoiceOver paging path).
+  const pageBy = (delta: 1 | -1) => {
+    buzzTap();
+    pagerRef.current?.goTo(delta);
+  };
 
-  return (
-    // The navigator's frozen scope bar owns the wrapper's top strip — the
-    // scroll viewport starts below it. Padding on a plain wrapper, NOT margin
-    // on the ScrollView: RN-web applies a ScrollView style's margin to both
-    // of its nested divs, doubling the inset.
-    <View style={styles.frozenBarInset}>
-    <GestureDetector gesture={swipe}>
+  // The one-time "tomorrow peeks" nudge: the gesture is invisible until it
+  // moves, so the first Day view ever opened demonstrates it once, wordlessly.
+  const [showSwipeHint, setShowSwipeHint] = useState(false);
+  useEffect(() => {
+    let active = true;
+    AsyncStorage.getItem(SWIPE_HINT_KEY)
+      .then((seen) => {
+        if (!active || seen) return;
+        setShowSwipeHint(true);
+        void AsyncStorage.setItem(SWIPE_HINT_KEY, '1');
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // One day's page. Every pane derives its state from its OWN iso, so the
+  // neighbours riding beside the centre page are always live and true — an
+  // accidental 10pt drag shows tomorrow for real.
+  const renderDayPage = (idx: number) => {
+    const iso = calendarDayIso(idx);
+    const pPlan = plannedDayForDate(iso);
+    const pDate = fromIso(iso);
+    const pDoneCount = pPlan.exercises.filter(
+      (ex, i) => getSetLogs(iso, i).length >= ex.sets,
+    ).length;
+    const pAllDone = pPlan.exercises.length > 0 && pDoneCount === pPlan.exercises.length;
+    const pAnyLogged = pPlan.exercises.some((_, i) => getSetLogs(iso, i).length > 0);
+    const pDayLogged = isDayLogged(iso);
+    // The logged banner doubles as the door back to the finish screen. It
+    // needs something to show: this device's own set logs, or the stored
+    // workout log the month fetch brings back for a day trained somewhere
+    // else. A sealed date with neither (offline, or the fetch hasn't landed)
+    // keeps the plain banner rather than opening an empty receipt.
+    const pReviewable = pDayLogged && canReviewDay(iso);
+    const pRescuable = canRescueDay(iso);
+    const pSkipped = isDaySkipped(iso);
+    // The banner's one-tap "Do it today" shows only when today is genuinely
+    // OPEN (picker row 0's state): a logged or beyond-program today blocks
+    // it, and an occupied today needs the make-room step — the sheet
+    // ("Options") handles both instead of a silent double (WorkoutMoveSheet).
+    const pTodayOpen = pRescuable && moveTargetsForDay()[0].state === 'open';
+    return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: spacing.xxxl + tabBarInset }]}
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
     >
-      {/* Keyed by date so day-swipes cross-fade instead of hard-cutting. */}
-      <Animated.View key={dateIso} entering={FadeIn.duration(200)} style={styles.dayPager}>
-      <Text style={styles.lede}>
-        {plan.title} · {shortDate(date)} · {plan.exercises.length} exercises
-        {doneCount > 0 && !allDone ? ` · ${doneCount} done` : ''}
-      </Text>
+      <View style={styles.dayPager}>
+      {/* The date line, flanked by the always-on paging cue: the chevrons
+          run the same slide a swipe makes, and are the VoiceOver path. */}
+      <View style={styles.ledeRow}>
+        <TouchableOpacity
+          onPress={() => pageBy(-1)}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Previous day"
+        >
+          <Ionicons name="chevron-back" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+        <Text style={styles.lede} numberOfLines={1}>
+          {pPlan.title} · {shortDate(pDate)} · {pPlan.exercises.length} exercises
+          {pDoneCount > 0 && !pAllDone ? ` · ${pDoneCount} done` : ''}
+        </Text>
+        <TouchableOpacity
+          onPress={() => pageBy(1)}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Next day"
+        >
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+      </View>
 
-      {rescuable && (
+      {pRescuable && (
         // The day-view rescue door: catches arrivals from the month grid.
         // Retroactive logging below stays available — this only offers a way
         // to move the session instead.
@@ -275,15 +324,15 @@ export default function PlanCalendarDayScreen() {
             <Text style={styles.missedBannerTitle}>This workout was missed</Text>
           </View>
           <Text style={styles.missedBannerBody}>
-            Planned for {plan.weekday} — it hasn’t been logged.
+            Planned for {pPlan.weekday} — it hasn’t been logged.
           </Text>
           <View style={styles.missedBannerActions}>
-            {todayOpen && (
+            {pTodayOpen && (
               <TouchableOpacity
                 style={styles.missedBannerPrimary}
                 activeOpacity={0.8}
                 disabled={rescueBusy}
-                onPress={doItToday}
+                onPress={() => doItTodayFor(iso)}
                 accessibilityRole="button"
                 accessibilityLabel="Do it today"
               >
@@ -318,35 +367,35 @@ export default function PlanCalendarDayScreen() {
           been through "Complete Workout" still shows the button below.
           It doubles as the way BACK to the finish screen: without this the
           celebration was a one-shot page you could never see again. */}
-      {dayLogged && (
+      {pDayLogged && (
         <TouchableOpacity
           style={[
             styles.completeBanner,
             mode === 'dark' ? styles.completeBannerDark : styles.completeBannerLight,
           ]}
-          activeOpacity={reviewable ? 0.85 : 1}
-          disabled={!reviewable}
+          activeOpacity={pReviewable ? 0.85 : 1}
+          disabled={!pReviewable}
           onPress={() => {
             buzzTap();
             navigation.navigate('PlanCalendarWorkoutComplete', {
-              dateIso,
+              dateIso: iso,
               mode: 'recap',
             });
           }}
-          accessibilityRole={reviewable ? 'button' : 'text'}
+          accessibilityRole={pReviewable ? 'button' : 'text'}
           accessibilityLabel={
-            reviewable
+            pReviewable
               ? 'Review this session'
-              : allDone
+              : pAllDone
                 ? 'Workout complete'
                 : 'Session logged'
           }
         >
           <Ionicons name="checkmark-circle" size={17} color={GOLD} />
           <Text style={styles.completeBannerText}>
-            {allDone ? 'Workout complete' : 'Session logged'}
+            {pAllDone ? 'Workout complete' : 'Session logged'}
           </Text>
-          {reviewable && (
+          {pReviewable && (
             // Label plus chevron, not a pill: the whole strip is the target,
             // and chevron-forward is this screen's own "pushes a page" mark
             // (the exercise cards use it). A pill inside a 44pt row is both a
@@ -359,7 +408,7 @@ export default function PlanCalendarDayScreen() {
         </TouchableOpacity>
       )}
 
-      {skippedHere && !allDone && !dayLogged && plan.exercises.length > 0 && (
+      {pSkipped && !pAllDone && !pDayLogged && pPlan.exercises.length > 0 && (
         // The skipped state's undo home — a skip is a mark, never a deletion.
         <View style={styles.skippedBanner}>
           <Ionicons name="close-circle-outline" size={17} color={colors.textMuted} />
@@ -367,7 +416,7 @@ export default function PlanCalendarDayScreen() {
           <TouchableOpacity
             onPress={() => {
               buzzTap();
-              unskipDay(dateIso);
+              unskipDay(iso);
             }}
             hitSlop={8}
             accessibilityRole="button"
@@ -378,14 +427,14 @@ export default function PlanCalendarDayScreen() {
         </View>
       )}
 
-      {plan.exercises.length === 0 && (
+      {pPlan.exercises.length === 0 && (
         <View style={styles.restCard}>
           <Ionicons name="moon-outline" size={22} color={colors.textMuted} />
           <Text style={styles.restText}>Rest day — nothing scheduled.</Text>
         </View>
       )}
 
-      {plan.exercises.length === 0 && dateIso === todayIso() && (
+      {pPlan.exercises.length === 0 && iso === todayIso() && (
         // The at-the-gym door: an open TODAY offers a built session, not
         // just the one-exercise "+ Add Exercise" below.
         <TouchableOpacity
@@ -403,8 +452,8 @@ export default function PlanCalendarDayScreen() {
         </TouchableOpacity>
       )}
 
-      {plan.exercises.map((ex, index) => {
-        const done = getSetLogs(dateIso, index).length >= ex.sets;
+      {pPlan.exercises.map((ex, index) => {
+        const done = getSetLogs(iso, index).length >= ex.sets;
         // Done cards dim to 0.55, compositing light fills toward the dark
         // page — their near-black ink drops below 4.5:1 there, so it flips
         // to white (dark mode only; light mode dims toward white).
@@ -425,7 +474,7 @@ export default function PlanCalendarDayScreen() {
               if (Date.now() - lastSwipeAt.current < 450) return;
               buzzTap();
               navigation.navigate('PlanCalendarWorkout', {
-                dateIso,
+                dateIso: iso,
                 exerciseIndex: index,
                 exerciseName: ex.name,
               });
@@ -478,7 +527,7 @@ export default function PlanCalendarDayScreen() {
         onPress={() => {
           if (Date.now() - lastSwipeAt.current < 450) return;
           buzzTap();
-          navigation.navigate('PlanCalendarExercisePicker', { dateIso, mode: 'add' });
+          navigation.navigate('PlanCalendarExercisePicker', { dateIso: iso, mode: 'add' });
         }}
         accessibilityRole="button"
         accessibilityLabel="Add exercise"
@@ -487,7 +536,7 @@ export default function PlanCalendarDayScreen() {
         <Text style={styles.addRowLabel}>Add Exercise</Text>
       </TouchableOpacity>
 
-      {anyLogged && !dayLogged && (
+      {pAnyLogged && !pDayLogged && (
         // The ONE door to the workout log + celebration, full or cut-short.
         // Nothing fires when the last set is checked, so "one more exercise"
         // stays possible right up to this press — the press IS the confirm.
@@ -497,12 +546,12 @@ export default function PlanCalendarDayScreen() {
           onPress={() => {
             // The session-complete thump fires on the action, not the ack.
             buzzAllSetsComplete();
-            navigation.navigate('PlanCalendarWorkoutComplete', { dateIso });
+            navigation.navigate('PlanCalendarWorkoutComplete', { dateIso: iso });
             // Celebrate immediately; sync AFTER the baselines land — a log
             // that POSTs first becomes the record its own claims compare to.
             void (async () => {
-              await primeCelebrationBaselines(dateIso).catch(() => {});
-              finishDaySession(dateIso);
+              await primeCelebrationBaselines(iso).catch(() => {});
+              finishDaySession(iso);
             })();
           }}
           accessibilityRole="button"
@@ -513,13 +562,33 @@ export default function PlanCalendarDayScreen() {
         </TouchableOpacity>
       )}
 
-      {plan.exercises.length > 0 && (
+      {pPlan.exercises.length > 0 && (
         <Text style={styles.hint}>Hold an exercise to replace or remove it</Text>
       )}
       {calendarDataMode() === 'offline' && (
         <Text style={styles.footerNote}>Offline — changes stay on this device</Text>
       )}
-      </Animated.View>
+      </View>
+    </ScrollView>
+    );
+  };
+
+  return (
+    // The navigator's frozen scope bar owns the wrapper's top strip — the
+    // pager viewport starts below it. Chrome (header, scope bar, sheets)
+    // stays fixed; only the day pages ride with the finger.
+    <View style={styles.frozenBarInset}>
+    <CalendarPager
+      ref={pagerRef}
+      index={calendarDayIndex(dateIso)}
+      onIndexChange={onPageChange}
+      onBoundaryCross={buzzSelection}
+      onGestureEnd={() => {
+        lastSwipeAt.current = Date.now();
+      }}
+      hint={showSwipeHint}
+      renderPage={renderDayPage}
+    />
 
       {/* ---- Long-press menu ---- */}
       <Modal
@@ -587,9 +656,6 @@ export default function PlanCalendarDayScreen() {
         </Pressable>
       </Modal>
 
-    </ScrollView>
-    </GestureDetector>
-
     <QuickWorkoutSheet
       visible={quickVisible}
       onClose={() => setQuickVisible(false)}
@@ -626,12 +692,19 @@ function createStyles(c: ColorPalette) {
       padding: spacing.lg,
       gap: spacing.md,
     },
+    ledeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      marginBottom: spacing.xs,
+    },
     lede: {
       ...sfPro,
+      flex: 1,
+      textAlign: 'center',
       fontSize: text.body,
       lineHeight: 20,
       color: c.textSecondary,
-      marginBottom: spacing.xs,
     },
     quickRow: {
       flexDirection: 'row',
