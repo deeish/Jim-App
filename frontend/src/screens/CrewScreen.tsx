@@ -56,6 +56,8 @@ import { syncProfileToServer } from '../services/userService';
 import type { ProfileAvatarId } from '../constants/profileAvatars';
 
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+/** Spoken form of the same seven columns — 'T' tells a screen reader nothing. */
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 function firstNameOf(member: { name: string | null; isMe: boolean }): string {
   if (member.isMe) return 'You';
@@ -278,16 +280,28 @@ export default function CrewScreen() {
       if (!s) return s;
       return {
         ...s,
-        members: s.members.map((m) =>
-          m.userId === toUserId && m.latestSessionRef === eventRef
-            ? {
-                ...m,
-                iPoundedLatest: !m.iPoundedLatest,
-                kudosLatest: m.kudosLatest + (m.iPoundedLatest ? -1 : 1),
-                kudosWeek: m.kudosWeek + (m.iPoundedLatest ? -1 : 1),
-              }
-            : m,
-        ),
+        // One ref can be on screen twice for the same member — their row chip
+        // AND the day tile it belongs to — so a single tap has to move both.
+        members: s.members.map((m) => {
+          if (m.userId !== toUserId) return m;
+          const week = m.week.map((d) =>
+            d.poundRef === eventRef
+              ? {
+                  ...d,
+                  iPounded: !d.iPounded,
+                  kudos: Math.max(0, d.kudos + (d.iPounded ? -1 : 1)),
+                }
+              : d,
+          );
+          if (m.latestSessionRef !== eventRef) return { ...m, week };
+          return {
+            ...m,
+            week,
+            iPoundedLatest: !m.iPoundedLatest,
+            kudosLatest: Math.max(0, m.kudosLatest + (m.iPoundedLatest ? -1 : 1)),
+            kudosWeek: Math.max(0, m.kudosWeek + (m.iPoundedLatest ? -1 : 1)),
+          };
+        }),
         moments: s.moments.map((mo) =>
           mo.userId === toUserId && mo.ref === eventRef
             ? { ...mo, iPounded: !mo.iPounded, kudos: mo.kudos + (mo.iPounded ? -1 : 1) }
@@ -303,11 +317,17 @@ export default function CrewScreen() {
         if (!s) return s;
         return {
           ...s,
-          members: s.members.map((m) =>
-            m.userId === toUserId && m.latestSessionRef === eventRef
-              ? { ...m, iPoundedLatest: result.pounded, kudosLatest: result.count }
-              : m,
-          ),
+          members: s.members.map((m) => {
+            if (m.userId !== toUserId) return m;
+            const week = m.week.map((d) =>
+              d.poundRef === eventRef
+                ? { ...d, iPounded: result.pounded, kudos: result.count }
+                : d,
+            );
+            return m.latestSessionRef === eventRef
+              ? { ...m, week, iPoundedLatest: result.pounded, kudosLatest: result.count }
+              : { ...m, week };
+          }),
           moments: s.moments.map((mo) =>
             mo.userId === toUserId && mo.ref === eventRef
               ? { ...mo, iPounded: result.pounded, kudos: result.count }
@@ -424,13 +444,12 @@ export default function CrewScreen() {
    * every member's tiles — the same seven letters repeated per row was itself
    * a small piece of the clutter.
    */
-  const dayTile = (
-    day: CrewMemberDay,
-    i: number,
-    w: number,
-    h: number,
-    withLetter: boolean,
-  ) => {
+  /**
+   * The face of one day. Both weeks on this screen render through here, so a
+   * state fixed in one is fixed in both — the list and the sheet drawing the
+   * same day differently is how `missed` stayed invisible in the first place.
+   */
+  const tileFace = (day: CrewMemberDay, w: number, h: number) => {
     const muscle = muscleOfDay(day);
     // A MISSED day paints too. It is a day that was on the plan and did not
     // happen, so drawing it exactly like a rest day is a lie — and now that
@@ -441,53 +460,117 @@ export default function CrewScreen() {
     const base = muscle ? muscleGradient(muscle) : null;
     const seal = Math.max(11, Math.round(h * 0.375));
     return (
-      <View key={day.dateIso} style={styles.tileColumn}>
-        <View
-          style={[
-            styles.tile,
-            { width: w, height: h },
-            !showGradient && styles.tileRest,
-            day.state === 'scheduled' && styles.tileFuture,
-            day.state === 'scheduled' && day.isToday && { borderColor: colors.primary, borderWidth: 1.5, opacity: 0.7 },
-            // Outlined in its own colour, hollow inside: the shape of the
-            // session survives, the work does not. Distinct from rest (a
-            // neutral hairline, no colour at all) without a dashed border,
-            // which RN silently renders solid once a borderRadius is set.
-            missed && base ? { borderWidth: 1.5, borderColor: `${base[0]}8C` } : null,
-          ]}
-        >
-          {showGradient && base ? (
-            <LinearGradient
-              colors={missed ? [`${base[0]}2E`, `${base[1]}2E`] : base}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-          ) : null}
-          {day.state === 'trained' ? (
-            <View style={[styles.tileSeal, { width: seal, height: seal }]}>
-              <Ionicons name="checkmark" size={Math.round(seal * 0.62)} color="#1C1C1E" />
-            </View>
-          ) : null}
-        </View>
-        {withLetter ? (
-          <Text
-            style={[
-              styles.tileDay,
-              day.isToday && { color: colors.primary, fontWeight: weight.heavy },
-            ]}
-          >
-            {DAY_LETTERS[i]}
-          </Text>
+      <View
+        style={[
+          styles.tile,
+          { width: w, height: h },
+          !showGradient && styles.tileRest,
+          day.state === 'scheduled' && styles.tileFuture,
+          day.state === 'scheduled' && day.isToday && { borderColor: colors.primary, borderWidth: 1.5, opacity: 0.7 },
+          // Outlined in its own colour, hollow inside: the shape of the
+          // session survives, the work does not. Distinct from rest (a
+          // neutral hairline, no colour at all) without a dashed border,
+          // which RN silently renders solid once a borderRadius is set.
+          missed && base ? { borderWidth: 1.5, borderColor: `${base[0]}8C` } : null,
+        ]}
+      >
+        {showGradient && base ? (
+          <LinearGradient
+            colors={missed ? [`${base[0]}2E`, `${base[1]}2E`] : base}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        ) : null}
+        {day.state === 'trained' ? (
+          <View style={[styles.tileSeal, { width: seal, height: seal }]}>
+            <Ionicons name="checkmark" size={Math.round(seal * 0.62)} color="#1C1C1E" />
+          </View>
         ) : null}
       </View>
     );
   };
 
-  /** The member sheet keeps the full-size week with its own letters. */
-  const miniTile = (day: CrewMemberDay, i: number) => dayTile(day, i, 34, 40, true);
-  /** The list row's compact week; letters come from the header strip. */
-  const rowTile = (day: CrewMemberDay, i: number) => dayTile(day, i, 30, 36, false);
+  const dayLetter = (day: CrewMemberDay, i: number, extra?: object) => (
+    <Text
+      style={[
+        styles.tileDay,
+        extra,
+        day.isToday && { color: colors.primary, fontWeight: weight.heavy },
+      ]}
+    >
+      {DAY_LETTERS[i]}
+    </Text>
+  );
+
+  /** The list row's compact week; letters come from the card's header strip. */
+  const rowTile = (day: CrewMemberDay, i: number) => (
+    <View key={day.dateIso} style={styles.tileColumn}>
+      {tileFace(day, 30, 36)}
+    </View>
+  );
+
+  /**
+   * The member sheet's week, where each day a crewmate TRAINED is its own tap
+   * target: this is the only place you can pound one specific session rather
+   * than whatever they did last. The letter moves above the tile to leave the
+   * space beneath it for the pound.
+   *
+   * The row's own chip is deliberately kept: it is the one-tap path for the
+   * common case, and it targets the same ref as the tile it belongs to.
+   */
+  const sheetDayTile = (m: CrewMemberSummary) => (day: CrewMemberDay, i: number) => {
+    const ref = day.poundRef;
+    // The record's day wears gold, like the row chip pointing at the same
+    // ref — they are one toggle, so they should not look like two.
+    const isRecordDay = !!ref && prByUser.get(m.userId)?.ref === ref;
+    return (
+      <View key={day.dateIso} style={styles.tileColumn}>
+        {dayLetter(day, i, styles.sheetTileDay)}
+        {ref ? (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => void pound(m.userId, ref)}
+            // The tile is 34x40; the slop takes the real target past 44.
+            hitSlop={{ top: 6, bottom: 4, left: 5, right: 5 }}
+            accessibilityRole="button"
+            accessibilityLabel={`${day.iPounded ? 'Remove your pound from' : 'Pound'} ${firstNameOf(m)}'s ${day.title ?? 'workout'} on ${DAY_NAMES[i]}`}
+          >
+            {tileFace(day, 34, 40)}
+          </TouchableOpacity>
+        ) : (
+          tileFace(day, 34, 40)
+        )}
+        {/* Shown when the day can be pounded OR already has been. The second
+            case is how you see your own cheering: your days are not tappable,
+            but they still say what they collected. */}
+        {ref || day.kudos > 0 ? (
+          <View
+            style={[
+              styles.dayPound,
+              isRecordDay && styles.dayPoundGold,
+              day.iPounded && (isRecordDay ? styles.dayPoundGoldActive : styles.dayPoundActive),
+            ]}
+          >
+            <Text style={styles.dayPoundEmoji}>💪</Text>
+            {day.kudos > 0 ? (
+              <Text
+                style={[
+                  styles.dayPoundCount,
+                  day.iPounded &&
+                    (isRecordDay ? styles.dayPoundCountGoldActive : styles.dayPoundCountActive),
+                ]}
+              >
+                {day.kudos}
+              </Text>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.dayPoundSpacer} />
+        )}
+      </View>
+    );
+  };
 
   const pumpChip = (
     count: number,
@@ -982,7 +1065,7 @@ export default function CrewScreen() {
                     : null;
                 })()}
               </View>
-              <View style={styles.tileRow}>{memberSheet.week.map(miniTile)}</View>
+              <View style={styles.tileRow}>{memberSheet.week.map(sheetDayTile(memberSheet))}</View>
               <View style={styles.memberSheetStats}>
                 {memberSheet.weekStreak > 0 ? (
                   <View style={styles.memberSheetStatRow}>
@@ -1347,6 +1430,56 @@ function createStyles(c: ColorPalette) {
       fontSize: 9,
       fontWeight: weight.bold,
       color: c.textMuted,
+      marginTop: spacing.xs,
+    },
+    /** In the sheet the letter sits ABOVE its tile, so the space underneath
+     *  belongs to that day's pound. */
+    sheetTileDay: {
+      marginTop: 0,
+      marginBottom: spacing.xs,
+    },
+    /** One day's 💪. Small on purpose — seven of them share a row, and the
+     *  tile above is the actual tap target (with hitSlop past 44). */
+    dayPound: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 2,
+      minWidth: 26,
+      height: 18,
+      marginTop: spacing.xs,
+      paddingHorizontal: 5,
+      borderRadius: radius.pill,
+      backgroundColor: c.primarySoft,
+    },
+    dayPoundActive: {
+      backgroundColor: c.primary,
+    },
+    dayPoundGold: {
+      backgroundColor: GOLD + '29',
+    },
+    dayPoundGoldActive: {
+      backgroundColor: GOLD,
+    },
+    dayPoundEmoji: {
+      fontSize: 9,
+    },
+    dayPoundCount: {
+      fontSize: 9,
+      fontWeight: weight.heavy,
+      color: c.textSecondary,
+    },
+    dayPoundCountActive: {
+      color: c.onPrimary,
+    },
+    /** Gold is bright in both themes, so its ink is dark in both. */
+    dayPoundCountGoldActive: {
+      color: '#1C1C1E',
+    },
+    /** Keeps untrained columns the same height as poundable ones, so the
+     *  tiles stay on one baseline instead of stepping up and down. */
+    dayPoundSpacer: {
+      height: 18,
       marginTop: spacing.xs,
     },
     inviteCard: {
