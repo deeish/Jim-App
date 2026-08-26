@@ -343,6 +343,26 @@ export default function CrewScreen() {
     return map;
   }, [summary?.moments]);
 
+  /**
+   * The ONE event a person's 💪 targets: their record if they set one this
+   * week, otherwise their latest session — with the count and pressed state
+   * belonging to THAT ref and nothing else.
+   *
+   * Every surface that draws a chip for a member derives it here. Two
+   * surfaces picking their own ref, or labelling a single-ref chip with a
+   * week-wide total, is the exact bug this screen was rebuilt to kill; it
+   * survived in the member sheet until it was pulled into one place.
+   */
+  const chipTargetFor = (m: CrewMemberSummary) => {
+    const pr = prByUser.get(m.userId) ?? null;
+    return {
+      pr,
+      ref: pr ? pr.ref : m.latestSessionRef,
+      count: pr ? pr.kudos : m.kudosLatest,
+      active: pr ? pr.iPounded : m.iPoundedLatest,
+    };
+  };
+
   /** Crew-wide moments have no single recipient, so they have no card: they
    *  ride the hero's caption instead. The Monday recap keeps a pound, because
    *  its winner IS a recipient — and it is the only chip the hero ever has. */
@@ -692,14 +712,10 @@ export default function CrewScreen() {
                 </View>
 
                 {ranked.map((m, idx) => {
-                  const pr = prByUser.get(m.userId) ?? null;
                   const complete =
                     m.hasPlanThisWeek && m.race.planned > 0 && m.race.done >= m.race.planned;
-                  // One chip, one ref: the PR when there is one, else the
-                  // latest session. Its count is always that ref's count.
-                  const chipRef = pr ? pr.ref : m.latestSessionRef;
-                  const chipCount = pr ? pr.kudos : m.kudosLatest;
-                  const chipActive = pr ? pr.iPounded : m.iPoundedLatest;
+                  const { pr, ref: chipRef, count: chipCount, active: chipActive } =
+                    chipTargetFor(m);
                   const subtitle = pr
                     ? `PR · ${formatWeightFromLb(pr.weight ?? 0, weightUnit)} on ${pr.exerciseName ?? 'a lift'}`
                     : m.lastSession
@@ -955,11 +971,16 @@ export default function CrewScreen() {
                         : 'Rest day'}
                   </Text>
                 </View>
-                {!memberSheet.isMe && memberSheet.latestSessionRef
-                  ? pumpChip(memberSheet.kudosWeek, memberSheet.iPoundedLatest, () =>
-                      void pound(memberSheet.userId, memberSheet.latestSessionRef!),
-                    )
-                  : null}
+                {/* Same target as the row that opened this sheet — see
+                    chipTargetFor. It used to pound `day:latest` while showing
+                    `kudosWeek`, so it disagreed with the row on BOTH the
+                    number and the event. */}
+                {(() => {
+                  const t = chipTargetFor(memberSheet);
+                  return !memberSheet.isMe && t.ref
+                    ? pumpChip(t.count, t.active, () => void pound(memberSheet.userId, t.ref!), !!t.pr)
+                    : null;
+                })()}
               </View>
               <View style={styles.tileRow}>{memberSheet.week.map(miniTile)}</View>
               <View style={styles.memberSheetStats}>
