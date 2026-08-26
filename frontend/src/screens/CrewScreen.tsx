@@ -45,7 +45,9 @@ import {
   getCrewSummary,
   joinCrew,
   leaveCrew,
+  removeCrewMember,
   renameCrew,
+  rotateCrewCode,
   toggleCrewKudos,
   type CrewMemberDay,
   type CrewMemberSummary,
@@ -239,6 +241,62 @@ export default function CrewScreen() {
     ]);
   };
 
+  /** Crew lead only. The server rejects it from anyone else regardless. */
+  const confirmRemove = (m: CrewMemberSummary) => {
+    haptics.tap();
+    const name = firstNameOf(m);
+    const title = `Remove ${name}?`;
+    const body = `They stop seeing the crew's training days, and their pounds go with them. They can rejoin with the code — mint a new one if you don't want them to.`;
+    const doRemove = async () => {
+      setMemberSheetId(null);
+      setBusy(true);
+      try {
+        await removeCrewMember(m.userId);
+        await load();
+      } catch {
+        setOffline(true);
+      } finally {
+        setBusy(false);
+      }
+    };
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(title)) void doRemove();
+      return;
+    }
+    Alert.alert(title, body, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => void doRemove() },
+    ]);
+  };
+
+  /** The only way to un-share a code that ended up in the wrong group chat. */
+  const confirmRotateCode = () => {
+    haptics.tap();
+    const title = 'Mint a new code?';
+    const body =
+      'The old code stops working immediately. Everyone already in the crew stays in it.';
+    const doRotate = async () => {
+      setBusy(true);
+      try {
+        await rotateCrewCode();
+        haptics.select();
+        await load();
+      } catch {
+        setOffline(true);
+      } finally {
+        setBusy(false);
+      }
+    };
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(title)) void doRotate();
+      return;
+    }
+    Alert.alert(title, body, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'New code', onPress: () => void doRotate() },
+    ]);
+  };
+
   const commitRename = async () => {
     const current = summary?.crew?.name ?? '';
     if (nameDraft.trim() === current.trim()) return;
@@ -349,6 +407,8 @@ export default function CrewScreen() {
   const memberSheet = memberSheetId
     ? (members.find((m) => m.userId === memberSheetId) ?? null)
     : null;
+  /** Only the longest-standing member can remove people or mint a new code. */
+  const iAmLead = !!summary && summary.leadUserId === summary.meUserId;
 
   /** A member's most recent personal record, if they set one this week. It
    *  takes over their row's subtitle AND retargets their 💪 at the PR, so the
@@ -383,6 +443,16 @@ export default function CrewScreen() {
     };
   };
 
+  /** "225 lb × 3" — the set as lifted, never the 1RM estimate that detected it. */
+  const prSetLabel = (mo: CrewMoment) =>
+    `${formatWeightFromLb(mo.weight ?? 0, weightUnit)}${mo.reps ? ` × ${mo.reps}` : ''}`;
+
+  /** Every record a member set this week, newest first. The row can only show
+   *  their latest one, so without this the second and third records of a good
+   *  week were invisible AND unpoundable. */
+  const recordsOf = (userId: string) =>
+    (summary?.moments ?? []).filter((mo) => mo.kind === 'pr' && mo.userId === userId);
+
   /** Crew-wide moments have no single recipient, so they have no card: they
    *  ride the hero's caption instead. The Monday recap keeps a pound, because
    *  its winner IS a recipient — and it is the only chip the hero ever has. */
@@ -416,12 +486,25 @@ export default function CrewScreen() {
     return `Nobody has missed a scheduled workout in ${days}.${who}`;
   })();
 
-  /** The race ordering IS the list ordering — a planless member ranks last
-   *  rather than being trivially perfect. */
+  /**
+   * The race ordering IS the list ordering, so it has to be honest.
+   *
+   * `race.planned` counts any day with a log OR a slot, which means someone
+   * with no plan who trained once reads 1/1 — a perfect ratio, and top of the
+   * leaderboard above a person who went 4/5 against a real program. Gating on
+   * `hasPlanThisWeek` is the same rule the Monday recap already used to pick
+   * its winner; the live list was the one place that disagreed.
+   *
+   * Planless members sort below everyone racing, by sessions done, so putting
+   * in work still moves you up among them.
+   */
   const raceRatio = (m: CrewMemberSummary) =>
-    m.race.planned > 0 ? m.race.done / m.race.planned : 0;
+    m.hasPlanThisWeek && m.race.planned > 0 ? m.race.done / m.race.planned : 0;
   const ranked = useMemo(
-    () => [...members].sort((a, b) => raceRatio(b) - raceRatio(a)),
+    () =>
+      [...members].sort(
+        (a, b) => raceRatio(b) - raceRatio(a) || b.race.done - a.race.done,
+      ),
     [members],
   );
 
@@ -548,8 +631,13 @@ export default function CrewScreen() {
           <View
             style={[
               styles.dayPound,
-              isRecordDay && styles.dayPoundGold,
-              day.iPounded && (isRecordDay ? styles.dayPoundGoldActive : styles.dayPoundActive),
+              // Your own days show what they collected but cannot be tapped,
+              // so they must not wear a button's fill.
+              !ref && styles.dayPoundReadOnly,
+              ref && isRecordDay && styles.dayPoundGold,
+              ref &&
+                day.iPounded &&
+                (isRecordDay ? styles.dayPoundGoldActive : styles.dayPoundActive),
             ]}
           >
             <Text style={styles.dayPoundEmoji}>💪</Text>
@@ -654,8 +742,14 @@ export default function CrewScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />
           }
         >
-          {offline && !summary ? (
-            <Text style={styles.footerNote}>Offline. Can’t reach the server.</Text>
+          {/* Stale data with no warning is worse than an empty screen: you
+              cannot tell yesterday's week from today's. */}
+          {offline ? (
+            <Text style={styles.footerNote}>
+              {summary
+                ? 'Offline. Showing the last update.'
+                : 'Offline. Can’t reach the server.'}
+            </Text>
           ) : null}
 
           {!crew && summary ? (
@@ -770,6 +864,21 @@ export default function CrewScreen() {
                   : null}
               </View>
 
+              {/* An invite link used to do nothing at all here: the code was
+                  stored in state the no-crew branch renders, so tapping a
+                  friend's link while already in a crew opened the tab and
+                  showed no sign anything had happened. */}
+              {joinCodeParam ? (
+                <View style={styles.noticeCard}>
+                  <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
+                  <Text style={styles.noticeText}>
+                    {`That invite is for code ${formatShareCode(joinCodeParam)}. You're in ${
+                      crew.name || 'a crew'
+                    } already — leave it first to join another.`}
+                  </Text>
+                </View>
+              ) : null}
+
               <Text style={styles.sectionLabel}>This week</Text>
 
               {/* THE LIST. Sorted by completion ratio, so it is also the race.
@@ -799,8 +908,11 @@ export default function CrewScreen() {
                     m.hasPlanThisWeek && m.race.planned > 0 && m.race.done >= m.race.planned;
                   const { pr, ref: chipRef, count: chipCount, active: chipActive } =
                     chipTargetFor(m);
+                  // The lift's name lives in the sheet, where there is room
+                  // for it. Here it only ever truncated ("…Flat Barbell Benc…")
+                  // and pushed the number that matters out of view.
                   const subtitle = pr
-                    ? `PR · ${formatWeightFromLb(pr.weight ?? 0, weightUnit)} on ${pr.exerciseName ?? 'a lift'}`
+                    ? `PR · ${prSetLabel(pr)}`
                     : m.lastSession
                       ? `${m.lastSession.title} · ${recentDayLabel(m.lastSession.dateIso, today)}`
                       : 'No sessions yet this week';
@@ -863,8 +975,14 @@ export default function CrewScreen() {
                         accessibilityLabel={rowLabel}
                       >
                         <View style={styles.tileRowFlush}>{m.week.map(rowTile)}</View>
+                        {/* No plan means no denominator: "3/3" would claim a
+                            perfect week against a target that does not exist. */}
                         <Text style={[styles.rowScore, complete && styles.rowScoreGold]}>
-                          {m.race.planned > 0 ? `${m.race.done}/${m.race.planned}` : '—'}
+                          {!m.hasPlanThisWeek
+                            ? m.race.done > 0
+                              ? `${m.race.done}`
+                              : '—'
+                            : `${m.race.done}/${m.race.planned}`}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -951,6 +1069,19 @@ export default function CrewScreen() {
                   </Text>
                 </View>
               </View>
+              {iAmLead ? (
+                <TouchableOpacity
+                  style={styles.linkRow}
+                  onPress={confirmRotateCode}
+                  disabled={busy}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mint a new crew code"
+                >
+                  <Ionicons name="refresh-outline" size={16} color={colors.primary} />
+                  <Text style={styles.linkLabel}>Mint a new code</Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 style={styles.shareButton}
                 onPress={() => void shareCode(crew.code)}
@@ -1066,6 +1197,37 @@ export default function CrewScreen() {
                 })()}
               </View>
               <View style={styles.tileRow}>{memberSheet.week.map(sheetDayTile(memberSheet))}</View>
+              {/* Every record this week, not just the newest. The row can
+                  only carry one, so the rest used to be invisible AND
+                  unpoundable — a session where you PR two lifts lost one. */}
+              {recordsOf(memberSheet.userId).length > 0 ? (
+                <>
+                  <Text style={[styles.fieldLabel, styles.recordsLabel]}>
+                    {recordsOf(memberSheet.userId).length > 1
+                      ? 'Records this week'
+                      : 'Record this week'}
+                  </Text>
+                  {recordsOf(memberSheet.userId).map((mo) => (
+                    <View key={mo.ref} style={styles.recordRow}>
+                      <View style={styles.recordTextWrap}>
+                        <Text style={styles.recordLift} numberOfLines={1}>
+                          {mo.exerciseName ?? 'a lift'}
+                        </Text>
+                        <Text style={styles.recordSet}>
+                          {`${prSetLabel(mo)} · ${recentDayLabel(mo.dateIso, today)}`}
+                        </Text>
+                      </View>
+                      {memberSheet.isMe
+                        ? null
+                        : pumpChip(mo.kudos, mo.iPounded, () =>
+                            void pound(memberSheet.userId, mo.ref),
+                          true,
+                        )}
+                    </View>
+                  ))}
+                </>
+              ) : null}
+
               <View style={styles.memberSheetStats}>
                 {memberSheet.weekStreak > 0 ? (
                   <View style={styles.memberSheetStatRow}>
@@ -1090,6 +1252,24 @@ export default function CrewScreen() {
                   </View>
                 ) : null}
               </View>
+              {/* Before this, a code in the wrong group chat meant a stranger
+                  watched your week forever and leaving your own crew was the
+                  only way out. */}
+              {iAmLead && !memberSheet.isMe ? (
+                <TouchableOpacity
+                  style={styles.leaveRow}
+                  onPress={() => confirmRemove(memberSheet)}
+                  disabled={busy}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${firstNameOf(memberSheet)} from the crew`}
+                >
+                  <Ionicons name="person-remove-outline" size={18} color={colors.error} />
+                  <Text style={styles.leaveLabel}>
+                    {`Remove ${firstNameOf(memberSheet)}`}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </>
           ) : null}
         </Pressable>
@@ -1455,6 +1635,10 @@ function createStyles(c: ColorPalette) {
     dayPoundActive: {
       backgroundColor: c.primary,
     },
+    /** A count with no action behind it: no fill, no button affordance. */
+    dayPoundReadOnly: {
+      backgroundColor: 'transparent',
+    },
     dayPoundGold: {
       backgroundColor: GOLD + '29',
     },
@@ -1573,6 +1757,59 @@ function createStyles(c: ColorPalette) {
       lineHeight: leading.footnote,
       fontWeight: weight.medium,
       color: c.textSecondary,
+    },
+    noticeCard: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+      backgroundColor: c.primarySoft,
+      borderRadius: radius.md,
+      padding: spacing.md,
+    },
+    noticeText: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+      fontWeight: weight.medium,
+      color: c.textSecondary,
+    },
+    recordsLabel: {
+      marginTop: spacing.lg,
+    },
+    recordRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    recordTextWrap: {
+      flex: 1,
+      minWidth: 0,
+    },
+    recordLift: {
+      fontSize: text.body,
+      fontWeight: weight.bold,
+      color: c.text,
+    },
+    recordSet: {
+      fontSize: text.footnote,
+      fontWeight: weight.medium,
+      color: c.warning,
+      marginTop: 1,
+    },
+    linkRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      paddingVertical: spacing.md,
+      marginTop: spacing.sm,
+    },
+    linkLabel: {
+      fontSize: text.body,
+      fontWeight: weight.semibold,
+      color: c.primary,
     },
     footerNote: {
       fontSize: text.caption,
