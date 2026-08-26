@@ -76,6 +76,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         icon: 'swap-horizontal',
         text: 'The calendar now slides under your finger. The arrows next to the date do the same thing.',
       },
+      {
+        type: 'new',
+        headline: 'New Crew tab',
+        icon: 'people',
+        text: 'Train with your friends: see who went today, build a shared streak, and pound their PRs. Start a crew with one code.',
+      },
     ],
   },
   // The ONE card for this OTA: everything since build 26 (the finish
