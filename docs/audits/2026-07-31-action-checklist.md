@@ -8,41 +8,81 @@ Why this order: P0 items either **corrupt permanent data on every use** (cost co
 
 ---
 
+## Re-verification pass, 2026-08-26
+
+Every unchecked item below was re-read against the working tree. Boxes are now ticked only where the current code was confirmed to do the thing.
+
+**The single fact that reframes half of P0/P1/P2:** `frontend/src/components/WorkoutSession.tsx` (3,501 lines) is **orphaned** — nothing imports the component, and `frontend/src/screens/WorkoutScreen.tsx` was deleted. The live session is `PlanCalendarDayScreen` → `PlanCalendarWorkoutScreen` → `PlanCalendarWorkoutCompleteScreen`. Any item below whose evidence is a `WorkoutSession.tsx` / `WorkoutScreen.tsx` line number describes code that no longer runs; each was re-checked against the live flow instead. The dead file should be deleted or deliberately re-adopted — leaving it makes every future audit re-find these bugs.
+
+P0 boxes and item text are updated in place below. For P1–P4 the boxes are left as the July author wrote them; this table is the current verdict, and where it says BUILT the item is done regardless of the unticked box:
+
+| item | verdict, 2026-08-26 | where |
+|---|---|---|
+| 1.1 rest timer | **BUILT** — but off `restHeuristic`'s `"2:30"` string, not the prescription's `restSeconds` | `PlanCalendarWorkoutScreen.tsx` |
+| 1.2 keep screen awake | **STILL MISSING** — `expo-keep-awake` is not even a direct dependency | — |
+| 1.3 elapsed clock in session | **STILL MISSING** — the only session clock is the finish screen's count-up | — |
+| 1.4 success haptics | **BUILT** — `buzzSetComplete` / `buzzAllSetsComplete` | `planCalendarPrototype.ts` |
+| 1.5 streak + flame on Home | **BUILT** | `HomeScreen.tsx` "Week streak" tile |
+| 1.6 retention analytics | **STILL MISSING** — no analytics call sites anywhere; Sentry only | — |
+| 2.1 in-session swap | **BUILT** — Day screen ⋯ → Replace Exercise → ranked picker. Commits to the local store, not `POST /exercises/replace` | `PlanCalendarExercisePickerScreen.tsx` |
+| 2.2 "Short on time?" | **STILL MISSING** | — |
+| 2.3 regen constraints | **STILL MISSING** — `GenerateSingleSessionDto` still has no equipment/injuries/experience, equipment is a two-value guess off `location`, no `cardioModalities`, and `generateSingleSession` still has zero frontend callers. The ⚠️ injury-safety issue is unchanged | `plans.service.ts`, `generate-single-session.dto.ts` |
+| 2.5 dead "+ Add RPE" | **STILL DEAD**, but only in the orphaned file — unreachable | `WorkoutSession.tsx` |
+| 3.1 coach note | **STILL MISSING** | — |
+| 3.2 "Saved ✓" reflects the POST | **BUILT** — real `idle/saving/saved/error` state with a Retry | `PlanCalendarWorkoutCompleteScreen.tsx` |
+| 3.3 share card snapshot | **STILL MISSING** — sharing is text-only and not on the finish screen | — |
+| 3.4 instructions expanded / similar exercises | **STILL MISSING** (both) | `ExerciseDetailScreen.tsx` |
+| 3.5 onboarding outlives its week | **BUILT** — by removal: onboarding now recommends a multi-week template instead of generating | `OnboardingScreen.tsx` |
+| 3.6 generation wait screen | **PARTIAL** — Apply is gated and the web loader falls back; per-step narration still missing | `PlanPreviewScreen.tsx` |
+| 4.1 401 refresh race | **STILL OPEN** — no single-flight refresh; sign-out fires on any failed refresh incl. network errors | `api/client.ts` |
+| 4.2 false empty states | **PARTIAL** — plan surfaces distinguish offline/empty/loading; `ExerciseDetailScreen` still shows "Exercise not found" for a server-down load | `ExerciseDetailScreen.tsx` |
+| 4.3 history `lb` + timed-as-reps | **FIXED 2026-08-26** | `CalendarScreen.tsx` |
+| 4.4 cross-account draft leak | **STILL OPEN on this branch** — key is still device-global and sign-out never clears it. A fix commit exists on another branch and is not an ancestor of HEAD. Mitigated only by `loadWorkoutDraft` currently having zero callers | `workoutDraftStorage.ts` |
+| 4.5 swap → dead slot survives Apply | **STILL OPEN** | `PlanPreviewScreen.tsx` |
+| 4.6 move-to-occupied desync | **STILL OPEN** | `PlanPreviewScreen.tsx` |
+| 4.7 bodyweight-only dead end | **FIXED 2026-08-26** — `Bodyweight → 'none'` mapped, and unmappable kit no longer yields an empty list | `GeneratePlanScreen.tsx` |
+| 4.8 e1RM chart 40% floor | **STILL OPEN** — domain is still `[0, peak]` mapped onto `[40%, 100%]` | `ExerciseDetailScreen.tsx` |
+| 4.9 3×10 for timed exercises | **FIXED 2026-08-26** | `SearchScreen.tsx`, `exercisePrescription.ts` |
+| 4.10 month fetch failure | **PARTIAL** — plan errors surface with pull-to-refresh; the month **log** fetch still fails silently, so completed-day seals vanish with no signal | `planCalendarPrototypeStore.ts` |
+| 4.11 "extend plan" promise | **FIXED 2026-08-26** — copy rewritten; nothing still promises extension | `HomeScreen.tsx` |
+| 4.12 avatar menu at 76 pt | **FIXED** — the menu was removed; the avatar opens Profile directly | `HomeScreen.tsx` |
+| 4.13 iOS-green switch | **FIXED** — dark mode is a themed segmented control; the remaining switches carry `trackColor`/`thumbColor` | `ProfileScreen.tsx` |
+| 4.14 Plan tab paper cuts | **FIXED** — "Add workout for" and "Clear week" no longer exist; rest days read as rest; the Calendar tab legitimately wears the calendar icon | — |
+
+---
+
 ## P0 — Stop the bleeding (fix before the next ship, in any vehicle)
 
 These are the only items whose cost **grows** with delay: three write garbage into `WorkoutLog` rows that no later fix can clean, two are one-line embarrassments, and one is a scheduling decision that unblocks Week 3.
 
-- [ ] **0.1 Timed weighted sets inflate saved volume** `[OTA]` **S**
-  `sessionAchievements.ts:141-149` adds `reps × weight` with no timed-row exclusion, so a 45 s @ 70 lb carry books **3,150 lb** into the finish screen and the persisted `totalVolume` (`WorkoutScreen.tsx:648`). The same file already special-cases timed rows everywhere else (`:76-77`, `:273-277`) — the totals function is the only one that forgot.
-  *Done when:* timed rows contribute 0 (or a deliberate formula) to volume; unit test on a mixed timed/reps session; finish-screen total matches.
+- [x] **0.1 Timed weighted sets inflate saved volume** `[OTA]` **S** — **fixed by the calendar rewrite** (verified 2026-08-26)
+  Both producers now route reps through `sessionCelebration.parseRepsCount`, which returns 0 for any `min`/`sec` string, so a 45 s @ 70 lb carry books 0. `summarizeSessionTotals` still has no *intrinsic* timed guard — it is safe only because every current caller pre-parses. Test added for the loaded-hold case (`sessionCelebration.test.ts`, "books no volume for a LOADED hold").
+  **Residual, needs a decision:** `sessionsFromWorkoutLogs` (`sessionCelebration.ts`) hardcodes `prescriptionType: 'reps'` when reading *stored* logs back, and legacy `WorkoutLog` rows written by the old session do hold seconds in `reps`. Re-summarising an old weighted hold from history would still inflate. Rolls into 0.4.
 
-- [ ] **0.2 kg users' stepper steps in pounds** `[OTA]` **S**
-  Step chips are fixed `[5, 2.5, 10]` (`WorkoutSession.tsx:1645`) and the delta is added raw to canonical-lb weight (`:490-491`), so a kg user's "+5" = +5 lb = +2.27 kg (20.0 → 22.3 kg). The typed-in path (`:1599`) and edit modal (`:1796,1851`) convert correctly — only the stepper is wrong, and it's the fast path.
-  *Done when:* stepper deltas are converted for kg users (or chips become unit-aware); test covering both units.
+- [x] **0.2 kg users' stepper steps in pounds** `[OTA]` **S** — **fixed by the calendar rewrite** (verified 2026-08-26)
+  There is no stepper any more. `PlanCalendarWorkoutScreen.tsx` labels the field `WEIGHT ({unit})` and converts on commit (`kgToLb` before storing canonical lb). The `[5, 2.5, 10]` chips survive only in the orphaned `WorkoutSession.tsx`.
 
-- [ ] **0.3 Resumed drafts inflate workout duration** `[OTA]` **S**
-  `totalTime = now − session.startTime` (`WorkoutSession.tsx:716-717`) and resume restores the original start (`WorkoutScreen.tsx:617`), so resuming yesterday's draft books a ~14-hour workout into persisted `totalTime`.
-  *Done when:* duration is derived from accumulated active time (or capped/re-based on resume); resume-after-a-day yields a sane duration; test added.
+- [ ] **0.3 Resumed drafts inflate workout duration** `[OTA]` **S** — **display fixed, persisted column now guarded; true fix still open** (2026-08-26)
+  Mechanism moved: `dayStartTimes` (first logged set) survives restarts for 14 days, so a day left open books its whole wall-clock span. The finish screen already refused to print anything over 4 h; that same rule now gates the POST (`plausibleDuration` in `sessionCelebration.ts`, applied in `planCalendarPrototypeStore.ts`), so a run-away clock is **omitted** rather than written — `totalTimeSeconds` is nullable and `progressStats` already handles null.
+  *Still to do:* this only stops the bad write. Duration is still wall-clock, not accumulated active time, so a genuine 3-hour gap inside a session is still counted, and rows written before this change are untouched (see 0.4).
 
 - [ ] **0.4 History recompute decision + script** `[BE]` `[DECIDE]` **S–M**
   `totalVolume`/`totalTime` are **persisted columns** consumed by `progressStats.ts:163-164`. Fixing 0.1–0.3 does not fix rows already written. Raw sets are stored, so recompute is possible.
   *Done when:* an explicit decision is recorded (recompute vs. accept old rows), and if recompute: a script exists, was run against prod (with the prod-env-var trap from `.claude` skill notes respected), and Progress totals were re-verified.
 
-- [ ] **0.5 Prefill reps from the next-target suggestion** `[OTA]` **S (not one line)**
-  The coach line says "145 lb × 6 — add a rep" while the stepper seeds plan-minimum reps (`WorkoutSession.tsx:119-122`); the prefill effect (`:245-272`) resolves **weight only** (`lastPerformanceDisplay.ts:88-133`). The big gold button logs *below* last session. Note: the weight prefill uses `weight === 0` as its "untouched" sentinel — reps have no sentinel, so this needs its own touched-set guard. Sets after the first copy the previous set (`:440-445`), so set 1 is the fix point.
-  *Done when:* untouched set-1 reps seed from the suggestion; user-edited reps are never clobbered; test for both.
+- [ ] **0.5 Prefill reps from the next-target suggestion** `[OTA]` **S (not one line)** — **still open, different shape** (2026-08-26)
+  The suggestion is now display-only: `PlanCalendarWorkoutScreen.tsx` builds `targetLine` from `suggestNextTarget(...)` and passes it to the deck as a **string**, which is only rendered. The inputs ghost from last session's same-numbered set (`lastSetForIndex`), never from the suggestion — for reps *or* weight. So the header can read "Target 6 · 145 lb ↑" while the untouched log commits last time's 5 × 140.
 
-- [ ] **0.6 Stop showing `SUPABASE_SERVICE_ROLE_KEY` to users** `[OTA]` **S (one line)**
-  `ProfileScreen.tsx:527` puts the server env-var name verbatim in a user-facing alert.
-  *Done when:* copy says something like "your account data was deleted; sign-in removal may take longer" with no config internals.
+- [x] **0.6 Stop showing `SUPABASE_SERVICE_ROLE_KEY` to users** `[OTA]` **S (one line)** — **fixed 2026-08-26**
+  The delete-account alert now states the consequence (data gone, the login may outlive it) and gives the support address, with no config internals. Zero occurrences of the var name remain in `frontend/src`.
+  **The underlying deletion is still incomplete** unless `SUPABASE_SERVICE_ROLE_KEY` is set on the server — now declared in `render.yaml` as a `sync: false` var so the requirement is visible. Whether it is actually set in the Render dashboard could not be verified from the repo. Until it is, a deleted account's email can still sign in, which is an App Store 5.1.1(v) problem.
 
-- [ ] **0.7 Real legal URLs in shipping builds** `[DECIDE]` **S**
-  `constants/legalUrls.ts:6-13` falls back to `example.com/privacy|terms` unless `EXPO_PUBLIC_*` vars are set in the build. App Store review risk + trust hit.
-  *Done when:* hosted policy pages exist, env vars are set in EAS build profiles, and a production build opens the real pages.
+- [ ] **0.7 Real legal URLs in shipping builds** `[DECIDE]` **S** — **plumbing landed 2026-08-26; blocked on Dylan**
+  The `example.com` fallbacks are gone. `constants/legalUrls.ts` now resolves each var to `string | null` (https only; placeholder hosts rejected), and Profile → About renders each row only when its URL is configured — hidden in production, shown as "Not configured" in dev.
+  *Still needed, and only Dylan can do it:* (1) author or commission the actual policy text — `docs/legal/*.md` are explicitly non-binding placeholders; (2) host both at public https URLs; (3) add `EXPO_PUBLIC_PRIVACY_POLICY_URL` / `EXPO_PUBLIC_TERMS_OF_SERVICE_URL` to all three `eas.json` build profiles; (4) paste the privacy URL into App Store Connect → App Privacy. **ASC requires a publicly reachable URL of its own — an in-app screen does not satisfy it.**
 
-- [ ] **0.8 Dark-mode CTA contrast token** `[OTA]` **S (one token)**
-  `onPrimary #F4F1EA` on gold `#C7A46A` = **2.08:1** (independently recomputed; fails WCAG even for large text) on every shared-Button primary action (`Button.tsx:56`, `theme/colors.ts:52,64`). Home already uses the correct dark-on-gold (8.07:1). While in the file: light mode's `textMuted` (2.53:1 at 11–13 px) is the same class of problem.
-  *Done when:* dark `onPrimary` is a dark ink on gold app-wide; light `textMuted` raised or usage shrunk; spot-check both themes.
+- [x] **0.8 Dark-mode CTA contrast token** `[OTA]` **S (one token)** — **fixed by the Blackout palette** (verified 2026-08-26)
+  The gold palette was replaced wholesale. Dark is now `onPrimary #0A0D13` on `primary #3D8CFF` (~7.6:1); light `textMuted #6B6B70` on `#F2F2F7` (~4.75:1). `Button.tsx` still reads the same two tokens, so the fix is app-wide.
 
 - [ ] **0.9 Decide + submit the next native binary NOW** `[BINARY]` `[DECIDE]` **S to decide**
   The audit's sequencing breaks in its own Week 2: `expo-notifications` is **not** in the app binary, so notifications (and the rest timer's "notify when backgrounded" flourish) cannot ship OTA. Verified OTA-safe already: `expo-keep-awake` (ships inside the `expo` core package), `expo-haptics`, Skia.
@@ -140,18 +180,18 @@ None of these corrupt data (that was P0), but each is a live paper cut. Ordered 
 
 - [ ] **4.1 401 refresh race signs users out** `[OTA]` **M** — concurrent Home+Plan requests on app-open can both 401 and force sign-out (`docs/future.md:189-195`). A retention bug by the audit's own framing; the retention section omitted it. *Done when:* sign-out only on definitive invalid-refresh-token.
 - [ ] **4.2 False empty states from catch blocks** `[OTA]` **S** — server down renders "No plan yet" (`WorkoutScreen.tsx:555-559`) and "Exercise not found" (`ExerciseDetailScreen.tsx:337-341`). *Done when:* error state + retry, distinct from true-empty.
-- [ ] **4.3 History day view: hardcoded "lb", timed sets as reps** `[OTA]` **S** — `CalendarScreen.tsx:39,44`; the exact class of bug just fixed on ExerciseDetail, still live one screen over. *Done when:* unit-aware weights, timed rows render as time.
+- [x] **4.3 History day view: hardcoded "lb", timed sets as reps** `[OTA]` **S** — **fixed 2026-08-26.** `CalendarScreen.tsx` now reads `weightUnit` and renders through `formatWeightCompactFromLb`; timed rows print as a duration (`45s @ 70 lb`), reusing `MIN_PLAUSIBLE_DURATION_SECONDS` so a legacy cardio rep count is not rendered as "1s".
 - [ ] **4.4 Cross-account draft leak** `[OTA]` **S** — draft key is device-global (`workoutDraftStorage.ts:4`) and sign-out never clears it (`AuthContext.tsx:173-186`); user B can resume user A's workout. *Done when:* per-user key + cleared on sign-out.
 - [ ] **4.5 Preview "Swap Workout" creates a dead slot that survives Apply** `[OTA]` **S–M** — `PlanPreviewScreen.tsx:908-957`; Start dead-ends on an exercise-less workout.
 - [ ] **4.6 Preview move-to-occupied-day desyncs UI from draft** `[OTA]` **S–M** — `PlanPreviewScreen.tsx:754-789` vs `:962-985`; applied plan gets a doubled day + a lost session.
-- [ ] **4.7 Bodyweight-only onboarding dead-ends** `[OTA]` **S** — equipment map drops Bodyweight/TRX/Medicine Ball/Battle Rope (`GeneratePlanScreen.tsx:334-343`), readiness fails, "Get my plan" breaks its promise. Open since the June review.
+- [x] **4.7 Bodyweight-only onboarding dead-ends** `[OTA]` **S** — **fixed 2026-08-26.** `PREF_EQUIPMENT_MAP` now maps `Bodyweight → 'none'`, and `prefEquipmentToForm` falls back to `['none']` rather than `[]` when a profile lists only kit the form has no word for (TRX, medicine ball, battle rope — still unrepresented). That was the empty list behind a full-colour "Generate Plan" button that silently returned. *Open behind it:* the form still has no vocabulary for those three, and a bodyweight-only profile still defaults `primaryLocation` to `'gym'`, which hides the equipment selector.
 - [ ] **4.8 e1RM trend chart illegible by construction** `[OTA]` **S** — peak-scaled with a 40% floor (`ExerciseDetailScreen.tsx:559-563`; the audit said "min-max" — mechanism corrected, conclusion holds): a 158→169 lb trend renders as 96%-vs-100% bars. *Done when:* y-domain fits the data range (nice-min to nice-max), trend visible.
-- [ ] **4.9 Add-from-search hardcodes 3×10 even for timed exercises** `[OTA]` **S** — `SearchScreen.tsx:869-871`, `:961-963`.
+- [x] **4.9 Add-from-search hardcodes 3×10 even for timed exercises** `[OTA]` **S** — **fixed 2026-08-26.** Both add paths in `SearchScreen.tsx` now call `defaultPrescriptionForNewExercise` (`lib/exercisePrescription.ts`): holds get `3 × 45 s`, cardio gets one 10-minute block, everything else keeps `3 × 10`. The payload path already carried `durationSeconds`/`prescriptionType`.
 - [ ] **4.10 Calendar month fetch failure: no retry, falsely-empty grid** `[OTA]` **S** — `CalendarScreen.tsx:180-186`.
-- [ ] **4.11 Remove or build the "extend plan" promise** `[OTA]` **S** — promised at `GeneratePlanScreen.tsx:1254` and `HomeScreen.tsx:644`; repo-wide grep confirms nothing implements it. Kill the copy now; building extension is P5.
-- [ ] **4.12 Home avatar menu anchored at magic 76 pt** `[OTA]` **S** — `HomeScreen.tsx:797` (+`:1025`), inside a Modal that escapes SafeAreaView; wrong on every notched iPhone = every beta tester.
-- [ ] **4.13 iOS-green dark-mode switch in a gold app** `[OTA]` **S** — theme the Profile switches with the token palette.
-- [ ] **4.14 Plan tab framing paper cuts** `[OTA]` **S** — rest days render as "**Add workout for Wednesday**" (recovery reframed as a gap to fill — label them Rest/Recovery); destructive red "Clear week" visually outranks the day list; the Plan tab wears a calendar icon while hiding the calendar (audit §2, §3.7).
+- [x] **4.11 Remove or build the "extend plan" promise** `[OTA]` **S** — **fixed 2026-08-26.** The `GeneratePlanScreen` copy was already gone; the last one on Home is rewritten. While there: four places still told users to "Open Plan" or "use the week arrows on Plan" — a tab that no longer exists — now all name Calendar (`HomeScreen.tsx` ×3, `SearchScreen.tsx` ×1). Note the out-of-program card fires **before** a program starts, not after (running past the last week resolves to `in_program`, repeating it), so the copy no longer implies the plan ended.
+- [x] **4.12 Home avatar menu anchored at magic 76 pt** `[OTA]` **S** — **fixed**: the menu was removed entirely; the avatar opens Profile directly.
+- [x] **4.13 iOS-green dark-mode switch in a gold app** `[OTA]` **S** — **fixed**: dark mode is a themed segmented control, and every remaining `<Switch>` in the app carries `trackColor`/`thumbColor` from the palette.
+- [x] **4.14 Plan tab framing paper cuts** `[OTA]` **S** — **fixed** by the Calendar tab replacing Plan+Train. "Add workout for" and "Clear week" have zero matches in `frontend/`; rest days read "Rest day — nothing scheduled."; the icon/label mismatch is gone by construction.
 
 ---
 

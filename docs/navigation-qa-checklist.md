@@ -164,8 +164,8 @@ trigger type while the other two looked fine.
 - [ ] Profile → "Redeem a code" → ShareRedeem screen; back → Profile
 - [ ] Profile → back button → returns to whichever tab was active before you opened Profile (not always Home)
 - [ ] Profile → "Export my data" → native share sheet appears with a JSON export
-- [ ] Profile → "Privacy policy" → opens in system browser. **Confirm it's a real hosted policy page, not `example.com`** — the URL falls back to a placeholder if `EXPO_PUBLIC_PRIVACY_POLICY_URL` isn't set for this build
-- [ ] Profile → "Terms of service" → same check, same placeholder risk
+- [ ] Profile → About → "Privacy policy" row. There is no placeholder fallback: the row is **absent** unless `EXPO_PUBLIC_PRIVACY_POLICY_URL` is a real https URL in this build's env. If it's present, it must open a real hosted policy page in the system browser. (In a dev build the row shows "Not configured" instead of disappearing.)
+- [ ] Profile → About → "Terms of service" → same rule, `EXPO_PUBLIC_TERMS_OF_SERVICE_URL`
 - [ ] Profile → "Feedback & support" → opens the device's mail app, pre-addressed
 - [ ] Profile → "Delete account" → double confirm → account deleted → automatically signed out → Login screen
 

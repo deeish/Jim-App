@@ -317,7 +317,13 @@ each slot claims) — no per-row authoring, and no number shown to the user.
 
 Full argument with the figures: https://claude.ai/code/artifact/67dc0339-8a8a-4290-a277-1d1e950e7d7b
 
-## Replacing a timed exercise leaves the new one with a timed prescription
+## ~~Replacing a timed exercise leaves the new one with a timed prescription~~ — FIXED 2026-08-26
+
+`plannedExerciseFromCatalog` now compares the outgoing slot's kind against the incoming
+exercise's (`exerciseUsesTimeDisplay`, plus the same `^\d+\s*(min|sec)$` shape
+`toSlotExerciseRow` persists by) and drops the inherited sets/reps/rest when they differ.
+The add path is fixed by the same change: a Plank added fresh used to get `8–12` and now
+gets `45 sec`. Tests in `planCalendarPrototypeStore.test.ts`. Original write-up below.
 
 Found during review of the timed-row fix, 2026-08-24. Pre-existing, not caused by it.
 
