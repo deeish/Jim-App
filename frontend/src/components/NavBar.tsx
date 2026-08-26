@@ -7,6 +7,7 @@ import {
 } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute, NavigatorScreenParams } from '@react-navigation/native';
 import HomeScreen from '../screens/HomeScreen';
+import CrewScreen from '../screens/CrewScreen';
 import PlanCalendarNavigator from '../navigation/PlanCalendarNavigator';
 import SearchStackNavigator from '../navigation/SearchStackNavigator';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,8 @@ export type RootTabParamList = {
   Home: undefined;
   /** The Calendar tab: plan + training hub (Month → Week → Day → Workout). */
   Calendar: NavigatorScreenParams<PlanCalendarParamList> | undefined;
+  /** The Crew tab: the accountability group (stories row, crew streak, race). */
+  Crew: undefined;
   Search: undefined;
 };
 
@@ -130,7 +133,21 @@ export default function NavBar() {
         }}
       />
       <Tab.Screen
-        name="Search" 
+        name="Crew"
+        component={CrewScreen}
+        options={{
+          tabBarButton: tabBarButton('e2e-tab-crew'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'people' : 'people-outline'}
+              size={focused ? 26 : 24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Search"
         component={SearchStackNavigator}
         options={{
           tabBarLabel: 'Exercises',
