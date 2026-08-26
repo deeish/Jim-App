@@ -136,7 +136,6 @@ export default function HomeScreen() {
 
   const [whatsNewVisible, setWhatsNewVisible] = useState(false);
   const [hasUnseenNews, setHasUnseenNews] = useState(false);
-  const [seenNewsId, setSeenNewsId] = useState<string | null>(null);
   const whatsNewAutoShown = useRef(false);
   const [homeToday, setHomeToday] = useState<HomeTodayResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -175,8 +174,6 @@ export default function HomeScreen() {
     setHasUnseenNews(false);
     if (LATEST_CHANGELOG_ID) {
       void setSeenChangelogId(LATEST_CHANGELOG_ID);
-      // Now caught up: a reopen should show only the latest expanded.
-      setSeenNewsId(LATEST_CHANGELOG_ID);
     }
   }, []);
 
@@ -191,9 +188,6 @@ export default function HomeScreen() {
       if (!LATEST_CHANGELOG_ID) return;
       const seen = await getSeenChangelogId();
       if (!active) return;
-      // Capture what they'd seen before we mark the latest seen below, so the
-      // modal knows which entries to keep expanded.
-      setSeenNewsId(seen);
       if (seen === LATEST_CHANGELOG_ID) return;
       setHasUnseenNews(true);
       if (seen !== null && !whatsNewAutoShown.current) {
@@ -417,7 +411,7 @@ export default function HomeScreen() {
 
       <View style={[styles.accentBar, themedStyles.accentHairline]} />
 
-      <WhatsNewModal visible={whatsNewVisible} onClose={closeWhatsNew} seenId={seenNewsId} />
+      <WhatsNewModal visible={whatsNewVisible} onClose={closeWhatsNew} />
 
       <ScrollView
         style={styles.scroll}

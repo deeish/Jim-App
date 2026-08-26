@@ -1,26 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import type { ColorPalette } from '../theme/colors';
 import { leading, radius, spacing, text, tracking, weight } from '../theme';
+import { haptics } from '../lib/haptics';
 import {
   CHANGELOG,
+  type ChangelogChange,
   type ChangelogChangeType,
   type ChangelogEntry,
 } from '../constants/changelog';
+import SheetModal from './SheetModal';
 
 interface WhatsNewModalProps {
   visible: boolean;
   onClose: () => void;
   /** Defaults to the full CHANGELOG (newest first). */
   entries?: ChangelogEntry[];
-  /**
-   * Id of the most recent entry the user has already seen. Entries newer than
-   * this stay expanded; the rest collapse behind a "Show earlier updates"
-   * toggle. When omitted/unknown, only the newest entry expands by default.
-   */
-  seenId?: string | null;
 }
 
 const TYPE_META: Record<ChangelogChangeType, { icon: keyof typeof Ionicons.glyphMap; label: string }> = {
@@ -35,71 +34,87 @@ function typeColor(type: ChangelogChangeType, colors: ColorPalette): string {
   return colors.warning;
 }
 
-function formatEntryDate(iso: string): string {
-  // Anchor to midday so YYYY-MM-DD doesn't shift a day across time zones.
-  const d = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+function typeSoft(type: ChangelogChangeType, colors: ColorPalette): string {
+  if (type === 'new') return colors.successSoft;
+  if (type === 'improved') return colors.primarySoft;
+  return colors.warningSoft;
 }
 
-export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG, seenId = null }: WhatsNewModalProps) {
+// Hand-rolled month names: Hermes' Intl misses toLocaleDateString options.
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function formatShortDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || m < 1 || m > 12 || !d) return iso;
+  return `${MONTHS[m - 1]} ${d}`;
+}
+
+/**
+ * The release sheet: one release in Apple's what's-new grammar — gift mark,
+ * the release title as the headline, a feature row per change, one Continue.
+ * Everything older sits behind a quiet "See earlier updates" door, capped by
+ * the pruned CHANGELOG (docs/changelog-archive.md keeps the rest).
+ */
+export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }: WhatsNewModalProps) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  // Entries before the seen one are unseen -> keep them expanded. Fall back to
-  // just the newest entry when nothing is newer (brand-new user, or already
-  // caught up).
-  const expandedCount = useMemo(() => {
-    const seenIndex = seenId ? entries.findIndex((e) => e.id === seenId) : -1;
-    return seenIndex > 0 ? seenIndex : 1;
-  }, [entries, seenId]);
-
-  const recent = entries.slice(0, expandedCount);
-  const older = entries.slice(expandedCount);
-
-  // Older entries collapse to a single row each; track which the user opened.
+  const [view, setView] = useState<'release' | 'history'>('release');
+  // Which earlier releases the user expanded; collapses again on dismiss so
+  // the next open starts focused on the latest release.
   const [openOlderIds, setOpenOlderIds] = useState<string[]>([]);
-  // Collapse the history again whenever the modal is dismissed, so the next
-  // open starts focused on what's new.
   useEffect(() => {
-    if (!visible) setOpenOlderIds([]);
+    if (!visible) {
+      setView('release');
+      setOpenOlderIds([]);
+    }
   }, [visible]);
 
-  const toggleOlder = (id: string) =>
+  const latest = entries[0];
+  const older = entries.slice(1);
+
+  const toggleOlder = (id: string) => {
+    haptics.tap();
     setOpenOlderIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+  };
 
-  const renderChanges = (entry: ChangelogEntry) =>
-    entry.changes.map((change, i) => {
-      const meta = TYPE_META[change.type];
-      const color = typeColor(change.type, colors);
-      return (
-        <View key={i} style={styles.changeRow}>
-          <View style={[styles.changeIcon, { backgroundColor: color + '22' }]}>
-            <Ionicons name={meta.icon} size={15} color={color} />
-          </View>
-          <View style={styles.changeTextWrap}>
-            <Text style={[styles.changeTag, { color }]}>{meta.label}</Text>
-            <Text style={styles.changeText}>{change.text}</Text>
-          </View>
+  const close = () => {
+    haptics.tap();
+    onClose();
+  };
+
+  if (!latest) return null;
+
+  const footerPad = Math.max(insets.bottom, spacing.lg) + spacing.sm;
+
+  const featureRow = (change: ChangelogChange, i: number) => {
+    const meta = TYPE_META[change.type];
+    const color = typeColor(change.type, colors);
+    return (
+      <View key={i} style={styles.featureRow}>
+        <View style={[styles.featureIcon, { backgroundColor: typeSoft(change.type, colors) }]}>
+          <Ionicons
+            name={(change.icon as keyof typeof Ionicons.glyphMap) ?? meta.icon}
+            size={20}
+            color={color}
+          />
         </View>
-      );
-    });
-
-  // Newest / unseen releases: shown in full.
-  const renderEntry = (entry: ChangelogEntry) => (
-    <View key={entry.id} style={styles.entry}>
-      <View style={styles.entryHeader}>
-        <Text style={styles.entryVersion}>Version {entry.version}</Text>
-        <Text style={styles.entryDate}>{formatEntryDate(entry.date)}</Text>
+        <View style={styles.featureTextWrap}>
+          <Text style={styles.featureHeadline}>{change.headline ?? meta.label}</Text>
+          <Text style={styles.featureText}>{change.text}</Text>
+        </View>
       </View>
-      {entry.title ? <Text style={styles.entryTitle}>{entry.title}</Text> : null}
-      {renderChanges(entry)}
-    </View>
-  );
+    );
+  };
 
-  // Older releases: one compact row that expands its changes inline on tap.
-  const renderOlderRow = (entry: ChangelogEntry) => {
+  // Earlier releases keep the compact tag-less bullet look: their changes were
+  // written before headlines existed, so a dot + sentence is all they need.
+  const olderRow = (entry: ChangelogEntry) => {
     const open = openOlderIds.includes(entry.id);
     return (
       <View key={entry.id} style={styles.olderEntry}>
@@ -111,209 +126,271 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG, s
           accessibilityState={{ expanded: open }}
           accessibilityLabel={`${entry.title ?? `Version ${entry.version}`}, ${entry.changes.length} updates`}
         >
+          <View style={styles.olderTextWrap}>
+            <Text style={styles.olderTitle} numberOfLines={1}>
+              {entry.title ?? `Version ${entry.version}`}
+            </Text>
+            <Text style={styles.olderDate}>{formatShortDate(entry.date)}</Text>
+          </View>
           <Ionicons
             name={open ? 'chevron-down' : 'chevron-forward'}
-            size={16}
+            size={17}
             color={colors.textMuted}
           />
-          <Text style={styles.olderDate}>{formatEntryDate(entry.date)}</Text>
-          {entry.title ? (
-            <Text style={styles.olderTitle} numberOfLines={1}>
-              {`· ${entry.title}`}
-            </Text>
-          ) : (
-            <View style={styles.olderTitle} />
-          )}
-          <Text style={styles.olderCount}>{entry.changes.length}</Text>
         </TouchableOpacity>
-        {open ? <View style={styles.olderBody}>{renderChanges(entry)}</View> : null}
+        {open ? (
+          <View style={styles.olderBody}>
+            {entry.changes.map((change, i) => (
+              <View key={i} style={styles.bulletRow}>
+                <View style={[styles.bulletDot, { backgroundColor: typeColor(change.type, colors) }]} />
+                <Text style={styles.bulletText}>{change.text}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
       </View>
     );
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <Pressable
-          style={StyleSheet.absoluteFillObject}
-          onPress={onClose}
-          accessibilityLabel="Dismiss what's new"
-          accessibilityRole="button"
-        />
-        <View style={styles.card}>
-          <View style={styles.header}>
-            <View style={styles.headerIcon}>
-              <Ionicons name="gift" size={22} color={colors.primary} />
+    <SheetModal visible={visible} onClose={close} scrimColor={colors.scrim}>
+      {/* The card guards its own taps; see SheetModal. */}
+      <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <View style={styles.grabber} />
+
+        {view === 'release' ? (
+          <>
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.releaseContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <LinearGradient
+                colors={[colors.brandGradientStart, colors.brandGradientEnd]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.giftMark}
+              >
+                <Ionicons name="gift" size={30} color={colors.onPrimary} />
+              </LinearGradient>
+              <Text style={styles.eyebrow}>What's new</Text>
+              <Text style={styles.releaseTitle}>{latest.title ?? `Version ${latest.version}`}</Text>
+              <Text style={styles.releaseCaption}>
+                {`Version ${latest.version} · ${formatShortDate(latest.date)}`}
+              </Text>
+              <View style={styles.featureList}>{latest.changes.map(featureRow)}</View>
+            </ScrollView>
+
+            <View style={[styles.footer, { paddingBottom: footerPad }]}>
+              {older.length > 0 ? (
+                <TouchableOpacity
+                  style={styles.historyLink}
+                  onPress={() => {
+                    haptics.tap();
+                    setView('history');
+                  }}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="See earlier updates"
+                >
+                  <Text style={styles.historyLinkText}>See earlier updates</Text>
+                  <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity style={styles.mainButton} onPress={close} activeOpacity={0.85}>
+                <Text style={styles.mainButtonText}>Continue</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.headerTitle}>What's New</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton} accessibilityLabel="Close">
-              <Ionicons name="close" size={24} color={colors.textMuted} />
-            </TouchableOpacity>
-          </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.historyHeader}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => {
+                  haptics.tap();
+                  setView('release');
+                }}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Back to the latest update"
+              >
+                <Ionicons name="chevron-back" size={20} color={colors.primary} />
+                <Text style={styles.backText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.historyTitle}>Earlier updates</Text>
+              <View style={styles.backButton} />
+            </View>
 
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {recent.map(renderEntry)}
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.historyContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {older.map(olderRow)}
+              <Text style={styles.archiveNote}>
+                Older updates live in the App Store's version history.
+              </Text>
+            </ScrollView>
 
-            {older.length > 0 ? (
-              <>
-                <View style={styles.olderDivider}>
-                  <View style={styles.olderDividerLine} />
-                  <Text style={styles.olderDividerLabel}>Earlier updates</Text>
-                  <View style={styles.olderDividerLine} />
-                </View>
-                {older.map(renderOlderRow)}
-              </>
-            ) : null}
-          </ScrollView>
-
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.gotItButton} onPress={onClose} activeOpacity={0.85}>
-              <Text style={styles.gotItText}>Got it</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
+            <View style={[styles.footer, { paddingBottom: footerPad }]}>
+              <TouchableOpacity style={styles.mainButton} onPress={close} activeOpacity={0.85}>
+                <Text style={styles.mainButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </Pressable>
+    </SheetModal>
   );
 }
 
 function createStyles(colors: ColorPalette) {
   return StyleSheet.create({
-    overlay: {
-      flex: 1,
-      backgroundColor: colors.overlay,
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: spacing.xl,
-    },
-    card: {
-      width: '100%',
-      maxWidth: 460,
-      maxHeight: '80%',
+    sheet: {
+      height: '92%',
       backgroundColor: colors.surface,
-      borderRadius: radius.xl,
-      borderWidth: 1,
-      borderColor: colors.border,
+      borderTopLeftRadius: radius.xxl,
+      borderTopRightRadius: radius.xxl,
       overflow: 'hidden',
     },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-      paddingHorizontal: spacing.xl,
-      paddingTop: spacing.xl,
-      paddingBottom: spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    headerIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: radius.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.primary + '20',
-    },
-    headerTitle: {
-      flex: 1,
-      fontSize: text.title,
-      fontWeight: weight.heavy,
-      letterSpacing: tracking.tight,
-      color: colors.text,
-    },
-    closeButton: {
-      padding: spacing.xs,
-      marginRight: -4,
+    grabber: {
+      width: 36,
+      height: 5,
+      borderRadius: radius.xs,
+      backgroundColor: colors.border,
+      alignSelf: 'center',
+      marginTop: spacing.sm,
     },
     scroll: {
-      flexGrow: 0,
+      flex: 1,
     },
-    scrollContent: {
-      paddingHorizontal: spacing.xl,
-      paddingTop: spacing.lg,
-      paddingBottom: spacing.sm,
+    releaseContent: {
+      paddingHorizontal: spacing.xxl,
+      paddingTop: spacing.xxl,
+      paddingBottom: spacing.lg,
     },
-    entry: {
-      marginBottom: spacing.xl,
-    },
-    entryHeader: {
-      flexDirection: 'row',
+    giftMark: {
+      width: 64,
+      height: 64,
+      borderRadius: radius.lg,
       alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: spacing.sm,
+      justifyContent: 'center',
+      alignSelf: 'center',
     },
-    entryVersion: {
+    eyebrow: {
+      marginTop: spacing.lg,
+      textAlign: 'center',
       fontSize: text.footnote,
       fontWeight: weight.heavy,
-      letterSpacing: tracking.wider,
+      letterSpacing: tracking.widest,
       textTransform: 'uppercase',
       color: colors.primary,
     },
-    entryDate: {
+    releaseTitle: {
+      marginTop: spacing.sm,
+      textAlign: 'center',
+      fontSize: text.display - 2,
+      lineHeight: leading.display,
+      fontWeight: weight.heavy,
+      letterSpacing: tracking.tight,
+      color: colors.text,
+    },
+    releaseCaption: {
+      marginTop: spacing.xs,
+      textAlign: 'center',
       fontSize: text.footnote,
-      fontWeight: weight.semibold,
+      fontWeight: weight.medium,
       color: colors.textMuted,
     },
-    entryTitle: {
-      fontSize: text.headline,
-      fontWeight: weight.bold,
-      color: colors.text,
-      marginBottom: spacing.lg,
-      letterSpacing: tracking.tight,
+    featureList: {
+      marginTop: spacing.xxl + spacing.sm,
+      gap: spacing.xl,
     },
-    changeRow: {
+    featureRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      gap: spacing.md,
-      marginBottom: spacing.lg,
+      gap: spacing.lg - 2,
     },
-    changeIcon: {
-      width: 28,
-      height: 28,
-      borderRadius: radius.sm,
+    featureIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.md,
       alignItems: 'center',
       justifyContent: 'center',
-      marginTop: spacing.xxs,
+      flexShrink: 0,
     },
-    changeTextWrap: {
+    featureTextWrap: {
       flex: 1,
       minWidth: 0,
     },
-    changeTag: {
-      fontSize: text.caption,
-      fontWeight: weight.heavy,
-      letterSpacing: tracking.wider,
-      textTransform: 'uppercase',
-      marginBottom: spacing.xxs,
+    featureHeadline: {
+      fontSize: text.callout,
+      fontWeight: weight.bold,
+      color: colors.text,
     },
-    changeText: {
+    featureText: {
+      marginTop: spacing.xxs,
       fontSize: text.body,
       lineHeight: leading.body,
       fontWeight: weight.medium,
       color: colors.textSecondary,
     },
-    olderDivider: {
+    footer: {
+      paddingHorizontal: spacing.xxl,
+      paddingTop: spacing.sm,
+    },
+    historyLink: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: spacing.md,
-      marginTop: spacing.xxs,
-      marginBottom: spacing.sm,
+      justifyContent: 'center',
+      gap: spacing.xs,
+      paddingVertical: spacing.md,
     },
-    olderDividerLine: {
-      flex: 1,
-      height: 1,
-      backgroundColor: colors.border,
-    },
-    olderDividerLabel: {
-      fontSize: text.caption,
-      fontWeight: weight.bold,
-      letterSpacing: tracking.wider,
-      textTransform: 'uppercase',
+    historyLinkText: {
+      fontSize: text.body,
+      fontWeight: weight.semibold,
       color: colors.textMuted,
+    },
+    mainButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.md,
+      alignItems: 'center',
+    },
+    mainButtonText: {
+      fontSize: text.callout,
+      fontWeight: weight.heavy,
+      color: colors.onPrimary,
+    },
+    historyHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.sm,
+    },
+    backButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      width: 76,
+    },
+    backText: {
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: colors.primary,
+    },
+    historyTitle: {
+      flex: 1,
+      textAlign: 'center',
+      fontSize: text.headline - 1,
+      fontWeight: weight.bold,
+      color: colors.text,
+    },
+    historyContent: {
+      paddingHorizontal: spacing.xxl,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.lg,
     },
     olderEntry: {
       borderBottomWidth: 1,
@@ -322,51 +399,53 @@ function createStyles(colors: ColorPalette) {
     olderRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: spacing.sm,
+      gap: spacing.md,
       paddingVertical: spacing.md,
     },
-    olderDate: {
-      fontSize: text.body,
+    olderTextWrap: {
+      flex: 1,
+      minWidth: 0,
+    },
+    olderTitle: {
+      fontSize: text.callout - 1,
       fontWeight: weight.bold,
       color: colors.text,
     },
-    olderTitle: {
-      flex: 1,
-      fontSize: text.body,
+    olderDate: {
+      marginTop: spacing.xxs,
+      fontSize: text.footnote,
       fontWeight: weight.medium,
       color: colors.textMuted,
     },
-    olderCount: {
-      fontSize: text.footnote,
-      fontWeight: weight.bold,
-      color: colors.textMuted,
-      minWidth: 22,
-      textAlign: 'center',
-      overflow: 'hidden',
-      borderRadius: radius.sm,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xxs,
-      backgroundColor: colors.primary + '18',
-    },
     olderBody: {
-      paddingTop: spacing.xxs,
-      paddingBottom: spacing.sm,
+      paddingBottom: spacing.lg,
+      gap: spacing.sm,
     },
-    footer: {
-      padding: spacing.lg,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
+    bulletRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
     },
-    gotItButton: {
-      backgroundColor: colors.primary,
-      paddingVertical: spacing.lg,
-      borderRadius: radius.md,
-      alignItems: 'center',
+    bulletDot: {
+      width: 6,
+      height: 6,
+      borderRadius: radius.pill,
+      marginTop: 6,
+      flexShrink: 0,
     },
-    gotItText: {
-      fontSize: text.callout,
-      fontWeight: weight.heavy,
-      color: colors.onPrimary,
+    bulletText: {
+      flex: 1,
+      fontSize: text.body - 1,
+      lineHeight: leading.body - 2,
+      fontWeight: weight.medium,
+      color: colors.textSecondary,
+    },
+    archiveNote: {
+      marginTop: spacing.lg,
+      textAlign: 'center',
+      fontSize: text.footnote,
+      fontWeight: weight.medium,
+      color: colors.textMuted,
     },
   });
 }
