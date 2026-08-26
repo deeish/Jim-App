@@ -49,6 +49,24 @@ export function parseWeightLb(weight: string): number | undefined {
 }
 
 /**
+ * Past this, a "session" is a log somebody left open — two sets before work
+ * and Complete pressed at bedtime. The elapsed span is real but it does not
+ * describe a workout.
+ */
+export const MAX_PLAUSIBLE_SESSION_SECONDS = 4 * 60 * 60;
+
+/**
+ * A session duration worth keeping, or null when the clock ran away. The
+ * receipt and the workout-log POST both go through this, for the same reason
+ * the rep parsers are shared: History must never store a duration the finish
+ * screen would refuse to print, because Progress adds that column up forever.
+ */
+export function plausibleDuration(seconds: number | null | undefined): number | null {
+  if (seconds == null || seconds <= 0) return null;
+  return seconds > MAX_PLAUSIBLE_SESSION_SECONDS ? null : seconds;
+}
+
+/**
  * The day's logged work as `ExerciseSession[]`. Only exercises with at least
  * one logged set appear — identical to the entries the workout-log POST
  * builds, so the celebration and History always describe the same session.

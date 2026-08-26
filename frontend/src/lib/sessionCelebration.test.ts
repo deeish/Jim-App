@@ -7,6 +7,7 @@ import {
   loggedDurationSeconds,
   parseRepsCount,
   parseWeightLb,
+  plausibleDuration,
   sessionsFromWorkoutLogs,
   streakWithSession,
   summariseSetDurations,
@@ -42,6 +43,28 @@ describe('parseWeightLb', () => {
   it('reads Bodyweight and the em dash as unweighted', () => {
     expect(parseWeightLb('Bodyweight')).toBeUndefined();
     expect(parseWeightLb('—')).toBeUndefined();
+  });
+});
+
+describe('plausibleDuration', () => {
+  it('keeps an ordinary session', () => {
+    expect(plausibleDuration(47 * 60)).toBe(2820);
+    // A long but real session still counts; the cap is the boundary itself.
+    expect(plausibleDuration(4 * 60 * 60)).toBe(14400);
+  });
+
+  it('drops a clock left running overnight rather than capping it', () => {
+    // A day logged Monday morning and completed Wednesday: the span is real
+    // and it is not a workout. Capping would claim a 4-hour session.
+    expect(plausibleDuration(48 * 60 * 60)).toBeNull();
+    expect(plausibleDuration(4 * 60 * 60 + 1)).toBeNull();
+  });
+
+  it('treats a missing or empty clock as no duration', () => {
+    expect(plausibleDuration(null)).toBeNull();
+    expect(plausibleDuration(undefined)).toBeNull();
+    expect(plausibleDuration(0)).toBeNull();
+    expect(plausibleDuration(-5)).toBeNull();
   });
 });
 
@@ -91,6 +114,25 @@ describe('calendarSessionsFromLogs', () => {
   it('marks timed prescriptions so achievement rendering reads seconds', () => {
     expect(sessions[2].exercise.prescriptionType).toBe('time');
     expect(sessions[0].exercise.prescriptionType).toBe('reps');
+  });
+
+  it('books no volume for a LOADED hold', () => {
+    // The audit's case: 45 s under a 70 lb carry is not 3,150 lb of work, and
+    // the number is persisted, so getting it wrong here poisons history. The
+    // shared fixture's hold is unweighted, so this needs its own.
+    const carry: CelebrationExercise[] = [
+      { name: "Farmer's Carry", muscle: 'Forearms', exerciseId: 'carry', sets: 3, reps: '45 sec', weight: '70 lb' },
+    ];
+    const carried = calendarSessionsFromLogs(carry, () => [
+      { reps: '45 sec', weight: '70 lb' },
+    ]);
+    expect(carried[0].completedSets[0]).toEqual({
+      setNumber: 1,
+      reps: 0,
+      weight: 70,
+      completed: true,
+    });
+    expect(summarizeSessionTotals(carried).volumeLb).toBe(0);
   });
 
   it('feeds summarizeSessionTotals the numbers the log would carry', () => {

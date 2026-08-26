@@ -68,7 +68,9 @@ import type {
 import {
   parseRepsCount as repsNumber,
   parseWeightLb as weightLb,
+  plausibleDuration,
 } from './sessionCelebration';
+import { exerciseUsesTimeDisplay } from './exercisePrescription';
 import { api } from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -735,14 +737,28 @@ export function plannedExerciseFromCatalog(
     inherit && inherit.weight !== 'Bodyweight' && inherit.weight !== '—'
       ? inherit.weight
       : null;
+  // Holds and rep work are not interchangeable prescriptions. Swapping a Plank
+  // for a Bench Press used to hand the bench press '45 sec' — the deck then
+  // labels a barbell lift "TIME (SEC)" and the receipt reads it as a hold — and
+  // the reverse gave a plank a rep count. When the kind flips, the incoming
+  // exercise's own defaults win over the outgoing slot's.
+  const incomingIsTimed = exerciseUsesTimeDisplay(
+    catalog.prescriptionType === 'time' ? 'time' : undefined,
+    catalog.name,
+    catalog.primaryMuscleGroup,
+  );
+  // Deliberately the same shape `toSlotExerciseRow` persists by, so a carried
+  // value that reads as timed here is one that round-trips as a duration.
+  const outgoingIsTimed = inherit != null && /^\d+\s*(min|sec)$/i.test(inherit.reps);
+  const carry = inherit && outgoingIsTimed === incomingIsTimed ? inherit : null;
   return {
     name: catalog.name,
     exerciseId: catalog.id,
     muscle,
-    sets: inherit?.sets ?? (isCardio ? 1 : 3),
-    reps: inherit?.reps ?? (isCardio ? '10 min' : '8–12'),
+    sets: carry?.sets ?? (isCardio ? 1 : 3),
+    reps: carry?.reps ?? (isCardio ? '10 min' : incomingIsTimed ? '45 sec' : '8–12'),
     weight: bodyweightOnly ? 'Bodyweight' : inheritedWeight ?? '—',
-    rest: inherit?.rest ?? (isCardio ? '—' : '2:00'),
+    rest: carry?.rest ?? (isCardio ? '—' : '2:00'),
     equipment: formatEquipment(catalog.equipment),
     note: '',
   };
@@ -1598,14 +1614,19 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
       syncedDays.delete(dateIso);
       return;
     }
+    // `dayStartTimes` survives restarts for 14 days, so a day left open —
+    // two sets before work, Complete pressed the next evening — books its
+    // whole wall-clock span. The receipt already refuses to print a run-away
+    // clock; omitting it here keeps the same span out of the persisted column
+    // Progress adds up forever, since no later fix can tell the two apart.
+    const elapsedSeconds = plausibleDuration(
+      Math.max(0, Math.round((Date.parse(completedAt) - Date.parse(startedAt)) / 1000)),
+    );
     const saved = await api.post<WorkoutLog>('/workout-logs', {
       workoutId,
       startedAt,
       completedAt,
-      totalTimeSeconds: Math.max(
-        0,
-        Math.round((Date.parse(completedAt) - Date.parse(startedAt)) / 1000),
-      ),
+      ...(elapsedSeconds != null ? { totalTimeSeconds: elapsedSeconds } : null),
       totalSets,
       totalVolume: Math.round(totalVolume),
       entries,

@@ -81,6 +81,7 @@ import {
   loggedSetDetail,
   parseRepsCount,
   parseWeightLb,
+  plausibleDuration,
   sessionsFromWorkoutLogs,
   storedSetDetail,
   streakWithSession,
@@ -111,18 +112,6 @@ const LAYER_SHIFT = 32;
 const AUTO_ADVANCE_MS = 2800;
 /** Longest the poster will hold for its record claims before going anyway. */
 const BASELINE_WAIT_CAP_MS = 4000;
-
-/**
- * Past this, a "session" is a log somebody left open — two sets before work
- * and Complete pressed at bedtime. The elapsed span is real but it does not
- * describe a workout, and the receipt would reprint it forever.
- */
-const MAX_PLAUSIBLE_SESSION_SECONDS = 4 * 60 * 60;
-
-function plausibleDuration(seconds: number | null): number | null {
-  if (seconds == null || seconds <= 0) return null;
-  return seconds > MAX_PLAUSIBLE_SESSION_SECONDS ? null : seconds;
-}
 
 /** '47 min' — the receipt's grammar for a duration; the poster keeps the clock. */
 function formatMinutes(seconds: number): string {
