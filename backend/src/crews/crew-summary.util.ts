@@ -63,7 +63,6 @@ export interface MemberSlotInput {
 export interface MemberLogInput {
   dateIso: string;
   title: string;
-  performedAtIso: string;
   muscles: MuscleTag[];
 }
 
@@ -88,7 +87,12 @@ export interface MemberInput {
     dateIso: string;
     exerciseId: string;
     exerciseName: string;
+    /** The weight ACTUALLY lifted on the record set, not the estimate. */
     weight: number;
+    /** Reps of that set. A record is detected by estimated 1RM but always
+     *  announced as the real set, because "hit 232 lb" for a projection
+     *  nobody lifted would be a lie. */
+    reps: number;
   }[];
 }
 
@@ -213,6 +217,31 @@ export function crewStreakDaysOf(
   return streak;
 }
 
+/**
+ * Above this a rep-max estimate stops meaning anything.
+ * Mirrors `E1RM_MAX_REPS` in `frontend/src/lib/exerciseHistory.ts`, which is
+ * the source of truth for what this app calls a record. Crew used to call a
+ * record "heaviest weight ever", so 225x1 announced a PR here that the
+ * Profile screen did not recognise — two definitions of the same word.
+ */
+export const E1RM_MAX_REPS = 12;
+
+/**
+ * Epley, with the same two limits the frontend applies: suppressed past the
+ * rep cap, and a single rep reported as the weight itself (Epley would claim
+ * `w x 1.033`, i.e. more than was lifted). Null means "no estimate", never 0.
+ */
+export function estimateOneRepMax(
+  weightLb: number | null | undefined,
+  reps: number,
+): number | null {
+  if (weightLb == null || weightLb <= 0) return null;
+  if (!Number.isFinite(reps) || reps < 1) return null;
+  if (reps > E1RM_MAX_REPS) return null;
+  if (reps === 1) return Math.round(weightLb);
+  return Math.round(weightLb * (1 + reps / 30));
+}
+
 export interface CrewSummaryMemberDay {
   dateIso: string;
   state: CrewDayState;
@@ -242,10 +271,12 @@ export interface CrewSummaryMember {
   todayState: 'trained' | 'scheduled' | 'rest';
   week: CrewSummaryMemberDay[];
   weekStreak: number;
+  /** Only what the row's subtitle renders. The exact clock time used to ride
+   *  along here unused — it told the crew what hour you train, which is not
+   *  in the "what your crew sees" list and nothing ever displayed. */
   lastSession: {
     title: string;
     dateIso: string;
-    performedAtIso: string;
   } | null;
   race: { done: number; planned: number };
   /** False when no plan slot lands in this week — a planless member's race
@@ -275,7 +306,9 @@ export interface CrewSummaryMoment {
   iPounded: boolean;
   /** pr */
   exerciseName?: string;
+  /** The set that was actually lifted: weight x reps. */
   weight?: number;
+  reps?: number;
   /** recap (userId/name/avatar = the week's winner) */
   winnerDone?: number;
   winnerPlanned?: number;
@@ -397,13 +430,7 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
       todayState,
       week,
       weekStreak: weekStreakOf(trained, weekMondayIso),
-      lastSession: last
-        ? {
-            title: last.title,
-            dateIso: last.dateIso,
-            performedAtIso: last.performedAtIso,
-          }
-        : null,
+      lastSession: last ? { title: last.title, dateIso: last.dateIso } : null,
       race: { done, planned },
       hasPlanThisWeek,
       kudosWeek: weekKudosByUser.get(m.userId) ?? 0,
@@ -428,6 +455,7 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
           kind: 'pr' as const,
           exerciseName: pr.exerciseName,
           weight: pr.weight,
+          reps: pr.reps,
           dateIso: pr.dateIso,
           kudos: kudosCountByRef.get(key) ?? 0,
           iPounded: myPoundsByRef.has(key),

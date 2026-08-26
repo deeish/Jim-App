@@ -2,6 +2,7 @@ import {
   addDaysIso,
   assembleCrewSummary,
   crewStreakDaysOf,
+  estimateOneRepMax,
   mondayOfIso,
   scheduledSlotOn,
   weekStreakOf,
@@ -38,7 +39,6 @@ const member = (
 const log = (dateIso: string, title = 'Push Day') => ({
   dateIso,
   title,
-  performedAtIso: `${dateIso}T10:00:00.000Z`,
   muscles: [{ group: 'Chest', name: 'Bench Press' }],
 });
 
@@ -178,6 +178,35 @@ describe('crewStreakDaysOf', () => {
   });
 });
 
+describe('estimateOneRepMax', () => {
+  // These cases mirror frontend/src/lib/exerciseHistory.ts exactly. Crew used
+  // to rank records by raw weight, so 225x1 was a record here that the
+  // Profile screen did not recognise — one word, two meanings.
+  it('reports a single rep as the weight itself, never Epley', () => {
+    // Epley would say 232 and claim more than was lifted.
+    expect(estimateOneRepMax(225, 1)).toBe(225);
+  });
+
+  it('projects multi-rep sets with Epley', () => {
+    expect(estimateOneRepMax(200, 5)).toBe(233); // 200 * (1 + 5/30)
+    expect(estimateOneRepMax(100, 12)).toBe(140);
+  });
+
+  it('is suppressed past the rep cap and for unloaded or invalid sets', () => {
+    expect(estimateOneRepMax(100, 13)).toBeNull();
+    expect(estimateOneRepMax(null, 5)).toBeNull();
+    expect(estimateOneRepMax(0, 5)).toBeNull();
+    expect(estimateOneRepMax(100, 0)).toBeNull();
+  });
+
+  it('ranks a lighter high-rep set above a heavier single', () => {
+    // 205x5 = 239 beats 225x1 = 225: the point of using an estimate at all.
+    expect(estimateOneRepMax(205, 5)).toBeGreaterThan(
+      estimateOneRepMax(225, 1)!,
+    );
+  });
+});
+
 describe('assembleCrewSummary', () => {
   const base = {
     meUserId: 'me',
@@ -215,6 +244,7 @@ describe('assembleCrewSummary', () => {
           exerciseId: 'flat_barbell_bench_press',
           exerciseName: 'Bench Press',
           weight: 225,
+          reps: 3,
         },
       ],
     });
@@ -305,6 +335,7 @@ describe('assembleCrewSummary', () => {
           exerciseId: 'flat_barbell_bench_press',
           exerciseName: 'Bench Press',
           weight: 225,
+          reps: 3,
         },
       ],
     });
