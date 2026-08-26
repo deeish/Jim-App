@@ -24,6 +24,7 @@ import {
   type ColorPalette,
 } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
+import { SkeletonCard } from '../components/Skeleton';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalendarPager, {
   calendarDayIndex,
@@ -278,6 +279,20 @@ export default function PlanCalendarDayScreen() {
   // accidental 10pt drag shows tomorrow for real.
   const renderDayPage = (idx: number) => {
     const iso = calendarDayIso(idx);
+    /**
+     * Named `dataMode` because `mode` in this file is the THEME.
+     *
+     * Everything below reads an EMPTY day as a rest day, because that is what
+     * the store hands back before the plan lands: `baseDayForDate` falls
+     * through to `{ title: 'Rest Day', exercises: [] }`. So an unanswered
+     * fetch and a genuinely open day were indistinguishable, and this screen
+     * asserted "Rest day — nothing scheduled" about a day it had not loaded
+     * yet. Not a cold-start-only case either: `refreshLiveCalendarData(true)`
+     * resets the store to 'idle', which reads as 'loading', so a pull to
+     * refresh made the plan evaporate.
+     */
+    const dataMode = calendarDataMode();
+    const pLoading = dataMode === 'loading';
     const pPlan = plannedDayForDate(iso);
     const pDate = fromIso(iso);
     const pDoneCount = pPlan.exercises.filter(
@@ -318,9 +333,16 @@ export default function PlanCalendarDayScreen() {
         >
           <Ionicons name="chevron-back" size={18} color={colors.textMuted} />
         </TouchableOpacity>
+        {/* The lede tells the same lie the rest card did, one line higher:
+            before the plan lands, `pPlan` is the store's Rest Day fallback,
+            so this read "Rest Day · Aug 26 · 0 exercises". The date is the
+            only part of it that is knowable yet. */}
         <Text style={styles.lede} numberOfLines={1}>
-          {pPlan.title} · {shortDate(pDate)} · {pPlan.exercises.length} exercises
-          {pDoneCount > 0 && !pAllDone ? ` · ${pDoneCount} done` : ''}
+          {pLoading
+            ? shortDate(pDate)
+            : `${pPlan.title} · ${shortDate(pDate)} · ${pPlan.exercises.length} exercises${
+                pDoneCount > 0 && !pAllDone ? ` · ${pDoneCount} done` : ''
+              }`}
         </Text>
         <TouchableOpacity
           onPress={() => pageBy(1)}
@@ -445,14 +467,23 @@ export default function PlanCalendarDayScreen() {
         </View>
       )}
 
-      {pPlan.exercises.length === 0 && (
+      {pLoading && (
+        // Two cards, because a day is usually a short deck. The Week screen
+        // has shown this for the same state since it shipped.
+        <>
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={2} />
+        </>
+      )}
+
+      {!pLoading && pPlan.exercises.length === 0 && (
         <View style={styles.restCard}>
           <Ionicons name="moon-outline" size={22} color={colors.textMuted} />
           <Text style={styles.restText}>Rest day — nothing scheduled.</Text>
         </View>
       )}
 
-      {pPlan.exercises.length === 0 && iso === todayIso() && (
+      {!pLoading && pPlan.exercises.length === 0 && iso === todayIso() && (
         // The at-the-gym door: an open TODAY offers a built session, not
         // just the one-exercise "+ Add Exercise" below.
         <TouchableOpacity
