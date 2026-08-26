@@ -40,8 +40,8 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
-  // The ONE card for this wave: the Crew tab (v0 + wave 1: names, invites
-  // with QR + link, moments, synced skips), the Home "Launchpad" redesign,
+  // The ONE card for this wave: the Crew tab (v0 + wave 1: names, invites by
+  // code + link, records, synced skips), the Home "Launchpad" redesign,
   // and the goal-adaptive Profile "Athlete card". The week-tile split codes,
   // recap trims, haptics sweep, and this release sheet itself are part of
   // those stories, not separate lines. Copy rules: headlines read on their
@@ -57,19 +57,19 @@ export const CHANGELOG: ChangelogEntry[] = [
         type: 'new',
         headline: 'New Crew tab',
         icon: 'people',
-        text: 'Train with your friends: see who trained today and build one crew streak together. A day you skip counts as rest, not a miss.',
+        text: 'Train with your friends. One list shows who trained today, how everyone’s week is going, and the streak you are all keeping alive together. A day you skip counts as rest, not a miss.',
       },
       {
         type: 'new',
-        headline: 'Crew moments',
+        headline: 'Crew records',
         icon: 'sparkles',
-        text: 'New records, Monday recaps, and streak milestones show up as moments, and anyone in the crew can pound them.',
+        text: 'A new personal record shows on that person’s row, and anyone in the crew can pound it. Monday recaps and streak milestones show at the top.',
       },
       {
         type: 'new',
         headline: 'Crew invites',
-        icon: 'qr-code',
-        text: 'Name your crew, then invite friends with the code, a link, or a QR code. Tap a member to see their week.',
+        icon: 'person-add',
+        text: 'Name your crew, then invite friends with the code or a link. Tap anyone to see their week.',
       },
       {
         type: 'new',
