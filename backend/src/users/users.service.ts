@@ -16,6 +16,20 @@ export class UsersService {
     private readonly config: ConfigService,
   ) {}
 
+  /** Sync the client-held display name / avatar id onto the User row. */
+  async updateProfile(
+    userId: string,
+    fields: { name?: string; avatarId?: string },
+  ): Promise<{ ok: true }> {
+    const data: { name?: string; avatarId?: string } = {};
+    if (fields.name !== undefined) data.name = fields.name.trim() || undefined;
+    if (fields.avatarId !== undefined) data.avatarId = fields.avatarId;
+    if (Object.keys(data).length > 0) {
+      await this.prisma.user.update({ where: { id: userId }, data });
+    }
+    return { ok: true };
+  }
+
   /** Full GDPR-style JSON export of app-persisted data for the user. */
   async exportUserData(userId: string) {
     const user = await this.prisma.user.findUnique({
