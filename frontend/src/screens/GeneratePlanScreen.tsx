@@ -333,6 +333,7 @@ function prefExperienceToForm(e: ExperienceOption): ExperienceLevel {
 }
 
 const PREF_EQUIPMENT_MAP: Partial<Record<EquipmentOption, EquipmentItem>> = {
+  'Bodyweight': 'none',
   'Barbell': 'barbell',
   'Dumbbell': 'dumbbells',
   'Machine': 'machines',
@@ -349,7 +350,12 @@ function prefEquipmentToForm(list: EquipmentOption[]): EquipmentItem[] {
     const item = PREF_EQUIPMENT_MAP[e];
     return item ? [item] : [];
   });
-  return [...new Set(mapped)] as EquipmentItem[];
+  const unique = [...new Set(mapped)] as EquipmentItem[];
+  // The form still has no word for TRX, medicine balls, or battle ropes, so a
+  // profile listing only those mapped to nothing — and an empty list made
+  // "Generate Plan" a full-colour button that silently returned. Training with
+  // no equipment is a real plan; having none to offer is not a reason to stop.
+  return unique.length > 0 ? unique : ['none'];
 }
 
 const DURATION_PRESETS = [30, 45, 60, 75] as const;

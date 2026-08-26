@@ -14,6 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { getWorkoutLogs } from '../services/workoutService';
 import type { WorkoutLog, WorkoutLogEntry, WorkoutLogEntrySet } from '../types/workout';
 import { formatLocalYmd } from '../lib/planCalendar';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { formatWeightCompactFromLb, type WeightUnit } from '../lib/weightDisplay';
+import {
+  exerciseUsesTimeDisplay,
+  formatRestSecondsForPreview,
+} from '../lib/exercisePrescription';
+import { MIN_PLAUSIBLE_DURATION_SECONDS } from '../lib/lastPerformanceDisplay';
 
 import { leading, radius, spacing, text, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
@@ -36,13 +43,43 @@ function formatDuration(seconds: number): string {
   return secs > 0 ? `${mins}m ${secs}s` : `${mins} min`;
 }
 
-function SetRow({ set, colors }: { set: WorkoutLogEntrySet; colors: Record<string, string> }) {
-  const weightStr = set.weight != null && set.weight > 0 ? `${set.weight} lb` : '—';
+/**
+ * One logged set, in the reader's own units. Timed work stores its duration
+ * seconds in the reps field, so a 45 s plank read as "45 × —" here long after
+ * every other history surface had learned to say "45s".
+ */
+function setDetailText(
+  set: WorkoutLogEntrySet,
+  isTimeBased: boolean,
+  unit: WeightUnit,
+): string {
+  const weightStr = formatWeightCompactFromLb(set.weight ?? null, unit);
+  // Legacy cardio rows put a rep count in the same field, so an implausibly
+  // short "duration" is left as a plain count rather than rendered as "1s".
+  if (isTimeBased && set.reps >= MIN_PLAUSIBLE_DURATION_SECONDS) {
+    const held = formatRestSecondsForPreview(set.reps);
+    return weightStr ? `${held} @ ${weightStr}` : held;
+  }
+  if (weightStr) return `${set.reps} × ${weightStr}`;
+  return `${set.reps} ${set.reps === 1 ? 'rep' : 'reps'}`;
+}
+
+function SetRow({
+  set,
+  isTimeBased,
+  unit,
+  colors,
+}: {
+  set: WorkoutLogEntrySet;
+  isTimeBased: boolean;
+  unit: WeightUnit;
+  colors: Record<string, string>;
+}) {
   return (
     <View style={styles.setRow}>
       <Text style={[styles.setNumber, { color: colors.textMuted }]}>Set {set.setNumber}</Text>
       <Text style={[styles.setDetail, { color: colors.text }]}>
-        {set.reps} × {weightStr}
+        {setDetailText(set, isTimeBased, unit)}
         {set.rpe != null ? ` · RPE ${set.rpe}` : ''}
       </Text>
       {set.notes ? (
@@ -54,12 +91,17 @@ function SetRow({ set, colors }: { set: WorkoutLogEntrySet; colors: Record<strin
 
 function LogEntryBlock({
   entry,
+  unit,
   colors,
 }: {
   entry: WorkoutLogEntry;
+  unit: WeightUnit;
   colors: Record<string, string>;
 }) {
   const sets = (entry.completedSets ?? []) as WorkoutLogEntrySet[];
+  // A log row carries no prescription, so the name is all there is to go on —
+  // the same fallback ExerciseDetail uses for its own history list.
+  const isTimeBased = exerciseUsesTimeDisplay(undefined, entry.name ?? '');
   return (
     <View style={[styles.entryBlock, { borderColor: colors.border }]}>
       <Text style={[styles.entryName, { color: colors.text }]}>{entry.name ?? 'Exercise'}</Text>
@@ -68,7 +110,7 @@ function LogEntryBlock({
       ) : null}
       <View style={styles.setsList}>
         {sets.map((s) => (
-          <SetRow key={s.setNumber} set={s} colors={colors} />
+          <SetRow key={s.setNumber} set={s} isTimeBased={isTimeBased} unit={unit} colors={colors} />
         ))}
       </View>
     </View>
@@ -78,11 +120,13 @@ function LogEntryBlock({
 function DayDetailSection({
   dateLabel,
   logs,
+  unit,
   colors,
   onClearSelection,
 }: {
   dateLabel: string;
   logs: WorkoutLog[];
+  unit: WeightUnit;
   colors: Record<string, string>;
   onClearSelection: () => void;
 }) {
@@ -143,7 +187,7 @@ function DayDetailSection({
           ) : null}
           <View style={styles.entriesList}>
             {(log.entries ?? []).map((entry) => (
-              <LogEntryBlock key={entry.id} entry={entry} colors={colors} />
+              <LogEntryBlock key={entry.id} entry={entry} unit={unit} colors={colors} />
             ))}
           </View>
         </View>
@@ -154,6 +198,7 @@ function DayDetailSection({
 
 export default function CalendarScreen({ navigation }: Props) {
   const { colors } = useTheme();
+  const { weightUnit } = useUserPreferences();
   // The tab bar floats over this screen; keep the last history rows clear of it.
   const tabBarInset = useTabBarInset();
   // Title and back button now come from the native header in PlanStackNavigator.
@@ -376,6 +421,7 @@ export default function CalendarScreen({ navigation }: Props) {
             <DayDetailSection
               dateLabel={selectedDateLabel}
               logs={selectedDayLogs}
+              unit={weightUnit}
               colors={colors}
               onClearSelection={() => setSelectedDate(null)}
             />

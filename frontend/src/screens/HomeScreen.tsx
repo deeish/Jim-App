@@ -572,14 +572,14 @@ export default function HomeScreen() {
                   </View>
                 </View>
                 <Text style={[styles.hintBelow, { color: colors.textMuted, marginBottom: spacing.lg }]}>
-                  Open Plan and start this session to load it into your workout.
+                  Open Calendar and start this session to load it into your workout.
                 </Text>
                 <TouchableOpacity
                   style={[styles.primaryButton, themedStyles.primaryCta]}
                   onPress={goToPlan}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.primaryButtonText, themedStyles.primaryCtaText]}>Open Plan</Text>
+                  <Text style={[styles.primaryButtonText, themedStyles.primaryCtaText]}>Open Calendar</Text>
                   <Ionicons name="arrow-forward" size={18} color={colors.background} />
                 </TouchableOpacity>
               </View>
@@ -638,8 +638,14 @@ export default function HomeScreen() {
                   <View style={styles.cardTextBlock}>
                     <Text style={[styles.cardEyebrow, { color: colors.textMuted }]}>This calendar week</Text>
                     <Text style={[styles.cardTitle, { color: colors.text }]}>Outside your program</Text>
+                    {/* Nothing in the app extends a program, and there is no
+                        Plan tab to open — both were promised here long after
+                        they stopped being true. Note this state is reached
+                        BEFORE a program starts (running past the last week
+                        resolves to `in_program`, repeating it), so the copy
+                        must not talk about the end of the plan. */}
                     <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
-                      Your date falls outside the program weeks. Open Plan to extend or switch weeks.
+                      Today isn’t one of your program’s weeks. Open Calendar to pick a week to train.
                     </Text>
                   </View>
                 </View>
@@ -648,7 +654,7 @@ export default function HomeScreen() {
                   onPress={goToPlan}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.primaryButtonText, themedStyles.primaryCtaText]}>Open weekly plan</Text>
+                  <Text style={[styles.primaryButtonText, themedStyles.primaryCtaText]}>Open Calendar</Text>
                   <Ionicons name="arrow-forward" size={18} color={colors.background} />
                 </TouchableOpacity>
               </View>
