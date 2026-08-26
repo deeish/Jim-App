@@ -61,6 +61,7 @@ import {
 } from '../lib/profileBand';
 import { MUSCLE_EDGE, MUSCLE_INK, muscleGradient } from '../lib/planCalendarPrototype';
 import { muscleFromCatalog } from '../lib/planCalendarPrototypeStore';
+import { SkeletonCard } from '../components/Skeleton';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { RootNavigatorParamList } from '../types/navigation';
 import { shareJsonExport } from '../lib/shareDataExport';
@@ -557,6 +558,28 @@ export default function ProfileScreen() {
   const [weighIns, setWeighIns] = useState<BodyWeightEntry[]>([]);
   const [stats, setStats] = useState<WorkoutStats | null>(null);
   const [bestLifts, setBestLifts] = useState<BestLift[]>([]);
+  /**
+   * ONE flag for the whole band, held until ALL THREE fetches settle.
+   *
+   * Two problems it solves, and they need the same fix:
+   *
+   * 1. The band resolves from empty inputs while loading, which collapses it
+   *    to `weightRow` — so a user with years of weigh-ins was told "Body
+   *    weight — Not set", and the row then vanished out from under their
+   *    finger when the data landed.
+   * 2. The three pieces each rendered `null` until their own request
+   *    returned, and best-lifts is TWO sequential round trips, so the page
+   *    inserted 150-300px in up to three separate jolts while the user was
+   *    reaching for the settings rows below.
+   *
+   * Waiting for all three costs a little more time-to-content and buys a
+   * page that arrives once, correct.
+   */
+  const [bandLoading, setBandLoading] = useState(true);
+  /** Refetch on focus keeps what is already on screen — the band must never
+   *  blink back to skeletons over data we have. Same rule ProgressScreen
+   *  documents at its own load. */
+  const bandLoadedOnce = useRef(false);
   // Hidden support tool: long-press the App version row to toggle the Liquid
   // Glass diagnostic. Deliberately undiscoverable — it exists so a TestFlight
   // screenshot can report, from the device itself, whether the glass module is
@@ -596,20 +619,22 @@ export default function ProfileScreen() {
         setWeighIns([]);
         setStats(null);
         setBestLifts([]);
+        setBandLoading(false);
         return;
       }
       let active = true;
-      listWeighIns(180)
+      if (!bandLoadedOnce.current) setBandLoading(true);
+      const weighInsDone = listWeighIns(180)
         .then((rows) => {
           if (active) setWeighIns(rows);
         })
         .catch(() => {});
-      getWorkoutStats()
+      const statsDone = getWorkoutStats()
         .then((s) => {
           if (active) setStats(s);
         })
         .catch(() => {});
-      (async () => {
+      const liftsDone = (async () => {
         try {
           // Frequency from a recent window; VALUES from the lifetime records —
           // a best must never be a recency artifact.
@@ -630,6 +655,13 @@ export default function ProfileScreen() {
           // Leave whatever was shown before; the band handles absence.
         }
       })();
+      // allSettled, not all: one failed request must still reveal the band,
+      // which is built to degrade to whatever arrived.
+      void Promise.allSettled([weighInsDone, statsDone, liftsDone]).then(() => {
+        if (!active) return;
+        bandLoadedOnce.current = true;
+        setBandLoading(false);
+      });
       return () => {
         active = false;
       };
@@ -1034,13 +1066,25 @@ export default function ProfileScreen() {
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </TouchableOpacity>
 
-        {/* The goal-adaptive band (rules 1–5 live in lib/profileBand.ts). */}
-        {band.lead === 'lifts' ? bestLiftsCard : band.lead === 'weight' ? bodyWeightSection : null}
-        {band.second === 'weightCard'
-          ? bodyWeightSection
-          : band.second === 'liftsStrip'
-            ? liftsStrip
-            : null}
+        {/* The goal-adaptive band (rules 1–5 live in lib/profileBand.ts).
+            Skeletons stand in for BOTH slots at once: the band's shape is
+            decided by data that has not arrived, so revealing either piece
+            early is what produced the reflow. */}
+        {bandLoading ? (
+          <>
+            <SkeletonCard lines={3} />
+            <SkeletonCard lines={2} />
+          </>
+        ) : (
+          <>
+            {band.lead === 'lifts' ? bestLiftsCard : band.lead === 'weight' ? bodyWeightSection : null}
+            {band.second === 'weightCard'
+              ? bodyWeightSection
+              : band.second === 'liftsStrip'
+                ? liftsStrip
+                : null}
+          </>
+        )}
 
         <SectionHeader title="Training" colors={colors} />
         <View style={[styles.sectionCard, themedStyles.sectionCard]}>
@@ -1144,7 +1188,11 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
-          {band.second === 'weightRow' ? (
+          {/* Gated on the load, not just the band: with no weigh-ins yet
+              fetched the band ALWAYS resolves to `weightRow`, so this row
+              told a user with years of history that their body weight was
+              "Not set". */}
+          {!bandLoading && band.second === 'weightRow' ? (
             <>
               <View style={[styles.rowDivider, themedStyles.rowDivider]} />
               <ChipRow
