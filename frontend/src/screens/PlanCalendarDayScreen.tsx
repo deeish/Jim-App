@@ -81,6 +81,17 @@ type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarDay'>;
 // One nudge per device; retired the moment it has been shown once.
 const SWIPE_HINT_KEY = 'jim_calendar_swipe_hint_v1';
 
+// The header ⋯: a fixed square box so the glyph centres in the system's
+// iOS 26 glass circle regardless of the glyph's own bearings.
+const headerButtonStyles = StyleSheet.create({
+  dayActions: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
 /** The slot a long-press is acting on. */
 type SlotTarget = { index: number; exercise: PlannedExercise };
 
@@ -204,6 +215,12 @@ export default function PlanCalendarDayScreen() {
     navigation.setOptions({
       headerRight: dayActionable
         ? () => (
+            // ⚠ Device-only (iOS 26): the system wraps this view in its own
+            // Liquid Glass circle. The old FILLED ellipsis-horizontal-circle
+            // glyph drew a second disc inside that circle, and the two never
+            // sat concentric (Dylan's build-26 screenshot, 2026-08-25). Bare
+            // dots in an explicit centered box let the system circle BE the
+            // circle — nothing left to drift.
             <TouchableOpacity
               onPress={() => {
                 buzzMenuOpen();
@@ -212,8 +229,9 @@ export default function PlanCalendarDayScreen() {
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Day options"
+              style={headerButtonStyles.dayActions}
             >
-              <Ionicons name="ellipsis-horizontal-circle" size={26} color={colors.primary} />
+              <Ionicons name="ellipsis-horizontal" size={22} color={colors.primary} />
             </TouchableOpacity>
           )
         : undefined,

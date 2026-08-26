@@ -46,6 +46,13 @@ type AnyNav = NativeStackNavigationProp<PlanCalendarParamList>;
  * height as the header's other pills (heart/share icons are 22) — so the back
  * pill matches them instead of rendering as a visibly fatter lozenge (Dylan's
  * build-23 report; the old size-26 chevron was the bloat).
+ *
+ * ⚠ Device-only balance: the chevron GLYPH carries ~5pt of empty left-side
+ * bearing inside its 22pt box, so with no padding of our own the pill read
+ * lopsided — ~11pt of air left of the chevron's ink vs ~5pt right of the
+ * label (measured off Dylan's build-26 screenshot, 2026-08-25). The wrap's
+ * paddingRight matches the glyph's bearing so both visible gaps come out
+ * equal. Web's header shim shows none of this — judge it on an iPhone only.
  */
 function BackTo({ label, onPress }: { label: string; onPress: () => void }) {
   const { colors } = useTheme();
@@ -70,11 +77,16 @@ const backStyles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
+    // The chevron glyph's left-side bearing, mirrored — see the ⚠ above.
+    paddingRight: 5,
   },
   label: {
     ...sfPro,
     fontSize: text.headline,
     fontWeight: weight.regular,
+    // Match the chevron's 22pt box so the row centres by geometry, not
+    // baseline — a taller text box floats the pair inside the glass pill.
+    lineHeight: 22,
     marginLeft: -spacing.xxs,
   },
 });
