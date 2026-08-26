@@ -14,6 +14,11 @@ export function computeCrewSignature(summary: CrewSummary): string {
       .filter((m) => !m.isMe)
       .map((m) => `s:${m.userId}:${m.latestSessionRef ?? 'none'}`),
     `me:${summary.members.find((m) => m.isMe)?.kudosWeek ?? 0}`,
+    // Someone JOINING is the most interesting thing that can happen to a
+    // young crew, and it moved nothing above: a new member with no sessions
+    // yet contributes `s:<id>:none`, which is a new part — but a member
+    // LEAVING removed one silently. Counting them makes both light the badge.
+    `n:${summary.members.length}`,
   ];
   return parts.sort().join('|');
 }

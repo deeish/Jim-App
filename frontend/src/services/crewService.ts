@@ -29,7 +29,7 @@ export interface CrewMemberSummary {
   todayState: 'trained' | 'scheduled' | 'rest';
   week: CrewMemberDay[];
   weekStreak: number;
-  lastSession: { title: string; dateIso: string; performedAtIso: string } | null;
+  lastSession: { title: string; dateIso: string } | null;
   race: { done: number; planned: number };
   hasPlanThisWeek: boolean;
   kudosWeek: number;
@@ -50,9 +50,11 @@ export interface CrewMoment {
   dateIso: string;
   kudos: number;
   iPounded: boolean;
-  /** pr */
+  /** pr — the set actually lifted; the record is DETECTED by estimated 1RM
+   *  but always announced as real weight x reps. */
   exerciseName?: string;
   weight?: number;
+  reps?: number;
   /** recap (userId/name/avatar = the week's winner) */
   winnerDone?: number;
   winnerPlanned?: number;
@@ -65,6 +67,9 @@ export interface CrewMoment {
 export interface CrewSummary {
   crew: { code: string; name: string | null; createdAtIso: string } | null;
   meUserId: string;
+  /** Whoever has been in the crew longest: the only member who can remove
+   *  someone or mint a new code. Null when you have no crew. */
+  leadUserId: string | null;
   streakDays: number;
   members: CrewMemberSummary[];
   moments: CrewMoment[];
@@ -110,5 +115,16 @@ export async function toggleCrewKudos(
     '/crews/mine/kudos',
     { toUserId, eventRef },
   );
+  return data;
+}
+
+/** Remove a crewmate. Crew lead only; the server enforces it. */
+export async function removeCrewMember(targetUserId: string): Promise<void> {
+  await api.delete(`/crews/mine/members/${targetUserId}`);
+}
+
+/** Mint a new crew code, invalidating the old one. Crew lead only. */
+export async function rotateCrewCode(): Promise<{ code: string }> {
+  const { data } = await api.post<{ code: string }>('/crews/mine/code');
   return data;
 }

@@ -4,6 +4,7 @@ import type { CrewSummary } from '../services/crewService';
 const base = (over: Partial<CrewSummary> = {}): CrewSummary => ({
   crew: { code: 'AAAA2222', name: null, createdAtIso: '2026-08-01T00:00:00Z' },
   meUserId: 'me',
+  leadUserId: 'me',
   streakDays: 3,
   members: [
     {
