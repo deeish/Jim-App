@@ -23,28 +23,28 @@ Categories: **SKELETON** · **SPINNER** · **NOTHING** (renders null) · **EMPTY
 | Screen | What loads | Treatment | Where |
 |---|---|---|---|
 | App root | session + prefs hydration | Branded splash, gates the nav tree | `App.tsx:102`, `:188-190` |
-| HomeScreen | plan, weekly workouts, stats | SKELETON (one card for the whole body) | `HomeScreen.tsx:439-442` |
-| CalendarScreen (History) | month's logs | SPINNER, labelled | `CalendarScreen.tsx:286-291` |
+| HomeScreen | plan, weekly workouts, stats | SKELETON — ~~one card~~ → **3 regions, `52b3a76`** | `HomeScreen.tsx:439-442` |
+| CalendarScreen (History) | month's logs | SPINNER + **per-cell placeholder dots, `52b3a76`** | `CalendarScreen.tsx:286-291` |
 | ProgressScreen | workout stats | **SKELETON** ✅ reference | `ProgressScreen.tsx:84-93` |
 | TemplatesScreen | template list | SKELETON | `TemplatesScreen.tsx:66-76` |
 | TemplateDetailScreen | one template | SKELETON | `TemplateDetailScreen.tsx:149-157` |
-| SavedWorkoutsScreen | saved + current plan | SKELETON | `SavedWorkoutsScreen.tsx:157-158` |
-| ExerciseDetailScreen | exercise + saved ids | SKELETON | `ExerciseDetailScreen.tsx:526-539` |
+| SavedWorkoutsScreen | saved + current plan | SKELETON, **no longer re-flashes on focus, `ba7b055`** | `SavedWorkoutsScreen.tsx:157-158` |
+| ExerciseDetailScreen | exercise + saved ids | SKELETON + **history card reserved, `52b3a76`** | `ExerciseDetailScreen.tsx:526-539` |
 | PlanCalendarWeekScreen | calendar store | **SKELETON** ✅ distinguishes `'loading'` from `'empty'` | `:255-262`, guard `:432` |
 | PlanCalendarMonthScreen | same store | ~~EMPTY-STATE~~ → **fixed** `fd46bce` | `:479-485` |
 | PlanCalendarDayScreen | same store | ~~EMPTY-STATE~~ → **fixed** `fd46bce` | `:448-453` |
-| PlanCalendarWorkoutScreen | exercise history for the deck | NOTHING + value-swap | `:170-189`, `:691`, `:693` |
+| PlanCalendarWorkoutScreen | exercise history for the deck | ~~NOTHING~~ → **row reserved, `cf1452d`** | `:170-189`, `:691`, `:693` |
 | PlanCalendarExercisePickerScreen | suggestions | Text placeholder, space reserved ✅ | `:270-279` |
-| PlanCalendarWorkoutCompleteScreen | celebration baselines | **NOTHING** — no loading concept in 1637 lines | `:305`, `:1015-1075` |
-| CrewScreen | crew summary | SPINNER (full-screen) | `CrewScreen.tsx:733-736` |
+| PlanCalendarWorkoutCompleteScreen | celebration baselines | ~~NOTHING~~ → **auto-advance waits, `de998d1`** | `:305`, `:1015-1075` |
+| CrewScreen | crew summary | SPINNER + **create/join ordering fixed, `fdff354`** | `CrewScreen.tsx:733-736` |
 | ProfileScreen | 3 fetches, 2 sequential | ~~NOTHING + EMPTY-STATE~~ → **fixed** `f7d9a3c` | `:557-559`, `:593-637`, `:1154-1158` |
 | SearchScreen | saved-exercise list | SPINNER, guarded ✅ | `SearchScreen.tsx:580-583` |
-| ↳ ExerciseLibrary | exercise search | SPINNER, all empty branches gated ✅ | `:1630-1633`, `:1479-1491` |
-| WorkoutDetailScreen | workout + plan | SPINNER; one empty-state frame first | `:394-401`; `loading` inits `false` at `:50` |
-| WeightTrackerScreen | a year of weigh-ins | SPINNER replacing card + chart + list | `:261-264` |
+| ↳ ExerciseLibrary | exercise search | SPINNER ✅; ~~one empty frame~~ → **fixed `ba7b055`** | `:1630-1633`, `:909` |
+| WorkoutDetailScreen | workout + plan | SPINNER; ~~empty-state frame~~ → **fixed `ba7b055`** | `:394-401`, `:50` |
+| WeightTrackerScreen | a year of weigh-ins | ~~SPINNER~~ → **SKELETON, `52b3a76`** | `:261-264` |
 | ShareRedeemScreen | code lookup | SPINNER | `:458-461` |
-| GeneratePlanScreen | AsyncStorage only | BenchPressLoader on the auto path; EMPTY-STATE in the splits picker | `:1072-1082`; `:2068-2069` |
-| PlanPreviewScreen | the Groq generation | Dedicated full-screen loader ✅ | `:1093-1104`, gate `:1125` |
+| GeneratePlanScreen | AsyncStorage only | BenchPressLoader; ~~EMPTY-STATE~~ → **fixed `ba7b055`** | `:1072-1082`; `:2068-2069` |
+| PlanPreviewScreen | the Groq generation | Full-screen loader ✅ + **Apply gated, `cf1452d`** | `:1093-1104`, `:1679-1704` |
 | OnboardingScreen | local state | N/A; payoff card has a card-shaped spinner ✅ | `:382-385` |
 | Login / Signup / Forgot / SetNewPassword | submit only | N/A — in-button spinner | `LoginScreen.tsx:119` |
 
@@ -63,18 +63,18 @@ Categories: **SKELETON** · **SPINNER** · **NOTHING** (renders null) · **EMPTY
 
   ⚠ **The lede needed it too, and only a screenshot caught that.** `PlanCalendarDayScreen.tsx:336` renders `${pPlan.title} · ${date} · ${n} exercises`, which read **"Rest Day · Aug 26 · 0 exercises"** one line above the card that had just been fixed. A text assertion for `"Rest day"` walked straight past it on the capital D. *Lesson: assert case-insensitively, and look at the picture.*
 
-**Still open:**
+**All closed except the latent one:**
 
 - [x] **3. ProfileScreen — "Body weight — Not set"** to a user with years of weigh-ins — **fixed `f7d9a3c`**
   The row existed *because* the band collapses to `weightRow` on empty data (`profileBand.ts:50-66`), so it both lied and then vanished out from under a finger when data landed. Replayed on **every** open, Profile being a pushed screen that unmounts on back (`App.tsx:173`).
   One `bandLoading` flag held until all three fetches settle fixes the lie *and* the triple reflow — they were the same bug seen twice. Two skeleton cards stand in for both slots, because which slot gets which card is itself decided by data that hasn't arrived. `allSettled`, not `all`: one failed request must still reveal a band built to degrade.
   ⚠ Profile still unmounts on back, so each open shows a brief skeleton rather than stale content. That is honest where "Not set" was not, but it is not free — a cached band across mounts would be the next step if it grates.
-- [ ] **4. GeneratePlanScreen — "No saved splits yet."** before the AsyncStorage read returns. `:2068-2069`
-- [ ] **5. CrewScreen — create** closes the sheet *before* `await load()` (`:177-179`), so you watch the "start a crew" empty state while your new crew is fetched.
-- [ ] **6. CrewScreen — join** button label is unconditionally `"Join"`; `busy` reaches `disabled` only (`:806-815`). Two round trips, no feedback.
-- [ ] **7. WorkoutDetailScreen** — one painted frame of "No workout selected" because `loading` inits `false` (`:50`).
-- [ ] **8. ExerciseLibrary** — one frame of "No exercises to show", same cause (`:909`).
-- [ ] **9. PlanCalendarWorkoutComplete** *(latent)* — on a cold store: "Rest Day" subtitle, "0 sets", and **"cut short still counts"** over a completed session. ⚠ Reachability unconfirmed; the day screen normally primes the store first.
+- [x] **4. GeneratePlanScreen — "No saved splits yet."** before the AsyncStorage read returns. `:2068-2069`
+- [x] **5. CrewScreen — create** closes the sheet *before* `await load()` (`:177-179`), so you watch the "start a crew" empty state while your new crew is fetched.
+- [x] **6. CrewScreen — join** button label is unconditionally `"Join"`; `busy` reaches `disabled` only (`:806-815`). Two round trips, no feedback.
+- [x] **7. WorkoutDetailScreen** — one painted frame of "No workout selected" because `loading` inits `false` (`:50`).
+- [x] **8. ExerciseLibrary** — one frame of "No exercises to show", same cause (`:909`).
+- [ ] **9. PlanCalendarWorkoutComplete** *(latent, still open)* — on a cold store: "Rest Day" subtitle, "0 sets", and **"cut short still counts"** over a completed session. ⚠ Reachability unconfirmed; the day screen normally primes the store first.
 
 ---
 
@@ -95,7 +95,11 @@ Categories: **SKELETON** · **SPINNER** · **NOTHING** (renders null) · **EMPTY
 
 **Done:** calendar Day + Month (above).
 
-**Worth doing next**
+**All done as of 2026-08-26** — every item below was closed in `ba7b055`, `fdff354`,
+`de998d1`, `52b3a76`, `cf1452d`. Verified by stalling **every** `/api/**` call for 20s and
+sweeping Home, Calendar (week/month/day), Crew, Exercises and Profile: **zero** instances of
+any of the six lying strings, everything resolved afterwards, no page errors.
+
 1. ~~ProfileScreen athlete band~~ — **done, `f7d9a3c`**.
 2. **Extend Home's skeleton** — the primitive is already imported; add the week strip and momentum tiles so the page stops quadrupling.
 3. **Finish-screen ordering** — `await primeCelebrationBaselines` *before* navigating, or hold the auto-advance. Not a skeleton; a 2.8s poster with a shimmer would be worse than the wait.
