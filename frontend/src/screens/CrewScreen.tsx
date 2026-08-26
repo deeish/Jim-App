@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute, type RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,7 +26,12 @@ import SheetModal from '../components/SheetModal';
 import { haptics } from '../lib/haptics';
 import { recentDayLabel } from '../lib/homeToday';
 import { formatShareCode, formatShareCodeInput, isValidShareCode } from '../lib/shareCode';
+import { buildCrewInviteMessage } from '../lib/shareLinks';
+import { markCrewSeen } from '../lib/crewBadgeStore';
 import { formatWeightFromLb } from '../lib/weightDisplay';
+import QrCodeView from '../components/QrCodeView';
+import { buildCrewUrl } from '../lib/shareLinks';
+import type { RootTabParamList } from '../components/NavBar';
 import {
   GOLD,
   fromIso,
@@ -42,9 +47,11 @@ import {
   getCrewSummary,
   joinCrew,
   leaveCrew,
+  renameCrew,
   toggleCrewKudos,
   type CrewMemberDay,
   type CrewMemberSummary,
+  type CrewMoment,
   type CrewSummary,
 } from '../services/crewService';
 import { syncProfileToServer } from '../services/userService';
@@ -89,6 +96,17 @@ export default function CrewScreen() {
   const [joinInput, setJoinInput] = useState('');
   const [joinError, setJoinError] = useState('');
   const [sheetOpen, setSheetOpen] = useState(false);
+  /** Story-row tap → the member's mini profile sheet. */
+  const [memberSheetId, setMemberSheetId] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState('');
+
+  // A jimapp://crew/CODE deep link lands here with the code — prefill only;
+  // joining stays an explicit tap.
+  const route = useRoute<RouteProp<RootTabParamList, 'Crew'>>();
+  const joinCodeParam = route.params?.joinCode;
+  React.useEffect(() => {
+    if (joinCodeParam) setJoinInput(formatShareCodeInput(joinCodeParam));
+  }, [joinCodeParam]);
 
   const load = useCallback(async () => {
     try {
@@ -96,7 +114,10 @@ export default function CrewScreen() {
       const monday = toIso(mondayOf(fromIso(today)));
       const s = await getCrewSummary(today, monday);
       setSummary(s);
+      setNameDraft(s.crew?.name ?? '');
       setOffline(false);
+      // The tab has now shown everything — clear the badge fingerprint.
+      void markCrewSeen(s);
     } catch {
       setOffline(true);
     } finally {
@@ -187,9 +208,25 @@ export default function CrewScreen() {
     ]);
   };
 
+  const commitRename = async () => {
+    const current = summary?.crew?.name ?? '';
+    if (nameDraft.trim() === current.trim()) return;
+    try {
+      const { name } = await renameCrew(nameDraft);
+      setSummary((s) => (s?.crew ? { ...s, crew: { ...s.crew, name } } : s));
+      setNameDraft(name ?? '');
+      haptics.select();
+    } catch {
+      setNameDraft(current);
+    }
+  };
+
   const shareCode = async (code: string) => {
     haptics.tap();
-    const message = `Join my crew on Jim — open the Crew tab and enter code ${formatShareCode(code)}.`;
+    const message = buildCrewInviteMessage({
+      crewName: summary?.crew?.name ?? null,
+      code,
+    });
     try {
       await Share.share({ message });
     } catch {
@@ -259,6 +296,32 @@ export default function CrewScreen() {
   const members = summary?.members ?? [];
   const others = members.filter((m) => !m.isMe);
   const today = todayIso();
+  const memberSheet = memberSheetId
+    ? (members.find((m) => m.userId === memberSheetId) ?? null)
+    : null;
+
+  const momentCopy = (mo: CrewMoment): { title: string; caption: string } => {
+    const first = firstNameOf({
+      name: mo.name,
+      isMe: mo.userId === summary?.meUserId,
+    });
+    if (mo.kind === 'pr') {
+      return {
+        title: `${first} hit ${formatWeightFromLb(mo.weight ?? 0, weightUnit)} on ${mo.exerciseName ?? 'a lift'}`,
+        caption: `New personal record · ${recentDayLabel(mo.dateIso, today)}`,
+      };
+    }
+    if (mo.kind === 'recap') {
+      return {
+        title: `${first} won last week's race`,
+        caption: `${mo.winnerDone ?? 0} of ${mo.winnerPlanned ?? 0} sessions · crew went ${mo.crewDone ?? 0}/${mo.crewPlanned ?? 0}`,
+      };
+    }
+    return {
+      title: `${mo.milestone ?? 0}-day crew streak`,
+      caption: 'Nobody has missed a scheduled workout. Keep it alive.',
+    };
+  };
 
   const scheduledNow = members.filter((m) => m.todayState === 'scheduled');
   const streakCaption =
@@ -471,7 +534,17 @@ export default function CrewScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.storiesScroll}>
                 <View style={styles.storiesRow}>
                   {members.map((m) => (
-                    <View key={m.userId} style={styles.storyColumn}>
+                    <TouchableOpacity
+                      key={m.userId}
+                      style={styles.storyColumn}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        haptics.select();
+                        setMemberSheetId(m.userId);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${firstNameOf(m)}, ${m.todayState === 'trained' ? 'trained today' : m.todayState === 'scheduled' ? 'scheduled today' : 'rest day'}`}
+                    >
                       <View style={[styles.storyRing, storyRing(m)]}>
                         <ProfileAvatarDisc
                           avatarId={(m.avatarId ?? 'default') as ProfileAvatarId}
@@ -483,7 +556,7 @@ export default function CrewScreen() {
                       <Text style={[styles.storyName, m.isMe && styles.storyNameMe]} numberOfLines={1}>
                         {firstNameOf(m)}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </ScrollView>
@@ -531,30 +604,41 @@ export default function CrewScreen() {
               {summary!.moments.length > 0 ? (
                 <>
                   <Text style={styles.sectionLabel}>Moments</Text>
-                  {summary!.moments.map((mo) => (
-                    <View key={`${mo.userId}-${mo.ref}`} style={styles.momentCard}>
-                      <ProfileAvatarDisc
-                        avatarId={(mo.avatarId ?? 'default') as ProfileAvatarId}
-                        size={38}
-                        colors={colors}
-                        initial={(mo.name?.trim() || 'J')[0].toUpperCase()}
-                      />
-                      <View style={styles.momentTextWrap}>
-                        <Text style={styles.momentTitle} numberOfLines={2}>
-                          {`${firstNameOf({ name: mo.name, isMe: mo.userId === summary!.meUserId })} hit ${formatWeightFromLb(mo.weight, weightUnit)} on ${mo.exerciseName}`}
-                        </Text>
-                        <Text style={styles.momentCaption}>
-                          {`New personal record · ${recentDayLabel(mo.dateIso, today)}`}
-                        </Text>
+                  {summary!.moments.map((mo) => {
+                    const { title, caption } = momentCopy(mo);
+                    return (
+                      <View key={`${mo.userId ?? 'crew'}-${mo.ref}`} style={styles.momentCard}>
+                        {mo.userId ? (
+                          <ProfileAvatarDisc
+                            avatarId={(mo.avatarId ?? 'default') as ProfileAvatarId}
+                            size={38}
+                            colors={colors}
+                            initial={(mo.name?.trim() || 'J')[0].toUpperCase()}
+                          />
+                        ) : (
+                          <View style={styles.momentFlame}>
+                            <Ionicons name="flame" size={19} color="#FFFFFF" />
+                          </View>
+                        )}
+                        <View style={styles.momentTextWrap}>
+                          <Text style={styles.momentTitle} numberOfLines={2}>
+                            {title}
+                          </Text>
+                          <Text style={styles.momentCaption}>{caption}</Text>
+                        </View>
+                        {mo.kind !== 'streak'
+                          ? pumpChip(
+                              mo.kudos,
+                              mo.iPounded,
+                              !mo.userId || mo.userId === summary!.meUserId
+                                ? null
+                                : () => void pound(mo.userId!, mo.ref),
+                              true,
+                            )
+                          : null}
                       </View>
-                      {pumpChip(
-                        mo.kudos,
-                        mo.iPounded,
-                        mo.userId === summary!.meUserId ? null : () => void pound(mo.userId, mo.ref),
-                        true,
-                      )}
-                    </View>
-                  ))}
+                    );
+                  })}
                 </>
               ) : null}
 
@@ -671,25 +755,46 @@ export default function CrewScreen() {
       <SheetModal visible={sheetOpen} onClose={() => setSheetOpen(false)} scrimColor={colors.scrim}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grabber} />
-          <Text style={styles.sheetTitle}>Your crew</Text>
+          <Text style={styles.sheetTitle}>{crew?.name || 'Your crew'}</Text>
+          <Text style={styles.fieldLabel}>Crew name</Text>
+          <TextInput
+            style={styles.nameInput}
+            value={nameDraft}
+            onChangeText={setNameDraft}
+            onBlur={() => void commitRename()}
+            onSubmitEditing={() => void commitRename()}
+            returnKeyType="done"
+            placeholder="Name your crew"
+            placeholderTextColor={colors.textMuted}
+            maxLength={40}
+            accessibilityLabel="Crew name"
+          />
           {crew ? (
-            <View style={styles.codeCard}>
-              <View style={styles.codeTextWrap}>
-                <Text style={styles.codeValue}>{formatShareCode(crew.code)}</Text>
-                <Text style={styles.codeCaption}>
-                  {`${members.length} of 10 · anyone with the code can join`}
-                </Text>
+            <>
+              <View style={styles.codeCard}>
+                <View style={styles.codeTextWrap}>
+                  <Text style={styles.codeValue}>{formatShareCode(crew.code)}</Text>
+                  <Text style={styles.codeCaption}>
+                    {`${members.length} of 10 · anyone with the code can join`}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.codeShareButton}
+                  onPress={() => void shareCode(crew.code)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Share crew code"
+                >
+                  <Ionicons name="share-outline" size={18} color={colors.onPrimary} />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.codeShareButton}
-                onPress={() => void shareCode(crew.code)}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel="Share crew code"
-              >
-                <Ionicons name="share-outline" size={18} color={colors.onPrimary} />
-              </TouchableOpacity>
-            </View>
+              {/* The QR encodes jimapp://crew/CODE — scanning it with the
+                  camera lands the friend on this tab with the code filled. */}
+              <View style={styles.qrWrap}>
+                <QrCodeView value={buildCrewUrl(crew.code)} size={148} />
+                <Text style={styles.qrCaption}>Scan with the phone camera</Text>
+              </View>
+            </>
           ) : null}
           <TouchableOpacity
             style={styles.leaveRow}
@@ -701,6 +806,75 @@ export default function CrewScreen() {
             <Ionicons name="exit-outline" size={18} color={colors.error} />
             <Text style={styles.leaveLabel}>Leave crew</Text>
           </TouchableOpacity>
+        </Pressable>
+      </SheetModal>
+
+      {/* The story-tap mini profile. */}
+      <SheetModal
+        visible={memberSheet !== null}
+        onClose={() => setMemberSheetId(null)}
+        scrimColor={colors.scrim}
+      >
+        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.grabber} />
+          {memberSheet ? (
+            <>
+              <View style={styles.memberSheetHeader}>
+                <ProfileAvatarDisc
+                  avatarId={(memberSheet.avatarId ?? 'default') as ProfileAvatarId}
+                  size={56}
+                  colors={colors}
+                  initial={initialOf(memberSheet)}
+                />
+                <View style={styles.memberSheetNameWrap}>
+                  <Text style={styles.memberSheetName}>{firstNameOf(memberSheet)}</Text>
+                  <Text
+                    style={[
+                      styles.memberSheetToday,
+                      memberSheet.todayState === 'trained' && { color: GOLD },
+                      memberSheet.todayState === 'scheduled' && { color: colors.primary },
+                    ]}
+                  >
+                    {memberSheet.todayState === 'trained'
+                      ? 'Trained today'
+                      : memberSheet.todayState === 'scheduled'
+                        ? 'Scheduled today — hasn’t trained yet'
+                        : 'Rest day'}
+                  </Text>
+                </View>
+                {!memberSheet.isMe && memberSheet.latestSessionRef
+                  ? pumpChip(memberSheet.kudosWeek, memberSheet.iPoundedLatest, () =>
+                      void pound(memberSheet.userId, memberSheet.latestSessionRef!),
+                    )
+                  : null}
+              </View>
+              <View style={styles.tileRow}>{memberSheet.week.map(miniTile)}</View>
+              <View style={styles.memberSheetStats}>
+                {memberSheet.weekStreak > 0 ? (
+                  <View style={styles.memberSheetStatRow}>
+                    <Ionicons name="flame" size={14} color="#FF9F0A" />
+                    <Text style={styles.memberSheetStat}>
+                      {`${memberSheet.weekStreak}-week streak`}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={styles.memberSheetStatRow}>
+                  <Ionicons name="checkmark-circle-outline" size={14} color={colors.textMuted} />
+                  <Text style={styles.memberSheetStat}>
+                    {`${memberSheet.race.done} of ${Math.max(memberSheet.race.planned, memberSheet.race.done)} sessions this week`}
+                  </Text>
+                </View>
+                {memberSheet.lastSession ? (
+                  <View style={styles.memberSheetStatRow}>
+                    <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+                    <Text style={styles.memberSheetStat}>
+                      {`${memberSheet.lastSession.title} · ${recentDayLabel(memberSheet.lastSession.dateIso, today)}`}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </>
+          ) : null}
         </Pressable>
       </SheetModal>
     </SafeAreaView>
@@ -1191,6 +1365,81 @@ function createStyles(c: ColorPalette) {
       fontSize: text.callout,
       fontWeight: weight.semibold,
       color: c.error,
+    },
+    momentFlame: {
+      width: 38,
+      height: 38,
+      borderRadius: radius.md,
+      backgroundColor: '#FF9F0A',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    fieldLabel: {
+      fontSize: text.caption,
+      fontWeight: weight.heavy,
+      letterSpacing: tracking.widest,
+      textTransform: 'uppercase',
+      color: c.textMuted,
+      marginBottom: spacing.xs,
+    },
+    nameInput: {
+      height: 44,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.background,
+      paddingHorizontal: spacing.lg,
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: c.text,
+      marginBottom: spacing.md,
+    },
+    qrWrap: {
+      alignItems: 'center',
+      marginTop: spacing.md,
+      gap: spacing.sm,
+    },
+    qrCaption: {
+      fontSize: text.caption,
+      fontWeight: weight.medium,
+      color: c.textMuted,
+    },
+    memberSheetHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingTop: spacing.lg,
+      marginBottom: spacing.md,
+    },
+    memberSheetNameWrap: {
+      flex: 1,
+      minWidth: 0,
+    },
+    memberSheetName: {
+      fontSize: text.title,
+      fontWeight: weight.heavy,
+      letterSpacing: tracking.tight,
+      color: c.text,
+    },
+    memberSheetToday: {
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      color: c.textMuted,
+      marginTop: spacing.xxs,
+    },
+    memberSheetStats: {
+      marginTop: spacing.lg,
+      gap: spacing.sm,
+    },
+    memberSheetStatRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    memberSheetStat: {
+      fontSize: text.body,
+      fontWeight: weight.medium,
+      color: c.textSecondary,
     },
   });
 }

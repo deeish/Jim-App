@@ -24,16 +24,34 @@ export function buildShareMessage(options: {
   );
 }
 
+/** jimapp://crew/CODE — the crew invite link (QR payload + share sheet). */
+export function buildCrewUrl(code: string): string {
+  return `jimapp://crew/${code}`;
+}
+
+export function buildCrewInviteMessage(options: {
+  crewName: string | null;
+  code: string;
+}): string {
+  const crew = options.crewName ? `"${options.crewName}"` : 'my crew';
+  const url = buildCrewUrl(options.code);
+  const display = formatShareCode(options.code);
+  return (
+    `Join ${crew} on Jim! Open ${url} on your phone, ` +
+    `or enter code ${display} in the Crew tab.`
+  );
+}
+
 /**
- * Extract a share code from an incoming deep link, or null when the URL is not
- * a share link. Accepts:
- *   jimapp://share/CODE          (standalone builds; QR payload)
- *   jimapp:///share/CODE         (extra slash variant)
- *   exp://<host>/--/share/CODE   (Expo Go dev client)
- * Scheme, host, and the "share" segment are case-insensitive; the code may be
+ * Extract the code from a deep link whose path is `<segment>/CODE`, or null.
+ * Accepts:
+ *   jimapp://<segment>/CODE          (standalone builds; QR payload)
+ *   jimapp:///<segment>/CODE         (extra slash variant)
+ *   exp://<host>/--/<segment>/CODE   (Expo Go dev client)
+ * Scheme, host, and the segment are case-insensitive; the code may be
  * dashed/lowercase. Anything else (including every auth/* PKCE link) is null.
  */
-export function parseShareCodeFromUrl(url: string): string | null {
+function parsePathCode(url: string, segment: string): string | null {
   if (!url) return null;
   const beforeQuery = url.split(/[?#]/)[0];
   const lower = beforeQuery.toLowerCase();
@@ -51,6 +69,16 @@ export function parseShareCodeFromUrl(url: string): string | null {
 
   const segments = rest.split('/').filter((s) => s.length > 0);
   if (segments.length !== 2) return null;
-  if (segments[0].toLowerCase() !== 'share') return null;
+  if (segments[0].toLowerCase() !== segment) return null;
   return normalizeShareCode(segments[1]);
+}
+
+/** Share code from an incoming link (jimapp://share/CODE family), or null. */
+export function parseShareCodeFromUrl(url: string): string | null {
+  return parsePathCode(url, 'share');
+}
+
+/** Crew code from an incoming link (jimapp://crew/CODE family), or null. */
+export function parseCrewCodeFromUrl(url: string): string | null {
+  return parsePathCode(url, 'crew');
 }

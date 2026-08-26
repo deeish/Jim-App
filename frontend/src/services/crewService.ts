@@ -33,19 +33,28 @@ export interface CrewMemberSummary {
 
 export interface CrewMoment {
   ref: string;
-  userId: string;
+  /** Null for crew-wide moments (streak milestones). */
+  userId: string | null;
   name: string | null;
   avatarId: string | null;
-  kind: 'pr';
-  exerciseName: string;
-  weight: number;
+  kind: 'pr' | 'recap' | 'streak';
   dateIso: string;
   kudos: number;
   iPounded: boolean;
+  /** pr */
+  exerciseName?: string;
+  weight?: number;
+  /** recap (userId/name/avatar = the week's winner) */
+  winnerDone?: number;
+  winnerPlanned?: number;
+  crewDone?: number;
+  crewPlanned?: number;
+  /** streak */
+  milestone?: number;
 }
 
 export interface CrewSummary {
-  crew: { code: string; createdAtIso: string } | null;
+  crew: { code: string; name: string | null; createdAtIso: string } | null;
   meUserId: string;
   streakDays: number;
   members: CrewMemberSummary[];
@@ -75,6 +84,13 @@ export async function joinCrew(code: string): Promise<{ code: string }> {
 
 export async function leaveCrew(): Promise<void> {
   await api.delete('/crews/mine');
+}
+
+export async function renameCrew(name: string): Promise<{ name: string | null }> {
+  const { data } = await api.patch<{ name: string | null }>('/crews/mine', {
+    name,
+  });
+  return data;
 }
 
 export async function toggleCrewKudos(

@@ -291,8 +291,14 @@ export function ensureLiveCalendarData(): void {
         additions.clear();
         removals.clear();
         setLogs.clear();
-        // Skip/move records describe dates of the OLD plan's schedule.
+        // Skip/move records describe dates of the OLD plan's schedule. The
+        // server's FUTURE skips go with them (past ones stay as history).
         skippedDays.clear();
+        if (lastSeenPlanId) {
+          void api
+            .delete('/skipped-days', { params: { from: todayIso() } })
+            .catch(() => {});
+        }
         movedRecords = [];
         scheduleSessionSave();
         // A new plan also deserves the week-1 landing jump again.
@@ -329,6 +335,7 @@ export function ensureLiveCalendarData(): void {
       lastSeenUserId = plan?.userId ?? lastSeenUserId;
       lastSeenPlanId = plan?.id ?? lastSeenPlanId;
       emit();
+      void syncSkippedDaysFromServer();
       if (plan) void loadExerciseMeta(plan);
     } catch {
       liveStatus = 'unavailable';
@@ -819,12 +826,15 @@ export function canRescueDay(dateIso: string): boolean {
 }
 
 /** Mark a day skipped — dismissing a missed day, or declaring ahead of time
- *  that a planned day won't happen. Local-only — the plan is never touched,
- *  and the workout stays visible (logging it anyway simply wins). */
+ *  that a planned day won't happen. The plan is never touched and the workout
+ *  stays visible (logging it anyway simply wins). Local-first with a
+ *  fire-and-forget server write: a synced skip follows the account across
+ *  devices and reads as REST — not a miss — to the user's crew. */
 export function skipDay(dateIso: string): void {
   skippedDays.add(dateIso);
   scheduleSessionSave();
   emit();
+  void api.put(`/skipped-days/${dateIso}`).catch(() => {});
 }
 
 /** Undo a skip: the day counts as planned again (a past day's missed-rescue
@@ -833,6 +843,25 @@ export function unskipDay(dateIso: string): void {
   skippedDays.delete(dateIso);
   scheduleSessionSave();
   emit();
+  void api.delete(`/skipped-days/${dateIso}`).catch(() => {});
+}
+
+/** Pull the account's skips down (login, focus refetch): the server is the
+ *  truth once reachable; an offline-made skip that failed its write is the
+ *  accepted loss window. */
+async function syncSkippedDaysFromServer(): Promise<void> {
+  try {
+    const from = toIso(addDays(new Date(), -90));
+    const { data } = await api.get<{ dates: string[] }>('/skipped-days', {
+      params: { from },
+    });
+    skippedDays.clear();
+    for (const d of data.dates) skippedDays.add(d);
+    scheduleSessionSave();
+    emit();
+  } catch {
+    /* offline — the locally hydrated set stands */
+  }
 }
 
 /**

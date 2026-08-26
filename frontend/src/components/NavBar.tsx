@@ -1,6 +1,11 @@
-import React from 'react';
-import { Platform, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import GlassSurface, { glassAvailable } from './GlassSurface';
+import {
+  crewBadgeHasUnseen,
+  refreshCrewBadge,
+  subscribeCrewBadge,
+} from '../lib/crewBadgeStore';
 import {
   createBottomTabNavigator,
   type BottomTabBarButtonProps,
@@ -20,12 +25,49 @@ export type RootTabParamList = {
   Home: undefined;
   /** The Calendar tab: plan + training hub (Month → Week → Day → Workout). */
   Calendar: NavigatorScreenParams<PlanCalendarParamList> | undefined;
-  /** The Crew tab: the accountability group (stories row, crew streak, race). */
-  Crew: undefined;
+  /** The Crew tab: the accountability group (stories row, crew streak, race).
+   *  `joinCode` arrives from a jimapp://crew/CODE deep link and prefills the
+   *  join field — joining stays an explicit tap. */
+  Crew: { joinCode?: string } | undefined;
   Search: undefined;
 };
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
+
+/** The Crew icon with the unseen-activity dot (no push infra — an app-open
+ *  fingerprint check; opening the tab clears it). */
+function CrewTabIcon({ color, focused }: { color: string; focused: boolean }) {
+  const { colors } = useTheme();
+  const [unseen, setUnseen] = useState(crewBadgeHasUnseen());
+  useEffect(() => subscribeCrewBadge(() => setUnseen(crewBadgeHasUnseen())), []);
+  useEffect(() => {
+    void refreshCrewBadge();
+  }, []);
+  return (
+    <View>
+      <Ionicons
+        name={focused ? 'people' : 'people-outline'}
+        size={focused ? 26 : 24}
+        color={color}
+      />
+      {unseen && !focused ? (
+        <View
+          style={{
+            position: 'absolute',
+            top: -1,
+            right: -3,
+            width: 9,
+            height: 9,
+            borderRadius: 5,
+            backgroundColor: colors.accent,
+            borderWidth: 1.5,
+            borderColor: colors.surface,
+          }}
+        />
+      ) : null}
+    </View>
+  );
+}
 
 function tabBarButton(testID: string) {
   return ({ onPress, ...props }: BottomTabBarButtonProps) => (
@@ -138,11 +180,7 @@ export default function NavBar() {
         options={{
           tabBarButton: tabBarButton('e2e-tab-crew'),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'people' : 'people-outline'}
-              size={focused ? 26 : 24}
-              color={color}
-            />
+            <CrewTabIcon color={color} focused={focused} />
           ),
         }}
       />

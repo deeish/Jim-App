@@ -1,6 +1,8 @@
 import {
+  buildCrewInviteMessage,
   buildShareMessage,
   buildShareUrl,
+  parseCrewCodeFromUrl,
   parseShareCodeFromUrl,
 } from './shareLinks';
 
@@ -80,5 +82,30 @@ describe('parseShareCodeFromUrl', () => {
     expect(parseShareCodeFromUrl('https://example.com/share/7XKFQ2ND')).toBe(
       null,
     );
+  });
+});
+
+describe('parseCrewCodeFromUrl', () => {
+  it('parses the canonical crew link and its variants', () => {
+    expect(parseCrewCodeFromUrl('jimapp://crew/7XKFQ2ND')).toBe('7XKFQ2ND');
+    expect(parseCrewCodeFromUrl('jimapp:///CREW/7xkf-q2nd')).toBe('7XKFQ2ND');
+    expect(parseCrewCodeFromUrl('exp://192.168.1.5:8081/--/crew/7XKFQ2ND')).toBe('7XKFQ2ND');
+  });
+
+  it('crew and share codes never cross-match, and auth stays untouched', () => {
+    expect(parseCrewCodeFromUrl('jimapp://share/7XKFQ2ND')).toBeNull();
+    expect(parseShareCodeFromUrl('jimapp://crew/7XKFQ2ND')).toBeNull();
+    expect(parseCrewCodeFromUrl('jimapp://auth/reset?code=abc123')).toBeNull();
+    expect(parseCrewCodeFromUrl('jimapp://crew/short')).toBeNull();
+  });
+});
+
+describe('buildCrewInviteMessage', () => {
+  it('carries the deep link, the display code, and the crew name', () => {
+    const msg = buildCrewInviteMessage({ crewName: 'The 5AM Club', code: '7XKFQ2ND' });
+    expect(msg).toContain('jimapp://crew/7XKFQ2ND');
+    expect(msg).toContain('7XKF-Q2ND');
+    expect(msg).toContain('The 5AM Club');
+    expect(buildCrewInviteMessage({ crewName: null, code: '7XKFQ2ND' })).toContain('my crew');
   });
 });
