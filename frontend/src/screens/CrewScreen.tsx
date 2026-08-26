@@ -427,10 +427,28 @@ export default function CrewScreen() {
     // device instead of trusting a hardcoded inset.
     <SafeAreaView style={styles.container} edges={['top']} testID="e2e-crew-root">
       <View style={styles.header}>
-        {/* The crew's name IS the page title (clan-page grammar). */}
-        <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-          {crew?.name || 'Crew'}
-        </Text>
+        {/* The crew's name IS the page title (clan-page grammar), and tapping
+            it opens the sheet where the name is edited. */}
+        {crew ? (
+          <TouchableOpacity
+            style={styles.titleTap}
+            onPress={() => {
+              haptics.tap();
+              setSheetOpen(true);
+            }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Edit crew name"
+          >
+            <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+              {crew.name || 'Crew'}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={[styles.title, styles.titleTap]} numberOfLines={1}>
+            Crew
+          </Text>
+        )}
         {crew ? (
           <TouchableOpacity
             style={styles.headerButton}
@@ -969,9 +987,11 @@ function createStyles(c: ColorPalette) {
       paddingTop: spacing.lg,
       paddingBottom: spacing.sm,
     },
-    title: {
+    titleTap: {
       flex: 1,
       marginRight: spacing.md,
+    },
+    title: {
       fontSize: text.display,
       fontWeight: weight.heavy,
       letterSpacing: tracking.tight,
