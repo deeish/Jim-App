@@ -70,6 +70,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         icon: 'flag',
         text: 'Strength and muscle goals show your best lifts first. Fat loss goals show your body weight first.',
       },
+      {
+        type: 'improved',
+        headline: 'Slide between days and weeks',
+        icon: 'swap-horizontal',
+        text: 'The calendar now slides under your finger. The arrows next to the date do the same thing.',
+      },
     ],
   },
   // The ONE card for this OTA: everything since build 26 (the finish
