@@ -37,7 +37,7 @@ Categories: **SKELETON** · **SPINNER** · **NOTHING** (renders null) · **EMPTY
 | PlanCalendarExercisePickerScreen | suggestions | Text placeholder, space reserved ✅ | `:270-279` |
 | PlanCalendarWorkoutCompleteScreen | celebration baselines | **NOTHING** — no loading concept in 1637 lines | `:305`, `:1015-1075` |
 | CrewScreen | crew summary | SPINNER (full-screen) | `CrewScreen.tsx:733-736` |
-| ProfileScreen | 3 fetches, 2 sequential | **NOTHING + EMPTY-STATE** — no loading flag exists | `:557-559`, `:593-637`, `:1154-1158` |
+| ProfileScreen | 3 fetches, 2 sequential | ~~NOTHING + EMPTY-STATE~~ → **fixed** `f7d9a3c` | `:557-559`, `:593-637`, `:1154-1158` |
 | SearchScreen | saved-exercise list | SPINNER, guarded ✅ | `SearchScreen.tsx:580-583` |
 | ↳ ExerciseLibrary | exercise search | SPINNER, all empty branches gated ✅ | `:1630-1633`, `:1479-1491` |
 | WorkoutDetailScreen | workout + plan | SPINNER; one empty-state frame first | `:394-401`; `loading` inits `false` at `:50` |
@@ -65,7 +65,10 @@ Categories: **SKELETON** · **SPINNER** · **NOTHING** (renders null) · **EMPTY
 
 **Still open:**
 
-- [ ] **3. ProfileScreen — "Body weight — Not set"** to a user with years of weigh-ins. Worse: that row exists *because* the band collapsed to `weightRow` on empty data (`profileBand.ts:50-66`), so when the data lands the row can vanish out from under a finger. Replays on **every** open — Profile is a pushed screen that unmounts on back (`App.tsx:173`). `ProfileScreen.tsx:1154-1158`
+- [x] **3. ProfileScreen — "Body weight — Not set"** to a user with years of weigh-ins — **fixed `f7d9a3c`**
+  The row existed *because* the band collapses to `weightRow` on empty data (`profileBand.ts:50-66`), so it both lied and then vanished out from under a finger when data landed. Replayed on **every** open, Profile being a pushed screen that unmounts on back (`App.tsx:173`).
+  One `bandLoading` flag held until all three fetches settle fixes the lie *and* the triple reflow — they were the same bug seen twice. Two skeleton cards stand in for both slots, because which slot gets which card is itself decided by data that hasn't arrived. `allSettled`, not `all`: one failed request must still reveal a band built to degrade.
+  ⚠ Profile still unmounts on back, so each open shows a brief skeleton rather than stale content. That is honest where "Not set" was not, but it is not free — a cached band across mounts would be the next step if it grates.
 - [ ] **4. GeneratePlanScreen — "No saved splits yet."** before the AsyncStorage read returns. `:2068-2069`
 - [ ] **5. CrewScreen — create** closes the sheet *before* `await load()` (`:177-179`), so you watch the "start a crew" empty state while your new crew is fetched.
 - [ ] **6. CrewScreen — join** button label is unconditionally `"Join"`; `busy` reaches `disabled` only (`:806-815`). Two round trips, no feedback.
@@ -77,7 +80,7 @@ Categories: **SKELETON** · **SPINNER** · **NOTHING** (renders null) · **EMPTY
 
 ## Element pop-ins, most jarring first
 
-1. **Profile's athlete band inserts 150–300px mid-scroll.** Best-lifts (`:847-883`), weight card + 12 bars (`:891-954`), lifts strip (`:956-976`) each render `null` until their data lands — and best-lifts is **two sequential round trips** (`:618` then `:627`), so the page reflows up to three times, shoving the settings rows down while the user reaches for them.
+1. ~~**Profile's athlete band inserts 150–300px mid-scroll.**~~ **Fixed `f7d9a3c`** — best-lifts (`:847-883`), weight card + 12 bars (`:891-954`) and lifts strip (`:956-976`) each rendered `null` until their own request returned, and best-lifts is **two sequential round trips** (`:618` then `:627`), so the page reflowed up to three times. The band now arrives once.
 2. **The finish screen's streak pill and PR cards may never appear.** `celebrationBaselines` is fetched *after* `navigation.navigate` (`PlanCalendarDayScreen.tsx:566-573`), the pill renders nothing while pending, and the poster auto-advances at `AUTO_ADVANCE_MS = 2800`. A slow response silently skips the user's PR — on the one screen whose whole purpose is the payoff.
 3. **Home's page body is promised by one small card.** `SkeletonCard lines={3}` (`:442`) stands in for the hero, the 7-tile week strip (`:694`), two momentum tiles (`:749`), the recap (`:798`) and the quick-workout row (`:824`). The page roughly quadruples in height.
 4. **PlanPreview regeneration hides a 30–60s AI call behind a 20pt spinner** (`:1246-1280`); the week stays stale, undimmed and interactive.
@@ -93,7 +96,7 @@ Categories: **SKELETON** · **SPINNER** · **NOTHING** (renders null) · **EMPTY
 **Done:** calendar Day + Month (above).
 
 **Worth doing next**
-1. **ProfileScreen athlete band** — three fetches, no loading flag, and an empty state that reads "Not set". `SkeletonCard` + `SkeletonList` map almost exactly onto the best-lifts list and weight card. One flag removes the lie and the triple reflow together.
+1. ~~ProfileScreen athlete band~~ — **done, `f7d9a3c`**.
 2. **Extend Home's skeleton** — the primitive is already imported; add the week strip and momentum tiles so the page stops quadrupling.
 3. **Finish-screen ordering** — `await primeCelebrationBaselines` *before* navigating, or hold the auto-advance. Not a skeleton; a 2.8s poster with a shimmer would be worse than the wait.
 4. **PlanPreview regeneration** — dim the week and overlay "Rebuilding week 3…".
