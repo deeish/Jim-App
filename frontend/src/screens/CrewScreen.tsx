@@ -174,7 +174,7 @@ export default function CrewScreen() {
           ?.data?.message;
       setJoinError(
         (Array.isArray(message) ? message[0] : message) ??
-          'Couldn’t join — check the code and try again.',
+          'Couldn’t join. Check the code and try again.',
       );
     } finally {
       setBusy(false);
@@ -183,6 +183,14 @@ export default function CrewScreen() {
 
   const confirmLeave = () => {
     haptics.tap();
+    // The last member out deletes the crew, so a solo "leave" IS a delete —
+    // say so, and keep the accidental-tap escape one honest confirm away.
+    const solo = (summary?.members.length ?? 0) <= 1;
+    const title = solo ? 'Delete this crew?' : 'Leave this crew?';
+    const body = solo
+      ? 'It only has you in it, so it goes away entirely.'
+      : 'Your crewmates will no longer see your training days.';
+    const confirmLabel = solo ? 'Delete' : 'Leave';
     const doLeave = async () => {
       setSheetOpen(false);
       setBusy(true);
@@ -197,14 +205,14 @@ export default function CrewScreen() {
     };
     if (Platform.OS === 'web') {
       // RN Alert renders nothing on web — the browser confirm stands in.
-      if (typeof window !== 'undefined' && window.confirm('Leave this crew?')) {
+      if (typeof window !== 'undefined' && window.confirm(title)) {
         void doLeave();
       }
       return;
     }
-    Alert.alert('Leave this crew?', 'Your crewmates will no longer see your training days.', [
+    Alert.alert(title, body, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Leave', style: 'destructive', onPress: () => void doLeave() },
+      { text: confirmLabel, style: 'destructive', onPress: () => void doLeave() },
     ]);
   };
 
@@ -444,7 +452,7 @@ export default function CrewScreen() {
           }
         >
           {offline && !summary ? (
-            <Text style={styles.footerNote}>Offline — can’t reach the server</Text>
+            <Text style={styles.footerNote}>Offline. Can’t reach the server.</Text>
           ) : null}
 
           {!crew && summary ? (
@@ -460,7 +468,7 @@ export default function CrewScreen() {
                   <Text style={styles.inviteTitle}>Your crew starts with one code</Text>
                   <Text style={styles.inviteBody}>
                     Send it to your gym friends. When they join, you see each other’s
-                    training days — and nobody wants to be the empty ring.
+                    training days, and nobody wants to be the empty ring.
                   </Text>
                 </LinearGradient>
                 <View style={styles.inviteFooter}>
@@ -581,23 +589,35 @@ export default function CrewScreen() {
                 </View>
               </View>
 
-              {/* One-person crew: surface the code until friends arrive. */}
+              {/* One-person crew: surface the code until friends arrive, and
+                  keep the accidental-tap exit in plain sight. */}
               {members.length < 2 ? (
-                <View style={styles.codeCard}>
-                  <View style={styles.codeTextWrap}>
-                    <Text style={styles.codeValue}>{formatShareCode(crew.code)}</Text>
-                    <Text style={styles.codeCaption}>Your crew code — send it to your gym friends</Text>
+                <>
+                  <View style={styles.codeCard}>
+                    <View style={styles.codeTextWrap}>
+                      <Text style={styles.codeValue}>{formatShareCode(crew.code)}</Text>
+                      <Text style={styles.codeCaption}>Your crew code. Send it to your gym friends.</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.codeShareButton}
+                      onPress={() => void shareCode(crew.code)}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel="Share crew code"
+                    >
+                      <Ionicons name="share-outline" size={18} color={colors.onPrimary} />
+                    </TouchableOpacity>
                   </View>
                   <TouchableOpacity
-                    style={styles.codeShareButton}
-                    onPress={() => void shareCode(crew.code)}
-                    activeOpacity={0.85}
+                    style={styles.undoRow}
+                    onPress={confirmLeave}
+                    activeOpacity={0.7}
                     accessibilityRole="button"
-                    accessibilityLabel="Share crew code"
+                    accessibilityLabel="Delete this crew"
                   >
-                    <Ionicons name="share-outline" size={18} color={colors.onPrimary} />
+                    <Text style={styles.undoLabel}>Started this by accident? Delete crew</Text>
                   </TouchableOpacity>
-                </View>
+                </>
               ) : null}
 
               {/* Moments: computed, never composed. */}
@@ -801,10 +821,12 @@ export default function CrewScreen() {
             onPress={confirmLeave}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Leave crew"
+            accessibilityLabel={members.length <= 1 ? 'Delete crew' : 'Leave crew'}
           >
             <Ionicons name="exit-outline" size={18} color={colors.error} />
-            <Text style={styles.leaveLabel}>Leave crew</Text>
+            <Text style={styles.leaveLabel}>
+              {members.length <= 1 ? 'Delete crew' : 'Leave crew'}
+            </Text>
           </TouchableOpacity>
         </Pressable>
       </SheetModal>
@@ -838,7 +860,7 @@ export default function CrewScreen() {
                     {memberSheet.todayState === 'trained'
                       ? 'Trained today'
                       : memberSheet.todayState === 'scheduled'
-                        ? 'Scheduled today — hasn’t trained yet'
+                        ? 'Scheduled today, hasn’t trained yet'
                         : 'Rest day'}
                   </Text>
                 </View>
@@ -1363,6 +1385,15 @@ function createStyles(c: ColorPalette) {
     },
     leaveLabel: {
       fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: c.error,
+    },
+    undoRow: {
+      alignItems: 'center',
+      paddingVertical: spacing.xs,
+    },
+    undoLabel: {
+      fontSize: text.footnote,
       fontWeight: weight.semibold,
       color: c.error,
     },

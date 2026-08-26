@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 import { CrewsService } from './crews.service';
@@ -21,9 +21,12 @@ import {
 } from './dto/crews.dto';
 
 // ThrottlerGuard: join is a code-redemption surface (same shape as shares) and
-// must not be brute-forceable; the rest inherits the same sane per-user limits.
+// must not be brute-forceable. Only the CATALOG buckets apply (120/min): the
+// AI buckets (12/min) would choke ordinary summary refreshes — same
+// SkipThrottle split the shares controller uses.
 @Controller('crews')
 @UseGuards(AuthGuard, ThrottlerGuard)
+@SkipThrottle({ aiBurst: true, aiDay: true })
 export class CrewsController {
   constructor(private readonly crews: CrewsService) {}
 

@@ -82,7 +82,7 @@ export class CrewsService {
         throw err;
       }
     }
-    throw new ConflictException('Could not create a crew code — try again.');
+    throw new ConflictException('Could not create a crew code. Try again.');
   }
 
   async joinCrew(userId: string, rawCode: string): Promise<{ code: string }> {
