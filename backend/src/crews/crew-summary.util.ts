@@ -241,6 +241,10 @@ export interface CrewSummaryMember {
   kudosWeek: number;
   /** The event a card-level 💪 targets (the member's latest session), if any. */
   latestSessionRef: string | null;
+  /** Pounds on that ONE session. `kudosWeek` is the member's whole-week total
+   *  across every ref, so it must never label a chip that toggles a single
+   *  ref — that mismatch is what made two chips for one workout disagree. */
+  kudosLatest: number;
   iPoundedLatest: boolean;
 }
 
@@ -362,6 +366,7 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
       hasPlanThisWeek,
       kudosWeek: weekKudosByUser.get(m.userId) ?? 0,
       latestSessionRef,
+      kudosLatest: refKey ? (kudosCountByRef.get(refKey) ?? 0) : 0,
       iPoundedLatest: refKey ? myPoundsByRef.has(refKey) : false,
     };
   });

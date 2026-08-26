@@ -19,6 +19,7 @@ const base = (over: Partial<CrewSummary> = {}): CrewSummary => ({
       hasPlanThisWeek: false,
       kudosWeek: 2,
       latestSessionRef: null,
+      kudosLatest: 0,
       iPoundedLatest: false,
     },
     {
@@ -34,6 +35,7 @@ const base = (over: Partial<CrewSummary> = {}): CrewSummary => ({
       hasPlanThisWeek: true,
       kudosWeek: 0,
       latestSessionRef: 'day:2026-08-25',
+      kudosLatest: 0,
       iPoundedLatest: false,
     },
   ],

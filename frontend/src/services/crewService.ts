@@ -28,6 +28,9 @@ export interface CrewMemberSummary {
   hasPlanThisWeek: boolean;
   kudosWeek: number;
   latestSessionRef: string | null;
+  /** Pounds on the latest session alone — the count the row's 💪 shows.
+   *  `kudosWeek` is the week-wide total and labels nothing. */
+  kudosLatest: number;
   iPoundedLatest: boolean;
 }
 

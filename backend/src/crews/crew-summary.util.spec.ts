@@ -244,7 +244,12 @@ describe('assembleCrewSummary', () => {
       kudos: 2,
       iPounded: true,
     });
-    expect(out.members.find((x) => x.userId === 'sam')?.kudosWeek).toBe(2);
+    const sam = out.members.find((x) => x.userId === 'sam');
+    expect(sam?.kudosWeek).toBe(2);
+    // ...but those two pounds landed on the PR, not on a session, so the
+    // row's chip must still read zero. Labelling a single-ref chip with the
+    // week-wide total is what made two chips disagree about one workout.
+    expect(sam?.kudosLatest).toBe(0);
   });
 
   it('points the card-level pound at the latest session', () => {
@@ -252,6 +257,38 @@ describe('assembleCrewSummary', () => {
     const out = assembleCrewSummary({ ...base, members: [m] });
     expect(out.members[0].latestSessionRef).toBe('day:2026-08-25');
     expect(out.members[0].lastSession?.dateIso).toBe('2026-08-25');
+  });
+
+  it('counts pounds on the latest session apart from the week total', () => {
+    const m = member('sam', { logs: [log('2026-08-25'), log('2026-08-24')] });
+    const out = assembleCrewSummary({
+      ...base,
+      members: [m],
+      kudos: [
+        {
+          fromUserId: 'me',
+          toUserId: 'sam',
+          eventRef: 'day:2026-08-25',
+          createdAtIso: '2026-08-25T12:00:00.000Z',
+        },
+        {
+          fromUserId: 'jake',
+          toUserId: 'sam',
+          eventRef: 'day:2026-08-25',
+          createdAtIso: '2026-08-25T13:00:00.000Z',
+        },
+        // An older session of sam's: counts for the week, not for the chip.
+        {
+          fromUserId: 'jake',
+          toUserId: 'sam',
+          eventRef: 'day:2026-08-24',
+          createdAtIso: '2026-08-24T13:00:00.000Z',
+        },
+      ],
+    });
+    expect(out.members[0].kudosLatest).toBe(2);
+    expect(out.members[0].iPoundedLatest).toBe(true);
+    expect(out.members[0].kudosWeek).toBe(3);
   });
 
   it('a skipped day reads as rest and leaves the race', () => {
