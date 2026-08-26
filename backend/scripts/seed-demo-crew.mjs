@@ -165,8 +165,16 @@ async function seed() {
     console.log(`created crew "${CREW_NAME}" (${code}) with ${owner.name ?? owner.email} in it`);
   }
 
-  const joined = new Date(now);
-  joined.setDate(now.getDate() - 20); // so the crew streak has room to count
+  // Demo mates must join AFTER the owner, never before. The crew lead — the
+  // only member who can remove people or mint a new code — is whoever has
+  // been in the crew longest, so backdating these rows past the owner's own
+  // joinedAt would hand your crew to a fake person.
+  //
+  // Joining "now" costs the streak nothing: a member cannot violate days from
+  // before they joined, so their earlier sessions still count and their
+  // earlier rest days cannot break anything.
+  const ownerJoinedAt = owner.crewMembership?.joinedAt ?? new Date(now);
+  const joined = new Date(ownerJoinedAt.getTime() + 60_000);
 
   for (const p of CREW) {
     const id = demoId(p.n);
