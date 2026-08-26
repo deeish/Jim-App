@@ -43,8 +43,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   // The ONE card for this wave: the Home "Launchpad" redesign and the
   // goal-adaptive Profile "Athlete card". The week-tile split codes, recap
   // trims, haptics sweep, and this release sheet itself are part of those
-  // stories, not separate lines. Headlines must read on their own — no
-  // pronouns leaning on the row above.
+  // stories, not separate lines. Copy rules: headlines read on their own (no
+  // pronouns leaning on the row above) and stay plain — name the part that
+  // changed and say what's different, no marketing lines.
   {
     id: '2026-08-25',
     version: '1.1.0',
@@ -53,21 +54,21 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: [
       {
         type: 'new',
-        headline: 'A Home that launches your day',
+        headline: 'New Home screen',
         icon: 'home',
-        text: 'Today’s session up front in its muscle colors, your week at a glance, your streak, and Quick Workout one tap away.',
+        text: 'Today’s workout is now at the top, with your week, your streak, your last workout, and Quick Workout below it.',
       },
       {
         type: 'new',
-        headline: 'Your profile is an athlete card',
+        headline: 'New Profile page',
         icon: 'person',
-        text: 'Your best lifts, your body weight trend, and how long you have been training, with cleaner settings below.',
+        text: 'Your profile now shows your best lifts and your body weight trend, with settings in a cleaner list below.',
       },
       {
         type: 'improved',
-        headline: 'Built around your goal',
+        headline: 'Profile follows your goal',
         icon: 'flag',
-        text: 'Strength and muscle goals lead the profile with your best lifts; fat loss goals put your body weight first.',
+        text: 'Strength and muscle goals show your best lifts first. Fat loss goals show your body weight first.',
       },
     ],
   },
