@@ -37,12 +37,27 @@ export class KudosDto {
   @IsNotEmpty()
   toUserId: string;
 
-  /** "day:<iso>" or "pr:<iso>:<exerciseId>" — shape-checked so a member
-   *  can't mint unbounded junk kudos rows. */
+  /**
+   * The three poundable event shapes, and ALL of them belong here:
+   *
+   *   day:<iso>                  a session
+   *   pr:<iso>:<exerciseId>      a personal record
+   *   recap:<iso>                last week's winner (Mon/Tue only)
+   *
+   * `recap:` was missing, so every pound on the Monday recap was rejected as
+   * a 400 while the summary query went on fetching `recap:` rows that could
+   * never exist. The chip filled in and silently snapped back — invisible
+   * because it is only reachable two days a week.
+   *
+   * `crewstreak:` is deliberately absent: a crew-wide milestone has no single
+   * recipient, so there is nobody to pound. The service enforces that too.
+   */
   @IsString()
   @IsNotEmpty()
   @MaxLength(160)
-  @Matches(/^(day:\d{4}-\d{2}-\d{2}|pr:\d{4}-\d{2}-\d{2}:.+)$/)
+  @Matches(
+    /^(day:\d{4}-\d{2}-\d{2}|pr:\d{4}-\d{2}-\d{2}:[A-Za-z0-9_-]{1,120}|recap:\d{4}-\d{2}-\d{2})$/,
+  )
   eventRef: string;
 }
 

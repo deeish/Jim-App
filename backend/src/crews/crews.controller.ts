@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Param,
   Patch,
   Post,
   Query,
@@ -61,6 +62,23 @@ export class CrewsController {
       query.weekMonday,
       query.tz,
     );
+  }
+
+  /** Remove a crewmate. Crew lead only — see `CrewsService.leadOf`. */
+  @Delete('mine/members/:userId')
+  @HttpCode(204)
+  async removeMember(
+    @UserId() userId: string,
+    @Param('userId') targetUserId: string,
+  ) {
+    await this.crews.removeMember(userId, targetUserId);
+  }
+
+  /** Mint a new code, the only way to un-share one that leaked. Lead only. */
+  @Post('mine/code')
+  @HttpCode(200)
+  rotateCode(@UserId() userId: string) {
+    return this.crews.rotateCode(userId);
   }
 
   @Post('mine/kudos')
