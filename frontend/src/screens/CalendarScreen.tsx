@@ -333,6 +333,13 @@ export default function CalendarScreen({ navigation }: Props) {
                         {day}
                       </Text>
                       {(() => {
+                        // A quiet placeholder dot while the month is in
+                        // flight: without it every cell read "you trained
+                        // nothing here", and switching months re-entered that
+                        // state each time.
+                        if (logsLoading) {
+                          return <View style={[styles.logBadge, styles.logBadgeLoading]} />;
+                        }
                         const dayLogs = getLogsForDay(day);
                         if (dayLogs.length === 0) return null;
                         return (
@@ -455,6 +462,10 @@ const styles = StyleSheet.create({
   dayText: {
     fontSize: text.callout,
     fontWeight: weight.medium,
+  },
+  /** Placeholder dot while the month's logs are still in flight. */
+  logBadgeLoading: {
+    backgroundColor: '#00000014',
   },
   logBadge: {
     position: 'absolute',

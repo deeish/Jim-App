@@ -437,9 +437,15 @@ export default function HomeScreen() {
         </Text>
 
         {loading ? (
-          // Shaped like the today-card that replaces it, so the page does not
-          // jump when the plan lands.
-          <SkeletonCard lines={3} />
+          // Shaped like the page that replaces it, not just the today-card.
+          // One card stood in for the hero, the week strip, two momentum
+          // tiles, the recap and the quick-workout row, so the body roughly
+          // quadrupled in height the moment the plan landed.
+          <>
+            <SkeletonCard lines={3} />
+            <SkeletonCard lines={1} />
+            <SkeletonCard lines={2} />
+          </>
         ) : (
           <>
             {homeToday?.status !== 'no_plan' && (
