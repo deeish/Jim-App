@@ -72,13 +72,21 @@ export interface MemberInput {
   name: string | null;
   email: string | null;
   avatarId: string | null;
+  /** Local date the member joined the crew — days before it can never count
+   *  against the crew streak (a new member must not nuke it retroactively). */
+  joinedIso: string;
   /** ISO Monday the member's active program anchors week 1 to; null = no plan. */
   anchorMondayIso: string | null;
   totalWeeks: number;
   slots: MemberSlotInput[];
   /** Newest first, bucketed to the caller's local days. */
   logs: MemberLogInput[];
-  prs: { dateIso: string; exerciseName: string; weight: number }[];
+  prs: {
+    dateIso: string;
+    exerciseId: string;
+    exerciseName: string;
+    weight: number;
+  }[];
 }
 
 export interface KudosInput {
@@ -156,9 +164,12 @@ export function crewStreakDaysOf(
   todayIso: string,
   crewCreatedIso: string,
 ): number {
+  // A member only participates in the streak from the day they joined —
+  // their pre-join misses are their own business.
   const violated = (dateIso: string): boolean =>
     members.some(
       (m) =>
+        dateIso >= m.joinedIso &&
         scheduledSlotOn(m, dateIso) !== null &&
         !trainedByUser.get(m.userId)?.has(dateIso),
     );
@@ -178,7 +189,9 @@ export function crewStreakDaysOf(
   let d = todayComplete ? todayIso : addDaysIso(todayIso, -1);
   let streak = 0;
   let leading = true;
-  for (let i = 0; i < 60; i++) {
+  // Iteration bound is a runaway guard only — the floor terminates the loop,
+  // and leading skip-days must never eat into a real year-long streak.
+  for (let i = 0; i < 400; i++) {
     if (d < floor) break;
     if (violated(d)) break;
     if (leading && !anyTrained(d)) {
@@ -332,7 +345,9 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
   const moments: CrewSummaryMoment[] = members
     .flatMap((m) =>
       m.prs.map((pr) => {
-        const ref = `pr:${pr.dateIso}:${pr.exerciseName}`;
+        // Ref by ID, not display name: null-named custom exercises must not
+        // collide into one shared kudos bucket.
+        const ref = `pr:${pr.dateIso}:${pr.exerciseId}`;
         const key = `${m.userId}|${ref}`;
         return {
           ref,

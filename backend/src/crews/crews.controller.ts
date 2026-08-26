@@ -8,13 +8,16 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 import { CrewsService } from './crews.service';
 import { CrewSummaryQueryDto, JoinCrewDto, KudosDto } from './dto/crews.dto';
 
+// ThrottlerGuard: join is a code-redemption surface (same shape as shares) and
+// must not be brute-forceable; the rest inherits the same sane per-user limits.
 @Controller('crews')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ThrottlerGuard)
 export class CrewsController {
   constructor(private readonly crews: CrewsService) {}
 

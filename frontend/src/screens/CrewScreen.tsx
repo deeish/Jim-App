@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { leading, radius, spacing, text, tracking, useTheme, weight, type ColorPalette } from '../theme';
@@ -25,6 +26,7 @@ import SheetModal from '../components/SheetModal';
 import { haptics } from '../lib/haptics';
 import { recentDayLabel } from '../lib/homeToday';
 import { formatShareCode, formatShareCodeInput, isValidShareCode } from '../lib/shareCode';
+import { formatWeightFromLb } from '../lib/weightDisplay';
 import {
   GOLD,
   fromIso,
@@ -77,7 +79,7 @@ export default function CrewScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const tabBarInset = useTabBarInset();
   const { user } = useAuth();
-  const { profileAvatarId, profileDisplayName } = useUserPreferences();
+  const { profileAvatarId, profileDisplayName, weightUnit } = useUserPreferences();
 
   const [summary, setSummary] = useState<CrewSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -127,7 +129,9 @@ export default function CrewScreen() {
       await createCrew();
       await load();
     } catch {
-      setOffline(true);
+      // A 409 (already in a crew, e.g. joined on another device) resolves
+      // itself on reload; anything else reads as offline.
+      await load();
     } finally {
       setBusy(false);
     }
@@ -164,12 +168,17 @@ export default function CrewScreen() {
       try {
         await leaveCrew();
         await load();
+      } catch {
+        setOffline(true);
       } finally {
         setBusy(false);
       }
     };
     if (Platform.OS === 'web') {
-      void doLeave();
+      // RN Alert renders nothing on web — the browser confirm stands in.
+      if (typeof window !== 'undefined' && window.confirm('Leave this crew?')) {
+        void doLeave();
+      }
       return;
     }
     Alert.alert('Leave this crew?', 'Your crewmates will no longer see your training days.', [
@@ -180,18 +189,25 @@ export default function CrewScreen() {
 
   const shareCode = async (code: string) => {
     haptics.tap();
+    const message = `Join my crew on Jim — open the Crew tab and enter code ${formatShareCode(code)}.`;
     try {
-      await Share.share({
-        message: `Join my crew on Jim — open the Crew tab and enter code ${formatShareCode(code)}.`,
-      });
+      await Share.share({ message });
     } catch {
-      /* user dismissed the sheet */
+      // Desktop web has no share sheet — the clipboard is the fallback.
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined') {
+        void navigator.clipboard?.writeText(message).catch(() => {});
+      }
     }
   };
 
+  // One pound in flight per event: a rapid double-tap must not fire twice.
+  const poundsInFlight = useRef(new Set<string>());
   const pound = async (toUserId: string, eventRef: string) => {
+    const flightKey = `${toUserId}|${eventRef}`;
+    if (poundsInFlight.current.has(flightKey)) return;
+    poundsInFlight.current.add(flightKey);
     haptics.select();
-    // Optimistic flip; the reload settles the true counts.
+    // Optimistic flip now; the server's response is the truth we settle on.
     setSummary((s) => {
       if (!s) return s;
       return {
@@ -213,9 +229,29 @@ export default function CrewScreen() {
       };
     });
     try {
-      await toggleCrewKudos(toUserId, eventRef);
+      const result = await toggleCrewKudos(toUserId, eventRef);
+      // Reconcile with what the server actually did — an optimistic guess
+      // that diverged (another device, an old kudos) corrects itself here.
+      setSummary((s) => {
+        if (!s) return s;
+        return {
+          ...s,
+          members: s.members.map((m) =>
+            m.userId === toUserId && m.latestSessionRef === eventRef
+              ? { ...m, iPoundedLatest: result.pounded }
+              : m,
+          ),
+          moments: s.moments.map((mo) =>
+            mo.userId === toUserId && mo.ref === eventRef
+              ? { ...mo, iPounded: result.pounded, kudos: result.count }
+              : mo,
+          ),
+        };
+      });
     } catch {
       void load(); // roll back to the server's truth
+    } finally {
+      poundsInFlight.current.delete(flightKey);
     }
   };
 
@@ -308,7 +344,9 @@ export default function CrewScreen() {
   );
 
   return (
-    <View style={styles.container} testID="e2e-crew-root">
+    // SafeAreaView (Home's grammar): the header clears the notch on every
+    // device instead of trusting a hardcoded inset.
+    <SafeAreaView style={styles.container} edges={['top']} testID="e2e-crew-root">
       <View style={styles.header}>
         <Text style={styles.title}>Crew</Text>
         {crew ? (
@@ -335,6 +373,9 @@ export default function CrewScreen() {
           style={styles.scroll}
           contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl + tabBarInset }]}
           showsVerticalScrollIndicator={false}
+          // The Join button must work on the first tap while the keyboard is
+          // up (same as the share-redeem screen).
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />
           }
@@ -417,7 +458,7 @@ export default function CrewScreen() {
                 </View>
                 <View style={styles.privacyRow}>
                   <Ionicons name="close" size={15} color={colors.error} />
-                  <Text style={styles.privacyText}>Never your full log, weights, or body data</Text>
+                  <Text style={styles.privacyText}>Never your full log, working sets, or body data</Text>
                 </View>
               </View>
               <Text style={styles.footerNote}>A crew holds up to 10 people. Leave anytime.</Text>
@@ -500,7 +541,7 @@ export default function CrewScreen() {
                       />
                       <View style={styles.momentTextWrap}>
                         <Text style={styles.momentTitle} numberOfLines={2}>
-                          {`${firstNameOf({ name: mo.name, isMe: mo.userId === summary!.meUserId })} put ${Math.round(mo.weight)} lb on ${mo.exerciseName}`}
+                          {`${firstNameOf({ name: mo.name, isMe: mo.userId === summary!.meUserId })} hit ${formatWeightFromLb(mo.weight, weightUnit)} on ${mo.exerciseName}`}
                         </Text>
                         <Text style={styles.momentCaption}>
                           {`New personal record · ${recentDayLabel(mo.dateIso, today)}`}
@@ -626,6 +667,7 @@ export default function CrewScreen() {
       )}
 
       {/* Crew settings sheet: the code + leave. */}
+      {/* (sheet below renders over the SafeAreaView) */}
       <SheetModal visible={sheetOpen} onClose={() => setSheetOpen(false)} scrimColor={colors.scrim}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grabber} />
@@ -661,7 +703,7 @@ export default function CrewScreen() {
           </TouchableOpacity>
         </Pressable>
       </SheetModal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -676,7 +718,7 @@ function createStyles(c: ColorPalette) {
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: spacing.xl,
-      paddingTop: 64,
+      paddingTop: spacing.lg,
       paddingBottom: spacing.sm,
     },
     title: {

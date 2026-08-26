@@ -25,6 +25,7 @@ const member = (
   name: userId,
   email: null,
   avatarId: null,
+  joinedIso: '2026-08-01',
   anchorMondayIso: '2026-08-24',
   totalWeeks: 8,
   slots: [],
@@ -147,6 +148,23 @@ describe('crewStreakDaysOf', () => {
     const trained = new Map([['a', new Set(['2026-08-24'])]]);
     expect(crewStreakDaysOf([a], trained, '2026-08-25', '2026-08-01')).toBe(1);
   });
+
+  it('a new member cannot retroactively break the streak with pre-join misses', () => {
+    // a has held the streak Mon+Tue; b joined TODAY with a scheduled-but-
+    // missed Monday from before joining — that miss must not count.
+    const a = member('a', { slots: [slot(1, 'Monday'), slot(1, 'Tuesday')] });
+    const b = member('b', {
+      joinedIso: '2026-08-25',
+      slots: [slot(1, 'Monday')],
+    });
+    const trained = new Map([
+      ['a', new Set(['2026-08-24', '2026-08-25'])],
+      ['b', new Set<string>()],
+    ]);
+    expect(crewStreakDaysOf([a, b], trained, '2026-08-25', crewCreated)).toBe(
+      2,
+    );
+  });
 });
 
 describe('assembleCrewSummary', () => {
@@ -181,7 +199,12 @@ describe('assembleCrewSummary', () => {
   it('surfaces PR moments with kudos counts and my pound flag', () => {
     const m = member('sam', {
       prs: [
-        { dateIso: '2026-08-24', exerciseName: 'Bench Press', weight: 225 },
+        {
+          dateIso: '2026-08-24',
+          exerciseId: 'flat_barbell_bench_press',
+          exerciseName: 'Bench Press',
+          weight: 225,
+        },
       ],
     });
     const out = assembleCrewSummary({
@@ -191,13 +214,13 @@ describe('assembleCrewSummary', () => {
         {
           fromUserId: 'me',
           toUserId: 'sam',
-          eventRef: 'pr:2026-08-24:Bench Press',
+          eventRef: 'pr:2026-08-24:flat_barbell_bench_press',
           createdAtIso: '2026-08-24T12:00:00.000Z',
         },
         {
           fromUserId: 'jake',
           toUserId: 'sam',
-          eventRef: 'pr:2026-08-24:Bench Press',
+          eventRef: 'pr:2026-08-24:flat_barbell_bench_press',
           createdAtIso: '2026-08-24T13:00:00.000Z',
         },
       ],

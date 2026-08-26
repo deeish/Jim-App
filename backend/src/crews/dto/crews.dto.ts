@@ -21,10 +21,12 @@ export class KudosDto {
   @IsNotEmpty()
   toUserId: string;
 
-  /** "day:<iso>" or "pr:<iso>:<exercise>", small and opaque to the server. */
+  /** "day:<iso>" or "pr:<iso>:<exerciseId>" — shape-checked so a member
+   *  can't mint unbounded junk kudos rows. */
   @IsString()
   @IsNotEmpty()
   @MaxLength(160)
+  @Matches(/^(day:\d{4}-\d{2}-\d{2}|pr:\d{4}-\d{2}-\d{2}:.+)$/)
   eventRef: string;
 }
 

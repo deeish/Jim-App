@@ -34,7 +34,11 @@ export class CrewsService {
     private readonly exercises: ExercisesService,
   ) {}
 
-  /** The caller's local calendar date for a UTC timestamp. */
+  /** The caller's local calendar date for a UTC timestamp.
+   *  ⚠ Accepted v0 caveat: TODAY's offset is applied to all history, so a
+   *  log within ~1h of local midnight on the other side of a DST switch can
+   *  bucket to the neighbouring day. Fixing it properly means an IANA zone
+   *  per request — revisit if a streak dispute ever traces here. */
   private localDateIso(at: Date, tzOffsetMinutes: number): string {
     return new Date(at.getTime() - tzOffsetMinutes * 60_000)
       .toISOString()
@@ -64,6 +68,14 @@ export class CrewsService {
           err instanceof Prisma.PrismaClientKnownRequestError &&
           err.code === 'P2002'
         ) {
+          // The unique that tripped decides the story: a userId collision is
+          // a double-tap / second device, not a code collision.
+          const target = String(
+            (err.meta as { target?: unknown } | undefined)?.target ?? '',
+          );
+          if (target.includes('userId')) {
+            throw new ConflictException('You are already in a crew.');
+          }
           continue; // code collision — mint another
         }
         throw err;
@@ -90,7 +102,15 @@ export class CrewsService {
     if (crew._count.members >= CREW_MAX_MEMBERS) {
       throw new ConflictException('That crew is full (10 people).');
     }
-    await this.prisma.crewMember.create({ data: { crewId: crew.id, userId } });
+    // Re-check the cap inside a transaction: two friends tapping Join in the
+    // same second must not push the crew past 10.
+    await this.prisma.$transaction(async (tx) => {
+      const count = await tx.crewMember.count({ where: { crewId: crew.id } });
+      if (count >= CREW_MAX_MEMBERS) {
+        throw new ConflictException('That crew is full (10 people).');
+      }
+      await tx.crewMember.create({ data: { crewId: crew.id, userId } });
+    });
     return { code };
   }
 
@@ -99,13 +119,17 @@ export class CrewsService {
       where: { userId },
     });
     if (!membership) return;
-    await this.prisma.crewMember.delete({ where: { userId } });
-    const remaining = await this.prisma.crewMember.count({
-      where: { crewId: membership.crewId },
+    // deleteMany keeps a double-leave idempotent; the empty-crew cleanup runs
+    // in the same transaction so a concurrent join can't be cascaded away.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.crewMember.deleteMany({ where: { userId } });
+      const remaining = await tx.crewMember.count({
+        where: { crewId: membership.crewId },
+      });
+      if (remaining === 0) {
+        await tx.crew.deleteMany({ where: { id: membership.crewId } });
+      }
     });
-    if (remaining === 0) {
-      await this.prisma.crew.delete({ where: { id: membership.crewId } });
-    }
   }
 
   /** Toggle a 💪 on a crewmate's event. */
@@ -124,21 +148,33 @@ export class CrewsService {
     if (userId === toUserId) {
       throw new BadRequestException('Pound your crewmates, not yourself.');
     }
-    const where = {
-      fromUserId_toUserId_eventRef: { fromUserId: userId, toUserId, eventRef },
-    };
-    const existing = await this.prisma.crewKudos.findUnique({ where });
-    if (existing) {
-      await this.prisma.crewKudos.delete({ where });
-    } else {
-      await this.prisma.crewKudos.create({
-        data: { crewId: mine.crewId, fromUserId: userId, toUserId, eventRef },
-      });
+    // deleteMany-first makes a rapid double-tap safe: whichever request runs
+    // second simply lands on the toggle's other branch instead of a P2002/500.
+    const removed = await this.prisma.crewKudos.deleteMany({
+      where: { fromUserId: userId, toUserId, eventRef },
+    });
+    let pounded = false;
+    if (removed.count === 0) {
+      try {
+        await this.prisma.crewKudos.create({
+          data: { crewId: mine.crewId, fromUserId: userId, toUserId, eventRef },
+        });
+        pounded = true;
+      } catch (err) {
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002'
+        ) {
+          pounded = true; // a concurrent request already pounded it
+        } else {
+          throw err;
+        }
+      }
     }
     const count = await this.prisma.crewKudos.count({
       where: { toUserId, eventRef },
     });
-    return { pounded: !existing, count };
+    return { pounded, count };
   }
 
   async getSummary(
@@ -167,16 +203,23 @@ export class CrewsService {
     const weekStartUtc = this.localDayStartUtc(weekMondayIso, tzOffsetMinutes);
     const lookbackUtc = new Date(Date.now() - LOG_LOOKBACK_DAYS * DAY_MS);
 
-    const [plans, allLogs, weekLogs, weekSets, kudosRows] = await Promise.all([
+    const [plans, allLogs, weekLogs, weekSets] = await Promise.all([
       this.prisma.workoutPlan.findMany({
         where: { userId: { in: memberIds }, isActive: true },
         include: {
           planWorkouts: {
             include: {
-              exercises: { select: { exerciseId: true, name: true } },
+              exercises: {
+                select: { exerciseId: true, name: true },
+                // Deterministic first-muscle tag (it drives the tile gradient).
+                orderBy: { orderIndex: 'asc' },
+              },
             },
           },
         },
+        // A user can end up with several active plans; take the newest,
+        // deterministically, instead of whatever the DB returns first.
+        orderBy: { updatedAt: 'desc' },
       }),
       this.prisma.workoutLog.findMany({
         where: { userId: { in: memberIds }, startedAt: { gte: lookbackUtc } },
@@ -194,6 +237,8 @@ export class CrewsService {
           startedAt: true,
           entries: { select: { exerciseId: true, name: true } },
         },
+        // First session of a two-session day wins, deterministically.
+        orderBy: { startedAt: 'asc' },
       }),
       this.prisma.completedSet.findMany({
         where: {
@@ -216,15 +261,11 @@ export class CrewsService {
           },
         },
       }),
-      this.prisma.crewKudos.findMany({
-        where: {
-          crewId: crew.id,
-          createdAt: { gte: new Date(weekStartUtc.getTime() - 7 * DAY_MS) },
-        },
-      }),
     ]);
 
-    // Prior bests for every exercise lifted this week (PR detection).
+    // Prior bests for every exercise lifted this week (PR detection). Bounded
+    // to the same one-year lookback so a staple lift can't drag the whole
+    // table through this query — a "PR" here means best of the last year.
     const weekExerciseIds = [
       ...new Set(weekSets.map((s) => s.workoutLogEntry.exerciseId)),
     ];
@@ -236,7 +277,7 @@ export class CrewsService {
               exerciseId: { in: weekExerciseIds },
               workoutLog: {
                 userId: { in: memberIds },
-                startedAt: { lt: weekStartUtc },
+                startedAt: { lt: weekStartUtc, gte: lookbackUtc },
               },
             },
           },
@@ -277,7 +318,12 @@ export class CrewsService {
     // Best weight per (user, exercise) this week, kept with its day for the moment card.
     const weekBest = new Map<
       string,
-      { weight: number; dateIso: string; exerciseName: string }
+      {
+        weight: number;
+        dateIso: string;
+        exerciseId: string;
+        exerciseName: string;
+      }
     >();
     for (const s of weekSets) {
       const entry = s.workoutLogEntry;
@@ -291,6 +337,7 @@ export class CrewsService {
         weekBest.set(key, {
           weight: s.weight!,
           dateIso,
+          exerciseId: entry.exerciseId,
           exerciseName:
             entry.name ??
             this.exercises.findOne(entry.exerciseId)?.name ??
@@ -298,6 +345,13 @@ export class CrewsService {
         });
       }
     }
+
+    const joinedIsoByUser = new Map(
+      crew.members.map((m) => [
+        m.userId,
+        this.localDateIso(m.joinedAt, tzOffsetMinutes),
+      ]),
+    );
 
     const members: MemberInput[] = memberUsers.map((u) => {
       const plan = plans.find((p) => p.userId === u.id);
@@ -334,6 +388,7 @@ export class CrewsService {
             ? [
                 {
                   dateIso: best.dateIso,
+                  exerciseId: best.exerciseId,
                   exerciseName: best.exerciseName,
                   weight: best.weight,
                 },
@@ -345,6 +400,7 @@ export class CrewsService {
         name: u.name,
         email: u.email,
         avatarId: u.avatarId,
+        joinedIso: joinedIsoByUser.get(u.id) ?? todayIso,
         anchorMondayIso,
         totalWeeks,
         slots:
@@ -360,6 +416,24 @@ export class CrewsService {
       };
     });
 
+    // Kudos are fetched for the refs actually being surfaced (each member's
+    // latest session + this week's PRs) plus anything recent — a chip on a
+    // three-week-old session must still show its pounds, not read as zero.
+    const surfacedRefs = new Set<string>();
+    for (const m of members) {
+      if (m.logs[0]) surfacedRefs.add(`day:${m.logs[0].dateIso}`);
+      for (const pr of m.prs)
+        surfacedRefs.add(`pr:${pr.dateIso}:${pr.exerciseId}`);
+    }
+    const kudosRows = await this.prisma.crewKudos.findMany({
+      where: {
+        crewId: crew.id,
+        OR: [
+          { createdAt: { gte: new Date(weekStartUtc.getTime() - 7 * DAY_MS) } },
+          { eventRef: { in: [...surfacedRefs] } },
+        ],
+      },
+    });
     const kudos: KudosInput[] = kudosRows.map((k) => ({
       fromUserId: k.fromUserId,
       toUserId: k.toUserId,
