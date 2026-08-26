@@ -11,6 +11,8 @@ import { generateShareCode, normalizeShareCode } from '../shares/share-code';
 import {
   addDaysIso,
   assembleCrewSummary,
+  estimateOneRepMax,
+  E1RM_MAX_REPS,
   type CrewSummaryResult,
   type KudosInput,
   type MemberInput,
@@ -26,6 +28,8 @@ const LOG_LOOKBACK_DAYS = 370;
 export interface CrewSummaryResponse extends CrewSummaryResult {
   crew: { code: string; name: string | null; createdAtIso: string } | null;
   meUserId: string;
+  /** Who may remove members and rotate the code — see `leadOf`. Null with no crew. */
+  leadUserId: string | null;
 }
 
 @Injectable()
@@ -134,6 +138,96 @@ export class CrewsService {
     });
   }
 
+  /**
+   * The crew lead: the member who has been in it longest, which is the person
+   * who created it until they leave.
+   *
+   * Derived rather than stored on purpose — a `Crew.ownerId` column would be
+   * a production migration for a rule this simple, and "longest-standing
+   * member" degrades sensibly when the founder walks: leadership passes to
+   * whoever has been there next-longest instead of leaving a crew nobody can
+   * administer. Ties break on userId so two members who joined in the same
+   * millisecond still resolve to one lead.
+   */
+  private async leadOf(crewId: string): Promise<string | null> {
+    const first = await this.prisma.crewMember.findFirst({
+      where: { crewId },
+      orderBy: [{ joinedAt: 'asc' }, { userId: 'asc' }],
+      select: { userId: true },
+    });
+    return first?.userId ?? null;
+  }
+
+  private async requireLead(userId: string): Promise<string> {
+    const membership = await this.prisma.crewMember.findUnique({
+      where: { userId },
+    });
+    if (!membership) throw new NotFoundException('You are not in a crew.');
+    const lead = await this.leadOf(membership.crewId);
+    if (lead !== userId) {
+      throw new BadRequestException(
+        'Only the crew lead can do that. That is whoever has been in the crew longest.',
+      );
+    }
+    return membership.crewId;
+  }
+
+  /**
+   * Remove a crewmate. Until this existed, a code posted in the wrong group
+   * chat meant a stranger could watch your training week forever and the only
+   * escape was abandoning your own crew.
+   */
+  async removeMember(userId: string, targetUserId: string): Promise<void> {
+    const crewId = await this.requireLead(userId);
+    if (targetUserId === userId) {
+      throw new BadRequestException('Use leave for that.');
+    }
+    const target = await this.prisma.crewMember.findUnique({
+      where: { userId: targetUserId },
+    });
+    if (!target || target.crewId !== crewId) {
+      throw new NotFoundException('They are not in your crew.');
+    }
+    // Their kudos go with them: counts on everyone else's sessions must not
+    // keep crediting someone who is no longer in the crew.
+    await this.prisma.$transaction([
+      this.prisma.crewKudos.deleteMany({
+        where: {
+          crewId,
+          OR: [{ fromUserId: targetUserId }, { toUserId: targetUserId }],
+        },
+      }),
+      this.prisma.crewMember.deleteMany({ where: { userId: targetUserId } }),
+    ]);
+  }
+
+  /**
+   * Mint a new code, which is the only way to un-share one that leaked.
+   * Everyone already in the crew stays in it; only the old code stops working.
+   */
+  async rotateCode(userId: string): Promise<{ code: string }> {
+    const crewId = await this.requireLead(userId);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const code = generateShareCode();
+      try {
+        await this.prisma.crew.update({
+          where: { id: crewId },
+          data: { code },
+        });
+        return { code };
+      } catch (err) {
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002'
+        ) {
+          continue; // code collision — mint another
+        }
+        throw err;
+      }
+    }
+    throw new ConflictException('Could not mint a new code. Try again.');
+  }
+
   /** Toggle a 💪 on a crewmate's event. */
   async toggleKudos(
     userId: string,
@@ -149,6 +243,27 @@ export class CrewsService {
     }
     if (userId === toUserId) {
       throw new BadRequestException('Pound your crewmates, not yourself.');
+    }
+    // The ref shape is validated by the DTO, but shape is not existence: a
+    // member could otherwise mint kudos rows for sessions and records that
+    // never happened. `recap:` is exempt — it names a computed crew event
+    // rather than one of the recipient's own logs.
+    if (!eventRef.startsWith('recap:')) {
+      const dateIso = eventRef.split(':')[1];
+      // A day-wide window, because the ref is in the POUNDER's local calendar
+      // and this check has no timezone of its own. It is a sanity bound on
+      // junk, not an audit.
+      const from = new Date(`${dateIso}T00:00:00.000Z`);
+      const to = new Date(from.getTime() + 2 * DAY_MS);
+      const trained = await this.prisma.workoutLog.count({
+        where: {
+          userId: toUserId,
+          startedAt: { gte: new Date(from.getTime() - DAY_MS), lt: to },
+        },
+      });
+      if (trained === 0) {
+        throw new BadRequestException('There is nothing there to pound.');
+      }
     }
     // deleteMany-first makes a rapid double-tap safe: whichever request runs
     // second simply lands on the toggle's other branch instead of a P2002/500.
@@ -193,6 +308,7 @@ export class CrewsService {
       return {
         crew: null,
         meUserId: userId,
+        leadUserId: null,
         streakDays: 0,
         members: [],
         moments: [],
@@ -207,69 +323,85 @@ export class CrewsService {
 
     // Skips cover the crew-streak lookback (60d) plus this week's forward days.
     const skipsSinceIso = addDaysIso(weekMondayIso, -70);
-    const [plans, allLogs, weekLogs, weekSets, skipRows] = await Promise.all([
-      this.prisma.workoutPlan.findMany({
-        where: { userId: { in: memberIds }, isActive: true },
-        include: {
-          planWorkouts: {
-            include: {
-              exercises: {
-                select: { exerciseId: true, name: true },
-                // Deterministic first-muscle tag (it drives the tile gradient).
-                orderBy: { orderIndex: 'asc' },
+    const [plans, allLogs, latestLogs, weekLogs, weekSets, skipRows] =
+      await Promise.all([
+        this.prisma.workoutPlan.findMany({
+          where: { userId: { in: memberIds }, isActive: true },
+          include: {
+            planWorkouts: {
+              include: {
+                exercises: {
+                  select: { exerciseId: true, name: true },
+                  // Deterministic first-muscle tag (it drives the tile gradient).
+                  orderBy: { orderIndex: 'asc' },
+                },
               },
             },
           },
-        },
-        // A user can end up with several active plans; take the newest,
-        // deterministically, instead of whatever the DB returns first.
-        orderBy: { updatedAt: 'desc' },
-      }),
-      this.prisma.workoutLog.findMany({
-        where: { userId: { in: memberIds }, startedAt: { gte: lookbackUtc } },
-        select: {
-          userId: true,
-          startedAt: true,
-          workout: { select: { name: true } },
-        },
-        orderBy: { startedAt: 'desc' },
-      }),
-      this.prisma.workoutLog.findMany({
-        where: { userId: { in: memberIds }, startedAt: { gte: weekStartUtc } },
-        select: {
-          userId: true,
-          startedAt: true,
-          entries: { select: { exerciseId: true, name: true } },
-        },
-        // First session of a two-session day wins, deterministically.
-        orderBy: { startedAt: 'asc' },
-      }),
-      this.prisma.completedSet.findMany({
-        where: {
-          weight: { not: null },
-          workoutLogEntry: {
-            workoutLog: {
-              userId: { in: memberIds },
-              startedAt: { gte: weekStartUtc },
+          // A user can end up with several active plans; take the newest,
+          // deterministically, instead of whatever the DB returns first.
+          orderBy: { updatedAt: 'desc' },
+        }),
+        // A year of dates, no join: this feeds week-streak math, which only
+        // needs to know WHICH days had a session. Joining `workout` here meant
+        // dragging a name through thousands of rows to display one of them.
+        this.prisma.workoutLog.findMany({
+          where: { userId: { in: memberIds }, startedAt: { gte: lookbackUtc } },
+          select: { userId: true, startedAt: true },
+          orderBy: { startedAt: 'desc' },
+        }),
+        // The one row per member that actually gets its title rendered.
+        this.prisma.workoutLog.findMany({
+          where: { userId: { in: memberIds } },
+          select: {
+            userId: true,
+            startedAt: true,
+            workout: { select: { name: true } },
+          },
+          orderBy: { startedAt: 'desc' },
+          distinct: ['userId'],
+        }),
+        this.prisma.workoutLog.findMany({
+          where: {
+            userId: { in: memberIds },
+            startedAt: { gte: weekStartUtc },
+          },
+          select: {
+            userId: true,
+            startedAt: true,
+            workout: { select: { name: true } },
+            entries: { select: { exerciseId: true, name: true } },
+          },
+          // First session of a two-session day wins, deterministically.
+          orderBy: { startedAt: 'asc' },
+        }),
+        this.prisma.completedSet.findMany({
+          where: {
+            weight: { not: null },
+            workoutLogEntry: {
+              workoutLog: {
+                userId: { in: memberIds },
+                startedAt: { gte: weekStartUtc },
+              },
             },
           },
-        },
-        select: {
-          weight: true,
-          workoutLogEntry: {
-            select: {
-              exerciseId: true,
-              name: true,
-              workoutLog: { select: { userId: true, startedAt: true } },
+          select: {
+            weight: true,
+            reps: true,
+            workoutLogEntry: {
+              select: {
+                exerciseId: true,
+                name: true,
+                workoutLog: { select: { userId: true, startedAt: true } },
+              },
             },
           },
-        },
-      }),
-      this.prisma.skippedDay.findMany({
-        where: { userId: { in: memberIds }, dateIso: { gte: skipsSinceIso } },
-        select: { userId: true, dateIso: true },
-      }),
-    ]);
+        }),
+        this.prisma.skippedDay.findMany({
+          where: { userId: { in: memberIds }, dateIso: { gte: skipsSinceIso } },
+          select: { userId: true, dateIso: true },
+        }),
+      ]);
 
     const skipsByUser = new Map<string, string[]>();
     for (const s of skipRows) {
@@ -284,34 +416,46 @@ export class CrewsService {
     const weekExerciseIds = [
       ...new Set(weekSets.map((s) => s.workoutLogEntry.exerciseId)),
     ];
-    const priorSets = weekExerciseIds.length
-      ? await this.prisma.completedSet.findMany({
-          where: {
-            weight: { not: null },
-            workoutLogEntry: {
-              exerciseId: { in: weekExerciseIds },
-              workoutLog: {
-                userId: { in: memberIds },
-                startedAt: { lt: weekStartUtc, gte: lookbackUtc },
-              },
-            },
-          },
-          select: {
-            weight: true,
-            workoutLogEntry: {
-              select: {
-                exerciseId: true,
-                workoutLog: { select: { userId: true } },
-              },
-            },
-          },
-        })
-      : [];
+    // The best each member had BEFORE this week, for the same lifts they
+    // touched this week. This is a MAX, so the database should compute it:
+    // the old version fetched every matching set row of the last year — for
+    // a ten-person crew a year in, tens of thousands of rows on every single
+    // tab focus — only to fold them into one number each.
+    //
+    // The CASE mirrors `estimateOneRepMax`: one rep counts as the weight
+    // itself, and anything past the rep cap is excluded rather than
+    // projected. Rounding stays in JS so both sides round once, the same way.
     const priorBest = new Map<string, number>();
-    for (const s of priorSets) {
-      const key = `${s.workoutLogEntry.workoutLog.userId}|${s.workoutLogEntry.exerciseId}`;
-      if ((priorBest.get(key) ?? 0) < (s.weight ?? 0))
-        priorBest.set(key, s.weight!);
+    if (weekExerciseIds.length) {
+      const rows = await this.prisma.$queryRaw<
+        { userId: string; exerciseId: string; best: number | null }[]
+      >`
+        SELECT wl."userId" AS "userId",
+               wle."exerciseId" AS "exerciseId",
+               MAX(
+                 CASE WHEN cs."reps" = 1 THEN cs."weight"
+                      ELSE cs."weight" * (1 + cs."reps" / 30.0) END
+               ) AS "best"
+        FROM "completed_sets" cs
+        JOIN "workout_log_entries" wle ON wle."id" = cs."workoutLogEntryId"
+        JOIN "workout_logs" wl ON wl."id" = wle."workoutLogId"
+        WHERE cs."weight" IS NOT NULL
+          AND cs."weight" > 0
+          AND cs."reps" >= 1
+          AND cs."reps" <= ${E1RM_MAX_REPS}
+          AND wl."userId" = ANY(${memberIds})
+          AND wle."exerciseId" = ANY(${weekExerciseIds})
+          AND wl."startedAt" >= ${lookbackUtc}
+          AND wl."startedAt" < ${weekStartUtc}
+        GROUP BY wl."userId", wle."exerciseId"
+      `;
+      for (const r of rows) {
+        if (r.best == null) continue;
+        priorBest.set(
+          `${r.userId}|${r.exerciseId}`,
+          Math.round(Number(r.best)),
+        );
+      }
     }
 
     const muscleTagsFor = (
@@ -331,16 +475,23 @@ export class CrewsService {
     };
 
     // Best weight per (user, exercise) this week, kept with its day for the moment card.
+    // Best of THIS week per (member, exercise), ranked by estimated 1RM but
+    // remembering the set that produced it — the record is announced as the
+    // weight and reps actually lifted, never as the projection.
     const weekBest = new Map<
       string,
       {
+        e1rm: number;
         weight: number;
+        reps: number;
         dateIso: string;
         exerciseId: string;
         exerciseName: string;
       }
     >();
     for (const s of weekSets) {
+      const e1rm = estimateOneRepMax(s.weight, s.reps);
+      if (e1rm === null) continue;
       const entry = s.workoutLogEntry;
       const key = `${entry.workoutLog.userId}|${entry.exerciseId}`;
       const dateIso = this.localDateIso(
@@ -348,9 +499,16 @@ export class CrewsService {
         tzOffsetMinutes,
       );
       const current = weekBest.get(key);
-      if (!current || (s.weight ?? 0) > current.weight) {
+      // Ties prefer the heavier bar, matching the frontend's topWeightedSet.
+      if (
+        !current ||
+        e1rm > current.e1rm ||
+        (e1rm === current.e1rm && s.weight! > current.weight)
+      ) {
         weekBest.set(key, {
+          e1rm,
           weight: s.weight!,
+          reps: s.reps,
           dateIso,
           exerciseId: entry.exerciseId,
           exerciseName:
@@ -384,14 +542,31 @@ export class CrewsService {
           weekMusclesByDate.set(dateIso, muscleTagsFor(log.entries));
         }
       }
+      // Only two sessions per member ever have their title rendered: the
+      // days of the current week, and their latest overall. Everything else
+      // is a date, so it does not carry a name through this query at all.
+      const titleByDate = new Map<string, string>();
+      for (const l of weekLogs) {
+        if (l.userId !== u.id) continue;
+        titleByDate.set(
+          this.localDateIso(l.startedAt, tzOffsetMinutes),
+          l.workout?.name ?? 'Workout',
+        );
+      }
+      for (const l of latestLogs) {
+        if (l.userId !== u.id) continue;
+        const dateIso = this.localDateIso(l.startedAt, tzOffsetMinutes);
+        if (!titleByDate.has(dateIso)) {
+          titleByDate.set(dateIso, l.workout?.name ?? 'Workout');
+        }
+      }
       const logs = allLogs
         .filter((l) => l.userId === u.id)
         .map((l) => {
           const dateIso = this.localDateIso(l.startedAt, tzOffsetMinutes);
           return {
             dateIso,
-            title: l.workout?.name ?? 'Workout',
-            performedAtIso: l.startedAt.toISOString(),
+            title: titleByDate.get(dateIso) ?? 'Workout',
             muscles: weekMusclesByDate.get(dateIso) ?? [],
           };
         });
@@ -399,13 +574,15 @@ export class CrewsService {
         .filter(([key]) => key.startsWith(`${u.id}|`))
         .flatMap(([key, best]) => {
           const prior = priorBest.get(key);
-          return prior !== undefined && best.weight > prior
+          // No prior at all is a FIRST time, not a record.
+          return prior !== undefined && best.e1rm > prior
             ? [
                 {
                   dateIso: best.dateIso,
                   exerciseId: best.exerciseId,
                   exerciseName: best.exerciseName,
                   weight: best.weight,
+                  reps: best.reps,
                 },
               ]
             : [];
@@ -481,6 +658,12 @@ export class CrewsService {
         createdAtIso: crew.createdAt.toISOString(),
       },
       meUserId: userId,
+      // Already loaded with the crew, so this costs no extra query.
+      leadUserId:
+        [...crew.members].sort((a, b) => {
+          const t = a.joinedAt.getTime() - b.joinedAt.getTime();
+          return t !== 0 ? t : a.userId < b.userId ? -1 : 1;
+        })[0]?.userId ?? null,
       ...assembled,
     };
   }
