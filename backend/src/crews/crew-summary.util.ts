@@ -219,6 +219,19 @@ export interface CrewSummaryMemberDay {
   isToday: boolean;
   title: string | null;
   muscles: MuscleTag[];
+  /**
+   * The event a pound on THIS day lands on, or null when the day is not
+   * poundable (nobody trained, or it is your own day).
+   *
+   * Normally `day:<iso>`, but a day that carried a personal record targets
+   * that record's ref instead. A PR belongs to the day it happened on, so
+   * the day tile and the row chip that shows off the same record must move
+   * the same number — otherwise one workout has two counts again.
+   */
+  poundRef: string | null;
+  /** Pounds on `poundRef`, and whether one of them is mine. */
+  kudos: number;
+  iPounded: boolean;
 }
 
 export interface CrewSummaryMember {
@@ -304,6 +317,20 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
     }
   }
 
+  // A day that carried a record pounds the RECORD, not the day. Built once
+  // here so the week tiles and the row chip cannot pick different refs for
+  // the same workout. Two records on one day is possible; the first wins and
+  // the second is reachable only from the row chip.
+  const prRefByUserDate = new Map<string, string>();
+  for (const m of members) {
+    for (const pr of m.prs) {
+      const key = `${m.userId}|${pr.dateIso}`;
+      if (!prRefByUserDate.has(key)) {
+        prRefByUserDate.set(key, `pr:${pr.dateIso}:${pr.exerciseId}`);
+      }
+    }
+  }
+
   const summaryMembers: CrewSummaryMember[] = members.map((m) => {
     const trained = trainedByUser.get(m.userId)!;
     const skipped = new Set(m.skippedDays);
@@ -325,12 +352,27 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
       else if (slot) state = dateIso < todayIso ? 'missed' : 'scheduled';
       if (log) done++;
       if (log || slot) planned++;
+      // Only a day someone actually trained carries pounds at all. The COUNT
+      // is filled in for everyone, your own days included — otherwise the
+      // cheering is invisible to the one person it was aimed at, and with no
+      // push notifications yet this tab is the only place it can land. The
+      // REF is withheld on your own days, because the server rejects a
+      // self-pound and an affordance that always fails is worse than none.
+      const isMine = m.userId === meUserId;
+      const dayRef = log
+        ? (prRefByUserDate.get(`${m.userId}|${dateIso}`) ?? `day:${dateIso}`)
+        : null;
+      const poundRef = isMine ? null : dayRef;
+      const poundKey = dayRef ? `${m.userId}|${dayRef}` : null;
       week.push({
         dateIso,
         state,
         isToday: dateIso === todayIso,
         title: log?.title ?? slot?.title ?? null,
         muscles: (log?.muscles ?? slot?.muscles ?? []).slice(0, 3),
+        poundRef,
+        kudos: poundKey ? (kudosCountByRef.get(poundKey) ?? 0) : 0,
+        iPounded: poundKey && !isMine ? myPoundsByRef.has(poundKey) : false,
       });
     }
 

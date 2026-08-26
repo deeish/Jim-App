@@ -438,6 +438,12 @@ export class CrewsService {
     const surfacedRefs = new Set<string>();
     for (const m of members) {
       if (m.logs[0]) surfacedRefs.add(`day:${m.logs[0].dateIso}`);
+      // Every trained day in the displayed week is its own tap target now,
+      // so every one of them needs its own count — not just the latest.
+      for (const log of m.logs) {
+        if (log.dateIso >= weekMondayIso)
+          surfacedRefs.add(`day:${log.dateIso}`);
+      }
       for (const pr of m.prs)
         surfacedRefs.add(`pr:${pr.dateIso}:${pr.exerciseId}`);
     }

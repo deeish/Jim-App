@@ -13,6 +13,12 @@ export interface CrewMemberDay {
   isToday: boolean;
   title: string | null;
   muscles: CrewMuscleTag[];
+  /** The event a pound on this day lands on; null when it isn't poundable
+   *  (nobody trained, or it's one of your own days). A day that carried a
+   *  record targets the record, so the tile and the row chip agree. */
+  poundRef: string | null;
+  kudos: number;
+  iPounded: boolean;
 }
 
 export interface CrewMemberSummary {

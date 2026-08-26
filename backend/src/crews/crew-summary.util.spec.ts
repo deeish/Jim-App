@@ -259,6 +259,79 @@ describe('assembleCrewSummary', () => {
     expect(out.members[0].lastSession?.dateIso).toBe('2026-08-25');
   });
 
+  it('makes each trained day its own pound target, and never my own', () => {
+    const sam = member('sam', { logs: [log('2026-08-25'), log('2026-08-24')] });
+    const me = member('me', { logs: [log('2026-08-25')] });
+    const out = assembleCrewSummary({
+      ...base,
+      members: [me, sam],
+      kudos: [
+        {
+          fromUserId: 'me',
+          toUserId: 'sam',
+          eventRef: 'day:2026-08-24',
+          createdAtIso: '2026-08-24T12:00:00.000Z',
+        },
+      ],
+    });
+    const samWeek = out.members.find((x) => x.userId === 'sam')!.week;
+    const mon = samWeek.find((d) => d.dateIso === '2026-08-24')!;
+    const tue = samWeek.find((d) => d.dateIso === '2026-08-25')!;
+    const wed = samWeek.find((d) => d.dateIso === '2026-08-26')!;
+    expect(mon).toMatchObject({
+      poundRef: 'day:2026-08-24',
+      kudos: 1,
+      iPounded: true,
+    });
+    expect(tue).toMatchObject({
+      poundRef: 'day:2026-08-25',
+      kudos: 0,
+      iPounded: false,
+    });
+    // A day nobody trained has nothing to pound.
+    expect(wed.poundRef).toBeNull();
+    // ...and neither does any day of my own: the server rejects a self-pound,
+    // so the tile must never offer one.
+    const myWeek = out.members.find((x) => x.userId === 'me')!.week;
+    expect(myWeek.every((d) => d.poundRef === null)).toBe(true);
+  });
+
+  it('points a record day at the record, not at the day', () => {
+    const sam = member('sam', {
+      logs: [log('2026-08-24')],
+      prs: [
+        {
+          dateIso: '2026-08-24',
+          exerciseId: 'flat_barbell_bench_press',
+          exerciseName: 'Bench Press',
+          weight: 225,
+        },
+      ],
+    });
+    const out = assembleCrewSummary({
+      ...base,
+      members: [sam],
+      kudos: [
+        {
+          fromUserId: 'me',
+          toUserId: 'sam',
+          eventRef: 'pr:2026-08-24:flat_barbell_bench_press',
+          createdAtIso: '2026-08-24T12:00:00.000Z',
+        },
+      ],
+    });
+    const mon = out.members[0].week.find((d) => d.dateIso === '2026-08-24')!;
+    // The tile and the moment are the same event, so they move one number.
+    expect(mon.poundRef).toBe('pr:2026-08-24:flat_barbell_bench_press');
+    expect(mon.kudos).toBe(1);
+    expect(mon.iPounded).toBe(true);
+    expect(out.moments[0]).toMatchObject({
+      kind: 'pr',
+      kudos: 1,
+      iPounded: true,
+    });
+  });
+
   it('counts pounds on the latest session apart from the week total', () => {
     const m = member('sam', { logs: [log('2026-08-25'), log('2026-08-24')] });
     const out = assembleCrewSummary({
