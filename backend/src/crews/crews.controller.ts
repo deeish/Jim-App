@@ -14,6 +14,7 @@ import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 import { CrewsService } from './crews.service';
 import {
+  CreateCrewDto,
   CrewSummaryQueryDto,
   JoinCrewDto,
   KudosDto,
@@ -31,8 +32,8 @@ export class CrewsController {
   constructor(private readonly crews: CrewsService) {}
 
   @Post()
-  create(@UserId() userId: string) {
-    return this.crews.createCrew(userId);
+  create(@UserId() userId: string, @Body() body: CreateCrewDto) {
+    return this.crews.createCrew(userId, body.name);
   }
 
   @Post('join')

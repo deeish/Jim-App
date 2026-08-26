@@ -1,6 +1,7 @@
 import {
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
   Max,
@@ -8,6 +9,14 @@ import {
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+export class CreateCrewDto {
+  /** Named at creation, Clash-of-Clans style — the client requires it. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  name?: string;
+}
 
 export class JoinCrewDto {
   @IsString()

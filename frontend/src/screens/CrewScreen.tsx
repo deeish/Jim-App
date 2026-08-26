@@ -99,6 +99,10 @@ export default function CrewScreen() {
   /** Story-row tap → the member's mini profile sheet. */
   const [memberSheetId, setMemberSheetId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
+  /** Clash-of-Clans grammar: creating is a form, not a tap — a crew is named
+   *  before it exists, so an accidental tap just dismisses the sheet. */
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [createName, setCreateName] = useState('');
 
   // A jimapp://crew/CODE deep link lands here with the code — prefill only;
   // joining stays an explicit tap.
@@ -143,15 +147,19 @@ export default function CrewScreen() {
   }, [load]);
 
   const startCrew = async () => {
-    if (busy) return;
+    const name = createName.trim();
+    if (busy || name.length < 2) return;
     haptics.tap();
     setBusy(true);
     try {
-      await createCrew();
+      await createCrew(name);
+      setCreateSheetOpen(false);
+      setCreateName('');
       await load();
     } catch {
       // A 409 (already in a crew, e.g. joined on another device) resolves
       // itself on reload; anything else reads as offline.
+      setCreateSheetOpen(false);
       await load();
     } finally {
       setBusy(false);
@@ -474,17 +482,15 @@ export default function CrewScreen() {
                 <View style={styles.inviteFooter}>
                   <TouchableOpacity
                     style={styles.primaryButton}
-                    onPress={() => void startCrew()}
-                    disabled={busy}
+                    onPress={() => {
+                      haptics.tap();
+                      setCreateSheetOpen(true);
+                    }}
                     activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel="Start a crew"
                   >
-                    {busy ? (
-                      <ActivityIndicator size="small" color={colors.onPrimary} />
-                    ) : (
-                      <Text style={styles.primaryButtonLabel}>Start a crew</Text>
-                    )}
+                    <Text style={styles.primaryButtonLabel}>Start a crew</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -615,7 +621,7 @@ export default function CrewScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Delete this crew"
                   >
-                    <Text style={styles.undoLabel}>Started this by accident? Delete crew</Text>
+                    <Text style={styles.undoLabel}>Delete crew</Text>
                   </TouchableOpacity>
                 </>
               ) : null}
@@ -827,6 +833,49 @@ export default function CrewScreen() {
             <Text style={styles.leaveLabel}>
               {members.length <= 1 ? 'Delete crew' : 'Leave crew'}
             </Text>
+          </TouchableOpacity>
+        </Pressable>
+      </SheetModal>
+
+      {/* Creating is a form (Clash-of-Clans grammar): name it into existence.
+          Dismissing this sheet creates nothing. */}
+      <SheetModal
+        visible={createSheetOpen}
+        onClose={() => setCreateSheetOpen(false)}
+        scrimColor={colors.scrim}
+      >
+        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.grabber} />
+          <Text style={styles.sheetTitle}>Start your crew</Text>
+          <Text style={styles.fieldLabel}>Crew name</Text>
+          <TextInput
+            style={styles.nameInput}
+            value={createName}
+            onChangeText={setCreateName}
+            placeholder="The 5AM Club"
+            placeholderTextColor={colors.textMuted}
+            maxLength={40}
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={() => void startCrew()}
+            accessibilityLabel="New crew name"
+          />
+          <TouchableOpacity
+            style={[
+              styles.primaryButton,
+              createName.trim().length < 2 && styles.joinButtonDisabled,
+            ]}
+            onPress={() => void startCrew()}
+            disabled={busy || createName.trim().length < 2}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Create crew"
+          >
+            {busy ? (
+              <ActivityIndicator size="small" color={colors.onPrimary} />
+            ) : (
+              <Text style={styles.primaryButtonLabel}>Create crew</Text>
+            )}
           </TouchableOpacity>
         </Pressable>
       </SheetModal>

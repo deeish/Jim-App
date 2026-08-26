@@ -52,16 +52,17 @@ export class CrewsService {
     return new Date(Date.UTC(y, m - 1, d) + tzOffsetMinutes * 60_000);
   }
 
-  async createCrew(userId: string): Promise<{ code: string }> {
+  async createCrew(userId: string, name?: string): Promise<{ code: string }> {
     const existing = await this.prisma.crewMember.findUnique({
       where: { userId },
     });
     if (existing) throw new ConflictException('You are already in a crew.');
+    const trimmedName = name?.trim().slice(0, 40) || null;
     for (let attempt = 0; attempt < 3; attempt++) {
       const code = generateShareCode();
       try {
         await this.prisma.crew.create({
-          data: { code, members: { create: { userId } } },
+          data: { code, name: trimmedName, members: { create: { userId } } },
         });
         return { code };
       } catch (err) {

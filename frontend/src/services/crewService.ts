@@ -72,8 +72,8 @@ export async function getCrewSummary(
   return data;
 }
 
-export async function createCrew(): Promise<{ code: string }> {
-  const { data } = await api.post<{ code: string }>('/crews');
+export async function createCrew(name: string): Promise<{ code: string }> {
+  const { data } = await api.post<{ code: string }>('/crews', { name });
   return data;
 }
 
