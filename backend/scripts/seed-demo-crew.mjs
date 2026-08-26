@@ -9,6 +9,7 @@
  *
  *   node scripts/seed-demo-crew.mjs --owner you@example.com            # dry run
  *   node scripts/seed-demo-crew.mjs --owner you@example.com --apply
+ *   node scripts/seed-demo-crew.mjs --owner you@example.com --apply --backdate-crew 20
  *   node scripts/seed-demo-crew.mjs --owner you@example.com --undo --apply
  *
  * DATABASE_URL must be set INLINE on the command (PowerShell env does not
@@ -38,6 +39,13 @@ const APPLY = flag('apply');
 const UNDO = flag('undo');
 const OWNER = value('owner');
 const CREW_NAME = value('crew-name') ?? 'Demo Crew';
+/**
+ * Age a crew you ALREADY have, in days. Opt-in and explicit, because the crew
+ * streak floors at the crew's creation date: a crew made ten minutes ago can
+ * only ever read "Start the crew streak", however much history its members
+ * have. Worth it for a demo crew, never something to do silently to a real one.
+ */
+const BACKDATE = Number(value('backdate-crew') ?? 0);
 
 // ---- the week ---------------------------------------------------------------
 const now = new Date();
@@ -136,6 +144,12 @@ async function seed() {
   if (crewId) {
     const crew = await prisma.crew.findUnique({ where: { id: crewId } });
     console.log(`joining ${owner.name ?? owner.email}'s existing crew "${crew?.name ?? 'Your crew'}" (${crew?.code})`);
+    if (BACKDATE > 0) {
+      const born = new Date(now);
+      born.setDate(now.getDate() - BACKDATE);
+      await prisma.crew.update({ where: { id: crewId }, data: { createdAt: born } });
+      console.log(`  aged that crew to ${BACKDATE} days old so the streak has room to count`);
+    }
   } else {
     const code = Array.from({ length: 8 }, () =>
       'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)],
