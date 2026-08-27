@@ -71,7 +71,9 @@ export class PlansController {
     return this.plansService.getById(id, userId);
   }
 
+  // Reaches the LLM: every slot with no exercises is generated server-side.
   @Post()
+  @UseGuards(AiThrottlerGuard)
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreatePlanDto, @UserId() userId: string) {
     return this.plansService.create(dto, userId);
@@ -112,7 +114,10 @@ export class PlansController {
     return this.plansService.generateSingleSession(dto, userId);
   }
 
+  // Same generation path as POST. No frontend caller today, which is exactly
+  // why it should not be the unguarded way in.
   @Patch(':id')
+  @UseGuards(AiThrottlerGuard)
   update(
     @Param('id') id: string,
     @Body() dto: CreatePlanDto,

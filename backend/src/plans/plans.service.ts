@@ -47,6 +47,14 @@ import {
   repairChunkGeneratedSessions,
 } from './generation-chunk-repair';
 
+/**
+ * Most empty slots one `POST /plans` / `PATCH /plans/:id` will fill with an LLM
+ * call. A 12-week plan training 5 days a week is 60 slots, so this clears any
+ * real plan; it exists to stop a hand-made request turning one HTTP call into
+ * hundreds of sequential Groq calls.
+ */
+const MAX_GENERATED_SLOTS_PER_REQUEST = 60;
+
 @Injectable()
 export class PlansService {
   private readonly logger = new Logger(PlansService.name);
@@ -163,7 +171,7 @@ export class PlansService {
       },
     });
     if (!plan) throw new NotFoundException(`Plan with ID ${id} not found`);
-    if (plan.userId && plan.userId !== userId) {
+    if (plan.userId !== userId) {
       throw new NotFoundException(`Plan with ID ${id} not found`);
     }
     return plan;
@@ -433,9 +441,27 @@ export class PlansService {
     }
 
     const fillAll = options?.fillAllEmptySlots === true;
+    let generatedCount = 0;
 
     for (const pw of plan.planWorkouts) {
       if (pw.exercises.length > 0) continue;
+
+      // ⚠ `fillAll` deliberately SKIPS the date gate below, so without this cap
+      // the loop runs one sequential Groq call per empty slot, and `slots` is
+      // caller-supplied. Every real client sends slots that already carry
+      // exercises (preview apply, template materialize, library add), so this
+      // only ever bites a request that asks for far more generation than a
+      // human plan needs. Going over degrades exactly the way the non-`fillAll`
+      // path already behaves — the slot keeps its detail line and gets its
+      // workout on demand later — rather than failing the whole apply.
+      if (generatedCount >= MAX_GENERATED_SLOTS_PER_REQUEST) {
+        this.logger.warn(
+          `[PlansService] createWorkoutsForPlan: generation cap hit ` +
+            `(${MAX_GENERATED_SLOTS_PER_REQUEST}) for plan=${workoutPlanId}; ` +
+            `remaining empty slots will generate on demand`,
+        );
+        break;
+      }
 
       if (!fillAll) {
         if (anchor) {
@@ -448,6 +474,7 @@ export class PlansService {
       }
 
       const difficulty = this.intensityToDifficulty(pw.intensity);
+      generatedCount += 1;
       const generated = await this.workoutGenerator.generateWorkout({
         day: pw.dayOfWeek,
         userId: uid ?? undefined,
@@ -543,7 +570,7 @@ export class PlansService {
       where: { id },
     });
     if (!existing) throw new NotFoundException(`Plan with ID ${id} not found`);
-    if (existing.userId && existing.userId !== userId) {
+    if (existing.userId !== userId) {
       throw new NotFoundException(`Plan with ID ${id} not found`);
     }
     return this.prisma.workoutPlan.update({
@@ -558,7 +585,7 @@ export class PlansService {
       include: { planWorkouts: true },
     });
     if (!existing) throw new NotFoundException(`Plan with ID ${id} not found`);
-    if (existing.userId && existing.userId !== userId) {
+    if (existing.userId !== userId) {
       throw new NotFoundException(`Plan with ID ${id} not found`);
     }
 
@@ -2392,7 +2419,7 @@ export class PlansService {
       },
     });
     if (!plan) throw new NotFoundException(`Plan with ID ${planId} not found`);
-    if (plan.userId && plan.userId !== userId) {
+    if (plan.userId !== userId) {
       throw new NotFoundException(`Plan with ID ${planId} not found`);
     }
 
@@ -2411,7 +2438,7 @@ export class PlansService {
       include: { planWorkouts: { select: { id: true } } },
     });
     if (!plan) throw new NotFoundException(`Plan with ID ${planId} not found`);
-    if (plan.userId && plan.userId !== userId) {
+    if (plan.userId !== userId) {
       throw new NotFoundException(`Plan with ID ${planId} not found`);
     }
     const slotExists = plan.planWorkouts.some((pw) => pw.id === slotId);
@@ -2445,7 +2472,7 @@ export class PlansService {
       include: { planWorkouts: true },
     });
     if (!plan) throw new NotFoundException(`Plan with ID ${planId} not found`);
-    if (plan.userId && plan.userId !== userId) {
+    if (plan.userId !== userId) {
       throw new NotFoundException(`Plan with ID ${planId} not found`);
     }
     const slot = plan.planWorkouts.find((pw) => pw.id === slotId);

@@ -2,6 +2,7 @@ import {
   IsString,
   IsOptional,
   IsArray,
+  ArrayMaxSize,
   ValidateNested,
   IsNumber,
   IsIn,
@@ -112,6 +113,7 @@ export class PlanSlotDto {
   /** Exercises from preview / library apply (skips server LLM for this slot when present). */
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(60)
   @ValidateNested({ each: true })
   @Type(() => PlanSlotExerciseDto)
   exercises?: PlanSlotExerciseDto[];
@@ -128,7 +130,15 @@ export class CreatePlanDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   weekAnchorMonday?: string;
 
+  /**
+   * ⚠ The cap is load-bearing, not cosmetic. Every empty slot here becomes one
+   * sequential LLM call server-side (`createWorkoutsForPlan` with
+   * `fillAllEmptySlots`), so an uncapped array turned a single request into
+   * unbounded Groq spend. 12 weeks x 7 days = 84 is the largest plan the app
+   * can express, so 120 leaves real headroom.
+   */
   @IsArray()
+  @ArrayMaxSize(120)
   @ValidateNested({ each: true })
   @Type(() => PlanSlotDto)
   slots: PlanSlotDto[];
