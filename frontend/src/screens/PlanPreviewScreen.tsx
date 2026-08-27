@@ -20,6 +20,7 @@ import { useTabBarInset } from '../navigation/useTabBarInset';
 import BenchPressLoader from '../components/BenchPressLoader';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
+import { moveWorkoutBetweenDays } from '../lib/planPreviewMove';
 import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
 import {
   createPlan,
@@ -756,19 +757,23 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     
     setPlanData(prev => prev.map(week => {
       if (week.weekNumber !== selectedWeek) return week;
-      
-      const workouts = { ...week.workouts };
-      const fromWorkouts = workouts[fromDay] || [];
-      const workout = fromWorkouts.find(w => w.id === workoutId);
-      
-      if (!workout) return week;
-      
-      workouts[fromDay] = fromWorkouts.filter(w => w.id !== workoutId);
-      workouts[toDay] = [...(workouts[toDay] || []), { ...workout, changeType: 'moved' as const }];
-      
+      // ⚠ The display used to APPEND to the destination while the draft below
+      // SWAPPED the two days' sessions. They agree only when the destination is
+      // empty; onto an occupied day the display showed two workouts there and
+      // none at the origin, and since `handleApply` reads slots from HERE and
+      // exercises from the DRAFT, Apply wrote the destination twice and lost
+      // the origin's session outright. One shared definition now, and the swap
+      // is the correct one — a day holds one session, and the calendar's word
+      // for moving onto a taken day is "make room".
       return {
         ...week,
-        workouts,
+        workouts: moveWorkoutBetweenDays(
+          week.workouts,
+          workoutId,
+          fromDay,
+          toDay,
+          (workout) => ({ ...workout, changeType: 'moved' as const }),
+        ),
       };
     }));
 
