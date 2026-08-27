@@ -14,6 +14,8 @@ Every unchecked item below was re-read against the working tree. Boxes are now t
 
 **The single fact that reframes half of P0/P1/P2:** `frontend/src/components/WorkoutSession.tsx` (3,501 lines) is **orphaned** — nothing imports the component, and `frontend/src/screens/WorkoutScreen.tsx` was deleted. The live session is `PlanCalendarDayScreen` → `PlanCalendarWorkoutScreen` → `PlanCalendarWorkoutCompleteScreen`. Any item below whose evidence is a `WorkoutSession.tsx` / `WorkoutScreen.tsx` line number describes code that no longer runs; each was re-checked against the live flow instead. The dead file should be deleted or deliberately re-adopted — leaving it makes every future audit re-find these bugs.
 
+> **DELETED 2026-08-27.** `WorkoutSession.tsx` is gone. Every line reference to it below is now historical: those bugs were closed by removal, not by a fix. The two libraries it was the second consumer of (`lastPerformanceDisplay`, `nextTargetSuggestion`) still have live callers in the calendar session flow. `types/workout.ts`'s `WorkoutSessionState` was deliberately **kept** — it is the designed-but-never-built rest-timer model item 1.4 refers to, and deleting the component removed one of the two local interfaces that shadowed it.
+
 P0 boxes and item text are updated in place below. For P1–P4 the boxes are left as the July author wrote them; this table is the current verdict, and where it says BUILT the item is done regardless of the unticked box:
 
 | item | verdict, 2026-08-26 | where |
