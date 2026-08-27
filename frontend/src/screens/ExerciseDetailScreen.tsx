@@ -113,6 +113,8 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   const tabBarInset = useTabBarInset();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
+  /** The fetch failed, as opposed to the catalog genuinely lacking this id. */
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savingLike, setSavingLike] = useState(false);
   // Collapsed by default: most users go straight to the video, and the step
@@ -440,6 +442,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     if (!exerciseId) return;
     try {
       setLoading(true);
+      setLoadFailed(false);
       const [data, savedIds] = await Promise.all([
         getExerciseById(exerciseId),
         getSavedExerciseIds().catch((e) => {
@@ -453,6 +456,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
       setSaved(isSaved);
     } catch (error) {
       if (__DEV__) console.error('[ExerciseDetail] Error loading exercise:', error);
+      // ⚠ The catch used to swallow this, and the render below then said
+      // "Exercise not found" — which is a claim about the CATALOG, not about
+      // the network. The exercise exists; we could not reach the server. The
+      // difference matters: one is a dead end, the other wants a retry.
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -570,7 +578,16 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Exercise not found</Text>
+          <Text style={styles.emptyText}>
+            {loadFailed
+              ? 'Couldn’t load this exercise. Check your connection.'
+              : 'Exercise not found'}
+          </Text>
+          {loadFailed ? (
+            <TouchableOpacity onPress={() => void loadExercise()}>
+              <Text style={styles.backButton}>Try again</Text>
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity onPress={handleBack}>
             <Text style={styles.backButton}>Go Back</Text>
           </TouchableOpacity>
