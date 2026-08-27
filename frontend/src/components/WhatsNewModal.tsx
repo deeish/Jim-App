@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -65,6 +65,16 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }:
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [view, setView] = useState<'release' | 'history'>('release');
+  /**
+   * Whether the release list is scrolled to its end.
+   *
+   * Drives the fade below. Starts true so a card whose content FITS never
+   * flashes a fade for content that is not there — the first scroll event
+   * turns it off when there really is an overflow.
+   */
+  const [atEnd, setAtEnd] = useState(true);
+  /** Viewport height of the release list, for the fits-without-scrolling test. */
+  const scrollHeightRef = useRef(0);
   // Which earlier releases the user expanded; collapses again on dismiss so
   // the next open starts focused on the latest release.
   const [openOlderIds, setOpenOlderIds] = useState<string[]>([]);
@@ -72,6 +82,7 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }:
     if (!visible) {
       setView('release');
       setOpenOlderIds([]);
+      setAtEnd(true);
     }
   }, [visible]);
 
@@ -160,11 +171,31 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }:
 
         {view === 'release' ? (
           <>
-            <ScrollView
-              style={styles.scroll}
-              contentContainerStyle={styles.releaseContent}
-              showsVerticalScrollIndicator={false}
-            >
+            {/* ⚠ The release card OVERFLOWS — measured at 1154pt of content in
+                a 635pt window on a 844pt-tall phone, i.e. more than half of it
+                below the fold at seven rows. It always scrolled; nothing said
+                so. The indicator was hidden, and an iOS indicator only flashes
+                while you drag, so on open there was no cue at all: the content
+                simply stopped above the footer divider, which reads as the end
+                of the list rather than the middle of it. Hence both the
+                indicator AND a fade that persists until you reach the end. */}
+            <View style={styles.scrollWrap}>
+              <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.releaseContent}
+                showsVerticalScrollIndicator
+                scrollEventThrottle={16}
+                onScroll={({ nativeEvent: e }) =>
+                  setAtEnd(
+                    e.layoutMeasurement.height + e.contentOffset.y >=
+                      e.contentSize.height - 24,
+                  )
+                }
+                onContentSizeChange={(_w, h) => setAtEnd(h <= scrollHeightRef.current + 1)}
+                onLayout={({ nativeEvent: e }) => {
+                  scrollHeightRef.current = e.layout.height;
+                }}
+              >
               <LinearGradient
                 colors={[colors.brandGradientStart, colors.brandGradientEnd]}
                 start={{ x: 0, y: 0 }}
@@ -179,7 +210,16 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }:
                 {`Version ${latest.version} · ${formatShortDate(latest.date)}`}
               </Text>
               <View style={styles.featureList}>{latest.changes.map(featureRow)}</View>
-            </ScrollView>
+              </ScrollView>
+              {/* pointerEvents none: decoration must never eat a drag. */}
+              {!atEnd ? (
+                <LinearGradient
+                  pointerEvents="none"
+                  colors={[`${colors.surface}00`, colors.surface]}
+                  style={styles.scrollFade}
+                />
+              ) : null}
+            </View>
 
             <View style={[styles.footer, { paddingBottom: footerPad }]}>
               {older.length > 0 ? (
@@ -225,7 +265,7 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }:
             <ScrollView
               style={styles.scroll}
               contentContainerStyle={styles.historyContent}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator
             >
               {older.map(olderRow)}
               <Text style={styles.archiveNote}>
@@ -262,8 +302,19 @@ function createStyles(colors: ColorPalette) {
       alignSelf: 'center',
       marginTop: spacing.sm,
     },
+    scrollWrap: {
+      flex: 1,
+    },
     scroll: {
       flex: 1,
+    },
+    /** Sits over the last ~44pt of the list, hidden once you reach the end. */
+    scrollFade: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: 44,
     },
     releaseContent: {
       paddingHorizontal: spacing.xxl,
