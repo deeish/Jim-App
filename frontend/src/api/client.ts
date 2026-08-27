@@ -1,6 +1,37 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from '../config/api';
 import { supabase } from '../lib/supabase';
+import { singleFlight } from '../lib/singleFlight';
+
+/**
+ * ⚠ ONE refresh at a time, shared by every 401 in flight.
+ *
+ * Supabase ROTATES the refresh token: the first `refreshSession()` consumes it
+ * and issues a new pair, so a second concurrent call presents a token that no
+ * longer exists and fails. The old code read that failure as "the session is
+ * dead" and called `signOut()` — even though the other call had just
+ * refreshed successfully.
+ *
+ * That is not an exotic race. Home and Plan both fetch on app open, so on a
+ * cold start with an expired access token two requests routinely 401 together,
+ * which is exactly when it fires: the user is bounced to the login screen at
+ * launch having done nothing wrong.
+ *
+ * Deliberately NOT also short-circuiting on "someone already refreshed, just
+ * retry with the current token". It would save a rotation, but it is a second
+ * mechanism with its own failure modes, and the single flight is what fixes
+ * the bug.
+ */
+const refreshAccessToken = singleFlight(async (): Promise<string | null> => {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.refreshSession();
+    return session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+});
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -66,16 +97,15 @@ api.interceptors.response.use(
       const headers = config?.headers as Record<string, string> | undefined;
       const hadToken = !!(headers?.Authorization ?? headers?.authorization);
       if (hadToken && !config?._isRetry) {
-        try {
-          const { data: { session } } = await supabase.auth.refreshSession();
-          if (session?.access_token) {
-            config._isRetry = true;
-            (config.headers as Record<string, string>).Authorization = `Bearer ${session.access_token}`;
-            return api.request(config);
-          }
-        } catch {
-          // refresh failed, fall through to sign-out
+        const accessToken = await refreshAccessToken();
+        if (accessToken) {
+          config._isRetry = true;
+          (config.headers as Record<string, string>).Authorization = `Bearer ${accessToken}`;
+          return api.request(config);
         }
+        // Only now is the session genuinely unusable: the ONE refresh everyone
+        // shared came back empty. Signing out here can no longer be triggered
+        // by a sibling request having rotated the token first.
         await supabase.auth.signOut();
       }
     }
