@@ -533,7 +533,14 @@ export class WorkoutsService {
   /** Returns generated workout (name, reasoning, exercises) without saving. For plan preview. */
   async previewGenerate(
     generateWorkoutDto: GenerateWorkoutDto,
+    userId: string,
   ): Promise<CreateWorkoutDto> {
-    return this.workoutGeneratorService.generateWorkout(generateWorkoutDto);
+    // The caller's id OVERWRITES anything in the body — the same thing
+    // `generate` has always done, and the line whose absence here meant a
+    // preview could be personalised from someone else's training history.
+    return this.workoutGeneratorService.generateWorkout({
+      ...generateWorkoutDto,
+      userId,
+    });
   }
 }

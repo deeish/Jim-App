@@ -126,7 +126,12 @@ export class WorkoutsController {
   @Post('preview')
   @UseGuards(AiThrottlerGuard)
   @HttpCode(HttpStatus.OK)
-  preview(@Body() generateWorkoutDto: GenerateWorkoutDto) {
-    return this.workoutsService.previewGenerate(generateWorkoutDto);
+  preview(
+    @Body() generateWorkoutDto: GenerateWorkoutDto,
+    // ⚠ Was `@Body()` alone. Without the caller's id the handler ran entirely
+    // on request-supplied input, including whose history to read.
+    @UserId() userId: string,
+  ) {
+    return this.workoutsService.previewGenerate(generateWorkoutDto, userId);
   }
 }

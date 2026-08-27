@@ -5,9 +5,21 @@ export class GenerateWorkoutDto {
   @IsString()
   day?: string;
 
-  /** When set, recent workouts are used to avoid repeating the same exercises (variety). */
-  @IsOptional()
-  @IsString()
+  /**
+   * Whose history to personalise against. **Server-set only.**
+   *
+   * ⚠ DO NOT ADD VALIDATION DECORATORS TO THIS FIELD. Its lack of them is
+   * load-bearing: the global pipe runs `whitelist: true`, which strips any
+   * property that carries no validator, so leaving it bare is what stops a
+   * caller supplying it over the wire. With `@IsOptional() @IsString()` on it,
+   * the pipe KEPT it — and `POST /workouts/preview` passed the body straight
+   * through, so anyone could name another user here and receive a workout
+   * personalised from that user's logged working weights. Crew summaries hand
+   * out every crewmate's `userId`, so the target ids were not secret either.
+   *
+   * Both call sites now overwrite it from the auth guard; this is the second
+   * line of defence, so that a future route that forgets cannot reopen it.
+   */
   userId?: string;
 
   @IsOptional()
