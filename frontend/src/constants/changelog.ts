@@ -40,18 +40,29 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
-  // The ONE card for this wave: the Crew tab (v0 + wave 1: names, invites by
-  // code + link, records, synced skips, the weekly goal hero, the four-week
-  // ordering, and Rest up), the Home "Launchpad" redesign,
-  // and the goal-adaptive Profile "Athlete card". The week-tile split codes,
-  // recap trims, haptics sweep, and this release sheet itself are part of
-  // those stories, not separate lines. Copy rules: headlines read on their
-  // own (no pronouns leaning on the row above) and stay plain — name the
-  // part that changed and say what's different, no marketing lines.
+  // The ONE card for everything since the last thing external testers
+  // actually received, which is build 1.1.0 (25) plus the 2026-08-21
+  // production OTA — i.e. the card below this one. Verified against App Store
+  // Connect (25 is the only build IN_BETA_TESTING; 26 was uploaded and never
+  // distributed) and `eas update:list`, not from memory.
+  //
+  // Contents: the Crew tab (v0 + wave 1: names, invites by code + link,
+  // records, synced skips, the weekly goal hero, the four-week ordering, and
+  // Rest up), the Home "Launchpad" redesign, the goal-adaptive Profile
+  // "Athlete card", calendar paging, and keep-awake + a wall-clock rest timer.
+  //
+  // Deliberately absent: the loading-state sweep, the theme contrast pass, the
+  // legal URLs, and every bug fix. The week-tile split codes, recap trims,
+  // haptics sweep and this release sheet itself are part of the stories above,
+  // not separate lines. Copy rules: headlines read on their own (no pronouns
+  // leaning on the row above) and stay plain — name the part that changed and
+  // say what's different, no marketing lines.
+  //
+  // ⚠ `date` is a guess until this ships. Set it to the real release date.
   {
     id: '2026-08-25',
     version: '1.1.0',
-    date: '2026-08-26',
+    date: '2026-08-27',
     title: 'Crew, Home, and Profile',
     changes: [
       {
@@ -89,6 +100,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         headline: 'New Profile page',
         icon: 'person',
         text: 'Your profile now shows your best lifts and your body weight trend, with settings in a cleaner list below. Strength and muscle goals lead with lifts, fat loss goals lead with body weight.',
+      },
+      {
+        type: 'improved',
+        headline: 'Rest timer',
+        icon: 'timer',
+        text: 'The screen now stays on while you train, so it no longer locks between sets. The rest countdown keeps time while your phone is in your pocket instead of pausing.',
       },
       {
         type: 'improved',
