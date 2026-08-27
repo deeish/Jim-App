@@ -977,7 +977,7 @@ export default function CrewScreen() {
                       teaches people to stop reading it. */}
                   {summary!.streakDays > 0 ? (
                     <View style={styles.heroStreakChip}>
-                      <Ionicons name="flame" size={13} color="#E08D0C" />
+                      <Ionicons name="flame" size={13} color={colors.accent} />
                       <Text style={styles.heroStreakLabel}>
                         {`${summary!.streakDays}-day streak`}
                       </Text>
@@ -1123,10 +1123,15 @@ export default function CrewScreen() {
                               <Text style={styles.personName} numberOfLines={1}>
                                 {firstNameOf(m)}
                               </Text>
-                              {/* Shared, so several rows can carry it at
-                                  once — that is the point, not a bug. */}
+                              {/* Shared, so several rows can carry it at once —
+                                  that is the point, not a bug.
+                                  `accent`, not GOLD: at 13px on a white card
+                                  GOLD measures 2.03:1, and this glyph is the
+                                  only thing on the row saying the title is
+                                  held. It also has to match the score beside
+                                  it, which is `accent` for the same reason. */}
                               {isLegend ? (
-                                <Ionicons name="trophy" size={13} color={GOLD} />
+                                <Ionicons name="trophy" size={13} color={colors.accent} />
                               ) : null}
                             </View>
                             <Text
@@ -1356,7 +1361,7 @@ export default function CrewScreen() {
                   <Text
                     style={[
                       styles.memberSheetToday,
-                      memberSheet.todayState === 'trained' && { color: GOLD },
+                      memberSheet.todayState === 'trained' && { color: colors.accent },
                       memberSheet.todayState === 'scheduled' && { color: colors.primary },
                     ]}
                   >
@@ -1435,7 +1440,7 @@ export default function CrewScreen() {
                   <Ionicons
                     name={legends.has(memberSheet.userId) ? 'trophy' : 'trophy-outline'}
                     size={14}
-                    color={legends.has(memberSheet.userId) ? GOLD : colors.textMuted}
+                    color={legends.has(memberSheet.userId) ? colors.accent : colors.textMuted}
                   />
                   <Text style={styles.memberSheetStat}>
                     {`${memberSheet.rolling} ${
@@ -1864,8 +1869,19 @@ function createStyles(c: ColorPalette) {
       color: c.textSecondary,
       fontVariant: ['tabular-nums'],
     },
+    /**
+     * `accent`, not the raw GOLD brand constant.
+     *
+     * GOLD (#F5A623) is a FILL colour. As small text it measures 2.03:1 on a
+     * white card and 1.82:1 on the grey page — well under AA, and the app's
+     * light theme is the default. `accent` is the palette's warm attention
+     * colour (#9C4E00 light / #FFB340 dark) and clears 4.5:1 in both modes by
+     * construction: 5.99:1 and 9.31:1. GOLD stays wherever it is a SHAPE —
+     * rings, checkmarks, the rosette — because a large filled form is legible
+     * at a ratio small type is not.
+     */
     rowScoreGold: {
-      color: GOLD,
+      color: c.accent,
     },
     rowScoreSpacer: {
       width: 44,

@@ -954,8 +954,19 @@ function createStyles(c: ColorPalette) {
     statTileResting: {
       borderColor: GOLD,
     },
+    /**
+     * `accent`, not the raw GOLD brand constant.
+     *
+     * GOLD (#F5A623) is a FILL colour. As small text it measures 2.03:1 on a
+     * white card and 1.82:1 on the grey page — well under AA, and the app's
+     * light theme is the default. `accent` is the palette's warm attention
+     * colour (#9C4E00 light / #FFB340 dark) and clears 4.5:1 in both modes by
+     * construction: 5.99:1 and 9.31:1. GOLD stays wherever it is a SHAPE —
+     * rings, checkmarks, the rosette — because a large filled form is legible
+     * at a ratio small type is not.
+     */
     statValueResting: {
-      color: GOLD,
+      color: c.accent,
       fontVariant: ['tabular-nums'],
     },
     statValue: {
