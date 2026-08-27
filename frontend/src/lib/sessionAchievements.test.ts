@@ -719,3 +719,45 @@ describe('formatAchievementDetail — estimated claims', () => {
     ).toBe('12×175 lb · est. 245 lb');
   });
 });
+
+describe('summarizeSessionTotals — timed loaded work', () => {
+  const carry = (sets: Array<{ reps: number; weight?: number }>): ExerciseSession => ({
+    exerciseIndex: 0,
+    exercise: {
+      name: 'Farmer’s Carry',
+      exerciseId: 'farmers_carry',
+      sets: sets.length,
+      reps: 45,
+      prescriptionType: 'time',
+      primaryMuscleGroup: 'Forearms',
+    },
+    completedSets: sets.map((s, i) => ({
+      setNumber: i + 1,
+      reps: s.reps,
+      weight: s.weight,
+      completed: true,
+    })),
+  });
+
+  it('counts the sets but NOT the seconds as volume', () => {
+    // 45 seconds at 70 lb booked 3,150 lb before this — into the finish screen
+    // and the persisted totalVolume that Progress reads.
+    const totals = summarizeSessionTotals([carry([{ reps: 45, weight: 70 }])]);
+    expect(totals.completedSets).toBe(1);
+    expect(totals.volumeLb).toBe(0);
+  });
+
+  it('hides the volume tile for a carries-only session rather than claiming 0 lb', () => {
+    const totals = summarizeSessionTotals([carry([{ reps: 45, weight: 70 }])]);
+    expect(totals.hasWeightedWork).toBe(false);
+  });
+
+  it('still counts ordinary weighted work in the same session', () => {
+    const totals = summarizeSessionTotals([
+      carry([{ reps: 45, weight: 70 }]),
+      session('Bench Press', 'ex-bench', [{ reps: 5, weight: 100 }]),
+    ]);
+    expect(totals.volumeLb).toBe(500);
+    expect(totals.hasWeightedWork).toBe(true);
+  });
+});

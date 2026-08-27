@@ -58,13 +58,18 @@ export interface SessionTotals {
    * nothing proves two of them are the same movement.
    */
   exercisesWorked: number;
-  /** Canonical pounds. Unweighted sets contribute nothing. */
+  /**
+   * Canonical pounds. Unweighted sets contribute nothing, and neither do TIMED
+   * rows: they log their seconds in the reps field, so `reps × weight` would
+   * book a 45-second 70 lb carry as 3,150 lb.
+   */
   volumeLb: number;
   /**
-   * Whether any completed set carried a real weight. Bodyweight work never
-   * does, and generated plans ship no prescribed weight at all, so a perfectly
-   * good session can legitimately total zero volume. The finish screen hides
-   * the volume tile in that case rather than claiming "0 lb".
+   * Whether any completed set actually CONTRIBUTED volume. Bodyweight work
+   * never does, generated plans ship no prescribed weight at all, and timed
+   * loaded work counts none either — so a perfectly good session can
+   * legitimately total zero. The finish screen hides the volume tile in that
+   * case rather than claiming "0 lb".
    */
   hasWeightedWork: boolean;
 }
@@ -222,12 +227,23 @@ export function summarizeSessionTotals(
 
   for (const es of sessions) {
     if (es.skipped) continue;
+    // ⚠ Timed rows store their SECONDS in the reps field, so multiplying counts
+    // every second as a rep: a 45-second carry at 70 lb booked 3,150 lb — into
+    // the finish screen AND the persisted `totalVolume` that Progress reads, so
+    // the number was wrong long after the session ended. Timed work earns its
+    // sets but no volume, the same rule `exerciseHistory.summarizeSession`
+    // already applies to per-exercise history.
+    const timeBased = exerciseUsesTimeDisplay(
+      es.exercise.prescriptionType,
+      es.exercise.name,
+      es.exercise.primaryMuscleGroup,
+    );
     let setsHere = 0;
     for (const set of es.completedSets) {
       if (!set.completed) continue;
       setsHere += 1;
       const weightLb = set.weight ?? 0;
-      if (weightLb > 0) {
+      if (weightLb > 0 && !timeBased) {
         hasWeightedWork = true;
         volumeLb += (set.reps || 0) * weightLb;
       }
