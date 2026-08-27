@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { WorkoutLogsService } from './workout-logs.service';
+import {
+  WORKOUT_LOG_PAGE_MAX,
+  WorkoutLogsService,
+} from './workout-logs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkoutsService } from '../workouts/workouts.service';
 
@@ -110,5 +113,49 @@ describe('WorkoutLogsService', () => {
       expect(out.results.ex0).toBeDefined();
       expect(out.results.ex55).toBeUndefined();
     });
+  });
+});
+
+describe('WorkoutLogsService findAll bounds', () => {
+  let service: WorkoutLogsService;
+  let prismaMock: {
+    workoutLog: { findMany: jest.Mock };
+  };
+
+  beforeEach(async () => {
+    prismaMock = { workoutLog: { findMany: jest.fn().mockResolvedValue([]) } };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        WorkoutLogsService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: WorkoutsService, useValue: {} },
+      ],
+    }).compile();
+    service = moduleRef.get(WorkoutLogsService);
+  });
+
+  const arg = () => prismaMock.workoutLog.findMany.mock.calls[0][0];
+
+  it('caps every response, however wide the window', () => {
+    // The include drags every entry and completed set along, so one row is
+    // never one row — an unbounded call is a multi-megabyte response.
+    void service.findAll('u1', { from: '2000-01-01', to: '2030-01-01' });
+    expect(arg().take).toBe(WORKOUT_LOG_PAGE_MAX);
+  });
+
+  it('defaults an unwindowed request to the last year', () => {
+    // `GET /api/workout-logs` with no params used to mean "everything".
+    void service.findAll('u1');
+    const gte = arg().where.startedAt.gte as Date;
+    const yearAgo = new Date();
+    yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+    expect(Math.abs(gte.getTime() - yearAgo.getTime())).toBeLessThan(60_000);
+  });
+
+  it('leaves an explicit window alone', () => {
+    void service.findAll('u1', { from: '2026-08-01', to: '2026-08-31' });
+    const w = arg().where.startedAt;
+    expect(w.gte).toEqual(new Date('2026-08-01'));
+    expect(w.lte.getHours()).toBe(23); // end-of-day inclusive
   });
 });

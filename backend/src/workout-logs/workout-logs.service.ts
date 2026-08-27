@@ -20,6 +20,13 @@ import {
 /** Bound on ids per exercise-keyed lookup (a workout has far fewer). */
 const MAX_LAST_PERFORMANCE_IDS = 50;
 
+/**
+ * Hard ceiling on one `findAll` response. Six sessions a week for a year is
+ * about 312, so a real month, quarter or year view never reaches this; it
+ * exists so a hand-crafted decade-wide window cannot pull the whole table.
+ */
+export const WORKOUT_LOG_PAGE_MAX = 750;
+
 @Injectable()
 export class WorkoutLogsService {
   constructor(
@@ -78,6 +85,21 @@ export class WorkoutLogsService {
     return log;
   }
 
+  /**
+   * Logged sessions, newest first, WITH every entry and completed set inline.
+   *
+   * ⚠ That include is why this has to be bounded. One row here drags the whole
+   * session's sets along, so an unbounded call returns a user's entire training
+   * history set by set — fine at seven logs, a multi-megabyte response and a
+   * slow query after a year of training. Every caller happens to pass a window
+   * today (two months, one 120 days), but the endpoint took none: a plain
+   * `GET /api/workout-logs` asked for everything, which is a latent outage
+   * sitting behind a route anyone with a token can reach.
+   *
+   * So an uncapped request now defaults to a year and is capped besides — the
+   * same shape `BodyWeightService.findAll` already uses for the same reason.
+   * A caller that genuinely wants more must ask for it by window.
+   */
   async findAll(userId: string, params?: { from?: string; to?: string }) {
     const where: { userId: string; startedAt?: { gte?: Date; lte?: Date } } = {
       userId,
@@ -90,6 +112,10 @@ export class WorkoutLogsService {
         to.setHours(23, 59, 59, 999);
         where.startedAt.lte = to;
       }
+    } else {
+      const defaultFrom = new Date();
+      defaultFrom.setFullYear(defaultFrom.getFullYear() - 1);
+      where.startedAt = { gte: defaultFrom };
     }
     const logs = await this.prisma.workoutLog.findMany({
       where,
@@ -98,6 +124,10 @@ export class WorkoutLogsService {
         entries: { include: { completedSets: true } },
       },
       orderBy: { startedAt: 'desc' },
+      // A backstop for a window someone asks for that is itself enormous.
+      // Six a week for a year is ~312, so this cannot truncate a real month
+      // or quarter view — it only refuses to serve a decade in one response.
+      take: WORKOUT_LOG_PAGE_MAX,
     });
     return logs;
   }
