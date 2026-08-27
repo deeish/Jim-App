@@ -535,6 +535,11 @@ export default function CrewScreen() {
    *  and one that must not read as a scolding. */
   const allResting =
     members.length > 0 && members.every((m) => m.restingSinceIso !== null);
+  /** My own week, finished — the same rule the list rows use to go gold. */
+  const myWeekDone = members.some(
+    (m) =>
+      m.isMe && m.hasPlanThisWeek && m.race.planned > 0 && m.race.done >= m.race.planned,
+  );
 
   const heroTitle = noTarget
     ? `${crewWeek.done} ${crewWeek.done === 1 ? 'session' : 'sessions'} this week`
@@ -563,8 +568,21 @@ export default function CrewScreen() {
     }
     // What is LEFT, not what is done: the number that gets someone off the
     // sofa on a Sunday is the one still owed.
+    //
+    // Once YOUR week is finished, that number stops being partly yours, and
+    // saying so is the whole point. Patel et al. 2016 ran both shapes on the
+    // same 304 people: an all-or-nothing team goal moved nothing at all
+    // (p = 0.96), while "your own goal, plus what your teammates added on
+    // top" moved them a lot (+1,446 steps/day). Personal first, crew second.
+    //
+    // The remainder stays UNOWNED on purpose. Naming who still owes it needs
+    // a notification to reach that person, and we have none — so all it would
+    // do is stand as a note to the other five about who is letting the crew
+    // down, which is the accountability cost without the accountability.
     if (crewWeek.remaining > 0) {
-      return `${crewWeek.remaining} to go.${who}`;
+      return myWeekDone
+        ? `You’re done. ${crewWeek.remaining} left this week.${who}`
+        : `${crewWeek.remaining} to go.${who}`;
     }
     return crewWeek.done > crewWeek.planned
       ? `Past the target, with ${crewWeek.done - crewWeek.planned} to spare.${who}`
