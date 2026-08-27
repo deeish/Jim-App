@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { spacing, text, useTheme, weight } from '../theme';
 import { nativeHeaderOptions } from './headerOptions';
 import { PlanCalendarScopeBarOverlay } from '../components/PlanCalendarScopeBarHost';
+import SessionClock from '../components/SessionClock';
 import PlanCalendarMonthScreen from '../screens/PlanCalendarMonthScreen';
 import PlanCalendarWeekScreen from '../screens/PlanCalendarWeekScreen';
 import PlanCalendarDayScreen from '../screens/PlanCalendarDayScreen';
@@ -184,6 +185,8 @@ export default function PlanCalendarNavigator() {
           headerLeft: () => (
             <BackTo label="Week" onPress={() => dayBack(navigation, route.params.dateIso)} />
           ),
+          // Renders nothing until the day's first set lands.
+          headerRight: () => <SessionClock dateIso={route.params.dateIso} />,
         })}
       />
       <Stack.Screen
@@ -195,6 +198,10 @@ export default function PlanCalendarNavigator() {
           headerLargeTitle: false,
           title: route.params.exerciseName,
           headerLeft: () => <BackTo label="Day" onPress={() => navigation.goBack()} />,
+          // The session header the July audit's item 1.3 asked for. Its ticker
+          // is scoped to this component so the set deck does not re-render
+          // once a second.
+          headerRight: () => <SessionClock dateIso={route.params.dateIso} />,
         })}
       />
 

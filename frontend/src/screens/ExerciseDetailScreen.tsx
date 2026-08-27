@@ -168,10 +168,24 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   );
   // Scales the bars only. The headline figure is `e1rmBestLb`, which also
   // accounts for an all-time best set older than the plotted window.
-  const e1rmChartPeak = useMemo(
-    () => Math.max(0, ...historySummary.e1rmTrend.map((p) => p.e1rmLb)),
-    [historySummary.e1rmTrend],
-  );
+  /**
+   * The y-range the trend bars are drawn against.
+   *
+   * ⚠ Scaled against the PEAK (the old rule: `40 + value / peak * 60`) the
+   * chart could not show progress at all. Estimated maxima cluster: a real
+   * 158 -> 169 lb climb is 93% of peak against 100%, so every bar came out the
+   * same height and the one chart whose job is to show improvement showed a
+   * flat wall. Fitting the domain to the DATA is what makes a change visible.
+   *
+   * The honesty cost of zooming is disclosed rather than hidden: the label
+   * carries the range, so a dramatic-looking slope is readable as the few
+   * pounds it actually is.
+   */
+  const e1rmChartDomain = useMemo(() => {
+    const values = historySummary.e1rmTrend.map((p) => p.e1rmLb);
+    if (values.length === 0) return null;
+    return { min: Math.min(...values), max: Math.max(...values) };
+  }, [historySummary.e1rmTrend]);
 
   const styles = useMemo(
     () =>
@@ -719,15 +733,27 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
 
             {historySummary.e1rmTrend.length > 1 && (
               <>
-                <Text style={styles.historyChartLabel}>Estimated 1RM</Text>
+                <Text style={styles.historyChartLabel}>
+                  {e1rmChartDomain && e1rmChartDomain.max > e1rmChartDomain.min
+                    ? `Estimated 1RM · ${formatWeightCompactFromLb(
+                        e1rmChartDomain.min,
+                        weightUnit,
+                      )}–${formatWeightCompactFromLb(e1rmChartDomain.max, weightUnit)}`
+                    : 'Estimated 1RM'}
+                </Text>
                 <View style={styles.historyChart}>
                   {historySummary.e1rmTrend.map((point) => {
-                    // Scaled from zero would flatten every real change into a
-                    // row of near-identical bars, so the floor sits at 40%.
+                    const span = e1rmChartDomain
+                      ? e1rmChartDomain.max - e1rmChartDomain.min
+                      : 0;
+                    // A floor so the lowest session still reads as a bar rather
+                    // than a hairline, and so the row keeps a baseline.
                     const heightPct =
-                      e1rmChartPeak > 0
-                        ? 40 + (point.e1rmLb / e1rmChartPeak) * 60
-                        : 40;
+                      e1rmChartDomain && span > 0
+                        ? 12 + ((point.e1rmLb - e1rmChartDomain.min) / span) * 88
+                        : // Genuinely flat: every session estimated the same.
+                          // Drawing a slope here would invent progress.
+                          60;
                     return (
                       // Keyed by log id: performedAt is client-supplied and a
                       // double-save can stamp two logs with the same instant.
