@@ -12,6 +12,18 @@ import {
   type FocusKey,
 } from '../data/program-templates';
 import { getAnchorIdsForFocus } from '../data/anchor-exercises';
+import { describeError, reportGenerationFallback } from './generation-fallback';
+
+/**
+ * The Groq model every generation path asks for.
+ *
+ * ⚠ ONE constant, because this id has been the single point of failure once
+ * already: Groq decommissioned it on 2026-08-16 and it was hardcoded in three
+ * separate call sites, so the outage was both invisible and fiddly to fix.
+ * Changing models is now one line, and `generation-fallback` names this value
+ * in its report so a retired id identifies itself.
+ */
+export const GROQ_MODEL = 'llama-3.3-70b-versatile';
 import { getSetRepGuidelines } from '../data/set-rep-schemes';
 import { secondaryMusclesForPreview } from '../data/muscle-preview-tags';
 import { inferPrescriptionTypeFromExerciseName } from '../data/exercise-prescription';
@@ -347,10 +359,21 @@ export class WorkoutGeneratorService {
         );
         if (groqUsageSink) groqUsageSink.push(outcome.usage);
         if (outcome.ok) return this.attachLibraryMuscleTags(outcome.workout);
+        // ⚠ This branch used to be SILENT. The model answered and the answer
+        // was unusable, so the user got a rule-based plan with nothing written
+        // anywhere — not even the warn below, which only covers a throw.
+        reportGenerationFallback(this.logger, {
+          stage: 'generateWorkout',
+          reason: 'llm-unusable',
+          model: GROQ_MODEL,
+        });
       } catch (err) {
-        this.logger.warn(
-          `[WorkoutGenerator] Groq failed, using rule-based: ${(err as Error)?.message ?? err}`,
-        );
+        reportGenerationFallback(this.logger, {
+          stage: 'generateWorkout',
+          reason: 'llm-error',
+          model: GROQ_MODEL,
+          detail: describeError(err),
+        });
       }
     }
 
@@ -1109,7 +1132,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     try {
       response = await groq.chat.completions.create(
         {
-          model: 'llama-3.3-70b-versatile',
+          model: GROQ_MODEL,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -1121,9 +1144,15 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
         { signal: currentGenerationSignal() },
       );
     } catch (err) {
-      this.logger.warn(
-        `[WorkoutGenerator] generateFullProgram Groq call failed: ${(err as Error)?.message ?? err}`,
-      );
+      // The plan path. Its caller has rich `path` telemetry for the QUALITY
+      // fallbacks it takes deliberately, but a dead provider is a different
+      // event and only ever reached a warn.
+      reportGenerationFallback(this.logger, {
+        stage: 'generateFullProgram',
+        reason: 'llm-error',
+        model: GROQ_MODEL,
+        detail: describeError(err),
+      });
       return null;
     }
 
@@ -1489,7 +1518,7 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
     try {
       response = await groq.chat.completions.create(
         {
-          model: 'llama-3.3-70b-versatile',
+          model: GROQ_MODEL,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -1772,7 +1801,7 @@ Return valid JSON with exerciseId, sets, reps${wantsExerciseNotes ? ', optional 
     const groq = new Groq({ apiKey });
     const response = await groq.chat.completions.create(
       {
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
