@@ -139,6 +139,40 @@ export class CrewsService {
   }
 
   /**
+   * Put yourself to rest, or come back.
+   *
+   * Resting pauses what you OWE the crew and nothing else: from this instant
+   * your scheduled days stop counting toward the crew's weekly target and can
+   * never miss against the crew streak, while any session you do log still
+   * counts for the crew and still collects pounds. Habitica's Inn is the same
+   * bargain, and it exists for the same reason — the only alternative anyone
+   * offers a member who is injured or away is to quit the group.
+   *
+   * Only ever your own row: there is no lead check here because there is
+   * nothing to abuse. Resting costs the crew nothing and gains you nothing
+   * except an honest tile.
+   */
+  async setResting(
+    userId: string,
+    resting: boolean,
+  ): Promise<{ restingSinceIso: string | null }> {
+    const membership = await this.prisma.crewMember.findUnique({
+      where: { userId },
+    });
+    if (!membership) throw new NotFoundException('You are not in a crew.');
+    // Re-resting must not restart the clock: the row says how long you have
+    // been out, and a stray double-tap should not quietly reset it to zero.
+    if (resting && membership.restingSince) {
+      return { restingSinceIso: membership.restingSince.toISOString() };
+    }
+    const row = await this.prisma.crewMember.update({
+      where: { userId },
+      data: { restingSince: resting ? new Date() : null },
+    });
+    return { restingSinceIso: row.restingSince?.toISOString() ?? null };
+  }
+
+  /**
    * The crew lead: the member who has been in it longest, which is the person
    * who created it until they leave.
    *
@@ -311,6 +345,7 @@ export class CrewsService {
         leadUserId: null,
         streakDays: 0,
         members: [],
+        legendUserIds: [],
         moments: [],
       };
     }
@@ -525,6 +560,16 @@ export class CrewsService {
         this.localDateIso(m.joinedAt, tzOffsetMinutes),
       ]),
     );
+    // Bucketed to the CALLER's calendar like every other date here, so the
+    // day someone went to rest reads the same to everyone looking at the row.
+    const restingIsoByUser = new Map(
+      crew.members.map((m) => [
+        m.userId,
+        m.restingSince
+          ? this.localDateIso(m.restingSince, tzOffsetMinutes)
+          : null,
+      ]),
+    );
 
     const members: MemberInput[] = memberUsers.map((u) => {
       const plan = plans.find((p) => p.userId === u.id);
@@ -594,6 +639,7 @@ export class CrewsService {
         avatarId: u.avatarId,
         joinedIso: joinedIsoByUser.get(u.id) ?? todayIso,
         skippedDays: skipsByUser.get(u.id) ?? [],
+        restingSinceIso: restingIsoByUser.get(u.id) ?? null,
         anchorMondayIso,
         totalWeeks,
         slots:

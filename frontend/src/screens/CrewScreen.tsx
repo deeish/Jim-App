@@ -48,6 +48,7 @@ import {
   removeCrewMember,
   renameCrew,
   rotateCrewCode,
+  setCrewResting,
   toggleCrewKudos,
   type CrewMemberDay,
   type CrewMemberSummary,
@@ -80,10 +81,10 @@ function muscleOfDay(day: CrewMemberDay): PrototypeMuscle | null {
 /**
  * The Crew tab: a small accountability group, ONE HERO AND ONE LIST.
  *
- * The list is the whole screen. It is sorted by each person's completion
- * ratio, so the list IS the race; the seven muscle tiles ARE their week; the
- * `done/planned` at the row's end is their score. One row per person, one 💪
- * per person, and you are ranked in it like everyone else.
+ * The list is the whole screen. It is ordered by sessions over a rolling
+ * four weeks; the seven muscle tiles ARE each person's week; the
+ * `done/planned` at the row's end is their score against their own plan. One
+ * row per person, one 💪 per person, and you are in it like everyone else.
  *
  * WHY IT IS SHAPED THIS WAY. The screen used to carry a stories row, a
  * moments feed, a member card each and a race card — four parallel drawings
@@ -269,6 +270,46 @@ export default function CrewScreen() {
     Alert.alert(title, body, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: () => void doRemove() },
+    ]);
+  };
+
+  /**
+   * Rest: pause what you OWE the crew without leaving it.
+   *
+   * Going to rest confirms, because it is the only control here that changes
+   * what everyone else sees about you, and the confirmation is where the
+   * bargain gets stated — a mechanic nobody understands is a mechanic nobody
+   * uses. Coming back does not confirm: putting friction on the good half of
+   * a pause is how you end up with people who never un-pause.
+   */
+  const applyRest = async (resting: boolean) => {
+    setMemberSheetId(null);
+    setBusy(true);
+    try {
+      await setCrewResting(resting);
+      haptics.select();
+      await load();
+    } catch {
+      setOffline(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmRest = () => {
+    haptics.tap();
+    const title = 'Rest up?';
+    const body =
+      'Your scheduled days stop counting for the crew and can’t be missed. Anything you do train still counts. Come back whenever you like.';
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(title)) {
+        void applyRest(true);
+      }
+      return;
+    }
+    Alert.alert(title, body, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Rest up', onPress: () => void applyRest(true) },
     ]);
   };
 
@@ -490,6 +531,10 @@ export default function CrewScreen() {
 
   /** Nobody in the crew has a plan yet, so there is no target to measure. */
   const noTarget = crewWeek.planned === 0;
+  /** Nobody is on duty at all — a different empty state from "no plans yet",
+   *  and one that must not read as a scolding. */
+  const allResting =
+    members.length > 0 && members.every((m) => m.restingSinceIso !== null);
 
   const heroTitle = noTarget
     ? `${crewWeek.done} ${crewWeek.done === 1 ? 'session' : 'sessions'} this week`
@@ -512,7 +557,9 @@ export default function CrewScreen() {
           } today.`
         : '';
     if (noTarget) {
-      return `Add a plan and the crew gets a target to hit together.${who}`;
+      return allResting
+        ? `The whole crew is resting. Nothing is running down.${who}`
+        : `Add a plan and the crew gets a target to hit together.${who}`;
     }
     // What is LEFT, not what is done: the number that gets someone off the
     // sofa on a Sunday is the one still owed.
@@ -525,25 +572,45 @@ export default function CrewScreen() {
   })();
 
   /**
-   * The race ordering IS the list ordering, so it has to be honest.
+   * THE ORDER — sessions over a rolling four weeks, and deliberately not a
+   * completion ratio.
    *
-   * `race.planned` counts any day with a log OR a slot, which means someone
-   * with no plan who trained once reads 1/1 — a perfect ratio, and top of the
-   * leaderboard above a person who went 4/5 against a real program. Gating on
-   * `hasPlanThisWeek` is the same rule the Monday recap already used to pick
-   * its winner; the live list was the one place that disagreed.
+   * This list used to sort on `race.done / race.planned`, which punished the
+   * wrong people twice over. A ratio rewards keeping your plan SMALL: two
+   * sessions against a two-day week outranked four against a five-day one.
+   * And a weekly reset means one bad Tuesday drops you to the bottom of a
+   * list your friends are reading all week, with nothing you can do about it
+   * until Monday.
    *
-   * Planless members sort below everyone racing, by sessions done, so putting
-   * in work still moves you up among them.
+   * A rolling count of days trained fixes both. It cannot be gamed by
+   * shrinking your plan, it is a number anybody raises by turning up, and a
+   * bad week rolls off the back instead of following you around. Strava
+   * reached the same shape for Local Legend — most efforts on a segment over
+   * a rolling 90 days, explicitly NOT the fastest time — after simulating the
+   * alternative and rejecting it.
+   *
+   * Resting members sort last. They are not racing, and leaving them mixed in
+   * would read as "these people are losing" when the truth is "these people
+   * are away".
    */
-  const raceRatio = (m: CrewMemberSummary) =>
-    m.hasPlanThisWeek && m.race.planned > 0 ? m.race.done / m.race.planned : 0;
   const ranked = useMemo(
     () =>
       [...members].sort(
-        (a, b) => raceRatio(b) - raceRatio(a) || b.race.done - a.race.done,
+        (a, b) =>
+          Number(!!a.restingSinceIso) - Number(!!b.restingSinceIso) ||
+          b.rolling - a.rolling ||
+          b.race.done - a.race.done ||
+          (firstNameOf(a) < firstNameOf(b) ? -1 : 1),
       ),
     [members],
+  );
+
+  /** Everyone tied at the most sessions in the window. A SHARED title, not a
+   *  position: matching the top is enough, and nobody is ranked below anyone.
+   *  See `CrewSummary.legendUserIds` for why it works that way. */
+  const legends = useMemo(
+    () => new Set(summary?.legendUserIds ?? []),
+    [summary],
   );
 
   /** Which column is today. Read off the week the server built rather than
@@ -973,19 +1040,38 @@ export default function CrewScreen() {
                     m.hasPlanThisWeek && m.race.planned > 0 && m.race.done >= m.race.planned;
                   const { pr, ref: chipRef, count: chipCount, active: chipActive } =
                     chipTargetFor(m);
-                  // The lift's name lives in the sheet, where there is room
-                  // for it. Here it only ever truncated ("…Flat Barbell Benc…")
-                  // and pushed the number that matters out of view.
-                  const subtitle = pr
-                    ? `PR · ${prSetLabel(pr)}`
-                    : m.lastSession
-                      ? `${m.lastSession.title} · ${recentDayLabel(m.lastSession.dateIso, today)}`
-                      : 'No sessions yet this week';
+                  const resting = !!m.restingSinceIso;
+                  const isLegend = legends.has(m.userId);
+                  // Resting wins the subtitle. It is the one fact that
+                  // explains an empty week AND a bottom-of-list position, and
+                  // a row that shows neither reads as somebody quietly
+                  // falling off. The lift's name lives in the sheet, where
+                  // there is room for it — here it only ever truncated
+                  // ("…Flat Barbell Benc…") and pushed the number that
+                  // matters out of view.
+                  const subtitle = resting
+                    ? m.restingDays > 0
+                      ? `Resting · ${m.restingDays} ${m.restingDays === 1 ? 'day' : 'days'}`
+                      : 'Resting'
+                    : pr
+                      ? `PR · ${prSetLabel(pr)}`
+                      : m.lastSession
+                        ? `${m.lastSession.title} · ${recentDayLabel(m.lastSession.dateIso, today)}`
+                        : 'No sessions yet this week';
                   const openSheet = () => {
                     haptics.select();
                     setMemberSheetId(m.userId);
                   };
-                  const rowLabel = `${firstNameOf(m)}, ${m.race.done} of ${m.race.planned} sessions this week`;
+                  const rowLabel = [
+                    firstNameOf(m),
+                    resting
+                      ? 'resting'
+                      : `${m.race.done} of ${m.race.planned} sessions this week`,
+                    `${m.rolling} in the last four weeks`,
+                    isLegend ? 'most in the crew' : null,
+                  ]
+                    .filter(Boolean)
+                    .join(', ');
                   // The row is a plain View with TWO sibling touch targets, not
                   // one Touchable wrapping everything: the 💪 must never nest
                   // inside the row's own press target. Nested pressables are
@@ -1012,11 +1098,21 @@ export default function CrewScreen() {
                             />
                           </View>
                           <View style={styles.personNameWrap}>
-                            <Text style={styles.personName} numberOfLines={1}>
-                              {firstNameOf(m)}
-                            </Text>
+                            <View style={styles.personNameRow}>
+                              <Text style={styles.personName} numberOfLines={1}>
+                                {firstNameOf(m)}
+                              </Text>
+                              {/* Shared, so several rows can carry it at
+                                  once — that is the point, not a bug. */}
+                              {isLegend ? (
+                                <Ionicons name="trophy" size={13} color={GOLD} />
+                              ) : null}
+                            </View>
                             <Text
-                              style={[styles.personSub, pr && styles.personSubPr]}
+                              style={[
+                                styles.personSub,
+                                pr && !resting && styles.personSubPr,
+                              ]}
                               numberOfLines={1}
                             >
                               {subtitle}
@@ -1033,7 +1129,7 @@ export default function CrewScreen() {
                           : null}
                       </View>
                       <TouchableOpacity
-                        style={styles.personBottom}
+                        style={[styles.personBottom, resting && styles.personBottomResting]}
                         activeOpacity={0.7}
                         onPress={openSheet}
                         accessibilityRole="button"
@@ -1076,7 +1172,7 @@ export default function CrewScreen() {
               </View>
 
               <Text style={styles.footerNote}>
-                Resets Monday · measured against each person’s own plan
+                Ordered by sessions in the last 4 weeks · scores reset Monday
               </Text>
 
               {/* A crew of one is usually an accident. Keep the escape in
@@ -1245,9 +1341,11 @@ export default function CrewScreen() {
                   >
                     {memberSheet.todayState === 'trained'
                       ? 'Trained today'
-                      : memberSheet.todayState === 'scheduled'
-                        ? 'Scheduled today, hasn’t trained yet'
-                        : 'Rest day'}
+                      : memberSheet.restingSinceIso
+                        ? 'Resting'
+                        : memberSheet.todayState === 'scheduled'
+                          ? 'Scheduled today, hasn’t trained yet'
+                          : 'Rest day'}
                   </Text>
                 </View>
                 {/* Same target as the row that opened this sheet — see
@@ -1308,6 +1406,36 @@ export default function CrewScreen() {
                     {`${memberSheet.race.done} of ${Math.max(memberSheet.race.planned, memberSheet.race.done)} sessions this week`}
                   </Text>
                 </View>
+                {/* The number the list is actually ordered by. It only shows
+                    up here, because a row that carried both a weekly score
+                    and a four-week one carried two numbers nobody could tell
+                    apart. */}
+                <View style={styles.memberSheetStatRow}>
+                  <Ionicons
+                    name={legends.has(memberSheet.userId) ? 'trophy' : 'trophy-outline'}
+                    size={14}
+                    color={legends.has(memberSheet.userId) ? GOLD : colors.textMuted}
+                  />
+                  <Text style={styles.memberSheetStat}>
+                    {`${memberSheet.rolling} ${
+                      memberSheet.rolling === 1 ? 'session' : 'sessions'
+                    } in the last 4 weeks${
+                      legends.has(memberSheet.userId) ? ' · most in the crew' : ''
+                    }`}
+                  </Text>
+                </View>
+                {memberSheet.restingSinceIso ? (
+                  <View style={styles.memberSheetStatRow}>
+                    <Ionicons name="moon-outline" size={14} color={colors.textMuted} />
+                    <Text style={styles.memberSheetStat}>
+                      {memberSheet.restingDays > 0
+                        ? `Resting for ${memberSheet.restingDays} ${
+                            memberSheet.restingDays === 1 ? 'day' : 'days'
+                          }`
+                        : 'Resting from today'}
+                    </Text>
+                  </View>
+                ) : null}
                 {memberSheet.lastSession ? (
                   <View style={styles.memberSheetStatRow}>
                     <Ionicons name="time-outline" size={14} color={colors.textMuted} />
@@ -1320,6 +1448,43 @@ export default function CrewScreen() {
               {/* Before this, a code in the wrong group chat meant a stranger
                   watched your week forever and leaving your own crew was the
                   only way out. */}
+              {/* Rest lives on YOUR row, not in crew settings: it is a fact
+                  about you that the crew reads here, so it is changed here.
+                  Before it existed, a fortnight away left you two options —
+                  break the crew streak every scheduled day, or leave. */}
+              {memberSheet.isMe ? (
+                <>
+                  <TouchableOpacity
+                    style={styles.restRow}
+                    onPress={() =>
+                      memberSheet.restingSinceIso ? void applyRest(false) : confirmRest()
+                    }
+                    disabled={busy}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      memberSheet.restingSinceIso ? 'Come back on duty' : 'Rest up'
+                    }
+                  >
+                    <Ionicons
+                      name={memberSheet.restingSinceIso ? 'sunny-outline' : 'moon-outline'}
+                      size={18}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.restLabel}>
+                      {memberSheet.restingSinceIso ? 'I’m back' : 'Rest up'}
+                    </Text>
+                  </TouchableOpacity>
+                  {/* Web confirms show a title and nothing else, so the
+                      bargain has to be legible without the alert. */}
+                  <Text style={styles.restNote}>
+                    {memberSheet.restingSinceIso
+                      ? 'Your scheduled days count for the crew again from today.'
+                      : 'Pause what you owe the crew. Sessions you do log still count.'}
+                  </Text>
+                </>
+              ) : null}
+
               {iAmLead && !memberSheet.isMe ? (
                 <TouchableOpacity
                   style={styles.leaveRow}
@@ -1620,10 +1785,16 @@ function createStyles(c: ColorPalette) {
       flex: 1,
       minWidth: 0,
     },
+    personNameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
     personName: {
       fontSize: text.callout,
       fontWeight: weight.bold,
       color: c.text,
+      flexShrink: 1,
     },
     personSub: {
       fontSize: text.footnote,
@@ -1645,6 +1816,11 @@ function createStyles(c: ColorPalette) {
       alignItems: 'center',
       gap: spacing.md,
       marginTop: spacing.md,
+    },
+    /** Quieter, not hidden: a resting week is still their week, and the
+     *  pounds on it still have to be readable. */
+    personBottomResting: {
+      opacity: 0.55,
     },
     tileRowFlush: {
       flex: 1,
@@ -1960,6 +2136,25 @@ function createStyles(c: ColorPalette) {
       fontWeight: weight.bold,
       color: c.text,
       paddingVertical: spacing.lg,
+    },
+    restRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingVertical: spacing.lg,
+      marginTop: spacing.sm,
+    },
+    restLabel: {
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: c.primary,
+    },
+    restNote: {
+      fontSize: text.caption,
+      fontWeight: weight.medium,
+      color: c.textMuted,
+      lineHeight: leading.caption,
+      marginTop: -spacing.sm,
     },
     leaveRow: {
       flexDirection: 'row',

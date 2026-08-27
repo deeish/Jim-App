@@ -4,6 +4,7 @@ import {
   crewStreakDaysOf,
   estimateOneRepMax,
   mondayOfIso,
+  rollingSessionsOf,
   scheduledSlotOn,
   weekStreakOf,
   weekdayNameOf,
@@ -32,6 +33,7 @@ const member = (
   slots: [],
   logs: [],
   skippedDays: [],
+  restingSinceIso: null,
   prs: [],
   ...over,
 });
@@ -222,6 +224,72 @@ describe('crewStreakDaysOf', () => {
     expect(crewStreakDaysOf([a, b], trained, '2026-08-25', crewCreated)).toBe(
       2,
     );
+  });
+});
+
+describe('rollingSessionsOf', () => {
+  it('counts trained days inside the 28-day window and nothing older', () => {
+    // Window on 2026-08-25 reaches back to 2026-07-29 inclusive.
+    const trained = new Set(['2026-08-25', '2026-07-29', '2026-07-28']);
+    expect(rollingSessionsOf(trained, '2026-08-25')).toBe(2);
+  });
+
+  it('counts days, so two sessions in one day are still one', () => {
+    // The set IS the day bucket — this is a guard on the contract, not math.
+    expect(rollingSessionsOf(new Set(['2026-08-25']), '2026-08-25')).toBe(1);
+  });
+});
+
+describe('crewStreakDaysOf with a resting member', () => {
+  const crewCreated = '2026-08-01';
+
+  it('a resting member can never break the streak', () => {
+    const a = member('a', { slots: [slot(1, 'Monday'), slot(1, 'Tuesday')] });
+    const away = member('away', {
+      slots: [slot(1, 'Monday'), slot(1, 'Tuesday')],
+      restingSinceIso: '2026-08-01',
+    });
+    const trained = new Map([
+      ['a', new Set(['2026-08-24', '2026-08-25'])],
+      ['away', new Set<string>()],
+    ]);
+    expect(
+      crewStreakDaysOf([a, away], trained, '2026-08-25', crewCreated),
+    ).toBe(2);
+    // The same crew with away on duty is a day shorter: today is not done
+    // until everyone SCHEDULED has trained, and away is scheduled.
+    const onDuty = member('away', {
+      slots: [slot(1, 'Monday'), slot(1, 'Tuesday')],
+    });
+    expect(
+      crewStreakDaysOf([a, onDuty], trained, '2026-08-25', crewCreated),
+    ).toBe(1);
+  });
+
+  it('does not reach back and forgive days before the rest began', () => {
+    // away missed Monday the 24th and only went to rest on the 27th. By
+    // Friday the make-up window on that Monday has closed, so it still
+    // breaks the run — resting is a pause, not an eraser.
+    const a = member('a', { slots: [slot(1, 'Monday'), slot(1, 'Tuesday')] });
+    const trained = new Map([
+      ['a', new Set(['2026-08-24', '2026-08-25'])],
+      ['away', new Set<string>()],
+    ]);
+    const late = member('away', {
+      slots: [slot(1, 'Monday'), slot(1, 'Tuesday')],
+      restingSinceIso: '2026-08-27',
+    });
+    expect(
+      crewStreakDaysOf([a, late], trained, '2026-08-28', crewCreated),
+    ).toBe(0);
+    // Had they rested from the Monday, the run would have survived.
+    const early = member('away', {
+      slots: [slot(1, 'Monday'), slot(1, 'Tuesday')],
+      restingSinceIso: '2026-08-24',
+    });
+    expect(
+      crewStreakDaysOf([a, early], trained, '2026-08-28', crewCreated),
+    ).toBe(2);
   });
 });
 
@@ -474,6 +542,106 @@ describe('assembleCrewSummary', () => {
       crewDone: 3,
       crewPlanned: 3,
     });
+  });
+
+  it('crowns everyone tied at the most sessions in the window', () => {
+    const a = member('a', {
+      anchorMondayIso: null,
+      logs: [log('2026-08-25'), log('2026-08-24')],
+    });
+    const b = member('b', {
+      anchorMondayIso: null,
+      logs: [log('2026-08-25'), log('2026-08-24')],
+    });
+    const c = member('c', { anchorMondayIso: null, logs: [log('2026-08-25')] });
+    const out = assembleCrewSummary({ ...base, members: [a, b, c] });
+    expect([...out.legendUserIds].sort()).toEqual(['a', 'b']);
+    expect(out.members.map((m) => m.rolling)).toEqual([2, 2, 1]);
+  });
+
+  it('crowns on sessions, never on completion ratio', () => {
+    // a goes 2/2 against a two-day plan — a perfect week, and the ratio the
+    // list used to sort on put it top. b puts in twice the work at 4/5.
+    const a = member('a', {
+      slots: [slot(1, 'Monday'), slot(1, 'Tuesday')],
+      logs: [log('2026-08-25'), log('2026-08-24')],
+    });
+    const b = member('b', {
+      slots: [
+        slot(1, 'Monday'),
+        slot(1, 'Tuesday'),
+        slot(1, 'Wednesday'),
+        slot(1, 'Thursday'),
+        slot(1, 'Friday'),
+      ],
+      logs: [
+        log('2026-08-25'),
+        log('2026-08-24'),
+        log('2026-08-20'),
+        log('2026-08-19'),
+      ],
+    });
+    const out = assembleCrewSummary({ ...base, members: [a, b] });
+    expect(out.legendUserIds).toEqual(['b']);
+  });
+
+  it('crowns nobody in a crew that has not trained', () => {
+    const out = assembleCrewSummary({
+      ...base,
+      members: [member('a', { anchorMondayIso: null })],
+    });
+    expect(out.legendUserIds).toEqual([]);
+  });
+
+  it('a member resting all week neither adds to the target nor misses', () => {
+    const away = member('away', {
+      slots: [slot(1, 'Monday'), slot(1, 'Tuesday'), slot(1, 'Friday')],
+      restingSinceIso: '2026-08-20',
+    });
+    const out = assembleCrewSummary({ ...base, members: [away] });
+    expect(out.members[0].week.map((d) => d.state)).toEqual(
+      Array(7).fill('rest'),
+    );
+    expect(out.members[0].race).toEqual({ done: 0, planned: 0 });
+    expect(out.members[0].hasPlanThisWeek).toBe(false);
+    expect(out.members[0].todayState).toBe('rest');
+    expect(out.members[0].restingDays).toBe(5); // Aug 20 -> Aug 25
+  });
+
+  it('a resting member who trains anyway still counts for the crew', () => {
+    // The whole bargain: resting pauses what you owe, not your stake.
+    const away = member('away', {
+      slots: [slot(1, 'Monday'), slot(1, 'Tuesday')],
+      restingSinceIso: '2026-08-20',
+      logs: [log('2026-08-25')],
+    });
+    const out = assembleCrewSummary({ ...base, members: [away] });
+    expect(out.members[0].week[1].state).toBe('trained');
+    expect(out.members[0].race).toEqual({ done: 1, planned: 1 });
+    expect(out.members[0].hasPlanThisWeek).toBe(false);
+    expect(out.members[0].rolling).toBe(1);
+  });
+
+  it('resting starts the day it starts — earlier days keep their slots', () => {
+    const m = member('me', {
+      slots: [slot(1, 'Monday'), slot(1, 'Tuesday'), slot(1, 'Friday')],
+      restingSinceIso: '2026-08-25',
+      logs: [log('2026-08-24')],
+    });
+    const out = assembleCrewSummary({ ...base, members: [m] });
+    expect(out.members[0].week.map((d) => d.state)).toEqual([
+      'trained', // Mon: on duty, and done
+      'rest', // Tue: resting from today
+      'rest',
+      'rest',
+      'rest', // Fri: slot no longer counts
+      'rest',
+      'rest',
+    ]);
+    // Monday was owed and paid, so it still counts for both sides.
+    expect(out.members[0].race).toEqual({ done: 1, planned: 1 });
+    expect(out.members[0].hasPlanThisWeek).toBe(true);
+    expect(out.members[0].restingDays).toBe(0);
   });
 
   it('emits a display-only streak milestone moment at 7 days', () => {

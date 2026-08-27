@@ -80,6 +80,10 @@ model CrewMember {
   /// Unique: v0 keeps everyone in at most ONE crew.
   userId   String   @unique
   joinedAt DateTime @default(now())
+  /// Set while the member has paused what they OWE the crew: from this
+  /// instant their scheduled days stop counting as planned and can never
+  /// miss. Their sessions keep counting. Null means on duty.
+  restingSince DateTime? @map("resting_since")
 
   crew Crew @relation(fields: [crewId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

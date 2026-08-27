@@ -83,6 +83,9 @@ export interface MemberInput {
   /** Server-persisted deliberate skips: these days read as REST here — they
    *  never violate the crew streak and never count as planned. */
   skippedDays: string[];
+  /** Local date the member went to rest, or null when they are on duty.
+   *  From this day on their scheduled days stop counting — see `offDutyOn`. */
+  restingSinceIso: string | null;
   prs: {
     dateIso: string;
     exerciseId: string;
@@ -112,6 +115,64 @@ export interface CrewSummaryArgs {
   crewCreatedIso: string;
   members: MemberInput[];
   kudos: KudosInput[];
+}
+
+/**
+ * Days a member is not on the hook for, as a reusable predicate.
+ *
+ * Two sources, one meaning: a day they deliberately skipped, and every day
+ * from the moment they went to rest. Both read as REST everywhere — a quiet
+ * tile, not counted as planned, never a miss against the crew streak.
+ *
+ * What resting does NOT pause is the member's contribution: their sessions
+ * still land in `race.done`, still carry pounds, still push the crew's week
+ * along. That asymmetry is the whole mechanic. Habitica's Inn is the same
+ * trade — you can put down what you owe the party without leaving it — and
+ * it exists because the alternative on offer is quitting. Someone travelling
+ * for a fortnight had exactly two options here before: silently break the
+ * crew streak every scheduled day, or leave the crew.
+ */
+export function offDutyOn(
+  member: Pick<MemberInput, 'skippedDays' | 'restingSinceIso'>,
+): (dateIso: string) => boolean {
+  const skipped = new Set(member.skippedDays);
+  const since = member.restingSinceIso;
+  return (dateIso: string) =>
+    skipped.has(dateIso) || (since !== null && dateIso >= since);
+}
+
+/**
+ * How far back the "who is showing up" count reaches.
+ *
+ * Four weeks: long enough that one bad week cannot decide it, short enough
+ * that a member who starts training today is in contention within a month.
+ */
+export const ROLLING_WINDOW_DAYS = 28;
+
+/**
+ * Sessions in the trailing window, counted as DAYS TRAINED — never weight,
+ * never intensity, never percentage of a plan completed.
+ *
+ * Strava landed on the same shape for Local Legend (most efforts on a segment
+ * across a rolling 90 days, explicitly not the fastest time) and the reasons
+ * carry over intact. Ranking on output punishes the strongest member for
+ * being strong and pins the newest one to the bottom permanently; ranking on
+ * turning up is a contest anybody can enter by turning up. Ratio is no better
+ * — the crew list used to sort on `done / planned`, where two sessions
+ * against a two-day plan outranked five against a six-day one.
+ *
+ * The window is what keeps it live: a bad fortnight rolls off instead of
+ * following you around, so the title has to be re-earned to be held.
+ */
+export function rollingSessionsOf(
+  trained: Set<string>,
+  todayIso: string,
+): number {
+  let count = 0;
+  for (let i = 0; i < ROLLING_WINDOW_DAYS; i++) {
+    if (trained.has(addDaysIso(todayIso, -i))) count++;
+  }
+  return count;
 }
 
 /** The slot a member's plan schedules for a local date, or null (rest/off-program). */
@@ -183,16 +244,16 @@ export function crewStreakDaysOf(
   crewCreatedIso: string,
 ): number {
   // A member only participates in the streak from the day they joined —
-  // their pre-join misses are their own business — and a deliberately
-  // SKIPPED day is a rest day, never a violation.
-  const skippedByUser = new Map(
-    members.map((m) => [m.userId, new Set(m.skippedDays)] as const),
+  // their pre-join misses are their own business — and a day they are off
+  // duty for (skipped, or resting) is a rest day, never a violation.
+  const offDutyByUser = new Map(
+    members.map((m) => [m.userId, offDutyOn(m)] as const),
   );
 
-  /** One member, one scheduled day they did not train and did not skip. */
+  /** One member, one scheduled day they did not train and were on duty for. */
   const missedOn = (m: MemberInput, dateIso: string): boolean =>
     dateIso >= m.joinedIso &&
-    !skippedByUser.get(m.userId)?.has(dateIso) &&
+    !offDutyByUser.get(m.userId)!(dateIso) &&
     scheduledSlotOn(m, dateIso) !== null &&
     !trainedByUser.get(m.userId)?.has(dateIso);
 
@@ -325,6 +386,13 @@ export interface CrewSummaryMember {
     dateIso: string;
   } | null;
   race: { done: number; planned: number };
+  /** Days trained in the last `ROLLING_WINDOW_DAYS`. The list's sort key, and
+   *  the only number on this screen that compares people to each other. */
+  rolling: number;
+  /** Set while the member has paused what they owe the crew; null on duty. */
+  restingSinceIso: string | null;
+  /** Whole days since resting began — 0 the day they start. */
+  restingDays: number;
   /** False when no plan slot lands in this week — a planless member's race
    *  is trivially "complete", so the gold done-state gates on this. */
   hasPlanThisWeek: boolean;
@@ -367,6 +435,21 @@ export interface CrewSummaryMoment {
 export interface CrewSummaryResult {
   streakDays: number;
   members: CrewSummaryMember[];
+  /**
+   * Everyone tied at the most sessions in the rolling window — a SHARED
+   * title, and empty when nobody has trained in it at all.
+   *
+   * Shared on purpose. Ordinal standings inside a group this small are the
+   * configuration with the worst evidence behind them: Hydari, Adjerid &
+   * Striegel (Management Science, 2023) found leaderboards lifted sedentary
+   * users but LOWERED the most active ones, an effect concentrated in small
+   * groups — which is every crew here. A single-holder crown would also be
+   * absent most of the time in a crew of four who each train three times a
+   * week, and this tab has already learned what a headline that is usually
+   * dead does to the people reading it. Matching the top is enough to hold
+   * it; nobody is ever ranked below anybody.
+   */
+  legendUserIds: string[];
   moments: CrewSummaryMoment[];
 }
 
@@ -412,7 +495,7 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
 
   const summaryMembers: CrewSummaryMember[] = members.map((m) => {
     const trained = trainedByUser.get(m.userId)!;
-    const skipped = new Set(m.skippedDays);
+    const offDuty = offDutyOn(m);
     const logByDate = new Map(m.logs.map((l) => [l.dateIso, l] as const));
 
     const week: CrewSummaryMemberDay[] = [];
@@ -421,9 +504,10 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
     let hasPlanThisWeek = false;
     for (let i = 0; i < 7; i++) {
       const dateIso = addDaysIso(weekMondayIso, i);
-      // A skipped scheduled day is a rest day everywhere: quiet tile, not
-      // planned, never missed — the skip itself stays the member's business.
-      const slot = skipped.has(dateIso) ? null : scheduledSlotOn(m, dateIso);
+      // An off-duty scheduled day is a rest day everywhere: quiet tile, not
+      // planned, never missed — why they are off duty (a skip, or resting)
+      // stays the member's business.
+      const slot = offDuty(dateIso) ? null : scheduledSlotOn(m, dateIso);
       if (slot) hasPlanThisWeek = true;
       const log = logByDate.get(dateIso);
       let state: CrewDayState = 'rest';
@@ -455,9 +539,7 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
       });
     }
 
-    const todaySlot = skipped.has(todayIso)
-      ? null
-      : scheduledSlotOn(m, todayIso);
+    const todaySlot = offDuty(todayIso) ? null : scheduledSlotOn(m, todayIso);
     const todayState: CrewSummaryMember['todayState'] = trained.has(todayIso)
       ? 'trained'
       : todaySlot
@@ -478,6 +560,11 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
       weekStreak: weekStreakOf(trained, weekMondayIso),
       lastSession: last ? { title: last.title, dateIso: last.dateIso } : null,
       race: { done, planned },
+      rolling: rollingSessionsOf(trained, todayIso),
+      restingSinceIso: m.restingSinceIso,
+      restingDays: m.restingSinceIso
+        ? Math.max(0, daysBetweenIso(m.restingSinceIso, todayIso))
+        : 0,
       hasPlanThisWeek,
       kudosWeek: weekKudosByUser.get(m.userId) ?? 0,
       latestSessionRef,
@@ -547,13 +634,13 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
     let crewPlanned = 0;
     const standings = members.map((m) => {
       const trained = trainedByUser.get(m.userId)!;
-      const skipped = new Set(m.skippedDays);
+      const offDuty = offDutyOn(m);
       let done = 0;
       let planned = 0;
       let hadPlan = false;
       for (let i = 0; i < 7; i++) {
         const dateIso = addDaysIso(lastMonday, i);
-        const slot = skipped.has(dateIso) ? null : scheduledSlotOn(m, dateIso);
+        const slot = offDuty(dateIso) ? null : scheduledSlotOn(m, dateIso);
         if (slot) hadPlan = true;
         const trainedDay = trained.has(dateIso);
         if (trainedDay) done++;
@@ -596,9 +683,23 @@ export function assembleCrewSummary(args: CrewSummaryArgs): CrewSummaryResult {
 
   moments.push(...prMoments);
 
+  // Ties share it — see `CrewSummaryResult.legendUserIds`. Zero sessions in
+  // four weeks is nobody's title, so a brand-new crew hands out no crown.
+  const bestRolling = summaryMembers.reduce(
+    (n, m) => Math.max(n, m.rolling),
+    0,
+  );
+  const legendUserIds =
+    bestRolling > 0
+      ? summaryMembers
+          .filter((m) => m.rolling === bestRolling)
+          .map((m) => m.userId)
+      : [];
+
   return {
     streakDays,
     members: summaryMembers,
+    legendUserIds,
     moments: moments.slice(0, 6),
   };
 }

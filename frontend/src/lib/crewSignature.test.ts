@@ -6,6 +6,7 @@ const base = (over: Partial<CrewSummary> = {}): CrewSummary => ({
   meUserId: 'me',
   leadUserId: 'me',
   streakDays: 3,
+  legendUserIds: ['sam'],
   members: [
     {
       userId: 'me',
@@ -17,6 +18,9 @@ const base = (over: Partial<CrewSummary> = {}): CrewSummary => ({
       weekStreak: 1,
       lastSession: null,
       race: { done: 0, planned: 0 },
+      rolling: 3,
+      restingSinceIso: null,
+      restingDays: 0,
       hasPlanThisWeek: false,
       kudosWeek: 2,
       latestSessionRef: null,
@@ -33,6 +37,9 @@ const base = (over: Partial<CrewSummary> = {}): CrewSummary => ({
       weekStreak: 4,
       lastSession: null,
       race: { done: 1, planned: 2 },
+      rolling: 5,
+      restingSinceIso: null,
+      restingDays: 0,
       hasPlanThisWeek: true,
       kudosWeek: 0,
       latestSessionRef: 'day:2026-08-25',
@@ -89,5 +96,24 @@ describe('computeCrewSignature', () => {
     const mine = base();
     mine.members[0].latestSessionRef = 'day:2026-08-25';
     expect(computeCrewSignature(mine)).toBe(before);
+  });
+
+  it('changes when a crewmate goes to rest, or comes back', () => {
+    const before = computeCrewSignature(base());
+    const away = base();
+    away.members[1].restingSinceIso = '2026-08-25';
+    away.members[1].restingDays = 0;
+    const resting = computeCrewSignature(away);
+    expect(resting).not.toBe(before);
+
+    const back = base();
+    expect(computeCrewSignature(back)).not.toBe(resting);
+  });
+
+  it('ignores the rolling window, which slides every single day', () => {
+    const before = computeCrewSignature(base());
+    const tomorrow = base();
+    tomorrow.members[1].rolling = 4;
+    expect(computeCrewSignature(tomorrow)).toBe(before);
   });
 });

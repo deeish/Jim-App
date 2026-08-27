@@ -2,8 +2,8 @@ import type { CrewSummary } from '../services/crewService';
 
 /**
  * A stable fingerprint of the crew activity a member would care about having
- * missed: moments (and their pound counts), crewmates' latest sessions, and
- * pounds received. The tab badge lights when the stored fingerprint differs
+ * missed: moments (and their pound counts), crewmates' latest sessions, who
+ * is resting, and pounds received. The tab badge lights when the stored fingerprint differs
  * from a fresh one; opening the Crew tab stores the fresh fingerprint.
  */
 export function computeCrewSignature(summary: CrewSummary): string {
@@ -13,6 +13,13 @@ export function computeCrewSignature(summary: CrewSummary): string {
     ...summary.members
       .filter((m) => !m.isMe)
       .map((m) => `s:${m.userId}:${m.latestSessionRef ?? 'none'}`),
+    // A crewmate going to rest (or coming back) is news worth a badge: it is
+    // why their tiles are about to go quiet. `rolling` is deliberately NOT in
+    // here — it slides by a day every day, so it would light the badge every
+    // morning for nothing.
+    ...summary.members
+      .filter((m) => !m.isMe)
+      .map((m) => `r:${m.userId}:${m.restingSinceIso ?? 'on'}`),
     `me:${summary.members.find((m) => m.isMe)?.kudosWeek ?? 0}`,
     // Someone JOINING is the most interesting thing that can happen to a
     // young crew, and it moved nothing above: a new member with no sessions

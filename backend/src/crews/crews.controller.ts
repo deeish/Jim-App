@@ -74,6 +74,23 @@ export class CrewsController {
     await this.crews.removeMember(userId, targetUserId);
   }
 
+  /**
+   * Pause what you owe the crew. Always your own row — see
+   * `CrewsService.setResting` for why there is no permission check.
+   */
+  @Post('mine/rest')
+  @HttpCode(200)
+  rest(@UserId() userId: string) {
+    return this.crews.setResting(userId, true);
+  }
+
+  /** Come back on duty. */
+  @Delete('mine/rest')
+  @HttpCode(200)
+  unrest(@UserId() userId: string) {
+    return this.crews.setResting(userId, false);
+  }
+
   /** Mint a new code, the only way to un-share one that leaked. Lead only. */
   @Post('mine/code')
   @HttpCode(200)

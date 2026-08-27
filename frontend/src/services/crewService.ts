@@ -31,6 +31,13 @@ export interface CrewMemberSummary {
   weekStreak: number;
   lastSession: { title: string; dateIso: string } | null;
   race: { done: number; planned: number };
+  /** Days trained in the last four weeks. The list's sort key — see
+   *  `CrewSummary.legendUserIds` for why it is a count and not a ratio. */
+  rolling: number;
+  /** Set while the member has paused what they owe the crew; null on duty. */
+  restingSinceIso: string | null;
+  /** Whole days since resting began — 0 on the day they start. */
+  restingDays: number;
   hasPlanThisWeek: boolean;
   kudosWeek: number;
   latestSessionRef: string | null;
@@ -72,6 +79,11 @@ export interface CrewSummary {
   leadUserId: string | null;
   streakDays: number;
   members: CrewMemberSummary[];
+  /** Everyone tied at the most sessions in the last four weeks — a SHARED
+   *  title, empty when the crew has not trained. Deliberately not a ranking:
+   *  ordinal standings in a group this small measurably suppress the most
+   *  active members, so matching the top is enough to hold it. */
+  legendUserIds: string[];
   moments: CrewMoment[];
 }
 
@@ -115,6 +127,22 @@ export async function toggleCrewKudos(
     '/crews/mine/kudos',
     { toUserId, eventRef },
   );
+  return data;
+}
+
+/**
+ * Pause what you owe the crew, or come back on duty. Always your own row.
+ *
+ * While resting, your scheduled days stop counting toward the crew's weekly
+ * target and can never miss against the crew streak — but anything you do
+ * log still counts for the crew.
+ */
+export async function setCrewResting(
+  resting: boolean,
+): Promise<{ restingSinceIso: string | null }> {
+  const { data } = resting
+    ? await api.post<{ restingSinceIso: string | null }>('/crews/mine/rest')
+    : await api.delete<{ restingSinceIso: string | null }>('/crews/mine/rest');
   return data;
 }
 
