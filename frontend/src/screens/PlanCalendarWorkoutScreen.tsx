@@ -1,6 +1,14 @@
-import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Dimensions,
   ScrollView,
   StyleSheet,
@@ -83,6 +91,16 @@ import {
   suggestNextTarget,
 } from '../lib/nextTargetSuggestion';
 import { buzzRestOver } from '../lib/planCalendarPrototype';
+import { activateKeepAwake, releaseKeepAwake } from '../lib/keepAwake';
+import {
+  clearRest,
+  getRestTimer,
+  isRestOver,
+  remainingSeconds,
+  shouldSignalRestOver,
+  startRest,
+  subscribeRestTimer,
+} from '../lib/restTimer';
 
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarWorkout'>;
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWorkout'>;
@@ -138,6 +156,9 @@ function restSecondsOf(rest: string): number | null {
 function formatSeconds(s: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
+
+/** Tagged so this screen's wake lock can never be released by another one. */
+const KEEP_AWAKE_TAG = 'jim-workout-session';
 
 /**
  * PROTOTYPE — workout detail for one planned exercise. The set breakdown is a
@@ -262,29 +283,70 @@ export default function PlanCalendarWorkoutScreen() {
   };
 
   // Rest countdown — lives in the REST stat tile (one timer, always visible
-  // above the deck; the prescribed rest it replaces is what it counts down
-  // from). Starts when a set lands (not before the first, not after the
-  // last), ticks to zero with a soft haptic; tap the tile to skip.
-  const [restLeft, setRestLeft] = useState<number | null>(null);
+  // above the deck; while it runs the tile's label keeps showing what it is
+  // counting down FROM). Starts when a set lands (not before the first, not
+  // after the last); tap the tile to skip.
+  //
+  // The timer itself is a wall-clock module singleton (`lib/restTimer`), not
+  // screen state and not a chain of setTimeouts — see that file for why. Here
+  // we only re-render often enough to redraw the number, and derive the number
+  // from the clock every time.
+  const restTimer = useSyncExternalStore(subscribeRestTimer, getRestTimer, getRestTimer);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!restTimer) return;
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    // Coming back from a locked screen has to recompute immediately rather
+    // than wait out the rest of a tick — by then the answer is usually "0".
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setNowMs(Date.now());
+    });
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
+  }, [restTimer]);
+
   const prevLogged = useRef(logs.length);
   useEffect(() => {
     if (exercise && logs.length > prevLogged.current && logs.length < plannedSets) {
-      setRestLeft(restSecondsOf(exercise.rest));
+      startRest(restSecondsOf(exercise.rest) ?? 0);
     }
     prevLogged.current = logs.length;
   }, [logs.length, exercise, plannedSets]);
+
   useEffect(() => {
-    if (restLeft == null) return;
-    if (restLeft <= 0) {
-      setRestLeft(null);
-      // Warning pattern, not the selection tick: this is the one haptic that
-      // fires while the phone is likely face-down between sets.
+    if (!restTimer || !isRestOver(restTimer, nowMs)) return;
+    // Warning pattern, not the selection tick: this is the one haptic that
+    // fires while the phone is likely face-down between sets. It is suppressed
+    // when we only noticed late — see `shouldSignalRestOver`.
+    if (shouldSignalRestOver(restTimer, nowMs, AppState.currentState === 'active')) {
       buzzRestOver();
-      return;
     }
-    const t = setTimeout(() => setRestLeft((v) => (v == null ? null : v - 1)), 1000);
-    return () => clearTimeout(t);
-  }, [restLeft]);
+    clearRest();
+  }, [restTimer, nowMs]);
+
+  const restLeft = restTimer ? remainingSeconds(restTimer, nowMs) : null;
+
+  // Keep the screen awake while there are sets left to log or a rest is
+  // running. Nothing did this before, so the phone locked during every rest
+  // and each set began with FaceID. `expo-keep-awake` ships inside the `expo`
+  // core package, so this needs no new binary.
+  const keepAwake = (!!exercise && logs.length < plannedSets) || restTimer != null;
+  useEffect(() => {
+    if (!keepAwake) return;
+    // Only release a lock we actually took — releasing one that never
+    // activated throws "has not activated yet". `lib/keepAwake` swallows both
+    // that and a denied lock, and (the reason it exists at all) guards the
+    // native-module import that would otherwise white-screen the app.
+    let held = false;
+    void activateKeepAwake(KEEP_AWAKE_TAG).then((ok) => {
+      held = ok;
+    });
+    return () => {
+      if (held) void releaseKeepAwake(KEEP_AWAKE_TAG);
+    };
+  }, [keepAwake]);
 
   if (!exercise) {
     return (
@@ -378,7 +440,7 @@ export default function PlanCalendarWorkoutScreen() {
             activeOpacity={0.8}
             onPress={() => {
               buzzTap();
-              setRestLeft(null);
+              clearRest();
             }}
             accessibilityRole="button"
             accessibilityLabel="Dismiss rest timer"
@@ -391,7 +453,15 @@ export default function PlanCalendarWorkoutScreen() {
             >
               {formatSeconds(restLeft)}
             </Text>
-            <Text style={styles.statLabel}>REST</Text>
+            {/* The prescription used to vanish the moment the countdown
+                started, so "1:12" had nothing to be 1:12 OF.
+                ⚠ Read off the TIMER, not off `exercise.rest`: the timer now
+                outlives the screen that started it, so a rest begun on a
+                3:00 compound keeps counting while you look at a 1:30
+                isolation exercise, and the prescription here is not its. */}
+            <Text style={styles.statLabel} numberOfLines={1}>
+              {`OF ${formatSeconds(restTimer!.totalSeconds)}`}
+            </Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.statTile}>
@@ -690,9 +760,15 @@ function SetDeck({
           </Text>
           <Text style={styles.setCardTarget}>{targetLine}</Text>
         </View>
-        {lastTimeLine != null && (
-          <Text style={styles.lastTimeLine}>{lastTimeLine}</Text>
-        )}
+        {/* Always occupies its line. `lastPerf` starts null and resolves a
+            beat later, so this text used to appear from nothing and push the
+            weight and rep inputs down — while the user was reaching for them
+            mid-set. Reserving the row keeps the deck still; only the words
+            arrive. (The Target above still resolves late by design: the plan
+            prescription is a true answer until history sharpens it.) */}
+        <Text style={styles.lastTimeLine} numberOfLines={1}>
+          {lastTimeLine ?? ' '}
+        </Text>
         <View style={styles.inputRow}>
           <View style={styles.inputBox}>
             <Text style={styles.inputLabel}>
@@ -873,8 +949,19 @@ function createStyles(c: ColorPalette) {
     statTileResting: {
       borderColor: GOLD,
     },
+    /**
+     * `accent`, not the raw GOLD brand constant.
+     *
+     * GOLD (#F5A623) is a FILL colour. As small text it measures 2.03:1 on a
+     * white card and 1.82:1 on the grey page — well under AA, and the app's
+     * light theme is the default. `accent` is the palette's warm attention
+     * colour (#9C4E00 light / #FFB340 dark) and clears 4.5:1 in both modes by
+     * construction: 5.99:1 and 9.31:1. GOLD stays wherever it is a SHAPE —
+     * rings, checkmarks, the rosette — because a large filled form is legible
+     * at a ratio small type is not.
+     */
     statValueResting: {
-      color: GOLD,
+      color: c.accent,
       fontVariant: ['tabular-nums'],
     },
     statValue: {

@@ -187,11 +187,15 @@ describe('collectSessionAchievements', () => {
       {
         exerciseId: 'ex-bench',
         exerciseName: 'Bench Press',
+        exerciseIndex: 0,
         kind: 'personal-best',
+        basis: 'weight',
         weightLb: 145,
         reps: 5,
         previousLb: 140,
+        previousReps: 5,
         gainLb: 5,
+        gainReps: 0,
         isTimeBased: false,
       },
     ]);
@@ -224,6 +228,46 @@ describe('collectSessionAchievements', () => {
   it('does not celebrate matching a record', () => {
     const found = collectSessionAchievements(
       [session('Bench Press', 'ex-bench', [{ reps: 8, weight: 140 }])],
+      { 'ex-bench': perf([{ reps: 8, weight: 140 }]) },
+      { 'ex-bench': record(140, 8) },
+    );
+    expect(found).toEqual([]);
+  });
+
+  // The gap this closes: the app's own Target line asks for a rep before it
+  // asks for a plate, so the session that follows that instruction has to be
+  // able to win something.
+  it('celebrates more reps at the record weight as a personal best', () => {
+    const found = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 8, weight: 140 }])],
+      { 'ex-bench': perf([{ reps: 5, weight: 140 }]) },
+      { 'ex-bench': record(140, 5) },
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      kind: 'personal-best',
+      basis: 'reps',
+      reps: 8,
+      previousReps: 5,
+      gainReps: 3,
+      gainLb: 0,
+    });
+  });
+
+  it('does not celebrate dropping the weight to rep it out', () => {
+    // 20 reps at 95 is more total work than 5 at 140 and is not a better set:
+    // load is compared first, so repping out a lighter bar claims nothing.
+    const found = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 20, weight: 95 }])],
+      { 'ex-bench': perf([{ reps: 5, weight: 140 }]) },
+      { 'ex-bench': record(140, 5) },
+    );
+    expect(found).toEqual([]);
+  });
+
+  it('does not celebrate fewer reps at the record weight', () => {
+    const found = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 3, weight: 140 }])],
       { 'ex-bench': perf([{ reps: 5, weight: 140 }]) },
       { 'ex-bench': record(140, 5) },
     );
@@ -254,10 +298,39 @@ describe('collectSessionAchievements', () => {
     expect(found).toEqual([]);
   });
 
-  it('ignores bodyweight work, which sets no load record', () => {
+  // The server keeps no LOAD record for unweighted work, so bodyweight
+  // exercises can never break a personal best — last time is the only record
+  // they have, and reps are the only thing there is to beat.
+  it('celebrates rep progress on bodyweight work', () => {
     const found = collectSessionAchievements(
       [session('Push-up', 'ex-pushup', [{ reps: 40 }])],
       { 'ex-pushup': perf([{ reps: 20, weight: null }]) },
+      NO_BESTS,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      kind: 'beat-last-time',
+      basis: 'reps',
+      weightLb: 0,
+      reps: 40,
+      previousReps: 20,
+      gainReps: 20,
+    });
+  });
+
+  it('claims nothing for bodyweight work with no last session to beat', () => {
+    const found = collectSessionAchievements(
+      [session('Push-up', 'ex-pushup', [{ reps: 40 }])],
+      NO_LAST,
+      NO_BESTS,
+    );
+    expect(found).toEqual([]);
+  });
+
+  it('does not celebrate matching last time on bodyweight work', () => {
+    const found = collectSessionAchievements(
+      [session('Pull-Up', 'ex-pullup', [{ reps: 9 }, { reps: 8 }])],
+      { 'ex-pullup': perf([{ reps: 9, weight: null }, { reps: 7, weight: null }]) },
       NO_BESTS,
     );
     expect(found).toEqual([]);
@@ -420,5 +493,84 @@ describe('achievement formatting', () => {
     expect(formatAchievementDetail(tiny, 'kg')).toBe('5×64 kg');
     // The same achievement still reads correctly in pounds.
     expect(formatAchievementDetail(tiny, 'lb')).toBe('5×141 lb · up from 140 lb');
+  });
+});
+
+describe('achievement formatting — rep progress', () => {
+  it('names the reps that moved, not the weight that did not', () => {
+    const repPb = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 8, weight: 140 }])],
+      { 'ex-bench': perf([{ reps: 5, weight: 140 }]) },
+      { 'ex-bench': record(140, 5) },
+    )[0];
+    expect(formatAchievementDetail(repPb, 'lb')).toBe('8×140 lb · up from 5 reps');
+  });
+
+  it('carries a bodyweight claim on reps alone', () => {
+    const bw = collectSessionAchievements(
+      [session('Pull-Up', 'ex-pullup', [{ reps: 10 }])],
+      { 'ex-pullup': perf([{ reps: 9, weight: null }]) },
+      NO_BESTS,
+    )[0];
+    expect(formatAchievementDetail(bw, 'lb')).toBe('10 reps · up from 9 reps');
+  });
+});
+
+describe('collectSessionAchievements — the session must have come last', () => {
+  // Backdating is supported: train Monday, forget to finish, train and finish
+  // Tuesday, then open Monday and press Complete. Monday is still unlogged so
+  // the pre-log gate is open — but the records now describe Tuesday.
+  const MONDAY = '2026-08-24T00:00:00.000Z';
+  const tuesdayPerf = (): LastExercisePerformance => ({
+    workoutLogId: 'log-tue',
+    performedAt: '2026-08-25T12:00:00.000Z',
+    sets: [{ setNumber: 1, reps: 5, weight: 100 }],
+  });
+
+  it('ignores a session performed after the one being celebrated', () => {
+    const found = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 5, weight: 140 }])],
+      { 'ex-bench': tuesdayPerf() },
+      NO_BESTS,
+      MONDAY,
+    );
+    expect(found).toEqual([]);
+  });
+
+  it('ignores a record set after the one being celebrated', () => {
+    const found = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 5, weight: 300 }])],
+      NO_LAST,
+      { 'ex-bench': { weightLb: 140, reps: 5, performedAt: '2026-08-25T12:00:00.000Z' } },
+      MONDAY,
+    );
+    expect(found).toEqual([]);
+  });
+
+  it('still celebrates against anything genuinely earlier', () => {
+    const found = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 5, weight: 140 }])],
+      { 'ex-bench': perf([{ reps: 5, weight: 135 }]) },
+      NO_BESTS,
+      MONDAY,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0].kind).toBe('beat-last-time');
+  });
+});
+
+describe('collectSessionAchievements — a lift filling two slots', () => {
+  it('decorates the slot that set the mark, not the other one', () => {
+    const found = collectSessionAchievements(
+      [
+        { ...session('Bench Press', 'ex-bench', [{ reps: 5, weight: 225 }]), exerciseIndex: 0 },
+        { ...session('Bench Press', 'ex-bench', [{ reps: 12, weight: 155 }]), exerciseIndex: 3 },
+      ],
+      NO_LAST,
+      { 'ex-bench': record(200) },
+    );
+    expect(found).toHaveLength(1);
+    // The opener won it; the back-off block must not wear the same chip.
+    expect(found[0].exerciseIndex).toBe(0);
   });
 });

@@ -66,29 +66,6 @@ export interface ExerciseSession {
   endTime?: Date;
 }
 
-/** Hydrates live WorkoutSession when resuming from local draft. */
-export interface WorkoutSessionRestoredSnapshot {
-  exerciseSessions: ExerciseSession[];
-  exerciseNotes: Record<number, string>;
-  overallNotes: string;
-  expandedExerciseIndex: number | null;
-  focusedSetIndex: number | null;
-  showAdvancedLogging: boolean;
-}
-
-export interface WorkoutSessionState {
-  workout: Workout;
-  exercises: ExerciseSession[];
-  currentExerciseIndex: number;
-  startTime: Date;
-  endTime?: Date;
-  overallNotes?: string;
-  restTimerSeconds?: number; // Default rest time in seconds
-  isResting: boolean;
-  restTimeRemaining: number;
-  restTimerPaused: boolean;
-}
-
 // Last performance (most recent logged entry per library exercise id)
 export interface LastPerformedSet {
   setNumber: number;

@@ -333,6 +333,7 @@ function prefExperienceToForm(e: ExperienceOption): ExperienceLevel {
 }
 
 const PREF_EQUIPMENT_MAP: Partial<Record<EquipmentOption, EquipmentItem>> = {
+  'Bodyweight': 'none',
   'Barbell': 'barbell',
   'Dumbbell': 'dumbbells',
   'Machine': 'machines',
@@ -349,7 +350,12 @@ function prefEquipmentToForm(list: EquipmentOption[]): EquipmentItem[] {
     const item = PREF_EQUIPMENT_MAP[e];
     return item ? [item] : [];
   });
-  return [...new Set(mapped)] as EquipmentItem[];
+  const unique = [...new Set(mapped)] as EquipmentItem[];
+  // The form still has no word for TRX, medicine balls, or battle ropes, so a
+  // profile listing only those mapped to nothing — and an empty list made
+  // "Generate Plan" a full-colour button that silently returned. Training with
+  // no equipment is a real plan; having none to offer is not a reason to stop.
+  return unique.length > 0 ? unique : ['none'];
 }
 
 const DURATION_PRESETS = [30, 45, 60, 75] as const;
@@ -672,14 +678,19 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     setInputs((prev) => ({ ...prev, ...patch }));
   }, [editFromSnapshot]);
 
+  // AsyncStorage is fast, not instant, and the picker asserted "No saved
+  // splits yet" in the gap — telling a user their saved work did not exist.
+  const [splitsLoaded, setSplitsLoaded] = useState(false);
   useEffect(() => {
-    AsyncStorage.getItem('jim_saved_custom_splits').then((raw) => {
-      if (raw) {
-        try { setSavedCustomSplits(JSON.parse(raw)); } catch (e) {
-          console.warn('Failed to parse saved custom splits:', e);
+    AsyncStorage.getItem('jim_saved_custom_splits')
+      .then((raw) => {
+        if (raw) {
+          try { setSavedCustomSplits(JSON.parse(raw)); } catch (e) {
+            console.warn('Failed to parse saved custom splits:', e);
+          }
         }
-      }
-    });
+      })
+      .finally(() => setSplitsLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -2065,7 +2076,9 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
             <View style={[styles.customSplitPanel, { maxHeight: '60%' }]}>
               <Text style={styles.customSplitTitle}>Choose saved split</Text>
               <ScrollView style={styles.customSplitScroll}>
-                {savedCustomSplits.length === 0 ? (
+                {!splitsLoaded ? (
+                  <Text style={styles.customSplitPreviewLine}>Loading your splits…</Text>
+                ) : savedCustomSplits.length === 0 ? (
                   <Text style={styles.customSplitPreviewLine}>No saved splits yet. Create one in View/Edit.</Text>
                 ) : (
                   savedCustomSplits.map((s) => (

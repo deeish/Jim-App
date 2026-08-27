@@ -6,6 +6,21 @@ export interface DataExportBundle {
   user: unknown;
 }
 
+/**
+ * Sync display name / avatar to the server so crewmates can see them.
+ * Fire-and-forget by design — swallow failures, the next visit retries.
+ */
+export async function syncProfileToServer(fields: {
+  name?: string;
+  avatarId?: string;
+}): Promise<void> {
+  try {
+    await api.patch('/users/me', fields);
+  } catch {
+    /* offline or transient — the crew screen retries on next focus */
+  }
+}
+
 export async function exportMyData(): Promise<DataExportBundle> {
   const { data } = await api.get<DataExportBundle>('/users/me/export');
   return data;

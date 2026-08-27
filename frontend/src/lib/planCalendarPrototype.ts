@@ -32,8 +32,13 @@ export type PlanCalendarParamList = {
   PlanCalendarWorkout: { dateIso: string; exerciseIndex: number; exerciseName: string };
   /** The celebration flow after "Complete Workout": the Moment (charcoal
    *  poster) morphing into the Ledger (session receipt). Draws its own
-   *  header pills, so it mounts headerless. */
-  PlanCalendarWorkoutComplete: { dateIso: string };
+   *  header pills, so it mounts headerless.
+   *
+   *  `mode: 'recap'` re-opens the same page later from the day view's
+   *  "Review session" banner: it lands straight on the Ledger with none of
+   *  the first-run choreography (no stamp, no auto-advance, no duration —
+   *  see the screen). Default 'celebrate' is the finish-a-workout run. */
+  PlanCalendarWorkoutComplete: { dateIso: string; mode?: 'celebrate' | 'recap' };
   /** The library-as-picker sheet: replace one slot or multi-add to the day. */
   PlanCalendarExercisePicker:
     | { dateIso: string; mode: 'replace'; exerciseIndex: number }

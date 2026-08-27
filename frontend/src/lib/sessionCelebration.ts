@@ -1,6 +1,7 @@
-import type { ExerciseSession, WorkoutStatsSession } from '../types/workout';
+import type { ExerciseSession, WorkoutLog, WorkoutStatsSession } from '../types/workout';
 import { formatLocalYmd, getWeekStartMonday } from './planCalendar';
 import { sessionLocalWeek, weekStreak } from './progressStats';
+import { formatWeightCompactFromLb, type WeightUnit } from './weightDisplay';
 
 /**
  * Pure logic behind the workout-complete celebration flow (the Moment →
@@ -48,6 +49,24 @@ export function parseWeightLb(weight: string): number | undefined {
 }
 
 /**
+ * Past this, a "session" is a log somebody left open — two sets before work
+ * and Complete pressed at bedtime. The elapsed span is real but it does not
+ * describe a workout.
+ */
+export const MAX_PLAUSIBLE_SESSION_SECONDS = 4 * 60 * 60;
+
+/**
+ * A session duration worth keeping, or null when the clock ran away. The
+ * receipt and the workout-log POST both go through this, for the same reason
+ * the rep parsers are shared: History must never store a duration the finish
+ * screen would refuse to print, because Progress adds that column up forever.
+ */
+export function plausibleDuration(seconds: number | null | undefined): number | null {
+  if (seconds == null || seconds <= 0) return null;
+  return seconds > MAX_PLAUSIBLE_SESSION_SECONDS ? null : seconds;
+}
+
+/**
  * The day's logged work as `ExerciseSession[]`. Only exercises with at least
  * one logged set appear — identical to the entries the workout-log POST
  * builds, so the celebration and History always describe the same session.
@@ -82,6 +101,227 @@ export function calendarSessionsFromLogs(
     });
   });
   return sessions;
+}
+
+/**
+ * One set as the receipt prints it when an exercise is opened, split so the
+ * unit can render a step down and muted — the type scale keeps `caption` and
+ * `footnote` as separate steps precisely so a dense data row can size its
+ * value and its unit suffix differently.
+ */
+export type SetDetail = {
+  /** The numbers: '8 × 135', '10', '45 sec'. */
+  text: string;
+  /** Trailing unit, quieter than the value: 'lb', 'kg', 'reps'. */
+  unit?: string;
+};
+
+/** '185 lb' → { text: '185', unit: 'lb' }; an unsplittable string stays whole. */
+function splitUnit(compact: string): SetDetail {
+  const cut = compact.lastIndexOf(' ');
+  return cut > 0
+    ? { text: compact.slice(0, cut), unit: compact.slice(cut + 1) }
+    : { text: compact };
+}
+
+/**
+ * What an exercise's row says before it is opened: the LOAD it was trained
+ * with, as a range — '135–145 lb' when the weight moved, '95 lb' when it held.
+ *
+ * Deliberately not a set. Quoting one set out of four ('6 × 145 lb') reads the
+ * same whether that was every set or the one good one, and now that every set
+ * is a tap away an unlabelled stand-in for them is worse than none. A range
+ * claims nothing about reps, so there is nothing to misread — and it still
+ * answers the question the row is usually opened for: what did I lift.
+ *
+ * Unweighted work has no load to range over, so it ranges over reps instead;
+ * a session with neither recorded gets the em dash.
+ */
+export function summariseSetLoads(
+  sets: Array<{ reps: number; weightLb?: number }>,
+  unit: WeightUnit,
+): string {
+  const loads = sets
+    .map((s) => s.weightLb)
+    .filter((lb): lb is number => lb != null && lb > 0);
+  if (loads.length > 0) {
+    // Compare what will be PRINTED, not the stored pounds: two loads a pound
+    // apart round to the same kilogram, and '61–61 kg' is not a range.
+    const low = splitUnit(formatWeightCompactFromLb(Math.min(...loads), unit));
+    const high = splitUnit(formatWeightCompactFromLb(Math.max(...loads), unit));
+    if (low.text === high.text) return `${high.text} ${high.unit ?? ''}`.trim();
+    return `${low.text}–${high.text} ${high.unit ?? ''}`.trim();
+  }
+  const reps = sets.map((s) => s.reps).filter((r) => r > 0);
+  if (reps.length === 0) return '—';
+  const low = Math.min(...reps);
+  const high = Math.max(...reps);
+  return low === high ? `${high} reps` : `${low}–${high} reps`;
+}
+
+type Duration = { seconds: number; text: string; unit: string };
+
+/** '45' + 'sec' → 45s; '2' + 'min' → 120s, keeping the text as it was written. */
+function toDuration(text: string, unit: string): Duration | null {
+  const value = Number(text);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return { seconds: unit === 'min' ? value * 60 : value, text, unit };
+}
+
+/**
+ * The durations one logged string carries: one for '45 sec', BOTH ends for a
+ * band like '20–45 sec'.
+ *
+ * Bands matter because the deck writes the prescription through verbatim when
+ * a set is checked off without typing — the normal path for someone who did
+ * exactly what was asked. Reading only the number nearest the unit would take
+ * '20–45 sec' as a flat 45 and report a hold the user never claimed.
+ */
+function parseDurations(raw: string): Duration[] {
+  const band = raw.match(/(\d+(?:\.\d+)?)\s*[–—-]\s*(\d+(?:\.\d+)?)\s*(min|sec)/i);
+  if (band) {
+    const unit = band[3].toLowerCase();
+    return [toDuration(band[1], unit), toDuration(band[2], unit)].filter(
+      (d): d is Duration => d !== null,
+    );
+  }
+  const one = raw.match(/(\d+(?:\.\d+)?)\s*(min|sec)/i);
+  if (!one) return [];
+  const d = toDuration(one[1], one[2].toLowerCase());
+  return d ? [d] : [];
+}
+
+/**
+ * Timed work as a range of DURATIONS — '30–60 sec' when the hold varied,
+ * '45 sec' when it held. The same grammar `summariseSetLoads` uses for load,
+ * and deliberately so: a row that quotes one set out of three reads as though
+ * that set were every set.
+ *
+ * Before this the row printed whichever set was logged LAST, so a plank that
+ * fell 60 → 45 → 30 reported itself as '30 sec' — the shortest hold of the
+ * three, and the only one the user could see without opening the row.
+ *
+ * Compared in seconds so a run that mixes units still orders correctly, and
+ * each end prints in the unit it was logged with ('90 sec–2 min'). A set with
+ * no readable duration is skipped; a row with none gets the em dash. A set
+ * logged as a band contributes both of its ends, so '20–45 sec' stays the
+ * band it was rather than collapsing to its top.
+ */
+export function summariseSetDurations(reps: string[]): string {
+  const parsed = reps.flatMap(parseDurations);
+  if (parsed.length === 0) return '—';
+  let low = parsed[0];
+  let high = parsed[0];
+  for (const d of parsed) {
+    if (d.seconds < low.seconds) low = d;
+    if (d.seconds > high.seconds) high = d;
+  }
+  if (low.seconds === high.seconds) return `${high.text} ${high.unit}`;
+  // One unit when both ends share it, so the range reads as one measurement.
+  return low.unit === high.unit
+    ? `${low.text}–${high.text} ${high.unit}`
+    : `${low.text} ${low.unit}–${high.text} ${high.unit}`;
+}
+
+/**
+ * A set from the DECK's record, where reps and weight are the display strings
+ * it stored. The weight string is always pounds (the deck normalises on the
+ * way in), so kg readers convert here like everywhere else. Same reps × weight
+ * grammar the deck's "Last time" line uses, so a session reads identically
+ * wherever it appears.
+ */
+export function loggedSetDetail(
+  reps: string,
+  weight: string,
+  unit: WeightUnit,
+): SetDetail {
+  const weightLb = parseWeightLb(weight);
+  // '' comes back for a zero/absent load — no weight, not a blank one.
+  const compact = weightLb != null ? formatWeightCompactFromLb(weightLb, unit) : '';
+  const load = compact !== '' ? splitUnit(compact) : null;
+  // Timed work reads as its own duration; a load on top is rare enough to
+  // stay in one run rather than invent a second unit slot.
+  if (/min|sec/i.test(reps)) {
+    return { text: load ? `${reps} @ ${load.text} ${load.unit ?? ''}`.trim() : reps };
+  }
+  const count = parseRepsCount(reps);
+  if (count <= 0) return load ?? { text: '—' };
+  return load
+    ? { text: `${count} × ${load.text}`, unit: load.unit }
+    : { text: String(count), unit: 'reps' };
+}
+
+/**
+ * The same set read back from a STORED log, where reps and weight are numbers.
+ * Timed work stores zero reps and keeps no duration, so those sets show their
+ * load alone — never a meaningless "0 reps".
+ */
+export function storedSetDetail(
+  reps: number,
+  weightLb: number | undefined,
+  unit: WeightUnit,
+): SetDetail {
+  const compact = weightLb != null ? formatWeightCompactFromLb(weightLb, unit) : '';
+  const load = compact !== '' ? splitUnit(compact) : null;
+  if (!reps || reps <= 0) return load ?? { text: '—' };
+  return load
+    ? { text: `${reps} × ${load.text}`, unit: load.unit }
+    : { text: String(reps), unit: 'reps' };
+}
+
+/**
+ * The same day's work read back from its STORED workout logs — the history
+ * path behind "Review session" on a day this device never trained (logged on
+ * another phone, before a reinstall, or older than the 14-day set-log window).
+ *
+ * The receipt is the log, not the plan: an old session shows what was done
+ * that day even if the day's exercises have been replaced since. A reopened
+ * day has two logs for the date; they concatenate in the order they were
+ * started, which is the order they were performed.
+ */
+export function sessionsFromWorkoutLogs(logs: WorkoutLog[]): ExerciseSession[] {
+  const ordered = [...logs].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  const sessions: ExerciseSession[] = [];
+  for (const log of ordered) {
+    const entries = [...(log.entries ?? [])].sort((a, b) => a.orderIndex - b.orderIndex);
+    for (const entry of entries) {
+      const sets = (entry.completedSets ?? []).filter((s) => s.completed);
+      if (sets.length === 0) continue;
+      sessions.push({
+        exerciseIndex: sessions.length,
+        exercise: {
+          name: entry.name ?? 'Exercise',
+          sets: sets.length,
+          reps: Math.max(1, ...sets.map((s) => s.reps || 0)),
+          exerciseId: entry.exerciseId || undefined,
+          prescriptionType: 'reps',
+        },
+        completedSets: sets.map((s, i) => ({
+          setNumber: i + 1,
+          reps: s.reps,
+          ...(s.weight != null ? { weight: s.weight } : null),
+          completed: true,
+        })),
+      });
+    }
+  }
+  return sessions;
+}
+
+/**
+ * How long the stored session took, in seconds — the honest duration for a
+ * recap, which cannot recompute one (see the screen's heroSeconds note). Null
+ * when the logs carry no timing, so the hero falls back to the exercise count.
+ */
+export function loggedDurationSeconds(logs: WorkoutLog[]): number | null {
+  let total = 0;
+  let known = false;
+  for (const log of logs) {
+    if (log.totalTimeSeconds == null) continue;
+    known = true;
+    total += Math.max(0, log.totalTimeSeconds);
+  }
+  return known ? total : null;
 }
 
 /**

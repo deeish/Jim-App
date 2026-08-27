@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import CalendarPager, {
+  calendarDayIndex,
+  calendarDayIso,
+  type CalendarPagerHandle,
+} from '../components/CalendarPager';
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -57,7 +61,6 @@ import {
 } from '../lib/planCalendarPrototypeStore';
 import { GOLD } from '../lib/planCalendarPrototype';
 import { SkeletonCard } from '../components/Skeleton';
-import Animated, { FadeIn } from 'react-native-reanimated';
 
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWeek'>;
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarWeek'>;
@@ -89,30 +92,20 @@ export default function PlanCalendarWeekScreen() {
   );
 
   const weekMondayIso = route.params?.weekMondayIso ?? toIso(mondayOf(new Date()));
-  const days = useMemo(
-    () => [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(fromIso(weekMondayIso), i)),
-    [weekMondayIso],
-  );
+  // The pager's page unit is a week: day-index sevenths (the epoch is a
+  // Monday, so a Monday's day index is always an exact multiple of 7).
+  const weekIndex = Math.round(calendarDayIndex(weekMondayIso) / 7);
   // Completed checks need this week's workout logs even when the month
   // screen (previously the only fetcher) was never visited this session.
+  // The pager renders both neighbour weeks live, so warm theirs too.
   useEffect(() => {
+    const idx = calendarDayIndex(weekMondayIso);
     ensureLogsForMonth(fromIso(weekMondayIso));
+    ensureLogsForMonth(fromIso(calendarDayIso(idx - 7)));
+    ensureLogsForMonth(fromIso(calendarDayIso(idx + 13)));
   }, [weekMondayIso]);
 
   const mode = calendarDataMode();
-  const weekInfo = mode === 'live' ? programWeekInfoFor(weekMondayIso) : null;
-
-  // The hold gesture needs a signifier (HIG: a long-press is an accelerator,
-  // never the only path — the ⋯ on the day view is the visible door). Shown
-  // only when holding some card this week would actually open the sheet.
-  const anyHoldable =
-    mode === 'live' &&
-    days.some((date) => {
-      const iso = toIso(date);
-      if (plannedDayForDate(iso).exercises.length === 0) return false;
-      if (isDayCompleted(iso)) return false;
-      return canRescueDay(iso) || canMoveDay(iso) || isDaySkipped(iso);
-    });
 
   // Own the navigator's frozen Month|Week|Day bar while this screen is up
   // (the 'PlanList' alias registers as 'week' too — same component).
@@ -148,35 +141,23 @@ export default function PlanCalendarWeekScreen() {
     setTimeout(() => setRefreshing(false), 900);
   }, []);
 
-  // Horizontal swipe pages between weeks (vertical scrolling wins otherwise).
-  const goWeek = useCallback(
-    (delta: number) => {
-      navigation.setParams({
-        weekMondayIso: toIso(addDays(fromIso(weekMondayIso), delta * 7)),
-      });
-    },
-    [navigation, weekMondayIso],
-  );
-  // `lastSwipeAt` swallows the click the browser can deliver after a pan
-  // releases over a card of the re-rendered week (same guard as the month).
+  // The pager commits a week: follow it in the route params. `lastSwipeAt`
+  // swallows the click the browser can deliver after a pan releases over a
+  // card of the re-rendered week (same guard as the month).
   const lastSwipeAt = useRef(0);
-  const swipe = useMemo(
-    () =>
-      Gesture.Pan()
-        .runOnJS(true)
-        .activeOffsetX([-24, 24])
-        .failOffsetY([-16, 16])
-        .onEnd((e) => {
-          if (Math.abs(e.translationX) >= 50) {
-            lastSwipeAt.current = Date.now();
-            // The page-turn tick — only when the swipe actually commits.
-            buzzSelection();
-          }
-          if (e.translationX <= -50) goWeek(1);
-          else if (e.translationX >= 50) goWeek(-1);
-        }),
-    [goWeek],
+  const pagerRef = useRef<CalendarPagerHandle>(null);
+  const onPageChange = useCallback(
+    (next: number, fromGesture: boolean) => {
+      if (fromGesture) lastSwipeAt.current = Date.now();
+      navigation.setParams({ weekMondayIso: calendarDayIso(next * 7) });
+    },
+    [navigation],
   );
+  // The chevron path: same slide as a swipe (and the VoiceOver paging path).
+  const pageBy = (delta: 1 | -1) => {
+    buzzTap();
+    pagerRef.current?.goTo(delta);
+  };
 
   // Dead-first-week fix: a just-applied plan can anchor week 1 to NEXT Monday,
   // so the landing week is empty and reads as "my plan didn't save". Jump the
@@ -187,13 +168,33 @@ export default function PlanCalendarWeekScreen() {
     if (jumpTo) navigation.setParams({ weekMondayIso: jumpTo });
   });
 
-  return (
-    // The navigator's frozen scope bar owns the wrapper's top strip — the
-    // scroll viewport starts below it. Padding on a plain wrapper, NOT margin
-    // on the ScrollView: RN-web applies a ScrollView style's margin to both
-    // of its nested divs, doubling the inset.
-    <View style={styles.frozenBarInset}>
-    <GestureDetector gesture={swipe}>
+  // One week's page. Panes derive from their OWN Monday, so the neighbours
+  // riding beside the centre week are always live and true.
+  const renderWeekPage = (idx: number) => {
+    const mondayIso = calendarDayIso(idx * 7);
+    const pDays = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(fromIso(mondayIso), i));
+    const pWeekInfo = mode === 'live' ? programWeekInfoFor(mondayIso) : null;
+    // The hold gesture needs a signifier (HIG: a long-press is an
+    // accelerator, never the only path — the ⋯ on the day view is the
+    // visible door). Shown only when holding some card this week would
+    // actually open the sheet.
+    const pAnyHoldable =
+      mode === 'live' &&
+      pDays.some((date) => {
+        const iso = toIso(date);
+        if (plannedDayForDate(iso).exercises.length === 0) return false;
+        if (isDayCompleted(iso)) return false;
+        return canRescueDay(iso) || canMoveDay(iso) || isDaySkipped(iso);
+      });
+    // The header line rides with its week, so mid-swipe the label confirms
+    // where you're going. Weeks outside a program show their date range.
+    const headerText =
+      pWeekInfo?.state === 'in'
+        ? `Week ${pWeekInfo.week} of ${pWeekInfo.totalWeeks} · ${pWeekInfo.planName}`
+        : pWeekInfo?.state === 'after'
+          ? `Program complete · ${pWeekInfo.planName} (${pWeekInfo.totalWeeks} weeks)`
+          : `${shortDate(fromIso(mondayIso))} – ${shortDate(addDays(fromIso(mondayIso), 6))}`;
+    return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: spacing.xxxl + tabBarInset }]}
@@ -203,22 +204,35 @@ export default function PlanCalendarWeekScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />
       }
     >
-      {weekInfo?.state === 'in' && (
-        <Text style={styles.contextLine}>
-          Week {weekInfo.week} of {weekInfo.totalWeeks} · {weekInfo.planName}
+      {/* The week label, flanked by the always-on paging cue: the chevrons
+          run the same slide a swipe makes, and are the VoiceOver path. */}
+      <View style={styles.weekHeaderRow}>
+        <TouchableOpacity
+          onPress={() => pageBy(-1)}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Previous week"
+        >
+          <Ionicons name="chevron-back" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+        <Text style={styles.contextLine} numberOfLines={1}>
+          {headerText}
         </Text>
-      )}
-      {weekInfo?.state === 'after' && (
-        <Text style={styles.contextLine}>
-          Program complete · {weekInfo.planName} ({weekInfo.totalWeeks} weeks)
-        </Text>
-      )}
-      {weekInfo?.state === 'before' && (
+        <TouchableOpacity
+          onPress={() => pageBy(1)}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Next week"
+        >
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+      </View>
+      {pWeekInfo?.state === 'before' && (
         <View style={styles.anchorBanner}>
           <Ionicons name="calendar-outline" size={18} color={colors.primary} />
           <View style={styles.anchorBannerText}>
             <Text style={styles.anchorBannerTitle}>
-              Your program starts {shortDate(fromIso(weekInfo.startsMondayIso))}
+              Your program starts {shortDate(fromIso(pWeekInfo.startsMondayIso))}
             </Text>
             <Text style={styles.anchorBannerBody}>
               This week is a lead-in — week 1 begins Monday.
@@ -227,7 +241,7 @@ export default function PlanCalendarWeekScreen() {
           <TouchableOpacity
             onPress={() => {
               buzzTap();
-              navigation.setParams({ weekMondayIso: weekInfo.startsMondayIso });
+              navigation.setParams({ weekMondayIso: pWeekInfo.startsMondayIso });
             }}
             accessibilityRole="button"
             accessibilityLabel="Go to week 1"
@@ -248,8 +262,8 @@ export default function PlanCalendarWeekScreen() {
       )}
 
       {mode !== 'loading' && (
-      <Animated.View key={weekMondayIso} entering={FadeIn.duration(200)} style={styles.weekPager}>
-      {days.map((date) => {
+      <View style={styles.weekPager}>
+      {pDays.map((date) => {
         const iso = toIso(date);
         const plan = plannedDayForDate(iso);
         const muscles = dayMuscles(plan);
@@ -406,10 +420,10 @@ export default function PlanCalendarWeekScreen() {
           </TouchableOpacity>
         );
       })}
-      </Animated.View>
+      </View>
       )}
 
-      {anyHoldable && (
+      {pAnyHoldable && (
         // Same teaching grammar as the day view's "Hold an exercise…" line.
         <Text style={styles.holdHint}>Hold a workout to move or skip it</Text>
       )}
@@ -424,7 +438,24 @@ export default function PlanCalendarWeekScreen() {
         </Text>
       )}
     </ScrollView>
-    </GestureDetector>
+    );
+  };
+
+  return (
+    // The navigator's frozen scope bar owns the wrapper's top strip — the
+    // pager viewport starts below it. Chrome (header, scope bar, sheet)
+    // stays fixed; only the week pages ride with the finger.
+    <View style={styles.frozenBarInset}>
+    <CalendarPager
+      ref={pagerRef}
+      index={weekIndex}
+      onIndexChange={onPageChange}
+      onBoundaryCross={buzzSelection}
+      onGestureEnd={() => {
+        lastSwipeAt.current = Date.now();
+      }}
+      renderPage={renderWeekPage}
+    />
 
     <WorkoutMoveSheet
       dateIso={sheetFor?.dateIso ?? null}
@@ -591,8 +622,14 @@ function createStyles(c: ColorPalette) {
       textAlign: 'center',
       marginTop: spacing.sm,
     },
+    weekHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
     contextLine: {
       ...sfPro,
+      flex: 1,
       fontSize: text.footnote,
       fontWeight: weight.semibold,
       color: c.textSecondary,

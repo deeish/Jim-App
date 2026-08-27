@@ -5,7 +5,7 @@ import type {
 } from '../types/workout';
 import {
   MIN_PLAUSIBLE_DURATION_SECONDS,
-  lastTopWeightLb,
+  lastTopSet,
 } from './lastPerformanceDisplay';
 import { isLinkableLibraryExerciseId } from './exerciseNavigation';
 import {
@@ -66,26 +66,69 @@ export interface SessionTotals {
 
 export type SessionAchievementKind = 'personal-best' | 'beat-last-time';
 
+/**
+ * Which axis the claim was won on. Load progression and rep progression are
+ * equivalent routes to the same adaptation, and this app's own Target line
+ * asks for reps first ("add a rep") — so a session that adds one at the same
+ * weight has progressed, and used to be told nothing.
+ */
+export type SessionAchievementBasis = 'weight' | 'reps';
+
 export interface SessionAchievement {
   exerciseId: string;
   exerciseName: string;
+  /**
+   * The slot whose set won this. A lift can fill two slots — an opener and a
+   * back-off block — and only the one that actually set the mark should wear
+   * it; keying the display by exercise id alone puts the opener's PB on the
+   * back-off row too.
+   */
+  exerciseIndex: number;
   kind: SessionAchievementKind;
-  /** Heaviest completed set of this session, in pounds. */
+  basis: SessionAchievementBasis;
+  /** Best completed set of this session, in pounds; 0 for bodyweight work. */
   weightLb: number;
   /**
    * Reps performed at that weight — or, for a time-based row, the duration in
    * seconds, since timed sets log their seconds in the reps field.
    */
   reps: number;
-  /** What it beat: the all-time best, or last session's top weight. */
+  /** What it beat: the all-time best, or last session's top set. */
   previousLb: number;
-  /** `weightLb - previousLb`; always > 0. */
+  /** Reps of that previous set — what a rep-basis claim beat. */
+  previousReps: number;
+  /** `weightLb - previousLb`. Zero on a rep-basis claim. */
   gainLb: number;
+  /** `reps - previousReps`. Zero on a weight-basis claim. */
+  gainReps: number;
   /**
    * Loaded carries, sled pushes and weighted holds are timed *and* weighted, so
    * `reps` here is seconds. Rendering it as `45×70 lb` would read as 45 reps.
    */
   isTimeBased: boolean;
+}
+
+/**
+ * The best completed set of an exercise this session, INCLUDING unweighted
+ * ones (reported at zero load). Same ordering as the weighted version —
+ * heavier wins, equal load is settled by reps — which is exactly what makes
+ * rep progress comparable: at one load, more reps is a better set.
+ *
+ * A set with neither load nor reps is skipped. Timed rows log their seconds in
+ * a field this never sees, so they arrive here as 0 × 0 and claim nothing.
+ */
+export function bestSetOfSession(session: ExerciseSession): WeightedSet | null {
+  let best: WeightedSet | null = null;
+  for (const set of session.completedSets) {
+    if (!set.completed) continue;
+    const weightLb = set.weight != null && set.weight > 0 ? set.weight : 0;
+    const reps = set.reps ?? 0;
+    if (weightLb <= 0 && reps <= 0) continue;
+    if (!best || outranks({ weightLb, reps }, best)) {
+      best = { weightLb, reps };
+    }
+  }
+  return best;
 }
 
 /**
@@ -177,7 +220,24 @@ export function collectSessionAchievements(
   sessions: ExerciseSession[],
   lastPerformance: LastPerformanceMap,
   personalBests: PersonalBestMap,
+  /**
+   * Local-day start of the session being celebrated. Anything recorded at or
+   * after it is not something this session beat.
+   *
+   * Backdating is a supported flow: train Monday, forget to finish, train and
+   * finish Tuesday, then open Monday and press Complete. Monday is still
+   * unlogged so the pre-log gate is open — but the records now describe
+   * TUESDAY. Without this the poster congratulates Monday for beating a
+   * workout performed after it. Omit only where no date is known.
+   */
+  beforeIso?: string,
 ): SessionAchievement[] {
+  const cutoff = beforeIso ? Date.parse(beforeIso) : NaN;
+  const isEarlier = (performedAt: string | undefined): boolean => {
+    if (Number.isNaN(cutoff)) return true;
+    const at = performedAt ? Date.parse(performedAt) : NaN;
+    return Number.isNaN(at) ? false : at < cutoff;
+  };
   // Grouped by exercise id, not per row: the same exercise can legitimately
   // appear twice in one session (a back-off set, or re-added from the library),
   // and the user's best across both is what a record has to beat. Claiming it
@@ -188,26 +248,43 @@ export function collectSessionAchievements(
     if (es.skipped) continue;
     const exerciseId = es.exercise.exerciseId;
     if (!exerciseId) continue;
-    const best = bestWeightedSetOfSession(es);
+    const best = bestSetOfSession(es);
     if (!best) continue;
     const existing = byExercise.get(exerciseId);
     if (!existing) byExercise.set(exerciseId, { session: es, best });
-    else if (outranks(best, existing.best)) existing.best = best;
+    else if (outranks(best, existing.best)) {
+      // Keep the slot alongside the set, or the claim lands on whichever slot
+      // happened to come first rather than the one that earned it.
+      existing.best = best;
+      existing.session = es;
+    }
   }
 
   const found: SessionAchievement[] = [];
   // Map iteration is insertion order, i.e. the order they were performed.
   for (const [exerciseId, { session, best }] of byExercise) {
+    // `outranks`, not a weight comparison: heavier still wins, but equal load
+    // with more reps now counts too. The server keeps no load record for
+    // unweighted work, so bodyweight exercises never reach this branch and are
+    // judged against last time below — which is the only record they have.
     const record = personalBests[exerciseId];
-    if (record && best.weightLb > record.weightLb) {
+    if (
+      record &&
+      isEarlier(record.performedAt) &&
+      outranks(best, { weightLb: record.weightLb, reps: record.reps })
+    ) {
       found.push(
-        buildAchievement(exerciseId, session, best, 'personal-best', record.weightLb),
+        buildAchievement(exerciseId, session, best, 'personal-best', {
+          weightLb: record.weightLb,
+          reps: record.reps,
+        }),
       );
       continue;
     }
 
-    const lastTop = lastTopWeightLb(lastPerformance[exerciseId]);
-    if (lastTop != null && best.weightLb > lastTop) {
+    const previous = lastPerformance[exerciseId];
+    const lastTop = isEarlier(previous?.performedAt) ? lastTopSet(previous) : null;
+    if (lastTop && outranks(best, lastTop)) {
       found.push(
         buildAchievement(exerciseId, session, best, 'beat-last-time', lastTop),
       );
@@ -218,12 +295,15 @@ export function collectSessionAchievements(
     'personal-best': 0,
     'beat-last-time': 1,
   };
+  // Records first, then load gains ahead of rep gains — adding a plate is the
+  // rarer event, so it leads a reel the caller may truncate to two.
+  const basisRank: Record<SessionAchievementBasis, number> = { weight: 0, reps: 1 };
   // Sort is stable, so equal gains keep the order the exercises were performed.
-  return found.sort((a, b) =>
-    a.kind !== b.kind
-      ? kindRank[a.kind] - kindRank[b.kind]
-      : b.gainLb - a.gainLb,
-  );
+  return found.sort((a, b) => {
+    if (a.kind !== b.kind) return kindRank[a.kind] - kindRank[b.kind];
+    if (a.basis !== b.basis) return basisRank[a.basis] - basisRank[b.basis];
+    return a.basis === 'weight' ? b.gainLb - a.gainLb : b.gainReps - a.gainReps;
+  });
 }
 
 function buildAchievement(
@@ -231,17 +311,24 @@ function buildAchievement(
   session: ExerciseSession,
   best: WeightedSet,
   kind: SessionAchievementKind,
-  previousLb: number,
+  previous: WeightedSet,
 ): SessionAchievement {
   const exercise = session.exercise;
+  const previousLb = previous.weightLb;
   return {
     exerciseId,
     exerciseName: exercise.name,
+    exerciseIndex: session.exerciseIndex,
     kind,
+    // Heavier is a load claim; anything else that outranked the record did it
+    // on reps at the same load.
+    basis: best.weightLb > previousLb ? 'weight' : 'reps',
     weightLb: best.weightLb,
     reps: best.reps,
     previousLb,
-    gainLb: best.weightLb - previousLb,
+    previousReps: previous.reps,
+    gainLb: Math.max(0, best.weightLb - previousLb),
+    gainReps: Math.max(0, best.reps - previous.reps),
     isTimeBased: exerciseUsesTimeDisplay(
       exercise.prescriptionType,
       exercise.name,
@@ -268,14 +355,27 @@ export function formatAchievementDetail(
   const before = formatWeightCompactFromLb(achievement.previousLb, unit);
 
   let lead: string;
-  if (!achievement.isTimeBased) {
+  if (achievement.isTimeBased && achievement.reps >= MIN_PLAUSIBLE_DURATION_SECONDS) {
+    lead = now
+      ? `${formatRestSecondsForPreview(achievement.reps)} @ ${now}`
+      : formatRestSecondsForPreview(achievement.reps);
+  } else if (achievement.weightLb <= 0) {
+    // Bodyweight work has no load to name, so the reps carry the line.
+    lead = `${achievement.reps} reps`;
+  } else if (!achievement.isTimeBased) {
     lead = `${achievement.reps}×${now}`;
-  } else if (achievement.reps >= MIN_PLAUSIBLE_DURATION_SECONDS) {
-    lead = `${formatRestSecondsForPreview(achievement.reps)} @ ${now}`;
   } else {
     // Legacy cardio rows store a rep count rather than seconds, so a small
     // value here is not a duration worth rendering as one.
     lead = now;
+  }
+
+  // A rep claim was won at an unchanged load, so naming the weight again says
+  // nothing — the reps are what moved.
+  if (achievement.basis === 'reps') {
+    return achievement.previousReps > 0
+      ? `${lead} · up from ${achievement.previousReps} reps`
+      : lead;
   }
 
   // Converting to the display unit can round a small gain onto the same number

@@ -484,7 +484,8 @@ These are **not blocking** for friends-and-family TestFlight (internal group, �
 
 - [ ] **Privacy policy URL** — hosted, HTTPS, in production. `docs/legal/privacy-policy.md` is a non-binding stub; treat it as a draft, get it counsel-reviewed (or use a generator like Termly), and host it on GitHub Pages or your marketing site.
 - [ ] **Terms of Service URL** — same.
-- [ ] Set `EXPO_PUBLIC_PRIVACY_POLICY_URL` and `EXPO_PUBLIC_TERMS_OF_SERVICE_URL` (see `frontend/src/constants/legalUrls.ts`) so the in-app footer links resolve.
+- [ ] Set `EXPO_PUBLIC_PRIVACY_POLICY_URL` and `EXPO_PUBLIC_TERMS_OF_SERVICE_URL` in **`frontend/eas.json`** under each build profile's `env` (not only in a local `.env` — `eas update` bakes the publishing machine's `.env` into the OTA). Until then the two rows in Profile → About are hidden, which is deliberate: `legalUrls.ts` has no placeholder fallback any more.
+- [ ] Paste the privacy policy URL into App Store Connect → App Privacy. ASC requires a publicly reachable URL of its own; the in-app row does not satisfy it.
 
 ### 5.2 Health & Fitness disclaimer in-app
 

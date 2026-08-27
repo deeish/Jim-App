@@ -3,8 +3,18 @@ import * as Linking from 'expo-linking';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
-import { parseShareCodeFromUrl } from '../lib/shareLinks';
+import { parseCrewCodeFromUrl, parseShareCodeFromUrl } from '../lib/shareLinks';
 import type { RootNavigatorParamList } from '../types/navigation';
+
+type PendingLink = { kind: 'share' | 'crew'; code: string };
+
+function parseLink(url: string): PendingLink | null {
+  const share = parseShareCodeFromUrl(url);
+  if (share) return { kind: 'share', code: share };
+  const crew = parseCrewCodeFromUrl(url);
+  if (crew) return { kind: 'crew', code: crew };
+  return null;
+}
 
 /**
  * On a cold start the launch URL can be delivered twice (getInitialURL AND the
@@ -35,7 +45,7 @@ export default function ShareDeepLinkHandler({
   const canNavigate =
     !!session && !passwordRecoveryMode && hydrated && hasCompletedOnboarding;
 
-  const pendingCodeRef = useRef<string | null>(null);
+  const pendingCodeRef = useRef<PendingLink | null>(null);
   const retryTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const initialUrlRef = useRef<string | null>(null);
   const mountedAtRef = useRef(Date.now());
@@ -48,12 +58,21 @@ export default function ShareDeepLinkHandler({
   };
 
   const tryFlush = useCallback(() => {
-    const code = pendingCodeRef.current;
-    if (!code) return;
+    const pending = pendingCodeRef.current;
+    if (!pending) return;
     if (!canNavigateRef.current || !navigationRef.isReady()) return;
     pendingCodeRef.current = null;
     clearRetries();
-    navigationRef.navigate('ShareRedeem', { code });
+    if (pending.kind === 'share') {
+      navigationRef.navigate('ShareRedeem', { code: pending.code });
+    } else {
+      // Crew invites land on the Crew tab with the join field prefilled —
+      // joining stays an explicit tap, never automatic from a tapped link.
+      navigationRef.navigate('Main', {
+        screen: 'Crew',
+        params: { joinCode: pending.code },
+      });
+    }
   }, [navigationRef]);
 
   /**
@@ -73,8 +92,8 @@ export default function ShareDeepLinkHandler({
   }, [tryFlush]);
 
   const handleCode = useCallback(
-    (code: string) => {
-      pendingCodeRef.current = code;
+    (link: PendingLink) => {
+      pendingCodeRef.current = link;
       flushWithRetries();
     },
     [flushWithRetries],
@@ -91,8 +110,8 @@ export default function ShareDeepLinkHandler({
     Linking.getInitialURL().then((url) => {
       if (cancelled || !url) return;
       initialUrlRef.current = url;
-      const code = parseShareCodeFromUrl(url);
-      if (code) handleCode(code);
+      const link = parseLink(url);
+      if (link) handleCode(link);
     });
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
@@ -100,8 +119,8 @@ export default function ShareDeepLinkHandler({
         url === initialUrlRef.current &&
         Date.now() - mountedAtRef.current < INITIAL_URL_DEDUPE_MS;
       if (isInitialEcho) return;
-      const code = parseShareCodeFromUrl(url);
-      if (code) handleCode(code);
+      const link = parseLink(url);
+      if (link) handleCode(link);
     });
 
     return () => {

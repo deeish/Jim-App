@@ -15,6 +15,7 @@ import { elevation, leading, radius, spacing, text, tracking, useTheme, weight }
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatWeightFromLb, lbToKg } from '../lib/weightDisplay';
 import LogWeightSheet from '../components/LogWeightSheet';
+import { SkeletonCard, SkeletonList } from '../components/Skeleton';
 import {
   deleteWeighIn,
   listWeighIns,
@@ -170,7 +171,12 @@ export default function WeightTrackerScreen() {
         rowWeight: { fontSize: text.callout, fontWeight: weight.bold, color: colors.text },
         rowRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
         rowDelta: { fontSize: text.body, fontWeight: weight.semibold },
-        empty: { alignItems: 'center', padding: 40, gap: spacing.sm },
+        skeletonWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 12,
+  },
+  empty: { alignItems: 'center', padding: 40, gap: spacing.sm },
         emptyText: { fontSize: text.callout, color: colors.textMuted, textAlign: 'center' },
         fab: {
           position: 'absolute',
@@ -259,8 +265,12 @@ export default function WeightTrackerScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.empty}>
-          <ActivityIndicator color={colors.primary} />
+        // The current-weight card, the chart and the list all have a known,
+        // fixed shape — a bare centred spinner promised none of it.
+        <View style={styles.skeletonWrap}>
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={3} />
+          <SkeletonList count={4} />
         </View>
       ) : (
         <FlatList

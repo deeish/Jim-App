@@ -32,6 +32,17 @@ type Props = {
  * the card must handle its own tap-guard: make the card a Pressable that
  * calls `e.stopPropagation()` so only true scrim taps dismiss.
  *
+ * ⚠ The dismiss target is the SCRIM, not the positioner, and it has to stay
+ * that way. The positioner wraps the sheet's whole content, so making it the
+ * Pressable put an `accessibilityRole="button"` around every control in every
+ * sheet in the app — on web that is a `role="button"` inside a `role="button"`,
+ * i.e. invalid DOM. It measured at SEVEN nested buttons in one crew member
+ * sheet while React logged the warning exactly once, which is why it survived
+ * so long. The scrim already covers the full modal and has no children, so
+ * moving the press there costs nothing; `pointerEvents="box-none"` on the
+ * positioner is what lets taps in the empty space above the card fall through
+ * to it.
+ *
  * Stays mounted through the exit animation, rendering a snapshot of the last
  * visible children — parents can clear their sheet state immediately on close
  * without the content vanishing mid-slide.
@@ -69,18 +80,19 @@ export default function SheetModal({ visible, onClose, scrimColor, children }: P
   if (!rendered && !visible) return null;
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose}>
-      <Animated.View
-        pointerEvents="none"
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: scrimColor }, scrimStyle]}
-      />
       <AnimatedPressable
-        style={[styles.positioner, slideStyle]}
+        // Deaf during the exit animation. The positioner used to be the target
+        // and it slides off-screen as it goes, so it stopped catching taps on
+        // its own; the scrim does not move, so it needs to be told.
+        pointerEvents={visible ? 'auto' : 'none'}
+        style={[StyleSheet.absoluteFillObject, { backgroundColor: scrimColor }, scrimStyle]}
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Dismiss"
-      >
+      />
+      <Animated.View pointerEvents="box-none" style={[styles.positioner, slideStyle]}>
         {visible ? children : lastChildrenRef.current}
-      </AnimatedPressable>
+      </Animated.View>
     </Modal>
   );
 }

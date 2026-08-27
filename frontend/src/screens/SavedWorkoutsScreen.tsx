@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -70,9 +70,17 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
     }
   }, []);
 
+  /** Cold load shows skeletons; a refocus refetches UNDER the list that is
+   *  already there. Re-entering unconditionally flashed the skeleton over
+   *  content we had, which reads as the screen losing your saved workouts
+   *  every time you come back. Progress and Home follow the same rule. */
+  const loadedOnce = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
+      if (!loadedOnce.current) {
+        setLoading(true);
+        loadedOnce.current = true;
+      }
       load();
     }, [load])
   );

@@ -1,8 +1,49 @@
 import {
+  defaultPrescriptionForNewExercise,
   exerciseUsesTimeDisplay,
   formatRestSecondsForPreview,
   isTimeHoldExerciseName,
 } from './exercisePrescription';
+
+describe('defaultPrescriptionForNewExercise', () => {
+  it('gives rep work the plain 3 × 10', () => {
+    expect(defaultPrescriptionForNewExercise('Barbell Bench Press', 'Chest')).toEqual({
+      sets: 3,
+      reps: 10,
+    });
+  });
+
+  it('gives a hold a duration instead of a rep count', () => {
+    expect(defaultPrescriptionForNewExercise('Plank', 'Core')).toEqual({
+      sets: 3,
+      reps: 1,
+      prescriptionType: 'time',
+      durationSeconds: 45,
+    });
+  });
+
+  it('gives a cardio block one long piece', () => {
+    expect(defaultPrescriptionForNewExercise('Treadmill Run', 'Cardio')).toEqual({
+      sets: 1,
+      reps: 1,
+      prescriptionType: 'time',
+      durationSeconds: 600,
+    });
+  });
+
+  it('trusts an explicit time prescription over the name', () => {
+    expect(
+      defaultPrescriptionForNewExercise('Sandbag Shouldering', 'Full Body', 'time'),
+    ).toMatchObject({ prescriptionType: 'time', durationSeconds: 45 });
+  });
+
+  it('leaves a plank HYBRID on reps, the way the display does', () => {
+    expect(defaultPrescriptionForNewExercise('Plank Row', 'Back')).toEqual({
+      sets: 3,
+      reps: 10,
+    });
+  });
+});
 
 describe('exerciseUsesTimeDisplay (cardio fallback)', () => {
   it('returns true when prescriptionType is "time"', () => {

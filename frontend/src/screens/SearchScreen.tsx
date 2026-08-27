@@ -40,6 +40,7 @@ import {
   programWeekNumberForSlotWeek,
 } from '../lib/planCalendar';
 import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
+import { defaultPrescriptionForNewExercise } from '../lib/exercisePrescription';
 import { radius, spacing, text, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
 
@@ -237,8 +238,11 @@ export default function SearchScreen({ navigation }: Props) {
 
     const workoutExercises = selectedExercises.map((e, i) => ({
       name: e.name,
-      sets: 3,
-      reps: 10,
+      ...defaultPrescriptionForNewExercise(
+        e.name,
+        e.primaryMuscleGroup,
+        e.prescriptionType === 'time' ? 'time' : undefined,
+      ),
       exerciseId: e.id,
       orderIndex: i,
     }));
@@ -259,7 +263,7 @@ export default function SearchScreen({ navigation }: Props) {
       if (weekNumber < 1) {
         Alert.alert(
           'Before plan start',
-          'This calendar week is before your program start. Use the week arrows on Plan to pick a later week.',
+          'This calendar week is before your program start. Use the week arrows on Calendar to pick a later week.',
         );
         return;
       }
@@ -330,8 +334,11 @@ export default function SearchScreen({ navigation }: Props) {
 
     const newExercises = selectedExercises.map((e, i) => ({
       name: e.name,
-      sets: 3,
-      reps: 10,
+      ...defaultPrescriptionForNewExercise(
+        e.name,
+        e.primaryMuscleGroup,
+        e.prescriptionType === 'time' ? 'time' : undefined,
+      ),
       exerciseId: e.id,
       orderIndex: i,
     }));

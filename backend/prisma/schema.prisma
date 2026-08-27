@@ -19,6 +19,8 @@ model User {
   id        String   @id @default(uuid())
   email     String?
   name      String?
+  /// Profile avatar id, synced from the client so crewmates can see it.
+  avatarId  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -30,8 +32,83 @@ model User {
   bodyWeightEntries BodyWeightEntry[]
   shares            Share[]           @relation("SharesOwned")
   shareRedemptions  ShareRedemption[]
+  crewMembership    CrewMember?
+  crewKudosSent     CrewKudos[]       @relation("CrewKudosSent")
+  crewKudosReceived CrewKudos[]       @relation("CrewKudosReceived")
+  skippedDays       SkippedDay[]
 
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// A deliberately skipped calendar day (server-persisted so a skip syncs
+// across devices and reads as REST — not a miss — to the user's crew).
+// ---------------------------------------------------------------------------
+model SkippedDay {
+  id        String   @id @default(uuid())
+  userId    String
+  /// Local calendar date, YYYY-MM-DD.
+  dateIso   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("skipped_days")
+  @@unique([userId, dateIso])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Crew: a small mutual accountability group (max 10), joined by code.
+// ---------------------------------------------------------------------------
+model Crew {
+  id        String   @id @default(uuid())
+  code      String   @unique // 8 chars from the share-code alphabet
+  /// Optional display name ("The 5AM Club"); null renders as "Your crew".
+  name      String?
+  createdAt DateTime @default(now())
+
+  members CrewMember[]
+  kudos   CrewKudos[]
+
+  @@map("crews")
+}
+
+model CrewMember {
+  id       String   @id @default(uuid())
+  crewId   String
+  /// Unique: v0 keeps everyone in at most ONE crew.
+  userId   String   @unique
+  joinedAt DateTime @default(now())
+  /// Set while the member has paused what they OWE the crew: from this
+  /// instant their scheduled days stop counting as planned and can never
+  /// miss. Their sessions keep counting. Null means on duty.
+  restingSince DateTime? @map("resting_since")
+
+  crew Crew @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("crew_members")
+  @@index([crewId])
+}
+
+model CrewKudos {
+  id         String   @id @default(uuid())
+  crewId     String
+  fromUserId String
+  toUserId   String
+  /// What was pounded: "day:<iso>" (a member's session) or "pr:<iso>:<exerciseId>".
+  eventRef   String
+  createdAt  DateTime @default(now())
+
+  crew Crew @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  from User @relation("CrewKudosSent", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to   User @relation("CrewKudosReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@map("crew_kudos")
+  @@unique([fromUserId, toUserId, eventRef])
+  @@index([crewId])
+  @@index([toUserId])
 }
 
 // ---------------------------------------------------------------------------

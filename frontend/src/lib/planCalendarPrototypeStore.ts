@@ -62,12 +62,15 @@ import type {
   LastPerformanceMap,
   PersonalBestMap,
   Workout,
+  WorkoutLog,
   WorkoutStatsSession,
 } from '../types/workout';
 import {
   parseRepsCount as repsNumber,
   parseWeightLb as weightLb,
+  plausibleDuration,
 } from './sessionCelebration';
+import { exerciseUsesTimeDisplay } from './exercisePrescription';
 import { api } from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -135,6 +138,10 @@ const MOVED_RECORDS_CAP = 60;
  *  same one — only the former invalidates session overlays. Persisted, so a
  *  cold start doesn't read as a new plan and wipe hydrated logs. */
 let lastSeenPlanId: string | null = null;
+/** Whose plan the in-memory history caches belong to. In-memory only: a cold
+ *  start rebuilds them from scratch anyway, and persisting it would not make
+ *  the (device-scoped, deliberately so) set-log snapshot per-account. */
+let lastSeenUserId: string | null = null;
 
 /** Device-scoped (not per-account) — acceptable for now; sets are keyed by
  *  date+slot and pruned after 14 days. */
@@ -229,6 +236,33 @@ const pendingMetaIds = new Set<string>();
 const completedLogDays = new Set<string>();
 /** 'YYYY-M' month keys whose logs were already fetched. */
 const fetchedLogMonths = new Set<string>();
+/** The FULL stored logs per local date — entries, sets and timings, not just
+ *  "this day is sealed". `GET /workout-logs` already returns all of it in the
+ *  month fetch the calendar makes anyway, so keeping it costs nothing and is
+ *  the only record of a session this device didn't train (another phone, a
+ *  reinstall, or older than the 14-day set-log window). Backs "Review
+ *  session" on those days. A reopened day holds more than one. */
+const loggedSessions = new Map<string, WorkoutLog[]>();
+
+function recordLoggedSession(dateIso: string, log: WorkoutLog): void {
+  const existing = loggedSessions.get(dateIso) ?? [];
+  if (existing.some((l) => l.id === log.id)) return;
+  loggedSessions.set(dateIso, [...existing, log]);
+}
+
+/** The stored workout logs for a date (empty when none are known here). */
+export function loggedSessionsFor(dateIso: string): WorkoutLog[] {
+  return loggedSessions.get(dateIso) ?? [];
+}
+
+/**
+ * There is enough here to draw the day's session receipt: this device's own
+ * set logs, or a stored log fetched from history. Gates the day view's
+ * "Review session" door — a sealed date with neither would open an empty page.
+ */
+export function canReviewDay(dateIso: string): boolean {
+  return dayHasLocalLogs(dateIso) || loggedSessions.has(dateIso);
+}
 
 /** The real active plan, once loaded (null in sample/offline mode). */
 export function getLivePlan(): ApiPlan | null {
@@ -259,15 +293,51 @@ export function ensureLiveCalendarData(): void {
         additions.clear();
         removals.clear();
         setLogs.clear();
-        // Skip/move records describe dates of the OLD plan's schedule.
+        // Skip/move records describe dates of the OLD plan's schedule. The
+        // server's FUTURE skips go with them (past ones stay as history).
         skippedDays.clear();
+        if (lastSeenPlanId) {
+          void api
+            .delete('/skipped-days', { params: { from: todayIso() } })
+            .catch(() => {});
+        }
         movedRecords = [];
         scheduleSessionSave();
         // A new plan also deserves the week-1 landing jump again.
         anchorAutoJumpConsumed = false;
       }
+      // A different ACCOUNT on this device (sign out → sign in) inherits the
+      // module-level history caches, which no plan change clears: the seals,
+      // the "already fetched" month marks that suppress the correcting
+      // refetch, the primed baselines, and the stored session receipts behind
+      // "Review session". Keyed on the account, not the plan, so a user
+      // applying a new template keeps their own history on screen.
+      //
+      // ⚠ Only on a genuine SWITCH (`lastSeenUserId` already set). On first
+      // load there is nothing stale to drop, and clearing would be a live
+      // hazard: the logs fetch starts before this one (it has no
+      // `sessionHydrated` await to clear first), so it routinely lands first
+      // and its seals would be thrown away here.
+      if (lastSeenUserId && plan?.userId && plan.userId !== lastSeenUserId) {
+        // Screens fetch logs from a mount effect, never on focus, so a clear
+        // alone would leave whatever is on screen sealless until the user
+        // navigates. Re-request the months the old account had loaded.
+        const staleMonths = [...fetchedLogMonths];
+        completedLogDays.clear();
+        fetchedLogMonths.clear();
+        loggedSessions.clear();
+        celebrationBaselineCache.clear();
+        for (const key of staleMonths) {
+          const [year, monthIndex] = key.split('-').map(Number);
+          if (Number.isFinite(year) && Number.isFinite(monthIndex)) {
+            ensureLogsForMonth(new Date(year, monthIndex, 1));
+          }
+        }
+      }
+      lastSeenUserId = plan?.userId ?? lastSeenUserId;
       lastSeenPlanId = plan?.id ?? lastSeenPlanId;
       emit();
+      void syncSkippedDaysFromServer();
       if (plan) void loadExerciseMeta(plan);
     } catch {
       liveStatus = 'unavailable';
@@ -343,6 +413,12 @@ export function ensureLogsForMonth(monthDate: Date): void {
         const day = toIso(new Date(log.startedAt));
         if (!completedLogDays.has(day)) {
           completedLogDays.add(day);
+          changed = true;
+        }
+        // Keep the entries, not just the date: this response is the only
+        // record of sessions this device never held (see loggedSessions).
+        if (!loggedSessions.get(day)?.some((l) => l.id === log.id)) {
+          recordLoggedSession(day, log);
           changed = true;
         }
       }
@@ -504,7 +580,9 @@ function guessMuscleFromName(name: string, isCardio: boolean): PrototypeMuscle {
   if (/(wrist|forearm|carry|grip|dead hang)/.test(n)) return 'Forearms';
   if (/curl/.test(n)) return 'Biceps';
   if (/(pushdown|push-down|skull|tricep|close-grip|dip)/.test(n)) return 'Triceps';
-  if (/(row|pull-up|pullup|pulldown|pull-down|pullover|chin-up|chinup|lat |shrug)/.test(n)) return 'Back';
+  // \b guards 'lat': "Flat Barbell Bench Press" contains 'lat ' and classified
+  // every flat press as Back until the profile's best-lift discs surfaced it.
+  if (/(row|pull-up|pullup|pulldown|pull-down|pullover|chin-up|chinup|\blat |shrug)/.test(n)) return 'Back';
   if (/(lateral raise|front raise|rear delt|face pull|shoulder|overhead press|arnold|military|delt)/.test(n)) return 'Shoulders';
   if (/(bench|push-up|pushup|chest|fly|press)/.test(n)) return 'Chest';
   return 'Chest';
@@ -659,14 +737,28 @@ export function plannedExerciseFromCatalog(
     inherit && inherit.weight !== 'Bodyweight' && inherit.weight !== '—'
       ? inherit.weight
       : null;
+  // Holds and rep work are not interchangeable prescriptions. Swapping a Plank
+  // for a Bench Press used to hand the bench press '45 sec' — the deck then
+  // labels a barbell lift "TIME (SEC)" and the receipt reads it as a hold — and
+  // the reverse gave a plank a rep count. When the kind flips, the incoming
+  // exercise's own defaults win over the outgoing slot's.
+  const incomingIsTimed = exerciseUsesTimeDisplay(
+    catalog.prescriptionType === 'time' ? 'time' : undefined,
+    catalog.name,
+    catalog.primaryMuscleGroup,
+  );
+  // Deliberately the same shape `toSlotExerciseRow` persists by, so a carried
+  // value that reads as timed here is one that round-trips as a duration.
+  const outgoingIsTimed = inherit != null && /^\d+\s*(min|sec)$/i.test(inherit.reps);
+  const carry = inherit && outgoingIsTimed === incomingIsTimed ? inherit : null;
   return {
     name: catalog.name,
     exerciseId: catalog.id,
     muscle,
-    sets: inherit?.sets ?? (isCardio ? 1 : 3),
-    reps: inherit?.reps ?? (isCardio ? '10 min' : '8–12'),
+    sets: carry?.sets ?? (isCardio ? 1 : 3),
+    reps: carry?.reps ?? (isCardio ? '10 min' : incomingIsTimed ? '45 sec' : '8–12'),
     weight: bodyweightOnly ? 'Bodyweight' : inheritedWeight ?? '—',
-    rest: inherit?.rest ?? (isCardio ? '—' : '2:00'),
+    rest: carry?.rest ?? (isCardio ? '—' : '2:00'),
     equipment: formatEquipment(catalog.equipment),
     note: '',
   };
@@ -750,12 +842,15 @@ export function canRescueDay(dateIso: string): boolean {
 }
 
 /** Mark a day skipped — dismissing a missed day, or declaring ahead of time
- *  that a planned day won't happen. Local-only — the plan is never touched,
- *  and the workout stays visible (logging it anyway simply wins). */
+ *  that a planned day won't happen. The plan is never touched and the workout
+ *  stays visible (logging it anyway simply wins). Local-first with a
+ *  fire-and-forget server write: a synced skip follows the account across
+ *  devices and reads as REST — not a miss — to the user's crew. */
 export function skipDay(dateIso: string): void {
   skippedDays.add(dateIso);
   scheduleSessionSave();
   emit();
+  void api.put(`/skipped-days/${dateIso}`).catch(() => {});
 }
 
 /** Undo a skip: the day counts as planned again (a past day's missed-rescue
@@ -764,6 +859,25 @@ export function unskipDay(dateIso: string): void {
   skippedDays.delete(dateIso);
   scheduleSessionSave();
   emit();
+  void api.delete(`/skipped-days/${dateIso}`).catch(() => {});
+}
+
+/** Pull the account's skips down (login, focus refetch): the server is the
+ *  truth once reachable; an offline-made skip that failed its write is the
+ *  accepted loss window. */
+async function syncSkippedDaysFromServer(): Promise<void> {
+  try {
+    const from = toIso(addDays(new Date(), -90));
+    const { data } = await api.get<{ dates: string[] }>('/skipped-days', {
+      params: { from },
+    });
+    skippedDays.clear();
+    for (const d of data.dates) skippedDays.add(d);
+    scheduleSessionSave();
+    emit();
+  } catch {
+    /* offline — the locally hydrated set stands */
+  }
 }
 
 /**
@@ -1023,6 +1137,12 @@ function reopenLoggedDay(dateIso: string): void {
   reopenedDays.add(dateIso);
   syncedDays.delete(dateIso);
   dayStartTimes.delete(dateIso);
+  // The primed baselines describe the FIRST session and were captured while
+  // the day already read as logged, so they carry preLog: false and would
+  // silence the second session's claims. Dropping them makes the next prime
+  // re-read the day as open — and the refreshed records (which now include
+  // the morning's work) are exactly what this session has to beat.
+  celebrationBaselineCache.delete(dateIso);
   const day = plannedDayForDate(dateIso);
   const counts = day.exercises.map(
     (_, i) => setLogs.get(slotKey(dateIso, i))?.length ?? 0,
@@ -1494,19 +1614,27 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
       syncedDays.delete(dateIso);
       return;
     }
-    await api.post('/workout-logs', {
+    // `dayStartTimes` survives restarts for 14 days, so a day left open —
+    // two sets before work, Complete pressed the next evening — books its
+    // whole wall-clock span. The receipt already refuses to print a run-away
+    // clock; omitting it here keeps the same span out of the persisted column
+    // Progress adds up forever, since no later fix can tell the two apart.
+    const elapsedSeconds = plausibleDuration(
+      Math.max(0, Math.round((Date.parse(completedAt) - Date.parse(startedAt)) / 1000)),
+    );
+    const saved = await api.post<WorkoutLog>('/workout-logs', {
       workoutId,
       startedAt,
       completedAt,
-      totalTimeSeconds: Math.max(
-        0,
-        Math.round((Date.parse(completedAt) - Date.parse(startedAt)) / 1000),
-      ),
+      ...(elapsedSeconds != null ? { totalTimeSeconds: elapsedSeconds } : null),
       totalSets,
       totalVolume: Math.round(totalVolume),
       entries,
     });
     completedLogDays.add(dateIso);
+    // Keep what came back: the month fetch ran BEFORE this POST, so without
+    // it a recap of the session just finished has no stored duration to read.
+    if (saved.data?.id) recordLoggedSession(dateIso, saved.data);
     // The day is sealed again; a LATER quick session re-runs the reopen
     // flow, and the refreshed counts make its log the next pure delta.
     reopenedDays.delete(dateIso);
@@ -1593,6 +1721,15 @@ export type CelebrationBaselines = {
   lastPerformance: LastPerformanceMap;
   personalBests: PersonalBestMap;
   statsSessions: WorkoutStatsSession[];
+  /**
+   * These were captured while the day was still UNLOGGED, so they describe
+   * what the session had to beat. False when the day was already logged when
+   * they were fetched — a recap of an old day — and then no claim drawn from
+   * them can be trusted: `lastPerformance` is the user's MOST RECENT session,
+   * which for a past day was performed AFTER the one being reviewed. Comparing
+   * against it manufactures "beat last time" out of a later, lighter workout.
+   */
+  preLog: boolean;
 };
 
 const celebrationBaselineCache = new Map<string, CelebrationBaselines>();
@@ -1612,6 +1749,11 @@ export function primeCelebrationBaselines(dateIso: string): Promise<void> {
   const pending = celebrationBaselinePromises.get(dateIso);
   if (pending) return pending;
   if (liveStatus !== 'ready') return Promise.resolve();
+  // Read BEFORE the fetch: a day still unlogged here is one whose baselines
+  // predate its own session, and only those can carry claims. A reopened day
+  // reads unlogged, which is right — its second session genuinely has the
+  // morning's work to beat.
+  const preLog = !isDayLogged(dateIso);
   const ids = [
     ...new Set(
       plannedDayForDate(dateIso)
@@ -1629,6 +1771,7 @@ export function primeCelebrationBaselines(dateIso: string): Promise<void> {
       lastPerformance,
       personalBests,
       statsSessions: stats?.sessions ?? [],
+      preLog,
     });
     emit();
   })().finally(() => celebrationBaselinePromises.delete(dateIso));

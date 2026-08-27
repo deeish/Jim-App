@@ -549,10 +549,9 @@ this codebase controls):
 
 - **`ProfileScreen`** (`openUrl` helper, line 481; rows at lines 870/877/884):
   "Privacy policy" and "Terms of service" → `Linking.openURL(...)` → system
-  browser, URLs from `constants/legalUrls.ts` (env-overridable, falls back
-  to placeholder `example.com` URLs if the env vars aren't set — worth
-  checking those are actually configured before shipping, unrelated to
-  navigation but a real product gap if missed). "Feedback & support" →
+  browser, URLs from `constants/legalUrls.ts`. These come from env vars with
+  **no fallback** — a build without them simply doesn't render the rows, so
+  this external route can be absent entirely. "Feedback & support" →
   `Linking.openURL('mailto:...')` (also `legalUrls.ts`,
   `FEEDBACK_MAILTO`) → device mail app.
 - **`ProfileScreen`'s "Export my data"** (`handleExportMyData`, line 499) →

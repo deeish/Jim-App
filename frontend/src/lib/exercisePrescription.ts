@@ -52,6 +52,31 @@ export function formatRestSecondsForPreview(seconds: number): string {
   return `${mins}m ${rem}s`;
 }
 
+/**
+ * What to write when an exercise is added with nothing to inherit — from
+ * search, or any other "just put this in my workout" path. Timed work carries
+ * its duration and a placeholder rep count, the shape the plan-slot writer
+ * already uses; adding a plank used to record it as 3 × 10 reps.
+ */
+export function defaultPrescriptionForNewExercise(
+  name: string,
+  primaryMuscleGroup?: string,
+  prescriptionType?: ExercisePrescriptionType,
+): {
+  sets: number;
+  reps: number;
+  prescriptionType?: 'time';
+  durationSeconds?: number;
+} {
+  if (!exerciseUsesTimeDisplay(prescriptionType, name, primaryMuscleGroup)) {
+    return { sets: 3, reps: 10 };
+  }
+  // A cardio block is one long piece; a hold is still sets of a hold.
+  return (primaryMuscleGroup ?? '').toLowerCase() === 'cardio'
+    ? { sets: 1, reps: 1, prescriptionType: 'time', durationSeconds: 600 }
+    : { sets: 3, reps: 1, prescriptionType: 'time', durationSeconds: 45 };
+}
+
 export function exerciseUsesTimeDisplay(
   prescriptionType: ExercisePrescriptionType | undefined,
   exerciseName: string,

@@ -3,14 +3,18 @@
  * (calendar week 0 + program week mapping + day slots + linked weekly workouts).
  */
 
-import type { Workout, WorkoutLog } from '../types/workout';
+import type { Workout } from '../types/workout';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
+// Type-only on purpose: the module behind it imports react-native and
+// expo-haptics, which this file's jest environment has no transform for.
+import type { PrototypeMuscle } from './planCalendarPrototype';
 import {
   isRestPlanSlotTitle,
   lastContiguousProgramWeek,
   normalizePlanAnchorYmd,
   normalizePlanDayOfWeek,
   normalizeProgramWeekNumber,
+  parseLocalYmd,
   planWeekdayNameLocal,
   resolveProgramWeekForCalendarOffset,
 } from './planCalendar';
@@ -57,40 +61,82 @@ export function buildPlanByWeek(planWorkouts: ApiPlanWorkout[]): Record<number, 
   return byWeek;
 }
 
-export type HomeWeekDotStatus = 'completed' | 'today' | 'scheduled' | 'rest';
-export type HomeWeekDot = { status: HomeWeekDotStatus; name: string | null };
+// ---------------------------------------------------------------------------
+// Week-tile split codes
+// ---------------------------------------------------------------------------
+
+const PUSH_SET: ReadonlySet<PrototypeMuscle> = new Set(['Chest', 'Shoulders', 'Triceps']);
+const PULL_SET: ReadonlySet<PrototypeMuscle> = new Set(['Back', 'Biceps', 'Forearms']);
+const LOWER_SET: ReadonlySet<PrototypeMuscle> = new Set(['Quads', 'Hamstrings', 'Glutes', 'Calves']);
+const ARMS_SET: ReadonlySet<PrototypeMuscle> = new Set(['Biceps', 'Triceps', 'Forearms']);
+
+/** Single-muscle tile codes — every value fits a week tile (≤6 chars). */
+const MUSCLE_CODE: Record<PrototypeMuscle, string> = {
+  Chest: 'Chest',
+  Back: 'Back',
+  Shoulders: 'Delts',
+  Biceps: 'Bis',
+  Triceps: 'Tris',
+  Quads: 'Quads',
+  Hamstrings: 'Hams',
+  Glutes: 'Glutes',
+  Calves: 'Calves',
+  Core: 'Core',
+  Cardio: 'Cardio',
+  Forearms: 'Grip',
+};
+
+const isSubset = (s: PrototypeMuscle[], of: ReadonlySet<PrototypeMuscle>) =>
+  s.every((m) => of.has(m));
 
 /**
- * Week-strip dots for Home (Monday-first). A day is "completed" only when a
- * completed WorkoutLog from the current calendar week points at a workout
- * linked to one of its slots. Applying a plan materializes Workout rows for
- * every slot upfront, so row existence must never be used as a done signal
- * (that made every dot render solid the moment a generated plan was applied).
+ * The week strip's tile label, named after the SPLIT the day's muscle set
+ * forms — the vocabulary the Quick Workout presets (and Fitbod's split
+ * options) already use — never after the free-text day title, whose first
+ * word overflows ("Hamstrings"), keeps punctuation ("Chest,") or says
+ * nothing ("Day 1"). A muscle code only when the day genuinely trains one
+ * muscle. Every label is ≤6 characters and always true of the day.
  */
-export function buildHomeWeekDots(
-  plan: ApiPlan | null | undefined,
-  weeklyWorkouts: Workout[],
-  completedLogs: Pick<WorkoutLog, 'workoutId' | 'completedAt'>[],
-  currentProgramWeek: number | null,
-): HomeWeekDot[] {
-  const list = plan?.planWorkouts;
-  if (!list?.length || currentProgramWeek == null) return [];
-  const thisWeek = buildPlanByWeek(list)[currentProgramWeek] ?? {};
-  const todayName = planWeekdayNameLocal();
-  return DAYS.map((day) => {
-    const slots = thisWeek[day] ?? [];
-    const nonRest = slots.filter((s) => !isRestPlanSlotTitle(s.title));
-    if (!nonRest.length) return { status: 'rest', name: null };
-    const name = nonRest[0].title ?? null;
-    const completed = nonRest.some((s) => {
-      const linked = weeklyWorkouts.find((w) => planSlotLinksWeeklyWorkout(s.id, w.planWorkoutId));
-      if (!linked?.id) return false;
-      return completedLogs.some((l) => l.completedAt != null && l.workoutId === linked.id);
-    });
-    if (completed) return { status: 'completed', name };
-    if (day === todayName) return { status: 'today', name };
-    return { status: 'scheduled', name };
-  });
+export function weekTileLabel(muscles: PrototypeMuscle[]): string {
+  const unique = [...new Set(muscles)];
+  if (unique.length === 0) return '';
+  // Core and cardio ride along on most days — garnish, not identity.
+  const main = unique.filter((m) => m !== 'Core' && m !== 'Cardio');
+  if (main.length === 0) return unique.includes('Core') ? 'Core' : 'Cardio';
+  if (main.length === 1) return MUSCLE_CODE[main[0]];
+  if (isSubset(main, ARMS_SET)) return 'Arms';
+  if (isSubset(main, PUSH_SET)) return 'Push';
+  if (isSubset(main, PULL_SET)) return 'Pull';
+  if (isSubset(main, LOWER_SET)) return 'Legs';
+  const upper = (m: PrototypeMuscle) => PUSH_SET.has(m) || PULL_SET.has(m);
+  if (main.every(upper)) return 'Upper';
+  return 'Full';
+}
+
+/** Newest completed session — the list usually arrives newest-first, but sorted defensively. */
+export function latestCompletedSession<T extends { startedAt: string; completedAt: string | null }>(
+  sessions: T[],
+): T | null {
+  let best: T | null = null;
+  for (const s of sessions) {
+    if (s.completedAt == null) continue;
+    if (!best || Date.parse(s.startedAt) > Date.parse(best.startedAt)) best = s;
+  }
+  return best;
+}
+
+/**
+ * "Today" / "Yesterday" / "Tue" (within the past week) / "Aug 12" — the
+ * last-workout card's day label. Both arguments are LOCAL `YYYY-MM-DD` days.
+ */
+export function recentDayLabel(ymd: string, todayYmd: string): string {
+  const d = parseLocalYmd(ymd);
+  const today = parseLocalYmd(todayYmd);
+  const days = Math.round((today.getTime() - d.getTime()) / 86400000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return d.toLocaleDateString('en-US', { weekday: 'short' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export type HomeTodayResult = (

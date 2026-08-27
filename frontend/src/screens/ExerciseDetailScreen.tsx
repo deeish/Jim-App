@@ -126,17 +126,28 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
    * fetch — and a failure is silent, since this is an extra on a page that has
    * to work without it.
    */
+  /** Distinguishes "still fetching" from "this lift has no history", which
+   *  `history === null` alone cannot: without it the card simply appeared
+   *  below the fold once the second request landed. */
+  const [historyLoading, setHistoryLoading] = useState(false);
   useEffect(() => {
     // Cleared first so a reused screen instance can never show the previous
     // exercise's history while the new one is in flight.
     setHistory(null);
-    if (!isLinkableLibraryExerciseId(exerciseId)) return;
+    if (!isLinkableLibraryExerciseId(exerciseId)) {
+      setHistoryLoading(false);
+      return;
+    }
+    setHistoryLoading(true);
     let cancelled = false;
     getExerciseHistory(exerciseId as string)
       .then((data) => {
         if (!cancelled) setHistory(data);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -669,6 +680,11 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           render durations, and no one-rep max is projected from time — so
           their estimate tile, per-row estimates, and trend never appear.
         */}
+        {historyLoading && historySummary.sessions.length === 0 && (
+          // Reserve the card so it does not shove the page when it lands.
+          <SkeletonCard lines={3} />
+        )}
+
         {historySummary.sessions.length > 0 && (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Your history</Text>

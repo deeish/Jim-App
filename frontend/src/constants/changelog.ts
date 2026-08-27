@@ -3,11 +3,27 @@
 // To announce an update: prepend a new entry to CHANGELOG. The `id` must be
 // unique + stable — it drives the "already seen" check, so giving a new entry a
 // new id is what makes the What's New badge + popup re-appear for everyone.
+//
+// The release sheet shows ONLY the newest entry; the rest sit behind "See
+// earlier updates". Keep the array at MAX_CHANGELOG_ENTRIES: when prepending a
+// new entry, move the oldest card to docs/changelog-archive.md (the App Store's
+// version history and git keep it too). The popup is the highlight reel for one
+// release, not the archive.
 
 export type ChangelogChangeType = 'new' | 'improved' | 'fixed';
 
+/** Pruning target — the release sheet plus the capped "earlier updates" list. */
+export const MAX_CHANGELOG_ENTRIES = 4;
+
 export interface ChangelogChange {
   type: ChangelogChangeType;
+  /**
+   * Short bold lead-in for the release sheet's feature row ("A Home that
+   * launches your day"). Entries without one fall back to the type label.
+   */
+  headline?: string;
+  /** Ionicons glyph for the row's chip; falls back to the type's icon. */
+  icon?: string;
   text: string;
 }
 
@@ -24,6 +40,81 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  // The ONE card for everything since the last thing external testers
+  // actually received, which is build 1.1.0 (25) plus the 2026-08-21
+  // production OTA — i.e. the card below this one. Verified against App Store
+  // Connect (25 is the only build IN_BETA_TESTING; 26 was uploaded and never
+  // distributed) and `eas update:list`, not from memory.
+  //
+  // Contents: the Crew tab (v0 + wave 1: names, invites by code + link,
+  // records, synced skips, the weekly goal hero, the four-week ordering, and
+  // Rest up), the Home "Launchpad" redesign, the goal-adaptive Profile
+  // "Athlete card", calendar paging, and keep-awake + a wall-clock rest timer.
+  //
+  // Deliberately absent: the loading-state sweep, the theme contrast pass, the
+  // legal URLs, and every bug fix. The week-tile split codes, recap trims,
+  // haptics sweep and this release sheet itself are part of the stories above,
+  // not separate lines. Copy rules: headlines read on their own (no pronouns
+  // leaning on the row above) and stay plain — name the part that changed and
+  // say what's different, no marketing lines.
+  //
+  // ⚠ `date` is a guess until this ships. Set it to the real release date.
+  {
+    id: '2026-08-25',
+    version: '1.1.0',
+    date: '2026-08-27',
+    title: 'Crew, Home, and Profile',
+    changes: [
+      {
+        type: 'new',
+        headline: 'New Crew tab',
+        icon: 'people',
+        text: 'Train with your friends. The crew’s week is at the top, and one list shows everyone’s days, ordered by who has trained most over the last four weeks. Miss a scheduled day and you have two days to make it up.',
+      },
+      {
+        type: 'new',
+        headline: 'Crew records',
+        icon: 'sparkles',
+        text: 'A new personal record shows on that person’s row, and anyone in the crew can pound it. Monday recaps and streak milestones show at the top.',
+      },
+      {
+        type: 'new',
+        headline: 'Crew invites',
+        icon: 'person-add',
+        text: 'Name your crew, then invite friends with the code or a link. Tap anyone to see their week.',
+      },
+      {
+        type: 'new',
+        headline: 'Rest up',
+        icon: 'moon',
+        text: 'Away or injured? Rest up pauses the days you owe the crew without leaving it. Anything you do train still counts, and you come back with one tap.',
+      },
+      {
+        type: 'new',
+        headline: 'New Home screen',
+        icon: 'home',
+        text: 'Today’s workout is now at the top, with your week, your streak, your last workout, and Quick Workout below it.',
+      },
+      {
+        type: 'new',
+        headline: 'New Profile page',
+        icon: 'person',
+        text: 'Your profile now shows your best lifts and your body weight trend, with settings in a cleaner list below. Strength and muscle goals lead with lifts, fat loss goals lead with body weight.',
+      },
+      {
+        type: 'improved',
+        headline: 'Rest timer',
+        icon: 'timer',
+        text: 'The screen now stays on while you train, so it no longer locks between sets. The rest countdown keeps time while your phone is in your pocket instead of pausing.',
+      },
+      {
+        type: 'improved',
+        headline: 'Slide between days and weeks',
+        icon: 'swap-horizontal',
+        text: 'The calendar now slides under your finger. The arrows next to the date do the same thing.',
+      },
+    ],
+  },
   // The ONE card for this OTA: everything since build 26 (the finish
   // celebration + save, the day-actions menu + skip, set-aware Last time +
   // Target on the deck, history-aware recommendations). Trained-day
@@ -134,130 +225,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       { type: 'improved', text: 'Recommended on the Exercises page is now a proper All | Recommended switch under the search bar.' },
     ],
   },
-  {
-    id: '2026-08-13',
-    version: '1.1.0',
-    date: '2026-08-13',
-    title: 'Programs that fit your week',
-    changes: [
-      { type: 'new', text: 'Two new coach-built programs: Beginner Full Body, your first eight weeks of barbells, and Home Dumbbell Full Body, which needs only dumbbells and a bench.' },
-      { type: 'new', text: 'Every program now adjusts to your schedule. Run the 6 day Push/Pull/Legs on 4 days and the sessions rotate through your week automatically.' },
-      { type: 'new', text: 'Jim score: our quality rating for every exercise, right on its page.' },
-      { type: 'improved', text: 'Applying a program that starts next Monday now opens on its first week, so you can see everything you are about to train.' },
-      { type: 'fixed', text: 'The saved workouts page no longer sits under the clock.' },
-    ],
-  },
-  {
-    id: '2026-08-11',
-    version: '1.1.0',
-    date: '2026-08-11',
-    title: 'A smarter exercise library',
-    changes: [
-      { type: 'improved', text: 'Every exercise was reviewed and ranked. Look for the Recommended star, filter to just those, and plans now lead with the best options.' },
-      { type: 'new', text: 'A redesigned exercise page: key facts at a glance, clearer muscle maps, and everything in easy cards.' },
-      { type: 'new', text: 'Exercise pages suggest easier and harder versions you can jump between.' },
-      { type: 'new', text: 'The common mistakes for each exercise, with the fix.' },
-      { type: 'new', text: 'Replacements respect limitations like a sore shoulder or knee.' },
-      { type: 'improved', text: 'A refreshed Plan tab with week progress, rest days, and quick actions.' },
-    ],
-  },
-  // One entry covering everything since build 13, the last build distributed to
-  // the Friends/Family group (confirmed against App Store Connect 2026-08-05:
-  // builds 14-17 were internal only). The former 2026-07-23, 2026-08-04 and
-  // 2026-08-05 cards were merged in here: external testers never saw them, and
-  // four stacked cards for one release would bury the headline changes.
-  {
-    id: '2026-08-06',
-    version: '1.1.0',
-    date: '2026-08-06',
-    title: 'The big redesign update',
-    changes: [
-      { type: 'new', text: 'Templates: three coach-built 8 week programs, applied in a couple of taps.' },
-      { type: 'new', text: 'Setup now ends with a program matched to your answers.' },
-      { type: 'new', text: 'Progress page: week streak, totals, and weekly trend.' },
-      { type: 'new', text: 'Exercise history: your best set, estimated one rep max, and recent sessions.' },
-      { type: 'new', text: 'Workouts show your last numbers and suggest a next target.' },
-      { type: 'new', text: 'New profile avatars.' },
-      { type: 'improved', text: 'A cleaner look across the app, with a single light theme.' },
-      { type: 'improved', text: 'Floating glass tab bar on iOS 26.' },
-      { type: 'improved', text: 'The Workout tab is now Train, built around one Start button.' },
-      { type: 'improved', text: 'Redesigned plan builder and Profile pages.' },
-      { type: 'improved', text: 'Plans can start today instead of next Monday.' },
-      { type: 'improved', text: 'Workout summaries show personal bests and total volume.' },
-      { type: 'improved', text: 'New app icon and launch screen.' },
-      { type: 'fixed', text: 'Back buttons return you to the page you came from.' },
-      { type: 'fixed', text: 'Clearing a plan no longer leaves the old name in the header.' },
-      { type: 'fixed', text: 'Showing your password no longer shifts the sign in screen.' },
-    ],
-  },
-  {
-    id: '2026-07-16',
-    version: '1.0.0',
-    date: '2026-07-16',
-    title: 'Share workouts with your gym buddy',
-    changes: [
-      { type: 'new', text: 'Share your plan with your gym partner. The feature is on the Plan page once a workout is generated: send a code or have them scan your QR code.' },
-    ],
-  },
-  {
-    id: '2026-07-15',
-    version: '1.0.0',
-    date: '2026-07-15',
-    title: 'Smarter workout generation and search',
-    changes: [
-      { type: 'improved', text: 'Generated workouts now balance pushing and pulling and avoid stacking similar movements.' },
-      { type: 'improved', text: 'Every session fits the time you picked, including your hardest weeks.' },
-      { type: 'improved', text: 'Plans covering several weeks now build up, peak, and finish with a lighter recovery week, keeping the same core lifts throughout.' },
-      { type: 'improved', text: 'Exercise search now understands everyday spellings, typos, and gym slang. Searches like "pullup", "dumbell press", or "ohp" find the right exercise instead of coming up empty.' },
-      { type: 'improved', text: 'A simpler goal step when setting up your profile.' },
-      { type: 'new', text: 'Clear an entire week from your plan, with a quick confirmation before a repeated week starts.' },
-      { type: 'fixed', text: 'Saving a workout with the heart now responds instantly and reliably adds it to your saved list.' },
-      { type: 'fixed', text: 'Plan controls display correctly on smaller screens.' },
-    ],
-  },
-  {
-    id: '2026-07-07',
-    version: '1.0.0',
-    date: '2026-07-07',
-    title: 'Weight tracking, a better exercise library, and plan fixes',
-    changes: [
-      { type: 'new', text: 'Track your body weight and see your trend over time.' },
-      { type: 'new', text: 'Pick a second goal and your plan blends both.' },
-      { type: 'new', text: 'Exercise pages now show the muscles you are working on a body map, zoomed to the target area.' },
-      { type: 'improved', text: 'A rebuilt Exercises tab: browse the full catalog right away, with simpler filters, quick access to your saved exercises, and a mini muscle map on every exercise.' },
-      { type: 'improved', text: 'Cleaner exercise pages: color-coded muscle groups, and how-to steps tucked behind a tap so the demo video stays front and center.' },
-      { type: 'fixed', text: 'Your plan no longer disappears when it ends. It now repeats its final week until you generate a new one.' },
-      { type: 'fixed', text: 'Generated plans you have not saved yet are kept, so you can pick up where you left off.' },
-      { type: 'fixed', text: 'Days only show as complete after you finish the workout.' },
-    ],
-  },
-  {
-    id: '2026-06-23',
-    version: '1.0.0',
-    date: '2026-06-23',
-    title: 'Improvements and fixes',
-    changes: [
-      { type: 'improved', text: 'A new app icon and refreshed logo.' },
-      { type: 'improved', text: 'Swap a single exercise in your plan for a better one that targets the same muscle, without changing the rest of your day.' },
-      { type: 'improved', text: 'Muscle search now lets you pick a group to see everything in it, then narrow to specific areas like Lats or Traps only when you want.' },
-      { type: 'improved', text: 'Smoother navigation: returning to your Plan keeps its content instead of flashing a loading screen, and refreshes quietly in the background.' },
-      { type: 'fixed', text: 'Regenerating a workout now rebuilds the full session to match that day’s focus.' },
-      { type: 'fixed', text: 'Tapping “More information” on an exercise now opens its details while you’re adding it to a plan.' },
-    ],
-  },
-  {
-    id: '2026-06-17',
-    version: '1.0.0',
-    date: '2026-06-17',
-    title: 'Welcome to the Jim beta',
-    changes: [
-      { type: 'new', text: 'Personalized AI workout plans built around your goal, experience, and equipment.' },
-      { type: 'improved', text: 'Smarter sets and reps that adapt to your goal and each exercise’s role.' },
-      { type: 'improved', text: 'Higher-quality plans with cleaner workout splits and better-balanced volume.' },
-      { type: 'improved', text: 'Faster exercise search with smoother scrolling.' },
-      { type: 'improved', text: 'Refreshed home screen.' },
-    ],
-  },
+  // Older cards live in docs/changelog-archive.md.
 ];
 
 /** Most recent entry — what the badge + popup compare against. */

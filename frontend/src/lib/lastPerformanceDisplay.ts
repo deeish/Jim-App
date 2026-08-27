@@ -172,6 +172,35 @@ export function formatLastTimeForSet(
 }
 
 /** Heaviest completed weight (lb) from the last performance, if any. */
+/**
+ * The best set of the last session — heaviest, and on equal load the most reps.
+ *
+ * Unlike `lastTopWeightLb` this KEEPS unweighted sets, reported at zero load:
+ * on bodyweight work reps are the only progress there is, so dropping those
+ * sets is what made pull-ups impossible to beat. A set with neither load nor
+ * reps (a timed row logs its seconds elsewhere) has nothing to compare and is
+ * skipped.
+ */
+export function lastTopSet(
+  perf: LastExercisePerformance | undefined,
+): { weightLb: number; reps: number } | null {
+  if (!perf) return null;
+  let top: { weightLb: number; reps: number } | null = null;
+  for (const s of perf.sets) {
+    const weightLb = s.weight != null && s.weight > 0 ? s.weight : 0;
+    const reps = s.reps ?? 0;
+    if (weightLb <= 0 && reps <= 0) continue;
+    if (
+      !top ||
+      weightLb > top.weightLb ||
+      (weightLb === top.weightLb && reps > top.reps)
+    ) {
+      top = { weightLb, reps };
+    }
+  }
+  return top;
+}
+
 export function lastTopWeightLb(
   perf: LastExercisePerformance | undefined,
 ): number | null {

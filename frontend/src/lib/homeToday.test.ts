@@ -1,6 +1,12 @@
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import type { Workout } from '../types/workout';
-import { buildHomeWeekDots, planSlotLinksWeeklyWorkout, resolveHomeToday } from './homeToday';
+import {
+  latestCompletedSession,
+  planSlotLinksWeeklyWorkout,
+  recentDayLabel,
+  resolveHomeToday,
+  weekTileLabel,
+} from './homeToday';
 
 describe('planSlotLinksWeeklyWorkout', () => {
   it('returns true when string ids match', () => {
@@ -179,89 +185,83 @@ describe('resolveHomeToday', () => {
   });
 });
 
-describe('buildHomeWeekDots', () => {
-  beforeEach(() => {
-    jest.useFakeTimers();
-    // Monday Apr 6, 2026 (local) — matches planCalendar tests
-    jest.setSystemTime(new Date(2026, 3, 6, 12, 0, 0));
+describe('weekTileLabel', () => {
+  it('names the classic splits from the muscle set', () => {
+    expect(weekTileLabel(['Chest', 'Shoulders', 'Triceps'])).toBe('Push');
+    expect(weekTileLabel(['Chest', 'Triceps'])).toBe('Push');
+    expect(weekTileLabel(['Back', 'Biceps'])).toBe('Pull');
+    expect(weekTileLabel(['Quads', 'Hamstrings', 'Glutes', 'Calves'])).toBe('Legs');
+    expect(weekTileLabel(['Biceps', 'Triceps'])).toBe('Arms');
   });
 
-  afterEach(() => {
-    jest.useRealTimers();
+  it('names upper mixes Upper and upper+lower mixes Full', () => {
+    expect(weekTileLabel(['Chest', 'Back', 'Shoulders'])).toBe('Upper');
+    // Dylan's 3-muscle concern: back + chest + legs must not read as one muscle.
+    expect(weekTileLabel(['Chest', 'Back', 'Quads'])).toBe('Full');
+    expect(weekTileLabel(['Shoulders', 'Hamstrings'])).toBe('Full');
   });
 
-  const slot = (id: string, dayOfWeek: string, title = 'Push'): ApiPlanWorkout => ({
-    id,
-    workoutPlanId: 'p1',
-    weekNumber: 1,
-    dayOfWeek,
-    title,
-    detailLine: null,
-    type: 'strength',
-    durationMinutes: 45,
-    intensity: null,
-    orderInDay: 0,
+  it('falls back to a muscle code only for genuine single-muscle days', () => {
+    expect(weekTileLabel(['Shoulders'])).toBe('Delts');
+    expect(weekTileLabel(['Hamstrings'])).toBe('Hams');
+    expect(weekTileLabel(['Forearms'])).toBe('Grip');
+    expect(weekTileLabel(['Back'])).toBe('Back');
   });
 
-  const planWith = (slots: ApiPlanWorkout[]): ApiPlan => ({
-    id: 'p1',
-    name: 'Test',
-    userId: 'u1',
-    createdAt: '',
-    updatedAt: '',
-    planWorkouts: slots,
+  it('treats core and cardio as garnish unless they are the whole day', () => {
+    expect(weekTileLabel(['Chest', 'Core'])).toBe('Chest');
+    expect(weekTileLabel(['Quads', 'Glutes', 'Cardio'])).toBe('Legs');
+    expect(weekTileLabel(['Core'])).toBe('Core');
+    expect(weekTileLabel(['Cardio'])).toBe('Cardio');
+    expect(weekTileLabel(['Core', 'Cardio'])).toBe('Core');
   });
 
-  const linked = (workoutId: string, slotId: string): Workout => ({
-    id: workoutId,
-    name: 'Push',
-    exercises: [],
-    planWorkoutId: slotId,
+  it('never exceeds six characters, for every possible muscle combination class', () => {
+    const all = [
+      'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Quads',
+      'Hamstrings', 'Glutes', 'Calves', 'Core', 'Cardio', 'Forearms',
+    ] as const;
+    for (const m of all) expect(weekTileLabel([m]).length).toBeLessThanOrEqual(6);
+    for (const a of all) {
+      for (const b of all) {
+        expect(weekTileLabel([a, b]).length).toBeLessThanOrEqual(6);
+      }
+    }
+    expect(weekTileLabel([...all]).length).toBeLessThanOrEqual(6);
+    expect(weekTileLabel([])).toBe('');
+  });
+});
+
+describe('latestCompletedSession', () => {
+  const s = (startedAt: string, completedAt: string | null) => ({ startedAt, completedAt });
+
+  it('picks the newest completed session even when the list is unsorted', () => {
+    const older = s('2026-04-01T10:00:00.000Z', '2026-04-01T11:00:00.000Z');
+    const newest = s('2026-04-05T10:00:00.000Z', '2026-04-05T11:00:00.000Z');
+    const inProgress = s('2026-04-06T10:00:00.000Z', null);
+    expect(latestCompletedSession([older, inProgress, newest])).toBe(newest);
   });
 
-  it('does not mark a day completed just because its workout row was materialized', () => {
-    // Applying an AI plan materializes Workout rows for every slot upfront —
-    // with no completed log, today must stay "today", not flip to "completed".
-    const plan = planWith([slot('slot-mon', 'Monday'), slot('slot-wed', 'Wednesday')]);
-    const weekly = [linked('w-mon', 'slot-mon'), linked('w-wed', 'slot-wed')];
-    const dots = buildHomeWeekDots(plan, weekly, [], 1);
-    expect(dots[0]).toEqual({ status: 'today', name: 'Push' });
-    expect(dots[2]).toEqual({ status: 'scheduled', name: 'Push' });
+  it('returns null when nothing has completed', () => {
+    expect(latestCompletedSession([s('2026-04-06T10:00:00.000Z', null)])).toBeNull();
+    expect(latestCompletedSession([])).toBeNull();
+  });
+});
+
+describe('recentDayLabel', () => {
+  const today = '2026-04-06'; // Monday
+
+  it('names today and yesterday', () => {
+    expect(recentDayLabel('2026-04-06', today)).toBe('Today');
+    expect(recentDayLabel('2026-04-05', today)).toBe('Yesterday');
   });
 
-  it('marks a day completed only from a completed log for its linked workout', () => {
-    const plan = planWith([slot('slot-mon', 'Monday'), slot('slot-wed', 'Wednesday')]);
-    const weekly = [linked('w-mon', 'slot-mon'), linked('w-wed', 'slot-wed')];
-    const dots = buildHomeWeekDots(
-      plan,
-      weekly,
-      [{ workoutId: 'w-mon', completedAt: '2026-04-06T10:00:00.000Z' }],
-      1,
-    );
-    expect(dots[0]).toEqual({ status: 'completed', name: 'Push' });
-    expect(dots[2]).toEqual({ status: 'scheduled', name: 'Push' });
+  it('uses the short weekday inside the past week', () => {
+    expect(recentDayLabel('2026-04-04', today)).toBe('Sat');
+    expect(recentDayLabel('2026-03-31', today)).toBe('Tue');
   });
 
-  it('ignores logs without completedAt and logs for unrelated workouts', () => {
-    const plan = planWith([slot('slot-mon', 'Monday')]);
-    const weekly = [linked('w-mon', 'slot-mon')];
-    const dots = buildHomeWeekDots(
-      plan,
-      weekly,
-      [
-        { workoutId: 'w-mon', completedAt: null },
-        { workoutId: 'w-other', completedAt: '2026-04-06T10:00:00.000Z' },
-      ],
-      1,
-    );
-    expect(dots[0].status).toBe('today');
-  });
-
-  it('renders rest for days without slots and returns [] outside the program', () => {
-    const plan = planWith([slot('slot-mon', 'Monday')]);
-    const dots = buildHomeWeekDots(plan, [], [], 1);
-    expect(dots[1]).toEqual({ status: 'rest', name: null });
-    expect(buildHomeWeekDots(plan, [], [], null)).toEqual([]);
-    expect(buildHomeWeekDots(null, [], [], 1)).toEqual([]);
+  it('falls back to a short date beyond a week', () => {
+    expect(recentDayLabel('2026-03-12', today)).toBe('Mar 12');
   });
 });

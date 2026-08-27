@@ -476,12 +476,24 @@ export default function PlanCalendarMonthScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* The 'loading' arm is not decoration. Without it this ternary fell
+          from `livePlan` straight past 'offline' to the no-plan copy, so a
+          month whose fetch had not landed told the user they had NO ACTIVE
+          PLAN over a blank grid. And not only on a cold start:
+          `refreshLiveCalendarData(true)` — what pull-to-refresh calls — resets
+          the store to 'idle', which `calendarDataMode()` reports as 'loading'.
+          Pulling down on your own calendar made your plan evaporate.
+
+          The Week screen has always gated its version of this message on
+          `mode === 'empty'`; this screen simply never consumed 'loading'. */}
       <Text style={styles.footerNote}>
         {livePlan
           ? `Plan: ${livePlan.name}`
           : calendarDataMode() === 'offline'
             ? 'Offline — can’t reach the server'
-            : 'No active plan yet — start with Planning above'}
+            : calendarDataMode() === 'loading'
+              ? 'Loading your plan…'
+              : 'No active plan yet — start with Planning above'}
       </Text>
 
       {/* Liked (saved) workouts — the old Plan-tab heart, same modal. */}

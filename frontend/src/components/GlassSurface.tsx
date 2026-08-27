@@ -28,13 +28,18 @@ import { useTheme } from '../theme';
  * app version is also bumped in this change — a native dependency and an
  * unchanged runtimeVersion is the combination that ships a crash over the air.
  *
- * COLOUR SCHEME IS PINNED TO LIGHT. The app ships one light theme and sets
- * `userInterfaceStyle: "light"` in app.json, but the glass material defaults to
- * `'auto'`, which follows the *device* appearance rather than the app's. On a
- * phone in dark mode that would render a dark glass panel under this app's dark
- * text — the same class of silent-dark bug the palette work had to chase out of
- * TYPE_COLORS and bodyMapFigure. If a dark theme ever returns, this becomes
- * `colorScheme={scheme}` and not before.
+ * COLOUR SCHEME FOLLOWS THE APP'S THEME, never the device's. The material
+ * defaults to `'auto'`, which reads the *device* appearance — and this app's
+ * theme is a manual choice in Profile, not a mirror of the system setting, so
+ * `'auto'` is wrong in both directions: a light glass bar under a dark app, or
+ * a dark one under a light app, depending on the phone rather than the choice
+ * the user made. Passing `mode` is what keeps the bar with the app.
+ *
+ * (This was pinned to `'light'` while the app shipped a single light theme,
+ * with a note to switch when a dark theme returned. It returned; the switch is
+ * this. `userInterfaceStyle: "light"` in app.json is a separate lever — it
+ * still governs the native surfaces this app does not paint, keyboards and
+ * system alerts among them.)
  */
 export const glassAvailable = ((): boolean => {
   try {
@@ -61,7 +66,7 @@ export default function GlassSurface({
   children,
   ...rest
 }: Props) {
-  const { colors } = useTheme();
+  const { colors, mode } = useTheme();
 
   if (!glassAvailable) {
     return (
@@ -72,7 +77,7 @@ export default function GlassSurface({
   }
 
   return (
-    <GlassView style={style} glassEffectStyle={glassEffectStyle} colorScheme="light" {...rest}>
+    <GlassView style={style} glassEffectStyle={glassEffectStyle} colorScheme={mode} {...rest}>
       {children}
     </GlassView>
   );

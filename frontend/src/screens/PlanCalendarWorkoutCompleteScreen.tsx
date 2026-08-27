@@ -14,7 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   Easing,
+  FadeIn,
   interpolate,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -61,8 +63,10 @@ import {
 } from '../lib/planCalendarPrototype';
 import {
   celebrationBaselines,
+  dayHasLocalLogs,
   getSetLogs,
   isDayFullyLogged,
+  loggedSessionsFor,
   plannedDayForDate,
   saveDayAsWorkout,
   sessionStartIso,
@@ -73,9 +77,17 @@ import {
   calendarSessionsFromLogs,
   dominantMuscle,
   formatClock,
+  loggedDurationSeconds,
+  loggedSetDetail,
   parseRepsCount,
   parseWeightLb,
+  plausibleDuration,
+  sessionsFromWorkoutLogs,
+  storedSetDetail,
   streakWithSession,
+  summariseSetDurations,
+  summariseSetLoads,
+  type SetDetail,
 } from '../lib/sessionCelebration';
 import {
   collectSessionAchievements,
@@ -84,7 +96,8 @@ import {
   summarizeSessionTotals,
   type SessionAchievement,
 } from '../lib/sessionAchievements';
-import { formatVolumeFromLb, formatWeightCompactFromLb, type WeightUnit } from '../lib/weightDisplay';
+import { formatLastTimeLine } from '../lib/lastPerformanceDisplay';
+import { formatWeightCompactFromLb, type WeightUnit } from '../lib/weightDisplay';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWorkoutComplete'>;
@@ -97,6 +110,13 @@ const HEADER_SEAL = 26;
 const LAYER_SHIFT = 32;
 /** The Moment advances to the Ledger on its own after this long. */
 const AUTO_ADVANCE_MS = 2800;
+/** Longest the poster will hold for its record claims before going anyway. */
+const BASELINE_WAIT_CAP_MS = 4000;
+
+/** '47 min' — the receipt's grammar for a duration; the poster keeps the clock. */
+function formatMinutes(seconds: number): string {
+  return `${Math.max(1, Math.round(seconds / 60))} min`;
+}
 
 /** The Moment's celebratory dot burst — offsets from the hero seal's box. */
 const PARTICLES: Array<{ dx: number; dy: number; size: number; color: string }> = [
@@ -112,14 +132,74 @@ const PARTICLES: Array<{ dx: number; dy: number; size: number; color: string }> 
 type LedgerRow = {
   key: string;
   name: string;
-  muscle: PrototypeMuscle;
+  /** Null for a history row whose exercise the plan no longer carries. */
+  muscle: PrototypeMuscle | null;
   /** Best effort, in the deck's reps × weight grammar. */
   main: string;
   /** Set count — '4 sets', '2 of 3 sets', 'Not logged'. */
   sub: string;
+  /** Every set, printed, for the row's expanded state. Empty = nothing to open. */
+  setLines: SetDetail[];
+  /**
+   * The session's best set, marked in the opened list — it shows WHICH set hit
+   * the top of the load range the closed row reports. Null when the sets tie
+   * for best: on a straight 3 × 10 there is no standout to point at, and
+   * gilding the first one would invent a story.
+   */
+  topSetIndex: number | null;
   state: 'done' | 'partial' | 'empty';
-  badge: SessionAchievement['kind'] | null;
+  /** The record or gain this exercise earned, if any — drives the delta chip. */
+  claim: SessionAchievement | null;
+  /** Last session's sets, already formatted. Null when there is no honest
+   *  comparison to draw (see the pre-log gate). */
+  lastTimeLine: string | null;
 };
+
+/** `PB`, `+5 lb`, `+2 reps` — what the row's chip says, or null for no news. */
+function claimChipLabel(claim: SessionAchievement | null, unit: WeightUnit): string | null {
+  if (!claim) return null;
+  if (claim.kind === 'personal-best') return 'PB';
+  if (claim.basis === 'weight' && claim.gainLb > 0) {
+    return `+${formatWeightCompactFromLb(claim.gainLb, unit)}`;
+  }
+  if (claim.gainReps > 0) {
+    return `+${claim.gainReps} ${claim.gainReps === 1 ? 'rep' : 'reps'}`;
+  }
+  return null;
+}
+
+/**
+ * Set lines worth opening a row for. Timed work read back from a stored log
+ * has no reps and no duration, so every line would print '—' — three dashes
+ * under a chevron is worse than the "3 sets" already on the row, so those
+ * rows stay closed and unmarked.
+ */
+function usefulSetLines(lines: SetDetail[]): SetDetail[] {
+  return lines.some((line) => line.text !== '—') ? lines : [];
+}
+
+/**
+ * Which set the summary is quoting: the heaviest, and on equal load the one
+ * with the most reps — the rule `bestLoggedSet` already uses, so the marked
+ * chip and the row's headline value can never disagree. Null unless that set
+ * beats every other one outright.
+ */
+function uniqueTopSetIndex(sets: Array<{ reps: number; weightLb?: number }>): number | null {
+  if (sets.length < 2) return null;
+  let best = 0;
+  for (let i = 1; i < sets.length; i += 1) {
+    const a = sets[i];
+    const b = sets[best];
+    const aw = a.weightLb ?? 0;
+    const bw = b.weightLb ?? 0;
+    if (aw > bw || (aw === bw && a.reps > b.reps)) best = i;
+  }
+  const top = sets[best];
+  const tied = sets.some(
+    (s, i) => i !== best && (s.weightLb ?? 0) === (top.weightLb ?? 0) && s.reps === top.reps,
+  );
+  return tied ? null : best;
+}
 
 function bestLoggedSet(logs: SetLog[]): { reps: number; weightLb?: number } | null {
   let best: { reps: number; weightLb?: number } | null = null;
@@ -181,6 +261,11 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { dateIso } = route.params;
+  // RECAP: the same page re-opened later from the day view's logged banner.
+  // Same content, none of the first-run choreography — it lands on the
+  // Ledger, nothing stamps or auto-advances, and the duration is withheld
+  // (see heroSeconds). 'celebrate' is the finish-a-workout run.
+  const recap = route.params.mode === 'recap';
   const { colors, mode } = useTheme();
   const dark = mode === 'dark';
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -197,27 +282,59 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   const date = fromIso(dateIso);
   const subtitle = `${day.title} · ${WEEKDAYS[weekdayIndex(date)]}, ${shortDate(date)}`;
 
-  const sessions = calendarSessionsFromLogs(day.exercises, (i) => getSetLogs(dateIso, i));
+  // Two sources, one page. This device's own set logs are richer — they know
+  // the day's PLAN, so a cut-short session still lists what went unlogged —
+  // and they are what the finish run itself renders. A day trained elsewhere
+  // (another phone, before a reinstall, past the 14-day set-log window) has
+  // none, and reads back from its stored workout log instead.
+  const storedLogs = loggedSessionsFor(dateIso);
+  const fromHistory = !dayHasLocalLogs(dateIso) && storedLogs.length > 0;
+  const sessions = fromHistory
+    ? sessionsFromWorkoutLogs(storedLogs)
+    : calendarSessionsFromLogs(day.exercises, (i) => getSetLogs(dateIso, i));
   const totals = summarizeSessionTotals(sessions);
   const baselines = celebrationBaselines(dateIso);
-  const achievements = baselines
-    ? collectSessionAchievements(sessions, baselines.lastPerformance, baselines.personalBests)
-    : [];
+  // Claims only from baselines captured before this day was logged — see
+  // CelebrationBaselines.preLog. A recap of an older day has none, so it shows
+  // the receipt without records rather than inventing one out of a later,
+  // lighter session.
+  const achievements =
+    baselines?.preLog
+      ? collectSessionAchievements(
+          sessions,
+          baselines.lastPerformance,
+          baselines.personalBests,
+          // Local midnight of the day being celebrated: nothing recorded at or
+          // after it is something this session beat.
+          fromIso(dateIso).toISOString(),
+        )
+      : [];
   const momentClaims = achievements.slice(0, 2);
-  const badgeByExercise = new Map(achievements.map((a) => [a.exerciseId, a.kind]));
+  // The poster shows two; the receipt lists them all, so it needs the whole
+  // claim per exercise, not just its kind.
+  const claimByExercise = new Map(achievements.map((a) => [a.exerciseId, a]));
   const streak = baselines ? streakWithSession(baselines.statsSessions, date) : 0;
 
   // Duration is real only for a live TODAY session — a backdated log's
   // elapsed time means nothing, so the hero falls back to the exercise count
   // (which the Ledger doesn't show, keeping the phase split clean).
-  const [heroSeconds] = useState<number | null>(() => {
+  //
+  // ⚠ A RECAP must never recompute it: this measures now − first-set, so
+  // revisiting at 9pm a session finished at 6am read "15:03:41". A recap takes
+  // the elapsed time the workout log STORED instead, and shows the exercise
+  // count when even that is unknown.
+  const [liveSeconds] = useState<number | null>(() => {
     const start = sessionStartIso(dateIso);
-    if (!start || dateIso !== todayIso()) return null;
+    if (recap || !start || dateIso !== todayIso()) return null;
     return Math.max(0, Math.round((Date.now() - Date.parse(start)) / 1000));
   });
+  const heroSeconds = plausibleDuration(
+    recap ? loggedDurationSeconds(storedLogs) : liveSeconds,
+  );
   const [shownSeconds, setShownSeconds] = useState(0);
   useEffect(() => {
-    if (heroSeconds == null) return;
+    // The count-up belongs to the finish moment; a recap shows the final time.
+    if (recap || heroSeconds == null) return;
     const t0 = Date.now();
     const id = setInterval(() => {
       // Hold through the seal stamp, then ease the count up over 600ms.
@@ -226,14 +343,20 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       if (k >= 1) clearInterval(id);
     }, 33);
     return () => clearInterval(id);
-  }, [heroSeconds]);
+  }, [heroSeconds, recap]);
+  const displaySeconds = recap ? (heroSeconds ?? 0) : shownSeconds;
 
   // ---- The Moment's wash: charcoal in dark mode, muscle gradient in light.
+  const historyIds = new Set(
+    sessions.map((s) => s.exercise.exerciseId).filter((id): id is string => !!id),
+  );
   const domMuscle =
     dominantMuscle(
       day.exercises.map((ex, i) => ({
         muscle: ex.muscle,
-        logged: getSetLogs(dateIso, i).length > 0,
+        logged: fromHistory
+          ? !!ex.exerciseId && historyIds.has(ex.exerciseId)
+          : getSetLogs(dateIso, i).length > 0,
       })),
     ) ?? 'Chest';
   const momentBg: [string, string, ...string[]] = dark
@@ -246,10 +369,16 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   const pillBg = whiteInk ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.4)';
 
   // ---- Phase machinery ----------------------------------------------------
-  const [phase, setPhase] = useState<'moment' | 'ledger'>('moment');
-  const phaseRef = useRef<'moment' | 'ledger'>('moment');
-  const phaseT = useSharedValue(0);
+  // A recap opens ON the Ledger — the receipt is what someone comes back for.
+  // The Moment stays one "‹ Summary" tap away.
+  const [phase, setPhase] = useState<'moment' | 'ledger'>(recap ? 'ledger' : 'moment');
+  const phaseRef = useRef<'moment' | 'ledger'>(recap ? 'ledger' : 'moment');
+  const phaseT = useSharedValue(recap ? 1 : 0);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The morph is over and the seal now belongs to the Ledger's scrolling
+  // content rather than to the screen-positioned overlay. A recap never
+  // morphs, so it is settled from the first frame.
+  const [sealSettled, setSealSettled] = useState(recap);
 
   const goLedger = useCallback(() => {
     if (autoTimer.current) clearTimeout(autoTimer.current);
@@ -258,10 +387,20 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     phaseRef.current = 'ledger';
     buzzSelection();
     setPhase('ledger');
-    phaseT.value = withTiming(1, {
-      duration: motionDuration.slow,
-      easing: Easing.bezier(...motionEasing.inOut),
-    });
+    phaseT.value = withTiming(
+      1,
+      {
+        duration: motionDuration.slow,
+        easing: Easing.bezier(...motionEasing.inOut),
+      },
+      // Hand the seal over to the Ledger's own content the moment it lands.
+      // Not on an interrupted run: "‹ Summary" mid-morph must keep the
+      // overlay, which is what carries it back to the hero slot.
+      (finished) => {
+        'worklet';
+        if (finished) runOnJS(setSealSettled)(true);
+      },
+    );
   }, [phaseT]);
 
   // "‹ Summary" — returning disables the auto-advance so the Moment holds.
@@ -272,6 +411,8 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     phaseRef.current = 'moment';
     buzzTap();
     setPhase('moment');
+    // Overlay takes the seal back before the reverse morph starts.
+    setSealSettled(false);
     phaseT.value = withTiming(0, {
       duration: motionDuration.slow,
       easing: Easing.bezier(...motionEasing.inOut),
@@ -279,13 +420,39 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   }, [phaseT]);
 
   useEffect(() => {
-    autoTimer.current = setTimeout(goLedger, AUTO_ADVANCE_MS);
+    // A recap already starts on the Ledger; nothing to advance to.
+    if (recap) return;
+    // Do not start counting until the baselines have landed.
+    //
+    // They are primed while the day is trained and again before the log
+    // POSTs, but they are still a network round trip: `celebrationBaselines`
+    // returns null until it resolves, and the streak pill and every record
+    // claim render nothing while it is null. A poster that started its 2.8s
+    // timer regardless could therefore slide past a personal best entirely —
+    // on the one screen whose whole purpose is to show it.
+    //
+    // Waiting on `baselines` rather than a timeout means a slow response
+    // delays the poster instead of emptying it; the user can still tap
+    // through at any point.
+    const start = () => {
+      autoTimer.current = setTimeout(goLedger, AUTO_ADVANCE_MS);
+    };
+    if (baselines) {
+      start();
+      return () => {
+        if (autoTimer.current) clearTimeout(autoTimer.current);
+      };
+    }
+    // ...but never STRAND the poster. Offline, or on a request that simply
+    // never answers, `baselines` stays null forever; the cap means a failure
+    // costs a pause, not a screen the celebration never leaves.
+    const cap = setTimeout(start, BASELINE_WAIT_CAP_MS);
     return () => {
+      clearTimeout(cap);
       if (autoTimer.current) clearTimeout(autoTimer.current);
     };
-    // Mount-only: the timer must not restart on re-renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [!!baselines]);
 
   const backToDay = useCallback(() => {
     buzzTap();
@@ -306,11 +473,29 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   // ---- Entry + morph animation --------------------------------------------
   // One entry timeline staggers the Moment's rows; the seal gets its own
   // spring stamp; phaseT crossfades the layers and drives the seal morph.
-  const entry = useSharedValue(0);
-  const stamp = useSharedValue(2.1);
+  const entry = useSharedValue(recap ? 1 : 0);
+  const stamp = useSharedValue(recap ? 1 : 2.1);
   const sealOpacity = useSharedValue(0);
   const bob = useSharedValue(0);
   useEffect(() => {
+    // A recap opens already at rest: the seal sits in the ledger header, the
+    // rows are up. Nothing stamps in — you're re-reading a receipt, not
+    // finishing a workout. (The bob still runs: it's the Moment's "swipe up
+    // for details" hint, which still applies if you tap back to the poster.)
+    if (recap) {
+      // The inline seal is already in the header slot, so the overlay is
+      // hidden here — it only needs to be ready in case "‹ Summary" sends it
+      // back to the hero.
+      sealOpacity.value = 1;
+      bob.value = withRepeat(
+        withSequence(
+          withTiming(-5, { duration: 700, easing: Easing.bezier(...motionEasing.inOut) }),
+          withTiming(0, { duration: 700, easing: Easing.bezier(...motionEasing.inOut) }),
+        ),
+        -1,
+      );
+      return;
+    }
     entry.value = withDelay(
       350,
       withTiming(1, { duration: 700, easing: Easing.bezier(...motionEasing.standard) }),
@@ -382,19 +567,26 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     const x = interpolate(phaseT.value, [0, 1], [heroAnchor.value.x, headerAnchor.value.x]);
     const y = interpolate(phaseT.value, [0, 1], [heroAnchor.value.y, headerAnchor.value.y]);
     return {
-      opacity: sealOpacity.value,
+      // Yields to the inline seal once the morph lands, so nothing hovers
+      // over the receipt while it scrolls.
+      opacity: sealSettled ? 0 : sealOpacity.value,
       transform: [
         { translateX: x - (HERO_SEAL * (1 - s)) / 2 },
         { translateY: y - (HERO_SEAL * (1 - s)) / 2 },
         { scale: s },
       ],
     };
-  });
+    // Explicit dep: sealSettled is plain React state, not a shared value.
+  }, [sealSettled]);
   const bobStyle = useAnimatedStyle(() => ({ transform: [{ translateY: bob.value }] }));
   const particleStyle = useAnimatedStyle(() => ({
     opacity: interpolate(entry.value, [0.15, 0.4, 1], [0, 0.85, 0.4], 'clamp'),
     transform: [{ scale: interpolate(entry.value, [0.15, 0.4], [0.3, 1], 'clamp') }],
   }));
+
+  // Which exercises have been opened to show their sets. Independent per row:
+  // the receipt is read one lift at a time, not toggled wholesale.
+  const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
 
   // ---- Save this workout ---------------------------------------------------
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -411,7 +603,55 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   }, [dateIso]);
 
   // ---- Ledger rows ---------------------------------------------------------
-  const rows: LedgerRow[] = day.exercises.map((ex, i) => {
+  /** The claim this SLOT earned. A lift filling two slots only decorates the
+   *  one whose set actually set the mark. */
+  const claimForSlot = (exerciseId: string | undefined, index: number): SessionAchievement | null => {
+    if (!exerciseId) return null;
+    const claim = claimByExercise.get(exerciseId);
+    return claim && claim.exerciseIndex === index ? claim : null;
+  };
+  /** Last session's sets, spelled out. Behind the same gate as the claims:
+   *  without it "last time" can describe a session performed AFTER this one. */
+  const lastTimeFor = (exerciseId: string | undefined, isTimeBased: boolean): string | null => {
+    if (!exerciseId || !baselines?.preLog) return null;
+    return formatLastTimeLine(baselines.lastPerformance[exerciseId], unit, isTimeBased);
+  };
+  // A day read back from history lists what the LOG holds, in the order it was
+  // performed — not today's plan for that weekday, which may have been edited
+  // or replaced since. Nothing is "Not logged" there: an unrecorded set left
+  // no trace to report. Muscle colour is recovered by matching the plan's
+  // exercise ids; anything the plan no longer carries gets a neutral dot.
+  const muscleById = new Map(
+    day.exercises.filter((ex) => ex.exerciseId).map((ex) => [ex.exerciseId as string, ex.muscle]),
+  );
+  const historyRows: LedgerRow[] = sessions.map((s, i) => {
+    const count = s.completedSets.length;
+    // Timed work (planks, cardio bouts) logs zero reps and the log keeps no
+    // duration per set, so it has neither a load nor a rep count to range
+    // over — summariseSetLoads gives it the em dash and the set count below
+    // carries the row.
+    const main = summariseSetLoads(
+      s.completedSets.map((set) => ({ reps: set.reps, weightLb: set.weight })),
+      unit,
+    );
+    return {
+      key: `${i}-${s.exercise.name}`,
+      name: s.exercise.name,
+      muscle: (s.exercise.exerciseId && muscleById.get(s.exercise.exerciseId)) || null,
+      main,
+      sub: `${count} ${count === 1 ? 'set' : 'sets'}`,
+      setLines: usefulSetLines(
+        s.completedSets.map((set) => storedSetDetail(set.reps, set.weight, unit)),
+      ),
+      topSetIndex: uniqueTopSetIndex(
+        s.completedSets.map((set) => ({ reps: set.reps, weightLb: set.weight })),
+      ),
+      state: 'done',
+      claim: claimForSlot(s.exercise.exerciseId, i),
+      lastTimeLine: lastTimeFor(s.exercise.exerciseId, false),
+    };
+  });
+  const planRows: LedgerRow[] = day.exercises.map((ex, i) => {
     const logs = getSetLogs(dateIso, i);
     const state: LedgerRow['state'] =
       logs.length === 0 ? 'empty' : logs.length >= ex.sets ? 'done' : 'partial';
@@ -419,14 +659,22 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     let main = '—';
     if (best) {
       if (/min|sec/i.test(ex.reps)) {
-        const raw = logs[logs.length - 1];
-        main = best.weightLb != null
-          ? `${raw.reps} @ ${formatWeightCompactFromLb(best.weightLb, unit)}`
-          : raw.reps;
-      } else if (best.weightLb != null) {
-        main = `${best.reps} × ${formatWeightCompactFromLb(best.weightLb, unit)}`;
+        // Timed work ranges over its DURATION, exactly as loaded work ranges
+        // over weight. This printed whichever set was logged LAST before now,
+        // so a hold that fell 60 → 45 → 30 reported '30 sec' — the shortest of
+        // the three, and the only one visible without opening the row.
+        const span = summariseSetDurations(logs.map((l) => l.reps));
+        // A loaded carry ranges over both, each in its own grammar. Reps are
+        // zeroed because a timed set keeps its seconds in the reps field, and
+        // summariseSetLoads would otherwise range over them as rep counts.
+        const loadSets = logs.map((l) => ({ reps: 0, weightLb: parseWeightLb(l.weight) }));
+        const loaded = loadSets.some((s) => s.weightLb != null && s.weightLb > 0);
+        main = loaded ? `${span} @ ${summariseSetLoads(loadSets, unit)}` : span;
       } else {
-        main = `${Math.max(...logs.map((l) => parseRepsCount(l.reps)))} reps`;
+        main = summariseSetLoads(
+          logs.map((l) => ({ reps: parseRepsCount(l.reps), weightLb: parseWeightLb(l.weight) })),
+          unit,
+        );
       }
     }
     const sub =
@@ -441,11 +689,19 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       muscle: ex.muscle,
       main,
       sub,
+      setLines: usefulSetLines(logs.map((l) => loggedSetDetail(l.reps, l.weight, unit))),
+      topSetIndex: uniqueTopSetIndex(
+        logs.map((l) => ({ reps: parseRepsCount(l.reps), weightLb: parseWeightLb(l.weight) })),
+      ),
       state,
-      badge: (ex.exerciseId && badgeByExercise.get(ex.exerciseId)) || null,
+      claim: claimForSlot(ex.exerciseId, i),
+      lastTimeLine: lastTimeFor(ex.exerciseId, /min|sec/i.test(ex.reps)),
     };
   });
-  const cutShort = !isDayFullyLogged(dateIso);
+  const rows = fromHistory ? historyRows : planRows;
+  // Only the local record knows what was skipped; a stored log carries no
+  // record of the sets that were never performed.
+  const cutShort = !fromHistory && !isDayFullyLogged(dateIso);
 
   return (
     <View ref={rootRef} style={styles.root} collapsable={false}>
@@ -492,74 +748,163 @@ export default function PlanCalendarWorkoutCompleteScreen() {
           </TouchableOpacity>
 
           <View style={styles.ledgerHeaderRow}>
-            {/* The morphing seal LANDS here — this slot only reserves its box. */}
+            {/* The morphing seal lands here, and once it has, the REAL seal
+                takes over inside this slot — see sealSettled. The overlay is
+                screen-positioned, so leaving it in charge left the seal
+                hovering over the list as the receipt scrolled under it. */}
             <View
               ref={headerSlotRef}
               collapsable={false}
               onLayout={measureAnchor('header')}
-              style={{ width: HEADER_SEAL, height: HEADER_SEAL }}
-            />
+              style={styles.headerSealSlot}
+            >
+              {sealSettled && (
+                <View style={styles.headerSealInline} pointerEvents="none">
+                  <RosetteSeal size={HERO_SEAL} />
+                </View>
+              )}
+            </View>
             <Text style={styles.ledgerTitle}>Workout complete</Text>
           </View>
           <Text style={styles.ledgerSub}>{subtitle}</Text>
 
-          <View style={styles.tileRow}>
-            <View style={styles.tile}>
-              <Text style={styles.tileLabel}>SETS</Text>
-              <Text style={styles.tileValue}>{totals.completedSets}</Text>
-            </View>
-            {totals.hasWeightedWork && (
-              <View style={styles.tile}>
-                <Text style={styles.tileLabel}>VOLUME</Text>
-                <Text style={styles.tileValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                  {formatVolumeFromLb(totals.volumeLb, unit)}
-                </Text>
-              </View>
-            )}
-          </View>
+          {/* Facts, not tiles. A tile asserts headline importance, and neither
+              of these earns it: tonnage scores bodyweight work at zero, and a
+              session set total has no reader. Both already live on Progress
+              with the cumulative framing that suits them. */}
+          <Text style={styles.factsLine}>
+            {[
+              heroSeconds != null ? formatMinutes(heroSeconds) : null,
+              `${totals.completedSets} ${totals.completedSets === 1 ? 'set' : 'sets'}`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
 
           <Text style={styles.sectionLabel}>EXERCISES</Text>
           <View style={styles.rowsWrap}>
-            {rows.map((row) => (
+            {rows.map((row) => {
+              // A row opens onto its own sets. Rows with nothing recorded
+              // (a slot that was never trained) have nothing to open, so they
+              // stay inert and show no chevron.
+              const openable = row.setLines.length > 0;
+              const open = openable && !!openRows[row.key];
+              return (
               <View key={row.key} style={styles.exRow}>
-                <View
-                  style={[
-                    styles.muscleDot,
-                    {
-                      backgroundColor: MUSCLE_COLORS[row.muscle],
-                      borderColor: MUSCLE_EDGE[row.muscle],
-                    },
-                  ]}
-                />
-                <Text
-                  style={[styles.exName, row.state !== 'done' && styles.exNameMuted]}
-                  numberOfLines={1}
+                <TouchableOpacity
+                  style={styles.exRowHead}
+                  activeOpacity={openable ? 0.7 : 1}
+                  disabled={!openable}
+                  onPress={() => {
+                    buzzTap();
+                    setOpenRows((prev) => ({ ...prev, [row.key]: !prev[row.key] }));
+                  }}
+                  accessibilityRole={openable ? 'button' : 'text'}
+                  accessibilityState={openable ? { expanded: open } : undefined}
+                  accessibilityLabel={
+                    openable
+                      ? `${row.name}, ${row.main}, ${row.sub}. ${open ? 'Hide' : 'Show'} each set`
+                      : `${row.name}, ${row.sub}`
+                  }
                 >
-                  {row.name}
-                </Text>
-                {row.badge === 'personal-best' && (
-                  <View style={styles.pbPill}>
-                    <Text style={styles.pbPillLabel}>PB</Text>
-                  </View>
-                )}
-                {row.badge === 'beat-last-time' && (
-                  <Ionicons name="trending-up-outline" size={14} color={colors.secondary} />
-                )}
-                <View style={styles.exValues}>
-                  <Text style={[styles.exMain, row.state !== 'done' && styles.exValueMuted]}>
-                    {row.main}
+                  <View
+                    style={[
+                      styles.muscleDot,
+                      row.muscle
+                        ? {
+                            backgroundColor: MUSCLE_COLORS[row.muscle],
+                            borderColor: MUSCLE_EDGE[row.muscle],
+                          }
+                        : { backgroundColor: colors.textMuted, borderColor: colors.textMuted },
+                    ]}
+                  />
+                  <Text
+                    style={[styles.exName, row.state !== 'done' && styles.exNameMuted]}
+                    numberOfLines={1}
+                  >
+                    {row.name}
                   </Text>
-                  <Text style={styles.exSub}>{row.sub}</Text>
-                </View>
-                {row.state === 'done' ? (
-                  <Ionicons name="checkmark-circle" size={16} color={GOLD} />
-                ) : (
-                  <Ionicons name="remove-circle-outline" size={16} color={colors.textMuted} />
+                  {(() => {
+                    // One chip, three states: a gold PB, a green gain, or
+                    // nothing at all when the exercise matched last time.
+                    const label = claimChipLabel(row.claim, unit);
+                    if (!label) return null;
+                    const isPb = row.claim?.kind === 'personal-best';
+                    return (
+                      <View style={[styles.claimChip, isPb ? styles.claimChipPb : styles.claimChipGain]}>
+                        <Text style={[styles.claimChipLabel, isPb ? styles.claimChipLabelPb : styles.claimChipLabelGain]}>
+                          {label}
+                        </Text>
+                      </View>
+                    );
+                  })()}
+                  <View style={styles.exValues}>
+                    <Text style={[styles.exMain, row.state !== 'done' && styles.exValueMuted]}>
+                      {row.main}
+                    </Text>
+                    <Text style={styles.exSub}>{row.sub}</Text>
+                  </View>
+                  {row.state === 'done' ? (
+                    <Ionicons name="checkmark-circle" size={16} color={GOLD} />
+                  ) : (
+                    <Ionicons name="remove-circle-outline" size={16} color={colors.textMuted} />
+                  )}
+                  {openable && (
+                    <Ionicons
+                      name={open ? 'chevron-up' : 'chevron-down'}
+                      size={13}
+                      color={colors.textMuted}
+                    />
+                  )}
+                </TouchableOpacity>
+
+                {open && (
+                  // A run of chips rather than a stacked table: an opened
+                  // exercise grows by a line or two instead of one row per
+                  // set, which keeps the receipt readable in a glance on a
+                  // long session. Tabular figures so the digits hold their
+                  // width, units a step down and muted so the numbers carry,
+                  // and the set the headline quotes wears the gold.
+                  <Animated.View entering={FadeIn.duration(160)} style={styles.setChips}>
+                    {row.setLines.map((detail, i) => {
+                      const top = i === row.topSetIndex;
+                      return (
+                        <View
+                          key={i}
+                          style={[
+                            styles.setChip,
+                            dark ? styles.setChipDark : styles.setChipLight,
+                            top && styles.setChipTop,
+                          ]}
+                        >
+                          <Text style={[styles.setChipText, top && styles.setChipTextTop]}>
+                            {detail.text}
+                            {detail.unit ? (
+                              <Text style={[styles.setChipUnit, top && styles.setChipUnitTop]}>
+                                {` ${detail.unit}`}
+                              </Text>
+                            ) : null}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                    {row.lastTimeLine && (
+                      // Without this the chip is an assertion; with it the
+                      // claim can be checked in a glance.
+                      <Text style={styles.lastTimeLine}>{row.lastTimeLine}</Text>
+                    )}
+                  </Animated.View>
                 )}
               </View>
-            ))}
+              );
+            })}
           </View>
 
+          {/* saveDayAsWorkout saves the DAY'S prescriptions, so it needs a day
+              to save. A history recap whose plan slot is gone (program ended,
+              slot removed) has none — offering the button would only ever
+              return "Couldn't save". */}
+          {day.exercises.length > 0 && (
           <View style={styles.saveCard}>
             <Ionicons name="bookmark-outline" size={18} color={GOLD} />
             <View style={styles.saveTextCol}>
@@ -589,6 +934,7 @@ export default function PlanCalendarWorkoutCompleteScreen() {
               )}
             </TouchableOpacity>
           </View>
+          )}
         </ScrollView>
 
         <View style={[styles.doneBar, { paddingBottom: tabBarInset + spacing.md }]}>
@@ -636,6 +982,11 @@ export default function PlanCalendarWorkoutCompleteScreen() {
               <Text style={[styles.momentDate, { color: inkSoft }]}>{subtitle}</Text>
             </View>
 
+            {/* Paired with the spacer above the hint: the block sits in the
+                middle of the poster, so a session that beat nothing reads as a
+                short poster rather than a truncated one. */}
+            <View style={styles.momentSpacer} />
+
             {/* The stamp target: an empty slot the overlay seal covers. */}
             <View style={styles.heroSealWrap}>
               <View
@@ -669,7 +1020,7 @@ export default function PlanCalendarWorkoutCompleteScreen() {
 
             <Rise timeline={entry} start={0.25} end={0.5} style={styles.heroStatWrap}>
               <Text style={[styles.heroStatValue, { color: ink }]}>
-                {heroSeconds != null ? formatClock(shownSeconds) : String(totals.exercisesWorked)}
+                {heroSeconds != null ? formatClock(displaySeconds) : String(totals.exercisesWorked)}
               </Text>
               <Text style={[styles.heroStatLabel, { color: inkSoft }]}>
                 {heroSeconds != null ? 'DURATION' : 'EXERCISES'}
@@ -738,10 +1089,20 @@ export default function PlanCalendarWorkoutCompleteScreen() {
               </Rise>
             )}
 
+            {achievements.length > momentClaims.length && (
+              <Rise timeline={entry} start={0.62} end={0.9}>
+                <Text style={[styles.moreClaims, { color: inkFaint }]}>
+                  +{achievements.length - momentClaims.length} more on your receipt
+                </Text>
+              </Rise>
+            )}
+
             {cutShort && (
               <Rise timeline={entry} start={0.6} end={0.85}>
                 <Text style={[styles.cutShortNote, { color: inkFaint }]}>
-                  {totals.completedSets} sets logged — cut short still counts.
+                  {totals.completedSets}{' '}
+                  {totals.completedSets === 1 ? 'set' : 'sets'} logged — cut short
+                  still counts.
                 </Text>
               </Rise>
             )}
@@ -789,6 +1150,22 @@ function createStyles(c: ColorPalette) {
       left: 0,
       width: HERO_SEAL,
       height: HERO_SEAL,
+    },
+    headerSealSlot: {
+      width: HEADER_SEAL,
+      height: HEADER_SEAL,
+    },
+    // The settled seal renders at HERO_SEAL and is scaled down by exactly the
+    // factor the morph ends on, so the hand-off from the overlay is pixel-for-
+    // pixel — a natively-drawn 26px rosette would rasterise differently and
+    // pop. Absolute + centred on the slot: it must not resize the header row.
+    headerSealInline: {
+      position: 'absolute',
+      left: -(HERO_SEAL - HEADER_SEAL) / 2,
+      top: -(HERO_SEAL - HEADER_SEAL) / 2,
+      width: HERO_SEAL,
+      height: HERO_SEAL,
+      transform: [{ scale: HEADER_SEAL / HERO_SEAL }],
     },
 
     // ---- Moment ----
@@ -998,6 +1375,56 @@ function createStyles(c: ColorPalette) {
       lineHeight: leading.footnote,
       color: c.textMuted,
     },
+    // Quiet by design: the receipt's job is per-exercise, and this line is
+    // context for it rather than a headline of its own.
+    factsLine: {
+      ...sfPro,
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+      fontVariant: ['tabular-nums'],
+      color: c.textMuted,
+    },
+    claimChip: {
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+    },
+    /** Gold is the record mark, as everywhere else on this screen. */
+    claimChipPb: {
+      backgroundColor: `${GOLD}2E`,
+    },
+    /** Green is "you beat last time" — the same colour that indicator used. */
+    claimChipGain: {
+      backgroundColor: `${c.secondary}29`,
+    },
+    claimChipLabel: {
+      ...sfPro,
+      fontSize: text.caption,
+      lineHeight: leading.caption,
+      fontWeight: weight.bold,
+      fontVariant: ['tabular-nums'],
+    },
+    claimChipLabelPb: {
+      color: GOLD,
+      letterSpacing: tracking.wide,
+    },
+    claimChipLabelGain: {
+      color: c.secondary,
+    },
+    lastTimeLine: {
+      ...sfPro,
+      marginTop: spacing.sm,
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+      fontVariant: ['tabular-nums'],
+      color: c.textMuted,
+    },
+    moreClaims: {
+      ...sfPro,
+      marginTop: spacing.sm,
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+    },
     tileRow: {
       flexDirection: 'row',
       gap: spacing.md,
@@ -1040,16 +1467,69 @@ function createStyles(c: ColorPalette) {
     rowsWrap: {
       gap: spacing.sm,
     },
+    // The card; its head is the tappable summary and the set list drops in
+    // beneath, inside the same border.
     exRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm + 2,
       backgroundColor: c.surface,
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: radius.md,
       paddingVertical: spacing.sm + 2,
       paddingHorizontal: spacing.lg - 2,
+    },
+    exRowHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm + 2,
+    },
+    setChips: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.xs + 2,
+      marginTop: spacing.sm + 2,
+      paddingTop: spacing.sm + 2,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+    },
+    setChip: {
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: spacing.sm + 1,
+      paddingVertical: 3,
+    },
+    // The fill is a whisper of the ground, so it has to invert with the theme
+    // — a white wash is invisible on the light surface.
+    setChipDark: {
+      backgroundColor: 'rgba(255,255,255,0.05)',
+    },
+    setChipLight: {
+      backgroundColor: 'rgba(0,0,0,0.035)',
+    },
+    /** The set the row's headline quotes. Border and ink only — the ledger
+     *  review already found gold FILLS drown the PB pill they sit beside. */
+    setChipTop: {
+      borderColor: 'rgba(245,166,35,0.55)',
+    },
+    setChipText: {
+      ...sfPro,
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+      // Digits keep one width, so chips of different rep counts stay the same
+      // shape and the run reads as a row rather than a ragged line.
+      fontVariant: ['tabular-nums'],
+      color: c.textSecondary,
+    },
+    setChipTextTop: {
+      color: c.text,
+      fontWeight: weight.semibold,
+    },
+    setChipUnit: {
+      fontSize: text.caption,
+      color: c.textMuted,
+    },
+    setChipUnitTop: {
+      color: c.textSecondary,
     },
     muscleDot: {
       width: 10,

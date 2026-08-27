@@ -1,6 +1,5 @@
 import React from 'react';
 import { View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { radius } from '../theme';
 import { GOLD } from '../lib/planCalendarPrototype';
@@ -21,6 +20,31 @@ export default function RosetteSeal({ size }: { size: number }) {
   const petal = size * (5 / 18);
   const orbit = size * (6.3 / 18);
   const ringInset = disc * (2 / 13);
+
+  // The check is DRAWN, not typed. An icon font centres its glyph box, and
+  // where the ink sits inside that box is a property of the font on each
+  // platform — so it landed a point high here, and any nudge tuned to fix that
+  // would be tuned to one platform's metrics. Two rotated bars are pure
+  // geometry: what centres on the rig centres on the phone.
+  const stroke = Math.max(2, Math.round(size * 0.07));
+  const armShort = size * 0.14;
+  const armLong = size * 0.27;
+  // Solve for the vertex that puts the mark's own box on the disc's centre.
+  // The rounded caps extend it equally at both ends, so they cancel.
+  const halfShort = armShort / (2 * Math.SQRT2);
+  const halfLong = armLong / (2 * Math.SQRT2);
+  const vx = disc / 2 - (armLong - armShort) / (2 * Math.SQRT2);
+  const vy = disc / 2 + halfLong;
+  const arm = (len: number, dx: number, dy: number, deg: string) => ({
+    position: 'absolute' as const,
+    left: vx + dx - len / 2,
+    top: vy + dy - stroke / 2,
+    width: len,
+    height: stroke,
+    borderRadius: stroke / 2,
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: deg }],
+  });
   const petals = Array.from({ length: 12 }, (_, i) => {
     const a = (i / 12) * 2 * Math.PI;
     return {
@@ -54,8 +78,6 @@ export default function RosetteSeal({ size }: { size: number }) {
           height: disc,
           borderRadius: radius.pill,
           overflow: 'hidden',
-          alignItems: 'center',
-          justifyContent: 'center',
         }}
       >
         <View
@@ -70,7 +92,10 @@ export default function RosetteSeal({ size }: { size: number }) {
             borderColor: 'rgba(255,255,255,0.5)',
           }}
         />
-        <Ionicons name="checkmark" size={Math.round(size * 0.38)} color="#FFFFFF" />
+        {/* short arm, running up-LEFT from the vertex */}
+        <View style={arm(armShort, -halfShort, -halfShort, '45deg')} />
+        {/* long arm, running up-RIGHT from the vertex */}
+        <View style={arm(armLong, halfLong, -halfLong, '-45deg')} />
       </LinearGradient>
     </View>
   );

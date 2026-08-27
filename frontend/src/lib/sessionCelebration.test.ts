@@ -2,14 +2,21 @@ import {
   calendarSessionsFromLogs,
   dominantMuscle,
   formatClock,
+  loggedSetDetail,
+  storedSetDetail,
+  loggedDurationSeconds,
   parseRepsCount,
   parseWeightLb,
+  plausibleDuration,
+  sessionsFromWorkoutLogs,
   streakWithSession,
+  summariseSetDurations,
+  summariseSetLoads,
   type CelebrationExercise,
   type LoggedSetStrings,
 } from './sessionCelebration';
 import { summarizeSessionTotals } from './sessionAchievements';
-import type { WorkoutStatsSession } from '../types/workout';
+import type { WorkoutLog, WorkoutStatsSession } from '../types/workout';
 
 describe('parseRepsCount', () => {
   it('takes the top of a band and plain numbers', () => {
@@ -36,6 +43,28 @@ describe('parseWeightLb', () => {
   it('reads Bodyweight and the em dash as unweighted', () => {
     expect(parseWeightLb('Bodyweight')).toBeUndefined();
     expect(parseWeightLb('—')).toBeUndefined();
+  });
+});
+
+describe('plausibleDuration', () => {
+  it('keeps an ordinary session', () => {
+    expect(plausibleDuration(47 * 60)).toBe(2820);
+    // A long but real session still counts; the cap is the boundary itself.
+    expect(plausibleDuration(4 * 60 * 60)).toBe(14400);
+  });
+
+  it('drops a clock left running overnight rather than capping it', () => {
+    // A day logged Monday morning and completed Wednesday: the span is real
+    // and it is not a workout. Capping would claim a 4-hour session.
+    expect(plausibleDuration(48 * 60 * 60)).toBeNull();
+    expect(plausibleDuration(4 * 60 * 60 + 1)).toBeNull();
+  });
+
+  it('treats a missing or empty clock as no duration', () => {
+    expect(plausibleDuration(null)).toBeNull();
+    expect(plausibleDuration(undefined)).toBeNull();
+    expect(plausibleDuration(0)).toBeNull();
+    expect(plausibleDuration(-5)).toBeNull();
   });
 });
 
@@ -85,6 +114,25 @@ describe('calendarSessionsFromLogs', () => {
   it('marks timed prescriptions so achievement rendering reads seconds', () => {
     expect(sessions[2].exercise.prescriptionType).toBe('time');
     expect(sessions[0].exercise.prescriptionType).toBe('reps');
+  });
+
+  it('books no volume for a LOADED hold', () => {
+    // The audit's case: 45 s under a 70 lb carry is not 3,150 lb of work, and
+    // the number is persisted, so getting it wrong here poisons history. The
+    // shared fixture's hold is unweighted, so this needs its own.
+    const carry: CelebrationExercise[] = [
+      { name: "Farmer's Carry", muscle: 'Forearms', exerciseId: 'carry', sets: 3, reps: '45 sec', weight: '70 lb' },
+    ];
+    const carried = calendarSessionsFromLogs(carry, () => [
+      { reps: '45 sec', weight: '70 lb' },
+    ]);
+    expect(carried[0].completedSets[0]).toEqual({
+      setNumber: 1,
+      reps: 0,
+      weight: 70,
+      completed: true,
+    });
+    expect(summarizeSessionTotals(carried).volumeLb).toBe(0);
   });
 
   it('feeds summarizeSessionTotals the numbers the log would carry', () => {
@@ -157,5 +205,282 @@ describe('dominantMuscle', () => {
       ]),
     ).toBe('Back');
     expect(dominantMuscle([])).toBeNull();
+  });
+});
+
+/** Minimal stored log — only the fields the recap reads. */
+function makeLog(
+  id: string,
+  startedAt: string,
+  totalTimeSeconds: number | null,
+  entries: Array<{
+    exerciseId: string;
+    name: string | null;
+    orderIndex: number;
+    sets: Array<{ reps: number; weight?: number; completed?: boolean }>;
+  }>,
+): WorkoutLog {
+  return {
+    id,
+    workoutId: `w-${id}`,
+    startedAt,
+    completedAt: startedAt,
+    totalTimeSeconds,
+    totalSets: null,
+    totalVolume: null,
+    overallNotes: null,
+    workout: { id: `w-${id}`, name: 'Session', exercises: [] } as unknown as WorkoutLog['workout'],
+    entries: entries.map((e, i) => ({
+      id: `${id}-e${i}`,
+      exerciseId: e.exerciseId,
+      name: e.name,
+      orderIndex: e.orderIndex,
+      notes: null,
+      completedSets: e.sets.map((s, si) => ({
+        setNumber: si + 1,
+        reps: s.reps,
+        ...(s.weight != null ? { weight: s.weight } : null),
+        completed: s.completed ?? true,
+      })),
+    })),
+  };
+}
+
+describe('sessionsFromWorkoutLogs', () => {
+  it('reads a stored log back into the shape the finish screen consumes', () => {
+    const sessions = sessionsFromWorkoutLogs([
+      makeLog('a', '2026-08-20T12:00:00.000Z', 2700, [
+        {
+          exerciseId: 'flat_barbell_bench_press',
+          name: 'Flat Barbell Bench Press',
+          orderIndex: 0,
+          sets: [
+            { reps: 8, weight: 135 },
+            { reps: 6, weight: 145 },
+          ],
+        },
+      ]),
+    ]);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].exercise.name).toBe('Flat Barbell Bench Press');
+    expect(sessions[0].exercise.exerciseId).toBe('flat_barbell_bench_press');
+    expect(sessions[0].completedSets).toEqual([
+      { setNumber: 1, reps: 8, weight: 135, completed: true },
+      { setNumber: 2, reps: 6, weight: 145, completed: true },
+    ]);
+    // Totals must match what the same session produced when it was live.
+    expect(summarizeSessionTotals(sessions)).toMatchObject({
+      completedSets: 2,
+      exercisesWorked: 1,
+      volumeLb: 8 * 135 + 6 * 145,
+      hasWeightedWork: true,
+    });
+  });
+
+  it('orders entries by orderIndex and concatenates a reopened day by start time', () => {
+    const later = makeLog('later', '2026-08-20T18:00:00.000Z', 600, [
+      { exerciseId: 'pull_up', name: 'Pull-Up', orderIndex: 0, sets: [{ reps: 9 }] },
+    ]);
+    const earlier = makeLog('earlier', '2026-08-20T09:00:00.000Z', 1800, [
+      { exerciseId: 'b', name: 'Second', orderIndex: 1, sets: [{ reps: 5, weight: 50 }] },
+      { exerciseId: 'a', name: 'First', orderIndex: 0, sets: [{ reps: 5, weight: 60 }] },
+    ]);
+    const names = sessionsFromWorkoutLogs([later, earlier]).map((s) => s.exercise.name);
+    expect(names).toEqual(['First', 'Second', 'Pull-Up']);
+  });
+
+  it('drops entries with no completed sets and survives a missing name', () => {
+    const sessions = sessionsFromWorkoutLogs([
+      makeLog('a', '2026-08-20T12:00:00.000Z', null, [
+        { exerciseId: 'skipped', name: 'Skipped', orderIndex: 0, sets: [] },
+        {
+          exerciseId: 'unnamed',
+          name: null,
+          orderIndex: 1,
+          sets: [{ reps: 10 }, { reps: 10, completed: false }],
+        },
+      ]),
+    ]);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].exercise.name).toBe('Exercise');
+    expect(sessions[0].completedSets).toHaveLength(1);
+  });
+
+  it('returns nothing for an empty history', () => {
+    expect(sessionsFromWorkoutLogs([])).toEqual([]);
+  });
+});
+
+describe('loggedDurationSeconds', () => {
+  it('sums the stored elapsed time across a day of logs', () => {
+    expect(
+      loggedDurationSeconds([
+        makeLog('a', '2026-08-20T09:00:00.000Z', 2700, []),
+        makeLog('b', '2026-08-20T18:00:00.000Z', 900, []),
+      ]),
+    ).toBe(3600);
+  });
+
+  it('is null when nothing carries a duration, so the hero falls back', () => {
+    expect(loggedDurationSeconds([])).toBeNull();
+    expect(loggedDurationSeconds([makeLog('a', '2026-08-20T09:00:00.000Z', null, [])])).toBeNull();
+  });
+});
+
+describe('loggedSetDetail', () => {
+  it('splits the load so the unit can render quieter than the value', () => {
+    expect(loggedSetDetail('8', '135 lb', 'lb')).toEqual({ text: '8 × 135', unit: 'lb' });
+    // Stored weights are always pounds, so kg is a conversion, not a relabel.
+    expect(loggedSetDetail('8', '135 lb', 'kg')).toEqual({ text: '8 × 61', unit: 'kg' });
+  });
+
+  it('treats "reps" as the unit for unweighted work', () => {
+    expect(loggedSetDetail('9', 'Bodyweight', 'lb')).toEqual({ text: '9', unit: 'reps' });
+    expect(loggedSetDetail('9', '—', 'lb')).toEqual({ text: '9', unit: 'reps' });
+  });
+
+  it('keeps a timed set whole rather than inventing a second unit slot', () => {
+    expect(loggedSetDetail('45 sec', '—', 'lb')).toEqual({ text: '45 sec' });
+    expect(loggedSetDetail('45 sec', '25 lb', 'lb')).toEqual({ text: '45 sec @ 25 lb' });
+    expect(loggedSetDetail('10 min', 'Bodyweight', 'lb')).toEqual({ text: '10 min' });
+  });
+
+  it('falls back to the load, then a dash, when no rep count survives', () => {
+    expect(loggedSetDetail('AMRAP', '95 lb', 'lb')).toEqual({ text: '95', unit: 'lb' });
+    expect(loggedSetDetail('AMRAP', 'Bodyweight', 'lb')).toEqual({ text: '—' });
+  });
+
+  it('reads a zero load as no load, not a blank one', () => {
+    expect(loggedSetDetail('8', '0 lb', 'lb')).toEqual({ text: '8', unit: 'reps' });
+  });
+});
+
+describe('storedSetDetail', () => {
+  it('prints a stored set in the same grammar as a live one', () => {
+    expect(storedSetDetail(8, 135, 'lb')).toEqual({ text: '8 × 135', unit: 'lb' });
+    expect(storedSetDetail(9, undefined, 'lb')).toEqual({ text: '9', unit: 'reps' });
+  });
+
+  it('never prints "0 reps" for the zero a timed set stores', () => {
+    expect(storedSetDetail(0, undefined, 'lb')).toEqual({ text: '—' });
+    expect(storedSetDetail(0, 25, 'lb')).toEqual({ text: '25', unit: 'lb' });
+  });
+
+  it('describes a set that changed weight mid-exercise on its own terms', () => {
+    // The case a one-line summary cannot show: four sets, two loads.
+    const sets = [
+      { reps: 8, weight: 135 },
+      { reps: 8, weight: 135 },
+      { reps: 6, weight: 145 },
+      { reps: 5, weight: 145 },
+    ];
+    expect(sets.map((s) => storedSetDetail(s.reps, s.weight, 'lb'))).toEqual([
+      { text: '8 × 135', unit: 'lb' },
+      { text: '8 × 135', unit: 'lb' },
+      { text: '6 × 145', unit: 'lb' },
+      { text: '5 × 145', unit: 'lb' },
+    ]);
+  });
+});
+
+describe('summariseSetLoads', () => {
+  it('ranges over the load when the weight moved, and states it once when it held', () => {
+    expect(
+      summariseSetLoads(
+        [
+          { reps: 8, weightLb: 135 },
+          { reps: 8, weightLb: 135 },
+          { reps: 6, weightLb: 145 },
+          { reps: 5, weightLb: 145 },
+        ],
+        'lb',
+      ),
+    ).toBe('135–145 lb');
+    expect(
+      summariseSetLoads([{ reps: 10, weightLb: 95 }, { reps: 10, weightLb: 95 }], 'lb'),
+    ).toBe('95 lb');
+  });
+
+  it('never claims a range the printed numbers do not show', () => {
+    // 134 lb and 135 lb both print as 61 kg — that is one number, not a range.
+    expect(
+      summariseSetLoads([{ reps: 8, weightLb: 134 }, { reps: 8, weightLb: 135 }], 'kg'),
+    ).toBe('61 kg');
+    expect(
+      summariseSetLoads([{ reps: 8, weightLb: 135 }, { reps: 6, weightLb: 165 }], 'kg'),
+    ).toBe('61–75 kg');
+  });
+
+  it('ranges over reps when there is no load to range over', () => {
+    expect(
+      summariseSetLoads([{ reps: 10 }, { reps: 9 }, { reps: 7 }], 'lb'),
+    ).toBe('7–10 reps');
+    expect(summariseSetLoads([{ reps: 8 }, { reps: 8 }], 'lb')).toBe('8 reps');
+  });
+
+  it('ignores a zero load rather than reading it as a lift', () => {
+    expect(summariseSetLoads([{ reps: 9, weightLb: 0 }], 'lb')).toBe('9 reps');
+  });
+
+  it('gives the em dash to a session with neither reps nor load', () => {
+    // Timed work read back from a stored log: zero reps, no duration kept.
+    expect(summariseSetLoads([{ reps: 0 }, { reps: 0 }, { reps: 0 }], 'lb')).toBe('—');
+    expect(summariseSetLoads([], 'lb')).toBe('—');
+  });
+});
+
+describe('summariseSetDurations', () => {
+  it('ranges over the hold when it varied, and states it once when it held', () => {
+    // The regression this exists for: the row used to print the LAST set, so
+    // a plank that fell 60 → 45 → 30 reported its shortest hold as the whole
+    // exercise.
+    expect(summariseSetDurations(['60 sec', '45 sec', '30 sec'])).toBe('30–60 sec');
+    expect(summariseSetDurations(['45 sec', '45 sec', '45 sec'])).toBe('45 sec');
+  });
+
+  it('keeps the unit it was logged with', () => {
+    expect(summariseSetDurations(['2 min', '1 min'])).toBe('1–2 min');
+    expect(summariseSetDurations(['90 sec'])).toBe('90 sec');
+  });
+
+  it('orders a mixed-unit run by real elapsed time, printing each end in its own unit', () => {
+    // 2 min is the longer hold even though 90 is the larger number.
+    expect(summariseSetDurations(['90 sec', '2 min'])).toBe('90 sec–2 min');
+    expect(summariseSetDurations(['3 min', '30 sec'])).toBe('30 sec–3 min');
+  });
+
+  it('treats equal durations written differently as one value', () => {
+    expect(summariseSetDurations(['60 sec', '1 min'])).toBe('60 sec');
+  });
+
+  it('keeps a fractional duration rather than rounding it away', () => {
+    expect(summariseSetDurations(['1.5 min', '1 min'])).toBe('1–1.5 min');
+  });
+
+  it('skips a set with no readable duration instead of dropping the row', () => {
+    expect(summariseSetDurations(['45 sec', '', '60 sec'])).toBe('45–60 sec');
+    expect(summariseSetDurations(['0 sec', '30 sec'])).toBe('30 sec');
+  });
+
+  it('gives the em dash when nothing carries a duration', () => {
+    expect(summariseSetDurations([])).toBe('—');
+    expect(summariseSetDurations(['8', '10'])).toBe('—');
+  });
+
+  it('keeps a banded set as the band it was, rather than its top end', () => {
+    // The deck writes the PRESCRIPTION through verbatim when a set is checked
+    // off without typing, so a banded prescription arrives here intact.
+    // Reading only the number touching the unit would report '20–45 sec' as a
+    // flat 45 — a hold the user never claimed.
+    expect(summariseSetDurations(['20–45 sec'])).toBe('20–45 sec');
+    expect(summariseSetDurations(['8–12 min'])).toBe('8–12 min');
+    // Plain hyphen and em dash are written by different sources; both read.
+    expect(summariseSetDurations(['20-45 sec'])).toBe('20–45 sec');
+    expect(summariseSetDurations(['20—45 sec'])).toBe('20–45 sec');
+  });
+
+  it('spans a band together with the sets logged around it', () => {
+    expect(summariseSetDurations(['20–45 sec', '60 sec'])).toBe('20–60 sec');
+    expect(summariseSetDurations(['30 sec', '8–12 min'])).toBe('30 sec–12 min');
   });
 });
