@@ -17,7 +17,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -92,6 +91,7 @@ import {
   suggestNextTarget,
 } from '../lib/nextTargetSuggestion';
 import { buzzRestOver } from '../lib/planCalendarPrototype';
+import { activateKeepAwake, releaseKeepAwake } from '../lib/keepAwake';
 import {
   clearRest,
   getRestTimer,
@@ -335,21 +335,16 @@ export default function PlanCalendarWorkoutScreen() {
   const keepAwake = (!!exercise && logs.length < plannedSets) || restTimer != null;
   useEffect(() => {
     if (!keepAwake) return;
-    // ⚠ BOTH calls return promises and BOTH can reject — a wake lock is denied
-    // on web without a user gesture, and releasing one that never activated
-    // throws "has not activated yet". A sync try/catch around the release does
-    // NOT catch that; it surfaces as an unhandled rejection. So: only release
-    // a lock we know we took, and swallow either way. Neither outcome is worth
-    // failing a workout over.
+    // Only release a lock we actually took — releasing one that never
+    // activated throws "has not activated yet". `lib/keepAwake` swallows both
+    // that and a denied lock, and (the reason it exists at all) guards the
+    // native-module import that would otherwise white-screen the app.
     let held = false;
-    void activateKeepAwakeAsync(KEEP_AWAKE_TAG)
-      .then(() => {
-        held = true;
-      })
-      .catch(() => {});
+    void activateKeepAwake(KEEP_AWAKE_TAG).then((ok) => {
+      held = ok;
+    });
     return () => {
-      if (!held) return;
-      void deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
+      if (held) void releaseKeepAwake(KEEP_AWAKE_TAG);
     };
   }, [keepAwake]);
 
