@@ -11,6 +11,7 @@ import type {
   LastExercisePerformance,
   LastPerformanceMap,
   PersonalBest,
+  PersonalBestE1rm,
   PersonalBestMap,
 } from '../types/workout';
 
@@ -53,6 +54,8 @@ const record = (weightLb: number, reps = 5): PersonalBest => ({
 });
 
 const NO_LAST: LastPerformanceMap = {};
+/** No strongest-set records: the map the server sends for a new lift. */
+const NO_E1RM = {};
 const NO_BESTS: PersonalBestMap = {};
 
 describe('bestWeightedSetOfSession', () => {
@@ -196,6 +199,9 @@ describe('collectSessionAchievements', () => {
         previousReps: 5,
         gainLb: 5,
         gainReps: 0,
+        // Zero on a weight claim: the estimate only carries an estimated one.
+        e1rmLb: 0,
+        previousE1rmLb: 0,
         isTimeBased: false,
       },
     ]);
@@ -532,6 +538,7 @@ describe('collectSessionAchievements — the session must have come last', () =>
       [session('Bench Press', 'ex-bench', [{ reps: 5, weight: 140 }])],
       { 'ex-bench': tuesdayPerf() },
       NO_BESTS,
+      NO_E1RM,
       MONDAY,
     );
     expect(found).toEqual([]);
@@ -542,6 +549,7 @@ describe('collectSessionAchievements — the session must have come last', () =>
       [session('Bench Press', 'ex-bench', [{ reps: 5, weight: 300 }])],
       NO_LAST,
       { 'ex-bench': { weightLb: 140, reps: 5, performedAt: '2026-08-25T12:00:00.000Z' } },
+      NO_E1RM,
       MONDAY,
     );
     expect(found).toEqual([]);
@@ -552,6 +560,7 @@ describe('collectSessionAchievements — the session must have come last', () =>
       [session('Bench Press', 'ex-bench', [{ reps: 5, weight: 140 }])],
       { 'ex-bench': perf([{ reps: 5, weight: 135 }]) },
       NO_BESTS,
+      NO_E1RM,
       MONDAY,
     );
     expect(found).toHaveLength(1);
@@ -572,5 +581,141 @@ describe('collectSessionAchievements — a lift filling two slots', () => {
     expect(found).toHaveLength(1);
     // The opener won it; the back-off block must not wear the same chip.
     expect(found[0].exerciseIndex).toBe(0);
+  });
+});
+
+/** A strongest-set record, as the server now sends it. */
+const e1rmRecord = (
+  weightLb: number,
+  reps: number,
+  e1rmLb: number,
+): PersonalBestE1rm => ({
+  weightLb,
+  reps,
+  e1rmLb,
+  performedAt: '2026-01-05T12:00:00.000Z',
+});
+
+describe('collectSessionAchievements — records won on a lighter bar', () => {
+  it('celebrates a session that was silent before', () => {
+    // 185x5 estimates 216. Today: 175x12, which estimates 245 — plainly
+    // stronger, and it beat NOTHING under the old rules: 175 < 185 so it
+    // failed the record, and it did not outrank last time either. The app
+    // said nothing at all for a clear step forward.
+    const found = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 12, weight: 175 }])],
+      { 'ex-bench': perf([{ reps: 5, weight: 185 }]) },
+      { 'ex-bench': record(185) },
+      { 'ex-bench': e1rmRecord(185, 5, 216) },
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      kind: 'personal-best',
+      basis: 'estimated',
+      weightLb: 175,
+      reps: 12,
+      e1rmLb: 245,
+      previousE1rmLb: 216,
+    });
+  });
+
+  it('prefers the heavier-bar claim when the session earns both', () => {
+    // A genuine weight PR must not be downgraded to an estimate claim.
+    const found = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 5, weight: 200 }])],
+      NO_LAST,
+      { 'ex-bench': record(185) },
+      { 'ex-bench': e1rmRecord(185, 5, 216) },
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0].basis).toBe('weight');
+  });
+
+  it('claims nothing when the estimate does not actually beat the record', () => {
+    // 170x8 estimates 215, just under the standing 216.
+    const found = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 8, weight: 170 }])],
+      NO_LAST,
+      { 'ex-bench': record(185) },
+      { 'ex-bench': e1rmRecord(185, 5, 216) },
+    );
+    expect(found).toEqual([]);
+  });
+
+  it('ignores an estimated record set after the session being celebrated', () => {
+    const found = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 12, weight: 175 }])],
+      NO_LAST,
+      NO_BESTS,
+      {
+        'ex-bench': {
+          weightLb: 185,
+          reps: 5,
+          e1rmLb: 216,
+          performedAt: '2026-08-25T12:00:00.000Z',
+        },
+      },
+      '2026-08-24T00:00:00.000Z',
+    );
+    expect(found).toEqual([]);
+  });
+
+  it('finds the strongest set even when another slot held the heaviest', () => {
+    // An opener at 200x2 (213) and a back-off block at 175x12 (245): the
+    // estimate belongs to the back-off, and the claim must follow it.
+    const found = collectSessionAchievements(
+      [
+        session('Bench Press', 'ex-bench', [{ reps: 2, weight: 200 }]),
+        session('Bench Press', 'ex-bench', [{ reps: 12, weight: 175 }]),
+      ],
+      NO_LAST,
+      { 'ex-bench': record(210) },
+      { 'ex-bench': e1rmRecord(210, 1, 210) },
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ basis: 'estimated', weightLb: 175, e1rmLb: 245 });
+  });
+
+  it('does nothing at all without the estimated records', () => {
+    // An older API sends no `e1rm`, so the map is empty and this branch is
+    // simply inert — it must never throw on the finish screen.
+    const found = collectSessionAchievements(
+      [session('Bench Press', 'ex-bench', [{ reps: 12, weight: 175 }])],
+      NO_LAST,
+      { 'ex-bench': record(185) },
+    );
+    expect(found).toEqual([]);
+  });
+});
+
+describe('formatAchievementDetail — estimated claims', () => {
+  const estimatedClaim = {
+    exerciseId: 'ex-bench',
+    exerciseName: 'Bench Press',
+    exerciseIndex: 0,
+    kind: 'personal-best' as const,
+    basis: 'estimated' as const,
+    weightLb: 175,
+    reps: 12,
+    previousLb: 185,
+    previousReps: 5,
+    gainLb: 0,
+    gainReps: 0,
+    e1rmLb: 245,
+    previousE1rmLb: 216,
+    isTimeBased: false,
+  };
+
+  it('names the set performed and compares the ESTIMATES, not the bars', () => {
+    // "up from 185 lb" beside a 175 lb set would read as a bug.
+    expect(formatAchievementDetail(estimatedClaim, 'lb')).toBe(
+      '12×175 lb · est. 245 lb, up from 216 lb',
+    );
+  });
+
+  it('drops the comparison when rounding collapses it onto one number', () => {
+    expect(
+      formatAchievementDetail({ ...estimatedClaim, previousE1rmLb: 245 }, 'lb'),
+    ).toBe('12×175 lb · est. 245 lb');
   });
 });

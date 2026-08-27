@@ -104,6 +104,25 @@ export interface PersonalBest {
 export type PersonalBestMap = Record<string, PersonalBest>;
 
 /**
+ * The strongest set ever performed for an exercise, by estimated one-rep max.
+ *
+ * A DIFFERENT record from `PersonalBest`, not a replacement: that one is the
+ * heaviest bar ever moved. Both are true and they routinely name different
+ * sets — 185x5 is the heavier bar, 175x12 is the stronger set.
+ */
+export interface PersonalBestE1rm {
+  /** Canonical pounds actually lifted on the set. */
+  weightLb: number;
+  reps: number;
+  /** The estimate that won; always > 0. */
+  e1rmLb: number;
+  performedAt: string; // ISO
+}
+
+/** Keyed by library exercise id; ids with no weighted history are absent. */
+export type PersonalBestE1rmMap = Record<string, PersonalBestE1rm>;
+
+/**
  * One logged session from `GET /workout-logs/stats` — a narrow projection with
  * no entries and no sets, so a year of history stays small over mobile data.
  */

@@ -304,6 +304,7 @@ export default function PlanCalendarWorkoutCompleteScreen() {
           sessions,
           baselines.lastPerformance,
           baselines.personalBests,
+          baselines.personalBestsE1rm,
           // Local midnight of the day being celebrated: nothing recorded at or
           // after it is something this session beat.
           fromIso(dateIso).toISOString(),

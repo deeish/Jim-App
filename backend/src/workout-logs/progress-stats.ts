@@ -59,6 +59,56 @@ export interface PersonalBest {
   performedAt: Date;
 }
 
+/**
+ * The best set an exercise has ever produced *by estimated one-rep max*.
+ *
+ * Deliberately SEPARATE from `PersonalBest` rather than replacing it. They
+ * answer different questions and both are true: `PersonalBest` is the heaviest
+ * bar you have ever moved, this is the strongest set you have ever performed.
+ * Folding them together would silently change what the Profile's "best lifts"
+ * has always meant.
+ *
+ * It exists because weight alone hides real progress. 185x5 then 175x12 is a
+ * clear jump — 216 lb estimated to 245 — and a weight-ranked best calls the
+ * second set nothing at all, because 175 < 185.
+ */
+export interface PersonalBestE1rm {
+  /** Canonical pounds actually lifted on the set. */
+  weightLb: number;
+  reps: number;
+  /** The estimate that won; always > 0. */
+  e1rmLb: number;
+  performedAt: Date;
+}
+
+/**
+ * Above this a rep-max estimate stops meaning anything.
+ * Mirrors `E1RM_MAX_REPS` in the frontend's `lib/exerciseHistory.ts` and in
+ * `crews/crew-summary.util.ts` — three copies of one rule, and they must not
+ * drift, or the same set is a record in one place and not in another.
+ */
+export const E1RM_MAX_REPS = 12;
+
+/**
+ * Epley, with the same two limits every other copy applies: suppressed past
+ * the rep cap, and a single rep reported as the weight itself (Epley claims
+ * `w x 1.033` at one rep, i.e. more than was lifted).
+ *
+ * ⚠ The rep cap is also what keeps TIMED work out. A weighted carry logs its
+ * seconds in the reps field, so a 45-second loaded carry arrives here as 45
+ * reps and is suppressed rather than projected into a fictional max.
+ */
+export function estimateOneRepMax(
+  weightLb: number | null | undefined,
+  reps: number,
+): number | null {
+  if (weightLb == null || weightLb <= 0) return null;
+  if (!Number.isFinite(reps) || reps < 1) return null;
+  if (reps > E1RM_MAX_REPS) return null;
+  if (reps === 1) return Math.round(weightLb);
+  return Math.round(weightLb * (1 + reps / 30));
+}
+
 /** Minimal entry shape the personal-best reducer needs. */
 export interface EntryWithSets {
   exerciseId: string;
@@ -161,6 +211,51 @@ export function bestWeightedSetPerExercise(
     }
   }
   return result;
+}
+
+/**
+ * Best set per exercise ranked by ESTIMATED ONE-REP MAX.
+ *
+ * Same shape and same exclusions as `bestWeightedSetPerExercise` — unweighted
+ * sets never qualify — but ties are settled by the heavier bar and then the
+ * earlier date, so the returned set is always one real set, and the older
+ * performance keeps the record rather than a later equal one stealing it.
+ */
+export function bestE1rmSetPerExercise(
+  entries: EntryWithSets[],
+): Map<string, PersonalBestE1rm> {
+  const result = new Map<string, PersonalBestE1rm>();
+  for (const entry of entries) {
+    const performedAt = entry.workoutLog.startedAt;
+    for (const set of entry.completedSets) {
+      const e1rmLb = estimateOneRepMax(set.weight, set.reps);
+      if (e1rmLb === null) continue;
+      const candidate: PersonalBestE1rm = {
+        weightLb: set.weight as number,
+        reps: set.reps,
+        e1rmLb,
+        performedAt,
+      };
+      const current = result.get(entry.exerciseId);
+      if (!current || isBetterE1rm(candidate, current)) {
+        result.set(entry.exerciseId, candidate);
+      }
+    }
+  }
+  return result;
+}
+
+function isBetterE1rm(
+  candidate: PersonalBestE1rm,
+  current: PersonalBestE1rm,
+): boolean {
+  if (candidate.e1rmLb !== current.e1rmLb) {
+    return candidate.e1rmLb > current.e1rmLb;
+  }
+  if (candidate.weightLb !== current.weightLb) {
+    return candidate.weightLb > current.weightLb;
+  }
+  return candidate.performedAt.getTime() < current.performedAt.getTime();
 }
 
 function isBetterBest(
@@ -320,13 +415,12 @@ export async function fetchExerciseHistory(
  * log count on purpose (see the module note). Rows are three small columns
  * each; only the reduced maxima leave this process.
  */
-export async function fetchPersonalBests(
+async function fetchBestCandidateEntries(
   prisma: PrismaService,
   userId: string,
   exerciseIds: string[],
-): Promise<Map<string, PersonalBest>> {
-  if (exerciseIds.length === 0) return new Map();
-  const entries = await prisma.workoutLogEntry.findMany({
+): Promise<EntryWithSets[]> {
+  return prisma.workoutLogEntry.findMany({
     where: { exerciseId: { in: exerciseIds }, workoutLog: { userId } },
     select: {
       exerciseId: true,
@@ -337,5 +431,41 @@ export async function fetchPersonalBests(
       },
     },
   });
-  return bestWeightedSetPerExercise(entries);
+}
+
+export async function fetchPersonalBests(
+  prisma: PrismaService,
+  userId: string,
+  exerciseIds: string[],
+): Promise<Map<string, PersonalBest>> {
+  if (exerciseIds.length === 0) return new Map();
+  return bestWeightedSetPerExercise(
+    await fetchBestCandidateEntries(prisma, userId, exerciseIds),
+  );
+}
+
+/**
+ * Both records from ONE read.
+ *
+ * The heaviest-bar best and the strongest-set best are reduced from exactly
+ * the same rows, so asking the database twice would be pure waste — and the
+ * two must be derived from the same snapshot anyway, or a set logged between
+ * two queries could appear in one record and not the other.
+ */
+export async function fetchPersonalBestsDetailed(
+  prisma: PrismaService,
+  userId: string,
+  exerciseIds: string[],
+): Promise<{
+  byWeight: Map<string, PersonalBest>;
+  byE1rm: Map<string, PersonalBestE1rm>;
+}> {
+  if (exerciseIds.length === 0) {
+    return { byWeight: new Map(), byE1rm: new Map() };
+  }
+  const entries = await fetchBestCandidateEntries(prisma, userId, exerciseIds);
+  return {
+    byWeight: bestWeightedSetPerExercise(entries),
+    byE1rm: bestE1rmSetPerExercise(entries),
+  };
 }

@@ -4,6 +4,7 @@ import {
   ExerciseSession,
   LastPerformanceMap,
   PersonalBestMap,
+  PersonalBestE1rmMap,
   WorkoutStats,
 } from '../types/workout';
 import type { ExerciseHistory } from '../lib/exerciseHistory';
@@ -281,14 +282,31 @@ export const getLastPerformance = async (
  */
 export const getPersonalBests = async (
   exerciseIds: string[]
-): Promise<PersonalBestMap> => {
+): Promise<PersonalBestMap> => (await getPersonalBestRecords(exerciseIds)).byWeight;
+
+/**
+ * BOTH records in one request: the heaviest bar ever moved (`byWeight`) and the
+ * strongest set ever performed (`byE1rm`). The server reduces them from the
+ * same rows, so this costs no more than asking for one.
+ *
+ * ⚠ `byE1rm` is defaulted rather than assumed. This JS reaches phones over the
+ * air, and an older API that predates the field would otherwise hand every
+ * consumer `undefined` where a map is expected.
+ */
+export const getPersonalBestRecords = async (
+  exerciseIds: string[]
+): Promise<{ byWeight: PersonalBestMap; byE1rm: PersonalBestE1rmMap }> => {
   const ids = exerciseIds.map((id) => id.trim()).filter((id) => id.length > 0);
-  if (ids.length === 0) return {};
+  if (ids.length === 0) return { byWeight: {}, byE1rm: {} };
   const query = new URLSearchParams({ exerciseIds: ids.join(',') });
-  const response = await api.get<{ results: PersonalBestMap }>(
-    `/workout-logs/personal-bests?${query.toString()}`
-  );
-  return response.data.results ?? {};
+  const response = await api.get<{
+    results: PersonalBestMap;
+    e1rm?: PersonalBestE1rmMap;
+  }>(`/workout-logs/personal-bests?${query.toString()}`);
+  return {
+    byWeight: response.data.results ?? {},
+    byE1rm: response.data.e1rm ?? {},
+  };
 };
 
 /**

@@ -9,6 +9,7 @@ import {
 import {
   fetchExerciseHistory,
   fetchPersonalBests,
+  fetchPersonalBestsDetailed,
   fetchSessionSummaries,
   resolveHistorySessions,
   resolveStatsMonths,
@@ -172,8 +173,19 @@ export class WorkoutLogsService {
     const ids = Array.from(
       new Set(exerciseIds.filter(isTrackableExerciseId)),
     ).slice(0, MAX_LAST_PERFORMANCE_IDS);
-    const bests = await fetchPersonalBests(this.prisma, userId, ids);
-    return { results: Object.fromEntries(bests) };
+    const { byWeight, byE1rm } = await fetchPersonalBestsDetailed(
+      this.prisma,
+      userId,
+      ids,
+    );
+    // ⚠ `results` keeps its exact meaning — the heaviest bar ever moved — so
+    // every shipped build carries on reading it unchanged. `e1rm` is additive:
+    // the strongest set ever performed, which is a different record and the
+    // one that makes 185x5 -> 175x12 visible as the progress it is.
+    return {
+      results: Object.fromEntries(byWeight),
+      e1rm: Object.fromEntries(byE1rm),
+    };
   }
 
   async findOne(id: string, userId: string) {

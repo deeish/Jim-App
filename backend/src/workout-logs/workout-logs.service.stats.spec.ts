@@ -248,7 +248,7 @@ describe('WorkoutLogsService progress reads', () => {
     it('skips the query entirely when nothing trackable remains', async () => {
       const res = await service.getPersonalBests('u1', ['manual']);
       expect(prismaMock.workoutLogEntry.findMany).not.toHaveBeenCalled();
-      expect(res).toEqual({ results: {} });
+      expect(res).toEqual({ results: {}, e1rm: {} });
     });
 
     it('returns a keyed results envelope', async () => {
@@ -268,6 +268,45 @@ describe('WorkoutLogsService progress reads', () => {
         reps: 3,
         performedAt: new Date('2026-01-05T10:00:00Z'),
       });
+    });
+
+    it('reports the strongest set alongside the heaviest, from ONE query', async () => {
+      // 185x5 estimates 216; 225x3 estimates 248. Same rows, two records:
+      // `results` keeps meaning heaviest bar, `e1rm` means strongest set.
+      prismaMock.workoutLogEntry.findMany.mockResolvedValue([
+        {
+          exerciseId: 'bench_press',
+          workoutLog: { startedAt: new Date('2026-01-05T10:00:00Z') },
+          completedSets: [
+            { weight: 185, reps: 5 },
+            { weight: 225, reps: 3 },
+          ],
+        },
+      ]);
+      const res = await service.getPersonalBests('u1', ['bench_press']);
+      expect(prismaMock.workoutLogEntry.findMany).toHaveBeenCalledTimes(1);
+      expect(res.e1rm.bench_press).toEqual({
+        weightLb: 225,
+        reps: 3,
+        e1rmLb: 248,
+        performedAt: new Date('2026-01-05T10:00:00Z'),
+      });
+    });
+
+    it('the two records can name DIFFERENT sets — the point of having both', async () => {
+      prismaMock.workoutLogEntry.findMany.mockResolvedValue([
+        {
+          exerciseId: 'bench_press',
+          workoutLog: { startedAt: new Date('2026-01-05T10:00:00Z') },
+          completedSets: [
+            { weight: 185, reps: 5 }, // 216
+            { weight: 175, reps: 12 }, // 245, on a lighter bar
+          ],
+        },
+      ]);
+      const res = await service.getPersonalBests('u1', ['bench_press']);
+      expect(res.results.bench_press.weightLb).toBe(185);
+      expect(res.e1rm.bench_press.weightLb).toBe(175);
     });
   });
 });

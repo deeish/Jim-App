@@ -1,8 +1,13 @@
 import type {
   ExerciseSession,
   LastPerformanceMap,
+  PersonalBestE1rmMap,
   PersonalBestMap,
 } from '../types/workout';
+// The SAME Epley rules the history screen, the crew tab and the server all
+// apply. Three copies of the constant exist; a fourth definition here would be
+// the one that drifts and made a set a record in one place and not another.
+import { estimateOneRepMax } from './exerciseHistory';
 import {
   MIN_PLAUSIBLE_DURATION_SECONDS,
   lastTopSet,
@@ -71,8 +76,13 @@ export type SessionAchievementKind = 'personal-best' | 'beat-last-time';
  * equivalent routes to the same adaptation, and this app's own Target line
  * asks for reps first ("add a rep") — so a session that adds one at the same
  * weight has progressed, and used to be told nothing.
+ *
+ * `estimated` is the third route and the one that was invisible: a best set on
+ * a LIGHTER bar for more reps. 185x5 then 175x12 is 216 lb estimated to 245,
+ * unmistakable progress — and it beat neither the record (175 < 185) nor last
+ * time, so the app said nothing at all.
  */
-export type SessionAchievementBasis = 'weight' | 'reps';
+export type SessionAchievementBasis = 'weight' | 'reps' | 'estimated';
 
 export interface SessionAchievement {
   exerciseId: string;
@@ -101,6 +111,10 @@ export interface SessionAchievement {
   gainLb: number;
   /** `reps - previousReps`. Zero on a weight-basis claim. */
   gainReps: number;
+  /** Estimated 1RM of this session's set. Zero unless the basis is estimated. */
+  e1rmLb: number;
+  /** The estimate it beat. Zero unless the basis is estimated. */
+  previousE1rmLb: number;
   /**
    * Loaded carries, sled pushes and weighted holds are timed *and* weighted, so
    * `reps` here is seconds. Rendering it as `45×70 lb` would read as 45 reps.
@@ -126,6 +140,34 @@ export function bestSetOfSession(session: ExerciseSession): WeightedSet | null {
     if (weightLb <= 0 && reps <= 0) continue;
     if (!best || outranks({ weightLb, reps }, best)) {
       best = { weightLb, reps };
+    }
+  }
+  return best;
+}
+
+/**
+ * Best completed set of this session by ESTIMATED one-rep max.
+ *
+ * A different question from `bestSetOfSession`, and often a different set: the
+ * heaviest bar of the day is not always the strongest thing done with it. Ties
+ * prefer the heavier bar, matching the server's reducer exactly so the client
+ * and the stored record can never disagree about which set holds a mark.
+ */
+export function bestE1rmSetOfSession(
+  session: ExerciseSession,
+): { set: WeightedSet; e1rmLb: number } | null {
+  let best: { set: WeightedSet; e1rmLb: number } | null = null;
+  for (const s of session.completedSets) {
+    if (!s.completed) continue;
+    const e1rmLb = estimateOneRepMax(s.weight ?? null, s.reps);
+    if (e1rmLb === null) continue;
+    const set = { weightLb: s.weight as number, reps: s.reps };
+    if (
+      !best ||
+      e1rmLb > best.e1rmLb ||
+      (e1rmLb === best.e1rmLb && set.weightLb > best.set.weightLb)
+    ) {
+      best = { set, e1rmLb };
     }
   }
   return best;
@@ -221,6 +263,12 @@ export function collectSessionAchievements(
   lastPerformance: LastPerformanceMap,
   personalBests: PersonalBestMap,
   /**
+   * The strongest-set records. Optional so a client running ahead of an API
+   * that predates the field simply finds no estimated PRs, rather than
+   * throwing on the emotional peak of the app.
+   */
+  personalBestsE1rm: PersonalBestE1rmMap = {},
+  /**
    * Local-day start of the session being celebrated. Anything recorded at or
    * after it is not something this session beat.
    *
@@ -242,7 +290,15 @@ export function collectSessionAchievements(
   // appear twice in one session (a back-off set, or re-added from the library),
   // and the user's best across both is what a record has to beat. Claiming it
   // twice would also duplicate a React key in the rendered list.
-  const byExercise = new Map<string, { session: ExerciseSession; best: WeightedSet }>();
+  const byExercise = new Map<
+    string,
+    {
+      session: ExerciseSession;
+      best: WeightedSet;
+      /** Kept separately: the day's strongest set is often not its heaviest. */
+      e1rm: { set: WeightedSet; e1rmLb: number } | null;
+    }
+  >();
 
   for (const es of sessions) {
     if (es.skipped) continue;
@@ -250,19 +306,28 @@ export function collectSessionAchievements(
     if (!exerciseId) continue;
     const best = bestSetOfSession(es);
     if (!best) continue;
+    const e1rm = bestE1rmSetOfSession(es);
     const existing = byExercise.get(exerciseId);
-    if (!existing) byExercise.set(exerciseId, { session: es, best });
-    else if (outranks(best, existing.best)) {
+    if (!existing) {
+      byExercise.set(exerciseId, { session: es, best, e1rm });
+      continue;
+    }
+    if (outranks(best, existing.best)) {
       // Keep the slot alongside the set, or the claim lands on whichever slot
       // happened to come first rather than the one that earned it.
       existing.best = best;
       existing.session = es;
     }
+    // The estimate is maximised across every slot independently — an opener
+    // can hold the heaviest set while a back-off block holds the strongest.
+    if (e1rm && (!existing.e1rm || e1rm.e1rmLb > existing.e1rm.e1rmLb)) {
+      existing.e1rm = e1rm;
+    }
   }
 
   const found: SessionAchievement[] = [];
   // Map iteration is insertion order, i.e. the order they were performed.
-  for (const [exerciseId, { session, best }] of byExercise) {
+  for (const [exerciseId, { session, best, e1rm }] of byExercise) {
     // `outranks`, not a weight comparison: heavier still wins, but equal load
     // with more reps now counts too. The server keeps no load record for
     // unweighted work, so bodyweight exercises never reach this branch and are
@@ -282,6 +347,29 @@ export function collectSessionAchievements(
       continue;
     }
 
+    // Only now, having failed the heavier-bar test: did the session produce
+    // the strongest set this lift has ever seen? This is what catches a PR won
+    // by adding reps to a lighter bar, which neither branch above can see.
+    const e1rmRecord = personalBestsE1rm[exerciseId];
+    if (
+      e1rm &&
+      e1rmRecord &&
+      isEarlier(e1rmRecord.performedAt) &&
+      e1rm.e1rmLb > e1rmRecord.e1rmLb
+    ) {
+      found.push(
+        buildAchievement(
+          exerciseId,
+          session,
+          e1rm.set,
+          'personal-best',
+          { weightLb: e1rmRecord.weightLb, reps: e1rmRecord.reps },
+          { e1rmLb: e1rm.e1rmLb, previousE1rmLb: e1rmRecord.e1rmLb },
+        ),
+      );
+      continue;
+    }
+
     const previous = lastPerformance[exerciseId];
     const lastTop = isEarlier(previous?.performedAt) ? lastTopSet(previous) : null;
     if (lastTop && outranks(best, lastTop)) {
@@ -297,12 +385,23 @@ export function collectSessionAchievements(
   };
   // Records first, then load gains ahead of rep gains — adding a plate is the
   // rarer event, so it leads a reel the caller may truncate to two.
-  const basisRank: Record<SessionAchievementBasis, number> = { weight: 0, reps: 1 };
+  // Adding a plate is the rarest event, so it leads; an estimated gain comes
+  // last because it is the subtlest claim of the three and the caller may
+  // truncate the reel to two rows.
+  const basisRank: Record<SessionAchievementBasis, number> = {
+    weight: 0,
+    reps: 1,
+    estimated: 2,
+  };
   // Sort is stable, so equal gains keep the order the exercises were performed.
   return found.sort((a, b) => {
     if (a.kind !== b.kind) return kindRank[a.kind] - kindRank[b.kind];
     if (a.basis !== b.basis) return basisRank[a.basis] - basisRank[b.basis];
-    return a.basis === 'weight' ? b.gainLb - a.gainLb : b.gainReps - a.gainReps;
+    if (a.basis === 'weight') return b.gainLb - a.gainLb;
+    if (a.basis === 'estimated') {
+      return b.e1rmLb - b.previousE1rmLb - (a.e1rmLb - a.previousE1rmLb);
+    }
+    return b.gainReps - a.gainReps;
   });
 }
 
@@ -312,6 +411,8 @@ function buildAchievement(
   best: WeightedSet,
   kind: SessionAchievementKind,
   previous: WeightedSet,
+  /** Present only for an estimated claim; its presence IS the basis. */
+  estimated?: { e1rmLb: number; previousE1rmLb: number },
 ): SessionAchievement {
   const exercise = session.exercise;
   const previousLb = previous.weightLb;
@@ -321,14 +422,17 @@ function buildAchievement(
     exerciseIndex: session.exerciseIndex,
     kind,
     // Heavier is a load claim; anything else that outranked the record did it
-    // on reps at the same load.
-    basis: best.weightLb > previousLb ? 'weight' : 'reps',
+    // on reps at the same load. An estimated claim is neither — it is usually
+    // a LIGHTER bar, so calling it a weight or rep gain would misreport it.
+    basis: estimated ? 'estimated' : best.weightLb > previousLb ? 'weight' : 'reps',
     weightLb: best.weightLb,
     reps: best.reps,
     previousLb,
     previousReps: previous.reps,
     gainLb: Math.max(0, best.weightLb - previousLb),
     gainReps: Math.max(0, best.reps - previous.reps),
+    e1rmLb: estimated?.e1rmLb ?? 0,
+    previousE1rmLb: estimated?.previousE1rmLb ?? 0,
     isTimeBased: exerciseUsesTimeDisplay(
       exercise.prescriptionType,
       exercise.name,
@@ -368,6 +472,19 @@ export function formatAchievementDetail(
     // Legacy cardio rows store a rep count rather than seconds, so a small
     // value here is not a duration worth rendering as one.
     lead = now;
+  }
+
+  // An estimated claim is usually won on a LIGHTER bar, so "up from 185 lb"
+  // beside a 175 lb set would read as a mistake. The estimates are what moved,
+  // and naming them is also what stops the row overstating itself: the set is
+  // reported as performed, and the comparison is explicitly an estimate.
+  if (achievement.basis === 'estimated') {
+    const est = formatWeightCompactFromLb(achievement.e1rmLb, unit);
+    const prevEst = formatWeightCompactFromLb(achievement.previousE1rmLb, unit);
+    if (!est) return lead;
+    return prevEst && prevEst !== est
+      ? `${lead} · est. ${est}, up from ${prevEst}`
+      : `${lead} · est. ${est}`;
   }
 
   // A rep claim was won at an unchanged load, so naming the weight again says

@@ -50,7 +50,7 @@ import {
 import {
   createWorkout,
   getLastPerformance,
-  getPersonalBests,
+  getPersonalBestRecords,
   getWorkoutLogs,
   getWorkoutStats,
   materializePlanSlotWorkout,
@@ -60,6 +60,7 @@ import {
 import { getExerciseById, type Exercise as CatalogExercise } from '../services/exerciseService';
 import type {
   LastPerformanceMap,
+  PersonalBestE1rmMap,
   PersonalBestMap,
   Workout,
   WorkoutLog,
@@ -1720,6 +1721,7 @@ export function inProgressSession(
 export type CelebrationBaselines = {
   lastPerformance: LastPerformanceMap;
   personalBests: PersonalBestMap;
+  personalBestsE1rm: PersonalBestE1rmMap;
   statsSessions: WorkoutStatsSession[];
   /**
    * These were captured while the day was still UNLOGGED, so they describe
@@ -1762,14 +1764,21 @@ export function primeCelebrationBaselines(dateIso: string): Promise<void> {
     ),
   ];
   const p = (async () => {
-    const [lastPerformance, personalBests, stats] = await Promise.all([
+    const [lastPerformance, bests, stats] = await Promise.all([
       getLastPerformance(ids).catch(() => ({}) as LastPerformanceMap),
-      getPersonalBests(ids).catch(() => ({}) as PersonalBestMap),
+      // One request, both records: the heaviest bar ever moved AND the
+      // strongest set ever performed. They routinely name different sets, and
+      // a PR won by adding reps to a lighter bar is only visible in the second.
+      getPersonalBestRecords(ids).catch(() => ({
+        byWeight: {} as PersonalBestMap,
+        byE1rm: {} as PersonalBestE1rmMap,
+      })),
       getWorkoutStats().catch(() => null),
     ]);
     celebrationBaselineCache.set(dateIso, {
       lastPerformance,
-      personalBests,
+      personalBests: bests.byWeight,
+      personalBestsE1rm: bests.byE1rm,
       statsSessions: stats?.sessions ?? [],
       preLog,
     });
