@@ -160,6 +160,9 @@ export default function CrewScreen() {
   );
 
   const onRefresh = useCallback(() => {
+    // The only gesture on this screen with no other confirmation — the spinner
+    // appears after the pull has already committed.
+    haptics.tap();
     setRefreshing(true);
     void load();
   }, [load]);
@@ -1474,9 +1477,16 @@ export default function CrewScreen() {
                 <>
                   <TouchableOpacity
                     style={styles.restRow}
-                    onPress={() =>
-                      memberSheet.restingSinceIso ? void applyRest(false) : confirmRest()
-                    }
+                    onPress={() => {
+                      if (!memberSheet.restingSinceIso) {
+                        confirmRest(); // taps for itself, then waits on the alert
+                        return;
+                      }
+                      // Coming back skips the confirm, so the press is the
+                      // commit — without this it sat silent for a round trip.
+                      haptics.tap();
+                      void applyRest(false);
+                    }}
                     disabled={busy}
                     activeOpacity={0.8}
                     accessibilityRole="button"
