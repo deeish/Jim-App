@@ -201,7 +201,10 @@ function createStyles(c: ColorPalette) {
     },
     navBtn: {
       width: 40,
-      height: 40,
+      // Holds a 22pt glyph, so the box has to be able to grow with Dynamic
+      // Type. borderRadius is a fixed token here, not half the size, so this
+      // is a rounded square and letting it grow cannot distort a circle.
+      minHeight: 40,
       borderRadius: radius.md,
       borderWidth: 1,
       borderColor: c.border,

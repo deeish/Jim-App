@@ -1153,7 +1153,9 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   weekTile: {
-    height: 56,
+    // minHeight, not height: this holds two scalable text rows, and a fixed
+    // box clips them at the larger Dynamic Type sizes.
+    minHeight: 56,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'space-between',

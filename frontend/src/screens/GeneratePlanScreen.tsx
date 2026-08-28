@@ -3972,7 +3972,7 @@ function createGeneratePlanStyles(c: ColorPalette) {
   },
   dayCapInput: {
     width: 60,
-    height: 32,
+    minHeight: 32,
     backgroundColor: c.surface,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
