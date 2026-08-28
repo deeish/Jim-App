@@ -816,6 +816,8 @@ function SetDeck({
           <TouchableOpacity
             style={styles.checkButton}
             activeOpacity={0.8}
+            // 40x40 on its own row; the slop takes the real target past 44.
+            hitSlop={8}
             onPress={onCheck}
             accessibilityRole="button"
             accessibilityLabel={`Complete set ${completed + 1}`}

@@ -52,6 +52,7 @@ export default function WorkoutLikeButton({
       testID={testID}
       onPress={handlePress}
       disabled={!canTap}
+      hitSlop={10}
       style={[styles.button, style]}
       accessibilityLabel={accessibilityLabel ?? (saved ? 'Unsave workout' : 'Save workout')}
       accessibilityRole="button"

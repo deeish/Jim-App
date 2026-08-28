@@ -385,6 +385,7 @@ export default function HomeScreen() {
             style={styles.whatsNewButton}
             onPress={openWhatsNew}
             activeOpacity={0.7}
+            hitSlop={6}
             accessibilityLabel="What's new"
           >
             <Ionicons name="gift-outline" size={24} color={colors.text} />
@@ -396,6 +397,7 @@ export default function HomeScreen() {
             style={styles.profileButton}
             onPress={goToProfile}
             activeOpacity={0.7}
+            hitSlop={6}
             accessibilityLabel="Profile"
             accessibilityRole="button"
           >
