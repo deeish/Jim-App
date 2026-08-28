@@ -1550,6 +1550,7 @@ export default function ProfileScreen() {
           {/* The card guards its own taps; see SheetModal. */}
           <Pressable
             style={[styles.modalSheet, themedStyles.modalSheet]}
+            accessible={false}
             onPress={(e) => e.stopPropagation()}
           >
             <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Edit profile</Text>
@@ -1639,6 +1640,7 @@ export default function ProfileScreen() {
       >
           <Pressable
             style={[styles.modalSheet, themedStyles.modalSheet]}
+            accessible={false}
             onPress={(e) => e.stopPropagation()}
           >
             <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Your equipment</Text>
@@ -1661,9 +1663,16 @@ export default function ProfileScreen() {
                     style={styles.equipRow}
                     onPress={() => toggleEquipmentDraft(opt)}
                     activeOpacity={0.7}
+                    accessibilityRole="switch"
+                    accessibilityLabel={opt}
+                    accessibilityState={{ checked: on }}
                   >
                     <Text style={[styles.equipLabel, themedStyles.equipLabel]}>{opt}</Text>
                     <Switch
+                      // The row carries the semantics; keep this out of the
+                      // tree so the state is not announced twice.
+                      accessible={false}
+                      importantForAccessibility="no-hide-descendants"
                       value={on}
                       onValueChange={() => toggleEquipmentDraft(opt)}
                       trackColor={{ false: colors.border, true: colors.primary }}

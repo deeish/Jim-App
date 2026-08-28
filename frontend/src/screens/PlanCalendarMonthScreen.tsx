@@ -371,7 +371,17 @@ export default function PlanCalendarMonthScreen() {
                     navigation.navigate('PlanCalendarDay', { dateIso: iso });
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Open ${iso}${completed ? ', completed' : ''}`}
+                  accessibilityLabel={[
+                    date.toLocaleDateString(undefined, {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                    }),
+                    muscles.length ? muscles.join(' and ') : 'no workout',
+                    completed ? 'completed' : missed ? 'missed' : null,
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
                 >
                   <View style={[styles.dayNumberWrap, today && styles.todayNumberWrap]}>
                     <Text
@@ -535,6 +545,7 @@ export default function PlanCalendarMonthScreen() {
         {/* The card guards its own taps; see SheetModal. */}
         <Pressable
           style={[styles.legendSheet, { paddingBottom: insets.bottom + spacing.xl }]}
+          accessible={false}
           onPress={(e) => e.stopPropagation()}
         >
           <View style={styles.legendGrabber} />

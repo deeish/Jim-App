@@ -646,7 +646,7 @@ export default function PlanCalendarDayScreen() {
         animationType="fade"
         onRequestClose={() => setMenuFor(null)}
       >
-        <Pressable style={styles.scrim} onPress={() => setMenuFor(null)}>
+        <Pressable accessible={false} style={styles.scrim} onPress={() => setMenuFor(null)}>
           <View style={[styles.menuWrap, { paddingBottom: insets.bottom + spacing.lg }]}>
             <View style={styles.menuGroup}>
               <View style={styles.menuTitleRow}>

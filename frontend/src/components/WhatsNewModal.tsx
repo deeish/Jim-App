@@ -166,7 +166,7 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }:
   return (
     <SheetModal visible={visible} onClose={close} scrimColor={colors.scrim}>
       {/* The card guards its own taps; see SheetModal. */}
-      <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+      <Pressable style={styles.sheet} accessible={false} onPress={(e) => e.stopPropagation()}>
         <View style={styles.grabber} />
 
         {view === 'release' ? (

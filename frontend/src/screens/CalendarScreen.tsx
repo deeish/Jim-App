@@ -135,7 +135,12 @@ function DayDetailSection({
       <View>
         <View style={styles.dayDetailHeader}>
           <Text style={[styles.dayDetailTitle, { color: colors.text }]}>{dateLabel}</Text>
-          <TouchableOpacity onPress={onClearSelection} hitSlop={12}>
+          <TouchableOpacity
+            onPress={onClearSelection}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Close day details"
+          >
             <Ionicons name="close-circle-outline" size={24} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
@@ -155,7 +160,12 @@ function DayDetailSection({
             {logs.length} {logs.length === 1 ? 'workout' : 'workouts'} this day
           </Text>
         </View>
-        <TouchableOpacity onPress={onClearSelection} hitSlop={12}>
+        <TouchableOpacity
+          onPress={onClearSelection}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Close day details"
+        >
           <Ionicons name="close-circle-outline" size={24} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
@@ -317,13 +327,23 @@ export default function CalendarScreen({ navigation }: Props) {
         contentInsetAdjustmentBehavior="automatic"
       >
         <View style={[styles.monthNav, { borderBottomColor: colors.border }]}>
-          <TouchableOpacity onPress={prevMonth} style={styles.monthNavButton}>
+          <TouchableOpacity
+            onPress={prevMonth}
+            style={styles.monthNavButton}
+            accessibilityRole="button"
+            accessibilityLabel="Previous month"
+          >
             <Ionicons name="chevron-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.monthTitle, { color: colors.text }]}>
             {MONTHS[selectedMonth]} {selectedYear}
           </Text>
-          <TouchableOpacity onPress={nextMonth} style={styles.monthNavButton}>
+          <TouchableOpacity
+            onPress={nextMonth}
+            style={styles.monthNavButton}
+            accessibilityRole="button"
+            accessibilityLabel="Next month"
+          >
             <Ionicons name="chevron-forward" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>

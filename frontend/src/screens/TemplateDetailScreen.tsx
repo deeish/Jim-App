@@ -317,8 +317,8 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
         animationType="slide"
         onRequestClose={() => setApplyOpen(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setApplyOpen(false)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setApplyOpen(false)}>
+          <Pressable style={styles.modalSheet} accessible={false} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Schedule this program</Text>
 
             <Text style={styles.modalSectionLabel}>STARTS</Text>
@@ -459,8 +459,8 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
         animationType="fade"
         onRequestClose={() => setDatePickerOpen(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setDatePickerOpen(false)}>
-          <Pressable style={styles.datePanel} onPress={(e) => e.stopPropagation()}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setDatePickerOpen(false)}>
+          <Pressable style={styles.datePanel} accessible={false} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Choose start date</Text>
             <MonthCalendarPicker
               selectedIso={startDateISO}

@@ -745,6 +745,7 @@ export default function WorkoutMoveSheet({
       {/* The card guards its own taps; see SheetModal. */}
       <Pressable
         style={[styles.card, { paddingBottom: insets.bottom + spacing.xl }]}
+        accessible={false}
         onPress={(e) => e.stopPropagation()}
       >
         <View style={styles.grabber} />

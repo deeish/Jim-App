@@ -1820,8 +1820,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
 
         {/* Custom split builder — bottom sheet (Day templates + rotation) */}
         <Modal visible={showCustomSplitSheet} animationType="slide" transparent onRequestClose={() => setShowCustomSplitSheet(false)}>
-          <Pressable style={styles.customSplitBackdrop} onPress={() => setShowCustomSplitSheet(false)}>
-            <Pressable style={styles.customSplitPanel} onPress={(e) => e.stopPropagation()}>
+          <Pressable accessible={false} style={styles.customSplitBackdrop} onPress={() => setShowCustomSplitSheet(false)}>
+            <Pressable style={styles.customSplitPanel} accessible={false} onPress={(e) => e.stopPropagation()}>
               <Text style={styles.customSplitTitle}>Build your split</Text>
               <Text style={styles.customSplitSubtitle}>Define Day 1, Day 2… We'll map them to your selected weekdays.</Text>
 
@@ -1860,6 +1860,9 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                 </View>
                 <TouchableOpacity
                   style={[styles.toggleSwitch, allowMultipleMainFocus && styles.toggleSwitchOn]}
+                  accessibilityRole="switch"
+                  accessibilityLabel="Allow multiple main focuses"
+                  accessibilityState={{ checked: allowMultipleMainFocus }}
                   onPress={() => setAllowMultipleMainFocus((v) => !v)}
                 >
                   <View style={[styles.toggleThumb, allowMultipleMainFocus && styles.toggleThumbOn]} />
@@ -2072,7 +2075,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
 
         {/* Choose saved split — modal list */}
         <Modal visible={showSavedSplitsPicker} animationType="slide" transparent onRequestClose={() => setShowSavedSplitsPicker(false)}>
-          <Pressable style={styles.customSplitBackdrop} onPress={() => setShowSavedSplitsPicker(false)}>
+          <Pressable accessible={false} style={styles.customSplitBackdrop} onPress={() => setShowSavedSplitsPicker(false)}>
             <View style={[styles.customSplitPanel, { maxHeight: '60%' }]}>
               <Text style={styles.customSplitTitle}>Choose saved split</Text>
               <ScrollView style={styles.customSplitScroll}>
@@ -2351,6 +2354,9 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                 </View>
                 <TouchableOpacity
                   style={[styles.toggleSwitch, inputs.maxHardDaysInRow === 1 && styles.toggleSwitchOn]}
+                  accessibilityRole="switch"
+                  accessibilityLabel="Avoid back-to-back intense days"
+                  accessibilityState={{ checked: inputs.maxHardDaysInRow === 1 }}
                   onPress={() => setInputs(prev => ({ ...prev, maxHardDaysInRow: prev.maxHardDaysInRow === 1 ? 2 : 1 }))}
                 >
                   <View style={[styles.toggleThumb, inputs.maxHardDaysInRow === 1 && styles.toggleThumbOn]} />
@@ -2448,6 +2454,9 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                 </View>
                 <TouchableOpacity
                   style={[styles.toggleSwitch, inputs.usePerDayTimeCaps && styles.toggleSwitchOn]}
+                  accessibilityRole="switch"
+                  accessibilityLabel="Set different time limits per training day"
+                  accessibilityState={{ checked: inputs.usePerDayTimeCaps }}
                   onPress={() => {
                     setInputs(prev => {
                       const next = !prev.usePerDayTimeCaps;
@@ -2824,8 +2833,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
         animationType="fade"
         onRequestClose={() => setShowStartDatePicker(false)}
       >
-        <Pressable style={styles.startDateModalBackdrop} onPress={() => setShowStartDatePicker(false)}>
-          <Pressable style={styles.startDateModalPanel} onPress={(e) => e.stopPropagation()}>
+        <Pressable accessible={false} style={styles.startDateModalBackdrop} onPress={() => setShowStartDatePicker(false)}>
+          <Pressable style={styles.startDateModalPanel} accessible={false} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.startDateModalTitle}>Choose start date</Text>
             <Text style={styles.sectionSubtitle}>Tap a day. Grey days are before today.</Text>
             <MonthCalendarPicker

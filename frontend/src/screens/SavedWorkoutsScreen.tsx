@@ -156,7 +156,13 @@ export default function SavedWorkoutsScreen({ onClose, onSelectWorkout }: SavedW
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={handleBack} hitSlop={8}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={handleBack}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Saved workouts</Text>

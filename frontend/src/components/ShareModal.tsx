@@ -173,7 +173,7 @@ export default function ShareModal({
     // the Profile avatar/equipment sheets.
     <SheetModal visible={visible} onClose={onClose} scrimColor={colors.overlay}>
       {/* The card guards its own taps; see SheetModal. */}
-      <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
+      <Pressable style={styles.container} accessible={false} onPress={(e) => e.stopPropagation()}>
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1}>
               {kind === 'plan' ? 'Share this plan' : 'Share this workout'}

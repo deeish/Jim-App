@@ -776,6 +776,7 @@ function SetDeck({
             </Text>
             <TextInput
               style={styles.input}
+              accessibilityLabel={timedUnit ? `Time in ${timedUnit}` : 'Reps'}
               value={reps}
               onChangeText={setReps}
               placeholder={
@@ -794,6 +795,7 @@ function SetDeck({
             <Text style={styles.inputLabel}>WEIGHT ({unit.toUpperCase()})</Text>
             <TextInput
               style={styles.input}
+              accessibilityLabel={`Weight in ${unit}`}
               value={weightIn}
               onChangeText={setWeightIn}
               placeholder={

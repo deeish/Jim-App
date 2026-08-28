@@ -101,6 +101,9 @@ export function MonthCalendarPicker({ selectedIso, minIso, colors, onSelectDay }
         <Pressable
           onPress={goPrev}
           disabled={!canGoPrev}
+          accessibilityRole="button"
+          accessibilityLabel="Previous month"
+          accessibilityState={{ disabled: !canGoPrev }}
           style={({ pressed }) => [
             styles.navBtn,
             !canGoPrev && styles.navBtnDisabled,
@@ -110,7 +113,12 @@ export function MonthCalendarPicker({ selectedIso, minIso, colors, onSelectDay }
           <Text style={[styles.navBtnText, !canGoPrev && styles.navBtnTextDisabled]}>‹</Text>
         </Pressable>
         <Text style={styles.monthTitle}>{monthTitle}</Text>
-        <Pressable onPress={goNext} style={({ pressed }) => [styles.navBtn, pressed && styles.navBtnPressed]}>
+        <Pressable
+          onPress={goNext}
+          accessibilityRole="button"
+          accessibilityLabel="Next month"
+          style={({ pressed }) => [styles.navBtn, pressed && styles.navBtnPressed]}
+        >
           <Text style={styles.navBtnText}>›</Text>
         </Pressable>
       </View>
@@ -138,6 +146,13 @@ export function MonthCalendarPicker({ selectedIso, minIso, colors, onSelectDay }
               <Pressable
                 key={dayIso}
                 disabled={disabled}
+                accessibilityRole="button"
+                accessibilityLabel={cell.toLocaleDateString(undefined, {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+                accessibilityState={{ selected: isSelected, disabled }}
                 onPress={() => onSelectDay(dayIso)}
                 style={({ pressed }) => [
                   styles.dayCell,

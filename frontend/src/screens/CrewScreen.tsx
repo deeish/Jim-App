@@ -1222,7 +1222,7 @@ export default function CrewScreen() {
       {/* Crew settings sheet: the code + leave. */}
       {/* (sheet below renders over the SafeAreaView) */}
       <SheetModal visible={sheetOpen} onClose={() => setSheetOpen(false)} scrimColor={colors.scrim}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={styles.sheet} accessible={false} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grabber} />
           <Text style={styles.sheetTitle}>{crew?.name || 'Your crew'}</Text>
           <Text style={styles.fieldLabel}>Crew name</Text>
@@ -1303,7 +1303,7 @@ export default function CrewScreen() {
         onClose={() => setCreateSheetOpen(false)}
         scrimColor={colors.scrim}
       >
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={styles.sheet} accessible={false} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grabber} />
           <Text style={styles.sheetTitle}>Start your crew</Text>
           <Text style={styles.fieldLabel}>Crew name</Text>
@@ -1345,7 +1345,7 @@ export default function CrewScreen() {
         onClose={() => setMemberSheetId(null)}
         scrimColor={colors.scrim}
       >
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={styles.sheet} accessible={false} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grabber} />
           {memberSheet ? (
             <>
