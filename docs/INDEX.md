@@ -12,6 +12,7 @@ Use this page to find the right doc and keep **last reviewed** dates honest. Whe
 | [ONBOARDING_WELCOME_REVIEW.md](./ONBOARDING_WELCOME_REVIEW.md) | First-run / welcome review: flow gaps, best fix, and impact per idea (auth → onboarding → auto-generate) | When changing auth screens, onboarding, the auto-generate hand-off, or `GenerateSessionsDto` bounds |
 | [../backend/docs/LLM_GENERATION_HONEST_ASSESSMENT.md](../backend/docs/LLM_GENERATION_HONEST_ASSESSMENT.md) | Product/UX gaps in LLM workouts (rest, slots, copy) | After prompt or generator behavior changes that affect coaching quality |
 | [plan-generation-issues.md](./plan-generation-issues.md) | Actionable defect list for plan generation: the P0 program-window cliff ("my plan disappeared"), open quality flaws, reliability/UX gaps, catalog data issues, edge cases, fix order | When fixing any plan-generation issue or changing planCalendar/homeToday week mapping |
+| [worklog.md](./worklog.md) | Running record of what each Claude Code session worked on: tasks done (with commits), what was deliberately skipped and why, traps not worth re-learning, and what is still open | Append a session block at the TOP whenever work is done; never mark DONE without saying how it was verified |
 | [exercise-visuals-plan.md](./exercise-visuals-plan.md) | Exercise imagery without licensed assets: muscle-group color/icon discs, owned body-highlight diagram (Skia), optional YT-thumb/AI line-art garnish | When adding exercise imagery or changing muscle-group metadata |
 
 ## `docs/plans/`
