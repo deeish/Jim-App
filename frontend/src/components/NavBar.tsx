@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
 import GlassSurface, { glassAvailable } from './GlassSurface';
 import {
   crewBadgeHasUnseen,
@@ -40,7 +40,17 @@ function useCrewUnseen(): boolean {
   const [unseen, setUnseen] = useState(crewBadgeHasUnseen());
   useEffect(() => subscribeCrewBadge(() => setUnseen(crewBadgeHasUnseen())), []);
   useEffect(() => {
+    // On mount AND on every return to the foreground. Without the second, the
+    // badge is a COLD-START-only signal: the navigator mounts once, so an app
+    // left in the background for a day came back showing yesterday's dot until
+    // it was force-quit. With no push, this is the only moment the app gets to
+    // notice a crewmate trained, so it is the whole mechanic. Same shape as
+    // `useOtaUpdates`.
     void refreshCrewBadge();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshCrewBadge();
+    });
+    return () => sub.remove();
   }, []);
   return unseen;
 }
