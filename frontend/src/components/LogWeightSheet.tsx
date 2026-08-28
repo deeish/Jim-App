@@ -174,6 +174,8 @@ export default function LogWeightSheet({
         <TouchableOpacity
           style={StyleSheet.absoluteFill}
           activeOpacity={1}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
           onPress={onClose}
         />
         <GlassSurface style={styles.sheet}>

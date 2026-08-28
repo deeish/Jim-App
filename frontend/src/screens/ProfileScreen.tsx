@@ -1459,6 +1459,8 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
             onPress={() => setListPicker(null)}
           />
           <View

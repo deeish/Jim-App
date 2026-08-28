@@ -358,6 +358,14 @@ function prefEquipmentToForm(list: EquipmentOption[]): EquipmentItem[] {
   return unique.length > 0 ? unique : ['none'];
 }
 
+/**
+ * Shown two ways on purpose: the info button's Alert for sighted users, and the
+ * split tile's `accessibilityHint` for VoiceOver, which cannot reach a button
+ * nested inside an accessibility element.
+ */
+const BODY_PART_SPLIT_INFO =
+  'One muscle group per day (e.g. chest, back, legs). Good for volume and recovery.';
+
 const DURATION_PRESETS = [30, 45, 60, 75] as const;
 const DURATION_MIN = 15;
 const DURATION_MAX = 180;
@@ -1197,6 +1205,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               <TouchableOpacity
                 key={goal}
                 style={[styles.goalChip, inputs.goal === goal && styles.goalChipSelected]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: inputs.goal === goal }}
                 onPress={() => handleGoalSelect(goal)}
               >
                 <Text style={[styles.goalChipTitle, inputs.goal === goal && styles.goalChipTitleSelected]}>
@@ -1218,6 +1228,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                     <TouchableOpacity
                       key={goal}
                       style={[styles.goalChip, inputs.secondaryGoal === goal && styles.goalChipSelected]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: inputs.secondaryGoal === goal }}
                       onPress={() => handleSecondaryGoalSelect(goal)}
                     >
                       <Text
@@ -1248,6 +1260,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                 <TouchableOpacity
                   key={day}
                   style={[styles.dayToggle, isSelected && styles.dayToggleSelected]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
                   onPress={() => handleTrainingDayToggle(day)}
                 >
                   <Text style={[styles.dayToggleText, isSelected && styles.dayToggleTextSelected]}>
@@ -1345,6 +1359,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               <TouchableOpacity
                 key={location}
                 style={[styles.optionButton, inputs.primaryLocation === location && styles.optionButtonSelected]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: inputs.primaryLocation === location }}
                 onPress={() => handlePrimaryLocationSelect(location)}
               >
                 <Text style={[styles.optionButtonText, inputs.primaryLocation === location && styles.optionButtonTextSelected]}>
@@ -1365,6 +1381,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               <TouchableOpacity
                 key={level}
                 style={[styles.optionButton, inputs.experienceLevel === level && styles.optionButtonSelected]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: inputs.experienceLevel === level }}
                 onPress={() => setInputs(prev => ({ ...prev, experienceLevel: level }))}
               >
                 <Text
@@ -1441,6 +1459,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                     <TouchableOpacity
                       key={equipment}
                       style={[styles.chip, isSelected && styles.chipSelected]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
                       onPress={() => handleEquipmentToggle(equipment)}
                     >
                       <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
@@ -1462,6 +1482,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                   <TouchableOpacity
                     key={cardio}
                     style={[styles.optionButton, inputs.cardioEquipment === cardio && styles.optionButtonSelected]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: inputs.cardioEquipment === cardio }}
                     onPress={() => setInputs(prev => ({
                       ...prev,
                       cardioEquipment: prev.cardioEquipment === cardio ? null : cardio,
@@ -1503,6 +1525,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                       <TouchableOpacity
                         key={mins}
                         style={[styles.durationChip, selected && styles.durationChipSelected]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: selected }}
                         onPress={() => setInputs(prev => ({ ...prev, timePerSession: { min: mins, max: mins } }))}
                       >
                         <Text style={[styles.durationChipText, selected && styles.durationChipTextSelected]}>
@@ -1513,6 +1537,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                   })}
                   <TouchableOpacity
                     style={[styles.durationChip, isRange && styles.durationChipSelected]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isRange }}
                     onPress={() => {
                       if (!isRange) {
                         setInputs(prev => ({ ...prev, timePerSession: { min: 30, max: 60 } }));
@@ -1596,6 +1622,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                   <TouchableOpacity
                     key={option.value}
                     style={[styles.planStyleOption, isSelected && styles.planStyleOptionSelected]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
                     onPress={() => handleProgramTypeSelect(option.value)}
                     activeOpacity={0.7}
                   >
@@ -1665,6 +1693,13 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                     isDisabled && styles.splitTileDisabled,
                     split === 'custom' && styles.splitTileFullWidth,
                   ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  // The info button below sits INSIDE this tile, and a tile that
+                  // is itself an accessibility element cannot be traversed into
+                  // — so with VoiceOver on, its Alert was unreachable. Carrying
+                  // the same explanation as a hint is what makes it available.
+                  accessibilityHint={split === 'body part' ? BODY_PART_SPLIT_INFO : undefined}
                   onPress={handleSplitPress}
                   disabled={isDisabled}
                   activeOpacity={isDisabled ? 1 : 0.7}
@@ -1687,7 +1722,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                     )}
                     {split === 'body part' && !isDisabled && (
                       <TouchableOpacity
-                        onPress={() => Alert.alert('Body Part Days', 'One muscle group per day (e.g. chest, back, legs). Good for volume and recovery.')}
+                        onPress={() => Alert.alert('Body Part Days', BODY_PART_SPLIT_INFO)}
                         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                         activeOpacity={0.7}
                       >
@@ -1929,6 +1964,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                             <TouchableOpacity
                               key={opt}
                               style={[styles.customSplitChip, selected && styles.customSplitChipSelected, !canTap && styles.customSplitChipDisabled]}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: selected }}
                               onPress={() => {
                                 if (!canTap) return;
                                 setCustomSplitDraft((prev) => {
@@ -1959,6 +1996,8 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
                             <TouchableOpacity
                               key={opt}
                               style={[styles.customSplitChip, selected && styles.customSplitChipSelected, !canAdd && styles.customSplitChipDisabled]}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: selected }}
                               onPress={() => {
                                 if (!canAdd) return;
                                 setCustomSplitDraft((prev) => {
@@ -1994,6 +2033,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                     <TouchableOpacity
                       key={opt}
                       style={[styles.customSplitChip, customSplitDraft.rotationRule === opt && styles.customSplitChipSelected]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: customSplitDraft.rotationRule === opt }}
                       onPress={() => setCustomSplitDraft((prev) => ({ ...prev, rotationRule: opt }))}
                       activeOpacity={0.8}
                     >
@@ -2008,7 +2049,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                   <Text style={styles.customSplitDayLabel}>Abs</Text>
                   <View style={styles.customSplitChipsRow}>
                     {(['none', 'sometimes', 'often'] as AbsPref[]).map((opt) => (
-                      <TouchableOpacity key={opt} style={[styles.customSplitChip, customSplitDraft.abs === opt && styles.customSplitChipSelected]} onPress={() => setCustomSplitDraft((prev) => ({ ...prev, abs: opt }))} activeOpacity={0.8}>
+                      <TouchableOpacity key={opt} style={[styles.customSplitChip, customSplitDraft.abs === opt && styles.customSplitChipSelected]} accessibilityRole="button" accessibilityState={{ selected: customSplitDraft.abs === opt }} onPress={() => setCustomSplitDraft((prev) => ({ ...prev, abs: opt }))} activeOpacity={0.8}>
                         <Text style={[styles.customSplitChipText, customSplitDraft.abs === opt && styles.customSplitChipTextSelected]}>{opt}</Text>
                       </TouchableOpacity>
                     ))}
@@ -2016,7 +2057,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                   <Text style={styles.customSplitDayLabel}>Cardio</Text>
                   <View style={styles.customSplitChipsRow}>
                     {(['none', 'easy', 'mixed'] as CardioPref[]).map((opt) => (
-                      <TouchableOpacity key={opt} style={[styles.customSplitChip, customSplitDraft.cardio === opt && styles.customSplitChipSelected]} onPress={() => setCustomSplitDraft((prev) => ({ ...prev, cardio: opt }))} activeOpacity={0.8}>
+                      <TouchableOpacity key={opt} style={[styles.customSplitChip, customSplitDraft.cardio === opt && styles.customSplitChipSelected]} accessibilityRole="button" accessibilityState={{ selected: customSplitDraft.cardio === opt }} onPress={() => setCustomSplitDraft((prev) => ({ ...prev, cardio: opt }))} activeOpacity={0.8}>
                         <Text style={[styles.customSplitChipText, customSplitDraft.cardio === opt && styles.customSplitChipTextSelected]}>{opt}</Text>
                       </TouchableOpacity>
                     ))}
@@ -2119,6 +2160,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                 <TouchableOpacity
                   key={ratio}
                   style={[styles.optionButton, inputs.hybridGoalRatio === ratio && styles.optionButtonSelected]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: inputs.hybridGoalRatio === ratio }}
                   onPress={() => setInputs(prev => ({ ...prev, hybridGoalRatio: ratio }))}
                 >
                   <Text
@@ -2147,6 +2190,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
               <TouchableOpacity
                 key={level}
                 style={[styles.optionButton, inputs.workoutDetailLevel === level && styles.optionButtonSelected]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: inputs.workoutDetailLevel === level }}
                 onPress={() => setInputs(prev => ({ ...prev, workoutDetailLevel: level }))}
               >
                 <Text style={[styles.optionButtonText, inputs.workoutDetailLevel === level && styles.optionButtonTextSelected]}>
@@ -2168,6 +2213,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                   <TouchableOpacity
                     key={style}
                     style={[styles.optionButton, inputs.progressionStyle === style && styles.optionButtonSelected]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: inputs.progressionStyle === style }}
                     onPress={() => {
                       setInputs(prev => ({
                         ...prev,
@@ -2214,6 +2261,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                 <View style={styles.sessionCapInputs}>
                   <TextInput
                     style={styles.sessionCapInput}
+                    accessibilityLabel="Strength session minimum minutes"
                     value={inputs.sessionCaps.strength.min.toString()}
                     onChangeText={(text) => {
                       const num = parseInt(text) || 0;
@@ -2233,6 +2281,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                   <Text style={styles.sessionCapSeparator}>–</Text>
                   <TextInput
                     style={styles.sessionCapInput}
+                    accessibilityLabel="Strength session maximum minutes"
                     value={inputs.sessionCaps.strength.max.toString()}
                     onChangeText={(text) => {
                       const num = parseInt(text) || 0;
@@ -2258,6 +2307,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                 <View style={styles.sessionCapInputs}>
                   <TextInput
                     style={styles.sessionCapInput}
+                    accessibilityLabel="Cardio session minimum minutes"
                     value={inputs.sessionCaps.cardio.min.toString()}
                     onChangeText={(text) => {
                       const num = parseInt(text) || 0;
@@ -2277,6 +2327,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                   <Text style={styles.sessionCapSeparator}>–</Text>
                   <TextInput
                     style={styles.sessionCapInput}
+                    accessibilityLabel="Cardio session maximum minutes"
                     value={inputs.sessionCaps.cardio.max.toString()}
                     onChangeText={(text) => {
                       const num = parseInt(text) || 0;
@@ -2302,6 +2353,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                 <View style={styles.sessionCapInputs}>
                   <TextInput
                     style={styles.sessionCapInput}
+                    accessibilityLabel="Recovery session minimum minutes"
                     value={inputs.sessionCaps.recovery.min.toString()}
                     onChangeText={(text) => {
                       const num = parseInt(text) || 0;
@@ -2321,6 +2373,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                   <Text style={styles.sessionCapSeparator}>–</Text>
                   <TextInput
                     style={styles.sessionCapInput}
+                    accessibilityLabel="Recovery session maximum minutes"
                     value={inputs.sessionCaps.recovery.max.toString()}
                     onChangeText={(text) => {
                       const num = parseInt(text) || 0;
@@ -2388,6 +2441,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                     <TouchableOpacity
                       key={item}
                       style={[styles.chip, isSelected && styles.chipSelected]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
                       onPress={() => {
                         setInputs(prev => ({
                           ...prev,
@@ -2412,6 +2467,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                     <TouchableOpacity
                       key={item}
                       style={[styles.chip, isSelected && styles.chipSelected]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
                       onPress={() => {
                         setInputs(prev => ({
                           ...prev,
@@ -2571,6 +2628,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                             <View style={styles.dayCapStepper}>
                               <TouchableOpacity
                                 style={styles.stepperButton}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Decrease ${day} time limit`}
                                 onPress={() => {
                                   setInputs(prev => {
                                     const current = typeof prev.perDayTimeCaps[day] === 'number' ? prev.perDayTimeCaps[day]! : 45;
@@ -2586,6 +2645,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                               </TouchableOpacity>
                               <TextInput
                                 style={styles.dayCapInput}
+                                accessibilityLabel={`${day} time limit in minutes`}
                                 value={customValue.toString()}
                                 onChangeText={(text) => {
                                   const num = parseInt(text) || 0;
@@ -2600,6 +2660,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                               />
                               <TouchableOpacity
                                 style={styles.stepperButton}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Increase ${day} time limit`}
                                 onPress={() => {
                                   setInputs(prev => {
                                     const current = typeof prev.perDayTimeCaps[day] === 'number' ? prev.perDayTimeCaps[day]! : 45;
@@ -2642,6 +2704,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                       <TouchableOpacity
                         key={modality}
                         style={[styles.chip, isSelected && styles.chipSelected]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
                         onPress={() => {
                           setInputs(prev => ({
                             ...prev,
@@ -2672,6 +2736,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                       <TouchableOpacity
                         key={priority}
                         style={[styles.optionButton, inputs.focusPriority === priority && styles.optionButtonSelected]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: inputs.focusPriority === priority }}
                         onPress={() => setInputs(prev => ({
                           ...prev,
                           focusPriority: prev.focusPriority === priority ? null : priority,
@@ -2687,6 +2753,8 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                       <TouchableOpacity
                         key={priority}
                         style={[styles.optionButton, inputs.focusPriority === priority && styles.optionButtonSelected]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: inputs.focusPriority === priority }}
                         onPress={() => setInputs(prev => ({
                           ...prev,
                           focusPriority: prev.focusPriority === priority ? null : priority,
