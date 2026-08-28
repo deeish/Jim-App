@@ -692,7 +692,13 @@ export class CrewsService {
       meUserId: userId,
       todayIso,
       weekMondayIso,
-      crewCreatedIso: crew.createdAt.toISOString().slice(0, 10),
+      // ⚠ LOCAL, not a UTC slice. `createdAt` is a real timestamp, so
+      // `.toISOString().slice(0,10)` gives TOMORROW's date for anyone west of
+      // UTC who makes a crew in the evening — and this value is the floor the
+      // crew streak counts back to, so the crew's own first session fell
+      // outside it. (`weekAnchorMonday` above is `@db.Date`, so its UTC slice
+      // is correct — the difference is the column type, not the style.)
+      crewCreatedIso: this.localDateIso(crew.createdAt, tzOffsetMinutes),
       members,
       kudos,
     });

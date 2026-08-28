@@ -113,6 +113,25 @@ describe('crewStreakDaysOf', () => {
     expect(crewStreakDaysOf([a], trained, '2026-08-25', crewCreated)).toBe(1);
   });
 
+  it("counts the crew's OWN first day", () => {
+    // The floor is the crew's creation date, so it must be the date in the
+    // crew's local calendar. A crew created this evening has to be able to
+    // count the session logged this afternoon.
+    const a = member('a', { slots: [slot(1, 'Tuesday')] });
+    const trained = new Map([['a', new Set(['2026-08-25'])]]);
+    expect(crewStreakDaysOf([a], trained, '2026-08-25', '2026-08-25')).toBe(1);
+  });
+
+  it('loses that day entirely if the floor lands one day LATE', () => {
+    // Guards the conversion in `CrewsService.getSummary`. `crew.createdAt` is a
+    // real timestamp, so slicing it as UTC gives TOMORROW's date for anyone
+    // west of UTC creating a crew in the evening — and the streak then starts
+    // after the crew's own first session.
+    const a = member('a', { slots: [slot(1, 'Tuesday')] });
+    const trained = new Map([['a', new Set(['2026-08-25'])]]);
+    expect(crewStreakDaysOf([a], trained, '2026-08-25', '2026-08-26')).toBe(0);
+  });
+
   it('includes today once everyone scheduled has trained', () => {
     const a = member('a', { slots: [slot(1, 'Monday'), slot(1, 'Tuesday')] });
     const trained = new Map([['a', new Set(['2026-08-24', '2026-08-25'])]]);
