@@ -15,6 +15,42 @@ session can summarise the work without re-deriving it.
 
 ---
 
+## 2026-08-28 — Crew feature review (code, not concept)
+
+Dylan asked how to improve the Crew page. **The evidence sweep in memory
+(`reference_crew_social_mechanics_evidence`) is unambiguous: Crew's ceiling is
+DELIVERY (push), not design — ship, don't add.** So this was a correctness review
+of the crew code rather than a feature hunt. Four real defects found and fixed.
+
+| # | Task | Status | Commit | What and why |
+|---|------|--------|--------|--------------|
+| 16 | Crew made in the evening lost its first streak day | `DONE` | `4a0bbd6` | `crewCreatedIso` is the **floor the crew streak counts back to**, built with `crew.createdAt.toISOString().slice(0,10)` — the UTC date. `createdAt` is a real timestamp, so a crew started 9pm on the 27th in US Eastern reads as created on the **28th**, and the streak loop breaks on `d < floor` before counting that afternoon's session. Every other timestamp in `getSummary` already used `localDateIso`. ⚠ The `weekAnchorMonday` slice two lines above looks identical but is **correct** — that column is `@db.Date`. Difference is the column type, not the style. |
+| 17 | Pound count could tick up then snap back | `DONE` | `59f12a5` | `toggleKudos` returned `count({ toUserId, eventRef })` while the summary that repaints the chip queries `crewId: crew.id`. They diverge once a recipient has been in another crew that still exists. Same failure shape as the old `kudosWeek`/`kudosLatest` bug: not a wrong write, two different questions rendered as one number. |
+| 18 | Badge only noticed activity on a **cold start** | `DONE` | `7654417` | `refreshCrewBadge` ran once on mount, and the tab navigator mounts once per launch. Background the app overnight, come back, and the dot still showed yesterday until a force-quit. With no push, a foreground is the *only* moment the app can notice a crewmate trained — so this was most of the mechanic missing. |
+| 19 | Crew screen showed yesterday's week after a foreground | `DONE` | `93237e9` | `useFocusEffect` covers arriving at the tab, not returning to the app while already on it. ⚠ Gated on `useIsFocused`, and **that gate is load-bearing**: bottom tabs keep the screen mounted, and `load` ends in `markCrewSeen`, so an ungated listener would clear the Crew dot on every foreground while the user sat on Home — marking activity seen that was never shown. |
+
+### Verification
+
+- Backend 858 tests, frontend 631, both typechecks clean.
+- The streak fix is pinned by **two new tests on `crewStreakDaysOf`** that assert the
+  consequence, not the spelling: a crew created the same day counts that day, and a floor
+  one day late returns **0**. The existing specs passed `crewCreatedIso` in as a literal,
+  which is exactly why the service's own conversion was never covered.
+- ⭐ **The foreground work was verified behaviourally in the rig**, not just compiled.
+  RN-web maps `AppState` to `visibilitychange`, so faking hidden→visible is possible:
+  on Crew a foreground fired **+2** summary calls (badge + screen), on Home **+1**
+  (badge only, screen correctly stayed out), and **0** while hidden. That second number
+  is the proof the focus gate holds and the badge cannot be cleared unseen.
+
+### Deliberately NOT done
+
+| Thing | Why |
+|-------|-----|
+| **Any new crew mechanic** | The evidence sweep lists the replicated nulls: assigned accountability buddies (PNAS, N≈250k, n.s.), all-or-nothing crew goals (Patel, p=.96), ordinal ranks in small groups (lowers the most active), naming who owes. The buildable versions are the ones that tested null. |
+| `@@unique([fromUserId, toUserId, eventRef])` missing `crewId` | The toggle's `deleteMany` can still reach a row in a crew the user has left, and scoping the delete without widening the constraint would make a re-pound hit P2002 and report `pounded` with no row to show. Needs a **migration + backend-first deploy**, so it wants a session that can coordinate that. |
+
+---
+
 ## 2026-08-28 — accessibility round 2 (the rest of the audit)
 
 Worked the open a11y items from the previous block (D–G). Frontend 631 tests,
