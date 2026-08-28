@@ -1085,6 +1085,13 @@ export default function CrewScreen() {
                   };
                   const rowLabel = [
                     firstNameOf(m),
+                    // The avatar's ring carries today's state in colour alone
+                    // (gold trained, primary scheduled), so it has to be said.
+                    m.todayState === 'trained'
+                      ? 'trained today'
+                      : m.todayState === 'scheduled'
+                        ? 'training today'
+                        : null,
                     resting
                       ? 'resting'
                       : `${m.race.done} of ${m.race.planned} sessions this week`,

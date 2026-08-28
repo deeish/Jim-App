@@ -386,7 +386,10 @@ export default function HomeScreen() {
             onPress={openWhatsNew}
             activeOpacity={0.7}
             hitSlop={6}
-            accessibilityLabel="What's new"
+            // The badge dot is the only unread signal and it is colour alone,
+            // so the label carried the same text either way.
+            accessibilityLabel={hasUnseenNews ? "What's new, unread" : "What's new"}
+            accessibilityRole="button"
           >
             <Ionicons name="gift-outline" size={24} color={colors.text} />
             {hasUnseenNews ? (

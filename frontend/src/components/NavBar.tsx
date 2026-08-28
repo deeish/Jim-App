@@ -36,13 +36,25 @@ const Tab = createBottomTabNavigator<RootTabParamList>();
 
 /** The Crew icon with the unseen-activity dot (no push infra — an app-open
  *  fingerprint check; opening the tab clears it). */
-function CrewTabIcon({ color, focused }: { color: string; focused: boolean }) {
-  const { colors } = useTheme();
+function useCrewUnseen(): boolean {
   const [unseen, setUnseen] = useState(crewBadgeHasUnseen());
   useEffect(() => subscribeCrewBadge(() => setUnseen(crewBadgeHasUnseen())), []);
   useEffect(() => {
     void refreshCrewBadge();
   }, []);
+  return unseen;
+}
+
+function CrewTabIcon({
+  color,
+  focused,
+  unseen,
+}: {
+  color: string;
+  focused: boolean;
+  unseen: boolean;
+}) {
+  const { colors } = useTheme();
   return (
     <View>
       <Ionicons
@@ -84,6 +96,7 @@ function tabBarButton(testID: string) {
 
 export default function NavBar() {
   const { colors } = useTheme();
+  const crewUnseen = useCrewUnseen();
   return (
     <Tab.Navigator
       initialRouteName="Home"
@@ -179,8 +192,11 @@ export default function NavBar() {
         component={CrewScreen}
         options={{
           tabBarButton: tabBarButton('e2e-tab-crew'),
+          // The dot is the only thing that says there is new crew activity, and
+          // it is colour and shape alone — so the tab has to say it too.
+          tabBarAccessibilityLabel: crewUnseen ? 'Crew, new activity' : 'Crew',
           tabBarIcon: ({ color, focused }) => (
-            <CrewTabIcon color={color} focused={focused} />
+            <CrewTabIcon color={color} focused={focused} unseen={crewUnseen} />
           ),
         }}
       />
