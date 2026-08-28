@@ -1,7 +1,7 @@
 import type { GoalId } from '../types/plan';
 import type { Exercise } from '../types/workout';
 import type { WeightUnit } from './weightDisplay';
-import { formatAtWeightFromLb, formatWeightCompactFromLb } from './weightDisplay';
+import { formatWeightCompactFromLb } from './weightDisplay';
 import { exerciseUsesTimeDisplay } from './exercisePrescription';
 import {
   formatExerciseRepsDisplay,
@@ -130,17 +130,4 @@ export function formatExercisePrescriptionBulleted(
     parts.push(formatWeightCompactFromLb(exercise.weight, weightUnit));
   }
   return parts.join(' · ');
-}
-
-/** Exercise list row like legacy `ExerciseCard`. */
-export function formatExercisePrescriptionExerciseCard(
-  exercise: ExercisePrescriptionLike,
-  goal: GoalId,
-  weightUnit: WeightUnit,
-): string {
-  const compact = formatExercisePrescriptionCompact(exercise, goal);
-  if (exercise.weight != null && exercise.weight > 0) {
-    return `${compact}${formatAtWeightFromLb(exercise.weight, weightUnit)}`;
-  }
-  return compact;
 }

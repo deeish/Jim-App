@@ -454,13 +454,7 @@ export const MOVEMENT_PATTERN_MAP: Record<string, string> = {
   calf_raise: 'Squat',
 };
 
-/**
- * Valid display names from SearchScreen (for validation)
- */
-export const VALID_PRIMARY_MUSCLE_GROUPS = Object.values(
-  PRIMARY_MUSCLE_GROUP_MAP,
-);
-export const VALID_SUB_MUSCLES = Object.values(SUB_MUSCLE_MAP);
+/** Valid equipment display names, used to validate the catalog at load. */
 export const VALID_EQUIPMENT = [
   'Bodyweight',
   'Dumbbell',

@@ -66,13 +66,6 @@ export interface SearchExercisesResponse {
   exercises: Exercise[];
 }
 
-export interface ExerciseStats {
-  total: number;
-  byMuscleGroup: Record<string, number>;
-  byEquipment: Record<string, number>;
-  byMovementPattern: Record<string, number>;
-}
-
 /**
  * Ask the backend for one catalog exercise to swap in for `targetName` within a
  * day: same primary muscle, not already in the day, and not the same movement
@@ -161,26 +154,10 @@ export const searchExercises = async (
 };
 
 /**
- * Get all exercises
- */
-export const getAllExercises = async (): Promise<Exercise[]> => {
-  const response = await api.get<Exercise[]>('/exercises');
-  return response.data;
-};
-
-/**
  * Get exercise by ID
  */
 export const getExerciseById = async (id: string): Promise<Exercise> => {
   const response = await api.get<Exercise>(`/exercises/${id}`);
-  return response.data;
-};
-
-/**
- * Get exercise statistics
- */
-export const getExerciseStats = async (): Promise<ExerciseStats> => {
-  const response = await api.get<ExerciseStats>('/exercises/stats');
   return response.data;
 };
 

@@ -23,8 +23,8 @@ call in `frontend/src`, plus every modal/sheet component and every
 non-screen file for hidden navigation triggers) found: one mischaracterized
 call-site count (marked "Correction..." inline), two dead-but-present
 capabilities nobody currently triggers (marked "dead code"/"dead capability"
-inline), one fully orphaned component with a dangerous name collision (see
-the `WorkoutDetailModal` callout), and closed out two previously-untraced
+inline), one fully orphaned component with a dangerous name collision (the
+`WorkoutDetailModal` callout; the component has since been deleted), and closed out two previously-untraced
 areas (Supabase auth links, push notifications/contexts/services — both
 confirmed to hold no surprises). **Pass 4** (2026-07-22) noticed that passes
 1-3 all scoped their greps to React Navigation call shapes
@@ -50,10 +50,11 @@ and `contexts/UserPreferencesContext.tsx` (both clean, no navigation/signOut/
 Linking of any kind), every `Modal` inside `GeneratePlanScreen` and
 `PlanPreviewScreen` (custom-split builder, saved-splits picker, date picker,
 preview card, swap-exercise picker — all confirmed to contain no navigation
-beyond what §3 already documents), the presentational card components used
+beyond what §3 already documents), the presentational card components then used
 inside list rows (`ExerciseCard`, `ExerciseLibraryCard`, `DayCard`,
-`WorkoutDayRow` — none has its own `useNavigation()`, confirming navigation
-is always orchestrated by the owning screen, never a shared row component),
+`WorkoutDayRow` — none had its own `useNavigation()`, confirming navigation
+is always orchestrated by the owning screen, never a shared row component;
+all four have since been deleted as dead code),
 and confirmed no error boundary exists anywhere in the app (see §5). Found
 one real refinement (not a contradiction): `SearchScreen`'s three
 `ExerciseDetail` tap targets are not unconditionally equivalent — see the
@@ -368,7 +369,7 @@ Format: **Screen** (navigator) — how you get there → how you leave.
   - In: the "Share" button on `PlanScreen` or `WorkoutDetailScreen` only.
   - Out: `onClose` → the host screen sets `shareModalVisible` back to `false` (local state, not navigation) — same as `SavedWorkoutsScreen`'s `onClose`. The modal's own "Share" button (once a code has loaded from `createShare()`) calls `Share.share({ message })` — the native OS share sheet, not `navigation.*`. Contains no `navigation` usage anywhere in the component. Full non-navigator detail in §6.
 
-- **`WorkoutDetailModal` (`frontend/src/components/WorkoutDetailModal.tsx`) is NOT a route at all — flagging because of a name-collision trap.** Found on the third verification sweep: this component (`visible`/`workout`/`onClose`/`onSwap`/`onRefresh` props, clearly built to show workout details in a bottom-sheet modal) is not imported or rendered by any other file in the entire frontend — a grep for its name matches only its own definition. It's fully orphaned: unreachable by any user action, not part of any live route. Its name is one letter of collision away from the real, live `WorkoutDetailScreen.tsx` (the actual registered `WorkoutDetail` route documented above) — easy to grab the wrong one by name search. Don't add navigation logic to it thinking it's on a real screen, and don't assume `WorkoutDetail`-related bugs live here.
+- **`WorkoutDetailModal` was NOT a route at all, and has since been DELETED — the name-collision trap it created is worth keeping on record.** Found on the third verification sweep: the component (`visible`/`workout`/`onClose`/`onSwap`/`onRefresh` props, clearly built to show workout details in a bottom-sheet modal) was not imported or rendered by any other file in the entire frontend — a grep for its name matched only its own definition. Fully orphaned: unreachable by any user action, not part of any live route. Its name was one letter of collision away from the real, live `WorkoutDetailScreen.tsx` (the registered `WorkoutDetail` route documented above), so a name search could easily land on the wrong one. It was removed in the dead-code sweep, along with `ExerciseCard`, `ExerciseLibraryCard`, `DayCard`, `WorkoutDayRow`, and `LoadingSpinner`. If a search still turns any of them up, it is matching the stale `frontend/dist/` web build, not source.
 
 ### Tab: Workout (leaf, hosts `<WorkoutSession>` inline)
 

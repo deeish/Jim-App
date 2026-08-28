@@ -1,14 +1,12 @@
 import {
   Workout,
   WorkoutLog,
-  ExerciseSession,
   LastPerformanceMap,
   PersonalBestMap,
   PersonalBestE1rmMap,
   WorkoutStats,
 } from '../types/workout';
 import type { ExerciseHistory } from '../lib/exerciseHistory';
-import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
 import { api } from '../api/client';
 
 // ---------------------------------------------------------------------------
@@ -145,10 +143,6 @@ export const updateWorkout = async (id: string, workout: Partial<Workout>): Prom
   return response.data;
 };
 
-export const deleteWorkout = async (id: string): Promise<void> => {
-  await api.delete(`/workouts/${id}`);
-};
-
 // --- Saved / liked workouts ---
 
 export const getSavedWorkoutIds = async (): Promise<string[]> => {
@@ -171,74 +165,6 @@ export const unsaveWorkout = async (workoutId: string): Promise<void> => {
 
 // --- Workout logs (history) ---
 
-export interface SaveWorkoutLogParams {
-  workout: Workout;
-  exercises: ExerciseSession[];
-  startTime: Date;
-  endTime: Date;
-  totalTime: number;
-  totalSets: number;
-  totalVolume: number;
-  overallNotes?: string;
-  exerciseNotes?: Record<number, string>;
-}
-
-export const saveWorkoutLog = async (params: SaveWorkoutLogParams): Promise<WorkoutLog> => {
-  const {
-    workout,
-    exercises,
-    startTime,
-    endTime,
-    totalTime,
-    totalSets,
-    totalVolume,
-    overallNotes,
-    exerciseNotes = {},
-  } = params;
-
-  let workoutId = workout.id;
-  if (!workoutId) {
-    const created = await createWorkout({
-      name: workout.name,
-      day: workout.day,
-      estimatedDuration: workout.estimatedDuration,
-      focus: workout.focus,
-      // Full-fidelity payload (see lib/workoutExercisePayload): ad-hoc field
-      // lists like the one that used to live here are how rep ranges got
-      // silently flattened on every workout edit.
-      exercises: toWorkoutExercisePayloads(workout.exercises),
-    });
-    workoutId = created.id;
-  }
-
-  const response = await api.post<WorkoutLog>('/workout-logs', {
-    workoutId,
-    startedAt: startTime.toISOString(),
-    completedAt: endTime.toISOString(),
-    totalTimeSeconds: totalTime,
-    totalSets,
-    totalVolume,
-    overallNotes: overallNotes ?? undefined,
-    entries: exercises
-      .filter((es) => !es.skipped)
-      .map((es) => ({
-        exerciseId: es.exercise.exerciseId ?? undefined,
-        name: es.exercise.name,
-        orderIndex: es.exerciseIndex,
-        notes: exerciseNotes[es.exerciseIndex] ?? undefined,
-        sets: es.completedSets.map((s) => ({
-          setNumber: s.setNumber,
-          reps: s.reps,
-          weight: s.weight,
-          rpe: s.rpe,
-          completed: s.completed,
-          notes: s.notes,
-        })),
-      })),
-  });
-  return response.data;
-};
-
 export interface GetWorkoutLogsParams {
   from?: string; // ISO date string (start of range)
   to?: string;   // ISO date string (end of range)
@@ -253,11 +179,6 @@ export const getWorkoutLogs = async (
   const response = await api.get<WorkoutLog[]>(
     `/workout-logs${query.toString() ? `?${query.toString()}` : ''}`
   );
-  return response.data;
-};
-
-export const getWorkoutLogById = async (id: string): Promise<WorkoutLog> => {
-  const response = await api.get<WorkoutLog>(`/workout-logs/${id}`);
   return response.data;
 };
 

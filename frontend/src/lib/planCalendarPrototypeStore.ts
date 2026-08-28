@@ -1364,12 +1364,6 @@ export function removeExerciseFromDay(dateIso: string, exerciseIndex: number): v
   emit();
 }
 
-/** "+ Add Exercise" — appended after the day's base list (works on rest days
- *  too, which become a Custom Workout). */
-export function addExerciseToDay(dateIso: string, exercise: PlannedExercise): void {
-  addExercisesToDay(dateIso, [exercise]);
-}
-
 /** Multi-add from the picker: one append + ONE queued slot rebuild, instead of
  *  a rebuild per exercise. */
 export function addExercisesToDay(dateIso: string, exercises: PlannedExercise[]): void {
@@ -1653,13 +1647,6 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
     scheduleSessionSave();
     console.warn('[calendar] failed to persist workout log:', err);
   }
-}
-
-/** Clear one exercise's logged sets so the deck can be re-run. */
-export function resetSetLogs(dateIso: string, exerciseIndex: number): void {
-  setLogs.delete(slotKey(dateIso, exerciseIndex));
-  scheduleSessionSave();
-  emit();
 }
 
 /** Ending a session early: log whatever was completed so far as the day's

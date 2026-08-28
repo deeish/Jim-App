@@ -100,11 +100,6 @@ export async function getCurrentPlanWithWeekly(): Promise<CurrentPlanWithWeekly>
   return response.data;
 }
 
-export async function getPlanById(id: string): Promise<ApiPlan> {
-  const response = await api.get<ApiPlan>(`/plans/${id}`);
-  return response.data;
-}
-
 export interface CreatePlanBody {
   name?: string;
   /** YYYY-MM-DD — Monday of the week program week 1 is tied to. */
@@ -129,14 +124,10 @@ export async function createPlan(body: CreatePlanBody): Promise<ApiPlan> {
   return response.data;
 }
 
-export async function updatePlan(id: string, body: CreatePlanBody): Promise<ApiPlan> {
-  const response = await api.patch<ApiPlan>(`/plans/${id}`, body);
-  return response.data;
-}
-
 /**
- * Rename only. Never route a title edit through `updatePlan` — that endpoint
- * rebuilds the plan from `slots` (deletes and recreates every planWorkout).
+ * Rename only. Never route a title edit through `PATCH /plans/:id` — that
+ * endpoint rebuilds the plan from `slots` (deletes and recreates every
+ * planWorkout). This is why it has no wrapper here.
  */
 export async function renamePlan(id: string, name: string): Promise<void> {
   await api.patch(`/plans/${id}/name`, { name });
