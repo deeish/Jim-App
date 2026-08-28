@@ -1,7 +1,8 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Platform,
   Pressable,
   RefreshControl,
@@ -13,7 +14,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useFocusEffect, useRoute, type RouteProp } from '@react-navigation/native';
+import {
+  useFocusEffect,
+  useIsFocused,
+  useRoute,
+  type RouteProp,
+} from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -158,6 +164,21 @@ export default function CrewScreen() {
       void load();
     }, [load, profileDisplayName, profileAvatarId, user?.email]),
   );
+
+  // Returning to the app does not re-fire `useFocusEffect` — the screen never
+  // lost focus — so sitting on this tab overnight showed yesterday's crew until
+  // something else forced a load. ⚠ Gated on focus deliberately: bottom tabs
+  // keep this screen MOUNTED once visited, and `load` ends in `markCrewSeen`,
+  // so an ungated listener would clear the badge on foreground while the user
+  // was on Home and had never seen what it was for.
+  const isFocused = useIsFocused();
+  useEffect(() => {
+    if (!isFocused) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void load();
+    });
+    return () => sub.remove();
+  }, [isFocused, load]);
 
   const onRefresh = useCallback(() => {
     // The only gesture on this screen with no other confirmation — the spinner
