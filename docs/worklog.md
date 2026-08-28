@@ -29,6 +29,9 @@ typecheck clean, all four commits pushed.
 | 13 | Three status dots that were colour-only | `DONE` | `6de2d8a` | Each was the **only** signal that something happened, with no spoken equivalent: the Crew tab's unseen dot (the tab said "Crew" either way — `crewBadgeHasUnseen` lived inside the icon, so the subscription became a small `useCrewUnseen` hook the navigator holds), Home's What's New badge (constant label), and the crew avatar's story ring (gold = trained today, blue = training today; the row label never mentioned today). **Verified in the rig**: labels actually exposed as `"What's new, unread"` and `"Crew"`, all four tabs still render after the hook move, zero page errors. These map to `aria-label` on web, so unlike `accessibilityState` they *can* be checked here. |
 | 12 | Three fixed-height boxes vs Dynamic Type | `DONE` | `6e1897a` | Home's week tile (56pt box, two 11pt rows, no `numberOfLines`), the day-cap input, the picker's month-nav button. All → `minHeight`, the pattern used elsewhere. `navBtn` checked for the circle trap first: its radius is a fixed token, so it is a rounded square. |
 
+| 14 | Three labels describing something other than the screen | `DONE` | `40ff83f` | Home's week tile draws the muted dash for rest, skipped **and** no-muscle days but only said "rest day" for the first — a skipped day announced its workout title as if still scheduled. A crew member's row is two sibling touchables opening the same sheet, both with the identical label, so every member was announced twice; the second is the week strip and now names that. The pound chip's explicit label was **replacing** the synthesized one and silencing the count beside it. |
+| 15 | Goal / experience pickers showed no current selection | `DONE` (half) | `e33216f` | The list rendered every option identically, so VoiceOver read four goals as if none were active. Added `accessibilityState`; the values were already in scope. ⚠ **Half a fix on purpose** — a sighted user cannot see the current choice either. See NEEDS-DYLAN below. |
+
 ### Verification, and its limits
 
 - Ran the codemod as a **dry run first**, printing all 24 extracted conditions before
@@ -51,6 +54,7 @@ typecheck clean, all four commits pushed.
 | Thing | Why |
 |-------|-----|
 | Crew pound chips (`pump`, `dayPound`) | Real measurements (~26pt and 18pt), but the day tile above already extends `hitSlop` `bottom: 4` into the 4pt gap, and on a member row the chip sits between the row itself (opens a sheet) and `personBottom`. Slop there turns a near-miss into a **wrong action**. Needs a device, not a measurement. |
+| Picker **visual** selected state | The Profile goal/experience list has no checkmark, no tint, no trailing tick — confirmed on screen: with goal = Strength, the row above reads "Goal — Strength" while "Strength" in the list looks identical to the other five. Choosing how that should look is a design call. `NEEDS-DYLAN`. |
 | `dayPound` height → `minHeight` | Coupled to `dayPoundSpacer`, which exists to hold untrained columns to the same height so tiles stay on one baseline. The spacer has no content, so it cannot grow with it — converting one without the other breaks the alignment it was written to protect. Needs a shared measurement. |
 
 ### Rig facts worth keeping
