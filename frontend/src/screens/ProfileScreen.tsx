@@ -1483,10 +1483,24 @@ export default function ProfileScreen() {
                 : listPicker === 'secondaryGoal'
                   ? ['__none__', ...GOAL_OPTIONS.filter((g) => g !== goal)]
                   : [...GOAL_OPTIONS]
-              ).map((opt) => (
+              ).map((opt) => {
+                // ⚠ This list shows no selected state AT ALL — no checkmark, no
+                // highlight — so a sighted user cannot see the current choice
+                // either. That half is a design call and is left alone; this
+                // at least stops VoiceOver reading four options as if none
+                // were active.
+                const isCurrent =
+                  listPicker === 'experience'
+                    ? opt === experience
+                    : listPicker === 'secondaryGoal'
+                      ? opt === (secondaryGoal ?? '__none__')
+                      : opt === goal;
+                return (
                 <TouchableOpacity
                   key={opt}
                   style={styles.equipRow}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isCurrent }}
                   onPress={() => {
                     haptics.select();
                     if (listPicker === 'goal') {
@@ -1512,7 +1526,8 @@ export default function ProfileScreen() {
                         : GOAL_LABELS[opt as keyof typeof GOAL_LABELS]}
                   </Text>
                 </TouchableOpacity>
-              ))}
+                );
+              })}
             </ScrollView>
             {listPicker === 'goal' ? (
               // The secondary goal folds into the Goal sheet — one Training row
