@@ -728,7 +728,21 @@ export default function HomeScreen() {
                       activeOpacity={0.8}
                       onPress={() => goToDay(t.iso)}
                       accessibilityRole="button"
-                      accessibilityLabel={`${t.label}${t.rest ? ', rest day' : `, ${t.title}${t.completed ? ', completed' : ''}`}`}
+                      // Must describe the tile that is actually DRAWN. The
+                      // muted dash form covers rest, skipped and no-muscle
+                      // alike, but the label used to announce the workout
+                      // title for the last two as though still scheduled.
+                      accessibilityLabel={[
+                        t.label,
+                        t.rest
+                          ? 'rest day'
+                          : t.skipped
+                            ? 'skipped'
+                            : t.title || 'no workout',
+                        !t.rest && !t.skipped && t.completed ? 'completed' : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
                     >
                       {t.rest || t.skipped || !t.muscle ? (
                         <View style={[styles.weekTile, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>

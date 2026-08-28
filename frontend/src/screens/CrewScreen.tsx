@@ -802,7 +802,15 @@ export default function CrewScreen() {
       disabled={!onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={active ? 'Remove your pound' : 'Pound it'}
+      // An explicit label REPLACES the synthesized one, so this was silencing
+      // the count rendered below. Same "no 0" rule as the visible chip: an
+      // untouched chip is an invitation, not a score of nil.
+      accessibilityLabel={[
+        active ? 'Remove your pound' : 'Pound it',
+        count > 0 ? `${count} so far` : null,
+      ]
+        .filter(Boolean)
+        .join(', ')}
     >
       <Text style={styles.pumpEmoji}>💪</Text>
       {/* No "0". An untouched chip is an invitation, not a score of nil. */}
@@ -1166,7 +1174,17 @@ export default function CrewScreen() {
                         activeOpacity={0.7}
                         onPress={openSheet}
                         accessibilityRole="button"
-                        accessibilityLabel={rowLabel}
+                        // Deliberately NOT `rowLabel`: this is a second, sibling
+                        // target that opens the same sheet (they are siblings so
+                        // the pound chip never nests inside a press target), and
+                        // repeating the label announced every member twice with
+                        // no way to tell the two stops apart. This half is the
+                        // week strip, so it names that.
+                        accessibilityLabel={`${firstNameOf(m)}'s week, ${
+                          resting
+                            ? 'resting'
+                            : `${m.race.done} of ${m.race.planned} sessions`
+                        }`}
                       >
                         <View style={styles.tileRowFlush}>{m.week.map(rowTile)}</View>
                         {/* No plan means no denominator: "3/3" would claim a
