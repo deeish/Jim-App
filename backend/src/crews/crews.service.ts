@@ -322,8 +322,14 @@ export class CrewsService {
         }
       }
     }
+    // Scoped to THIS crew, because the summary's own kudos query is
+    // (`crewId: crew.id`) and these two numbers land in the same chip. A
+    // member who left a still-living crew keeps their rows there, so an
+    // unscoped count returned a total the next refresh could not reproduce —
+    // the chip ticked up and then silently snapped back, which is the same
+    // failure the `kudosWeek`/`kudosLatest` mismatch produced.
     const count = await this.prisma.crewKudos.count({
-      where: { toUserId, eventRef },
+      where: { crewId: mine.crewId, toUserId, eventRef },
     });
     return { pounded, count };
   }
