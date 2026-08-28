@@ -15,6 +15,54 @@ session can summarise the work without re-deriving it.
 
 ---
 
+## 2026-08-28 — accessibility round 2 (the rest of the audit)
+
+Worked the open a11y items from the previous block (D–G). Frontend 631 tests,
+typecheck clean, all four commits pushed.
+
+| # | Task | Status | Commit | What and why |
+|---|------|--------|--------|--------------|
+| 8 | 24 colour-only selection controls | `DONE` | `6da0060` | `theme/colors.ts` states the rule outright — colour only *reinforces* identity, it never carries it — and the newer screens honour it. `GeneratePlanScreen` did not: goal, secondary goal, training days, location, experience, equipment, duration, the custom-split builder, hybrid ratio, detail level, progression, avoid chips, cardio modality, focus priority all changed **only colour**, so a VoiceOver user heard four options with no way to tell which was active. The boolean was already computed on each line to pick the "selected" style. |
+| 9 | Remaining unlabelled controls | `DONE` | `6da0060` | 2 per-day time-cap steppers (the only unlabelled ones of the ten — an oversight, not a convention), 7 numeric fields announcing a bare "45", 2 full-screen dismiss overlays that put a large unlabelled button in front of the sheet. |
+| 10 | Split-tile info button was unreachable | `DONE` | `6da0060` | Nested inside a tile that is itself an accessibility element, so with VoiceOver on its Alert could never be opened. The text is now one constant used twice: the Alert for sighted users, an `accessibilityHint` on the tile for everyone else. |
+| 11 | Four tap targets under 44pt | `DONE` | `a692fd2` | The live workout's set-complete button (40×40, **most-tapped control in the app**), Home's What's New (32×32) and profile (42×42) buttons, and `WorkoutLikeButton` (42×42, whose sibling already had `hitSlop: 10`). Each checked for neighbours first — slop that overlaps trades a missed tap for a **wrong** one. |
+| 12 | Three fixed-height boxes vs Dynamic Type | `DONE` | `6e1897a` | Home's week tile (56pt box, two 11pt rows, no `numberOfLines`), the day-cap input, the picker's month-nav button. All → `minHeight`, the pattern used elsewhere. `navBtn` checked for the circle trap first: its radius is a fixed token, so it is a rounded square. |
+
+### Verification, and its limits
+
+- Ran the codemod as a **dry run first**, printing all 24 extracted conditions before
+  applying; 22 matched the multi-line shape, 2 inline ones were done by hand. Output read
+  back site by site afterwards.
+- Booted the rig, navigated Calendar → Month → **Generate a Plan**: the screen renders,
+  **zero page errors**. That is the check that matters for a codemod in a 3,900-line TSX
+  file, since `tsc` alone would not catch a mangled JSX tree.
+- ⚠ **`accessibilityState` cannot be verified on web.** react-native-web derives
+  `aria-selected` from `accessibilitySelected` alone, never from `accessibilityState`, so
+  the rig reports 0 `aria-selected` elements even though the props are correct.
+  `accessibilityState` **is** the right API on iOS/Android, where every tester is —
+  **do not "fix" this by switching to the RNW-only prop.**
+- ⚠ `minHeight` ≥ `height`, so those three render **identically** at the default text size.
+  That is what makes the change safe and also why nothing visible changed. Needs a device
+  with a larger text size to actually exercise.
+
+### Deliberately NOT done (with reasons)
+
+| Thing | Why |
+|-------|-----|
+| Crew pound chips (`pump`, `dayPound`) | Real measurements (~26pt and 18pt), but the day tile above already extends `hitSlop` `bottom: 4` into the 4pt gap, and on a member row the chip sits between the row itself (opens a sheet) and `personBottom`. Slop there turns a near-miss into a **wrong action**. Needs a device, not a measurement. |
+| `dayPound` height → `minHeight` | Coupled to `dayPoundSpacer`, which exists to hold untrained columns to the same height so tiles stay on one baseline. The spacer has no content, so it cannot grow with it — converting one without the other breaks the alignment it was written to protect. Needs a shared measurement. |
+
+### Rig facts worth keeping
+
+- **Metro under `CI=1` does not watch files.** The server was serving a stale bundle after
+  edits; restart with `--clear`. (Already in memory; it bit again here.)
+- The Calendar tab can restore to **Week**, not Month. The planning rows ("Generate a
+  Plan", "Quick Workout") live on Month — click back at `(26, 32)` to get up the stack.
+- Home shows "Plan data unavailable" with no backend, so the **week tiles do not render** —
+  frontend-only boot cannot verify anything that needs plan data.
+
+---
+
 ## 2026-08-27 → 08-28 — post-ship hardening
 
 **Started from:** build 27 shipped to internal testers; repo cleaned 30 branches → 1.
