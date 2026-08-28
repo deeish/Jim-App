@@ -42,6 +42,28 @@ of the crew code rather than a feature hunt. Four real defects found and fixed.
   (badge only, screen correctly stayed out), and **0** while hidden. That second number
   is the proof the focus gate holds and the badge cannot be cleared unseen.
 
+### The join funnel, driven end to end (33 checks, all PASS)
+
+The prod probe said the join path had never been exercised for real, and it is what
+has to work the day a build ships — so it was driven against a **local throwaway
+Postgres + local API** (recipe in `.claude/skills/verify/SKILL.md`; **no prod writes**,
+which matters because prod is the data the probe above measured).
+
+Verified: create → invite → join with the code typed every realistic way (lowercase,
+dashed, space-padded); unknown / too-short / ambiguous-character codes all rejected
+with human messages; already-in-a-crew blocked (409); the summary readable immediately
+after joining and showing every member; self-pound, pounding a session that never
+happened, and pounding across crews all refused; lead-only actions enforced for remove
+and rotate; a rotated code killing the old one; the **10-person cap** holding at the
+eleventh with a human message; leaving freeing a slot; a crewless user getting a clean
+`crew: null` rather than a crash; the last member out deleting the crew so its code
+dies with it; Rest up round-tripping.
+
+**Nothing failed.** The funnel is not the risk — it is the best-defended part of the
+feature. `requireLead` returning 400 rather than 403 is deliberate: the message names
+who the lead is ("whoever has been in the crew longest"), and leadership transfers on
+its own when the lead leaves, since there is no lead column.
+
 ### Deliberately NOT done
 
 | Thing | Why |
