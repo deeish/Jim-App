@@ -11,6 +11,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import type { WeightUnit } from '../lib/weightDisplay';
+import { defaultWeightUnitForDevice } from '../lib/deviceUnits';
 import {
   EQUIPMENT_OPTIONS,
   type EquipmentOption,
@@ -21,7 +22,9 @@ import {
 } from '../constants/profileAvatars';
 import {
   DAYS_OF_WEEK_PREF,
+  SESSION_MINUTES_OPTIONS,
   TRAINING_FREQUENCY_OPTIONS,
+  type SessionMinutesOption,
   type DayOfWeekPreference,
   type TrainingFrequencyOption,
 } from '../constants/trainingSchedule';
@@ -94,6 +97,9 @@ export type UserPreferencesState = {
   hasCompletedOnboarding: boolean;
   /** Target lifting days per week (plan generator default). */
   trainingFrequency: TrainingFrequencyOption;
+  /** How long one session can take; seeds the generator's time-per-session
+   *  and scores the coach-built programs. */
+  sessionMinutes: SessionMinutesOption;
   /** When true, weekdays follow a balanced template; otherwise use preferredTrainingDays. */
   trainingDaysFlexible: boolean;
   /** Specific weekdays — only meaningful when trainingDaysFlexible is false. */
@@ -104,8 +110,9 @@ export type UserPreferencesState = {
 };
 
 const DEFAULTS: UserPreferencesState = {
-  /** US default; existing installs keep whatever is in AsyncStorage. */
-  weightUnit: 'lb',
+  /** From the device region (pounds in the US, kilograms elsewhere); existing
+   *  installs keep whatever is in AsyncStorage. */
+  weightUnit: defaultWeightUnitForDevice(),
   goal: 'Strength',
   secondaryGoal: null,
   experience: 'Intermediate',
@@ -114,6 +121,7 @@ const DEFAULTS: UserPreferencesState = {
   profileAvatarId: 'default',
   hasCompletedOnboarding: false,
   trainingFrequency: 4,
+  sessionMinutes: 45,
   trainingDaysFlexible: true,
   preferredTrainingDays: [],
   injuryTagIds: [],
@@ -140,6 +148,8 @@ type UserPreferencesContextValue = {
   completeOnboarding: () => void;
   trainingFrequency: TrainingFrequencyOption;
   setTrainingFrequency: (n: TrainingFrequencyOption) => void;
+  sessionMinutes: SessionMinutesOption;
+  setSessionMinutes: (m: SessionMinutesOption) => void;
   trainingDaysFlexible: boolean;
   setTrainingDaysFlexible: (flexible: boolean) => void;
   preferredTrainingDays: DayOfWeekPreference[];
@@ -202,6 +212,11 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
     TRAINING_FREQUENCY_OPTIONS.includes(p.trainingFrequency as TrainingFrequencyOption)
       ? (p.trainingFrequency as TrainingFrequencyOption)
       : DEFAULTS.trainingFrequency;
+  const sessionMinutes = SESSION_MINUTES_OPTIONS.includes(
+    p.sessionMinutes as SessionMinutesOption,
+  )
+    ? (p.sessionMinutes as SessionMinutesOption)
+    : DEFAULTS.sessionMinutes;
   const trainingDaysFlexible =
     typeof p.trainingDaysFlexible === 'boolean'
       ? p.trainingDaysFlexible
@@ -227,6 +242,7 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
     profileAvatarId,
     hasCompletedOnboarding,
     trainingFrequency,
+    sessionMinutes,
     trainingDaysFlexible,
     preferredTrainingDays,
     injuryTagIds,
@@ -389,6 +405,17 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     [persist],
   );
 
+  const setSessionMinutes = useCallback(
+    (sessionMinutes: SessionMinutesOption) => {
+      setState((s) => {
+        const next = { ...s, sessionMinutes };
+        persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
+
   const setTrainingDaysFlexible = useCallback(
     (trainingDaysFlexible: boolean) => {
       setState((s) => {
@@ -454,6 +481,8 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       trainingFrequency: state.trainingFrequency,
       setTrainingFrequency,
+      sessionMinutes: state.sessionMinutes,
+      setSessionMinutes,
       trainingDaysFlexible: state.trainingDaysFlexible,
       setTrainingDaysFlexible,
       preferredTrainingDays: state.preferredTrainingDays,
@@ -474,6 +503,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       state.profileAvatarId,
       state.hasCompletedOnboarding,
       state.trainingFrequency,
+      state.sessionMinutes,
       state.trainingDaysFlexible,
       state.preferredTrainingDays,
       state.injuryTagIds,
@@ -487,6 +517,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setProfileAvatarId,
       completeOnboarding,
       setTrainingFrequency,
+      setSessionMinutes,
       setTrainingDaysFlexible,
       setPreferredTrainingDays,
       setInjuryTagIds,

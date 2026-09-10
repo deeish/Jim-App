@@ -115,6 +115,13 @@ export interface CreatePlanBody {
   equipment?: string[];
   /** Limitations to respect (e.g. bad knee, no barbell). */
   limitations?: string[];
+  /**
+   * Ask the server to swap out exercises that load `limitations` before the
+   * plan is saved. Set by a coach-built template apply, whose rows nobody
+   * has checked against the work-arounds. A preview apply leaves it unset:
+   * the generator already filtered, and the user approved what they saw.
+   */
+  applyWorkarounds?: boolean;
   /** Program template id (e.g. ppl, upper-lower-4). */
   programTemplateId?: string;
 }
@@ -306,6 +313,35 @@ export async function generateSingleSession(
 /** Append one slot to the signed-in user's current plan (same plan as GET /plans/me). */
 export async function addPlanSlotToCurrent(slot: PlanSlot): Promise<ApiPlan> {
   const response = await api.post<ApiPlan>('/plans/me/slots/add', slot);
+  return response.data;
+}
+
+export interface ApplyWorkaroundsBody {
+  /** Work-arounds in the plan vocabulary ("knees", "lower back", …). */
+  limitations: string[];
+  /** The user's equipment (catalog display names), so alternatives are doable. */
+  equipment?: string[];
+  goal?: string;
+  experience?: string;
+  /** First program week to touch (1-based); earlier weeks stay as done. */
+  fromWeekNumber?: number;
+}
+
+export interface ApplyWorkaroundsResult {
+  swapped: number;
+  dropped: number;
+  slotsTouched: number;
+}
+
+/**
+ * Swap the exercises in the signed-in user's CURRENT plan that load the given
+ * joints, from a program week on. Only called after the user says yes to
+ * "swap in my current plan too" — every other path leaves a saved plan alone.
+ */
+export async function applyWorkaroundsToCurrentPlan(
+  body: ApplyWorkaroundsBody,
+): Promise<ApplyWorkaroundsResult> {
+  const response = await api.post<ApplyWorkaroundsResult>('/plans/me/workarounds', body);
   return response.data;
 }
 

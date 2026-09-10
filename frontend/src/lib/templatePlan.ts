@@ -96,30 +96,51 @@ export function toggleTemplateWeekday(
 }
 
 /**
- * Suggested start date for an anchored program. Week 1 anchors to the Monday
- * of the start date, so "start today" is only clean when none of the selected
- * training days in the CURRENT week have already passed — otherwise week 1
- * would open with sessions sitting in the past. When today is clean, suggest
- * today (nobody should wait until Monday to start training); when it isn't,
- * next Monday keeps week 1 whole. Callers can always override via the picker.
+ * Suggested start date for an anchored program: today, always.
+ *
+ * This used to push a mid-week sign-up to "next Monday" whenever a chosen
+ * training day had already passed this week, to keep week 1 whole — which
+ * meant a Tuesday sign-up could be told to wait six days for a first session.
+ * `materializeTemplatePlan` now schedules nothing before the start date and
+ * keeps the session rotation continuous across the partial first week, so
+ * starting today is always clean: the first session lands on the next chosen
+ * day (see `firstSessionDateISO`). The picker can still override.
  */
 export function suggestedTemplateStartDateISO(
   today: Date = new Date(),
-  weekdays?: readonly Weekday[],
+  _weekdays?: readonly Weekday[],
 ): string {
   const d = new Date(today);
   d.setHours(0, 0, 0, 0);
-  const jsDay = d.getDay(); // 0 = Sunday
-  if (weekdays && weekdays.length > 0) {
-    const mondayFirstIndex = (jsDay + 6) % 7; // Monday = 0 … Sunday = 6
-    const earliestSelected = Math.min(
-      ...weekdays.map((w) => WEEKDAY_ORDER.indexOf(w)),
-    );
-    if (mondayFirstIndex <= earliestSelected) return formatLocalYmd(d);
-  }
-  const daysUntilMonday = jsDay === 1 ? 0 : ((8 - jsDay) % 7 || 7);
-  d.setDate(d.getDate() + daysUntilMonday);
   return formatLocalYmd(d);
+}
+
+/** Monday-first index (0–6) of a local YYYY-MM-DD. */
+function mondayFirstIndexOf(iso: string): number {
+  const d = parseLocalYmd(iso);
+  return (d.getDay() + 6) % 7;
+}
+
+/**
+ * The local date of the FIRST session: the first chosen weekday on or after
+ * the start date. What the payoff card and the apply sheet print ("First
+ * session · Thursday") instead of the start date, which may be a rest day.
+ * Null with no weekdays.
+ */
+export function firstSessionDateISO(
+  startDateISO: string,
+  weekdays: readonly Weekday[],
+): string | null {
+  if (weekdays.length === 0) return null;
+  const chosen = new Set(weekdays.map((w) => WEEKDAY_ORDER.indexOf(w)));
+  const start = parseLocalYmd(startDateISO);
+  start.setHours(0, 0, 0, 0);
+  for (let offset = 0; offset < 7; offset++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + offset);
+    if (chosen.has((d.getDay() + 6) % 7)) return formatLocalYmd(d);
+  }
+  return null;
 }
 
 /**
@@ -163,8 +184,15 @@ function templateRowNote(
 export interface MaterializeTemplateOptions {
   /** Training days, one per template session, Monday-first order. */
   weekdays: Weekday[];
-  /** Local YYYY-MM-DD the user wants to start; anchors week 1 to its Monday. */
+  /** Local YYYY-MM-DD the user wants to start; anchors week 1 to its Monday.
+   *  Chosen weekdays BEFORE this date in week 1 get no session. */
   startDateISO: string;
+  /** The user's work-arounds ("knees", "lower back", …). The server swaps
+   *  flagged exercises for fitting alternatives before saving. */
+  limitations?: string[];
+  /** The user's equipment (catalog display names, e.g. "Dumbbell"), so the
+   *  alternatives the server swaps in are ones they can do. */
+  equipment?: string[];
 }
 
 /**
@@ -175,9 +203,15 @@ export interface MaterializeTemplateOptions {
  * Scheduling is SESSION ROTATION: sessions cycle in authored order across
  * every training day of the block, so any day count inside the supported
  * range keeps the split's order intact (a 6-session PPL at 4 days/week rolls
- * Push→Pull→Legs across week boundaries). At the authored count the rotation
- * is exactly the classic one-session-per-weekday layout. Prescriptions stay
- * calendar-anchored: whatever session lands in week 8 gets week 8's deload.
+ * Push→Pull→Legs across week boundaries). At the authored count, from a
+ * Monday start, the rotation is exactly the classic one-session-per-weekday
+ * layout. Prescriptions stay calendar-anchored: whatever session lands in
+ * week 8 gets week 8's deload.
+ *
+ * Week 1 is PARTIAL when the start date is not a Monday: chosen weekdays
+ * before the start date get no session (a session dated before the day the
+ * user joined would open the plan as "missed"), and the rotation simply
+ * begins on the first scheduled day, so nothing in the split is skipped.
  */
 export function materializeTemplatePlan(
   template: PlanTemplateDetail,
@@ -194,14 +228,26 @@ export function materializeTemplatePlan(
     throw new Error('Training days must be unique');
   }
 
+  // Week 1 is the start date's week — unless every chosen day in it has
+  // already passed (a Sunday sign-up on a Mon/Thu program), in which case
+  // week 1 is the following week and the first session is its first chosen
+  // day. Either way the first session is the next chosen day from the start.
+  let anchorMonday = getWeekStartMonday(parseLocalYmd(options.startDateISO));
+  let startIndex = mondayFirstIndexOf(options.startDateISO);
+  if (!weekdays.some((d) => WEEKDAY_ORDER.indexOf(d) >= startIndex)) {
+    anchorMonday = new Date(anchorMonday);
+    anchorMonday.setDate(anchorMonday.getDate() + 7);
+    startIndex = 0;
+  }
+  let sessionCursor = 0;
   const slots: PlanSlot[] = [];
   for (let w = 0; w < template.weeksCount; w++) {
     const meta = template.weekMeta[w];
-    weekdays.forEach((weekday, dayIndex) => {
+    weekdays.forEach((weekday) => {
+      if (w === 0 && WEEKDAY_ORDER.indexOf(weekday) < startIndex) return;
       const session =
-        template.sessions[
-          (w * weekdays.length + dayIndex) % template.sessions.length
-        ];
+        template.sessions[sessionCursor % template.sessions.length];
+      sessionCursor += 1;
       const exercises: PlanSlotExercise[] = session.exercises.map((ex, i) => {
         const week = ex.weekly[w];
         const isTime = ex.prescriptionType === 'time';
@@ -234,12 +280,17 @@ export function materializeTemplatePlan(
 
   return {
     name: template.name,
-    weekAnchorMonday: formatLocalYmd(
-      getWeekStartMonday(parseLocalYmd(options.startDateISO)),
-    ),
+    weekAnchorMonday: formatLocalYmd(anchorMonday),
     slots,
     goal: template.goal,
     experience: template.experienceLevel,
     programTemplateId: template.programTemplateId,
+    // Nobody has checked a template's rows against the work-arounds, so the
+    // server is asked to; it needs the equipment to pick alternatives that
+    // the person can actually do.
+    ...(options.limitations?.length
+      ? { limitations: [...options.limitations], applyWorkarounds: true }
+      : {}),
+    ...(options.equipment?.length ? { equipment: [...options.equipment] } : {}),
   };
 }
