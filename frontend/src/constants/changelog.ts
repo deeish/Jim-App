@@ -113,6 +113,24 @@ export const CHANGELOG: ChangelogEntry[] = [
         icon: 'swap-horizontal',
         text: 'The calendar now slides under your finger. The arrows next to the date do the same thing.',
       },
+      {
+        type: 'improved',
+        headline: 'Calendar edits that stick',
+        icon: 'cloud-done',
+        text: 'Exercises you add, swap or remove on a day, and Quick Workouts, are kept on your phone right away and saved to your plan as soon as the app can reach the server.',
+      },
+      {
+        type: 'improved',
+        headline: 'Coach-built programs',
+        icon: 'shield-checkmark',
+        text: 'Starting a program now uses the days from your profile instead of the program’s defaults, begins on your next training day, and swaps out exercises that load any joint you marked to work around.',
+      },
+      {
+        type: 'new',
+        headline: 'Work-arounds in Profile',
+        icon: 'medkit',
+        text: 'Mark the joints you are working around under Training in your profile. New plans skip exercises that load them, and you can choose to swap them out of your current plan too.',
+      },
     ],
   },
   // The ONE card for this OTA: everything since build 26 (the finish

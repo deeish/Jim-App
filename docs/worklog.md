@@ -15,6 +15,268 @@ session can summarise the work without re-deriving it.
 
 ---
 
+## 2026-09-09 (night) — Work-arounds in Profile, schedule write-back on the plan pages (uncommitted)
+
+Dylan's call after the onboarding batch: the schedule does NOT get a Profile editor
+("people's plans change and it would probably be best to make these changes when they
+make a plan"); the work-around does, and it may apply to the current plan. Agreed with
+two conditions, both built here: the plan-making pages must remember the schedule they
+were given (before this, the AI form was seeded from onboarding once and never wrote
+anything back), and touching the plan in progress is an explicit yes, not a silent
+rewrite. Verified on the web rig (throwaway Postgres, local backend, Expo web) and by
+unit tests. Frontend 46 suites / 688 tests, backend 869, `tsc` clean on both.
+
+| # | Task | Status | Where | What and why |
+|---|------|--------|-------|--------------|
+| 1 | "Working around" row in Profile → Training | `DONE` | `ProfileScreen.tsx` | Fourth row under Goal / Experience / Equipment, value "Knees / lower leg, Shoulders" or "Nothing". Sheet mirrors the equipment sheet: the seven joints as switches, Cancel / Clear / Save, "Not medical advice". Saving always feeds every NEW plan (the AI form and template applies read the tags). Verified live: row, sheet, toggle, Clear appears, Save persists `injuryTagIds`, row reads "Shoulders". |
+| 2 | "Swap exercises in your current plan too?" | `DONE` | `ProfileScreen.tsx`, backend `POST /plans/me/workarounds` (`ApplyWorkaroundsDto`, `PlansService.applyWorkaroundsToCurrentPlan`), `planService.applyWorkaroundsToCurrentPlan` | Only an ADDED joint prompts (removing one cannot put a swapped exercise back), and only when a plan exists. "Just new plans" / "Swap". Swap runs the same substitution as a template apply over the stored plan from the CURRENT program week on (client computes it from the plan anchor; earlier weeks are history), rewriting plan rows AND the mirrored Workout rows a live session opens, one transaction per slot; the general plan PATCH (delete + recreate everything) is not used. Result alert names the count. Verified: curl with "shoulders" from week 2 on the rig plan → `swapped=7 dropped=7 slots=14`; week 1 untouched, weeks 2–8 lost the overhead press and swapped the bench, mirrors match; the calendar's week-2 Friday lost its Shoulders chip. Four service spec tests (no plan → 404, untouched slots write nothing, week filter + mirror ops, no mirror). |
+| 3 | Plan pages remember the schedule | `DONE` | `lib/scheduleWriteBack.ts` (new, 6 tests), `GeneratePlanScreen.tsx` `handleGenerate`, `TemplateDetailScreen.tsx` `handleApply` | On Generate: days → `trainingFrequency` (only counts the picker can show, 2–6), picked days → `preferredTrainingDays` unless they equal the form's own default pattern for that count (then "flexible", so the next PROGRAM keeps its own defaults), session window → `sessionMinutes` (top of the window, 90 → 75+). On program apply: the same for days against the program's defaults. Verified live on the form: Mon–Fri + Sun at 60 min → prefs `6 · false · [Mon…Fri, Sun] · 60`. |
+| 4 | The form's body-area chips match the seven joints | `DONE` | `GeneratePlanScreen.tsx` | Was three (knees, shoulders, lower back); a hips or neck tag seeded from Profile was applied with no chip to see or clear. Now all seven with the same labels; `planInputs.ts` already accepted them. Verified live: seven chips, Shoulders pre-selected from Profile, review row "Avoiding · shoulders". |
+| — | What's New | `DONE` | `constants/changelog.ts` | One row on the unshipped card: "Work-arounds in Profile". |
+
+### Deliberately NOT done
+
+| Thing | Why |
+|-------|-----|
+| A schedule editor in Profile | Dylan's call: the schedule changes when a plan is made. |
+| Applying a REMOVED joint to the current plan | Nothing to do: a swapped exercise cannot be put back safely (the original may not exist in the rewritten slot). New plans just stop filtering it. |
+| Live check of the program-apply write-back and the confirm dialog | Same helper as the form path, unit-tested; the dialog is `Alert.alert` with buttons, which react-native-web does not render. Both need the phone. |
+| A "Swapped" toast instead of an alert | Kept the app's existing Alert pattern; a toast is a design call. |
+| Commit | Not asked. |
+
+---
+
+## 2026-09-09 (latest) — Onboarding fixes, built in the review's order (uncommitted)
+
+Dylan: "lets start implementing these fixes then, in the order you suggested (don't
+worry about the first issue regarding the AI though because I will be changing the
+model soon and begin testing this)". The order is §7 of
+[`onboarding-review-2026-09.md`](./onboarding-review-2026-09.md). Everything below is in
+the working tree, **not committed**. Verified by type-check on both sides and the full
+unit suites (frontend 45 suites / 679 tests, backend 62 / 863, five of them new).
+**Not run on a device or in the browser** — the screens need a pass.
+
+| # | Task | Status | Where | What and why |
+|---|------|--------|-------|--------------|
+| 1 | Groq model swap + honest "AI" copy | `NEEDS-DYLAN` | `workout-generator.service.ts` | Dylan is changing the model and testing it. Untouched. |
+| 2 | Injury tags honoured when a coach-built program is applied | `DONE` | backend `plans/plan-avoid-substitution.ts` (new), `plans.service.ts` `create()`, `ExercisesService.avoidPredicate`; frontend `templatePlan.ts` `limitations` | Before: tags reached the generate path only; the template path (the main exit) ignored them. Now `POST /plans` runs every slot through the same joint-demand + text checker the generator uses and swaps a flagged exercise for `pickReplacement`'s pick, keeping the sets/reps and noting "Swapped in for X (your work-arounds)". No replacement → dropped; a slot is never emptied. Both the onboarding one-tap and TemplateDetail send `storedInjuryTagsToAvoidList(tags)`. ⚠ Deploy the backend before the OTA; until then the field is accepted and ignored, nothing breaks. Five spec tests. |
+| 3 | "Other notes" removed from onboarding | `DONE` | `OnboardingScreen.tsx` | The textarea only ever reached the Groq prompt, so it did nothing for anyone today. Tags stay; the subtitle now says what happens ("We'll swap exercises that load these joints. Not medical advice."). Profile never had a notes field, so nothing else references it. |
+| 4 | TemplateDetail seeded from the answers; the real first day named | `DONE` | `TemplateDetailScreen.tsx`, `templatePlan.ts` | Days come from Profile's `trainingFrequency` clamped to the program's range, weekdays from the preferred days when not flexible, else the program's defaults for that count. The apply sheet says "First session Thu, Sep 11" (`firstSessionDateISO`) instead of "Week 1 starts the week of…", plus a line naming the joints that will be swapped. `suggestedTemplateStartDateISO` always returns today; `materializeTemplatePlan` writes a partial first week (chosen days from today on, session rotation continuous across the boundary) and only moves the anchor to next Monday when no chosen day is left this week. The calendar store refreshes after apply. Tests for the partial week and the Sunday roll. |
+| 5 | Skip on optional steps, weight out, unit inferred | `DONE` | `OnboardingScreen.tsx`, `deviceUnits.ts` (new), `UserPreferencesContext.tsx` | Six steps, was seven: the weight step is gone (the tracker asks on first open). The footer button reads "Skip" in a secondary style on the work-arounds step while nothing is picked. The name field on the review step stays optional. Losing the weight step lost the only place lb/kg was chosen, so the default unit now comes from the device region (US, Liberia, Myanmar → lb; unknown → lb; else kg). |
+| 6 | Session length on the schedule step; 2 days/week | `DONE` | `trainingSchedule.ts`, `UserPreferencesContext.tsx`, `templateRecommendation.ts`, `GeneratePlanScreen.tsx` | Schedule step = days (2–6) · minutes (30/45/60/75+) · Flexible/Pick days · a computed line "3 coach-built programs fit 4 days × 45 min" (or "none fit exactly, AI can build one"). `sessionMinutes` is a new persisted preference (default 45); it seeds the AI form's duration and scores recommendations (3 points per 15 min outside a program's range, never enough to outrank the goal family or the day range). |
+| 7 | Payoff shows the first session, one-tap start, honest matching moment | `DONE` | `OnboardingScreen.tsx`, `onboardingPayoff.ts` (new) | Finish persists the answers and marks onboarding complete first, then shows "Matching you to a program" with the work that was done as lines (checked N programs · M fit 4 days × 45 min · picked X), at least 1.8 s, waiting for the catalog and the program detail, tap to skip, an empty catalog goes straight through. The card then shows the program, "First session · Today / Tomorrow / Thu, Sep 11", the first session's exercises with their week-1 sets × reps, and **Start this program**, which applies it with today as day 1 and lands on the plan list. "View the full program", "Build a custom plan with AI" and "I'll explore the app first" remain. If the program detail fails to load the button falls back to "View program". |
+| 8 | Endurance labelled honestly | `DONE` | `templateRecommendation.ts` `recommendationMatch` | Eyebrow reads "Recommended for you" only when the program is in the goal's family; otherwise "Closest program to your goal". Endurance is always "closest" (no program is written for it). Kept in the goal list rather than dropped: the AI path does build for it. |
+| 9 | Factual "something back" lines; truthful "Not sure" | `DONE` | `onboardingPayoff.ts` | Goal and experience lines state the rep ranges the set/rep schemes and templates actually use. A "Not sure" experience card maps to Beginner and says so ("We'll start you easy. You can change this in Profile."); the review row reads "Beginner · starting easy". No equipment line: the catalog cards carry no equipment, so nothing true could be computed. |
+| 10 | Goal picker is single-select with an explicit second-focus mode | `DONE` | `OnboardingScreen.tsx` | Tapping a second card used to add a second goal silently. Now it changes your goal; "Add a second focus" enters a mode (with Cancel) where the next tap adds it; pills read "Main goal" / "2nd focus"; Remove clears it. |
+| 11 | Pre-auth welcome | `OPEN` | — | Launch item per the review, not now. |
+| — | What's New | `DONE` | `constants/changelog.ts` | One row on the unshipped card, for existing testers: programs start on your days from Profile and swap out exercises for your work-arounds. The onboarding changes themselves are not a row (existing testers never see onboarding again). |
+
+### Verification round (same day, Dylan: "double check all the work done and confirm it is all working properly")
+
+Two passes. **A fresh-eyes review agent** read the whole diff and returned seven findings;
+five were real and are fixed below, two were copy. **A live run** on the web rig
+(throwaway Postgres on 55432, local backend on 3005, Expo web on 8090, session
+bypass per `feedback_local_session_bypass_technique`): drove all six steps, the
+matching moment, the payoff card, **Start this program**, then the Templates →
+program → apply path, and read the plan back from the database each time.
+
+| # | Finding | Status | What and why |
+|---|---------|--------|--------------|
+| R1 | Preview-apply rewrote plans the user had just approved, with a stricter checker than generation used, and without their equipment | `DONE` | `PlanPreviewScreen` sends `limitations` on every apply, so `create()` was re-filtering rows the generator had already filtered (text match) with the joint-demand checker — "Shoulders" would swap the bench press out of a plan the user just previewed. Now `CreatePlanDto.applyWorkarounds` gates the pass; only `materializeTemplatePlan` sets it (when limitations exist). The substitution also receives `equipment` (catalog display names, the same format `POST /exercises/replace` takes), so a dumbbell-only user cannot get a machine swapped in. |
+| R2 | The same slot swapped to a DIFFERENT exercise each week | `DONE` (found in the DB read-back) | Back Squat → trap-bar deadlift in week 1, cable pull-through in week 2, while the week-2 note said "one more set than last week". The picker varies its answer call to call. `substituteAvoidedExercises` now keeps one alternative per avoided exercise for the whole plan (falls back to the picker only when that day already has it). Re-applied Beginner · Full Body with "knees": Back Squat → glute bridge in all 8 weeks, Goblet Squat → 45° back extension in all 7, lunge → dumbbell RDL in all 8. Two spec tests. |
+| R3 | A failed catalog fetch printed "No coach-built program fits … AI can build one" | `DONE` | `templates` stays null on failure (`catalogFailed`), so the schedule line stays silent, the matching moment ends immediately, and the payoff shows the browse card. |
+| R4 | "N fit" and "Picked X" could name different programs; the "none fit" line was unreachable; the days count was clamped silently | `DONE` | The recommender ranks goal above schedule, so Strength at 6 days picks the 5-day Upper/Lower while "1 fit" meant the PPL. Third line now says "None fit exactly — showing the closest" unless the pick is one of the fits; `recommendationMatch` returns "closest" when the days or minutes fall outside the program; the card reads "5 days/week (the most it supports)". Verified live: Strength · 6 days · Home → eyebrow "Closest program to your goal", meta "5 days/week (the most it supports)". |
+| R5 | "You can change anything later in Profile" was false for four of six answers | `DONE` (copy) | Profile edits goal, experience and equipment only. Review subtitle now says exactly that. ⚠ Days, preferred days, session length and work-arounds have NO editor anywhere: a "Knees" tag set in onboarding filters every plan until Dylan adds a Profile row for it (see NOT done). |
+| R6 | Payoff card listed the template's rows verbatim while the server was about to swap some | `DONE` | Same hint line as the program screen under the list when work-arounds exist. |
+| R7 | "Matched to your answers" while the recommender ignores equipment | `DONE` (copy) | Subtitle reads "Matched to your goal and schedule." Template cards carry no equipment field, so an equipment-aware scorer needs data first (NOT done). |
+| R8 | A flagged row with no alternative vanished silently | `DONE` | The slot's `detailLine` (Home's subtitle) gains "N exercises removed for your work-arounds". |
+| — | Live run, one-tap Start | `DONE` | `POST /plans` 201 with `applyWorkarounds`; landed on the plan list at "Week 1 of 8 · Strength · Upper/Lower"; Wednesday (today) = Upper A, Thursday = Lower A, Friday = Upper B, next Monday = Lower B — the partial first week and continuous rotation, straight from the database (week 1 has 3 slots, weeks 2–8 have 4). Backend log: `work-arounds ["knees"] swapped=30 dropped=0`. Home the next load: "Good evening, Rig! · Wednesday, September 9 · Week 1 of 8", today's card Upper A. |
+| — | Live run, program screen | `DONE` | Beginner · Full Body with the saved answers (4 days, Mon/Wed/Thu/Fri, knees): sheet opened at "3" (the program's max), Mon/Wed/Fri (the 4 saved days do not fit 3), "First session Wed, Sep 9", and the "Exercises that load your knees / lower leg will be swapped" line. Applied: week 1 = Wed + Fri, weeks 2–8 = 3 slots. |
+| — | Suites after the fixes | `DONE` | Frontend 45 suites / 682 tests, backend 62 / 865, `tsc` clean on both. |
+
+Rig notes for next time: the Chrome tab counted as hidden for the whole run, so Reanimated's
+frame loop paused and every `Rise`/`withTiming` entrance froze at opacity 0 — the DOM and
+network were fine (verified by page text and a forced-opacity screenshot), only the
+screenshots were blank. Not an app bug; bring the window to the front or verify by page
+text. The window-activation script was blocked by the permission classifier.
+
+### Deliberately NOT done
+
+| Thing | Why |
+|-------|-----|
+| The Groq model swap and the AI copy (item 1) | Dylan's, in progress. |
+| Profile rows for days per week, preferred days, session length and work-arounds | None of the four has an editor anywhere in the app (the review agent checked). Work-arounds matter most: a tag set in onboarding cannot be cleared. Dylan's call on placement; the setters already exist in `UserPreferencesContext`. |
+| An equipment-aware recommender | Template cards carry no equipment field; a Home-preset user is still recommended a barbell program by goal. Needs data on the templates first. |
+| Session titles after a swap | "Lower A · Squat" keeps its name when the squat is swapped out. Titles are authored strings; renaming them safely is a small follow-up. |
+| The swap picker's taste | Back Squat → glute bridge for a full-gym user is the catalog picker's choice (`pickReplacement`), not this batch's. |
+| An equipment "something back" line | Not computable from the catalog cards. |
+| Auto-generate on the AI exit | Product call still open (default > 1 week). |
+| Motivation question, HDYHAU, notification prime | The review put them after the payoff, later. |
+| Dropping Endurance from the goal list | The AI path builds for it; the card just stops calling a hybrid program a match. |
+| On-device / browser run | No e2e covers onboarding; the auth-bypass rig was not used. Unit + type only. |
+| Commit | Not asked. |
+
+---
+
+## 2026-09-09 (later) — Onboarding research: what to add, how to end, where to skip
+
+Dylan wants to rework onboarding next and asked four things: why other gym apps ask so
+much more and what to add; whether generating a plan at the end is right or the user
+should explore first; where "Skip" belongs; and whether `github.com/emilkowalski/skills`
+is "Apple's design and flow" as a friend said. **Research and recommendations only —
+nothing built.** Full write-up: [`onboarding-review-2026-09.md`](./onboarding-review-2026-09.md)
+(registered in INDEX.md).
+
+| # | Task | Status | What and why |
+|---|------|--------|--------------|
+| 1 | Verify the flow against the code | `DONE` | Nine screens, seven questions, four required. **Correction to the June doc and to this morning's block:** onboarding no longer auto-generates; it ends on a payoff screen (recommended 8-week template / AI form / explore). `weeks: 1` only affects the AI-form exit. Found one real friction: `TemplateDetailScreen` seeds days and weekdays from the template's defaults, so the fastest exit re-asks step 3. |
+| 2 | Why others ask more | `DONE` | Three forces, none about the plan: the investment effect before a paywall (Lose It!, Me+, Noom's 113 screens), personalisation uplift, and post-ATT attribution / permission priming. Counter-evidence: top-decile apps cluster at 3–5 questions / 90–180 s; skippable flows complete ~25% more. Recommendation: add session length (the one input that changes the plan), consider a motivation question, give one line back per step; do not add body stats, Health, or a quiz funnel. |
+| 3 | Generate vs explore | `DONE` | Apple HIG: postpone nonessential setup, get to the action. Activation data: a finished first workout on day one is the best predictor of day-30 retention. Fitbod builds ONE workout instantly; Duolingo delays sign-up. Jim's payoff screen is already the right shape. Fix around it: one-tap "Start this program" with today as day 1, show the first session on the card, and make the AI exit generate from the answers (auto-generate for that exit only, default > 1 week — product call) instead of landing on the form. |
+| 4 | Skip | `DONE` | Required only where the plan is wrong without it (goal, experience, frequency, equipment). Explicit "Skip" on work-arounds and name; move weight out to the tracker's first open. Anything added later (HDYHAU, notifications) goes after the payoff. |
+| 6 | Visual of the proposed flow | `DONE` | Design canvas "Jim Onboarding" — https://claude.ai/code/artifact/c4ee541d-6c81-48a2-b532-7cf94d1b7615 — twelve artboards drawn with the app's own tokens (light palette, the onboarding screen's cards, chips, segments and footer): welcome, six question screens, the payoff with the first session on the card, the AI "building" screen, a Motivation test candidate, "Later, in context", and a rationale board (want / need / evidence per screen). Static mockups, not a clickable prototype. Working files in the session scratchpad (`onboarding-canvas/build.mjs`), regenerable. Checked in Chrome before saving: every frame renders; the editor lazily mounts about ten previews at a time, so an unfocused frame can show a hatch until clicked. |
+| 7 | The in-depth asks (height, weight, sex, maxes, "your gym", Apple Health, projections, …) | `DONE` (doc §6) | Each judged by three tests: does Jim consume it, would the person see the difference, what does it cost. What depth buys the big apps is calorie maths, a paywall that sunk cost pays for, and a starting-load model trained on other people's workouts — none of which Jim has. Two are worth building as FEATURES with their own moment: a strength level on the Athlete card (bodyweight + sex, asked when the first lift exists; Liftoff's rank model is the evidence) and workouts written to Apple Health (primed after the first finished session; Move ring; needs a HealthKit module and a dev build, iOS only). Finding: the catalog already stores ~40 machine-level equipment ids but `EQUIPMENT_MAP` folds them into one "Machine" label and gates by label — so "machines at my gym" is a gate + a checklist, not a data project. Height, projections, body fat: no. Preferred exercises: feed the hearts in, no question. |
+| 8 | The harsh walkthrough (doc §7) | `DONE` | Twelve findings, three of them the app promising what it does not do: (1) `GROQ_MODEL` still names the model Groq retired on 2026-08-16, so "Build a custom plan with AI" is the rule-based builder and the user is never told (fallback goes to logs/Sentry only); (2) injury TAGS are honoured on the generated/rule-based path but the recommended-template path never reads them; (3) "Other notes" is prompt-only, so it does nothing for anyone today and never touched templates — drop it from onboarding. Also: removing the weight step removes the only place the lb/kg unit is set (infer from region); "Start today" can be false (template start logic can push to next Monday); Endurance/General fitness map to the "balanced" bucket; 2 days/week missing though 4 of 5 templates support it; the two-goal picker is a hidden mode. Loading moment: the AI exit's "Building your first week" is real work; for the template exit add a 1.5–2.5 s honest matching moment (Buell & Norton 2011, labor illusion), tap to skip, never a fake spinner. |
+| 5 | The GitHub repo | `DONE` (doc §4) | Delegated to a background agent after a first look. It is Emil Kowalski's twelve AI-agent skills (ten web animation, one Swift, one toast-library docs), MIT; not Apple's app flows. Worth installing: `animate-expo` and `review-animations` (copied, not symlinked). It flagged three real things in `OnboardingScreen.tsx`: `ZoomIn` from scale 0 on the review checkmark, no `useReducedMotion`, and the same `FadeInDown` whether going forward or back. |
+
+### Deliberately NOT done
+
+| Thing | Why |
+|-------|-----|
+| Any onboarding code | Dylan asked for research and opinions first, and has their own list of fixes to add. |
+| Fetching Fitbod's help centre and the Hevy teardown | Both 403 to the fetcher; the Fitbod facts come from App Fuel, Yahoo and TechRadar instead. Hevy has no usable 2025 teardown; not needed for the conclusions. |
+| A verbatim copy of the current HIG onboarding page | The page is script-rendered; quotes come from a maintained mirror of the same text and from the older "First Launch Experience" page. |
+
+---
+
+## 2026-09-09 — "My workouts disappear" (tester report) — found, simulated, FIXED (uncommitted)
+
+A tester reports workouts added by hand, by the plan, or otherwise stop sticking and
+vanish after a while, sometimes within hours. Traced every write path for a workout
+(Calendar day edits, Quick Workout, Exercises-tab add, plan apply, templates, shares)
+from the screen to the database. Nothing on the server deletes a user's workouts on its
+own: the only deletes are account deletion, the client's own remove-slot call, and a
+share double-accept heal. The losses are all on the **client**, in
+`frontend/src/lib/planCalendarPrototypeStore.ts`. Three sessions in one day: the
+investigation, the simulation suite, then the fix. All frontend, so OTA-shippable.
+
+| # | Finding | Status | Where | What and why |
+|---|---------|--------|-------|--------------|
+| 1 | **Day edits live in memory and are never persisted to the device** | `DONE` | store: `additions` / `replacements` / `removals` / `customDays` | These four maps are what "+ Add Exercise", Replace, Remove and an out-of-plan Quick Workout write to. The AsyncStorage snapshot (`jim_calendar_session_v1`) saved set logs, skips and moves, but **not these**. So whenever the server write did not happen (rows below), the workout was visible in the UI, then gone the moment iOS evicted the app from memory. That is the "after a couple of hours" shape exactly. **Fix:** all four maps, plus the set of dates still owed to the server, go into the same snapshot. |
+| 2 | Server write silently skipped: **no plan** ('empty' mode) | `DONE` | `queuePersistDayEdits` returned when `!livePlan`; `addQuickSessionToday` out-of-plan branch | A user with no active plan can still tap "+ Add Exercise" (the row is unconditional) and "Quick Workout" (Day view and Home). Everything stayed session-local. Worse, `syncDayCompletion` returned early with no plan, so a finished quick workout **never posted a workout log** either. **Fix:** `persistDayEdits` creates a plan on demand (`POST /plans`, one slot, anchored so the edited date is inside it), the same thing the Exercises tab already did on `NO_CURRENT_PLAN`; the completion sync no longer needs a plan (the ad-hoc-workout path was already there behind the gate). |
+| 3 | Server write silently skipped: **multi-slot day** | `DONE` | `persistDayEdits`: `if (slots.length > 1) return;` | A day gets two slots from Quick Workout "add" landing, or from the old Exercises-tab add-to-plan. The calendar merges both into one list, but every later edit on that day was session-only forever, with no message. **Fix:** the day is rebuilt as ONE slot (add the new, remove every old), titled "A + B", typed strength unless every source is cardio. |
+| 4 | Server write silently skipped: **plan fetch in flight** | `DONE` | `queuePersistDayEdits` / `persistDayEdits` checked `liveStatus === 'ready'` | Week and Month refetch on focus (10s throttle) and set the store to 'loading'. An edit made while that fetch was out (slow or cold Render) was dropped from persistence, not queued. **Fix:** the date is marked owed first; `persistDayEdits` leaves it owed while the plan is unknown, and every successful fetch drains the owed set. |
+| 5 | Server write **failed** (network, 4xx) → dropped, no retry, no UI | `DONE` | `persistDayEdits` catch → `console.warn` only | The edit stayed on screen as if saved. The offline footer even said "changes stay on this device", which was false (see #1). **Fix:** stays owed and is retried on the next plan fetch (focus, pull to refresh, cold start, and now **foreground** — Home listens to AppState), and on every later edit; the Day view footer says "Kept on this phone — it syncs to your plan once the app can reach the server" (`isDayEditPending` / `isDayCompletionPending`). |
+| 6 | **Plan past its last week goes blank in the Calendar** | `DONE` (as a product call, not a bug) | store `programWeekForDate` / `programWeekInfoFor`; `planCalendar.ts`; Home | The Calendar matched the exact week only, while Home (since July) rolled a finished plan forward and said "repeating week 1" with a Start card for a day the Calendar called rest. Onboarding's plan defaults to **1 week**, so this was the "workouts from the plan disappeared" half of the report. First fix rolled the Calendar forward too. **Dylan's call, same day: no repeating anywhere.** An empty week is honest (travel, a break, a plan not generated yet). So: roll-forward REMOVED from `resolveProgramWeekForCalendarOffset` (new `after_program` status; `lastContiguousProgramWeek` deleted), Home gets a `plan_ended` card ("Your plan has ended · Generate a new plan · Open Calendar") instead of the repeat banner, and the Week screen shows a "Your plan has ended" banner with a Generate button over the empty week. **What does not depend on the window: saving.** `programWeekForDate` maps any date from the anchor on, so an edit, a Quick Workout or a move on a week past the plan's last EXTENDS the plan (a slot at that week number) instead of being kept on the phone; the move picker's 'beyond' state is gone. Only pre-anchor dates stay local. |
+| 7 | Edit on a stale base can **overwrite** server exercises | `DONE` | `persistDayEdits` rebuilt the slot from `livePlan` | Day view never refetches on focus. Exercises added through another surface (WorkoutDetail "add to workout" syncs plan_exercises server-side) were not in `livePlan`; the next calendar edit on that day rebuilt the slot without them. **Fix (button pass):** `persistDayEdits` fetches the plan FIRST; if the day's base rows changed since the last fetch, `rebaseDayOverlays` carries the edits across by exercise identity (remove Bench removes Bench wherever it now sits; a replacement follows its target; an exercise the other surface added is kept). Three tests. **Related race fixed earlier:** a plan fetch in flight while a slot write completed used to clobber the fresh day with the pre-write answer; `writeSeq` makes that fetch ask again. |
+| 8 | Pre-anchor day edit lands on the wrong date | `DONE` | `persistDayEdits` `Math.max(1, programWeek - offset)` | Adding to a day before the plan's anchor Monday clamped to week 1, so the slot was created on next week's same weekday and the local overlay for the tapped day was cleared. **Fix:** no slot is written for a date the plan cannot hold; the exercise is kept on the phone (persisted) and logging still mints its ad-hoc workout. |
+
+### The fix, in one paragraph
+
+`persistDayEdits` is now a retried queue instead of a best-effort call: an edit marks its
+date owed (on disk), the write runs when the plan is known, and the date is cleared only
+after the server confirms. A write that completes after a NEWER edit on the same day
+re-expresses the current day against the new base (drop all base rows, append the current
+list) and stays owed, so a mid-flight edit is never lost (tested). Quick Workout goes
+through the same path now instead of writing its slot inline, which is what makes it
+survive a failed write. Finished days whose log POST failed or ran offline are owed the
+same way (`pendingCompletions`) and retried after the next fetch; a reopened day with an
+owed log posts the whole day as one log rather than a delta that would drop the morning.
+The first plan a device ever sees no longer wipes the overlays (only a genuinely different
+plan id does), so edits made before the first successful fetch survive it.
+
+### Verification
+
+- `frontend/src/lib/planCalendarPrototypeStore.persistence.test.ts`: 25 scenarios, all
+  passing — the 12 former `it.failing` ones (findings 1–5, 8) flipped to plain `it`
+  (finding 5's rewritten for the no-repeat rule: empty week reported as 'after', Home
+  says `plan_ended`, and an exercise or Quick Workout added to that week still lands on
+  the server as week 3 of a now-3-week plan), plus the new ones: the whole "no signal at
+  the gym, no plan yet" story (session, sets and log all reach the server on reconnect),
+  an edit during an in-flight write, a refetch served before a write landed, the pending
+  indicator, and Quick Workout "add" / "replace" on a plan day. `planCalendar.test.ts`
+  and `homeToday.test.ts` updated for `after_program` / `plan_ended`. Frontend: 43 suites
+  green, `tsc --noEmit` clean.
+- **Not** run on a device or in the web rig. The store has no React in it and every new
+  import (`createPlan`, `lastContiguousProgramWeek`) is already used elsewhere in the app,
+  so the runtime risk is small, but the Day footer copy, the Week header, and the
+  foreground refetch on Home want one look on a phone.
+
+### The simulation suite (added later the same day)
+
+`frontend/src/lib/planCalendarPrototypeStore.persistence.test.ts` — 17 tests that drive the
+REAL store through a fake server and a fake AsyncStorage, then simulate what happens to a
+phone hours later: the app is evicted and reopened cold (`jest.resetModules` + re-require
+with the fake disk kept). Findings 1, 2, 3, 4, 5 and 8 each have a scenario written the
+way the tester experienced it ("I added Cable Fly, came back later, it was gone").
+
+- **12 scenarios are `it.failing`** — they fail on the user-facing assertion today (verified
+  by running them as plain `it`: every one fails on "Cable Fly not in the day after reopen",
+  "server never received the write", "no /workout-logs POST", "Bench Press is back",
+  "Calendar Monday empty", "exercise landed on next Wednesday"). Jest keeps the suite green
+  while the bug exists and **fails the test the day it starts passing** — the cue to flip
+  it to a plain `it`. Never delete one to make the suite green.
+- **5 controls are plain `it`** and pass on real behaviour (healthy-server add, rest-day add,
+  Home's roll-forward, the two-slot merge, and one that documents finding 8's wrong-date
+  landing and should be deleted when fixed). They prove the harness reflects what works,
+  so a failing scenario beside them is a defect and not a broken rig.
+- Frontend: 43 suites / 648 tests green, `tsc --noEmit` clean. The suite costs ~24s
+  (each reopen waits out the store's real 300ms snapshot debounce).
+- Finding 7 (stale-base overwrite of an exercise added through another surface) has no
+  test: it needs a decision on the fix shape (refetch on Day focus vs. server-side merge).
+
+### Verification, and its limits
+
+- Code-traced only. **Not reproduced on a device** and **not confirmed against production data**:
+  the read-only SQL probe (users with more than one active plan, duplicate-slot days,
+  0-based week numbers, orphaned workouts, slots created after their plan) was blocked by
+  the session's permission classifier. Script left at `backend/logs/probe-disappearing.js`
+  (gitignored); it is SELECT-only and reads `backend/.env`, which is prod.
+- No test covers `persistDayEdits`; `planCalendarPrototypeStore.test.ts` only tests
+  `plannedExerciseFromCatalog`.
+
+### The button pass (Dylan: "one more check that all the buttons are synced")
+
+Every action that creates, edits, finishes or moves a workout, traced to its write, and
+every surface that describes today, compared. Found and fixed five things; the rest held.
+
+| Action | Where | Path | Verdict |
+|--------|-------|------|---------|
+| Add Exercise · Replace · Remove | Day view (picker, hold menu) | overlays → owed → `persistDayEdits` (fetch first, rebase by identity, one slot, retry) | ✓ |
+| Quick Workout, replace or add | Home row, Day view door, day ⋯ sheet | same path; plan on demand when none | ✓ |
+| Complete Workout · Finish early | Day view, set deck | `syncDayCompletion`; owed + retried on failure/offline | ✓ |
+| Save this workout | Finish screen | `createWorkout` + save; failure shows an error state | ✓ (no retry, but visible) |
+| Do it today · Move · Swap | ⋯ sheet, week hold | `commitMoves` → server; failure refetches + shows error; nothing local to lose | ✓ |
+| Apply plan · template · shared plan | Preview, Templates, Redeem | `createPlan` / accept, then **forced** calendar refetch (added) | ✓ |
+| Add to workout · Remove · Regenerate | Exercises tab, workout detail | `updateWorkout` (server syncs the slot), then **forced** calendar refetch (added) | ✓ |
+| Skip · Undo skip | Day banner, ⋯ | local + fire-and-forget server PUT/DELETE | ⚠ no retry (see below) |
+
+| # | Contradiction or gap | Fix |
+|---|----------------------|-----|
+| C1 | **Home chose its today card from the server's plan while the Calendar answered from the store**, so a pending edit split them: "Start workout" over a day the Calendar called rest; "No plan yet" over a Quick Workout waiting to be saved; a title from the server with muscle chips from the store. | `todayStatus` in `HomeScreen`: the store answers first (any exercises today → the workout card, title/meta/chips all from the store), the server's status is used only to say why an empty day is empty, and a server "scheduled" over an empty store day reads as "Nothing scheduled". Week tiles and the hero no longer require 'live' mode, only "not loading". |
+| C2 | Home's "Generate my plan" / "Generate a new plan" buttons opened the Calendar month, not the generator. | `goToGeneratePlan` navigates to `GeneratePlan` inside the Calendar stack. |
+| C3 | Edits made from the Exercises tab (add to workout), workout detail (remove, regenerate) and share redeem changed the plan server-side, but the Calendar kept the old copy until a throttled focus refetch (up to 10s), and a calendar edit inside that window rebuilt the day from the stale copy. | `refreshLiveCalendarData(true)` after each of those writes, and after plan apply. |
+| C4 | Finding 7 (above). | Fetch-first + rebase by identity in `persistDayEdits`. |
+| C5 | **New with persisted edits:** the snapshot is one per phone, so a second account signing in (Dylan's own 2-account share testing does exactly this) would inherit the first account's owed edits — and with plan-on-demand, have them written into its own plan. | `noteCalendarAccount(userId)` (Home calls it on mount, before the first fetch, and the fetch waits for it): a different account than the snapshot's drops every edit, log, skip, owed write and history cache, and refetches; the same account keeps everything. Two tests. |
+
+Verification: 30 scenarios in the simulation suite (25 → 30), whole frontend green, `tsc` clean.
+Still not run on a device: the Home card logic is the one piece here that only a phone (or the
+web rig with a fake session) can show; the store parts are covered by the suite.
+
+### Deliberately NOT done
+
+| Thing | Why |
+|-------|-----|
+| Skip / undo-skip retry | The server write is fire-and-forget; a skip made offline that fails its PUT reads as a miss to the crew until the next `syncSkippedDaysFromServer`, which then overwrites the local mark. Same owed-queue shape would fix it; out of scope for workouts, noted for the crew work. |
+| Set logs after an external base change | Logged sets are keyed by displayed row; when another surface changes the day's rows while sets are logged on this phone, the rows can shift under them. Rare (a day being trained here and edited elsewhere at once); the rebase keeps the sets rather than dropping them. |
+| Prod DB probe | Blocked by the classifier; `backend/logs/probe-disappearing.js` is ready for Dylan to run. Would confirm which path the reporting tester hit. |
+| Device / web-rig run | Jest and tsc only. The Day footer copy, the Week header wording and Home's foreground refetch want a look on a phone. |
+| Onboarding's 1-week default | Product call. With no roll-forward a one-week plan ends after its week and the user is asked to generate the next one; a longer default (4 weeks?) is a separate conversation. |
+| A "Generate" door on the Month and Day screens for ended plans | Month already has "Generate a Plan"; the Week banner and Home card cover the landing surfaces. The Day view's rest card stays plain. |
+| 0-based legacy plans | An edit on one still sends `weekNumber: 0` and the DTO rejects it; the edit now stays owed on the phone instead of vanishing, but never lands. The probe would say whether any exist. |
+| Commit | Not asked. Six files changed, listed in the session summary. The What's New line ("Calendar edits that stick") was added to the UNSHIPPED card in place per the standing rule; drop it if it reads as a bug fix. |
+
+---
+
 ## 2026-08-28 — Crew feature review (code, not concept)
 
 Dylan asked how to improve the Crew page. **The evidence sweep in memory
