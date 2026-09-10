@@ -22,6 +22,19 @@ import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import SheetModal from '../components/SheetModal';
+import {
+  PROFILE_INJURY_TAG_OPTIONS,
+  storedInjuryTagsToAvoidList,
+  type StoredInjuryTagId,
+} from '../constants/injuryTags';
+import { applyWorkaroundsToCurrentPlan, getCurrentPlan } from '../services/planService';
+import { getLivePlan, refreshLiveCalendarData } from '../lib/planCalendarPrototypeStore';
+import {
+  getWeekStartMonday,
+  normalizePlanAnchorYmd,
+  parseLocalYmd,
+  wholeWeeksBetween,
+} from '../lib/planCalendar';
 import { haptics } from '../lib/haptics';
 import {
   useUserPreferences,
@@ -597,6 +610,8 @@ export default function ProfileScreen() {
     setProfileDisplayName,
     profileAvatarId,
     setProfileAvatarId,
+    injuryTagIds,
+    setInjuryTagIds,
   } = useUserPreferences();
   const [nameDraft, setNameDraft] = useState('');
   const [avatarSheetOpen, setAvatarSheetOpen] = useState(false);
@@ -810,6 +825,104 @@ export default function ProfileScreen() {
     setEquipment(equipmentDraft);
     setEquipmentModalOpen(false);
   }, [equipmentDraft, setEquipment]);
+
+  // Work-arounds live here because an injury is a fact about the person,
+  // not about one plan. Saving always feeds every NEW plan (the AI form and
+  // template applies read the tags). Touching the plan the person is in the
+  // middle of is a separate, explicit yes — never a silent rewrite.
+  const [workaroundsOpen, setWorkaroundsOpen] = useState(false);
+  const [workaroundsDraft, setWorkaroundsDraft] = useState<StoredInjuryTagId[]>([]);
+  const [workaroundsApplying, setWorkaroundsApplying] = useState(false);
+  const workaroundsSummary = useMemo(() => {
+    const labels = PROFILE_INJURY_TAG_OPTIONS.filter((o) => injuryTagIds.includes(o.id)).map(
+      (o) => o.label,
+    );
+    return labels.length ? labels.join(', ') : 'Nothing';
+  }, [injuryTagIds]);
+
+  const openWorkarounds = useCallback(() => {
+    setWorkaroundsDraft([...injuryTagIds]);
+    setWorkaroundsOpen(true);
+  }, [injuryTagIds]);
+
+  const toggleWorkaroundDraft = useCallback((id: StoredInjuryTagId) => {
+    haptics.select();
+    setWorkaroundsDraft((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }, []);
+
+  const swapInCurrentPlan = useCallback(
+    async (tags: StoredInjuryTagId[], anchorYmd: string | null) => {
+      setWorkaroundsApplying(true);
+      try {
+        // From this program week on; earlier weeks are history.
+        const fromWeekNumber = anchorYmd
+          ? Math.max(
+              1,
+              wholeWeeksBetween(parseLocalYmd(anchorYmd), getWeekStartMonday(new Date())) + 1,
+            )
+          : 1;
+        const result = await applyWorkaroundsToCurrentPlan({
+          limitations: storedInjuryTagsToAvoidList(tags),
+          equipment,
+          goal,
+          experience,
+          fromWeekNumber,
+        });
+        refreshLiveCalendarData(true);
+        if (result.swapped > 0) {
+          Alert.alert(
+            `Swapped ${result.swapped} exercise${result.swapped === 1 ? '' : 's'}`,
+            'Your current plan now works around them. Open the Calendar to see the changes.',
+          );
+        } else {
+          Alert.alert('Nothing to swap', 'Nothing left in your current plan loads those joints.');
+        }
+      } catch (e) {
+        console.warn('[ProfileScreen] applyWorkarounds failed:', e);
+        Alert.alert(
+          'Could not update your plan',
+          'Check your connection and try again. New plans will still use your work-arounds.',
+        );
+      } finally {
+        setWorkaroundsApplying(false);
+      }
+    },
+    [equipment, goal, experience],
+  );
+
+  const saveWorkaroundsDraft = useCallback(async () => {
+    const before = new Set(injuryTagIds);
+    const added = workaroundsDraft.filter((id) => !before.has(id));
+    const next = [...workaroundsDraft];
+    setInjuryTagIds(next);
+    setWorkaroundsOpen(false);
+    if (added.length === 0) return;
+    // Only an ADDED joint can change a plan already in progress; removing
+    // one cannot put a swapped exercise back.
+    let live = getLivePlan();
+    if (!live) {
+      try {
+        live = await getCurrentPlan();
+      } catch {
+        live = null;
+      }
+    }
+    if (!live) return;
+    const labels = PROFILE_INJURY_TAG_OPTIONS.filter((o) => added.includes(o.id))
+      .map((o) => o.label.toLowerCase())
+      .join(', ');
+    const anchorYmd = normalizePlanAnchorYmd(live.weekAnchorMonday);
+    Alert.alert(
+      'Swap exercises in your current plan too?',
+      `Exercises that load your ${labels} would be swapped for alternatives from this week on. New plans always use your work-arounds.`,
+      [
+        { text: 'Just new plans', style: 'cancel' },
+        { text: 'Swap', onPress: () => void swapInCurrentPlan(next, anchorYmd) },
+      ],
+    );
+  }, [injuryTagIds, workaroundsDraft, setInjuryTagIds, swapInCurrentPlan]);
 
   const openUrl = useCallback(async (url: string, label: string) => {
     try {
@@ -1173,6 +1286,15 @@ export default function ProfileScreen() {
             label="Equipment"
             value={equipmentSummary}
             onPress={openEquipmentModal}
+            colors={colors}
+          />
+          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+          <ChipRow
+            icon="medkit-outline"
+            tint={colors.primary}
+            label="Working around"
+            value={workaroundsSummary}
+            onPress={openWorkarounds}
             colors={colors}
           />
         </View>
@@ -1705,6 +1827,81 @@ export default function ProfileScreen() {
               </TouchableOpacity>
               <TouchableOpacity onPress={saveEquipmentDraft}>
                 <Text style={[styles.modalBtnText, { color: colors.primary }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+      </SheetModal>
+
+      <SheetModal
+        visible={workaroundsOpen}
+        onClose={() => setWorkaroundsOpen(false)}
+        scrimColor={colors.scrim}
+      >
+          <Pressable
+            style={[styles.modalSheet, themedStyles.modalSheet]}
+            accessible={false}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Working around</Text>
+            <Text
+              style={{
+                fontSize: text.footnote,
+                color: colors.textMuted,
+                paddingHorizontal: spacing.xl,
+                marginBottom: spacing.sm,
+              }}
+            >
+              Exercises that load these joints are swapped out of new plans. Not medical advice.
+            </Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {PROFILE_INJURY_TAG_OPTIONS.map(({ id, label }) => {
+                const on = workaroundsDraft.includes(id);
+                return (
+                  <TouchableOpacity
+                    key={id}
+                    style={styles.equipRow}
+                    onPress={() => toggleWorkaroundDraft(id)}
+                    activeOpacity={0.7}
+                    accessibilityRole="switch"
+                    accessibilityLabel={label}
+                    accessibilityState={{ checked: on }}
+                  >
+                    <Text style={[styles.equipLabel, themedStyles.equipLabel]}>{label}</Text>
+                    <Switch
+                      accessible={false}
+                      importantForAccessibility="no-hide-descendants"
+                      value={on}
+                      onValueChange={() => toggleWorkaroundDraft(id)}
+                      trackColor={{ false: colors.border, true: colors.primary }}
+                      thumbColor={colors.text}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity onPress={() => setWorkaroundsOpen(false)}>
+                <Text style={[styles.modalBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              {workaroundsDraft.length > 0 ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    haptics.select();
+                    setWorkaroundsDraft([]);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear all work-arounds"
+                >
+                  <Text style={[styles.modalBtnText, { color: colors.textSecondary }]}>Clear</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                onPress={() => void saveWorkaroundsDraft()}
+                disabled={workaroundsApplying}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.primary }]}>
+                  {workaroundsApplying ? 'Saving…' : 'Save'}
+                </Text>
               </TouchableOpacity>
             </View>
           </Pressable>

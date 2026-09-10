@@ -31,13 +31,19 @@ import {
   WEEKDAY_ORDER,
   defaultWeekdaysForCount,
   estimateTemplateSessionMinutes,
+  firstSessionDateISO,
   materializeTemplatePlan,
+  orderWeekdays,
   suggestedTemplateStartDateISO,
   supportedDayRange,
   toggleTemplateWeekday,
 } from '../lib/templatePlan';
 import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
 import { formatLocalYmd, parseLocalYmd } from '../lib/planCalendar';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { scheduleWriteBack } from '../lib/scheduleWriteBack';
+import { PROFILE_INJURY_TAG_OPTIONS, storedInjuryTagsToAvoidList } from '../constants/injuryTags';
+import { refreshLiveCalendarData } from '../lib/planCalendarPrototypeStore';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'TemplateDetail'>;
 type Route = RouteProp<RootStackParamList, 'TemplateDetail'>;
@@ -77,6 +83,27 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
   // The tab bar floats over this screen; the CTA bar and last rows must clear it.
   const tabBarInset = useTabBarInset();
+  // The answers onboarding (or Profile) already holds: this screen used to
+  // seed its days and weekdays from the TEMPLATE's defaults and ask the user
+  // to pick again what they had just said.
+  const {
+    trainingFrequency,
+    trainingDaysFlexible,
+    preferredTrainingDays,
+    injuryTagIds,
+    equipment,
+    setTrainingFrequency,
+    setTrainingDaysFlexible,
+    setPreferredTrainingDays,
+  } = useUserPreferences();
+  const limitations = useMemo(() => storedInjuryTagsToAvoidList(injuryTagIds), [injuryTagIds]);
+  const workaroundLabels = useMemo(
+    () =>
+      PROFILE_INJURY_TAG_OPTIONS.filter((o) => injuryTagIds.includes(o.id))
+        .map((o) => o.label.toLowerCase())
+        .join(', '),
+    [injuryTagIds],
+  );
 
   const [template, setTemplate] = useState<PlanTemplateDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,12 +120,12 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
   // Once the user picks a date themselves, stop auto-suggesting over it.
   const dateTouched = useRef(false);
 
-  // Keep the suggested start in step with the selected training days: today
-  // whenever no chosen day this week has passed (start now, not next Monday),
-  // else the clean Monday. See suggestedTemplateStartDateISO for the why.
+  // The suggested start is always today (the first week is written partial,
+  // from today's first chosen day on); this only resets a suggestion the
+  // user has not overridden when the days change.
   useEffect(() => {
     if (dateTouched.current || weekdays.length === 0) return;
-    setStartDateISO(suggestedTemplateStartDateISO(new Date(), weekdays));
+    setStartDateISO(suggestedTemplateStartDateISO());
   }, [weekdays]);
 
   const load = useCallback(async () => {
@@ -107,14 +134,23 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
     try {
       const detail = await getPlanTemplate(templateId);
       setTemplate(detail);
-      setDaysCount(detail.daysPerWeek);
-      setWeekdays(detail.defaultWeekdays);
+      const { min, max } = supportedDayRange(detail);
+      const count = Math.min(max, Math.max(min, trainingFrequency));
+      setDaysCount(count);
+      setWeekdays(
+        !trainingDaysFlexible && preferredTrainingDays.length === count
+          ? orderWeekdays([...preferredTrainingDays] as Weekday[])
+          : defaultWeekdaysForCount(detail, count),
+      );
     } catch (e) {
       console.warn('[TemplateDetail] load failed:', e);
       setFailed(true);
     } finally {
       setLoading(false);
     }
+    // The preference reads seed the first render only; a later edit in
+    // Profile is not meant to reshuffle a schedule the user is looking at.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId]);
 
   useEffect(() => {
@@ -130,8 +166,16 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
     setApplying(true);
     try {
       await createPlan(
-        materializeTemplatePlan(template, { weekdays, startDateISO }),
+        materializeTemplatePlan(template, { weekdays, startDateISO, limitations, equipment }),
       );
+      // Remember the schedule for the next plan. Days equal to the program's
+      // own defaults for this count stay "flexible", so the next program
+      // keeps its defaults too.
+      const writeBack = scheduleWriteBack(weekdays, defaultWeekdaysForCount(template, daysCount));
+      if (writeBack.trainingFrequency) setTrainingFrequency(writeBack.trainingFrequency);
+      setTrainingDaysFlexible(writeBack.trainingDaysFlexible);
+      setPreferredTrainingDays(writeBack.preferredTrainingDays);
+      refreshLiveCalendarData(true);
       setApplyOpen(false);
       // Same landing as the generated-preview Apply: a clean Plan stack
       // showing the freshly saved plan.
@@ -415,11 +459,18 @@ export default function TemplateDetailScreen({ navigation, route }: Props) {
             </View>
             <Text style={styles.modalHint}>
               {canApply
-                ? `Week 1 starts the week of ${formatStartDate(startDateISO)}. Applying replaces your current plan.`
+                ? `First session ${formatStartDate(
+                    firstSessionDateISO(startDateISO, weekdays) ?? startDateISO,
+                  )}. Applying replaces your current plan.`
                 : `Choose ${daysCount - weekdays.length} more day${
                     daysCount - weekdays.length === 1 ? '' : 's'
                   }.`}
             </Text>
+            {canApply && workaroundLabels ? (
+              <Text style={styles.modalHint}>
+                Exercises that load your {workaroundLabels} will be swapped for alternatives.
+              </Text>
+            ) : null}
 
             <TouchableOpacity
               style={[
