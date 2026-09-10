@@ -33,6 +33,7 @@ import { groupExercises, ExerciseGroup } from '../utils/exerciseGrouping';
 import { getCurrentPlan, createPlan, addPlanSlotToCurrent } from '../services/planService';
 import { updateWorkout, getWorkoutById } from '../services/workoutService';
 import type { PlanSlot } from '../services/planService';
+import { refreshLiveCalendarData } from '../lib/planCalendarPrototypeStore';
 import {
   formatLocalYmd,
   getCalendarWeekRange,
@@ -354,6 +355,9 @@ export default function SearchScreen({ navigation }: Props) {
         ...toWorkoutExercisePayloads(newExercises, existingExercises.length),
       ];
       await updateWorkout(addToWorkout.workoutId, { exercises: merged });
+      // The server synced the plan slot; the Calendar must show it now, not
+      // after its throttled focus refetch.
+      refreshLiveCalendarData(true);
 
       clearSelection();
       navigation.setParams({ addToWorkout: undefined });

@@ -17,9 +17,14 @@
  *     gold-sealed (completed) days: a real completed workout log on that
  *     LOCAL day, or every set of every exercise logged in this session.
  *
- * Persistence: day edits rebuild the plan slot on the server; completed and
- * partial sessions POST real workout logs; in-progress set logs are
- * crash-safe via an AsyncStorage snapshot.
+ * Persistence: every day edit lands in the overlay maps first and is written
+ * into the plan on the server by `persistDayEdits` (the day's slot rebuilt;
+ * a plan made on demand when there is none). The overlays, the set of dates
+ * still waiting for that write, in-progress set logs, and finished days whose
+ * log has not posted yet all live in ONE AsyncStorage snapshot, so nothing
+ * the user did depends on the app staying in memory. Pending writes are
+ * retried on every plan fetch (focus, foreground, pull to refresh, cold
+ * start) and on every later edit.
  */
 
 import {
@@ -38,6 +43,7 @@ import {
 } from './planCalendarPrototype';
 import {
   addPlanSlot,
+  createPlan,
   getCurrentPlanWithWeekly,
   movePlanSlot,
   removePlanSlot,
@@ -82,14 +88,31 @@ function slotKey(dateIso: string, exerciseIndex: number): string {
   return `${dateIso}#${exerciseIndex}`;
 }
 
+/**
+ * The day-edit overlays. Every edit the user makes on a day lands here FIRST
+ * (the screens re-render from these), then `persistDayEdits` writes the day
+ * into the plan on the server and clears them. All of them are persisted in
+ * the session snapshot: an edit whose server write had not happened yet used
+ * to live only in memory, and vanished the moment iOS evicted the app.
+ */
 const replacements = new Map<string, PlannedExercise>();
 /** dateIso → exercises appended after the day's base list ("+ Add Exercise"). */
 const additions = new Map<string, PlannedExercise[]>();
 /** dateIso → BASE indexes removed from the day ("Remove Exercise"). */
 const removals = new Map<string, Set<number>>();
-/** dateIso → title for a session-local custom day (quick workouts without a
- *  plan would otherwise all read "Custom Workout"). */
-const customDayTitles = new Map<string, string>();
+/** dateIso → the session a Quick Workout (or "+ Add Exercise" on a rest day)
+ *  gave the day: its title, plus the type and duration its plan slot gets. */
+type CustomDay = { title: string; type?: 'strength' | 'cardio'; durationMinutes?: number };
+const customDays = new Map<string, CustomDay>();
+/** Dates whose edits have NOT reached the server yet. Persisted; drained on
+ *  every successful plan fetch, on every later edit, and on cold start. */
+const pendingEdits = new Set<string>();
+/** Bumped on every edit to a date, so a write that completes AFTER a newer
+ *  edit knows not to clear that edit along with the overlays it just saved. */
+const editVersion = new Map<string, number>();
+/** Finished days whose workout-log POST has not succeeded yet (offline, or a
+ *  failed write). Persisted and retried the same way as pendingEdits. */
+const pendingCompletions = new Set<string>();
 const setLogs = new Map<string, SetLog[]>();
 const listeners = new Set<() => void>();
 
@@ -140,9 +163,16 @@ const MOVED_RECORDS_CAP = 60;
  *  cold start doesn't read as a new plan and wipe hydrated logs. */
 let lastSeenPlanId: string | null = null;
 /** Whose plan the in-memory history caches belong to. In-memory only: a cold
- *  start rebuilds them from scratch anyway, and persisting it would not make
- *  the (device-scoped, deliberately so) set-log snapshot per-account. */
+ *  start rebuilds them from scratch anyway. */
 let lastSeenUserId: string | null = null;
+/** The account the on-disk snapshot belongs to. Persisted. The snapshot is
+ *  one per phone, so a DIFFERENT account signing in must not inherit the
+ *  previous one's edits, logs and owed writes — `noteCalendarAccount` drops
+ *  them on a genuine switch. Same account back in: everything kept. */
+let snapshotUserId: string | null = null;
+/** Resolves once the signed-in account has been reconciled with the snapshot
+ *  (after hydration). The first plan fetch waits for it. */
+let accountSettled: Promise<void> = Promise.resolve();
 
 /** Device-scoped (not per-account) — acceptable for now; sets are keyed by
  *  date+slot and pruned after 14 days. */
@@ -161,8 +191,40 @@ const sessionHydrated: Promise<void> = (async () => {
       skippedDates?: string[];
       movedRecords?: Array<{ slotId: string; fromIso: string; title: string }>;
       lastSeenPlanId?: string | null;
+      additions?: Record<string, PlannedExercise[]>;
+      replacements?: Record<string, PlannedExercise>;
+      removals?: Record<string, number[]>;
+      customDays?: Record<string, CustomDay>;
+      pendingEdits?: string[];
+      pendingCompletions?: string[];
+      snapshotUserId?: string | null;
     };
+    if (snapshotUserId == null) snapshotUserId = data.snapshotUserId ?? null;
     const cutoff = toIso(addDays(new Date(), -14));
+    // Day edits: past ones age out with the set logs; future ones are kept
+    // whole (they describe days still to come).
+    for (const [k, v] of Object.entries(data.additions ?? {})) {
+      if (k >= cutoff && !additions.has(k) && Array.isArray(v) && v.length > 0) {
+        additions.set(k, v);
+      }
+    }
+    for (const [k, v] of Object.entries(data.replacements ?? {})) {
+      if (k.slice(0, 10) >= cutoff && !replacements.has(k) && v) replacements.set(k, v);
+    }
+    for (const [k, v] of Object.entries(data.removals ?? {})) {
+      if (k >= cutoff && !removals.has(k) && Array.isArray(v) && v.length > 0) {
+        removals.set(k, new Set(v));
+      }
+    }
+    for (const [k, v] of Object.entries(data.customDays ?? {})) {
+      if (k >= cutoff && !customDays.has(k) && v?.title) customDays.set(k, v);
+    }
+    for (const d of data.pendingEdits ?? []) {
+      if (d >= cutoff) pendingEdits.add(d);
+    }
+    for (const d of data.pendingCompletions ?? []) {
+      if (d >= cutoff) pendingCompletions.add(d);
+    }
     for (const [k, v] of Object.entries(data.setLogs ?? {})) {
       if (k.slice(0, 10) >= cutoff && !setLogs.has(k)) setLogs.set(k, v);
     }
@@ -211,10 +273,69 @@ function scheduleSessionSave(): void {
           skippedDates: [...skippedDays],
           movedRecords,
           lastSeenPlanId,
+          additions: Object.fromEntries(additions),
+          replacements: Object.fromEntries(replacements),
+          removals: Object.fromEntries([...removals].map(([k, v]) => [k, [...v]])),
+          customDays: Object.fromEntries(customDays),
+          pendingEdits: [...pendingEdits],
+          pendingCompletions: [...pendingCompletions],
+          snapshotUserId,
         }),
       ).catch(() => {}),
     );
   }, 300);
+}
+
+/** Everything the snapshot holds for the current account, gone. */
+function forgetSessionState(): void {
+  replacements.clear();
+  additions.clear();
+  removals.clear();
+  customDays.clear();
+  pendingEdits.clear();
+  editVersion.clear();
+  pendingCompletions.clear();
+  setLogs.clear();
+  dayStartTimes.clear();
+  syncedDays.clear();
+  reopenedDays.clear();
+  syncedSetCounts.clear();
+  skippedDays.clear();
+  movedRecords = [];
+}
+
+/**
+ * Tell the store who is signed in. Home calls this on mount, before the first
+ * plan fetch. A DIFFERENT account than the snapshot's drops every edit, log,
+ * skip and owed write the previous account left on this phone — with edits
+ * now persisted, one tester's pending Quick Workout could otherwise be
+ * written into another tester's plan on a shared phone — and refetches the
+ * plan, since the module still holds the old account's. The same account
+ * signing back in keeps everything, including anything still owed.
+ */
+export function noteCalendarAccount(userId: string | null): void {
+  accountSettled = sessionHydrated.then(() => {
+    if (!userId) return;
+    const switched = snapshotUserId != null && snapshotUserId !== userId;
+    snapshotUserId = userId;
+    scheduleSessionSave();
+    if (!switched) return;
+    forgetSessionState();
+    completedLogDays.clear();
+    fetchedLogMonths.clear();
+    loggedSessions.clear();
+    celebrationBaselineCache.clear();
+    lastSeenUserId = null;
+    lastSeenPlanId = null;
+    livePlan = null;
+    liveWorkouts = [];
+    anchorAutoJumpConsumed = false;
+    emit();
+    if (liveStatus !== 'loading') {
+      liveStatus = 'idle';
+      ensureLiveCalendarData();
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -230,6 +351,10 @@ let liveWorkouts: Workout[] = [];
 /** One-time landing redirect to the plan's first populated week. */
 let anchorAutoJumpConsumed = false;
 let lastFetchMs = 0;
+/** Bumped on every slot write that completed. A plan fetch that was in
+ *  flight while one completed may have been served BEFORE it, so its answer
+ *  would show the day as it was before the edit; the fetch asks again. */
+let writeSeq = 0;
 /** exerciseId → resolved catalog metadata. */
 const exerciseMeta = new Map<string, { muscle: PrototypeMuscle; equipment: string }>();
 const pendingMetaIds = new Set<string>();
@@ -279,20 +404,35 @@ export function ensureLiveCalendarData(): void {
   liveStatus = 'loading';
   void (async () => {
     try {
-      // The new-plan check below compares against the persisted plan id.
+      // The new-plan check below compares against the persisted plan id, and
+      // the snapshot must be reconciled with the signed-in account first.
       await sessionHydrated;
+      await accountSettled;
+      const writesBefore = writeSeq;
       const { plan, weeklyWorkouts } = await getCurrentPlanWithWeekly();
+      if (writeSeq !== writesBefore) {
+        // A slot write finished while this fetch was out, so this answer may
+        // predate it. Ask again rather than show the day as it used to be.
+        liveStatus = 'idle';
+        ensureLiveCalendarData();
+        return;
+      }
       livePlan = plan;
       liveWorkouts = weeklyWorkouts ?? [];
       liveStatus = 'ready';
       lastFetchMs = Date.now();
-      // A DIFFERENT plan arriving (first load, template applied, regenerated)
-      // re-bases every day, so index-keyed session overlays would land on the
-      // wrong slots. A refetch of the same plan keeps them.
-      if (plan && plan.id !== lastSeenPlanId) {
+      // A DIFFERENT plan arriving (template applied, regenerated) re-bases
+      // every day, so index-keyed session overlays would land on the wrong
+      // slots. A refetch of the same plan keeps them — and so does the FIRST
+      // plan this device sees: edits made before it loaded (offline, or a
+      // user with no plan yet) have nothing stale in them to drop.
+      if (plan && lastSeenPlanId && plan.id !== lastSeenPlanId) {
         replacements.clear();
         additions.clear();
         removals.clear();
+        customDays.clear();
+        pendingEdits.clear();
+        editVersion.clear();
         setLogs.clear();
         // Skip/move records describe dates of the OLD plan's schedule. The
         // server's FUTURE skips go with them (past ones stay as history).
@@ -304,9 +444,9 @@ export function ensureLiveCalendarData(): void {
         }
         movedRecords = [];
         scheduleSessionSave();
-        // A new plan also deserves the week-1 landing jump again.
-        anchorAutoJumpConsumed = false;
       }
+      // A new plan also deserves the week-1 landing jump again.
+      if (plan && plan.id !== lastSeenPlanId) anchorAutoJumpConsumed = false;
       // A different ACCOUNT on this device (sign out → sign in) inherits the
       // module-level history caches, which no plan change clears: the seals,
       // the "already fetched" month marks that suppress the correcting
@@ -336,10 +476,18 @@ export function ensureLiveCalendarData(): void {
         }
       }
       lastSeenUserId = plan?.userId ?? lastSeenUserId;
-      lastSeenPlanId = plan?.id ?? lastSeenPlanId;
+      if (plan?.id && plan.id !== lastSeenPlanId) {
+        lastSeenPlanId = plan.id;
+        scheduleSessionSave();
+      }
       emit();
       void syncSkippedDaysFromServer();
       if (plan) void loadExerciseMeta(plan);
+      // The server is reachable and the plan is known: anything edited or
+      // finished while it was not (offline, mid-fetch, a failed write) goes
+      // out now.
+      drainPendingEdits();
+      drainPendingCompletions();
     } catch {
       liveStatus = 'unavailable';
       lastFetchMs = Date.now();
@@ -450,17 +598,45 @@ function weekNumberOffset(plan: ApiPlan): number {
   return nums.length > 0 && Math.min(...nums) === 0 ? 1 : 0;
 }
 
-/** The plan's slots for a LOCAL date (empty on rest/out-of-program days). */
+/** Whole weeks from the plan's anchor Monday to the week holding `dateIso`,
+ *  plus one: the program week. Zero or negative before the anchor; past the
+ *  last week that has slots once the program has ended. */
+function rawProgramWeekForDate(plan: ApiPlan, dateIso: string): number {
+  const anchor = planAnchorMonday(plan);
+  return Math.round((mondayOf(fromIso(dateIso)).getTime() - anchor.getTime()) / WEEK_MS) + 1;
+}
+
+/** The last program week the plan has slots in (1-based, 0-based plans normalized). */
+function totalProgramWeeks(plan: ApiPlan): number {
+  const offset = weekNumberOffset(plan);
+  return Math.max(...(plan.planWorkouts ?? []).map((pw) => pw.weekNumber + offset), 1);
+}
+
+/**
+ * The program week a LOCAL date maps to, 1-based, or null before the plan's
+ * anchor (a plan never rolls backward). Past the last planned week a date
+ * STILL maps — to a week with no slots yet — so an edit or a Quick Workout
+ * there extends the plan on the server instead of being kept on the phone.
+ * Deliberately no roll-forward: a finished plan shows empty weeks and an
+ * invitation to generate the next one, never a repeat of its last week
+ * (Dylan's call, 2026-09-09; Home follows the same rule).
+ */
+function programWeekForDate(dateIso: string): number | null {
+  if (!livePlan) return null;
+  const raw = rawProgramWeekForDate(livePlan, dateIso);
+  return raw < 1 ? null : raw;
+}
+
+/** The plan's slots for a LOCAL date (empty on rest days, before the anchor,
+ *  and on every week past the plan's last). */
 function liveSlotsForDate(dateIso: string): ApiPlanWorkout[] {
   if (liveStatus !== 'ready' || !livePlan?.planWorkouts?.length) return [];
-  const date = fromIso(dateIso);
-  const weekday = WEEKDAYS[weekdayIndex(date)];
-  const anchor = planAnchorMonday(livePlan);
-  const programWeek =
-    Math.round((mondayOf(date).getTime() - anchor.getTime()) / WEEK_MS) + 1;
+  const week = programWeekForDate(dateIso);
+  if (week == null) return [];
+  const weekday = WEEKDAYS[weekdayIndex(fromIso(dateIso))];
   const offset = weekNumberOffset(livePlan);
   return livePlan.planWorkouts
-    .filter((pw) => pw.weekNumber + offset === programWeek && pw.dayOfWeek === weekday)
+    .filter((pw) => pw.weekNumber + offset === week && pw.dayOfWeek === weekday)
     .sort((a, b) => a.orderInDay - b.orderInDay);
 }
 
@@ -621,21 +797,19 @@ function baseDayForDate(dateIso: string): PlannedDay {
 export type ProgramWeekInfo =
   | { state: 'in'; week: number; totalWeeks: number; planName: string }
   | { state: 'before'; startsMondayIso: string; planName: string }
+  /** Past the plan's last week: the week is open, and the screens invite the
+   *  user to generate the next plan. Edits here still save (they extend it). */
   | { state: 'after'; totalWeeks: number; planName: string };
 
 /** Where a calendar week sits inside the live plan (null in non-live modes). */
 export function programWeekInfoFor(weekMondayIso: string): ProgramWeekInfo | null {
   if (liveStatus !== 'ready' || !livePlan?.planWorkouts?.length) return null;
-  const anchor = planAnchorMonday(livePlan);
-  const offset = weekNumberOffset(livePlan);
-  const totalWeeks = Math.max(
-    ...livePlan.planWorkouts.map((pw) => pw.weekNumber + offset),
-    1,
-  );
-  const week =
-    Math.round((fromIso(weekMondayIso).getTime() - anchor.getTime()) / WEEK_MS) + 1;
+  const totalWeeks = totalProgramWeeks(livePlan);
+  const week = rawProgramWeekForDate(livePlan, weekMondayIso);
   const planName = livePlan.name ?? 'My Plan';
-  if (week < 1) return { state: 'before', startsMondayIso: toIso(anchor), planName };
+  if (week < 1) {
+    return { state: 'before', startsMondayIso: toIso(planAnchorMonday(livePlan)), planName };
+  }
   if (week > totalWeeks) return { state: 'after', totalWeeks, planName };
   return { state: 'in', week, totalWeeks, planName };
 }
@@ -672,14 +846,21 @@ export function plannedDayForDate(dateIso: string): PlannedDay {
     exercises = exercises.filter((_, i) => !removed.has(i));
   }
   if (added.length > 0) {
+    const custom = customDays.get(dateIso);
+    const survivingBase = exercises.length;
     exercises = [...exercises, ...added];
-    // Exercises added onto a rest day turn it into a session.
-    if (base.exercises.length === 0) {
+    // Exercises added onto a rest day (or onto a day whose own session was
+    // replaced wholesale) make a session named after what was added; a
+    // session added ON TOP of the plan's reads as the two-a-day it is.
+    if (survivingBase === 0) {
       return {
         ...base,
-        title: customDayTitles.get(dateIso) ?? 'Custom Workout',
+        title: custom?.title ?? (base.exercises.length === 0 ? 'Custom Workout' : base.title),
         exercises,
       };
+    }
+    if (custom?.title) {
+      return { ...base, title: `${base.title} + ${custom.title}`, exercises };
     }
   }
   // Every exercise removed: the day reads as rest until the slot deletion
@@ -945,8 +1126,7 @@ export function stagedSessionsForDate(
 export type MoveTargetState =
   | 'open' // nothing scheduled — the natural landing spot
   | 'occupied' // has a session; picking it opens the make-room step
-  | 'logged' // already logged (only possible for today) — blocked
-  | 'beyond'; // past the program's final week — blocked (see commitMoves)
+  | 'logged'; // already logged (only possible for today) — blocked
 
 export type MoveTarget = {
   dateIso: string;
@@ -961,9 +1141,10 @@ export type MoveTarget = {
  * STAGED layout (`pending` + in-hand `excludeSlotIds`).
  *  - 'logged' days are blocked — the day's workout log is write-once, so a
  *    workout moved onto it could never be logged (the closed-session grid).
- *  - Days past the program's last week are blocked: placing a slot there
- *    would grow max(weekNumber) and silently turn an 8-week program into a
- *    9-week one everywhere "Week N of M" renders.
+ *  - Days past the plan's last week are open like any other: a slot moved
+ *    there extends the plan, the same way an edit or a Quick Workout on such
+ *    a day does. (They used to be blocked to keep "Week N of M" from
+ *    growing; an extended plan growing is now the intended model.)
  */
 export function moveTargetsForDay(
   pending: PendingMove[] = [],
@@ -971,10 +1152,8 @@ export function moveTargetsForDay(
 ): MoveTarget[] {
   return upcomingDatesFrom(todayIso()).map((dateIso) => {
     const sessions = stagedSessionsForDate(dateIso, pending, excludeSlotIds);
-    const weekInfo = programWeekInfoFor(toIso(mondayOf(fromIso(dateIso))));
     let state: MoveTargetState;
-    if (weekInfo?.state === 'after') state = 'beyond';
-    else if (isDayCompleted(dateIso) || isDayLogged(dateIso)) state = 'logged';
+    if (isDayCompleted(dateIso) || isDayLogged(dateIso)) state = 'logged';
     else if (sessions.length > 0) state = 'occupied';
     else state = 'open';
     return {
@@ -1009,8 +1188,6 @@ export function canMoveDay(dateIso: string): boolean {
 export function canReceiveSwap(dateIso: string, pending: PendingMove[]): boolean {
   if (dateIso < todayIso()) return false;
   if (isDayCompleted(dateIso) || isDayLogged(dateIso)) return false;
-  const weekInfo = programWeekInfoFor(toIso(mondayOf(fromIso(dateIso))));
-  if (weekInfo?.state === 'after') return false;
   return stagedSlotsForDate(dateIso, pending, []).length === 0;
 }
 
@@ -1084,7 +1261,11 @@ export async function commitMoves(pending: PendingMove[]): Promise<void> {
   for (const dateIso of touched) {
     additions.delete(dateIso);
     removals.delete(dateIso);
+    customDays.delete(dateIso);
+    // Nothing left to write for these dates; the moves ARE the server state.
+    pendingEdits.delete(dateIso);
   }
+  writeSeq += 1;
   // One provenance record per slot, keeping its ORIGIN: a workout chained
   // through several days still reads "moved from" its true home, and its
   // old day still points at wherever it lives now (labels derive from the
@@ -1122,7 +1303,7 @@ function clearDayOverlays(dateIso: string): void {
   }
   additions.delete(dateIso);
   removals.delete(dateIso);
-  customDayTitles.delete(dateIso);
+  customDays.delete(dateIso);
   // The replacement session times from ITS first set, and its log must not
   // subtract counts that belonged to the removed exercises.
   dayStartTimes.delete(dateIso);
@@ -1144,6 +1325,14 @@ function reopenLoggedDay(dateIso: string): void {
   // re-read the day as open — and the refreshed records (which now include
   // the morning's work) are exactly what this session has to beat.
   celebrationBaselineCache.delete(dateIso);
+  // A first session whose log is still waiting to post has NOT been covered
+  // by any log yet: leave the counts unset, so the next completion posts the
+  // whole day as one log instead of a delta that would drop the morning.
+  if (pendingCompletions.has(dateIso)) {
+    syncedSetCounts.delete(dateIso);
+    scheduleSessionSave();
+    return;
+  }
   const day = plannedDayForDate(dateIso);
   const counts = day.exercises.map(
     (_, i) => setLogs.get(slotKey(dateIso, i))?.length ?? 0,
@@ -1156,111 +1345,62 @@ function reopenLoggedDay(dateIso: string): void {
 /**
  * Land a Quick Workout session on TODAY.
  *
- * With a live plan inside its program: a REAL slot is added for today
- * (persisted, movable via Make Room, loggable via the materialize path).
- * Otherwise — no plan, or today past the program's end / before its anchor —
- * the session uses the same session-local custom-day path "+ Add Exercise"
- * uses, so logging mints the ad-hoc workout. (Out-of-program persistence is
- * deliberately avoided: a slot beyond max(weekNumber) would silently grow
- * "Week N of M", and a pre-anchor slot cannot exist below weekNumber 1.)
+ * The session lands in the day's overlays first — the screen shows it at
+ * once — and the ordinary day-edit write (`persistDayEdits`) puts it in the
+ * plan: a slot on today (added first, any replaced session removed after),
+ * a plan made on demand when there is none, or, before the plan's anchor, a
+ * session kept on this phone that logging still mints an ad-hoc workout for.
+ * This used to write the slot inline and throw the sheet an error on failure
+ * with nothing kept; and with no plan (or past the program's end) it kept the
+ * session in memory only, where an evicted app lost it.
  */
 export async function addQuickSessionToday(
   session: QuickSession,
   landing: QuickSessionLanding = 'replace',
 ): Promise<string> {
   const today = todayIso();
-  const todayMondayIso = toIso(mondayOf(fromIso(today)));
-  const weekInfo =
-    liveStatus === 'ready' && livePlan ? programWeekInfoFor(todayMondayIso) : null;
   // Raw log check (not isDayLogged — that already discounts reopened days):
   // landing on a day with a synced log must reopen it either way, or the new
   // session arrives with a closed deck and a sync guard that swallows it.
   const wasLogged = completedLogDays.has(today) || syncedDays.has(today);
 
-  if (livePlan && weekInfo?.state === 'in') {
-    const anchor = planAnchorMonday(livePlan);
-    const offset = weekNumberOffset(livePlan);
-    const programWeek =
-      Math.round((mondayOf(fromIso(today)).getTime() - anchor.getTime()) / WEEK_MS) + 1;
-    const existing = liveSlotsForDate(today);
-    const replacing = landing === 'replace' && existing.length > 0;
-    const slot: PlanSlot = {
-      weekNumber: Math.max(1, programWeek - offset),
-      dayOfWeek: WEEKDAYS[weekdayIndex(fromIso(today))],
-      title: session.title,
-      type: session.type,
-      durationMinutes: session.durationMinutes,
-      orderInDay:
-        !replacing && existing.length > 0
-          ? Math.max(...existing.map((s) => s.orderInDay)) + 1
-          : 0,
-      exercises: session.exercises.map((ex, i) => ({
-        exerciseId: ex.exerciseId,
-        name: ex.name,
-        sets: ex.sets,
-        reps: Math.max(1, ex.reps),
-        ...(ex.repsMax > ex.repsMin
-          ? { repsMin: ex.repsMin, repsMax: ex.repsMax }
-          : null),
-        orderIndex: i,
-        ...(ex.prescriptionType === 'time'
-          ? {
-              prescriptionType: 'time' as const,
-              durationSeconds: ex.durationSeconds ?? 600,
-            }
-          : null),
-      })),
-    };
-    // Add first, then remove — the same crash-safe order persistDayEdits
-    // uses, so a failure mid-way leaves the day over-full, never empty.
-    let plan = await addPlanSlot(livePlan.id, slot);
-    if (replacing) {
-      for (const old of existing) {
-        plan = await removePlanSlot(livePlan.id, old.id);
-      }
-      // The replaced day's session-local edits described exercises that no
-      // longer exist — without this they'd re-apply onto the new session.
-      clearDayOverlays(today);
-    }
-    livePlan = plan;
-    lastSeenPlanId = plan.id;
-    if (wasLogged) reopenLoggedDay(today);
-    // Building a session for today is the opposite of skipping it.
-    if (skippedDays.delete(today)) scheduleSessionSave();
-    emit();
-    void loadExerciseMeta(plan);
-    return today;
-  }
-
   if (landing === 'replace') {
-    // Session-local day: replacing simply drops what "+ Add Exercise" or an
-    // earlier quick session stacked onto today (base is empty out-of-plan).
+    // The day becomes this session: drop every overlay, and hide the plan's
+    // own exercises (the write removes their slots).
     clearDayOverlays(today);
+    const baseLen = baseDayForDate(today).exercises.length;
+    if (baseLen > 0) {
+      removals.set(today, new Set(Array.from({ length: baseLen }, (_, i) => i)));
+    }
   }
-  customDayTitles.set(today, session.title);
-  for (const ex of session.exercises) {
-    additions.set(today, [
-      ...(additions.get(today) ?? []),
-      {
-        name: ex.name,
-        exerciseId: ex.exerciseId,
-        muscle: ex.muscle as PrototypeMuscle,
-        sets: ex.sets,
-        reps:
-          ex.prescriptionType === 'time'
-            ? `${Math.max(1, Math.round((ex.durationSeconds ?? 600) / 60))} min`
-            : ex.repsMax > ex.repsMin
-              ? `${ex.repsMin}–${ex.repsMax}`
-              : `${ex.reps}`,
-        weight: '—',
-        rest: ex.prescriptionType === 'time' ? '—' : restHeuristic(ex.name, ex.sets),
-        equipment: '—',
-        note: '',
-      },
-    ]);
-  }
+  customDays.set(today, {
+    title: session.title,
+    type: session.type,
+    durationMinutes: session.durationMinutes,
+  });
+  additions.set(today, [
+    ...(additions.get(today) ?? []),
+    ...session.exercises.map<PlannedExercise>((ex) => ({
+      name: ex.name,
+      exerciseId: ex.exerciseId,
+      muscle: ex.muscle as PrototypeMuscle,
+      sets: ex.sets,
+      reps:
+        ex.prescriptionType === 'time'
+          ? `${Math.max(1, Math.round((ex.durationSeconds ?? 600) / 60))} min`
+          : ex.repsMax > ex.repsMin
+            ? `${ex.repsMin}–${ex.repsMax}`
+            : `${ex.reps}`,
+      weight: '—',
+      rest: ex.prescriptionType === 'time' ? '—' : restHeuristic(ex.name, ex.sets),
+      equipment: '—',
+      note: '',
+    })),
+  ]);
   if (wasLogged) reopenLoggedDay(today);
-  if (skippedDays.delete(today)) scheduleSessionSave();
+  // Building a session for today is the opposite of skipping it.
+  skippedDays.delete(today);
+  queuePersistDayEdits(today);
   emit();
   return today;
 }
@@ -1380,9 +1520,46 @@ export function addExercisesToDay(dateIso: string, exercises: PlannedExercise[])
 /** Serialize plan writes — two quick edits must not interleave add/remove. */
 let persistChain: Promise<void> = Promise.resolve();
 
+/** An edit landed on `dateIso`: remember that the server needs it (on disk,
+ *  so an evicted app still owes it), then try to send everything owed. This
+ *  used to return early with the plan not ready, which DROPPED the edit from
+ *  persistence while leaving it on screen. */
 function queuePersistDayEdits(dateIso: string): void {
-  if (liveStatus !== 'ready' || !livePlan) return;
-  persistChain = persistChain.then(() => persistDayEdits(dateIso)).catch(() => {});
+  editVersion.set(dateIso, (editVersion.get(dateIso) ?? 0) + 1);
+  pendingEdits.add(dateIso);
+  scheduleSessionSave();
+  drainPendingEdits();
+}
+
+/** Chain a write for every date still owed. Each date is its own link, so
+ *  one that keeps failing (a 400, say) never blocks the others. */
+function drainPendingEdits(): void {
+  for (const dateIso of [...pendingEdits]) {
+    persistChain = persistChain.then(() => persistDayEdits(dateIso)).catch(() => {});
+  }
+}
+
+/** This day has edits the server has not confirmed yet (offline, a fetch in
+ *  flight, or a failed write). They are on this phone and will be retried. */
+export function isDayEditPending(dateIso: string): boolean {
+  return pendingEdits.has(dateIso);
+}
+
+/** The edit can never become a plan slot (before the plan's anchor, or a row
+ *  with no catalog id): it stays on this phone and stops asking the server. */
+function keepEditLocal(dateIso: string): void {
+  pendingEdits.delete(dateIso);
+  scheduleSessionSave();
+}
+
+/** Drop the overlays that describe a day's edits — NOT its logs or custom
+ *  session — once the server holds the edited day. */
+function clearEditOverlays(dateIso: string): void {
+  for (const key of [...replacements.keys()]) {
+    if (key.startsWith(`${dateIso}#`)) replacements.delete(key);
+  }
+  additions.delete(dateIso);
+  removals.delete(dateIso);
 }
 
 /** A display exercise back into a plan-slot row (null = not persistable). */
@@ -1415,76 +1592,215 @@ function toSlotExerciseRow(ex: PlannedExercise, orderIndex: number): PlanSlotExe
 }
 
 /**
- * Write the day's replaces/removes/adds into the plan: rebuild the day's slot
- * with the edited exercise list (add the new slot, then remove the old —
- * worst case a transient duplicate, never a lost day), create a slot for a
- * custom rest-day session, or delete the slot outright when every exercise
- * was removed. On success the server plan becomes the base and the session
- * overlays for that day are cleared; on failure they simply stay
- * session-local. Multi-slot days keep session-only edits (rare).
+ * Write the day's replaces/removes/adds into the plan: rebuild the day as ONE
+ * slot with the edited exercise list (add the new slot, then remove the old
+ * ones — worst case a transient duplicate, never a lost day), create a slot
+ * for a custom rest-day session, delete the slot outright when every
+ * exercise was removed, or make a plan on demand when the account has none.
+ * On success the server plan becomes the base and the day's overlays are
+ * cleared; on failure the date stays pending and is retried by the next
+ * plan fetch or edit. A day that held two sessions is consolidated into one
+ * (it used to be refused, silently, for good).
  */
+/** The same exercises, in the same order, by identity (catalog id, else name). */
+function sameExerciseRows(a: PlannedExercise[], b: PlannedExercise[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((ex, i) => (ex.exerciseId ?? ex.name) === (b[i].exerciseId ?? b[i].name));
+}
+
+/**
+ * The day's base rows changed under the user's edits (another surface — the
+ * Exercises tab's add-to-workout, workout detail, a second phone — wrote to
+ * the slot since the last fetch). The edits were made against ROW POSITIONS
+ * of the old base; carry them across by exercise identity instead, so
+ * "remove Bench" still removes Bench wherever it now sits, a replacement
+ * still replaces the exercise it targeted, and an exercise the other surface
+ * added is kept. Additions are appended either way.
+ */
+function rebaseDayOverlays(
+  dateIso: string,
+  before: PlannedExercise[],
+  after: PlannedExercise[],
+): void {
+  const keyOf = (ex: PlannedExercise) => ex.exerciseId ?? ex.name;
+  const removedKeys = new Set(
+    [...(removals.get(dateIso) ?? [])].map((i) => before[i] && keyOf(before[i])).filter(Boolean),
+  );
+  const replacedByKey = new Map<string, PlannedExercise>();
+  for (const [key, value] of [...replacements]) {
+    if (!key.startsWith(`${dateIso}#`)) continue;
+    const i = Number(key.slice(dateIso.length + 1));
+    if (before[i]) replacedByKey.set(keyOf(before[i]), value);
+    replacements.delete(key);
+  }
+  const nextRemovals = new Set<number>();
+  after.forEach((ex, i) => {
+    const key = keyOf(ex);
+    if (removedKeys.has(key)) nextRemovals.add(i);
+    const replacement = replacedByKey.get(key);
+    if (replacement) replacements.set(slotKey(dateIso, i), replacement);
+  });
+  if (nextRemovals.size > 0) removals.set(dateIso, nextRemovals);
+  else removals.delete(dateIso);
+}
+
 async function persistDayEdits(dateIso: string): Promise<void> {
-  if (liveStatus !== 'ready' || !livePlan) return;
-  const planId = livePlan.id;
+  if (!pendingEdits.has(dateIso)) return;
+  // Not while the plan is unknown — a fetch in flight, or the server
+  // unreachable. The date stays owed; the fetch that lands drains it.
+  if (liveStatus !== 'ready') return;
+  const version = editVersion.get(dateIso) ?? 0;
+  if (livePlan) {
+    // Rebuilding the day from a stale copy of the plan silently dropped
+    // whatever another surface put on it since the last fetch (the Day view
+    // never refetches on focus). Fetch first; if the day's base changed,
+    // carry the edits across by exercise identity.
+    const before = baseDayForDate(dateIso).exercises;
+    let fresh: Awaited<ReturnType<typeof getCurrentPlanWithWeekly>>;
+    try {
+      fresh = await getCurrentPlanWithWeekly();
+    } catch {
+      return; // unreachable right now: the date stays owed
+    }
+    if (!fresh.plan || fresh.plan.id !== livePlan.id) {
+      // The account's plan changed under us (applied elsewhere). The next
+      // fetch re-bases everything; there is nothing to write against the
+      // plan that is gone.
+      refreshLiveCalendarData(true);
+      return;
+    }
+    livePlan = fresh.plan;
+    liveWorkouts = fresh.weeklyWorkouts ?? [];
+    const after = baseDayForDate(dateIso).exercises;
+    if (!sameExerciseRows(before, after)) rebaseDayOverlays(dateIso, before, after);
+  }
   const slots = liveSlotsForDate(dateIso);
-  if (slots.length > 1) return;
   const day = plannedDayForDate(dateIso);
+  const custom = customDays.get(dateIso);
   const rows: PlanSlotExercise[] = [];
   for (let i = 0; i < day.exercises.length; i++) {
     const row = toSlotExerciseRow(day.exercises[i], i);
-    if (!row) return; // an un-catalogued row: keep everything session-local
+    if (!row) return keepEditLocal(dateIso); // an un-catalogued row
     rows.push(row);
   }
-  if (rows.length === 0 && !slots[0]) return;
+  if (rows.length === 0 && slots.length === 0) {
+    // Nothing on the day and nothing on the server: the edits cancelled out.
+    clearEditOverlays(dateIso);
+    customDays.delete(dateIso);
+    return keepEditLocal(dateIso);
+  }
+  const date = fromIso(dateIso);
+  const dayOfWeek = WEEKDAYS[weekdayIndex(date)];
   try {
-    const date = fromIso(dateIso);
-    const anchor = planAnchorMonday(livePlan);
-    const programWeek =
-      Math.round((mondayOf(date).getTime() - anchor.getTime()) / WEEK_MS) + 1;
-    const offset = weekNumberOffset(livePlan);
-    const old = slots[0];
     let plan: ApiPlan;
-    if (rows.length === 0) {
-      // Every exercise was removed — the slot itself goes, so the day
-      // becomes a genuine rest day (never an empty workout).
-      plan = await removePlanSlot(planId, old.id);
+    if (!livePlan) {
+      // No plan to hold the day: make one, anchored so this date is inside
+      // it. The Exercises tab has done the same on NO_CURRENT_PLAN for a
+      // long time; the calendar just never did.
+      const thisMonday = mondayOf(new Date());
+      const dateMonday = mondayOf(date);
+      const anchor = dateMonday.getTime() < thisMonday.getTime() ? dateMonday : thisMonday;
+      plan = await createPlan({
+        name: 'My Plan',
+        weekAnchorMonday: toIso(anchor),
+        slots: [
+          {
+            weekNumber: Math.round((dateMonday.getTime() - anchor.getTime()) / WEEK_MS) + 1,
+            dayOfWeek,
+            title: custom?.title ?? day.title,
+            type: custom?.type ?? 'strength',
+            durationMinutes: custom?.durationMinutes ?? Math.max(15, rows.length * 8),
+            exercises: rows,
+          },
+        ],
+      });
     } else {
-      const slot: PlanSlot = old
-        ? {
-            weekNumber: old.weekNumber,
-            dayOfWeek: old.dayOfWeek,
-            title: old.title,
-            detailLine: old.detailLine ?? undefined,
-            type: old.type,
-            durationMinutes: old.durationMinutes,
-            intensity: old.intensity ?? undefined,
-            orderInDay: old.orderInDay,
-            exercises: rows,
-          }
-        : {
-            weekNumber: Math.max(1, programWeek - offset),
-            dayOfWeek: WEEKDAYS[weekdayIndex(date)],
-            title: day.title,
-            type: 'strength',
-            durationMinutes: Math.max(15, rows.length * 8),
-            exercises: rows,
-          };
-      plan = await addPlanSlot(planId, slot);
-      if (old) plan = await removePlanSlot(planId, old.id);
+      const planId = livePlan.id;
+      // Any week from the anchor on can hold a slot, including weeks past the
+      // plan's last (the plan simply grows). Before the anchor there is no
+      // week to hold one: clamping to week 1 used to put the exercise on
+      // NEXT week's same weekday.
+      const week = programWeekForDate(dateIso);
+      if (week == null) return keepEditLocal(dateIso);
+      if (rows.length === 0) {
+        // Every exercise was removed — the slot itself goes, so the day
+        // becomes a genuine rest day (never an empty workout).
+        plan = livePlan;
+        for (const s of slots) plan = await removePlanSlot(planId, s.id);
+      } else {
+        const first = slots[0];
+        const survivingBase =
+          slots.reduce((n, s) => n + (s.exercises?.length ?? 0), 0) -
+          (removals.get(dateIso)?.size ?? 0);
+        const slotsTitle = slots.map((s) => s.title).filter(Boolean).join(' + ');
+        const title = custom?.title
+          ? survivingBase > 0 && slotsTitle
+            ? `${slotsTitle} + ${custom.title}`
+            : custom.title
+          : slotsTitle || day.title;
+        // A mixed day (a strength plan day plus a cardio quick session, or two
+        // sessions of different types) is a strength slot: cardio colours
+        // every exercise on the slot as cardio.
+        const types = [
+          ...(survivingBase > 0 ? slots.map((s) => s.type) : []),
+          ...(custom?.type ? [custom.type] : []),
+        ];
+        const type =
+          types.length > 0 && types.every((t) => t === types[0]) ? types[0] : 'strength';
+        const baseMinutes =
+          survivingBase > 0 ? slots.reduce((n, s) => n + s.durationMinutes, 0) : 0;
+        const durationMinutes =
+          baseMinutes + (custom?.durationMinutes ?? 0) > 0
+            ? baseMinutes + (custom?.durationMinutes ?? 0)
+            : Math.max(15, rows.length * 8);
+        const slot: PlanSlot = {
+          weekNumber: first ? first.weekNumber : Math.max(1, week - weekNumberOffset(livePlan)),
+          dayOfWeek: first?.dayOfWeek ?? dayOfWeek,
+          title,
+          ...(first && slots.length === 1 && !custom && first.detailLine
+            ? { detailLine: first.detailLine }
+            : null),
+          type,
+          durationMinutes,
+          ...(first?.intensity ? { intensity: first.intensity } : null),
+          orderInDay: first?.orderInDay ?? 0,
+          exercises: rows,
+        };
+        // Add first, then remove — a failure mid-way leaves the day
+        // over-full, never empty.
+        plan = await addPlanSlot(planId, slot);
+        for (const s of slots) plan = await removePlanSlot(planId, s.id);
+      }
     }
-    // Server is now canonical for this day — drop the local overlays (they
-    // would double-apply the additions on top of the rebuilt slot).
-    for (const key of [...replacements.keys()]) {
-      if (key.startsWith(`${dateIso}#`)) replacements.delete(key);
-    }
-    additions.delete(dateIso);
-    removals.delete(dateIso);
+    writeSeq += 1;
+    // The server holds the day now. If the user edited it AGAIN while the
+    // write was out, those edits sit in the overlays too and must survive
+    // the base swap: re-express the day exactly as it looks right now
+    // against the new base (drop all of the base, append the current list)
+    // and leave the date owed, so the next link in the chain writes that.
+    const editedAgain = (editVersion.get(dateIso) ?? 0) !== version;
+    const current = editedAgain ? plannedDayForDate(dateIso).exercises : null;
+    clearEditOverlays(dateIso);
     livePlan = plan;
     lastSeenPlanId = plan.id;
+    if (current) {
+      const baseLen = baseDayForDate(dateIso).exercises.length;
+      if (baseLen > 0) {
+        removals.set(dateIso, new Set(Array.from({ length: baseLen }, (_, i) => i)));
+      }
+      if (current.length > 0) additions.set(dateIso, current);
+    } else {
+      customDays.delete(dateIso);
+      pendingEdits.delete(dateIso);
+    }
+    scheduleSessionSave();
     emit();
     void loadExerciseMeta(plan);
   } catch (err) {
-    console.warn('[calendar] failed to persist day edits:', err);
+    // Stays owed: retried on the next plan fetch (focus, foreground, pull to
+    // refresh, cold start) and on the next edit anywhere.
+    console.warn('[calendar] failed to persist day edits (will retry):', err);
+    scheduleSessionSave();
   }
 }
 
@@ -1525,20 +1841,43 @@ export function sessionStartIso(dateIso: string): string | null {
   return dayStartTimes.get(dateIso) ?? null;
 }
 
+/** Dates whose log POST is out right now (a retry must not double it). */
+const completionInFlight = new Set<string>();
+
+/** Retry every finished day whose log never posted (after a plan fetch). */
+function drainPendingCompletions(): void {
+  for (const dateIso of [...pendingCompletions]) void syncDayCompletion(dateIso);
+}
+
+/** This day is finished here but its log has not reached the server yet. */
+export function isDayCompletionPending(dateIso: string): boolean {
+  return pendingCompletions.has(dateIso);
+}
+
 /**
  * POST the finished day as a real workout log, so History, Progress, streaks
- * and the month's completion seals all count it. Live-plan days log against
- * the slot's materialized Workout row (created idempotently on demand); a
- * custom rest-day session mints an ad-hoc Workout first. Sample/offline days
- * stay local. Failures stay local too — the in-session completion seal still
- * shows, and nothing retries this session (write-once endpoint; no dupes).
+ * and the month's completion seals all count it. Plan days log against the
+ * slot's materialized Workout row (created idempotently on demand); a custom
+ * session with no slot mints an ad-hoc Workout first — with or without a
+ * plan, which used to be the gate that silently dropped a no-plan user's
+ * finished Quick Workout. Offline, or on a failed write, the day stays
+ * sealed here and the POST is retried after the next successful plan fetch.
  */
 async function syncDayCompletion(dateIso: string): Promise<void> {
-  if (liveStatus !== 'ready' || !livePlan) return;
-  if (syncedDays.has(dateIso)) return;
+  if (completionInFlight.has(dateIso)) return;
+  if (syncedDays.has(dateIso) && !pendingCompletions.has(dateIso)) return;
   syncedDays.add(dateIso);
+  if (liveStatus !== 'ready') {
+    pendingCompletions.add(dateIso);
+    scheduleSessionSave();
+    return;
+  }
   scheduleSessionSave();
+  completionInFlight.add(dateIso);
   try {
+    // A slot write still on its way out IS the day being finished — log
+    // against what the day becomes, not the slot it is replacing.
+    await persistChain;
     const day = plannedDayForDate(dateIso);
     const slots = liveSlotsForDate(dateIso);
     let workoutId: string | undefined;
@@ -1607,6 +1946,8 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
     });
     if (entries.length === 0) {
       syncedDays.delete(dateIso);
+      pendingCompletions.delete(dateIso);
+      scheduleSessionSave();
       return;
     }
     // `dayStartTimes` survives restarts for 14 days, so a day left open —
@@ -1627,6 +1968,7 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
       entries,
     });
     completedLogDays.add(dateIso);
+    pendingCompletions.delete(dateIso);
     // Keep what came back: the month fetch ran BEFORE this POST, so without
     // it a recap of the session just finished has no stored duration to read.
     if (saved.data?.id) recordLoggedSession(dateIso, saved.data);
@@ -1642,10 +1984,12 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
     scheduleSessionSave();
     emit();
   } catch (err) {
-    // Keep the local completion; the seal still shows for this session.
-    syncedDays.delete(dateIso);
+    // Keep the local completion — the seal still shows — and owe the POST.
+    pendingCompletions.add(dateIso);
     scheduleSessionSave();
-    console.warn('[calendar] failed to persist workout log:', err);
+    console.warn('[calendar] failed to persist workout log (will retry):', err);
+  } finally {
+    completionInFlight.delete(dateIso);
   }
 }
 

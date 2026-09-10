@@ -207,69 +207,42 @@ export function getPlanCalendarWeekNavigationBounds(
   return { min, max };
 }
 
-/**
- * Last program week reachable from week 1 without a gap (a week counts as
- * present when at least one slot row carries its number). A one-off workout
- * added to a far-future calendar week creates an isolated week number
- * ({1, 5} → 1), and repeating that sparse tail week forever after the program
- * ends would look broken. Falls back to the max present week when week 1
- * itself is missing, and 1 for empty input.
- */
-export function lastContiguousProgramWeek(weekNumbers: Iterable<number>): number {
-  const present = new Set<number>();
-  let max = 0;
-  for (const n of weekNumbers) {
-    const w = normalizeProgramWeekNumber(n);
-    present.add(w);
-    if (w > max) max = w;
-  }
-  if (max === 0) return 1;
-  let k = 0;
-  while (present.has(k + 1)) k += 1;
-  return k >= 1 ? k : max;
-}
-
 /** How a calendar week relates to the program window. */
 export type ProgramWeekResolution =
   | {
       status: 'in_program';
       /** 1-based program week whose schedule applies to this calendar week. */
       week: number;
-      /**
-       * True when the calendar week falls past the program window and `week` is
-       * the repeat target: the plan keeps repeating that week instead of going blank.
-       */
-      repeatingLastWeek: boolean;
     }
   /** Anchored plan whose start Monday is still in the future — never roll backward. */
   | { status: 'before_program' }
+  /** Anchored plan whose last week has passed. Nothing repeats: the week is
+   *  open, and the user is invited to generate the next plan. */
+  | { status: 'after_program' }
   /** No mappable week: empty plan, or a legacy (anchorless) plan outside offset+1 range. */
   | { status: 'out_of_program' };
 
 /**
  * Resolve which program week's schedule applies to the given calendar strip offset.
  *
- * Anchored plans clamp past the program end (`repeatingLastWeek: true`) so a
- * finished 1-week plan behaves as a recurring weekly routine rather than every
- * surface going blank the next calendar week. Callers pass `repeatWeek`
- * (typically {@link lastContiguousProgramWeek}) so an isolated far-future week
- * number doesn't become the routine; omitted, the clamp targets `maxProgramWeek`.
- * Legacy plans (no anchor) keep the historical offset+1 mapping and never expire
- * at offset 0, so they are left untouched. Weeks before an anchored start stay
- * unresolved (`before_program`).
+ * Anchored plans resolve to their own week inside the window, `before_program`
+ * ahead of the anchor, and `after_program` past the last week. There is
+ * deliberately NO roll-forward: from July to September 2026 a finished plan
+ * repeated its last week here, and the product call was that an empty week is
+ * honest (travel, a break, a plan not generated yet) where a repeat is not.
+ * Legacy plans (no anchor) keep the historical offset+1 mapping.
  */
 export function resolveProgramWeekForCalendarOffset(
   selectedWeekOffset: number,
   anchorYmdRaw: string | null | undefined,
   maxProgramWeek: number,
-  repeatWeek?: number,
 ): ProgramWeekResolution {
   if (maxProgramWeek < 1) return { status: 'out_of_program' };
   const anchorYmd = normalizePlanAnchorYmd(anchorYmdRaw);
   if (!anchorYmd) {
     const w = selectedWeekOffset + 1;
     if (w < 1 || w > maxProgramWeek) return { status: 'out_of_program' };
-    return { status: 'in_program', week: w, repeatingLastWeek: false };
+    return { status: 'in_program', week: w };
   }
   const calMonday = calendarMondayForOffsetFromToday(selectedWeekOffset);
   const anchor = parseLocalYmd(anchorYmd);
@@ -277,20 +250,13 @@ export function resolveProgramWeekForCalendarOffset(
   anchor.setHours(0, 0, 0, 0);
   const planWeek = wholeWeeksBetween(anchor, calMonday) + 1;
   if (planWeek < 1) return { status: 'before_program' };
-  if (planWeek > maxProgramWeek) {
-    const target = Math.min(
-      Math.max(normalizeProgramWeekNumber(repeatWeek ?? maxProgramWeek), 1),
-      maxProgramWeek,
-    );
-    return { status: 'in_program', week: target, repeatingLastWeek: true };
-  }
-  return { status: 'in_program', week: planWeek, repeatingLastWeek: false };
+  if (planWeek > maxProgramWeek) return { status: 'after_program' };
+  return { status: 'in_program', week: planWeek };
 }
 
 /**
  * Which program week (1-based) should be shown for the given calendar strip offset —
- * strict variant of {@link resolveProgramWeekForCalendarOffset}: `null` for anything
- * not natively inside the program window (no roll-forward clamping).
+ * `null` for anything not inside the program window.
  */
 export function programWeekForCalendarOffset(
   selectedWeekOffset: number,
@@ -298,7 +264,7 @@ export function programWeekForCalendarOffset(
   maxProgramWeek: number,
 ): number | null {
   const r = resolveProgramWeekForCalendarOffset(selectedWeekOffset, anchorYmdRaw, maxProgramWeek);
-  return r.status === 'in_program' && !r.repeatingLastWeek ? r.week : null;
+  return r.status === 'in_program' ? r.week : null;
 }
 
 /** Program week index for a slot placed on the week that starts on `slotWeekMondayYmd`. */

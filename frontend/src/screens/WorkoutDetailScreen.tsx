@@ -15,6 +15,7 @@ import {
 } from '../services/workoutService';
 import { getCurrentPlan, planSlotForWorkout } from '../services/planService';
 import type { ApiPlan } from '../services/planService';
+import { refreshLiveCalendarData } from '../lib/planCalendarPrototypeStore';
 import WorkoutLikeButton from '../components/WorkoutLikeButton';
 import ShareModal from '../components/ShareModal';
 import { Workout } from '../types/workout';
@@ -312,6 +313,9 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
       setGenerating(true);
       const updated = await regenerateWorkoutInPlace(workout.id);
       setWorkout(updated);
+      // A plan-linked workout's slot was rewritten server-side: the Calendar
+      // must show it now, not after its throttled focus refetch.
+      refreshLiveCalendarData(true);
     } catch (error: any) {
       console.error('Error regenerating workout:', error);
       const raw = error?.response?.data?.message;
@@ -353,6 +357,7 @@ export default function WorkoutDetailScreen({ navigation, route }: Props) {
             );
             const updated = await updateWorkout(workout.id, { exercises: next });
             setWorkout(updated);
+            refreshLiveCalendarData(true);
           } catch (e) {
             console.error(e);
             Alert.alert('Error', 'Could not update workout.');

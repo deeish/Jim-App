@@ -22,6 +22,7 @@ import {
   type SharePreview,
   type SharePreviewExercise,
 } from '../services/shareService';
+import { refreshLiveCalendarData } from '../lib/planCalendarPrototypeStore';
 import {
   formatShareCode,
   formatShareCodeInput,
@@ -147,6 +148,9 @@ export default function ShareRedeemScreen() {
     try {
       const result = await acceptShare(previewCode);
       if (result.kind === 'plan') {
+        // The account's active plan just changed: the Calendar must not keep
+        // showing the old one until its throttled focus refetch.
+        refreshLiveCalendarData(true);
         goToPlanTab();
       } else if (result.workoutId) {
         goToWorkout(result.workoutId);

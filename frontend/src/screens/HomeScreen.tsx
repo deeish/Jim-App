@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
+  AppState,
   View,
   Text,
   StyleSheet,
@@ -41,7 +42,9 @@ import {
   inProgressSession,
   isDayCompleted,
   isDaySkipped,
+  noteCalendarAccount,
   plannedDayForDate,
+  refreshLiveCalendarData,
   subscribePlanCalendar,
 } from '../lib/planCalendarPrototypeStore';
 import type { Workout, WorkoutStats } from '../types/workout';
@@ -55,7 +58,6 @@ import {
 import { formatTotalDuration, sessionLocalDay, summarizeProgress } from '../lib/progressStats';
 import {
   resolveProgramWeekForCalendarOffset,
-  lastContiguousProgramWeek,
   normalizeProgramWeekNumber,
   PLAN_WEEKDAY_NAMES_MONDAY_FIRST,
 } from '../lib/planCalendar';
@@ -67,6 +69,7 @@ import { useTabBarInset } from '../navigation/useTabBarInset';
 import { haptics } from '../lib/haptics';
 import { SkeletonCard } from '../components/Skeleton';
 import {
+  estimateWorkoutMinutesFromExercises,
   exercisesLikeFromPrescription,
   getPlanSlotDisplayMinutes,
   resolveWorkoutEtaMinutes,
@@ -144,6 +147,9 @@ export default function HomeScreen() {
   // Bumped on every calendar-store emit so the week strip re-derives from it.
   const [calVersion, setCalVersion] = useState(0);
   useEffect(() => {
+    // Who is signed in, BEFORE the first fetch: a different account than the
+    // phone's snapshot drops the previous account's edits and owed writes.
+    noteCalendarAccount(user?.id ?? null);
     ensureLiveCalendarData();
     // The strip's "done" seals come from logged days; the current week can
     // straddle a month boundary, so warm both months.
@@ -151,10 +157,25 @@ export default function HomeScreen() {
     ensureLogsForMonth(monday);
     ensureLogsForMonth(addDays(monday, 6));
     setResumeSession(inProgressSession(todayIso()));
-    return subscribePlanCalendar(() => {
+    // Coming back to the app refetches the plan (throttled): it picks up a
+    // plan applied elsewhere, and — the part that matters for a phone that
+    // lost signal at the gym — every edit or finished session the store is
+    // still holding is retried on that fetch. Home is always mounted, so this
+    // is the one listener the whole tab bar needs.
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshLiveCalendarData();
+    });
+    const unsubscribe = subscribePlanCalendar(() => {
       setResumeSession(inProgressSession(todayIso()));
       setCalVersion((v) => v + 1);
     });
+    return () => {
+      appState.remove();
+      unsubscribe();
+    };
+    // Mount-only: Home is unmounted on sign-out and remounted on sign-in, so
+    // `user` is fixed for the life of this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [plan, setPlan] = useState<ApiPlan | null>(null);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<Workout[]>([]);
@@ -259,9 +280,11 @@ export default function HomeScreen() {
     navigation.navigate('Calendar');
   };
 
+  // A button that says "Generate" opens the generator, not the month it
+  // lives behind.
   const goToGeneratePlan = () => {
     haptics.tap();
-    navigation.navigate('Calendar');
+    navigation.navigate('Calendar', { screen: 'GeneratePlan', initial: false });
   };
 
   const goToDay = (dateIso: string) => {
@@ -303,10 +326,9 @@ export default function HomeScreen() {
   const programWeekInfo = useMemo(() => {
     if (!plan?.planWorkouts?.length) return null;
     const maxWeek = Math.max(...plan.planWorkouts.map((pw) => normalizeProgramWeekNumber(pw.weekNumber)));
-    const repeatWeek = lastContiguousProgramWeek(plan.planWorkouts.map((pw) => pw.weekNumber));
-    const r = resolveProgramWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek, repeatWeek);
+    const r = resolveProgramWeekForCalendarOffset(0, plan.weekAnchorMonday, maxWeek);
     if (r.status !== 'in_program') return null;
-    return { current: r.week, total: maxWeek, repeating: r.repeatingLastWeek };
+    return { current: r.week, total: maxWeek };
   }, [plan]);
 
   const scheduledWorkout = homeToday?.status === 'scheduled' ? homeToday.workout : null;
@@ -315,15 +337,13 @@ export default function HomeScreen() {
       scheduledWorkout?.planWorkoutId ? planSlotForWorkout(plan ?? null, scheduledWorkout.planWorkoutId) : undefined,
     [plan, scheduledWorkout?.planWorkoutId],
   );
-  const metaLine = scheduledWorkout ? buildTodayMetaLine(scheduledWorkout, homeTodayPlanSlot) : '';
-  const hasExercises = (scheduledWorkout?.exercises?.length ?? 0) > 0;
-
   // One tile per day of the current calendar week, derived from the SAME store
   // the Calendar tab renders — Home and Calendar can never disagree. The store
   // getters read module state, so `calVersion` (bumped on every store emit) is
-  // the memo's change signal.
+  // the memo's change signal. Only a store still loading has no answer: with
+  // no plan, or offline, it still holds today's edits.
   const weekTiles = useMemo(() => {
-    if (loading || calendarDataMode() !== 'live') return [];
+    if (loading || calendarDataMode() === 'loading') return [];
     const monday = mondayOf(new Date());
     return Array.from({ length: 7 }, (_, i) => {
       const iso = toIso(addDays(monday, i));
@@ -353,12 +373,45 @@ export default function HomeScreen() {
   // Today's day from the calendar store: it carries replacements/additions the
   // API's weekly rows don't, so the hero's chips + preview stay honest.
   const todayPlanned = useMemo(() => {
-    if (loading || calendarDataMode() !== 'live') return null;
+    if (loading || calendarDataMode() === 'loading') return null;
     const day = plannedDayForDate(todayIso());
     return day.exercises.length > 0 ? day : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calVersion, loading]);
   const heroMuscles = todayPlanned ? dayMuscles(todayPlanned).slice(0, 4) : [];
+
+  // WHICH today card shows is answered by the calendar store first — it holds
+  // every edit the server has not confirmed yet (a Quick Workout built with
+  // no signal, an exercise removed a moment ago) — and by the server's plan
+  // only for what the store cannot say: why an empty day is empty. Before
+  // this, the card came from the server and the chips from the store, and
+  // the two could disagree: "Start workout" over a day the Calendar called
+  // rest, or "No plan yet" over a Quick Workout waiting to be saved.
+  const storeMode = calendarDataMode();
+  const storeHasToday = !loading && storeMode !== 'loading' && todayPlanned != null;
+  const todayStatus: HomeTodayResult['status'] | null = useMemo(() => {
+    if (loading || !homeToday) return null;
+    if (storeHasToday) return 'scheduled';
+    const serverSaysWorkout =
+      homeToday.status === 'scheduled' || homeToday.status === 'planned_pending';
+    if (storeMode === 'live' && serverSaysWorkout) return 'empty_day';
+    return homeToday.status;
+  }, [loading, homeToday, storeHasToday, storeMode]);
+  const metaLine = todayPlanned
+    ? (() => {
+        const n = todayPlanned.exercises.length;
+        const minutes = estimateWorkoutMinutesFromExercises(
+          exercisesLikeFromPrescription(
+            todayPlanned.exercises.map((ex) => ({ sets: ex.sets, reps: ex.reps })),
+          ),
+        );
+        const count = `${n} exercise${n === 1 ? '' : 's'}`;
+        return minutes ? `${count} · ~${minutes} min` : count;
+      })()
+    : scheduledWorkout
+      ? buildTodayMetaLine(scheduledWorkout, homeTodayPlanSlot)
+      : '';
+  const hasExercises = storeHasToday || (scheduledWorkout?.exercises?.length ?? 0) > 0;
 
   const summary = useMemo(() => (stats ? summarizeProgress(stats, new Date()) : null), [stats]);
   const lastSession = useMemo(() => (stats ? latestCompletedSession(stats.sessions) : null), [stats]);
@@ -434,11 +487,7 @@ export default function HomeScreen() {
         <Text style={[styles.greeting, { color: colors.text }]}>{getGreeting(displayName || undefined)}</Text>
         <Text style={[styles.dateLine, { color: colors.textMuted }]}>
           {formatTodayDateLine()}
-          {programWeekInfo
-            ? programWeekInfo.repeating
-              ? ` · Repeating week ${programWeekInfo.current}`
-              : ` · Week ${programWeekInfo.current} of ${programWeekInfo.total}`
-            : ''}
+          {programWeekInfo ? ` · Week ${programWeekInfo.current} of ${programWeekInfo.total}` : ''}
         </Text>
 
         {loading ? (
@@ -453,11 +502,11 @@ export default function HomeScreen() {
           </>
         ) : (
           <>
-            {homeToday?.status !== 'no_plan' && (
+            {todayStatus !== 'no_plan' && (
               <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>Today</Text>
             )}
 
-            {resumeSession && homeToday?.status !== 'scheduled' ? (
+            {resumeSession && todayStatus !== 'scheduled' ? (
               <TouchableOpacity
                 style={[styles.card, styles.resumeCard, themedStyles.resumeCard]}
                 onPress={goToWorkout}
@@ -504,7 +553,7 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
-            {!loadError && homeToday?.status === 'scheduled' && scheduledWorkout ? (
+            {!loadError && todayStatus === 'scheduled' ? (
               <View
                 style={[
                   styles.card,
@@ -530,7 +579,7 @@ export default function HomeScreen() {
                   </View>
                 ) : null}
                 <Text style={[styles.heroTitle, { color: colors.text }]} numberOfLines={2}>
-                  {todayPlanned?.title ?? scheduledWorkout.name}
+                  {todayPlanned?.title ?? scheduledWorkout?.name ?? 'Workout'}
                 </Text>
                 {metaLine ? (
                   <Text style={[styles.cardMeta, { color: colors.textSecondary }]} numberOfLines={2}>
@@ -560,7 +609,7 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
-            {!loadError && homeToday?.status === 'planned_pending' ? (
+            {!loadError && todayStatus === 'planned_pending' && homeToday?.status === 'planned_pending' ? (
               <View style={[styles.card, styles.todayHero, themedStyles.todayCard, themedStyles.heroRing]}>
                 <View style={styles.todayHeroTop}>
                   <View style={[styles.cardIconCircle, { backgroundColor: colors.primary + '20' }]}>
@@ -590,7 +639,7 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
-            {!loadError && homeToday?.status === 'rest' ? (
+            {!loadError && todayStatus === 'rest' ? (
               <View style={[styles.card, styles.todayHero, themedStyles.secondaryCard]}>
                 <View style={styles.todayHeroTop}>
                   <View style={[styles.cardIconCircle, { backgroundColor: colors.secondary + '22' }]}>
@@ -610,7 +659,7 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
-            {!loadError && homeToday?.status === 'empty_day' ? (
+            {!loadError && todayStatus === 'empty_day' ? (
               <View style={[styles.card, styles.todayHero, themedStyles.secondaryCard]}>
                 <View style={styles.todayHeroTop}>
                   <View style={[styles.cardIconCircle, { backgroundColor: colors.textMuted + '22' }]}>
@@ -634,7 +683,7 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
-            {!loadError && homeToday?.status === 'out_of_program' ? (
+            {!loadError && todayStatus === 'out_of_program' ? (
               <View style={[styles.card, styles.todayHero, themedStyles.secondaryCard]}>
                 <View style={styles.todayHeroTop}>
                   <View style={[styles.cardIconCircle, { backgroundColor: colors.textMuted + '33' }]}>
@@ -643,12 +692,10 @@ export default function HomeScreen() {
                   <View style={styles.cardTextBlock}>
                     <Text style={[styles.cardEyebrow, { color: colors.textMuted }]}>This calendar week</Text>
                     <Text style={[styles.cardTitle, { color: colors.text }]}>Outside your program</Text>
-                    {/* Nothing in the app extends a program, and there is no
-                        Plan tab to open — both were promised here long after
-                        they stopped being true. Note this state is reached
-                        BEFORE a program starts (running past the last week
-                        resolves to `in_program`, repeating it), so the copy
-                        must not talk about the end of the plan. */}
+                    {/* This state is reached BEFORE a program starts (or for
+                        a legacy plan with no anchor); a plan that has ENDED
+                        gets its own card below, so the copy here must not
+                        talk about the end of the plan. */}
                     <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
                       Today isn’t one of your program’s weeks. Open Calendar to pick a week to train.
                     </Text>
@@ -665,7 +712,42 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
-            {!loadError && homeToday?.status === 'no_plan' ? (
+            {!loadError && todayStatus === 'plan_ended' ? (
+              // The plan's last week has passed. Nothing repeats (the week is
+              // honestly open — travel, a break, a plan not generated yet);
+              // the ask is the next plan. Workouts can still be added to any
+              // day from the Calendar, and they extend this plan.
+              <View style={[styles.card, styles.todayHero, themedStyles.secondaryCard]}>
+                <View style={styles.todayHeroTop}>
+                  <View style={[styles.cardIconCircle, { backgroundColor: colors.primary + '18' }]}>
+                    <Ionicons name="sparkles-outline" size={24} color={colors.primary} />
+                  </View>
+                  <View style={styles.cardTextBlock}>
+                    <Text style={[styles.cardEyebrow, { color: colors.textMuted }]}>This week</Text>
+                    <Text style={[styles.cardTitle, { color: colors.text }]}>Your plan has ended</Text>
+                    <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
+                      The week is open. Generate a new plan, or add a workout to any day from the Calendar.
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={[styles.primaryButton, themedStyles.primaryCta]}
+                  onPress={goToGeneratePlan}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityHint="Opens AI plan generator"
+                >
+                  <Ionicons name="flash-outline" size={18} color={colors.background} />
+                  <Text style={[styles.primaryButtonText, themedStyles.primaryCtaText]}>Generate a new plan</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.noPlanLink} onPress={goToPlan} activeOpacity={0.7}>
+                  <Text style={[styles.textLink, { color: colors.primary }]}>Open Calendar</Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {!loadError && todayStatus === 'no_plan' ? (
               <View style={styles.noPlanEmpty}>
                 <View style={[styles.noPlanIconWrap, { backgroundColor: colors.primary + '18' }]}>
                   <Ionicons name="sparkles-outline" size={36} color={colors.primary} />
@@ -689,23 +771,6 @@ export default function HomeScreen() {
                   <Ionicons name="chevron-forward" size={18} color={colors.primary} />
                 </TouchableOpacity>
               </View>
-            ) : null}
-
-            {!loadError && homeToday?.repeatingWeek != null ? (
-              <TouchableOpacity
-                style={[styles.card, styles.repeatBanner, themedStyles.secondaryCard]}
-                onPress={goToGeneratePlan}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityHint="Opens AI plan generator"
-              >
-                <Ionicons name="repeat" size={18} color={colors.primary} />
-                <Text style={[styles.repeatBannerText, { color: colors.textSecondary }]}>
-                  Your plan ended, so you're repeating week {homeToday.repeatingWeek}. Generate a
-                  fresh block to keep progressing.
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-              </TouchableOpacity>
             ) : null}
 
             {!loadError && showWeekStrip && (
@@ -1096,19 +1161,6 @@ const styles = StyleSheet.create({
   rowCardSub: {
     fontSize: text.body,
     marginTop: spacing.xs,
-    fontWeight: weight.medium,
-  },
-  repeatBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-  },
-  repeatBannerText: {
-    flex: 1,
-    fontSize: text.body,
-    lineHeight: leading.body,
     fontWeight: weight.medium,
   },
   // --- Today hero (design A: muscle chips + preview line) ---

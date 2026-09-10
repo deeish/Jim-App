@@ -194,7 +194,7 @@ export default function WorkoutMoveSheet({
   const renderRootActions = () => {
     if (!day || !date || !dateIso) return null;
     const todayState = moveTargetsForDay()[0].state;
-    const todayBlocked = todayState === 'logged' || todayState === 'beyond';
+    const todayBlocked = todayState === 'logged';
     // 'move' mode can open on days that can't actually move (the day-view ⋯
     // shows why instead of hiding the door): started days keep their
     // date-keyed set logs, so Move and Skip grey out with the reason.
@@ -229,11 +229,9 @@ export default function WorkoutMoveSheet({
               <Text style={styles.rowSub}>
                 {todayState === 'logged'
                   ? 'Today’s session is already logged — pick another day'
-                  : todayState === 'beyond'
-                    ? 'Your program has ended'
-                    : todayState === 'occupied'
-                      ? `Today has ${moveTargetsForDay()[0].title} — you’ll choose where it goes`
-                      : `Adds ${day.title} to today, ${WEEKDAYS[weekdayIndex(fromIso(today))]}`}
+                  : todayState === 'occupied'
+                    ? `Today has ${moveTargetsForDay()[0].title} — you’ll choose where it goes`
+                    : `Adds ${day.title} to today, ${WEEKDAYS[weekdayIndex(fromIso(today))]}`}
               </Text>
             </View>
             {busy === 'today' ? (
@@ -452,7 +450,7 @@ export default function WorkoutMoveSheet({
 
   const renderTargetRow = (f: Frame, target: MoveTarget) => {
     const isSelf = target.dateIso === f.fromIso;
-    const blocked = target.state === 'logged' || target.state === 'beyond' || isSelf;
+    const blocked = target.state === 'logged' || isSelf;
     const isToday = target.dateIso === today;
     const d = fromIso(target.dateIso);
     const onPick = () => {
@@ -519,10 +517,6 @@ export default function WorkoutMoveSheet({
         ) : target.state === 'logged' ? (
           <View style={styles.badgeGrey}>
             <Text style={styles.badgeGreyText}>Already logged</Text>
-          </View>
-        ) : target.state === 'beyond' ? (
-          <View style={styles.badgeGrey}>
-            <Text style={styles.badgeGreyText}>After plan ends</Text>
           </View>
         ) : null}
       </TouchableOpacity>
