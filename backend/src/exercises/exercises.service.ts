@@ -587,6 +587,15 @@ export class ExercisesService implements OnModuleInit {
     return dto.location === 'home' ? [...HOME_EQUIPMENT] : undefined;
   }
 
+  /** The avoidance predicate for callers outside this service — plan apply
+   *  runs every ready-made slot (template, preview, share) through it so the
+   *  user's work-arounds hold on those paths too, not only on generation. */
+  avoidPredicate(
+    avoid: string[] | undefined,
+  ): (e: TransformedExercise) => boolean {
+    return this.buildAvoidChecker(avoid);
+  }
+
   /** Free-text + joint-demand avoidance predicate shared by the replace flows.
    *  Avoid phrases that name a joint ("shoulder", "knee pain") also exclude
    *  candidates tagged with outsized demand on that joint — structural

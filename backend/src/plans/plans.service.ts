@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { currentGenerationSignal } from '../common/generation-abort.context';
 import {
@@ -17,7 +18,13 @@ import {
   type GroqCompletionUsage,
 } from '../workouts/workout-generator.service';
 import { ExercisesService } from '../exercises/exercises.service';
-import { CreatePlanDto, PlanSlotDto } from './dto/create-plan.dto';
+import {
+  CreatePlanDto,
+  PlanSlotDto,
+  PlanSlotExerciseDto,
+} from './dto/create-plan.dto';
+import { ApplyWorkaroundsDto } from './dto/apply-workarounds.dto';
+import { substituteAvoidedExercises } from './plan-avoid-substitution';
 import {
   GenerateSessionsDto,
   WeekProgressionDto,
@@ -188,6 +195,27 @@ export class PlansService {
       ? this.dateOnlyFromYmd(dto.weekAnchorMonday)
       : null;
 
+    // A coach-built template arrives with its exercises decided and nobody
+    // has checked them against the user's work-arounds, so it asks
+    // (`applyWorkarounds`) for every flagged row to be swapped for a fitting
+    // alternative before anything is persisted. A preview apply does not
+    // ask: the generator already filtered, and rewriting rows the user just
+    // approved would make the saved plan differ from the preview.
+    const substitution = dto.applyWorkarounds
+      ? substituteAvoidedExercises(dto.slots, dto.limitations, this.exercises, {
+          goal: dto.goal,
+          experience: dto.experience,
+          equipment: dto.equipment,
+        })
+      : { slots: dto.slots, swapped: 0, dropped: 0 };
+    if (substitution.swapped > 0 || substitution.dropped > 0) {
+      this.logger.log(
+        `[PlansService] create: work-arounds ${JSON.stringify(dto.limitations)} ` +
+          `swapped=${substitution.swapped} dropped=${substitution.dropped}`,
+      );
+    }
+    const slots = substitution.slots;
+
     await this.prisma.workoutPlan.updateMany({
       where: { userId, isActive: true },
       data: { isActive: false },
@@ -200,7 +228,7 @@ export class PlansService {
         weekAnchorMonday,
         isActive: true,
         planWorkouts: {
-          create: dto.slots.map((s) => ({
+          create: slots.map((s) => ({
             weekNumber: s.weekNumber,
             dayOfWeek: s.dayOfWeek,
             title: s.title,
@@ -245,6 +273,138 @@ export class PlansService {
       },
     );
     return this.getById(plan.id, userId);
+  }
+
+  /**
+   * Swap the exercises of the user's current plan that load the given
+   * joints, from `fromWeekNumber` on. The only path that rewrites a saved
+   * plan's rows, and it runs only on the user's explicit "swap in my current
+   * plan too" from Profile. Earlier weeks are history and stay as done; the
+   * mirrored Workout rows (what a live session opens) are rewritten with the
+   * slot so the calendar and the session agree.
+   */
+  async applyWorkaroundsToCurrentPlan(
+    userId: string,
+    dto: ApplyWorkaroundsDto,
+  ) {
+    const plan = await this.findActivePlan(userId);
+    if (!plan) throw new NotFoundException('No active plan');
+    const fromWeek = dto.fromWeekNumber ?? 1;
+    const targets = plan.planWorkouts.filter((pw) => pw.weekNumber >= fromWeek);
+    const slots: PlanSlotDto[] = targets.map((pw) => ({
+      weekNumber: pw.weekNumber,
+      dayOfWeek: pw.dayOfWeek,
+      title: pw.title,
+      detailLine: pw.detailLine ?? undefined,
+      type: pw.type,
+      durationMinutes: pw.durationMinutes,
+      intensity: pw.intensity ?? undefined,
+      orderInDay: pw.orderInDay,
+      exercises: pw.exercises.map((e) => ({
+        exerciseId: e.exerciseId,
+        name: e.name ?? undefined,
+        sets: e.sets,
+        reps: e.reps,
+        repsMin: e.repsMin ?? undefined,
+        repsMax: e.repsMax ?? undefined,
+        durationSeconds: e.durationSeconds ?? undefined,
+        prescriptionType:
+          (e.prescriptionType as PlanSlotExerciseDto['prescriptionType']) ??
+          undefined,
+        weight: e.weight ?? undefined,
+        notes: e.notes ?? undefined,
+        orderIndex: e.orderIndex,
+      })),
+    }));
+
+    const substitution = substituteAvoidedExercises(
+      slots,
+      dto.limitations,
+      this.exercises,
+      { goal: dto.goal, experience: dto.experience, equipment: dto.equipment },
+    );
+
+    let slotsTouched = 0;
+    for (let i = 0; i < targets.length; i++) {
+      const out = substitution.slots[i];
+      if (out === slots[i]) continue; // untouched slots come back by reference
+      slotsTouched += 1;
+      const pw = targets[i];
+      const rows = out.exercises ?? [];
+      const mirror = await this.prisma.workout.findFirst({
+        where: { planWorkoutId: pw.id },
+        select: { id: true },
+      });
+      const ops: Prisma.PrismaPromise<unknown>[] = [
+        this.prisma.planExercise.deleteMany({
+          where: { planWorkoutId: pw.id },
+        }),
+        this.prisma.planWorkout.update({
+          where: { id: pw.id },
+          data: {
+            detailLine: out.detailLine ?? pw.detailLine ?? undefined,
+            exercises: {
+              create: rows.map((e, idx) => ({
+                exerciseId: e.exerciseId,
+                name: e.name ?? null,
+                sets: e.sets,
+                reps: e.reps,
+                repsMin: e.repsMin ?? null,
+                repsMax: e.repsMax ?? null,
+                durationSeconds: e.durationSeconds ?? null,
+                prescriptionType: e.prescriptionType ?? null,
+                weight: e.weight ?? null,
+                notes: e.notes ?? null,
+                orderIndex: e.orderIndex ?? idx,
+              })),
+            },
+          },
+        }),
+      ];
+      if (mirror) {
+        ops.push(
+          this.prisma.workoutExercise.deleteMany({
+            where: { workoutId: mirror.id },
+          }),
+          this.prisma.workout.update({
+            where: { id: mirror.id },
+            data: {
+              focus: out.detailLine ?? undefined,
+              exercises: {
+                create: rows.map((e, idx) => ({
+                  name: e.name ?? 'Exercise',
+                  sets: e.sets,
+                  reps: e.reps,
+                  repsMin: e.repsMin ?? undefined,
+                  repsMax: e.repsMax ?? undefined,
+                  durationSeconds: e.durationSeconds ?? undefined,
+                  prescriptionType: e.prescriptionType ?? undefined,
+                  weight: e.weight ?? undefined,
+                  notes: e.notes ?? undefined,
+                  exerciseId:
+                    e.exerciseId && !/^(draft_|applied_)/.test(e.exerciseId)
+                      ? e.exerciseId
+                      : undefined,
+                  orderIndex: e.orderIndex ?? idx,
+                })),
+              },
+            },
+          }),
+        );
+      }
+      await this.prisma.$transaction(ops);
+    }
+
+    this.logger.log(
+      `[PlansService] applyWorkarounds plan=${plan.id} ${JSON.stringify(dto.limitations)} ` +
+        `fromWeek=${fromWeek} slots=${slotsTouched} swapped=${substitution.swapped} dropped=${substitution.dropped}`,
+    );
+    return {
+      swapped: substitution.swapped,
+      dropped: substitution.dropped,
+      slotsTouched,
+      plan: await this.getById(plan.id, userId),
+    };
   }
 
   /** Monday of the week containing the given date (local). */
