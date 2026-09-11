@@ -7,6 +7,16 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { PlanInputs } from './plan';
 import type { RootTabParamList } from '../components/NavBar';
 
+/** Signed-out stack (App.tsx `AuthStack`). Welcome shows once per install; the rest is the identifier-first flow. */
+export type AuthStackParamList = {
+  Welcome: undefined;
+  SignIn: undefined;
+  /** Six-digit code sent to `email`. */
+  EmailCode: { email: string };
+  /** Password fallback for accounts that have one. */
+  Password: { email: string };
+};
+
 export type RootNavigatorParamList = {
   Onboarding: undefined;
   Main: NavigatorScreenParams<RootTabParamList> | undefined;

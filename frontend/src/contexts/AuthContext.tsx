@@ -8,9 +8,11 @@ import {
   useRef,
 } from 'react';
 import { AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
+import type { ProviderCredential } from '../lib/authProviders';
 import {
   applySupabaseAuthUrl,
   createAuthUrlDeduper,
@@ -29,9 +31,20 @@ type AuthContextValue = {
   recoveryLinkError: string | null;
   /** Dismiss the recovery-link error (e.g. once the user starts typing on Login). */
   clearRecoveryLinkError: () => void;
+  /**
+   * Whether this device has ever held a session. `null` until read from disk.
+   * Decides whether a signed-out launch opens on the Welcome screen (never signed
+   * in here) or straight on Sign in (a returning person who signed out).
+   */
+  hasSignedInBefore: boolean | null;
+  /** Password fallback for accounts that have one. */
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
-  requestPasswordReset: (email: string) => Promise<{ error: Error | null }>;
+  /** Emails a 6-digit code; creates the account on first use. */
+  sendEmailCode: (email: string) => Promise<{ error: Error | null }>;
+  /** Exchanges the emailed code for a session. */
+  verifyEmailCode: (email: string, code: string) => Promise<{ error: Error | null }>;
+  /** Sign in with Apple / Google via a native identity token. */
+  signInWithProvider: (credential: ProviderCredential) => Promise<{ error: Error | null }>;
   /** Call after a successful password update during recovery (fallback if auth event order varies). */
   clearPasswordRecoveryMode: () => void;
   signOut: () => Promise<void>;
@@ -39,13 +52,38 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Device-local, not per-user: "has anyone ever signed in on this install". */
+const SIGNED_IN_BEFORE_KEY = 'jim_auth_seen_v1';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(false);
   const [recoveryLinkError, setRecoveryLinkError] = useState<string | null>(null);
+  const [hasSignedInBefore, setHasSignedInBefore] = useState<boolean | null>(null);
   const recoveryActiveRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(SIGNED_IN_BEFORE_KEY)
+      .then((v) => {
+        if (!cancelled) setHasSignedInBefore(v === '1');
+      })
+      .catch(() => {
+        if (!cancelled) setHasSignedInBefore(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The first session this install ever sees flips the flag for good.
+  useEffect(() => {
+    if (!session || hasSignedInBefore) return;
+    setHasSignedInBefore(true);
+    AsyncStorage.setItem(SIGNED_IN_BEFORE_KEY, '1').catch(() => {});
+  }, [session, hasSignedInBefore]);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,20 +183,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const signUp = useCallback(
-    async (email: string, password: string) => {
-      const { error } = await supabase.auth.signUp({ email, password });
-      return { error: error ?? null };
-    },
-    []
-  );
-
-  const requestPasswordReset = useCallback(async (email: string) => {
-    const redirectTo = Linking.createURL('auth/reset');
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo,
+  const sendEmailCode = useCallback(async (email: string) => {
+    // `shouldCreateUser: true` is what makes this one screen serve both log in and
+    // sign up: an unknown address gets an account the moment its code is verified.
+    // The email template must render `{{ .Token }}` (a 6-digit code), not a magic
+    // link — see docs/auth-sign-in-setup.md.
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true },
     });
     return { error: error ?? null };
+  }, []);
+
+  const verifyEmailCode = useCallback(async (email: string, code: string) => {
+    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+    return { error: error ?? null };
+  }, []);
+
+  const signInWithProvider = useCallback(async (credential: ProviderCredential) => {
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: credential.provider,
+      token: credential.token,
+    });
+    if (error) return { error };
+    // Apple sends the name once, on the first authorization, and never again.
+    // Store it on the auth user so Profile / Home / Crew can greet the person.
+    const existing = data.user?.user_metadata?.full_name;
+    if (credential.fullName && !(typeof existing === 'string' && existing.trim())) {
+      const { error: metaError } = await supabase.auth.updateUser({
+        data: { full_name: credential.fullName },
+      });
+      if (metaError) console.warn('[auth] could not store provider name', metaError);
+    }
+    return { error: null };
   }, []);
 
   const clearPasswordRecoveryMode = useCallback(() => {
@@ -192,9 +249,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     passwordRecoveryMode,
     recoveryLinkError,
     clearRecoveryLinkError,
+    hasSignedInBefore,
     signIn,
-    signUp,
-    requestPasswordReset,
+    sendEmailCode,
+    verifyEmailCode,
+    signInWithProvider,
     clearPasswordRecoveryMode,
     signOut,
   };
