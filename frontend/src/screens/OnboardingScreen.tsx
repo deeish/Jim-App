@@ -772,31 +772,51 @@ export default function OnboardingScreen({ navigation }: Props) {
                   onPress={() => handleSelectGoal(g)}
                 />
               ))}
-              {goalLine ? <FactLine colors={colors} text={goalLine} /> : null}
+              {/*
+                The second-focus affordance is a dashed "add slot" card in the
+                same family as the goal cards, so it reads as a real option
+                without competing with them (no fill, no shadow, smaller tile).
+                The same shell hosts all three states so nothing jumps around.
+                It sits directly under the goal cards, before the fact line,
+                so it is the last *choice* in the list rather than a footnote
+                below commentary (and it clears the fold on a 390×844 screen).
+              */}
               {selectedGoal && pickingSecondary ? (
-                <View style={styles.inlineRow}>
-                  <Text style={styles.helperTextInline}>Tap a second goal to add it as a focus.</Text>
+                <View style={[styles.secondFocusCard, styles.secondFocusCardActive]}>
+                  <View style={[styles.secondFocusTile, { backgroundColor: colors.primary }]}>
+                    <Ionicons name="add" size={20} color={colors.onPrimary} />
+                  </View>
+                  <View style={styles.cardTextWrap}>
+                    <Text style={styles.secondFocusTitle}>Tap a second goal to add it as a focus.</Text>
+                  </View>
                   <PressableScale
                     onPress={() => {
                       haptics.select();
                       setPickingSecondary(false);
                     }}
-                    style={styles.inlineLink}
+                    style={styles.secondFocusAction}
+                    accessibilityRole="button"
                   >
                     <Text style={styles.inlineLinkText}>Cancel</Text>
                   </PressableScale>
                 </View>
               ) : selectedGoal && selectedSecondaryGoal ? (
-                <View style={styles.inlineRow}>
-                  <Text style={styles.helperTextInline}>
-                    {GOAL_LABELS[selectedSecondaryGoal]} is your second focus.
-                  </Text>
+                <View style={[styles.secondFocusCard, styles.secondFocusCardActive]}>
+                  <View style={[styles.secondFocusTile, { backgroundColor: colors.primary }]}>
+                    <Ionicons name="checkmark" size={20} color={colors.onPrimary} />
+                  </View>
+                  <View style={styles.cardTextWrap}>
+                    <Text style={styles.secondFocusTitle}>
+                      {GOAL_LABELS[selectedSecondaryGoal]} is your second focus.
+                    </Text>
+                  </View>
                   <PressableScale
                     onPress={() => {
                       haptics.select();
                       setSelectedSecondaryGoal(null);
                     }}
-                    style={styles.inlineLink}
+                    style={styles.secondFocusAction}
+                    accessibilityRole="button"
                   >
                     <Text style={styles.inlineLinkText}>Remove</Text>
                   </PressableScale>
@@ -807,11 +827,23 @@ export default function OnboardingScreen({ navigation }: Props) {
                     haptics.select();
                     setPickingSecondary(true);
                   }}
-                  style={styles.inlineLink}
+                  style={styles.secondFocusCard}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a second focus. Optional. Mixes a second goal into your plan."
                 >
-                  <Text style={styles.inlineLinkText}>Add a second focus</Text>
+                  <View style={[styles.secondFocusTile, { backgroundColor: colors.primarySoft }]}>
+                    <Ionicons name="add" size={20} color={colors.primary} />
+                  </View>
+                  <View style={styles.cardTextWrap}>
+                    <Text style={styles.secondFocusTitle}>Add a second focus</Text>
+                    <Text style={styles.secondFocusHint}>
+                      Optional. Mixes a second goal into your plan.
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                 </PressableScale>
               ) : null}
+              {goalLine ? <FactLine colors={colors} text={goalLine} /> : null}
             </>
           )}
 
@@ -1564,19 +1596,50 @@ function makeStyles(colors: ColorPalette) {
       fontWeight: weight.semibold,
       color: colors.primary,
     },
-    inlineRow: {
+    // Second-focus "add slot": same row anatomy as `card`, but dashed, unfilled
+    // and unshadowed so it is clearly optional and never a fourth goal.
+    secondFocusCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: spacing.md,
+      minHeight: 44,
+      borderRadius: radius.md,
+      borderWidth: 1.5,
+      borderStyle: 'dashed',
+      borderColor: colors.border,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.md,
     },
-    helperTextInline: {
-      flex: 1,
-      fontSize: text.body,
-      lineHeight: leading.body,
+    secondFocusCardActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primarySoft,
+    },
+    secondFocusTile: {
+      width: 36,
+      height: 36,
+      borderRadius: radius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.md,
+    },
+    secondFocusTitle: {
+      fontSize: text.callout,
+      lineHeight: leading.callout,
+      fontWeight: weight.semibold,
+      color: colors.text,
+    },
+    secondFocusHint: {
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+      marginTop: spacing.xs,
       color: colors.textMuted,
     },
-    inlineLink: { paddingVertical: spacing.sm, alignSelf: 'flex-start' },
+    secondFocusAction: {
+      minHeight: 44,
+      justifyContent: 'center',
+      paddingHorizontal: spacing.sm,
+      marginRight: -spacing.sm,
+    },
     inlineLinkText: { fontSize: text.body, fontWeight: weight.semibold, color: colors.primary },
     sectionLabel: {
       fontSize: text.body,
