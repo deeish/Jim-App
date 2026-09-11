@@ -61,7 +61,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   // ⚠ `date` is a guess until this ships. Set it to the real release date.
   {
     id: '2026-08-25',
-    version: '1.1.0',
+    version: '1.2.0',
     date: '2026-08-27',
     title: 'Crew, Home, and Profile',
     changes: [
@@ -130,6 +130,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         headline: 'Work-arounds in Profile',
         icon: 'medkit',
         text: 'Mark the joints you are working around under Training in your profile. New plans skip exercises that load them, and you can choose to swap them out of your current plan too.',
+      },
+      {
+        type: 'new',
+        headline: 'Sign in with Apple, Google, or a code',
+        icon: 'key',
+        text: 'One sign-in screen for new and returning people. Continue with Apple or Google, or type your email and enter the six-digit code we send you. Your password still works if you have one.',
       },
     ],
   },
