@@ -1,4 +1,4 @@
-import { goalBucket, recommendTemplate } from './templateRecommendation';
+import { goalBucket, recommendTemplate, recommendationMatch } from './templateRecommendation';
 import type { PlanTemplateCard } from '../services/templateService';
 
 function card(overrides: Partial<PlanTemplateCard>): PlanTemplateCard {
@@ -111,5 +111,63 @@ describe('recommendTemplate', () => {
     expect(recommendTemplate([ppl, ul], { goal: 'Strength', daysPerWeek: 4 })?.id).toBe('ul-4');
     // 6 days only fits the PPL range.
     expect(recommendTemplate([ppl, ul], { goal: 'Strength', daysPerWeek: 6 })?.id).toBe('ppl-6');
+  });
+
+  it('prefers the program whose session length holds the answer, when goal and days tie', () => {
+    const short = card({ id: 'short', goalId: 'strength', daysPerWeek: 4, sessionMinutes: { min: 30, max: 45 } });
+    const long = card({ id: 'long', goalId: 'strength', daysPerWeek: 4, sessionMinutes: { min: 60, max: 90 } });
+    expect(recommendTemplate([long, short], { goal: 'Strength', daysPerWeek: 4, sessionMinutes: 30 })?.id).toBe('short');
+    expect(recommendTemplate([short, long], { goal: 'Strength', daysPerWeek: 4, sessionMinutes: 75 })?.id).toBe('long');
+    // Without the answer nothing changes: catalog order breaks the tie.
+    expect(recommendTemplate([long, short], { goal: 'Strength', daysPerWeek: 4 })?.id).toBe('long');
+  });
+
+  it('never lets session length outrank the goal family or the day range', () => {
+    const wrongGoalRightLength = card({ id: 'wrong', goalId: 'balanced', sessionMinutes: { min: 30, max: 45 } });
+    const rightGoalLongSessions = card({ id: 'right', goalId: 'strength', sessionMinutes: { min: 75, max: 90 } });
+    expect(
+      recommendTemplate([wrongGoalRightLength, rightGoalLongSessions], { goal: 'Strength', daysPerWeek: 4, sessionMinutes: 30 })?.id,
+    ).toBe('right');
+  });
+});
+
+describe('recommendationMatch', () => {
+  it('is exact when the program is in the goal family, closest otherwise', () => {
+    expect(recommendationMatch(STRENGTH, { goal: 'Strength' })).toBe('exact');
+    expect(recommendationMatch(STRENGTH, { goal: 'Hypertrophy' })).toBe('exact');
+    expect(recommendationMatch(HYBRID, { goal: 'General fitness' })).toBe('exact');
+    // A runner who tapped Endurance gets the hybrid: no program is written
+    // for endurance, so the card must say "closest", never "recommended".
+    expect(recommendationMatch(HYBRID, { goal: 'Endurance' })).toBe('closest');
+    expect(recommendationMatch(STRENGTH, { goal: 'Endurance' })).toBe('closest');
+    expect(recommendationMatch(STRENGTH, { goal: 'Fat loss' })).toBe('closest');
+  });
+
+  it('is only closest when the schedule falls outside the program', () => {
+    // STRENGTH is a 4-day program with no supported range, 45–60 min.
+    expect(recommendationMatch(STRENGTH, { goal: 'Strength', daysPerWeek: 4 })).toBe('exact');
+    expect(recommendationMatch(STRENGTH, { goal: 'Strength', daysPerWeek: 6 })).toBe('closest');
+    expect(
+      recommendationMatch(STRENGTH, { goal: 'Strength', daysPerWeek: 4, sessionMinutes: 60 }),
+    ).toBe('exact');
+    // One 15-minute step outside the range still counts as a fit.
+    expect(
+      recommendationMatch(STRENGTH, { goal: 'Strength', daysPerWeek: 4, sessionMinutes: 75 }),
+    ).toBe('exact');
+    expect(
+      recommendationMatch(STRENGTH, { goal: 'Strength', daysPerWeek: 4, sessionMinutes: 30 }),
+    ).toBe('exact');
+    const long = card({ id: 'long', goalId: 'strength', sessionMinutes: { min: 75, max: 90 } });
+    expect(
+      recommendationMatch(long, { goal: 'Strength', daysPerWeek: 4, sessionMinutes: 30 }),
+    ).toBe('closest');
+    const adjustable = card({
+      id: 'adj',
+      goalId: 'strength',
+      daysPerWeek: 6,
+      supportedDaysPerWeek: { min: 3, max: 6 },
+    });
+    expect(recommendationMatch(adjustable, { goal: 'Strength', daysPerWeek: 3 })).toBe('exact');
+    expect(recommendationMatch(adjustable, { goal: 'Strength', daysPerWeek: 2 })).toBe('closest');
   });
 });

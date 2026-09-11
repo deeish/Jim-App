@@ -18,6 +18,7 @@ import { CreatePlanDto } from './dto/create-plan.dto';
 import { RemoveSlotDto } from './dto/remove-slot.dto';
 import { MoveSlotDto } from './dto/move-slot.dto';
 import { RenamePlanDto } from './dto/rename-plan.dto';
+import { ApplyWorkaroundsDto } from './dto/apply-workarounds.dto';
 import { PlanSlotDto } from './dto/create-plan.dto';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
@@ -51,6 +52,17 @@ export class PlansController {
   @HttpCode(HttpStatus.OK)
   addSlotToCurrent(@Body() dto: PlanSlotDto, @UserId() userId: string) {
     return this.plansService.addSlotToCurrentPlan(userId, dto);
+  }
+
+  /**
+   * Swap the exercises of the current plan that load the given joints, from a
+   * program week on. The only route that rewrites a saved plan's rows; the
+   * app calls it only after the user says "swap in my current plan too".
+   */
+  @Post('me/workarounds')
+  @HttpCode(HttpStatus.OK)
+  applyWorkarounds(@Body() dto: ApplyWorkaroundsDto, @UserId() userId: string) {
+    return this.plansService.applyWorkaroundsToCurrentPlan(userId, dto);
   }
 
   /**

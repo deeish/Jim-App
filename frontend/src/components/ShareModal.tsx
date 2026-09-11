@@ -13,6 +13,7 @@ import SheetModal from './SheetModal';
 import QrCodeView from './QrCodeView';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { nameFromEmail } from '../lib/authIdentity';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { createShare, type ShareKind } from '../services/shareService';
 import { formatShareCode } from '../lib/shareCode';
@@ -55,9 +56,7 @@ export default function ShareModal({
     const meta = user?.user_metadata as Record<string, unknown> | undefined;
     const full = meta?.full_name ?? meta?.name;
     if (typeof full === 'string' && full.trim()) return full.trim();
-    const email = user?.email;
-    if (email && email.includes('@')) return email.split('@')[0];
-    return undefined;
+    return nameFromEmail(user?.email);
   }, [profileDisplayName, user]);
 
   const fetchCode = useCallback(async () => {

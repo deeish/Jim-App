@@ -22,6 +22,7 @@ import { useTabBarInset } from '../navigation/useTabBarInset';
 import type { ColorPalette } from '../theme/colors';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { storedInjuryTagsToAvoidList } from '../constants/injuryTags';
+import { scheduleWriteBack, sessionMinutesOptionFor } from '../lib/scheduleWriteBack';
 import type { GoalOption, ExperienceOption } from '../contexts/UserPreferencesContext';
 import type { EquipmentOption } from '../constants/equipment';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -96,7 +97,31 @@ type ProgressionTarget = 'add weight' | 'add reps' | 'mix' | 'add time' | 'add i
 type StrengthFocusPriority = 'upper' | 'lower' | 'balanced';
 type HybridFocusPriority = 'strength priority' | 'cardio priority';
 type FocusPriority = StrengthFocusPriority | HybridFocusPriority;
-type AvoidItem = 'knees' | 'shoulders' | 'lower back' | 'avoid running' | 'avoid barbell' | 'avoid jumping' | 'avoid overhead';
+type AvoidItem =
+  | 'knees'
+  | 'shoulders'
+  | 'lower back'
+  | 'wrists or elbows'
+  | 'hips'
+  | 'ankles'
+  | 'neck'
+  | 'avoid running'
+  | 'avoid barbell'
+  | 'avoid jumping'
+  | 'avoid overhead';
+
+/** The seven joints onboarding and Profile offer, in the plan vocabulary
+ *  (`storedInjuryTagsToAvoidList`). The form used to show three, so a hips
+ *  or neck tag seeded from Profile was applied with no chip to see or clear. */
+const BODY_AREA_AVOID_ITEMS: { item: AvoidItem; label: string }[] = [
+  { item: 'knees', label: 'Knees' },
+  { item: 'shoulders', label: 'Shoulders' },
+  { item: 'lower back', label: 'Lower back' },
+  { item: 'wrists or elbows', label: 'Wrists / elbows' },
+  { item: 'hips', label: 'Hips' },
+  { item: 'ankles', label: 'Ankles / feet' },
+  { item: 'neck', label: 'Neck' },
+];
 type WorkoutDetailLevel = 'simple' | 'detailed';
 type StrengthFormat = 'straight sets' | 'supersets' | 'circuit';
 type CardioFormat = 'intervals' | 'steady-state' | 'tempo';
@@ -492,10 +517,15 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     experience: prefExperience,
     equipment: prefEquipment,
     trainingFrequency,
+    sessionMinutes: prefSessionMinutes,
     trainingDaysFlexible,
     preferredTrainingDays,
     injuryTagIds,
     injuryNotes,
+    setTrainingFrequency,
+    setTrainingDaysFlexible,
+    setPreferredTrainingDays,
+    setSessionMinutes,
   } = useUserPreferences();
   const [inputs, setInputs] = useState<GeneratePlanInputs>(() => ({
     goal: prefGoalToForm(prefGoal),
@@ -514,7 +544,11 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     allowDoubleSessions: false,
     maxDoubleDaysPerWeek: 1,
     weeks: 1,
-    timePerSession: { min: 30, max: 60 },
+    // Onboarding's session length seeds the window: 45 → 30–45, 75 ("75+") → 60–90.
+    timePerSession: {
+      min: Math.max(DURATION_MIN, prefSessionMinutes - 15),
+      max: prefSessionMinutes >= 75 ? 90 : prefSessionMinutes,
+    },
     useAdvancedDurationCaps: false,
     primaryLocation: 'gym',
     availableEquipment: prefEquipmentToForm(prefEquipment),
@@ -935,6 +969,19 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     if (!inputs.goal || !inputs.primaryLocation || !inputs.availableEquipment.length || !inputs.trainingDays.length) {
       return;
     }
+
+    // This form is where the schedule changes (Profile has no editor for it
+    // on purpose), so remember what was picked: the next plan, and the
+    // program recommendation, start from here instead of the onboarding
+    // answer. Days equal to the form's own default pattern stay "flexible".
+    const writeBack = scheduleWriteBack(
+      inputs.trainingDays,
+      getDefaultTrainingDays(inputs.trainingDays.length),
+    );
+    if (writeBack.trainingFrequency) setTrainingFrequency(writeBack.trainingFrequency);
+    setTrainingDaysFlexible(writeBack.trainingDaysFlexible);
+    setPreferredTrainingDays(writeBack.preferredTrainingDays);
+    setSessionMinutes(sessionMinutesOptionFor(inputs.timePerSession));
 
     // Normalize perDayTimeCaps: only include days with a numeric cap (omit 'default' / undefined)
     const perDayTimeCapsForPreview: Record<string, number> = {};
@@ -2435,7 +2482,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                 <View style={styles.accordionBody}>
               <View style={styles.chipsRow}>
                 <Text style={styles.chipGroupLabel}>Body areas:</Text>
-                {(['knees', 'shoulders', 'lower back'] as AvoidItem[]).map(item => {
+                {BODY_AREA_AVOID_ITEMS.map(({ item, label }) => {
                   const isSelected = inputs.avoidList.includes(item);
                   return (
                     <TouchableOpacity
@@ -2453,7 +2500,7 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                       }}
                     >
                       <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                        {item.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                        {label}
                       </Text>
                     </TouchableOpacity>
                   );

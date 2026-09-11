@@ -30,6 +30,7 @@ import {
 } from '../services/planService';
 import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
 import { replaceExercise } from '../services/exerciseService';
+import { refreshLiveCalendarData } from '../lib/planCalendarPrototypeStore';
 import {
   runPipelineSafe,
   regeneratePipelineWeek,
@@ -1052,6 +1053,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       });
       // Applied — the persisted backup is no longer needed.
       void clearPlanPreviewDraft();
+      // The active plan changed: every calendar surface refetches now. (The
+      // PlanList landing forces one too; the onboarding path lands on Home.)
+      refreshLiveCalendarData(true);
       // First plan from onboarding → drop the user on Home (greeting + today's session).
       // Otherwise reset the Plan stack to PlanList so Preview/Generate aren't left on the stack.
       if (fromOnboarding) {

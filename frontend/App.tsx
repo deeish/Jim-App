@@ -20,9 +20,10 @@ import WeightTrackerScreen from './src/screens/WeightTrackerScreen';
 import ShareRedeemScreen from './src/screens/ShareRedeemScreen';
 import ShareDeepLinkHandler from './src/components/ShareDeepLinkHandler';
 import OnboardingScreen from './src/screens/OnboardingScreen';
-import LoginScreen from './src/screens/LoginScreen';
-import SignupScreen from './src/screens/SignupScreen';
-import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import WelcomeScreen from './src/screens/WelcomeScreen';
+import SignInScreen from './src/screens/SignInScreen';
+import EmailCodeScreen from './src/screens/EmailCodeScreen';
+import PasswordScreen from './src/screens/PasswordScreen';
 import SetNewPasswordScreen from './src/screens/SetNewPasswordScreen';
 import { ThemeProvider, spacing, text, useTheme } from './src/theme';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
@@ -30,15 +31,13 @@ import { UserPreferencesProvider, useUserPreferences } from './src/contexts/User
 import { DevPreviewProvider, useDevPreview } from './src/contexts/DevPreviewContext';
 import { wrapWithSentry, sentryNavigationIntegration } from './src/lib/sentry';
 import { useOtaUpdates } from './src/lib/useOtaUpdates';
-import type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
+import type {
+  AuthStackParamList,
+  RootNavigatorParamList,
+  RootStackParamList,
+} from './src/types/navigation';
 
 export type { RootNavigatorParamList, RootStackParamList } from './src/types/navigation';
-
-type AuthStackParamList = {
-  Login: undefined;
-  Signup: undefined;
-  ForgotPassword: undefined;
-};
 
 const RootStack = createNativeStackNavigator<RootNavigatorParamList>();
 const AuthStackNav = createNativeStackNavigator<AuthStackParamList>();
@@ -51,18 +50,23 @@ const AuthStackNav = createNativeStackNavigator<AuthStackParamList>();
  */
 const LOADING_MIN_DISPLAY_MS = 1500;
 
-function AuthStack() {
+function AuthStack({ hasSignedInBefore }: { hasSignedInBefore: boolean }) {
   const { colors } = useTheme();
   return (
     <AuthStackNav.Navigator
+      // A fresh install sees the value pitch first; a device that has held a
+      // session before (signed out, or a new account after deletion) opens on
+      // Sign in. Welcome stays reachable only as the stack root in the first case.
+      initialRouteName={hasSignedInBefore ? 'SignIn' : 'Welcome'}
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.background },
       }}
     >
-      <AuthStackNav.Screen name="Login" component={LoginScreen} />
-      <AuthStackNav.Screen name="Signup" component={SignupScreen} />
-      <AuthStackNav.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <AuthStackNav.Screen name="Welcome" component={WelcomeScreen} />
+      <AuthStackNav.Screen name="SignIn" component={SignInScreen} />
+      <AuthStackNav.Screen name="EmailCode" component={EmailCodeScreen} />
+      <AuthStackNav.Screen name="Password" component={PasswordScreen} />
     </AuthStackNav.Navigator>
   );
 }
@@ -77,7 +81,7 @@ function DevPreviewDone() {
         Onboarding preview complete
       </Text>
       <TouchableOpacity onPress={() => setPreviewOnboarding(false)}>
-        <Text style={[styles.loadingText, { color: colors.primary }]}>Back to login</Text>
+        <Text style={[styles.loadingText, { color: colors.primary }]}>Back to sign in</Text>
       </TouchableOpacity>
     </View>
   );
@@ -85,7 +89,7 @@ function DevPreviewDone() {
 
 function AppContent() {
   const { colors, mode } = useTheme();
-  const { session, loading, passwordRecoveryMode } = useAuth();
+  const { session, loading, passwordRecoveryMode, hasSignedInBefore } = useAuth();
   const { hasCompletedOnboarding, hydrated } = useUserPreferences();
   const { previewOnboarding } = useDevPreview();
   const navigationRef = useNavigationContainerRef<RootNavigatorParamList>();
@@ -99,7 +103,9 @@ function AppContent() {
 
   // App is ready to show once auth + preferences have settled and the loader's
   // minimum display has elapsed.
-  const ready = !loading && hydrated && minDisplayElapsed;
+  // `hasSignedInBefore` is one AsyncStorage read; waiting for it keeps the
+  // signed-out stack from opening on Welcome and then jumping to Sign in.
+  const ready = !loading && hydrated && hasSignedInBefore !== null && minDisplayElapsed;
 
   // Keep the branded loader mounted across the hand-off and cross-fade it out over
   // the app, so launch ends on a smooth dissolve instead of a hard cut. The loader
@@ -176,7 +182,7 @@ function AppContent() {
             </RootStack.Navigator>
           )
         ) : (
-          <AuthStack />
+          <AuthStack hasSignedInBefore={hasSignedInBefore === true} />
         )}
       </NavigationContainer>
       )}

@@ -1,6 +1,7 @@
 import {
   defaultWeekdaysForCount,
   estimateTemplateSessionMinutes,
+  firstSessionDateISO,
   materializeTemplatePlan,
   orderWeekdays,
   suggestedTemplateStartDateISO,
@@ -128,54 +129,108 @@ describe('toggleTemplateWeekday', () => {
 });
 
 describe('suggestedTemplateStartDateISO', () => {
-  it('suggests today when today is Monday', () => {
-    expect(suggestedTemplateStartDateISO(new Date(2026, 7, 10))).toBe(
-      '2026-08-10',
-    );
+  // A mid-week sign-up used to be pushed to "next Monday" whenever a chosen
+  // day had passed, so a Tuesday sign-up waited six days. The partial first
+  // week makes today always clean.
+  it('is today, whatever the weekday', () => {
+    expect(suggestedTemplateStartDateISO(new Date(2026, 7, 10))).toBe('2026-08-10'); // Monday
+    expect(suggestedTemplateStartDateISO(new Date(2026, 7, 5))).toBe('2026-08-05'); // Wednesday
+    expect(suggestedTemplateStartDateISO(new Date(2026, 7, 9))).toBe('2026-08-09'); // Sunday
   });
 
-  it('suggests next Monday from mid-week', () => {
-    // Wednesday 2026-08-05 → Monday 2026-08-10.
-    expect(suggestedTemplateStartDateISO(new Date(2026, 7, 5))).toBe(
-      '2026-08-10',
-    );
-  });
-
-  it('suggests next Monday from Sunday', () => {
-    // Sunday 2026-08-09 → Monday 2026-08-10.
-    expect(suggestedTemplateStartDateISO(new Date(2026, 7, 9))).toBe(
-      '2026-08-10',
-    );
-  });
-
-  it('suggests today when no selected training day this week has passed', () => {
-    // Tuesday 2026-08-04 with a Tue/Thu/Sat program: nothing lost — start now.
-    expect(
-      suggestedTemplateStartDateISO(new Date(2026, 7, 4), ['Tuesday', 'Thursday', 'Saturday']),
-    ).toBe('2026-08-04');
-    // Monday is always clean, whatever the selection.
-    expect(
-      suggestedTemplateStartDateISO(new Date(2026, 7, 10), ['Wednesday', 'Friday']),
-    ).toBe('2026-08-10');
-    // Sunday with a Sunday-only program: the one session is still ahead.
-    expect(suggestedTemplateStartDateISO(new Date(2026, 7, 9), ['Sunday'])).toBe('2026-08-09');
-  });
-
-  it('keeps next Monday when a selected day already passed this week', () => {
-    // Wednesday 2026-08-05 with Monday in the program: week 1 would open with
-    // a missed session — wait for the clean Monday.
+  it('is today even when a chosen day already passed this week', () => {
     expect(
       suggestedTemplateStartDateISO(new Date(2026, 7, 5), ['Monday', 'Tuesday', 'Thursday', 'Friday']),
-    ).toBe('2026-08-10');
-    // Sunday with a Monday program: next Monday is tomorrow anyway.
-    expect(suggestedTemplateStartDateISO(new Date(2026, 7, 9), ['Monday'])).toBe('2026-08-10');
+    ).toBe('2026-08-05');
+  });
+});
+
+describe('firstSessionDateISO', () => {
+  it('is the start date when it is a chosen day', () => {
+    expect(firstSessionDateISO('2026-08-10', ['Monday', 'Thursday'])).toBe('2026-08-10');
+  });
+
+  it('is the next chosen day after a mid-week start', () => {
+    // Wednesday → Thursday.
+    expect(firstSessionDateISO('2026-08-12', ['Monday', 'Thursday'])).toBe('2026-08-13');
+  });
+
+  it('rolls into the next week when every chosen day has passed', () => {
+    // Sunday 2026-08-16 → Monday 2026-08-17.
+    expect(firstSessionDateISO('2026-08-16', ['Monday', 'Thursday'])).toBe('2026-08-17');
+  });
+
+  it('is null with no chosen days', () => {
+    expect(firstSessionDateISO('2026-08-12', [])).toBeNull();
+  });
+});
+
+describe('materializeTemplatePlan (partial first week)', () => {
+  it('schedules nothing before a mid-week start and keeps the rotation continuous', () => {
+    const body = materializeTemplatePlan(template, {
+      weekdays: ['Monday', 'Thursday'],
+      startDateISO: '2026-08-12', // Wednesday: Monday has passed
+    });
+    // Week 1 holds only Thursday; the block is 15 sessions, not 16.
+    expect(body.slots).toHaveLength(15);
+    const week1 = body.slots.filter((s) => s.weekNumber === 1);
+    expect(week1.map((s) => [s.dayOfWeek, s.title])).toEqual([['Thursday', 'Upper']]);
+    // Nothing in the split is skipped: week 2 continues with Lower.
+    const week2 = body.slots.filter((s) => s.weekNumber === 2);
+    expect(week2.map((s) => [s.dayOfWeek, s.title])).toEqual([
+      ['Monday', 'Lower'],
+      ['Thursday', 'Upper'],
+    ]);
+    // Week 1 is still the start date's week.
+    expect(body.weekAnchorMonday).toBe('2026-08-10');
+  });
+
+  it('starts the following week when every chosen day of the start week has passed', () => {
+    const body = materializeTemplatePlan(template, {
+      weekdays: ['Monday', 'Thursday'],
+      startDateISO: '2026-08-16', // Sunday
+    });
+    expect(body.weekAnchorMonday).toBe('2026-08-17');
+    expect(body.slots).toHaveLength(16);
+    const week1 = body.slots.filter((s) => s.weekNumber === 1);
+    expect(week1.map((s) => [s.dayOfWeek, s.title])).toEqual([
+      ['Monday', 'Upper'],
+      ['Thursday', 'Lower'],
+    ]);
+  });
+
+  it('passes the work-arounds through for the server to honour', () => {
+    const body = materializeTemplatePlan(template, {
+      weekdays: ['Monday', 'Thursday'],
+      startDateISO: '2026-08-10',
+      limitations: ['knees', 'lower back'],
+    });
+    expect(body.limitations).toEqual(['knees', 'lower back']);
+    // The server only rewrites rows when asked; a template apply asks.
+    expect(body.applyWorkarounds).toBe(true);
+    const without = materializeTemplatePlan(template, {
+      weekdays: ['Monday', 'Thursday'],
+      startDateISO: '2026-08-10',
+    });
+    expect(without.limitations).toBeUndefined();
+    expect(without.applyWorkarounds).toBeUndefined();
+    expect(without.equipment).toBeUndefined();
+  });
+
+  it('passes the equipment through so replacements stay doable', () => {
+    const body = materializeTemplatePlan(template, {
+      weekdays: ['Monday', 'Thursday'],
+      startDateISO: '2026-08-10',
+      equipment: ['Dumbbell', 'Bodyweight'],
+    });
+    expect(body.equipment).toEqual(['Dumbbell', 'Bodyweight']);
   });
 });
 
 describe('materializeTemplatePlan', () => {
   const body = materializeTemplatePlan(template, {
     weekdays: ['Monday', 'Thursday'],
-    startDateISO: '2026-08-12', // Wednesday
+    startDateISO: '2026-08-10', // Monday: a full first week
   });
 
   it('creates weeks × sessions slots mapped onto the chosen weekdays', () => {
@@ -359,11 +414,11 @@ describe('adjustable days/week', () => {
   it('at the authored count the rotation is the classic per-weekday layout', () => {
     const classic = materializeTemplatePlan(adjustable, {
       weekdays: ['Monday', 'Thursday'],
-      startDateISO: '2026-08-12',
+      startDateISO: '2026-08-10',
     });
     const legacy = materializeTemplatePlan(template, {
       weekdays: ['Monday', 'Thursday'],
-      startDateISO: '2026-08-12',
+      startDateISO: '2026-08-10',
     });
     expect(classic).toEqual(legacy);
     const week1 = classic.slots.filter((s) => s.weekNumber === 1);

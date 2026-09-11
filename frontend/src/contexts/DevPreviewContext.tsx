@@ -2,9 +2,9 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from 're
 
 /**
  * DEV-ONLY. In-memory toggle that lets us jump into the onboarding flow from the
- * login screen without a real session. Nothing here is persisted, and the UI
+ * sign-in screen without a real session. Nothing here is persisted, and the UI
  * that flips it is gated behind `__DEV__`, so it has no effect in production.
- * Safe to delete (this file + the button in LoginScreen + the branch in App.tsx)
+ * Safe to delete (this file + the link in SignInScreen + the branch in App.tsx)
  * once onboarding no longer needs previewing.
  */
 type DevPreviewValue = {

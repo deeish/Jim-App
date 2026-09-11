@@ -1,5 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,7 +30,6 @@ import {
   GOAL_OPTIONS,
   GOAL_LABELS,
   EXPERIENCE_OPTIONS,
-  MAX_INJURY_NOTES,
   type GoalOption,
   type ExperienceOption,
   type StoredInjuryTagId,
@@ -29,20 +37,46 @@ import {
 import { EQUIPMENT_OPTIONS, type EquipmentOption } from '../constants/equipment';
 import {
   DAYS_OF_WEEK_PREF,
+  SESSION_MINUTES_OPTIONS,
   TRAINING_FREQUENCY_OPTIONS,
   type DayOfWeekPreference,
+  type SessionMinutesOption,
   type TrainingFrequencyOption,
 } from '../constants/trainingSchedule';
-import { PROFILE_INJURY_TAG_OPTIONS } from '../constants/injuryTags';
+import { PROFILE_INJURY_TAG_OPTIONS, storedInjuryTagsToAvoidList } from '../constants/injuryTags';
 import PressableScale from '../components/PressableScale';
 import Button from '../components/Button';
 import Aurora from '../components/Aurora';
 import JimLogo from '../components/JimLogo';
 import { haptics } from '../lib/haptics';
-import { kgToLb, type WeightUnit } from '../lib/weightDisplay';
-import { logWeighIn } from '../services/bodyWeightService';
-import { listPlanTemplates, type PlanTemplateCard } from '../services/templateService';
-import { recommendTemplate } from '../lib/templateRecommendation';
+import {
+  getPlanTemplate,
+  listPlanTemplates,
+  type PlanTemplateCard,
+  type PlanTemplateDetail,
+  type TemplateExercise,
+} from '../services/templateService';
+import { createPlan } from '../services/planService';
+import { recommendTemplate, recommendationMatch } from '../lib/templateRecommendation';
+import {
+  defaultWeekdaysForCount,
+  estimateTemplateSessionMinutes,
+  firstSessionDateISO,
+  materializeTemplatePlan,
+  orderWeekdays,
+  suggestedTemplateStartDateISO,
+  supportedDayRange,
+} from '../lib/templatePlan';
+import {
+  experienceFactLine,
+  goalFactLine,
+  matchingMomentLines,
+  scheduleFitLine,
+} from '../lib/onboardingPayoff';
+import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
+import { parseLocalYmd } from '../lib/planCalendar';
+import { refreshLiveCalendarData } from '../lib/planCalendarPrototypeStore';
+import type { Weekday } from '../types/plan';
 import type { RootNavigatorParamList } from '../types/navigation';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -70,21 +104,77 @@ const INJURY_LABEL: Record<StoredInjuryTagId, string> = PROFILE_INJURY_TAG_OPTIO
   {} as Record<StoredInjuryTagId, string>,
 );
 
+/**
+ * Six questions. A question is here only if the plan is wrong without it
+ * (goal, experience, schedule, equipment) or changes it when given
+ * (work-arounds). Weight moved to the tracker, where it is used; the
+ * free-text "other notes" left — it only ever reached the AI prompt.
+ */
 const STEP_HEADINGS: { title: string; subtitle: string }[] = [
   { title: "What's your main goal?", subtitle: "We'll tailor your plan around this" },
   { title: 'Your experience level?', subtitle: 'Helps us set the right intensity and volume' },
-  { title: 'How often do you train?', subtitle: "We'll shape your weekly split around this" },
+  { title: 'How often, and how long?', subtitle: "We'll shape your split and each session around this" },
   { title: 'What equipment do you have?', subtitle: 'Select all that apply — change it anytime in Profile' },
-  { title: 'Anything to work around?', subtitle: 'Optional — most people skip this. Not medical advice.' },
-  { title: "What's your current weight?", subtitle: 'Optional — sets your first weigh-in so you can track progress.' },
-  { title: 'Looks good?', subtitle: 'Review your setup — you can change anything later in Profile.' },
+  {
+    title: 'Anything to work around?',
+    subtitle: "Optional. We'll swap exercises that load these joints. Not medical advice.",
+  },
+  {
+    title: 'Looks good?',
+    // Profile edits goal, experience and equipment today; the schedule and
+    // work-arounds have no editor yet, so the line must not promise one.
+    subtitle: 'Review your setup. Goal, experience and equipment can be changed later in Profile.',
+  },
 ];
 
+const STEP_GOAL = 0;
+const STEP_EXPERIENCE = 1;
+const STEP_SCHEDULE = 2;
+const STEP_EQUIPMENT = 3;
+const STEP_WORKAROUNDS = 4;
+const STEP_REVIEW = 5;
 const TOTAL_STEPS = STEP_HEADINGS.length;
 const LAST_STEP = TOTAL_STEPS - 1;
 
+/** The matching moment shows its three lines for at least this long, so the
+ *  work is readable and an instant catalog answer does not flash it. */
+const MATCHING_MIN_MS = 1800;
+
 const GYM_PRESET: EquipmentOption[] = [...EQUIPMENT_OPTIONS];
 const HOME_PRESET: EquipmentOption[] = ['Bodyweight', 'Dumbbell', 'Pull-up Bar', 'Resistance Band'];
+
+const MINUTES_LABEL: Record<SessionMinutesOption, string> = {
+  30: '30 min',
+  45: '45 min',
+  60: '60 min',
+  75: '75+',
+};
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, n));
+}
+
+/** Week-1 prescription of a template row, the way the program screen prints it. */
+function repDisplay(ex: TemplateExercise): string {
+  const week = ex.weekly[0];
+  if (!week) return '';
+  if (ex.prescriptionType === 'time') {
+    return `${week.sets} × ${formatRestSecondsForPreview(week.durationSeconds ?? 0)}`;
+  }
+  const lo = week.repsMin ?? 0;
+  const hi = week.repsMax ?? lo;
+  return `${week.sets} × ${hi > lo ? `${lo}–${hi}` : `${lo}`}`;
+}
+
+/** "Today", "Tomorrow", or "Thursday, Sep 11": the day the first session lands. */
+function firstSessionLabel(iso: string, todayIso: string): string {
+  if (iso === todayIso) return 'Today';
+  const d = parseLocalYmd(iso);
+  const tomorrow = parseLocalYmd(todayIso);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (d.getTime() === tomorrow.getTime()) return 'Tomorrow';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+}
 
 export default function OnboardingScreen({ navigation }: Props) {
   const { colors } = useTheme();
@@ -92,36 +182,51 @@ export default function OnboardingScreen({ navigation }: Props) {
   const {
     setGoal,
     setSecondaryGoal,
-    setWeightUnit,
     setExperience,
     setEquipment,
     setTrainingFrequency,
+    setSessionMinutes: persistSessionMinutes,
     setTrainingDaysFlexible,
     setPreferredTrainingDays,
     setInjuryTagIds,
-    setInjuryNotes,
     setProfileDisplayName,
     completeOnboarding,
   } = useUserPreferences();
 
   const [step, setStep] = useState(0);
   const [showWelcome, setShowWelcome] = useState(true);
-  // Post-review payoff: the recommended-program screen. Answers are persisted
-  // and onboarding is marked complete on entry, so all three exits are plain
-  // navigations and a killed app relaunches into Main, not back into questions.
+  // After Finish: the matching moment (the work that was done, readable),
+  // then the payoff. Answers are persisted and onboarding is marked complete
+  // on entry, so every exit is a plain navigation and a killed app relaunches
+  // into Main, not back into the questions.
+  const [showMatching, setShowMatching] = useState(false);
   const [showPayoff, setShowPayoff] = useState(false);
+  const matchingStartedAt = useRef(0);
+
   const [templates, setTemplates] = useState<PlanTemplateCard[] | null>(null);
+  // A failed catalog fetch keeps `templates` null (so no line pretends to
+  // know how many programs fit) and lets the matching moment end.
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  const [detail, setDetail] = useState<PlanTemplateDetail | null>(null);
+  // 'loading' holds the matching moment open; 'failed' lets it end with the
+  // card in summary form (Start becomes View program).
+  const [detailStatus, setDetailStatus] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
+  const [applying, setApplying] = useState(false);
+
   const [selectedGoal, setSelectedGoal] = useState<GoalOption | null>(null);
   const [selectedSecondaryGoal, setSelectedSecondaryGoal] = useState<GoalOption | null>(null);
+  // The second focus is an explicit mode the user enters from a link, never
+  // a side effect of tapping a second card (that used to be how you changed
+  // your mind, and you got two goals instead).
+  const [pickingSecondary, setPickingSecondary] = useState(false);
   const [selectedExperience, setSelectedExperience] = useState<ExperienceOption | null>(null);
+  const [experienceNotSure, setExperienceNotSure] = useState(false);
   const [selectedFrequency, setSelectedFrequency] = useState<TrainingFrequencyOption>(4);
+  const [sessionMinutes, setSessionMinutes] = useState<SessionMinutesOption>(45);
   const [flexibleDays, setFlexibleDays] = useState(true);
   const [selectedWeekdays, setSelectedWeekdays] = useState<DayOfWeekPreference[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentOption[]>([]);
   const [injuryTags, setInjuryTags] = useState<StoredInjuryTagId[]>([]);
-  const [injuryNotes, setInjuryNotesDraft] = useState('');
-  const [weightInput, setWeightInput] = useState('');
-  const [weightEntryUnit, setWeightEntryUnit] = useState<WeightUnit>('lb');
   const [displayName, setDisplayName] = useState('');
 
   const progress = useSharedValue((1) / TOTAL_STEPS);
@@ -130,65 +235,110 @@ export default function OnboardingScreen({ navigation }: Props) {
   }, [step, progress]);
   const fillStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
 
-  // Prefetch the catalog while the user reviews their answers, so the payoff
-  // screen shows its recommendation instantly. Failure degrades to the
-  // browse-programs card — it must never block finishing onboarding.
+  // The catalog is fetched once, up front: the schedule step's fit line and
+  // the matching moment both count programs against the answers. Failure
+  // degrades to the browse-programs card — it must never block finishing.
   useEffect(() => {
-    if (step !== LAST_STEP || templates !== null) return;
     let active = true;
     listPlanTemplates()
       .then((list) => {
         if (active) setTemplates(list);
       })
       .catch(() => {
-        if (active) setTemplates([]);
+        if (active) setCatalogFailed(true);
       });
     return () => {
       active = false;
     };
-  }, [step, templates]);
+  }, []);
 
-  const recommended =
-    templates && templates.length
-      ? recommendTemplate(templates, {
-          goal: selectedGoal,
-          daysPerWeek: selectedFrequency,
-          experience: selectedExperience,
-        })
-      : null;
+  const answers = {
+    goal: selectedGoal,
+    daysPerWeek: selectedFrequency,
+    experience: selectedExperience,
+    sessionMinutes,
+  };
+  const recommended = templates && templates.length ? recommendTemplate(templates, answers) : null;
+  const match = recommended ? recommendationMatch(recommended, answers) : null;
+
+  // The recommended program's detail (its sessions) backs the payoff card's
+  // first-session list and the one-tap apply. Fetched once the answers are
+  // final (Finish tapped), under the matching moment, so the card is ready
+  // when it ends. A failure degrades the card to its summary form.
+  const finished = showMatching || showPayoff;
+  useEffect(() => {
+    if (!finished || !recommended) return;
+    let active = true;
+    setDetail(null);
+    setDetailStatus('loading');
+    getPlanTemplate(recommended.id)
+      .then((d) => {
+        if (!active) return;
+        setDetail(d);
+        setDetailStatus('ready');
+      })
+      .catch(() => {
+        if (active) setDetailStatus('failed');
+      });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished, recommended?.id]);
+
+  // The matching moment ends when the catalog and the program have answered
+  // and the minimum display time has passed — whichever is later. An empty
+  // catalog has nothing to show, so it goes straight to the payoff. A tap
+  // skips the wait at any point.
+  const detailPending = recommended !== null && (detailStatus === 'idle' || detailStatus === 'loading');
+  useEffect(() => {
+    if (!showMatching || detailPending) return;
+    if (templates === null && !catalogFailed) return;
+    const remaining =
+      !templates || templates.length === 0
+        ? 0
+        : Math.max(0, MATCHING_MIN_MS - (Date.now() - matchingStartedAt.current));
+    const t = setTimeout(() => {
+      setShowMatching(false);
+      setShowPayoff(true);
+    }, remaining);
+    return () => clearTimeout(t);
+  }, [showMatching, templates, catalogFailed, detailPending]);
 
   const scheduleOk = flexibleDays || selectedWeekdays.length === selectedFrequency;
   const canProceed =
-    step === 0
+    step === STEP_GOAL
       ? selectedGoal !== null
-      : step === 1
+      : step === STEP_EXPERIENCE
         ? selectedExperience !== null
-        : step === 2
+        : step === STEP_SCHEDULE
           ? scheduleOk
-          : step === 3
+          : step === STEP_EQUIPMENT
             ? selectedEquipment.length > 0
             : true;
 
-  // One list, up to two picks: first tap sets the main goal, the next tap
-  // sets (or replaces) the second focus. Tapping a selected card deselects
-  // it; deselecting the main goal promotes the second focus so the primary
-  // slot is never empty while anything is selected.
   function handleSelectGoal(g: GoalOption) {
     haptics.select();
-    if (selectedGoal === g) {
-      setSelectedGoal(selectedSecondaryGoal);
-      setSelectedSecondaryGoal(null);
+    if (pickingSecondary) {
+      if (g === selectedGoal) return;
+      setSelectedSecondaryGoal(selectedSecondaryGoal === g ? null : g);
+      setPickingSecondary(false);
       return;
     }
-    if (selectedSecondaryGoal === g) {
-      setSelectedSecondaryGoal(null);
+    if (selectedGoal === g) return;
+    setSelectedGoal(g);
+    if (selectedSecondaryGoal === g) setSelectedSecondaryGoal(null);
+  }
+
+  function selectExperience(e: ExperienceOption | 'not-sure') {
+    haptics.select();
+    if (e === 'not-sure') {
+      setSelectedExperience('Beginner');
+      setExperienceNotSure(true);
       return;
     }
-    if (!selectedGoal) {
-      setSelectedGoal(g);
-      return;
-    }
-    setSelectedSecondaryGoal(g);
+    setSelectedExperience(e);
+    setExperienceNotSure(false);
   }
 
   function toggleEquipment(item: EquipmentOption) {
@@ -236,27 +386,63 @@ export default function OnboardingScreen({ navigation }: Props) {
     setSecondaryGoal(selectedSecondaryGoal);
     if (selectedExperience) setExperience(selectedExperience);
     setTrainingFrequency(selectedFrequency);
+    persistSessionMinutes(sessionMinutes);
     setTrainingDaysFlexible(flexibleDays);
     setPreferredTrainingDays(flexibleDays ? [] : selectedWeekdays);
     setEquipment(selectedEquipment);
     setInjuryTagIds(injuryTags);
-    setInjuryNotes(injuryNotes.trim());
     if (displayName.trim()) setProfileDisplayName(displayName.trim());
-    // Optional starting weigh-in. The user is already authenticated here, so this
-    // is a best-effort POST that must never block finishing onboarding.
-    const parsedWeight = Number.parseFloat(weightInput.replace(',', '.'));
-    if (Number.isFinite(parsedWeight) && parsedWeight > 0) {
-      setWeightUnit(weightEntryUnit);
-      const weightLb = weightEntryUnit === 'kg' ? kgToLb(parsedWeight) : parsedWeight;
-      if (weightLb >= 1 && weightLb <= 1500) {
-        void logWeighIn({ weightLb: Math.round(weightLb * 10) / 10 }).catch(() => {});
-      }
-    }
     completeOnboarding();
-    // No more generate-and-wait finale: land on the payoff screen, which
-    // recommends a coach-built template (instant apply) with AI generation and
-    // free exploration as the other two exits.
+    matchingStartedAt.current = Date.now();
+    setShowMatching(true);
+  }
+
+  function skipMatching() {
+    if (!showMatching) return;
+    setShowMatching(false);
     setShowPayoff(true);
+  }
+
+  /** The schedule the recommended program is applied with: the answers,
+   *  clamped into the program's supported range. */
+  function scheduleFor(program: Pick<PlanTemplateDetail, 'daysPerWeek' | 'supportedDaysPerWeek' | 'defaultWeekdays'>) {
+    const { min, max } = supportedDayRange(program);
+    const count = clamp(selectedFrequency, min, max);
+    const weekdays: Weekday[] =
+      !flexibleDays && selectedWeekdays.length === count
+        ? orderWeekdays(selectedWeekdays as Weekday[])
+        : defaultWeekdaysForCount(program, count);
+    return { count, weekdays };
+  }
+
+  async function applyRecommended() {
+    if (!detail || applying) return;
+    haptics.select();
+    setApplying(true);
+    try {
+      const { weekdays } = scheduleFor(detail);
+      await createPlan(
+        materializeTemplatePlan(detail, {
+          weekdays,
+          startDateISO: suggestedTemplateStartDateISO(),
+          limitations: storedInjuryTagsToAvoidList(injuryTags),
+          equipment: selectedEquipment,
+        }),
+      );
+      haptics.success();
+      refreshLiveCalendarData(true);
+      navigation.replace('Main', {
+        screen: 'Calendar',
+        params: { screen: 'PlanList' },
+      });
+    } catch (e) {
+      console.warn('[Onboarding] apply failed:', e);
+      setApplying(false);
+      Alert.alert(
+        'Could not save the program',
+        'Check your connection and try again, or open the program and start it from there.',
+      );
+    }
   }
 
   function openRecommendedTemplate(t: PlanTemplateCard) {
@@ -301,14 +487,36 @@ export default function OnboardingScreen({ navigation }: Props) {
         ? 'Full gym'
         : selectedEquipment.join(' · ');
   const scheduleValue = flexibleDays
-    ? `${selectedFrequency} days/week · flexible`
-    : `${selectedFrequency} days · ${selectedWeekdays.map((d) => d.slice(0, 3)).join(', ')}`;
+    ? `${selectedFrequency} days · ${MINUTES_LABEL[sessionMinutes]} · flexible`
+    : `${selectedFrequency} days · ${MINUTES_LABEL[sessionMinutes]} · ${selectedWeekdays.map((d) => d.slice(0, 3)).join(', ')}`;
   const injuryValue =
-    injuryTags.length === 0
-      ? injuryNotes.trim()
-        ? injuryNotes.trim()
-        : 'Nothing to note'
-      : injuryTags.map((id) => INJURY_LABEL[id]).join(', ');
+    injuryTags.length === 0 ? 'Nothing to note' : injuryTags.map((id) => INJURY_LABEL[id]).join(', ');
+  const workaroundLabels = injuryTags.map((id) => INJURY_LABEL[id].toLowerCase()).join(', ');
+  const experienceValue = experienceNotSure
+    ? 'Beginner · starting easy'
+    : (selectedExperience ?? '—');
+
+  const goalLine = goalFactLine(selectedGoal);
+  const experienceLine = experienceFactLine(
+    experienceNotSure ? 'not-sure' : selectedExperience,
+  );
+  const scheduleLine = scheduleFitLine(templates, {
+    daysPerWeek: selectedFrequency,
+    sessionMinutes,
+  });
+
+  // The work-arounds step is optional: with nothing entered the button says
+  // so, instead of "Continue" under a subtitle that says optional.
+  const skippable = step === STEP_WORKAROUNDS && injuryTags.length === 0;
+  const nextLabel = step === LAST_STEP ? 'Finish' : skippable ? 'Skip' : 'Continue';
+
+  // Payoff card facts: the program's first session on the day it will land.
+  const todayIso = suggestedTemplateStartDateISO();
+  const payoffSchedule = detail ? scheduleFor(detail) : recommended ? scheduleFor(recommended) : null;
+  const firstSessionIso =
+    payoffSchedule ? firstSessionDateISO(todayIso, payoffSchedule.weekdays) : null;
+  const firstSession = detail?.sessions[0] ?? null;
+  const firstSessionMinutes = firstSession ? estimateTemplateSessionMinutes(firstSession, 0) : null;
 
   return (
     <View style={styles.root}>
@@ -319,7 +527,7 @@ export default function OnboardingScreen({ navigation }: Props) {
       {/* Full-bleed backdrop behind the safe-area-inset content, so the welcome
           aurora reaches the very top/bottom edges instead of being boxed into the
           inset region. */}
-      {showWelcome || showPayoff ? <Aurora colors={colors} /> : null}
+      {showWelcome || showMatching || showPayoff ? <Aurora colors={colors} /> : null}
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         {showWelcome ? (
           <View style={styles.welcomeContent}>
@@ -369,40 +577,133 @@ export default function OnboardingScreen({ navigation }: Props) {
               />
             </Rise>
           </View>
+        ) : showMatching ? (
+          // The matching moment: the work that was done, printed as it was
+          // done. Real counts, never a spinner; a tap skips it.
+          <Pressable
+            style={styles.matchingContent}
+            onPress={skipMatching}
+            accessibilityRole="button"
+            accessibilityLabel="Skip to your program"
+          >
+            <View style={styles.matchingTop}>
+              <Rise delay={40} style={styles.block}>
+                <View style={styles.matchingBadge}>
+                  <Ionicons name="sparkles-outline" size={26} color={colors.primary} />
+                </View>
+                <Text style={styles.payoffTitle}>Matching you to a program</Text>
+              </Rise>
+              <Rise delay={160} style={styles.block}>
+                <View style={styles.matchingCard}>
+                  {templates === null || templates.length === 0 ? (
+                    <View style={styles.matchingLine}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                      <Text style={styles.matchingLineText}>Checking the coach-built programs…</Text>
+                    </View>
+                  ) : (
+                    matchingMomentLines(templates, answers, recommended).map((line, i) => (
+                      <Rise key={line} delay={220 + i * 260} style={styles.matchingLine}>
+                        <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                        <Text style={styles.matchingLineText}>{line}</Text>
+                      </Rise>
+                    ))
+                  )}
+                </View>
+              </Rise>
+            </View>
+            <Text style={styles.matchingSkip}>Tap to skip</Text>
+          </Pressable>
         ) : showPayoff ? (
-          <View style={styles.payoffContent}>
+          <ScrollView
+            contentContainerStyle={styles.payoffScroll}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.payoffTop}>
               <Rise delay={60} style={styles.block}>
-                <Text style={styles.payoffTitle}>Here's your program</Text>
+                <Text style={styles.payoffTitle}>
+                  {recommended ? 'Your first week is ready' : "Here's how to start"}
+                </Text>
                 <Text style={styles.payoffSubtitle}>
-                  Matched to your answers. Ready in one tap.
+                  {recommended
+                    ? 'Matched to your goal and schedule.'
+                    : 'Coach-built programs, or a custom plan.'}
                 </Text>
               </Rise>
               <Rise delay={180} style={styles.block}>
-                {templates === null ? (
+                {templates === null && !catalogFailed ? (
                   <View style={[styles.payoffCard, styles.payoffCardLoading]}>
                     <ActivityIndicator color={colors.primary} />
                   </View>
                 ) : recommended ? (
                   <View style={styles.payoffCard}>
-                    <Text style={styles.payoffEyebrow}>Recommended for you</Text>
+                    <Text style={styles.payoffEyebrow}>
+                      {match === 'exact' ? 'Recommended for you' : 'Closest program to your goal'}
+                    </Text>
                     <Text style={styles.payoffCardTitle}>{recommended.name}</Text>
                     <Text style={styles.payoffCardTagline}>{recommended.tagline}</Text>
                     <Text style={styles.payoffCardMeta}>
-                      {recommended.weeksCount} weeks ·{' '}
-                      {recommended.supportedDaysPerWeek &&
-                      recommended.supportedDaysPerWeek.min <
-                        recommended.supportedDaysPerWeek.max
-                        ? `${recommended.supportedDaysPerWeek.min}–${recommended.supportedDaysPerWeek.max}`
-                        : recommended.daysPerWeek}{' '}
-                      days/week · {recommended.sessionMinutes.min}–
-                      {recommended.sessionMinutes.max} min
+                      {recommended.weeksCount} weeks · {payoffSchedule?.count ?? recommended.daysPerWeek}{' '}
+                      days/week
+                      {payoffSchedule && payoffSchedule.count !== selectedFrequency
+                        ? payoffSchedule.count < selectedFrequency
+                          ? ' (the most it supports)'
+                          : ' (the fewest it supports)'
+                        : ''}{' '}
+                      ·{' '}
+                      {firstSessionMinutes != null
+                        ? `about ${firstSessionMinutes} min`
+                        : `${recommended.sessionMinutes.min}–${recommended.sessionMinutes.max} min`}
                     </Text>
+
+                    {firstSession && firstSessionIso ? (
+                      <>
+                        <View style={styles.payoffSessionHeader}>
+                          <Text style={styles.payoffSessionLabel}>
+                            First session · {firstSessionLabel(firstSessionIso, todayIso)}
+                          </Text>
+                          <Text style={styles.payoffSessionTitle} numberOfLines={1}>
+                            {firstSession.title}
+                          </Text>
+                        </View>
+                        {firstSession.exercises.slice(0, 5).map((ex) => (
+                          <View key={ex.exerciseId} style={styles.payoffExerciseRow}>
+                            <Text style={styles.payoffExerciseName} numberOfLines={1}>
+                              {ex.name}
+                            </Text>
+                            <Text style={styles.payoffExerciseRx}>{repDisplay(ex)}</Text>
+                          </View>
+                        ))}
+                        {firstSession.exercises.length > 5 ? (
+                          <Text style={styles.payoffMore}>
+                            + {firstSession.exercises.length - 5} more
+                          </Text>
+                        ) : null}
+                        {workaroundLabels ? (
+                          <Text style={styles.payoffMore}>
+                            Exercises that load your {workaroundLabels} will be swapped for
+                            alternatives.
+                          </Text>
+                        ) : null}
+                      </>
+                    ) : null}
+
                     <Button
-                      title="View program"
-                      onPress={() => openRecommendedTemplate(recommended)}
+                      title={applying ? 'Saving…' : detail ? 'Start this program' : 'View program'}
+                      onPress={() => {
+                        if (detail) void applyRecommended();
+                        else openRecommendedTemplate(recommended);
+                      }}
+                      disabled={applying}
                       style={styles.payoffCta}
                     />
+                    {detail ? (
+                      <PressableScale
+                        onPress={() => openRecommendedTemplate(recommended)}
+                        style={styles.payoffCardLink}
+                      >
+                        <Text style={styles.payoffCardLinkText}>View the full program</Text>
+                      </PressableScale>
+                    ) : null}
                   </View>
                 ) : (
                   <View style={styles.payoffCard}>
@@ -428,7 +729,7 @@ export default function OnboardingScreen({ navigation }: Props) {
                 <Text style={styles.payoffLinkText}>I'll explore the app first</Text>
               </PressableScale>
             </Rise>
-          </View>
+          </ScrollView>
         ) : (
           <>
         <View style={styles.progressWrap}>
@@ -449,7 +750,7 @@ export default function OnboardingScreen({ navigation }: Props) {
           <Text style={styles.title}>{heading.title}</Text>
           <Text style={styles.subtitle}>{heading.subtitle}</Text>
 
-          {step === 0 && (
+          {step === STEP_GOAL && (
             <>
               {GOAL_OPTIONS.map((g) => (
                 <SelectableCard
@@ -459,7 +760,9 @@ export default function OnboardingScreen({ navigation }: Props) {
                   selected={selectedGoal === g || selectedSecondaryGoal === g}
                   badge={
                     selectedGoal === g
-                      ? 'Main goal'
+                      ? selectedSecondaryGoal
+                        ? 'Main goal'
+                        : undefined
                       : selectedSecondaryGoal === g
                         ? '2nd focus'
                         : undefined
@@ -469,46 +772,152 @@ export default function OnboardingScreen({ navigation }: Props) {
                   onPress={() => handleSelectGoal(g)}
                 />
               ))}
-              <Text style={styles.helperText}>
-                Pick up to two — your first pick is the main goal. You can change this anytime in
-                Profile.
-              </Text>
+              {/*
+                The second-focus affordance is a dashed "add slot" card in the
+                same family as the goal cards, so it reads as a real option
+                without competing with them (no fill, no shadow, smaller tile).
+                The same shell hosts all three states so nothing jumps around.
+                It sits directly under the goal cards, before the fact line,
+                so it is the last *choice* in the list rather than a footnote
+                below commentary (and it clears the fold on a 390×844 screen).
+              */}
+              {selectedGoal && pickingSecondary ? (
+                <View style={[styles.secondFocusCard, styles.secondFocusCardActive]}>
+                  <View style={[styles.secondFocusTile, { backgroundColor: colors.primary }]}>
+                    <Ionicons name="add" size={20} color={colors.onPrimary} />
+                  </View>
+                  <View style={styles.cardTextWrap}>
+                    <Text style={styles.secondFocusTitle}>Tap a second goal to add it as a focus.</Text>
+                  </View>
+                  <PressableScale
+                    onPress={() => {
+                      haptics.select();
+                      setPickingSecondary(false);
+                    }}
+                    style={styles.secondFocusAction}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.inlineLinkText}>Cancel</Text>
+                  </PressableScale>
+                </View>
+              ) : selectedGoal && selectedSecondaryGoal ? (
+                <View style={[styles.secondFocusCard, styles.secondFocusCardActive]}>
+                  <View style={[styles.secondFocusTile, { backgroundColor: colors.primary }]}>
+                    <Ionicons name="checkmark" size={20} color={colors.onPrimary} />
+                  </View>
+                  <View style={styles.cardTextWrap}>
+                    <Text style={styles.secondFocusTitle}>
+                      {GOAL_LABELS[selectedSecondaryGoal]} is your second focus.
+                    </Text>
+                  </View>
+                  <PressableScale
+                    onPress={() => {
+                      haptics.select();
+                      setSelectedSecondaryGoal(null);
+                    }}
+                    style={styles.secondFocusAction}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.inlineLinkText}>Remove</Text>
+                  </PressableScale>
+                </View>
+              ) : selectedGoal ? (
+                <PressableScale
+                  onPress={() => {
+                    haptics.select();
+                    setPickingSecondary(true);
+                  }}
+                  style={styles.secondFocusCard}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a second focus. Optional. Mixes a second goal into your plan."
+                >
+                  <View style={[styles.secondFocusTile, { backgroundColor: colors.primarySoft }]}>
+                    <Ionicons name="add" size={20} color={colors.primary} />
+                  </View>
+                  <View style={styles.cardTextWrap}>
+                    <Text style={styles.secondFocusTitle}>Add a second focus</Text>
+                    <Text style={styles.secondFocusHint}>
+                      Optional. Mixes a second goal into your plan.
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </PressableScale>
+              ) : null}
+              {goalLine ? <FactLine colors={colors} text={goalLine} /> : null}
             </>
           )}
 
-          {step === 1 &&
-            EXPERIENCE_OPTIONS.map((e) => (
-              <SelectableCard
-                key={e}
-                colors={colors}
-                icon={EXPERIENCE_META[e].icon}
-                selected={selectedExperience === e}
-                title={e}
-                subtitle={EXPERIENCE_META[e].desc}
-                onPress={() => {
-                  haptics.select();
-                  setSelectedExperience(e);
-                }}
-              />
-            ))}
-
-          {step === 2 && (
+          {step === STEP_EXPERIENCE && (
             <>
-              {TRAINING_FREQUENCY_OPTIONS.map((n) => (
+              {EXPERIENCE_OPTIONS.map((e) => (
                 <SelectableCard
-                  key={n}
+                  key={e}
                   colors={colors}
-                  icon="calendar-outline"
-                  selected={selectedFrequency === n}
-                  title={`${n} days per week`}
-                  subtitle={
-                    n <= 4
-                      ? 'Balanced progression for busy schedules'
-                      : 'Higher frequency — suits experienced lifters'
-                  }
-                  onPress={() => selectFrequency(n)}
+                  icon={EXPERIENCE_META[e].icon}
+                  selected={selectedExperience === e && !experienceNotSure}
+                  title={e}
+                  subtitle={EXPERIENCE_META[e].desc}
+                  onPress={() => selectExperience(e)}
                 />
               ))}
+              <SelectableCard
+                colors={colors}
+                icon="help-circle-outline"
+                selected={experienceNotSure}
+                title="Not sure"
+                subtitle="Start easy — change it in Profile any time"
+                onPress={() => selectExperience('not-sure')}
+              />
+              {experienceLine ? <FactLine colors={colors} text={experienceLine} /> : null}
+            </>
+          )}
+
+          {step === STEP_SCHEDULE && (
+            <>
+              <Text style={styles.sectionLabel}>Days per week</Text>
+              <View style={styles.segmentRow}>
+                {TRAINING_FREQUENCY_OPTIONS.map((n) => {
+                  const active = selectedFrequency === n;
+                  return (
+                    <PressableScale
+                      key={n}
+                      style={[styles.segment, active ? styles.segmentActive : null]}
+                      onPress={() => selectFrequency(n)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={`${n} days per week`}
+                    >
+                      <Text style={[styles.segmentText, active ? styles.segmentTextActive : null]}>
+                        {n}
+                      </Text>
+                    </PressableScale>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.sectionLabel}>Time per session</Text>
+              <View style={styles.segmentRow}>
+                {SESSION_MINUTES_OPTIONS.map((m) => {
+                  const active = sessionMinutes === m;
+                  return (
+                    <PressableScale
+                      key={m}
+                      style={[styles.segment, active ? styles.segmentActive : null]}
+                      onPress={() => {
+                        haptics.select();
+                        setSessionMinutes(m);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={`${MINUTES_LABEL[m]} per session`}
+                    >
+                      <Text style={[styles.segmentText, active ? styles.segmentTextActive : null]}>
+                        {MINUTES_LABEL[m]}
+                      </Text>
+                    </PressableScale>
+                  );
+                })}
+              </View>
 
               <Text style={styles.sectionLabel}>Preferred days</Text>
               <View style={styles.segmentRow}>
@@ -527,6 +936,8 @@ export default function OnboardingScreen({ navigation }: Props) {
                         haptics.select();
                         setFlexibleDays(value);
                       }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
                     >
                       <Text style={[styles.segmentText, active ? styles.segmentTextActive : null]}>
                         {label}
@@ -561,10 +972,11 @@ export default function OnboardingScreen({ navigation }: Props) {
                   </View>
                 </>
               )}
+              {scheduleLine ? <FactLine colors={colors} text={scheduleLine} /> : null}
             </>
           )}
 
-          {step === 3 && (
+          {step === STEP_EQUIPMENT && (
             <>
               <View style={styles.presetRow}>
                 {(
@@ -589,6 +1001,8 @@ export default function OnboardingScreen({ navigation }: Props) {
                         haptics.select();
                         setSelectedEquipment([...preset]);
                       }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
                     >
                       <Ionicons
                         name={icon}
@@ -616,75 +1030,21 @@ export default function OnboardingScreen({ navigation }: Props) {
             </>
           )}
 
-          {step === 4 && (
-            <>
-              <View style={styles.chipGrid}>
-                {PROFILE_INJURY_TAG_OPTIONS.map(({ id, label }) => (
-                  <Chip
-                    key={id}
-                    colors={colors}
-                    selected={injuryTags.includes(id)}
-                    label={label}
-                    onPress={() => toggleInjuryTag(id)}
-                  />
-                ))}
-              </View>
-              <Text style={styles.sectionLabel}>Other notes</Text>
-              <TextInput
-                style={styles.textarea}
-                value={injuryNotes}
-                onChangeText={setInjuryNotesDraft}
-                placeholder='e.g. "No deep squats this month — physio"'
-                placeholderTextColor={colors.textMuted}
-                multiline
-                maxLength={MAX_INJURY_NOTES}
-              />
-            </>
-          )}
-
-          {step === 5 && (
-            <>
-              <Text style={styles.sectionLabel}>Current weight</Text>
-              <View style={styles.weightEntryRow}>
-                <TextInput
-                  style={[styles.nameInput, styles.weightInput]}
-                  value={weightInput}
-                  onChangeText={setWeightInput}
-                  placeholder="Optional"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="decimal-pad"
-                  returnKeyType="done"
-                  maxLength={6}
+          {step === STEP_WORKAROUNDS && (
+            <View style={styles.chipGrid}>
+              {PROFILE_INJURY_TAG_OPTIONS.map(({ id, label }) => (
+                <Chip
+                  key={id}
+                  colors={colors}
+                  selected={injuryTags.includes(id)}
+                  label={label}
+                  onPress={() => toggleInjuryTag(id)}
                 />
-                <View style={styles.weightUnitToggle}>
-                  {(['lb', 'kg'] as WeightUnit[]).map((u) => {
-                    const active = weightEntryUnit === u;
-                    return (
-                      <PressableScale
-                        key={u}
-                        style={[styles.segment, active ? styles.segmentActive : null]}
-                        onPress={() => {
-                          haptics.select();
-                          setWeightEntryUnit(u);
-                        }}
-                      >
-                        <Text
-                          style={[styles.segmentText, active ? styles.segmentTextActive : null]}
-                        >
-                          {u}
-                        </Text>
-                      </PressableScale>
-                    );
-                  })}
-                </View>
-              </View>
-              <Text style={styles.helperText}>
-                We'll save this as your first weigh-in. Skip if you'd rather not.
-              </Text>
-            </>
+              ))}
+            </View>
           )}
 
-          {step === 6 && (
+          {step === STEP_REVIEW && (
             <>
               <Text style={styles.sectionLabel}>What should we call you?</Text>
               <TextInput
@@ -714,17 +1074,11 @@ export default function OnboardingScreen({ navigation }: Props) {
                 colors={colors}
                 icon={selectedExperience ? EXPERIENCE_META[selectedExperience].icon : 'help-outline'}
                 label="Experience"
-                value={selectedExperience ?? '—'}
+                value={experienceValue}
               />
               <SummaryRow colors={colors} icon="calendar-outline" label="Schedule" value={scheduleValue} />
               <SummaryRow colors={colors} icon="barbell-outline" label="Equipment" value={equipmentValue} />
               <SummaryRow colors={colors} icon="medkit-outline" label="Working around" value={injuryValue} />
-              <SummaryRow
-                colors={colors}
-                icon="scale-outline"
-                label="Starting weight"
-                value={weightInput.trim() ? `${weightInput.trim()} ${weightEntryUnit}` : 'Skipped'}
-              />
               </View>
             </>
           )}
@@ -741,10 +1095,22 @@ export default function OnboardingScreen({ navigation }: Props) {
         <PressableScale
           onPress={handleNext}
           disabled={!canProceed}
-          style={[styles.nextBtn, !canProceed && styles.nextBtnDisabled]}
+          style={[
+            styles.nextBtn,
+            skippable && styles.nextBtnSecondary,
+            !canProceed && styles.nextBtnDisabled,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={nextLabel}
         >
-          <Text style={[styles.nextBtnText, !canProceed && styles.nextBtnTextDisabled]}>
-            {step === LAST_STEP ? 'Finish' : 'Continue'}
+          <Text
+            style={[
+              styles.nextBtnText,
+              skippable && styles.nextBtnTextSecondary,
+              !canProceed && styles.nextBtnTextDisabled,
+            ]}
+          >
+            {nextLabel}
           </Text>
         </PressableScale>
       </View>
@@ -781,6 +1147,17 @@ function Rise({
   return <Animated.View style={[style, aStyle]}>{children}</Animated.View>;
 }
 
+/** One true sentence the answer just earned — computed or factual, never copy. */
+function FactLine({ colors, text: line }: { colors: ColorPalette; text: string }) {
+  const styles = makeStyles(colors);
+  return (
+    <View style={styles.factLine}>
+      <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
+      <Text style={styles.factLineText}>{line}</Text>
+    </View>
+  );
+}
+
 function SelectableCard({
   colors,
   icon,
@@ -811,6 +1188,9 @@ function SelectableCard({
         },
       ]}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
     >
       <View
         style={[
@@ -872,6 +1252,8 @@ function Chip({
         },
       ]}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
     >
       {selected ? (
         <Ionicons name="checkmark" size={14} color={colors.onPrimary} style={styles.chipCheck} />
@@ -993,12 +1375,57 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: spacing.md,
       color: colors.textMuted,
     },
-    payoffContent: {
+    // --- Matching moment ---
+    matchingContent: {
       flex: 1,
       paddingHorizontal: spacing.xxl,
       paddingBottom: spacing.lg,
     },
-    payoffTop: { flex: 1, justifyContent: 'center' },
+    matchingTop: { flex: 1, justifyContent: 'center' },
+    matchingBadge: {
+      width: 56,
+      height: 56,
+      borderRadius: radius.pill,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'center',
+      marginBottom: spacing.lg,
+    },
+    matchingCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.xl,
+      marginTop: spacing.xxl,
+      shadowColor: colors.shadow,
+      ...elevation.level2,
+    },
+    matchingLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.md,
+    },
+    matchingLineText: {
+      flex: 1,
+      fontSize: text.callout,
+      lineHeight: leading.callout,
+      color: colors.text,
+    },
+    matchingSkip: {
+      fontSize: text.body,
+      textAlign: 'center',
+      color: colors.textMuted,
+      paddingVertical: spacing.md,
+    },
+    // --- Payoff ---
+    payoffScroll: {
+      flexGrow: 1,
+      paddingHorizontal: spacing.xxl,
+      paddingBottom: spacing.lg,
+    },
+    payoffTop: { flex: 1, justifyContent: 'center', paddingVertical: spacing.lg },
     payoffTitle: {
       fontSize: text.display,
       lineHeight: leading.display,
@@ -1048,7 +1475,52 @@ function makeStyles(colors: ColorPalette) {
       color: colors.textMuted,
       marginTop: spacing.md,
     },
+    payoffSessionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+      marginTop: spacing.lg,
+      marginBottom: spacing.xs,
+    },
+    payoffSessionLabel: {
+      fontSize: text.footnote,
+      fontWeight: weight.bold,
+      textTransform: 'uppercase',
+      letterSpacing: tracking.wider,
+      color: colors.textMuted,
+    },
+    payoffSessionTitle: {
+      flexShrink: 1,
+      fontSize: text.footnote,
+      fontWeight: weight.semibold,
+      color: colors.textSecondary,
+    },
+    payoffExerciseRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+      paddingVertical: spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    payoffExerciseName: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: text.body,
+      lineHeight: leading.body,
+      color: colors.text,
+    },
+    payoffExerciseRx: {
+      fontSize: text.body,
+      color: colors.textMuted,
+      fontVariant: ['tabular-nums'],
+    },
+    payoffMore: { fontSize: text.footnote, color: colors.textMuted, marginTop: spacing.xs },
     payoffCta: { marginTop: spacing.lg },
+    payoffCardLink: { alignItems: 'center', paddingTop: spacing.md },
+    payoffCardLinkText: { fontSize: text.body, fontWeight: weight.semibold, color: colors.primary },
     payoffFooter: { gap: spacing.xs },
     payoffSecondaryBtn: {
       flexDirection: 'row',
@@ -1064,6 +1536,7 @@ function makeStyles(colors: ColorPalette) {
     },
     payoffLink: { alignItems: 'center', paddingVertical: spacing.md },
     payoffLinkText: { fontSize: text.body, color: colors.textMuted },
+    // --- Steps ---
     cardShadow: {
       shadowColor: colors.shadow,
       ...elevation.level1,
@@ -1105,6 +1578,69 @@ function makeStyles(colors: ColorPalette) {
       fontSize: text.caption,
       fontWeight: weight.bold,
     },
+    factLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      borderRadius: radius.md,
+      backgroundColor: colors.primarySoft,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      marginTop: spacing.xs,
+      marginBottom: spacing.md,
+    },
+    factLineText: {
+      flex: 1,
+      fontSize: text.body,
+      lineHeight: leading.body,
+      fontWeight: weight.semibold,
+      color: colors.primary,
+    },
+    // Second-focus "add slot": same row anatomy as `card`, but dashed, unfilled
+    // and unshadowed so it is clearly optional and never a fourth goal.
+    secondFocusCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      minHeight: 44,
+      borderRadius: radius.md,
+      borderWidth: 1.5,
+      borderStyle: 'dashed',
+      borderColor: colors.border,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+    },
+    secondFocusCardActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primarySoft,
+    },
+    secondFocusTile: {
+      width: 36,
+      height: 36,
+      borderRadius: radius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.md,
+    },
+    secondFocusTitle: {
+      fontSize: text.callout,
+      lineHeight: leading.callout,
+      fontWeight: weight.semibold,
+      color: colors.text,
+    },
+    secondFocusHint: {
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+      marginTop: spacing.xs,
+      color: colors.textMuted,
+    },
+    secondFocusAction: {
+      minHeight: 44,
+      justifyContent: 'center',
+      paddingHorizontal: spacing.sm,
+      marginRight: -spacing.sm,
+    },
+    inlineLinkText: { fontSize: text.body, fontWeight: weight.semibold, color: colors.primary },
     sectionLabel: {
       fontSize: text.body,
       fontWeight: weight.bold,
@@ -1143,18 +1679,6 @@ function makeStyles(colors: ColorPalette) {
     },
     chipCheck: { marginRight: spacing.sm },
     chipLabel: { fontSize: text.body, fontWeight: weight.semibold },
-    textarea: {
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: radius.md,
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
-      fontSize: text.callout,
-      minHeight: 88,
-      textAlignVertical: 'top',
-      marginTop: spacing.xs,
-      color: colors.text,
-    },
     nameInput: {
       borderWidth: 1.5,
       borderColor: colors.border,
@@ -1166,18 +1690,6 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: spacing.sm,
       color: colors.text,
       backgroundColor: colors.surface,
-    },
-    weightEntryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
-    weightInput: { flex: 1, marginBottom: spacing.none },
-    weightUnitToggle: {
-      flexDirection: 'row',
-      backgroundColor: colors.surface,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: spacing.xs,
-      gap: spacing.xs,
-      width: 112,
     },
     summaryWrap: { gap: spacing.md },
     summaryRow: {
@@ -1218,8 +1730,16 @@ function makeStyles(colors: ColorPalette) {
       shadowColor: colors.shadow,
       ...elevation.level2,
     },
+    nextBtnSecondary: {
+      backgroundColor: colors.surface,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      shadowOpacity: 0,
+      elevation: 0,
+    },
     nextBtnDisabled: { backgroundColor: colors.border },
     nextBtnText: { fontSize: text.headline, fontWeight: weight.semibold, color: colors.onPrimary },
+    nextBtnTextSecondary: { color: colors.primary },
     nextBtnTextDisabled: { color: colors.textMuted },
   });
 }

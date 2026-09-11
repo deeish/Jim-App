@@ -65,6 +65,8 @@ import {
   ensureLogsForMonth,
   finishDaySession,
   getSetLogs,
+  isDayCompletionPending,
+  isDayEditPending,
   isDayLogged,
   isDaySkipped,
   moveMissedDay,
@@ -614,9 +616,17 @@ export default function PlanCalendarDayScreen() {
       {pPlan.exercises.length > 0 && (
         <Text style={styles.hint}>Hold an exercise to replace or remove it</Text>
       )}
-      {calendarDataMode() === 'offline' && (
-        <Text style={styles.footerNote}>Offline — changes stay on this device</Text>
-      )}
+      {/* An edit or a finished session the server has not confirmed yet is
+          kept on this phone and retried; say so, rather than the old footer's
+          claim that offline changes "stay on this device" when they lived in
+          memory alone. */}
+      {isDayEditPending(iso) || isDayCompletionPending(iso) ? (
+        <Text style={styles.footerNote}>
+          Kept on this phone — it syncs to your plan once the app can reach the server
+        </Text>
+      ) : calendarDataMode() === 'offline' ? (
+        <Text style={styles.footerNote}>Offline — edits are kept on this phone and synced later</Text>
+      ) : null}
       </View>
     </ScrollView>
     );

@@ -12,7 +12,13 @@ test.describe('staging smoke (Expo Web)', () => {
 
     await page.goto('/');
 
+    // Identifier-first flow: a fresh browser profile lands on Welcome, a returning
+    // one on Sign in. Email → (a code is emailed) → "Use password instead" → password.
+    const start = page.getByTestId('e2e-welcome-start');
+    if (await start.isVisible().catch(() => false)) await start.click();
     await page.getByTestId('e2e-login-email').fill(email);
+    await page.getByTestId('e2e-login-continue').click();
+    await page.getByTestId('e2e-code-use-password').click();
     await page.getByTestId('e2e-login-password').fill(password);
     await page.getByTestId('e2e-login-submit').click();
 

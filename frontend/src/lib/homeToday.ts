@@ -10,7 +10,6 @@ import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import type { PrototypeMuscle } from './planCalendarPrototype';
 import {
   isRestPlanSlotTitle,
-  lastContiguousProgramWeek,
   normalizePlanAnchorYmd,
   normalizePlanDayOfWeek,
   normalizeProgramWeekNumber,
@@ -139,17 +138,16 @@ export function recentDayLabel(ymd: string, todayYmd: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export type HomeTodayResult = (
+export type HomeTodayResult =
   | { status: 'no_plan' }
+  /** Before the plan's anchor, or a legacy (anchorless) plan outside its window. */
   | { status: 'out_of_program' }
+  /** Past the plan's last week. Nothing repeats; Home asks for a new plan. */
+  | { status: 'plan_ended' }
   | { status: 'rest' }
   | { status: 'empty_day' }
   | { status: 'scheduled'; workout: Workout }
-  | { status: 'planned_pending'; slot: ApiPlanWorkout }
-) & {
-  /** Set when the calendar week is past the program end and today shows the repeated last week. */
-  repeatingWeek?: number;
-};
+  | { status: 'planned_pending'; slot: ApiPlanWorkout };
 
 export function resolveHomeToday(plan: ApiPlan | null | undefined, weeklyWorkouts: Workout[]): HomeTodayResult {
   const todayDay = planWeekdayNameLocal();
@@ -160,24 +158,25 @@ export function resolveHomeToday(plan: ApiPlan | null | undefined, weeklyWorkout
 
   const maxPlanWeek = Math.max(...list.map((p) => normalizeProgramWeekNumber(p.weekNumber)), 1);
   const anchorYmd = normalizePlanAnchorYmd(plan.weekAnchorMonday);
-  const repeatWeek = lastContiguousProgramWeek(list.map((p) => p.weekNumber));
-  const resolution = resolveProgramWeekForCalendarOffset(0, anchorYmd, maxPlanWeek, repeatWeek);
+  const resolution = resolveProgramWeekForCalendarOffset(0, anchorYmd, maxPlanWeek);
 
+  if (resolution.status === 'after_program') {
+    return { status: 'plan_ended' };
+  }
   if (resolution.status !== 'in_program') {
     return { status: 'out_of_program' };
   }
-  const repeat = resolution.repeatingLastWeek ? { repeatingWeek: resolution.week } : {};
 
   const planByWeek = buildPlanByWeek(list);
   const slots = planByWeek[resolution.week]?.[todayDay] ?? [];
 
   if (slots.length === 0) {
-    return { status: 'empty_day', ...repeat };
+    return { status: 'empty_day' };
   }
 
   const activeSlots = slots.filter((s) => !isRestPlanSlotTitle(s.title));
   if (activeSlots.length === 0) {
-    return { status: 'rest', ...repeat };
+    return { status: 'rest' };
   }
 
   // Same-day slots are ordered by `orderInDay`; prefer the first one that already has a linked row
@@ -185,9 +184,9 @@ export function resolveHomeToday(plan: ApiPlan | null | undefined, weeklyWorkout
   for (const slot of activeSlots) {
     const linked = weeklyWorkouts.find((w) => planSlotLinksWeeklyWorkout(slot.id, w.planWorkoutId));
     if (linked) {
-      return { status: 'scheduled', workout: linked, ...repeat };
+      return { status: 'scheduled', workout: linked };
     }
   }
 
-  return { status: 'planned_pending', slot: activeSlots[0], ...repeat };
+  return { status: 'planned_pending', slot: activeSlots[0] };
 }

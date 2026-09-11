@@ -4,6 +4,7 @@ import {
   IsArray,
   ArrayMaxSize,
   ValidateNested,
+  IsBoolean,
   IsNumber,
   IsIn,
   Min,
@@ -169,6 +170,16 @@ export class CreatePlanDto {
   @IsArray()
   @IsString({ each: true })
   limitations?: string[];
+
+  /**
+   * Swap out exercises that load `limitations` before the plan is saved.
+   * Set by a coach-built template apply, whose rows nobody has checked
+   * against the work-arounds. A preview apply leaves it unset: the generator
+   * already filtered, and the user approved what they saw.
+   */
+  @IsOptional()
+  @IsBoolean()
+  applyWorkarounds?: boolean;
 
   /** Program template id for reasoning (e.g. "ppl", "upper-lower-4"). */
   @IsOptional()

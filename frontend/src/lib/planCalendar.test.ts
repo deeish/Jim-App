@@ -3,7 +3,6 @@ import {
   PLAN_CALENDAR_LOOKBACK_WEEKS,
   calendarOffsetOfProgramWeek1,
   getPlanCalendarWeekNavigationBounds,
-  lastContiguousProgramWeek,
   normalizePlanDayOfWeek,
   programWeekForCalendarOffset,
   resolveProgramWeekForCalendarOffset,
@@ -170,28 +169,27 @@ describe('resolveProgramWeekForCalendarOffset', () => {
     expect(resolveProgramWeekForCalendarOffset(0, '2026-03-30', 4)).toEqual({
       status: 'in_program',
       week: 2,
-      repeatingLastWeek: false,
     });
     expect(resolveProgramWeekForCalendarOffset(-1, '2026-03-30', 4)).toEqual({
       status: 'in_program',
       week: 1,
-      repeatingLastWeek: false,
     });
   });
 
-  it('repeats the last program week once the program window has passed (the P0 cliff)', () => {
-    // 1-week plan anchored last Monday: this calendar week used to resolve to null
-    // and blank Home/Plan/Workout. Now it clamps to week 1 and flags the repeat.
+  it('reports a program whose window has passed as after_program, never repeating it', () => {
+    // 1-week plan anchored last Monday: this calendar week is past the plan.
+    // From July to September 2026 this clamped to week 1 ("repeating week 1");
+    // the product call is that an empty week is honest and a repeat is not.
     expect(resolveProgramWeekForCalendarOffset(0, '2026-03-30', 1)).toEqual({
-      status: 'in_program',
-      week: 1,
-      repeatingLastWeek: true,
+      status: 'after_program',
     });
-    // Multi-week plans clamp (repeat week N), not cycle back to week 1.
     expect(resolveProgramWeekForCalendarOffset(5, '2026-03-30', 4)).toEqual({
+      status: 'after_program',
+    });
+    // The last week itself is still inside (offset 2 from Apr 6 = Apr 20 = week 4).
+    expect(resolveProgramWeekForCalendarOffset(2, '2026-03-30', 4)).toEqual({
       status: 'in_program',
       week: 4,
-      repeatingLastWeek: true,
     });
   });
 
@@ -201,11 +199,10 @@ describe('resolveProgramWeekForCalendarOffset', () => {
     });
   });
 
-  it('keeps legacy (anchorless) offset+1 mapping without clamping', () => {
+  it('keeps legacy (anchorless) offset+1 mapping', () => {
     expect(resolveProgramWeekForCalendarOffset(0, null, 2)).toEqual({
       status: 'in_program',
       week: 1,
-      repeatingLastWeek: false,
     });
     expect(resolveProgramWeekForCalendarOffset(2, null, 2)).toEqual({ status: 'out_of_program' });
     expect(resolveProgramWeekForCalendarOffset(-1, null, 2)).toEqual({ status: 'out_of_program' });
@@ -215,51 +212,6 @@ describe('resolveProgramWeekForCalendarOffset', () => {
     expect(resolveProgramWeekForCalendarOffset(0, '2026-03-30', 0)).toEqual({
       status: 'out_of_program',
     });
-  });
-
-  it('repeats the given repeatWeek, not the max week, past the program end', () => {
-    // Weeks {1, 5}: one workout added far in the future made maxProgramWeek 5,
-    // but the routine to repeat is week 1.
-    expect(resolveProgramWeekForCalendarOffset(6, '2026-03-30', 5, 1)).toEqual({
-      status: 'in_program',
-      week: 1,
-      repeatingLastWeek: true,
-    });
-    // Inside the window repeatWeek is ignored: week 5 still shows its own schedule.
-    expect(resolveProgramWeekForCalendarOffset(3, '2026-03-30', 5, 1)).toEqual({
-      status: 'in_program',
-      week: 5,
-      repeatingLastWeek: false,
-    });
-    // Out-of-range repeatWeek clamps into the program window.
-    expect(resolveProgramWeekForCalendarOffset(6, '2026-03-30', 5, 9)).toEqual({
-      status: 'in_program',
-      week: 5,
-      repeatingLastWeek: true,
-    });
-  });
-});
-
-describe('lastContiguousProgramWeek', () => {
-  it('returns the last week of the run starting at week 1', () => {
-    expect(lastContiguousProgramWeek([1])).toBe(1);
-    expect(lastContiguousProgramWeek([1, 2, 3])).toBe(3);
-    expect(lastContiguousProgramWeek([3, 1, 2, 2])).toBe(3);
-  });
-
-  it('ignores isolated week numbers past a gap', () => {
-    expect(lastContiguousProgramWeek([1, 5])).toBe(1);
-    expect(lastContiguousProgramWeek([1, 2, 6, 9])).toBe(2);
-  });
-
-  it('falls back to the max week when week 1 is missing, and 1 when empty', () => {
-    expect(lastContiguousProgramWeek([3, 5])).toBe(5);
-    expect(lastContiguousProgramWeek([])).toBe(1);
-  });
-
-  it('normalizes bad week numbers like the rest of the calendar math', () => {
-    expect(lastContiguousProgramWeek([0, -2, 2])).toBe(2); // <1 → 1
-    expect(lastContiguousProgramWeek([NaN, 2])).toBe(2);
   });
 });
 

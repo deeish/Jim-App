@@ -96,8 +96,10 @@ describe('resolveHomeToday', () => {
     if (r.status === 'scheduled') expect(r.workout.id).toBe('w1');
   });
 
-  it('repeats the last program week after the program ends instead of going out_of_program', () => {
-    // 1-week plan anchored to LAST Monday — the "my plan disappeared" repro.
+  it('reports plan_ended after the last program week, never repeating it', () => {
+    // 1-week plan anchored to LAST Monday. From July to September 2026 this
+    // repeated week 1; the product call is that an empty week is honest and
+    // Home should ask for a new plan instead.
     const plan: ApiPlan = {
       id: 'p1',
       name: 'Test',
@@ -121,13 +123,12 @@ describe('resolveHomeToday', () => {
       ],
     };
     const r = resolveHomeToday(plan, []);
-    expect(r.status).toBe('planned_pending');
-    expect(r.repeatingWeek).toBe(1);
+    expect(r.status).toBe('plan_ended');
   });
 
-  it('repeats the last contiguous week, not an isolated far-future week', () => {
+  it('a sparse far-future week still counts as the last week (ended only once it has passed)', () => {
     // Week 1 is the real routine; a single workout was added to week 5
-    // (maxProgramWeek 5). Past the program end, repeat week 1, not the sparse week 5.
+    // (maxProgramWeek 5). Today is past both, so the plan has ended.
     const slot = (id: string, weekNumber: number, title: string): ApiPlanWorkout => ({
       id,
       workoutPlanId: 'p1',
@@ -151,9 +152,7 @@ describe('resolveHomeToday', () => {
       planWorkouts: [slot('slot1', 1, 'Push'), slot('slot5', 5, 'Legs')],
     };
     const r = resolveHomeToday(plan, []);
-    expect(r.status).toBe('planned_pending');
-    expect(r.repeatingWeek).toBe(1);
-    if (r.status === 'planned_pending') expect(r.slot.title).toBe('Push');
+    expect(r.status).toBe('plan_ended');
   });
 
   it('stays out_of_program when the anchor is in the future (no backward roll)', () => {
@@ -181,7 +180,6 @@ describe('resolveHomeToday', () => {
     };
     const r = resolveHomeToday(plan, []);
     expect(r.status).toBe('out_of_program');
-    expect(r.repeatingWeek).toBeUndefined();
   });
 });
 

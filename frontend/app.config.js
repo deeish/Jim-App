@@ -30,6 +30,19 @@ module.exports = () => {
     else plugins.push(entry);
   }
 
+  // Google sign-in's config plugin refuses to run without the reversed iOS client
+  // id (it writes it into Info.plist as a URL scheme). Add it only when the build
+  // has one, so a build without Google Cloud set up still succeeds — the button is
+  // hidden at runtime until EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is set anyway.
+  // See docs/auth-sign-in-setup.md.
+  const googleIosUrlScheme = process.env.GOOGLE_IOS_URL_SCHEME;
+  if (googleIosUrlScheme) {
+    plugins.push([
+      '@react-native-google-signin/google-signin',
+      { iosUrlScheme: googleIosUrlScheme },
+    ]);
+  }
+
   expo.plugins = plugins;
   return { expo };
 };

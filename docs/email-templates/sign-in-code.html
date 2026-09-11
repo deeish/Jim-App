@@ -1,0 +1,104 @@
+<!--
+  Supabase auth email: the six-digit sign-in code.
+  Paste this SAME body into TWO templates (Authentication → Emails → Templates):
+    • "Confirm sign up"     (sent to an address Supabase has never seen)
+    • "Magic link or OTP"   (sent to an address it already knows)
+  Subject for both:  Your Jim sign-in code: {{ .Token }}
+
+  Email-client rules baked in: tables not flexbox, every style inline, no SVG,
+  no web fonts, solid bgcolor fallbacks under every gradient, max width 480px.
+  Colours are the app's palette (primary #0061C2, brand gradient #3B9DFF→#0047B3,
+  page #F2F2F7, text ramp #000 / #3C3C43 / #6B6B70).
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>Your Jim sign-in code</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F2F2F7; -webkit-font-smoothing:antialiased;">
+  <!-- Inbox preview line: puts the code in the notification / list view. -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:#F2F2F7; font-size:1px; line-height:1px;">
+    Your Jim sign-in code is {{ .Token }}. It expires in one hour.&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F2F2F7;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;">
+
+          <!-- Brand -->
+          <tr>
+            <td align="center" style="padding:0 0 24px 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" valign="middle" width="56" height="56" bgcolor="#0061C2"
+                      style="width:56px; height:56px; border-radius:16px; background-color:#0061C2; background-image:linear-gradient(160deg,#3B9DFF 0%,#0047B3 100%); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:32px; font-weight:900; font-style:italic; color:#FFFFFF; line-height:56px; text-align:center; letter-spacing:-1px;">
+                    J
+                  </td>
+                </tr>
+              </table>
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:22px; font-weight:800; color:#000000; letter-spacing:0.3px; padding-top:10px;">Jim</div>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td bgcolor="#FFFFFF" style="background-color:#FFFFFF; border-radius:20px; padding:36px 32px 32px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:24px; line-height:30px; font-weight:700; color:#000000; letter-spacing:-0.2px; padding:0 0 10px 0;">
+                    Your sign-in code
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:16px; line-height:22px; color:#3C3C43; padding:0 0 28px 0;">
+                    Enter this code in the app to continue.
+                  </td>
+                </tr>
+
+                <!-- The code -->
+                <tr>
+                  <td align="center" style="padding:0 0 28px 0;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td align="center" bgcolor="#F2F2F7"
+                            style="background-color:#F2F2F7; border:1.5px solid #D1D1D6; border-radius:12px; padding:18px 28px; font-family:'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace; font-size:36px; line-height:44px; font-weight:700; color:#0061C2; letter-spacing:10px; text-indent:10px; white-space:nowrap;">
+                          {{ .Token }}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td align="center" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:14px; line-height:20px; color:#6B6B70; padding:0 0 6px 0;">
+                    The code expires in one hour and works once.
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:14px; line-height:20px; color:#6B6B70;">
+                    If you did not ask for this, you can ignore this email. Nobody can sign in without the code.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:12px; line-height:18px; color:#6B6B70; padding:24px 24px 0 24px;">
+              Sent to {{ .Email }} because it was entered in the Jim app.<br>
+              Questions? Write to <a href="mailto:support@jimplanner.app" style="color:#0061C2; text-decoration:none; font-weight:600;">support@jimplanner.app</a>.
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -251,6 +251,31 @@ export default function PlanCalendarWeekScreen() {
           </TouchableOpacity>
         </View>
       )}
+      {pWeekInfo?.state === 'after' && (
+        // The plan's last week has passed. The week is honestly open — no
+        // repeat of the last week — and the ask is the next plan. Anything
+        // added to a day here still saves, extending this plan.
+        <View style={styles.anchorBanner}>
+          <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
+          <View style={styles.anchorBannerText}>
+            <Text style={styles.anchorBannerTitle}>Your plan has ended</Text>
+            <Text style={styles.anchorBannerBody}>
+              This week is open. Generate a new plan, or add a workout to any day.
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => {
+              buzzTap();
+              navigation.navigate('GeneratePlan');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Generate a new plan"
+            hitSlop={8}
+          >
+            <Text style={styles.anchorBannerAction}>Generate</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {mode === 'loading' && (
         <>

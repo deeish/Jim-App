@@ -61,7 +61,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   // ⚠ `date` is a guess until this ships. Set it to the real release date.
   {
     id: '2026-08-25',
-    version: '1.1.0',
+    version: '1.2.0',
     date: '2026-08-27',
     title: 'Crew, Home, and Profile',
     changes: [
@@ -112,6 +112,30 @@ export const CHANGELOG: ChangelogEntry[] = [
         headline: 'Slide between days and weeks',
         icon: 'swap-horizontal',
         text: 'The calendar now slides under your finger. The arrows next to the date do the same thing.',
+      },
+      {
+        type: 'improved',
+        headline: 'Calendar edits that stick',
+        icon: 'cloud-done',
+        text: 'Exercises you add, swap or remove on a day, and Quick Workouts, are kept on your phone right away and saved to your plan as soon as the app can reach the server.',
+      },
+      {
+        type: 'improved',
+        headline: 'Coach-built programs',
+        icon: 'shield-checkmark',
+        text: 'Starting a program now uses the days from your profile instead of the program’s defaults, begins on your next training day, and swaps out exercises that load any joint you marked to work around.',
+      },
+      {
+        type: 'new',
+        headline: 'Work-arounds in Profile',
+        icon: 'medkit',
+        text: 'Mark the joints you are working around under Training in your profile. New plans skip exercises that load them, and you can choose to swap them out of your current plan too.',
+      },
+      {
+        type: 'new',
+        headline: 'Sign in with Apple, Google, or a code',
+        icon: 'key',
+        text: 'One sign-in screen for new and returning people. Continue with Apple or Google, or type your email and enter the six-digit code we send you. Your password still works if you have one.',
       },
     ],
   },
