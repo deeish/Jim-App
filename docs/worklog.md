@@ -15,6 +15,60 @@ session can summarise the work without re-deriving it.
 
 ---
 
+## 2026-09-10 — Sign-in v2: Apple, Google, emailed code on one identifier-first screen (uncommitted)
+
+Dylan: research what big apps do for sign-in, design the "most up to date" screens
+(canvas c32074a8, page "v2 · Refined"), then "if you're absolutely confident about
+the screens now then go ahead and build the v2." Built as drawn: hero over a bottom
+sheet, Apple → Google → email → one blue Continue, six-digit code screen, password
+fallback, and the pre-auth Welcome. Verified by `tsc` (clean), the frontend suite
+(47 suites / 704 tests, 16 new) and a Playwright pass on the Expo web rig at 390×844
+and 375×667 with Supabase's OTP endpoint stubbed: Welcome → Sign in → code screen
+(partial, wrong-code error, resend countdown) → "Use password instead" → Password.
+**Apple, Google, the keyboard fold and dark mode were NOT exercised** — web has no
+native modules and no keyboard; they need the phone AND a new binary.
+
+| # | Task | Status | Where | What and why |
+|---|------|--------|-------|--------------|
+| 1 | Identifier-first Sign in | `DONE` (web) | `screens/SignInScreen.tsx`, `components/AuthHero.tsx`, `AuthSheet.tsx`, `SignInButtons.tsx` | Brand + aurora in the top half (look zone), every control in a bottom sheet (thumb zone). Apple is Apple's own system button (`AppleAuthenticationButton`, CONTINUE, black/white by theme, radius 12); Google is a custom button in Google's Light/Dark theme with the four-colour G (`react-native-svg`); both 52pt, same as Continue. Each provider hides itself when its module is missing or Google's client ids are unset, so web/older binaries just show email. Keyboard open → hero folds into a brand row, legal line hides, sheet rides above the keyboard (KAV padding). Short screens (<700pt) shrink the lockup 0.8× so no control shrinks. |
+| 2 | Emailed six-digit code | `DONE` (web, stubbed) | `screens/EmailCodeScreen.tsx`, `components/CodeInput.tsx`, `AuthContext.sendEmailCode/verifyEmailCode` | `signInWithOtp({ shouldCreateUser: true })` then `verifyOtp({ type: 'email' })` — one screen serves log in AND sign up. Six boxes over one hidden `TextInput` with `textContentType="oneTimeCode"` so iOS offers the code from Mail; pasted "482 913" lands. Submits on the sixth digit; wrong code → error, boxes cleared. Resend is a 60 s countdown (Supabase's per-address limit). |
+| 3 | Password fallback | `DONE` (web) | `screens/PasswordScreen.tsx` | One field + show/hide, no confirm field. "Forgot it? Email me a code" sends a code and `replace`s to the code screen, so the code IS the recovery path; the ForgotPassword screen is gone. Old reset deep links still open `SetNewPasswordScreen` (untouched). |
+| 4 | Welcome before sign-in | `DONE` (web) | `screens/WelcomeScreen.tsx`, `App.tsx` `AuthStack`, `AuthContext.hasSignedInBefore` | Same hero/sheet anatomy. Shown only on an install that has never held a session (`jim_auth_seen_v1` in AsyncStorage, device-local); a signed-out returning device opens on Sign in. `ready` waits for that one read so the stack never opens on Welcome and jumps. |
+| 5 | Native providers, safely | `DONE` | `lib/authProviders.ts`, `AuthContext.signInWithProvider` | Both native modules are loaded with `require()` inside a try (the white-screen lesson), once. Apple: `signInAsync` → `signInWithIdToken`; the name Apple sends ONCE is stored as `user_metadata.full_name` immediately. Google: `GoogleSignin.signIn()` → id token → `signInWithIdToken`; configured from `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` / `_IOS_CLIENT_ID`; `app.config.js` adds the config plugin only when `GOOGLE_IOS_URL_SCHEME` is set, so builds succeed before Google Cloud exists. |
+| 6 | Hide My Email / no-email accounts | `DONE` | `lib/authIdentity.ts` (+16 tests), `ProfileScreen.tsx`, `HomeScreen.tsx`, `CrewScreen.tsx`, `ShareModal.tsx` | `handleDeleteAccount` gated on the session, not `user.email` (an Apple-only account could not delete itself — App Store 5.1.1(v)). Greetings and the crew name never use a relay hash; the Profile identity row reads "Apple ID · email hidden". |
+| 7 | Config, e2e, docs | `DONE` | `app.json` (`usesAppleSignIn`, `expo-apple-authentication` plugin), `.env.example`, `e2e/smoke.spec.ts`, `docs/auth-sign-in-setup.md` (new), `navigation-route-map.md`, `navigation-qa-checklist.md`, `INDEX.md`, `constants/changelog.ts` | Smoke test walks email → Continue → "Use password instead" → password. Setup doc has every Supabase / Apple / Google console step. One What's New row on the unshipped card. |
+| — | Removed | `DONE` | `LoginScreen.tsx`, `SignupScreen.tsx`, `ForgotPasswordScreen.tsx` deleted; `AuthContext.signUp` / `requestPasswordReset` removed | Nothing else imported them. `AuthScreenLayout`, `AuthInput`, `AuthNotice` stay (SetNewPassword uses the layout). |
+| 8 | Onboarding goal step: make "Add a second focus" visible | `DONE` (web) | `screens/OnboardingScreen.tsx` (goal step JSX + `secondFocus*` styles) | Dylan: "some users might miss it." It was a bare blue text link under the fact line, ~36pt tall and below the fold at 390×844. Now a dashed-outline "add slot" card in the goal-card family: 36pt `primarySoft` tile with a `+`, callout/semibold label, one muted hint ("Optional. Mixes a second goal into your plan."), chevron; unfilled and unshadowed so it never reads as a sixth goal. The same shell hosts picking mode (filled tile, "Tap a second goal…", Cancel) and the chosen state (checkmark tile, "X is your second focus.", Remove), both with 44pt actions. Moved directly under the goal cards, ahead of the fact line, which puts the whole card above the fold on 390×844. Behaviour, copy of the two existing states, badges, step order and persisted data unchanged; the single-select + explicit-mode decision from row 10 of 2026-09-09 stands. Verified: `tsc` clean, 47 suites / 704 tests, Playwright on the web rig at 390×844 in light AND dark (`jim_theme_v1` seeded), all three states screenshotted; hit box measured 350×84pt. Not done: no phone pass; dashed borders on iOS are the one thing web cannot vouch for. |
+
+### Same evening, with Dylan driving the consoles
+
+| # | Task | Status | Where | What and why |
+|---|------|--------|-------|--------------|
+| 9 | Domain + transactional email | `DONE` | Cloudflare Registrar (`jimplanner.app`), Resend, Cloudflare Email Routing | Name research first (docs in memory: "Jim" is usable but not clean — FRIENDS CALL ME JIM covers our goods in US Cl. 9, JYM is phonetically identical; the fix is a composite brand, App Store name "Jim: Workout Planner"). Dylan chose jimplanner.app. Resend domain verified via its Cloudflare auto-configure (records on `send.` and `resend._domainkey`, DMARC added); Email Routing `support@jimplanner.app` → Gmail on the root MX — no SPF collision because the two live on different hostnames. |
+| 10 | Supabase email codes, live | `DONE` | Supabase → Emails (SMTP + Templates), Rate Limits, Providers → Email | SMTP: smtp.resend.com:465, user `resend`, sending-only key, sender `codes@jimplanner.app`. BOTH templates (Confirm sign up, Magic link or OTP) use `docs/email-templates/sign-in-code.html`; subject carries `{{ .Token }}`. **Email OTP Length was 8 on this project** (the app assumes 6) → set to 6. Emails/hour 30 → 200. Verified: Dylan signed in through the web build with a real code from his own inbox. |
+| 11 | Apple + Google providers configured | `DONE` (untestable until the binary) | Apple developer portal, Google Cloud, Supabase → Providers, `eas.json` | Sign In with Apple capability on `com.jimapp.app`; Supabase Apple provider with the bundle id as Client ID, no secret. Google: consent screen (Testing), web + iOS OAuth clients; Supabase Google provider with BOTH client ids comma-separated in Client IDs, web secret, **Skip nonce checks ON** (the native iOS SDK's nonce never reaches Supabase). The three public values are in every `eas.json` profile; `npx expo config` confirms the google-signin plugin and `usesAppleSignIn` are active. |
+| 12 | Version 1.1.0 → 1.2.0 | `DONE` | `app.json`, `constants/changelog.ts` (card version) | Reversal of the earlier "not bumping" call: `SignInButtons.tsx` imports `react-native-svg` at module top level, and that module throws at import on a binary that does not link it. An OTA of this JS on the `production` channel would therefore crash 1.1.0 phones. Same `runtimeVersion` policy (appVersion) → a new version is what fences the OTA. |
+
+### Needs Dylan (`NEEDS-DYLAN`)
+
+| Thing | Why |
+|-------|-----|
+| **`eas build --platform ios --profile production --auto-submit`** | Everything else is in place. First build with the new entitlement: say yes when EAS offers to regenerate the provisioning profile. |
+| Phone pass on the TestFlight build | Apple sheet + first-run name capture, Google sheet, keyboard fold, dark mode, Hide My Email, the dashed "second focus" card, VoiceOver order. QA list in `navigation-qa-checklist.md` §1. |
+| Google consent screen → Publish | It is in Testing (only listed test users can sign in). Publish before external testers try Google. |
+| Commit | Small scoped commits per [[feedback_commit_hygiene]]; nothing is committed yet. |
+
+### Deliberately NOT done
+
+| Thing | Why |
+|-------|-----|
+| Passkeys, Facebook, phone/SMS, a Face ID gate | Research call (2026-09-10): passkeys are a Supabase beta with no Expo path; Facebook is being dropped by Strava/Airbnb/MFP; no fitness app gates on Face ID. |
+| Apple nonce | Supabase's own Expo recipe passes none; adding one needs `expo-crypto`, another native dep. Revisit if Supabase starts requiring it. |
+| Sign-in AFTER the six onboarding questions | The bigger win per the canvas note, but a different change (answers held locally, account at the payoff). Ask first. |
+| Commit | Not asked. |
+
+---
+
 ## 2026-09-09 (night) — Work-arounds in Profile, schedule write-back on the plan pages (uncommitted)
 
 Dylan's call after the onboarding batch: the schedule does NOT get a Profile editor

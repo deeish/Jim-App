@@ -205,10 +205,11 @@ NavigationContainer
 
 Signed out / pre-auth (mutually exclusive with the tree above):
 NavigationContainer
-└─ AuthStack (local param list, App.tsx)
-   ├─ Login             LoginScreen
-   ├─ Signup             SignupScreen
-   └─ ForgotPassword     ForgotPasswordScreen
+└─ AuthStack (AuthStackParamList, types/navigation.ts)
+   ├─ Welcome           WelcomeScreen    (initial route on an install that has never held a session)
+   ├─ SignIn            SignInScreen     (initial route otherwise; Apple / Google / email)
+   ├─ EmailCode         EmailCodeScreen  ({ email }) six-digit code
+   └─ Password          PasswordScreen   ({ email }) fallback for accounts with a password
 
 Special-cased outside any stack (App.tsx renders it directly, no navigator):
    SetNewPasswordScreen   — shown whenever passwordRecoveryMode is true, pre-empting
@@ -263,15 +264,18 @@ Format: **Screen** (navigator) — how you get there → how you leave.
 
 ### Auth stack (signed out)
 
-- **LoginScreen** (AuthStack)
-  - In: app launch with no session; or from Signup/ForgotPassword via back.
-  - Out: → `Signup` (navigate), → `ForgotPassword` (navigate). No back target (stack root).
-- **SignupScreen** (AuthStack)
-  - In: Login → "Create an account".
-  - Out: → `Login` (navigate, not goBack — see Open Questions). Header back (`AuthScreenLayout`'s `onBack`) not wired on this screen (no `onBack` prop passed) — default hardware-back/swipe pops to Login via history, but there's no on-screen back affordance besides the "Sign in" footer link. Uses the shared `AuthScreenLayout` keyboard-dismiss fix (mechanism-agnostic to routing).
-- **ForgotPasswordScreen** (AuthStack)
-  - In: Login → "Forgot password?".
-  - Out: `onBack={() => navigation.goBack()}` → Login.
+- **WelcomeScreen** (AuthStack)
+  - In: app launch with no session on an install that has never signed in (`hasSignedInBefore === false`).
+  - Out: "Get started" and "Log in" both → `SignIn` (navigate). No back target (stack root).
+- **SignInScreen** (AuthStack)
+  - In: Welcome, or app launch with no session on a device that has signed in before; or back from EmailCode / Password.
+  - Out: Apple / Google → session (no navigate; `App.tsx` swaps stacks). Email "Continue" → `sendEmailCode` → `EmailCode` (navigate, `{ email }`). Provider buttons hide themselves where the native module or client ids are missing (web, older binaries).
+- **EmailCodeScreen** (AuthStack)
+  - In: SignIn → Continue; Password → "Email me a code" (`replace`, so back returns to SignIn, not Password).
+  - Out: six digits → `verifyEmailCode` → session (no navigate). "Change" / Back → `goBack()` → SignIn. "Use password instead" → `Password` (navigate, `{ email }`).
+- **PasswordScreen** (AuthStack)
+  - In: EmailCode → "Use password instead".
+  - Out: "Sign in" → session. Back → `goBack()` → EmailCode. "Change" → `popToTop()` → SignIn. "Forgot it? Email me a code" → `replace('EmailCode')`.
 - **SetNewPasswordScreen** — NOT part of AuthStack. Rendered directly by `App.tsx` whenever `passwordRecoveryMode` is true (Supabase `PASSWORD_RECOVERY` event, e.g. from an email deep link), pre-empting both AuthStack and RootStack.
   - Out: "Sign out" button → `signOut()`, which clears session and naturally falls through to AuthStack (no explicit navigate call — it's a side effect of auth state changing, picked up by `App.tsx`'s `session ? ... : <AuthStack />` branch).
 

@@ -26,13 +26,17 @@ map and checklist exist).
 
 ## 1. Auth stack (signed out)
 
-- [ ] Login → "Create an account" → Signup screen opens
-- [ ] Signup → footer "Sign in" link → back to Login
-- [ ] Signup has no on-screen back button by design — confirm hardware-back (Android) / swipe-back (iOS) still pops to Login via history
-- [ ] Login → "Forgot password?" → ForgotPassword screen opens
-- [ ] ForgotPassword → back button → returns to Login
-- [ ] Trigger a real password-reset email → tapping the link opens SetNewPassword directly, pre-empting Login/Signup entirely
-- [ ] SetNewPassword → "Sign out" button → drops to Login
+- [ ] Fresh install (or cleared app data) → Welcome opens; "Get started" and "Log in" both → Sign in
+- [ ] Sign out on a device that has signed in → Sign in opens directly (no Welcome)
+- [ ] Sign in: Apple button is first, Google second (only when client ids are configured), same height as Continue; tapping the email field folds the hero into the brand row and Continue sits above the keyboard
+- [ ] Sign in → email → Continue → Enter the code opens; iOS offers the code from Mail above the keyboard; sixth digit submits
+- [ ] Enter the code → wrong code → error, boxes cleared; "Resend code" is a countdown for 60 s, then tappable
+- [ ] Enter the code → "Change" / Back → Sign in with the email still typed
+- [ ] Enter the code → "Use password instead" → Password → correct password signs in; Back returns to the code screen
+- [ ] Password → "Forgot it? Email me a code" → Enter the code (Back from there goes to Sign in, not Password)
+- [ ] Continue with Apple (first time on this Apple ID): name lands in Profile; Hide My Email shows "Apple ID · email hidden" in Profile, greeting on Home has no hash
+- [ ] Profile → Delete account works for an Apple-only account (no email gate)
+- [ ] An old password-reset link still opens SetNewPassword directly; "Sign out" there drops to Sign in
 
 ## 2. Onboarding (fresh account only)
 
