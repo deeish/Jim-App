@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { describeAccountEmail, nameFromEmail } from '../lib/authIdentity';
 import SheetModal from '../components/SheetModal';
 import {
   PROFILE_INJURY_TAG_OPTIONS,
@@ -215,10 +216,8 @@ function fallbackAccountName(
     const full = meta.full_name ?? meta.name;
     if (typeof full === 'string' && full.trim()) return full.trim();
   }
-  if (email && email.includes('@')) {
-    return email.split('@')[0] ?? email;
-  }
-  return email ?? 'Your name';
+  // A Hide My Email relay yields no usable handle, so it falls through to the placeholder.
+  return nameFromEmail(email) ?? 'Your name';
 }
 
 const staticStyles = StyleSheet.create({
@@ -1001,7 +1000,10 @@ export default function ProfileScreen() {
   }, [signOut]);
 
   const handleDeleteAccount = useCallback(() => {
-    if (!user?.email) {
+    // Gate on the session, never on an email: a Sign in with Apple account may
+    // carry a relay address or none at all, and App Store 5.1.1(v) requires
+    // deletion to work for every account that can be created.
+    if (!user) {
       Alert.alert('Unavailable', 'Sign in to delete your account.');
       return;
     }
@@ -1031,7 +1033,7 @@ export default function ProfileScreen() {
         },
       ],
     );
-  }, [user?.email, runDeleteAccount]);
+  }, [user, runDeleteAccount]);
 
   const equipmentSummary =
     equipment.length === 0
@@ -1222,7 +1224,7 @@ export default function ProfileScreen() {
               {profileDisplayName.trim() || namePlaceholder}
             </Text>
             <Text style={[styles.identityEmail, { color: colors.textMuted }]} numberOfLines={1}>
-              {user?.email ?? 'Not signed in'}
+              {user ? describeAccountEmail(user.email) : 'Not signed in'}
             </Text>
             {identityCaption ? (
               <Text

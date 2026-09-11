@@ -26,6 +26,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { leading, radius, spacing, text, tracking, useTheme, weight, type ColorPalette } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
 import { useAuth } from '../contexts/AuthContext';
+import { nameFromEmail } from '../lib/authIdentity';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import SheetModal from '../components/SheetModal';
@@ -158,7 +159,7 @@ export default function CrewScreen() {
     useCallback(() => {
       // Crewmates see the name/avatar you last synced — keep it fresh.
       void syncProfileToServer({
-        name: profileDisplayName || user?.email?.split('@')[0] || undefined,
+        name: profileDisplayName || nameFromEmail(user?.email),
         avatarId: profileAvatarId,
       });
       void load();

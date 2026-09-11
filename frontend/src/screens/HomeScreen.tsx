@@ -14,6 +14,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { nameFromEmail } from '../lib/authIdentity';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { ProfileAvatarDisc } from '../components/ProfileAvatarDisc';
 import WhatsNewModal from '../components/WhatsNewModal';
@@ -135,7 +136,7 @@ export default function HomeScreen() {
   const tabBarInset = useTabBarInset();
   const { user } = useAuth();
   const { profileAvatarId, profileDisplayName } = useUserPreferences();
-  const displayName = (profileDisplayName || user?.email?.split('@')[0] || '').split(' ')[0];
+  const displayName = (profileDisplayName || nameFromEmail(user?.email) || '').split(' ')[0];
 
   const [whatsNewVisible, setWhatsNewVisible] = useState(false);
   const [hasUnseenNews, setHasUnseenNews] = useState(false);
