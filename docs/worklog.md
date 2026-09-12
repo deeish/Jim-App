@@ -15,6 +15,30 @@ session can summarise the work without re-deriving it.
 
 ---
 
+## 2026-09-11 — New logo: the segmented J replaces every old Jim mark (committed, no build)
+
+Dylan built the mark himself (a J cut into five segments that doubles as a progress
+track) and asked for a read, then for the fixes and the rollout. Four-person test:
+"C", "d"/"J", "loading ring", "loved it". Each read traced to a separate lever, none
+of them the five-segment idea: the loading read is the 3-of-5 tonal fill on the icon,
+the C is the short stem, the d is the 270° hook closing the bowl (Gestalt closure).
+Decision with Dylan: hook shortened to 235°, icon ships SOLID 5 of 5, partial fills
+live only in-app as the user's week and in the launch animation. Stem left alone.
+Verified: `tsc` clean, frontend suite green (9 new tests), Playwright on the Expo web
+rig at 390×844: Welcome (light + dark), mid-rep frame after tapping the mark, Sign in.
+Pitch of every placement: artifact b1823b25 ("Jim Logo Placement Map").
+
+| # | Task | Status | Where | What and why |
+|---|------|--------|-------|--------------|
+| 1 | Asset set from one generator | `DONE` | `brand/tools/generate.js`, `brand/*.svg` + `.png`, `brand/README.md` | Geometry constants in one place: path `M66 20 L66 52 A22 22 0 1 1 31.38 33.98`, length 122.23, segment 19.25, gap 6.5. Writes light/dark/mono/tinted icons, Android adaptive foreground (0.66× into the safe zone), bare mark, progress and tonal references. Needs `sharp` from any node_modules (`node brand/tools/generate.js <dir>`). Stripped the 8 KB C2PA manifests the original SVGs carried. |
+| 2 | App assets + iOS 18 variants | `DONE` | `frontend/assets/icon*.png`, `adaptive-icon.png`, `favicon.png`, `splash.png`, `app.json` | `ios.icon: { light, dark, tinted }`; Android background → white. Splash is the solid mark at 96 pt on #F2F2F7, the same size `JimLogo` draws it (`JIM_LOGO_MARK_PT` ↔ `SPLASH_MARK_PT`) so the handoff does not jump. Old `icon-source.png` deleted. Needs a NEW BINARY: icon, splash and adaptive icon are not OTA-able. |
+| 3 | `JimMark` + geometry lib | `DONE` | `components/JimMark.tsx`, `lib/jimMark.ts` (+`jimMark.test.ts`) | Plain `react-native-svg`, two copies of one path, only the dash array changes. `segmentsForProgress` is proportional with two honesty rules (0 only when nothing done, 5 only when finished, else clamp 1–4) because plain rounding shows 5 at 9/10 and 0 at 1/12. Accessibility props are only spread when a label is given: RNSVG on web forwards RN-only props to the DOM and warns. |
+| 4 | `JimLogo` rewrite, Skia glyph gone | `DONE` | `components/JimLogo.tsx`, `AuthHero.tsx`; `JGlyph.tsx`, `JGlyph.web.tsx`, `JGlyphSkia.tsx` deleted | Same props (`showTagline`, `interactive`, `entrance`) so LoadingScreen, AuthHero, AuthScreenLayout and Onboarding did not change. Chip, gradients, sheen and pulse rings removed (brand rule: flat, no gradient). Tap-to-flex became tap-to-rep: the mark empties and refills one segment at a time. AuthHero's keyboard row is a flat 30 pt mark. Aurora stays (backdrop, not logo). Skia is still a dep for the body map and Aurora. |
+| 5 | Theme tokens | `DONE` | `theme/colors.ts` | `brand` (#2563EB / #4D9BFF) and `brandTrack` (#D9DDE5 / #1E3663) added; `brandGlyphShade` removed. `brand` ≠ `primary` (#0061C2) on purpose: primary is tuned for 4.5:1 text, the mark must match the shipped icon. `brandGradientStart/End` kept for Aurora and the What's New chip. |
+| 6 | Launch animation | `OPEN` | `LoadingScreen.tsx` | Deliberately NOT done: Dylan wants extra effort on it as its own task. Today the loader shows the static mark with the wordmark rising, so nothing old ships. Intended shape: segments draw in from the stem and land on 5 of 5, starting from the exact splash frame. |
+| 7 | In-app progress placements | `NEEDS-DYLAN` | see the artifact | Proposed, not built: Home hero week mark (replaces the momentum bar), finish-screen tick k→k+1, per-member marks in Crew, Progress header. Kept out on purpose: headers, tab bar, two marks on one screen, partial fill as decoration, the What's New gift chip. |
+| 8 | Website + email lockup | `OPEN` | `brand/`, `docs/email-templates/sign-in-code.html` | Needs a raster lockup (email clients drop SVG) once jimplanner.app exists. |
+
 ## 2026-09-10 — Sign-in v2: Apple, Google, emailed code on one identifier-first screen (uncommitted)
 
 Dylan: research what big apps do for sign-in, design the "most up to date" screens
