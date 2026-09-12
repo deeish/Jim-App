@@ -61,8 +61,12 @@ export type ColorPalette = {
    *  primary→accent, which would read as blue→brown in this palette. */
   brandGradientStart: string;
   brandGradientEnd: string;
-  /** Lower stop of the brand glyph's metal gradient. */
-  brandGlyphShade: string;
+  /** The brand mark's lit segments (brand/README.md). Deliberately not `primary`:
+   *  primary is tuned for 4.5:1 text, the mark for presence, and the two must
+   *  match the shipped app icon exactly. */
+  brand: string;
+  /** The mark's unlit segments when it shows live progress. */
+  brandTrack: string;
   /** Body map: silhouette fill, its outline, and the unhighlighted-muscle wash. */
   bodyMapBody: string;
   bodyMapOutline: string;
@@ -127,7 +131,8 @@ export const palette: ColorPalette = {
 
   brandGradientStart: '#3B9DFF',
   brandGradientEnd: '#0047B3',
-  brandGlyphShade: '#D9E4F2',
+  brand: '#2563EB',
+  brandTrack: '#D9DDE5',
 
   bodyMapBody: '#E5E5EA',
   bodyMapOutline: '#C6C6C8',
@@ -187,7 +192,10 @@ export const darkPalette: ColorPalette = {
   // The brand chip carries its own gradient — identical in both modes.
   brandGradientStart: '#3B9DFF',
   brandGradientEnd: '#0047B3',
-  brandGlyphShade: '#D9E4F2',
+  // Dark is not a recolour of light: on black the pale tone would become the
+  // brightest thing, so the lit segment brightens and the track darkens.
+  brand: '#4D9BFF',
+  brandTrack: '#1E3663',
 
   bodyMapBody: '#3A3B41',
   bodyMapOutline: '#55565E',

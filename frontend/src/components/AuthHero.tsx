@@ -1,12 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { leading, spacing, text, useTheme } from '../theme';
 import Aurora from './Aurora';
 import JimLogo from './JimLogo';
-import JGlyph from './JGlyph';
+import JimMark from './JimMark';
 
 /** Below this window height (iPhone SE) the lockup shrinks so the sheet keeps full-size controls. */
 const COMPACT_MAX_HEIGHT = 700;
@@ -46,14 +45,7 @@ export default function AuthHero({ collapsed = false, tagline, children, interac
           entering={FadeIn.duration(180)}
           style={[styles.brandRow, { paddingTop: insets.top + spacing.sm }]}
         >
-          <LinearGradient
-            colors={[colors.brandGradientStart, colors.brandGradientEnd]}
-            start={{ x: 0.1, y: 0 }}
-            end={{ x: 0.9, y: 1 }}
-            style={styles.miniChip}
-          >
-            <JGlyph size={26} colors={colors} />
-          </LinearGradient>
+          <JimMark size={30} />
           <Text style={[styles.miniWordmark, { color: colors.text }]}>Jim</Text>
         </Animated.View>
       ) : (
@@ -101,14 +93,6 @@ const styles = StyleSheet.create({
     gap: 10,
     height: 44,
     paddingHorizontal: spacing.xxl,
-  },
-  miniChip: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
   },
   miniWordmark: { fontSize: text.title, fontWeight: '900', letterSpacing: 0.5 },
 });
