@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Jim app icon, dark. Tonal hierarchy inverted: filled is brighter, unfilled is dimmer. -->
+  <rect width="1024" height="1024" fill="#0B0B0B"/>
+  <g transform="scale(10.24)">
+    <g transform="translate(50,50) scale(1.08) translate(-44,-50.5)">
+      <path d="M66 20 L66 52 A22 22 0 1 1 44 30"
+            fill="none" stroke="#1E3663" stroke-width="14"
+            stroke-dasharray="21.93 6.5"/>
+      <path d="M66 20 L66 52 A22 22 0 1 1 44 30"
+            fill="none" stroke="#4D9BFF" stroke-width="14"
+            stroke-dasharray="21.93 6.5 21.93 6.5 21.93 400"/>
+    </g>
+  </g>
+</svg>
