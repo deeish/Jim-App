@@ -27,6 +27,11 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.jimapp.app",
       "usesAppleSignIn": true,
+      "icon": {
+        "light": "./assets/icon.png",
+        "dark": "./assets/icon-dark.png",
+        "tinted": "./assets/icon-tinted.png"
+      },
       "config": {
         "usesNonExemptEncryption": false
       }
@@ -34,7 +39,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0047B3"
+        "backgroundColor": "#FFFFFF"
       },
       "package": "com.jimapp.app"
     },
