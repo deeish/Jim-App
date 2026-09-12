@@ -1,8 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- Jim app icon, light. Full bleed, no alpha, no baked corner radius (iOS masks it). All five segments filled: the icon never shows progress state. -->
-  <rect width="1024" height="1024" fill="#FFFFFF"/>
+  <!-- Android adaptive-icon foreground: transparent, mark scaled to sit inside the 66dp safe zone. Background colour comes from app.json. -->
   <g transform="scale(10.24)">
-    <g transform="translate(50,50) scale(1.080) translate(-44,-50.5)">
+    <g transform="translate(50,50) scale(0.713) translate(-44,-50.5)">
       <path d="M66 20 L66 52 A22 22 0 1 1 31.38 33.98" fill="none" stroke="#2563EB" stroke-width="14" stroke-dasharray="19.25 6.5"/>
     </g>
   </g>

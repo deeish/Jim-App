@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none">
-  <!-- In-app progress element, 3 of 5 filled. Only the top path's stroke-dasharray changes between states; see README. -->
+  <!-- Brand tonal mark (pale blue, 3 of 5). Marketing and the website hero only. Never the app icon, never live data. -->
   <g transform="translate(50,50) scale(1.08) translate(-44,-50.5)">
-    <path d="M66 20 L66 52 A22 22 0 1 1 31.38 33.98" fill="none" stroke="#D9DDE5" stroke-width="14" stroke-dasharray="19.25 6.5"/>
+    <path d="M66 20 L66 52 A22 22 0 1 1 31.38 33.98" fill="none" stroke="#C5D8FB" stroke-width="14" stroke-dasharray="19.25 6.5"/>
     <path d="M66 20 L66 52 A22 22 0 1 1 31.38 33.98" fill="none" stroke="#2563EB" stroke-width="14" stroke-dasharray="19.25 6.5 19.25 6.5 19.25 400"/>
   </g>
 </svg>
