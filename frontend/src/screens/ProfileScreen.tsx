@@ -52,6 +52,7 @@ import {
   TERMS_OF_SERVICE_URL,
 } from '../constants/legalUrls';
 import { exportMyData, deleteMyAccount } from '../services/userService';
+import { connectAppleHealth, isAppleHealthAvailable } from '../lib/appleHealth';
 import { listWeighIns, type BodyWeightEntry } from '../services/bodyWeightService';
 import {
   getPersonalBests,
@@ -620,6 +621,32 @@ export default function ProfileScreen() {
     'goal' | 'secondaryGoal' | 'experience' | null
   >(null);
   const [dataExporting, setDataExporting] = useState(false);
+
+  // --- Apple Health ---
+  // The row exists only on an iPhone whose binary links HealthKit. Turning it
+  // off here stops Jim writing; the Health app's own Sharing screen is where
+  // access is revoked, and the alert says so.
+  const { appleHealth, setAppleHealth } = useUserPreferences();
+  const appleHealthAvailable = useMemo(() => isAppleHealthAvailable(), []);
+  const [appleHealthBusy, setAppleHealthBusy] = useState(false);
+  const handleAppleHealthRow = useCallback(() => {
+    if (appleHealthBusy) return;
+    if (appleHealth === 'connected') {
+      Alert.alert(
+        'Stop adding workouts to Apple Health?',
+        'Jim stops writing new workouts. To remove its access entirely, open the Health app: Sharing → Apps → Jim.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Stop', style: 'destructive', onPress: () => setAppleHealth('declined') },
+        ],
+      );
+      return;
+    }
+    setAppleHealthBusy(true);
+    void connectAppleHealth()
+      .then((granted) => setAppleHealth(granted ? 'connected' : 'declined'))
+      .finally(() => setAppleHealthBusy(false));
+  }, [appleHealth, appleHealthBusy, setAppleHealth]);
   const [accountDeleting, setAccountDeleting] = useState(false);
   // The adaptive band's inputs — all load gracefully; the band degrades to
   // whatever arrived (worst case: a settings-only page, which still works).
@@ -1462,6 +1489,19 @@ export default function ProfileScreen() {
             onPress={() => navigation.navigate('ShareRedeem')}
             colors={colors}
           />
+          {appleHealthAvailable ? (
+            <>
+              <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+              <ChipRow
+                icon="heart"
+                tint="#FF2D55"
+                label="Apple Health"
+                value={appleHealthBusy ? '…' : appleHealth === 'connected' ? 'On' : 'Off'}
+                onPress={handleAppleHealthRow}
+                colors={colors}
+              />
+            </>
+          ) : null}
           {user ? (
             <>
               <View style={[styles.rowDivider, themedStyles.rowDivider]} />

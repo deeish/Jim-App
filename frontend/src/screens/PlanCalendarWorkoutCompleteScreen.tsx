@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -99,9 +100,17 @@ import {
 import { formatLastTimeLine } from '../lib/lastPerformanceDisplay';
 import { formatWeightCompactFromLb, type WeightUnit } from '../lib/weightDisplay';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import {
+  connectAppleHealth,
+  isAppleHealthAvailable,
+  saveStrengthWorkoutToAppleHealth,
+} from '../lib/appleHealth';
 
 type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWorkoutComplete'>;
 type Route = RouteProp<PlanCalendarParamList, 'PlanCalendarWorkoutComplete'>;
+
+/** The Health app's own colour, so the row reads as Apple's thing, not Jim's. */
+const HEALTH_PINK = '#FF2D55';
 
 /** Hero seal on the Moment; the morph shrinks it onto the Ledger header. */
 const HERO_SEAL = 84;
@@ -271,7 +280,7 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const tabBarInset = useTabBarInset();
-  const { weightUnit } = useUserPreferences();
+  const { weightUnit, appleHealth, setAppleHealth } = useUserPreferences();
   const unit: WeightUnit = weightUnit === 'kg' ? 'kg' : 'lb';
 
   // Re-render when the baselines fetch lands (or any store update).
@@ -602,6 +611,59 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       setSaveState('error');
     }
   }, [dateIso]);
+
+  // ---- Apple Health --------------------------------------------------------
+  // Offered once, here, after the first finished workout — never in
+  // onboarding, where a permission asked before there is anything to write
+  // gets a "no" that iOS makes hard to reverse. Only a live session on an
+  // iPhone whose binary links HealthKit qualifies; a recap or a backdated log
+  // has no honest start time to write.
+  const healthEligible =
+    !recap && heroSeconds != null && Platform.OS === 'ios' && isAppleHealthAvailable();
+  type HealthOffer = 'hidden' | 'ask' | 'working' | 'added' | 'error';
+  const [healthOffer, setHealthOffer] = useState<HealthOffer>(() => {
+    if (!healthEligible) return 'hidden';
+    if (appleHealth === 'connected') return 'working';
+    return appleHealth === 'unasked' ? 'ask' : 'hidden';
+  });
+  const writeToHealth = useCallback(async () => {
+    setHealthOffer('working');
+    const endDate = new Date();
+    const startIso = sessionStartIso(dateIso);
+    const startDate = startIso
+      ? new Date(startIso)
+      : new Date(endDate.getTime() - (heroSeconds ?? 0) * 1000);
+    const ok = await saveStrengthWorkoutToAppleHealth({
+      dateIso,
+      title: day.title,
+      startDate,
+      endDate,
+    });
+    setHealthOffer(ok ? 'added' : 'error');
+  }, [dateIso, day.title, heroSeconds]);
+  const healthAutoWrite = useRef(false);
+  useEffect(() => {
+    if (!healthEligible || appleHealth !== 'connected' || healthAutoWrite.current) return;
+    healthAutoWrite.current = true;
+    void writeToHealth();
+  }, [healthEligible, appleHealth, writeToHealth]);
+  const onConnectHealth = useCallback(async () => {
+    buzzTap();
+    setHealthOffer('working');
+    const granted = await connectAppleHealth();
+    if (!granted) {
+      setAppleHealth('declined');
+      setHealthOffer('hidden');
+      return;
+    }
+    setAppleHealth('connected');
+    await writeToHealth();
+  }, [setAppleHealth, writeToHealth]);
+  const onDeclineHealth = useCallback(() => {
+    buzzTap();
+    setAppleHealth('declined');
+    setHealthOffer('hidden');
+  }, [setAppleHealth]);
 
   // ---- Ledger rows ---------------------------------------------------------
   /** The claim this SLOT earned. A lift filling two slots only decorates the
@@ -935,6 +997,70 @@ export default function PlanCalendarWorkoutCompleteScreen() {
               )}
             </TouchableOpacity>
           </View>
+          )}
+
+          {healthOffer !== 'hidden' && (
+            <View style={styles.saveCard}>
+              <Ionicons name="heart" size={18} color={HEALTH_PINK} />
+              <View style={styles.saveTextCol}>
+                <Text style={styles.saveTitle}>
+                  {healthOffer === 'ask'
+                    ? 'Add this to Apple Health?'
+                    : healthOffer === 'working'
+                      ? 'Adding to Apple Health…'
+                      : healthOffer === 'added'
+                        ? 'Added to Apple Health'
+                        : 'Couldn’t add to Apple Health'}
+                </Text>
+                <Text style={styles.saveSub} numberOfLines={2}>
+                  {healthOffer === 'ask'
+                    ? 'Counts toward your rings. Jim only writes the workouts you finish.'
+                    : healthOffer === 'added'
+                      ? 'Every finished workout goes there now. Change it in Profile.'
+                      : healthOffer === 'error'
+                        ? 'Allow Workouts for Jim in the Health app, then retry.'
+                        : ' '}
+                </Text>
+              </View>
+              {healthOffer === 'ask' ? (
+                <View style={styles.healthActions}>
+                  <TouchableOpacity
+                    style={styles.healthGhost}
+                    activeOpacity={0.8}
+                    onPress={onDeclineHealth}
+                    accessibilityRole="button"
+                    accessibilityLabel="Not now"
+                  >
+                    <Text style={styles.healthGhostLabel}>Not now</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.saveButton, styles.healthButton]}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      void onConnectHealth();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Connect Apple Health"
+                  >
+                    <Text style={[styles.saveButtonLabel, styles.healthButtonLabel]}>Connect</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : healthOffer === 'error' ? (
+                <TouchableOpacity
+                  style={[styles.saveButton, styles.healthButton]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    void writeToHealth();
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry adding to Apple Health"
+                >
+                  <Text style={[styles.saveButtonLabel, styles.healthButtonLabel]}>Retry</Text>
+                </TouchableOpacity>
+              ) : healthOffer === 'added' ? (
+                <Ionicons name="checkmark" size={16} color={HEALTH_PINK} />
+              ) : null}
+            </View>
           )}
         </ScrollView>
 
@@ -1628,6 +1754,30 @@ function createStyles(c: ColorPalette) {
       lineHeight: leading.body,
       fontWeight: weight.semibold,
       color: GOLD,
+    },
+    healthActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    healthGhost: {
+      height: 36,
+      paddingHorizontal: spacing.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    healthGhostLabel: {
+      ...sfPro,
+      fontSize: text.body,
+      lineHeight: leading.body,
+      fontWeight: weight.semibold,
+      color: c.textMuted,
+    },
+    healthButton: {
+      borderColor: HEALTH_PINK,
+    },
+    healthButtonLabel: {
+      color: HEALTH_PINK,
     },
     doneBar: {
       paddingHorizontal: spacing.xl,

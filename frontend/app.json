@@ -50,7 +50,15 @@
     "plugins": [
       "@sentry/react-native",
       "expo-secure-store",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Jim reads your body weight to estimate the energy of a workout you finish.",
+          "NSHealthUpdateUsageDescription": "Jim adds the workouts you finish to Apple Health so they count toward your rings.",
+          "background": false
+        }
+      ]
     ],
     "extra": {
       "eas": {

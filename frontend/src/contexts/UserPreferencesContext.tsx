@@ -83,6 +83,13 @@ const VALID_PREF_DAY = new Set<string>(DAYS_OF_WEEK_PREF);
  */
 export const MAX_INJURY_NOTES = 280;
 
+/**
+ * Apple Health link. 'unasked' until the first finished workout offers it;
+ * 'connected' writes every finished workout; 'declined' hides the offer and
+ * can be switched back on from Profile.
+ */
+export type AppleHealthStatus = 'unasked' | 'connected' | 'declined';
+
 export type UserPreferencesState = {
   weightUnit: WeightUnit;
   goal: GoalOption;
@@ -107,6 +114,7 @@ export type UserPreferencesState = {
   injuryTagIds: StoredInjuryTagId[];
   /** Optional free-text for the generator (“restrictions”). */
   injuryNotes: string;
+  appleHealth: AppleHealthStatus;
 };
 
 const DEFAULTS: UserPreferencesState = {
@@ -126,6 +134,7 @@ const DEFAULTS: UserPreferencesState = {
   preferredTrainingDays: [],
   injuryTagIds: [],
   injuryNotes: '',
+  appleHealth: 'unasked',
 };
 
 type UserPreferencesContextValue = {
@@ -158,6 +167,8 @@ type UserPreferencesContextValue = {
   setInjuryTagIds: (ids: StoredInjuryTagId[]) => void;
   injuryNotes: string;
   setInjuryNotes: (notes: string) => void;
+  appleHealth: AppleHealthStatus;
+  setAppleHealth: (status: AppleHealthStatus) => void;
 };
 
 const UserPreferencesContext = createContext<UserPreferencesContextValue | null>(
@@ -232,6 +243,10 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
     typeof p.injuryNotes === 'string'
       ? p.injuryNotes.slice(0, MAX_INJURY_NOTES)
       : DEFAULTS.injuryNotes;
+  const appleHealth: AppleHealthStatus =
+    p.appleHealth === 'connected' || p.appleHealth === 'declined'
+      ? p.appleHealth
+      : DEFAULTS.appleHealth;
   return {
     weightUnit,
     goal,
@@ -247,6 +262,7 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
     preferredTrainingDays,
     injuryTagIds,
     injuryNotes,
+    appleHealth,
   };
 }
 
@@ -460,11 +476,24 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     [persist],
   );
 
+  const setAppleHealth = useCallback(
+    (appleHealth: AppleHealthStatus) => {
+      setState((s) => {
+        const next = { ...s, appleHealth };
+        persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
+
   const value = useMemo(
     () => ({
       hydrated,
       weightUnit: state.weightUnit,
       setWeightUnit,
+      appleHealth: state.appleHealth,
+      setAppleHealth,
       goal: state.goal,
       setGoal,
       secondaryGoal: state.secondaryGoal,
@@ -495,6 +524,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     [
       hydrated,
       state.weightUnit,
+      state.appleHealth,
       state.goal,
       state.secondaryGoal,
       state.experience,
@@ -509,6 +539,7 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       state.injuryTagIds,
       state.injuryNotes,
       setWeightUnit,
+      setAppleHealth,
       setGoal,
       setSecondaryGoal,
       setExperience,
