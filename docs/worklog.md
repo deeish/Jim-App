@@ -15,6 +15,37 @@ session can summarise the work without re-deriving it.
 
 ---
 
+## 2026-09-13 — The mark stays a mark: placements dropped, launch animation replaced by a faster static launch
+
+Dylan came back to the two deferred logo questions. For the in-app placements
+he asked for real visuals before deciding, so a current-vs-proposed canvas of
+all four screens was built from the screen source ("Jim Mark Placements",
+artifact e404edcc). Looking at them he found the flaw himself: five segments is
+a property of the letter, not of a plan. Plans run two to six days a week, so
+1 of 2 and 3 of 6 both lit three segments and 2 of 3 jumped from three to five,
+right next to the literal count. All four placements dropped; the proportional
+mapping deleted. Then the launch animation: eight candidates were prototyped
+live (artifact 92ebc652: drawn rep, stepped rep, flex, drop, lift, ripple,
+breath, stem) with a short research pass on what makes launch motion good.
+Dylan checked the apps on his phone: nearly all show a static mark and get into
+the content. Agreed. The loader is now the splash frame itself, held only as
+long as startup takes. Verified: `tsc` clean, 48 suites / 709 tests, Playwright
+boot on the web rig with the dark theme seeded: frame at 507 ms is the flat
+light splash frame with the mark dead centre and no wordmark; frame at 819 ms is
+Welcome in dark with the dissolve tail fading.
+
+| # | Task | Status | Where | What and why |
+|---|------|--------|-------|--------------|
+| 1 | In-app progress placements (Home hero, finish tick, Crew rows, Progress header) | `WONTFIX` | canvas e404edcc, memory | Drawn, reviewed, dropped. The mark is identity only. Kept out for good: any placement that puts the mark beside a session count. |
+| 2 | Proportional session→segment mapping removed | `DONE` | `lib/jimMark.ts`, `jimMark.test.ts`, `JimMark.tsx`, `brand/README.md` (`f8558ba`) | `segmentsForProgress` and its tests gone; the README now records why (the 1 of 2 / 3 of 6 collision). `dashArrayFor` stays for the tap-to-rep. |
+| 3 | Launch animation | `WONTFIX` | artifact 92ebc652 | Eight candidates built and watched at ¼ speed in both themes. Decision: none ships. The best launch is the shortest one; the animated launches people remember (X) are transitions into content, which needs a native mask and is polish for later, not a reason to hold a binary. |
+| 4 | Loader = the splash frame | `DONE` | `components/LoadingScreen.tsx`, `lib/jimMark.ts` (`SPLASH`), `brand/tools/generate.js` | Flat #F2F2F7, solid #2563EB mark at 96 pt, centred, no aurora, no wordmark, no theme colours, whatever theme the user runs. Fixes two handoff bugs the old loader had: the mark sat 19 pt above the splash (the mark+wordmark column was centred, not the mark) and a dark-theme user got a hard cut from the light splash to a dark loader. Now the dissolve over the app is where the ground crosses. |
+| 5 | No minimum hold | `DONE` | `App.tsx` | `LOADING_MIN_DISPLAY_MS` (1500) and its state removed; `ready` is purely session + preferences + the sign-in-before read. Dissolve 480 → 350 ms. Status bar icons stay dark until the dissolve starts, because the loader ground is light. Every launch is ~1.5 s shorter. |
+| 6 | `JimLogo` entrance removed | `DONE` | `components/JimLogo.tsx` | The staggered wordmark/tagline reveal existed only for the loader. Reanimated dropped from the component; `showTagline` and `interactive` (tap-to-rep) unchanged, so AuthHero, AuthScreenLayout and Onboarding did not change. |
+| 7 | What's New line for the faster launch + new icon | `OPEN` | `constants/changelog.ts` | Deliberately NOT done: the 1.2.0 card shipped in build 32. The next binary (new icon, splash, launch) gets a new card, written when that build is cut. |
+| 8 | X-style reveal (mark scales up, app appears through it) | `OPEN` | — | Parked, not planned. Needs a native mask (Skia or MaskedView). Only worth it as a transition, never as a delay. |
+| 9 | Website + email lockup | `OPEN` | `brand/` | Unchanged from 2026-09-11; waits on jimplanner.app. |
+
 ## 2026-09-11 — New logo: the segmented J replaces every old Jim mark (committed, no build)
 
 Dylan built the mark himself (a J cut into five segments that doubles as a progress
