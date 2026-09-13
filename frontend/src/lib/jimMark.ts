@@ -38,19 +38,3 @@ export function dashArrayFor(filled: number): number[] | null {
   out.push(JIM_MARK.segmentLength, 400);
   return out;
 }
-
-/**
- * Map real sessions onto the five segments. Five is a property of the geometry,
- * not a count of the user's sessions, so this is proportional, with two honesty
- * rules: nothing done shows nothing, and only a finished week shows all five.
- * In between, at least one segment lights for any progress and the fifth stays
- * dark until the week is actually complete (plain rounding would show 5 at
- * 9 of 10 and 0 at 1 of 12).
- */
-export function segmentsForProgress(completed: number, planned: number): SegmentCount {
-  if (!Number.isFinite(completed) || !Number.isFinite(planned)) return 0;
-  if (planned <= 0 || completed <= 0) return 0;
-  if (completed >= planned) return 5;
-  const raw = Math.round((completed / planned) * JIM_MARK.segments);
-  return Math.max(1, Math.min(4, raw)) as SegmentCount;
-}

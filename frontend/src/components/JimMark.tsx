@@ -8,8 +8,9 @@ type Props = {
   /** Rendered box, in points. The mark itself fills ~63% of it. */
   size?: number;
   /**
-   * Segments lit, 0–5. Default 5: the identity is always the full mark. Pass
-   * fewer only when the mark is showing live progress (see `segmentsForProgress`).
+   * Segments lit, 0–5. Default 5: the identity is always the full mark. Fewer
+   * is only ever a frame of motion (the tap-to-rep, the launch animation), never
+   * a measure of anything: five is a property of the letter, not of a plan.
    */
   filled?: SegmentCount;
   /** Lit-segment colour. Defaults to the theme's brand token. */

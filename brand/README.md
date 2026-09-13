@@ -109,24 +109,14 @@ Draw two copies of the same path. The track copy underneath always uses
 
 The trailing `400` is just a gap longer than the path, so the pattern stops.
 
-## Mapping real sessions to segments
+## Why the segments never measure anything
 
-Five segments is a property of the geometry, not a count of the user's sessions.
-Do not draw three segments for someone who trains three days a week — the
-spacing was tuned for five and only looks right at five.
-
-Map proportionally, with two honesty rules (`segmentsForProgress` in
-`frontend/src/lib/jimMark.ts`):
-
-```
-nothing done          -> 0
-everything done       -> 5
-otherwise             -> clamp(round(completed / planned * 5), 1, 4)
-```
-
-So 2 of 4 sessions shows 3 lit ("a bit past halfway"), 9 of 10 shows 4 (not
-done, so not five), and 1 of 12 shows 1 (something done, so not zero). Plain
-rounding gets both of those edges wrong.
+Five segments is a property of the geometry, not a count of anyone's sessions.
+Plans run two to six days a week, so any mapping onto five lies next to the real
+count: 1 of 2 and 3 of 6 both land on three lit segments, and 2 of 3 jumps from
+three to five. A proportional mapping was built and then dropped (13 Sept 2026)
+for exactly that reason. Partial fills are frames of motion only: the tap-to-rep
+on Welcome and the launch animation, both of which end on 5 of 5.
 
 ## Usage rules
 
@@ -135,8 +125,9 @@ rounding gets both of those edges wrong.
 - The icon never shows progress state. Two tones of one blue with gaps is the
   universal grammar for "loading", and in iOS tinted mode the two tones become
   two greys. Apple's own Fitness icon shows closed rings for the same reason.
-- Partial fills exist in two places only: the in-app progress element (grey
-  track, live data) and the launch animation (which lands on 5 of 5).
+- Partial fills exist in two places only: the tap-to-rep on Welcome and the
+  launch animation. Both are motion and both land on 5 of 5. Nothing in the app
+  draws the mark as a meter.
 - The pale-blue tonal mark is for marketing and the website hero. It never
   shows live data and never becomes the icon.
 - Do not switch the caps to round. The flat radial cuts are the whole character
