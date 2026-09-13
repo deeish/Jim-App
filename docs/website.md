@@ -15,11 +15,13 @@ Static marketing + legal site, served by Cloudflare Pages from `site/`.
 ## Deploy
 
 ```bash
-npx wrangler@latest pages deploy site --project-name jim-planner --branch main
+npx wrangler@latest pages deploy site --project-name jim-planner --branch main --commit-dirty=true
 ```
 
-Needs a Cloudflare login (`npx wrangler login`) or `CLOUDFLARE_API_TOKEN` with Pages edit
-rights. The project's custom domain is `jimplanner.app` (DNS already on Cloudflare).
+Needs a Cloudflare login (`npx wrangler login --scopes account:read user:read pages:write zone:read`)
+or `CLOUDFLARE_API_TOKEN` with Pages edit rights. The project `jim-planner` already exists (created
+2026-09-13 with `--force`, i.e. classic Pages, not Workers assets); never pass `--force` again, and
+delete any `wrangler.jsonc` wrangler drops in the repo root. The project's custom domain is `jimplanner.app` (DNS already on Cloudflare).
 There is no build step: what is in `site/` is what ships.
 
 ## Where the URLs are used
@@ -33,4 +35,5 @@ There is no build step: what is in `site/` is what ships.
 ## Not lawyer-reviewed
 
 Both legal pages are written by us for the beta and are honest about what the app does.
-Have counsel review before public launch. The terms' governing-law state is Dylan's call.
+Have counsel review before public launch. The terms deliberately carry no governing-law clause
+yet (beta, nothing is charged); counsel adds one with the state.
