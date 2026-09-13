@@ -551,37 +551,37 @@ export const HYBRID_PPL: PlanTemplate = {
   sessions: [
     {
       key: 'pushA',
-      title: 'Push A · Flat Press',
+      title: 'Push · Flat Press',
       focus: 'Chest, side delts, triceps',
       exercises: pushA,
     },
     {
       key: 'pullA',
-      title: 'Pull A · Rows',
+      title: 'Pull · Rows',
       focus: 'Mid-back, lats, biceps',
       exercises: pullA,
     },
     {
       key: 'legsA',
-      title: 'Legs A · Squat',
+      title: 'Legs · Squat',
       focus: 'Quads, hamstrings, calves',
       exercises: legsA,
     },
     {
       key: 'pushB',
-      title: 'Push B · Overhead',
+      title: 'Push · Overhead',
       focus: 'Delts, upper chest, triceps',
       exercises: pushB,
     },
     {
       key: 'pullB',
-      title: 'Pull B · Pull-Ups',
+      title: 'Pull · Pull-Ups',
       focus: 'Lats, rear delts, arms',
       exercises: pullB,
     },
     {
       key: 'legsB',
-      title: 'Legs B · Hip Hinge',
+      title: 'Legs · Hip Hinge',
       focus: 'Glutes, hamstrings, core',
       exercises: legsB,
     },

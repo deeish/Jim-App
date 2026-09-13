@@ -407,19 +407,19 @@ export const BEGINNER_FULL_BODY: PlanTemplate = {
   sessions: [
     {
       key: 'fullA',
-      title: 'Full Body A · Squat + Bench',
+      title: 'Full Body · Squat + Bench',
       focus: 'Squat, horizontal push/pull, core',
       exercises: fullA,
     },
     {
       key: 'fullB',
-      title: 'Full Body B · Deadlift + Press',
+      title: 'Full Body · Deadlift + Press',
       focus: 'Hinge, vertical push/pull, single-leg',
       exercises: fullB,
     },
     {
       key: 'fullC',
-      title: 'Full Body C · Dumbbells + Carry',
+      title: 'Full Body · Dumbbells + Carry',
       focus: 'Goblet squat, dumbbell push/pull, carry',
       exercises: fullC,
     },

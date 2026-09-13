@@ -86,7 +86,7 @@ export interface TemplateExercise {
 export interface TemplateSession {
   /** Stable key within the template (e.g. "upperA"). */
   key: string;
-  /** Slot title shown on plan cards (e.g. "Upper A · Bench + Row"). */
+  /** Slot title shown on plan cards (e.g. "Upper · Bench + Row"). Never a letter or number suffix: the emphasis after the dot is what tells two same-focus days apart.. */
   title: string;
   /** One-line muscle/movement focus for the detail view. */
   focus: string;

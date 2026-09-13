@@ -465,19 +465,19 @@ export const FAT_LOSS_FULL_BODY: PlanTemplate = {
   sessions: [
     {
       key: 'fullA',
-      title: 'Full Body A · Squat',
+      title: 'Full Body · Squat',
       focus: 'Squat, horizontal push/pull, swings',
       exercises: dayA,
     },
     {
       key: 'fullB',
-      title: 'Full Body B · Hinge',
+      title: 'Full Body · Hinge',
       focus: 'RDL, vertical push/pull, rower',
       exercises: dayB,
     },
     {
       key: 'fullC',
-      title: 'Full Body C · Pull + Carry',
+      title: 'Full Body · Pull + Carry',
       focus: 'Trap-bar, incline push/row, carries',
       exercises: dayC,
     },

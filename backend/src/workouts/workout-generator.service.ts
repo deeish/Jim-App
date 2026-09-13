@@ -1018,7 +1018,7 @@ export class WorkoutGeneratorService {
       : '';
 
     const nameRules =
-      'Workout "name" must be plain and short: prefer the day focus label plus an optional "A"/"B" or "1"/"2" when the same focus repeats (e.g. "Upper · A", "Lower · B"). No hype words: Blast, Power, Beast, Savage, Shred, Endurance, Destroy, Nitro, Inferno, or similar marketing.';
+      'Workout "name" must be plain and short: the day focus label, plus " · " and a two-word emphasis naming the main lifts when the same focus repeats in the week (e.g. "Upper · Bench + Row", "Upper · Press + Pull-Up"). Never suffix letters or numbers ("A"/"B", "1"/"2"). No hype words: Blast, Power, Beast, Savage, Shred, Endurance, Destroy, Nitro, Inferno, or similar marketing.';
 
     const exercisesSchemaLine = wantsExerciseNotes
       ? `  - "exercises": array of objects, each with "exerciseId" (must be an id from the list), "sets" (number), "reps" (number), and optionally "notes" (string, ≤${BEGINNER_EXERCISE_NOTE_MAX_CHARS} chars: one line, form or intent only). Order: main compounds first, then accessories.`
@@ -1499,7 +1499,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
 
     const systemPrompt = `You are a concise coach. Return exactly one JSON object, no markdown.
 Field "days": array of ${days.length} objects, same order as the numbered day list below. Each object:
-- "name": short, plain title using the day's focus label only (optionally add "A"/"B" or "1"/"2" if the same focus repeats). No hype: never use Blast, Power, Beast, Savage, Shred, Inferno, Nitro, Destroy, or similar marketing words.
+- "name": short, plain title: the day's focus label, plus " · " and a two-word emphasis naming the main lifts when the same focus repeats in the week (e.g. "Upper · Bench + Row"). Never suffix letters or numbers ("A"/"B", "1"/"2"). No hype: never use Blast, Power, Beast, Savage, Shred, Inferno, Nitro, Destroy, or similar marketing words.
 - "reasoning": one motivating sentence (do not list individual exercises)
 - "warmUp": one practical sentence (about 5–8 minutes of prep)
 - "coolDown": one practical sentence

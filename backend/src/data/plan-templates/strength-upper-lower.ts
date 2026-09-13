@@ -522,25 +522,25 @@ export const STRENGTH_UPPER_LOWER: PlanTemplate = {
   sessions: [
     {
       key: 'upperA',
-      title: 'Upper A · Bench + Row',
+      title: 'Upper · Bench + Row',
       focus: 'Chest, upper back, biceps',
       exercises: upperA,
     },
     {
       key: 'lowerA',
-      title: 'Lower A · Squat',
+      title: 'Lower · Squat',
       focus: 'Quads, hamstrings, core',
       exercises: lowerA,
     },
     {
       key: 'upperB',
-      title: 'Upper B · Press + Pull-Up',
+      title: 'Upper · Press + Pull-Up',
       focus: 'Shoulders, lats, triceps',
       exercises: upperB,
     },
     {
       key: 'lowerB',
-      title: 'Lower B · Deadlift',
+      title: 'Lower · Deadlift',
       focus: 'Posterior chain, single-leg',
       exercises: lowerB,
     },

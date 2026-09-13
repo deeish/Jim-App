@@ -392,19 +392,19 @@ export const HOME_DUMBBELL_FULL_BODY: PlanTemplate = {
   sessions: [
     {
       key: 'homeA',
-      title: 'Home A · Squat + Press',
+      title: 'Home · Squat + Press',
       focus: 'Quads, chest, upper back, core',
       exercises: homeA,
     },
     {
       key: 'homeB',
-      title: 'Home B · Hinge + Row',
+      title: 'Home · Hinge + Row',
       focus: 'Hamstrings, shoulders, upper back',
       exercises: homeB,
     },
     {
       key: 'homeC',
-      title: 'Home C · Split Squat + Incline',
+      title: 'Home · Split Squat + Incline',
       focus: 'Single-leg, upper chest, glutes, arms',
       exercises: homeC,
     },
