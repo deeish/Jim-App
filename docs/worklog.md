@@ -46,6 +46,17 @@ Welcome in dark with the dissolve tail fading.
 | 8 | X-style reveal (mark scales up, app appears through it) | `OPEN` | — | Parked, not planned. Needs a native mask (Skia or MaskedView). Only worth it as a transition, never as a delay. |
 | 9 | Website + email lockup | `OPEN` | `brand/` | Unchanged from 2026-09-11; waits on jimplanner.app. |
 
+### Same day, later: jimplanner.app is live, Google sign-in unblocked
+
+| # | Task | Status | Where | What and why |
+|---|------|--------|-------|--------------|
+| 10 | Site: homepage, privacy policy, terms | `DONE` | `site/` (`9062ca8`, `3ecb289`), `docs/website.md` | Static, app palette + system type, light and dark. Privacy policy written to what the app actually does (every processor named; Sentry always on but id-only; Groq gets preferences only; export + delete in Profile). Terms carry beta / not-medical-advice / AI caveats and deliberately NO governing-law clause (Dylan did not know what to pick; counsel adds it). Beta CTA is a mailto to support@jimplanner.app. Verified: Playwright renders at 1100 and 400 wide; all five URLs 200 on the custom domain. |
+| 11 | Cloudflare Pages deploy + custom domain | `DONE` | Pages project `jim-planner`, DNS CNAME `@ -> jim-planner.pages.dev` | `wrangler login` scoped to `account:read user:read pages:write zone:read` (approved in Dylan's Chrome). wrangler 4.131 tried to delegate to Workers, dropped a `wrangler.jsonc` + package.json scripts in the repo root and 403'd; reverted, created the project with `--force` (classic Pages), deployed. https://jimplanner.app resolved within a minute. |
+| 12 | Google OAuth consent screen published | `DONE` | console.cloud.google.com, project `jim-app-508300` | Branding: homepage, privacy and terms URLs + authorized domain `jimplanner.app`, saved; Audience: Testing → In production (basic scopes, no verification). The Google button in build 1.2.0 (32) now works for everyone, not just test users (there were none). |
+| 13 | Legal URLs + support address in the app | `DONE` | `frontend/eas.json` (`7cba4f4`), local `.env` | `EXPO_PUBLIC_PRIVACY_POLICY_URL`, `_TERMS_OF_SERVICE_URL`, `EXPO_PUBLIC_FEEDBACK_EMAIL=support@jimplanner.app` in all three profiles. Deliberately NO production OTA: build 32 still carries the old splash image, so an OTA of the new loader would show the old chip and then the new mark at every launch until the next binary. Ships with the binary. |
+| 14 | App Store Connect URLs | `DONE` | ASC app 6776483293, via the API key the TestFlight script uses | `privacyPolicyUrl` on the en-US app info, `supportUrl` + `marketingUrl` on version 1.0 (Prepare for Submission), read back after the write. Done through the API because ASC's web sign-in is Dylan's to do. |
+| 15 | Build 32 phone pass | `NEEDS-DYLAN` | `docs/navigation-qa-checklist.md` §1 | Cannot be done from here. Apple sheet + first-run name, keyboard fold, dark mode, Hide My Email, "second focus" card, and now the Google button end to end. |
+
 ## 2026-09-11 — New logo: the segmented J replaces every old Jim mark (committed, no build)
 
 Dylan built the mark himself (a J cut into five segments that doubles as a progress
