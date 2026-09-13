@@ -57,6 +57,15 @@ Welcome in dark with the dissolve tail fading.
 | 14 | App Store Connect URLs | `DONE` | ASC app 6776483293, via the API key the TestFlight script uses | `privacyPolicyUrl` on the en-US app info, `supportUrl` + `marketingUrl` on version 1.0 (Prepare for Submission), read back after the write. Done through the API because ASC's web sign-in is Dylan's to do. |
 | 15 | Build 32 phone pass | `NEEDS-DYLAN` | `docs/navigation-qa-checklist.md` §1 | Cannot be done from here. Apple sheet + first-run name, keyboard fold, dark mode, Hide My Email, "second focus" card, and now the Google button end to end. |
 
+### Same day, last hour: day names lose their letters, Apple Health built
+
+| # | Task | Status | Where | What and why |
+|---|------|--------|-------|--------------|
+| 16 | Workout day naming | `DONE` | `backend/src/data/plan-templates/*.ts`, `workout-generator.service.ts` (2 prompt lines) | Option 1 of the 2026-08-25 proposal: 19 template titles drop the letter ("Upper · Bench + Row"); prompts ask for the focus + " · " + a two-word emphasis and forbid A/B and 1/2 suffixes. Verified: the six template/generator suites (160 tests). Not done: option 2's "Squat Day" grammar (bolder, parked); eval:drive must re-run once a Groq model replaces the dead one, since the prompt text changed. |
+| 17 | Connect Apple Health | `DONE` (untested on a phone) | `lib/appleHealth.ts`, `lib/appleHealthEnergy.ts` (+test), `UserPreferencesContext` (`appleHealth`), `PlanCalendarWorkoutCompleteScreen.tsx`, `ProfileScreen.tsx`, `app.json` | Shape from the September research: offered ONCE on the finish screen after a live session, never in onboarding. Connect → HealthKit sheet → this workout written; every later finish writes automatically; Not now → hidden, Profile → Account → "Apple Health" turns it On/Off (the alert points at Health → Sharing → Apps to revoke). Writes `traditionalStrengthTraining` with active energy = MET 4.5 × kg × h (weight read from Health, else 170 lb) so the Move ring moves. Module `@kingstinct/react-native-healthkit` 15 behind a guarded `require` (white-screen rule); plugin verified via `expo config --type introspect`. Verified: tsc, 49 suites / 712 tests. **Nothing here has run on a device**: the web rig has no HealthKit. First phone check on the next binary: sheet appears, workout shows in Fitness with "Jim", ring credit, Profile toggle. |
+| 18 | Privacy policy: Apple Health paragraph + processor row | `DONE` | `site/privacy/index.html`, redeployed | Says exactly what is written and read, and that none of it reaches our servers. |
+| — | Not done | | | Reading Health body mass INTO the weight tracker (the optional half of the research) — left out; Health is read only for the energy estimate. Groq model swap: Dylan wants it soon, no time today. |
+
 ## 2026-09-11 — New logo: the segmented J replaces every old Jim mark (committed, no build)
 
 Dylan built the mark himself (a J cut into five segments that doubles as a progress
