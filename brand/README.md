@@ -115,8 +115,8 @@ Five segments is a property of the geometry, not a count of anyone's sessions.
 Plans run two to six days a week, so any mapping onto five lies next to the real
 count: 1 of 2 and 3 of 6 both land on three lit segments, and 2 of 3 jumps from
 three to five. A proportional mapping was built and then dropped (13 Sept 2026)
-for exactly that reason. Partial fills are frames of motion only: the tap-to-rep
-on Welcome and the launch animation, both of which end on 5 of 5.
+for exactly that reason. The only partial fill left is a frame of motion: the
+tap-to-rep on Welcome, which ends on 5 of 5.
 
 ## Usage rules
 
@@ -125,9 +125,12 @@ on Welcome and the launch animation, both of which end on 5 of 5.
 - The icon never shows progress state. Two tones of one blue with gaps is the
   universal grammar for "loading", and in iOS tinted mode the two tones become
   two greys. Apple's own Fitness icon shows closed rings for the same reason.
-- Partial fills exist in two places only: the tap-to-rep on Welcome and the
-  launch animation. Both are motion and both land on 5 of 5. Nothing in the app
-  draws the mark as a meter.
+- Partial fills exist in one place only: the tap-to-rep on Welcome, which is
+  motion and lands on 5 of 5. Nothing in the app draws the mark as a meter.
+- There is no launch animation. The loader is the splash frame (`SPLASH` in
+  `frontend/src/lib/jimMark.ts`) held only as long as startup takes, then
+  dissolved over the app. Decided 13 Sept 2026 after prototyping eight
+  candidates: apps that launch well show a static mark and get out of the way.
 - The pale-blue tonal mark is for marketing and the website hero. It never
   shows live data and never becomes the icon.
 - Do not switch the caps to round. The flat radial cuts are the whole character

@@ -42,14 +42,6 @@ export type { RootNavigatorParamList, RootStackParamList } from './src/types/nav
 const RootStack = createNativeStackNavigator<RootNavigatorParamList>();
 const AuthStackNav = createNativeStackNavigator<AuthStackParamList>();
 
-/**
- * Minimum time the branded loader stays up, so the brand-mark intro (and the exit
- * cross-fade) are seen on a warm start instead of flashing for a few ms. This is a
- * FLOOR, not a cap: if session restore / preference hydration take longer, the
- * loader stays until they finish — it never truncates real loading.
- */
-const LOADING_MIN_DISPLAY_MS = 1500;
-
 function AuthStack({ hasSignedInBefore }: { hasSignedInBefore: boolean }) {
   const { colors } = useTheme();
   return (
@@ -94,30 +86,25 @@ function AppContent() {
   const { previewOnboarding } = useDevPreview();
   const navigationRef = useNavigationContainerRef<RootNavigatorParamList>();
 
-  // Hold the branded loader up for at least LOADING_MIN_DISPLAY_MS from launch.
-  const [minDisplayElapsed, setMinDisplayElapsed] = useState(false);
-  useEffect(() => {
-    const id = setTimeout(() => setMinDisplayElapsed(true), LOADING_MIN_DISPLAY_MS);
-    return () => clearTimeout(id);
-  }, []);
-
-  // App is ready to show once auth + preferences have settled and the loader's
-  // minimum display has elapsed.
+  // App is ready to show once auth + preferences have settled. There is no
+  // minimum hold: the loader is the splash frame with nothing to perform, so a
+  // launch is exactly as long as the work takes.
   // `hasSignedInBefore` is one AsyncStorage read; waiting for it keeps the
   // signed-out stack from opening on Welcome and then jumping to Sign in.
-  const ready = !loading && hydrated && hasSignedInBefore !== null && minDisplayElapsed;
+  const ready = !loading && hydrated && hasSignedInBefore !== null;
 
-  // Keep the branded loader mounted across the hand-off and cross-fade it out over
-  // the app, so launch ends on a smooth dissolve instead of a hard cut. The loader
-  // is a single persistent overlay (never remounted), so its entrance plays once at
-  // launch and then dissolves; the app mounts underneath while it's still covered.
+  // Keep the loader mounted across the hand-off and cross-fade it out over the
+  // app, so launch ends on a dissolve instead of a hard cut. The loader is the
+  // light splash frame whatever the theme, so on the dark theme this dissolve is
+  // also where the ground crosses from light to dark. The app mounts underneath
+  // while it is still covered.
   const [loaderMounted, setLoaderMounted] = useState(true);
   const loaderFade = useSharedValue(1);
   useEffect(() => {
     if (!ready) return;
     loaderFade.value = withTiming(
       0,
-      { duration: 480, easing: Easing.out(Easing.ease) },
+      { duration: 350, easing: Easing.out(Easing.ease) },
       (finished) => {
         if (finished) runOnJS(setLoaderMounted)(false);
       },
@@ -186,8 +173,9 @@ function AppContent() {
         )}
       </NavigationContainer>
       )}
-      {/* Icon color, not background: dark icons on the light theme, light on Blackout. */}
-      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+      {/* Icon color, not background. While the splash-frame loader is up the ground
+          is light whatever the theme, so the icons stay dark until the dissolve. */}
+      <StatusBar style={!ready || mode !== 'dark' ? 'dark' : 'light'} />
       {loaderMounted && (
         <Animated.View
           style={[StyleSheet.absoluteFill, loaderOverlayStyle]}

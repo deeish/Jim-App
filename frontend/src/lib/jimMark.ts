@@ -21,6 +21,16 @@ export const JIM_MARK = {
 
 export type SegmentCount = 0 | 1 | 2 | 3 | 4 | 5;
 
+/**
+ * The native splash frame (`frontend/assets/splash.png`, written by
+ * `brand/tools/generate.js`): the solid mark at `markPt`, dead centre, on the
+ * light background. It is ALWAYS light, whatever theme the user runs, because
+ * iOS shows it before any JS exists. `LoadingScreen` reproduces this frame
+ * exactly so the native -> JS handoff is invisible; change these values only
+ * together with the generator.
+ */
+export const SPLASH = { background: '#F2F2F7', mark: '#2563EB', markPt: 96 } as const;
+
 /** Dash pattern that draws all five segments. */
 export const DASH_BASE: readonly number[] = [JIM_MARK.segmentLength, JIM_MARK.gap];
 

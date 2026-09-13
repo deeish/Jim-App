@@ -1,24 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withDelay,
-  Easing,
-} from 'react-native-reanimated';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import type { ColorPalette } from '../theme/colors';
 import { useTheme } from '../theme';
 import { haptics } from '../lib/haptics';
 import type { SegmentCount } from '../lib/jimMark';
 import JimMark from './JimMark';
 
-/**
- * Size the lockup's mark renders at, in points. The native splash image
- * (`frontend/assets/splash.png`) draws the same mark at this size so the
- * splash -> LoadingScreen handoff does not jump; `SPLASH_MARK_PT` in
- * `brand/tools/generate.js` must stay equal to this.
- */
+/** Size the lockup's mark renders at, in points. */
 export const JIM_LOGO_MARK_PT = 96;
 
 /** Interval between segments when the mark "does a rep" on tap. */
@@ -26,23 +14,20 @@ const REP_STEP_MS = 90;
 
 /**
  * The Jim brand lockup: the five-segment mark with the "Jim" wordmark beneath.
- * Shared by the cold-start loader, the signed-out hero, and onboarding.
+ * Shared by the signed-out hero and onboarding. The cold-start loader does NOT
+ * use it: that screen is the bare splash frame (see `LoadingScreen`).
  *
  * - `showTagline` renders the "Workout plans, built around you" line.
  * - `interactive` makes the mark tappable: it empties and refills one segment
- *   at a time, a rep. Welcome/onboarding only.
- * - `entrance` plays a one-time reveal of the wordmark and tagline UNDER an
- *   already-visible mark; the mark itself is never faded in because the native
- *   splash shows it at rest and any fade would read as a blink at the handoff.
+ *   at a time, a rep. Welcome/onboarding only. This is the one place a partial
+ *   fill appears in the app, and it is a frame of motion, never a measure.
  */
 export default function JimLogo({
   showTagline = false,
   interactive = false,
-  entrance = false,
 }: {
   showTagline?: boolean;
   interactive?: boolean;
-  entrance?: boolean;
 }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -50,15 +35,6 @@ export default function JimLogo({
   const [filled, setFilled] = useState<SegmentCount>(5);
   const repTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const repping = useRef(false);
-
-  const enterWord = useSharedValue(entrance ? 0 : 1);
-  const enterTag = useSharedValue(entrance ? 0 : 1);
-
-  useEffect(() => {
-    if (!entrance) return;
-    enterWord.value = withDelay(150, withTiming(1, { duration: 420, easing: Easing.out(Easing.ease) }));
-    enterTag.value = withDelay(280, withTiming(1, { duration: 420, easing: Easing.out(Easing.ease) }));
-  }, [entrance, enterWord, enterTag]);
 
   useEffect(
     () => () => {
@@ -80,15 +56,6 @@ export default function JimLogo({
     );
   };
 
-  const wordStyle = useAnimatedStyle(() => ({
-    opacity: enterWord.value,
-    transform: [{ translateY: (1 - enterWord.value) * 10 }],
-  }));
-  const tagStyle = useAnimatedStyle(() => ({
-    opacity: enterTag.value,
-    transform: [{ translateY: (1 - enterTag.value) * 8 }],
-  }));
-
   const mark = <JimMark size={JIM_LOGO_MARK_PT} filled={filled} />;
 
   return (
@@ -107,12 +74,8 @@ export default function JimLogo({
           {mark}
         </View>
       )}
-      <Animated.Text style={[styles.wordmark, wordStyle]}>Jim</Animated.Text>
-      {showTagline ? (
-        <Animated.Text style={[styles.tagline, tagStyle]}>
-          Workout plans, built around you
-        </Animated.Text>
-      ) : null}
+      <Text style={styles.wordmark}>Jim</Text>
+      {showTagline ? <Text style={styles.tagline}>Workout plans, built around you</Text> : null}
     </View>
   );
 }

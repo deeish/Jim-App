@@ -143,8 +143,9 @@ const files = {
   await sharp(Buffer.from(fav)).resize(64, 64).png().toFile(path.join(ASSETS, 'favicon.png'));
 
   // splash: 1284 x 2778 (iPhone @3x), mark centred at SPLASH_MARK_PT * 3 on the app
-  // background. Keep SPLASH_MARK_PT equal to the size LoadingScreen renders the mark
-  // at, so the native-splash -> loader handoff does not jump.
+  // background. LoadingScreen redraws this exact frame (`SPLASH` in
+  // frontend/src/lib/jimMark.ts mirrors these three values) so the native-splash ->
+  // loader handoff is invisible; change them together.
   const SPLASH_MARK_PT = 96;
   const SPLASH_BG = '#F2F2F7';
   const markPx = SPLASH_MARK_PT * 3;
