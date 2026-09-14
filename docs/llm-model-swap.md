@@ -91,17 +91,35 @@ plan reaches the model; weeks 2–8 are cloned from it.
 6. **Deploy the backend**, generate one real plan end to end, confirm the capture shows
    `gemini-3.5-flash-lite` and a `stop` finish reason, and watch Sentry for a day.
 
-## Part 3 — Checks a week later
+## Part 3 — The three things still to check
 
-- Google Cloud Billing: spend is in the single dollars for the month.
-- Sentry: no `llm-unusable` warnings, no fallback-served plans.
-- A tester's plan looks like a coach wrote it. If not, the next candidate up is Claude
-  Sonnet 5 (best on quality, ~$0.03/plan, ~15 s/plan), and the env switch makes trying
-  it a one-line change plus an Anthropic key.
+Nothing here blocks anyone; the swap is live and healthy. These are the open loops.
 
-## Rollback
+| # | Check | Who | When | How |
+|---|-------|-----|------|-----|
+| 1 | **Sentry alert on repeated fallbacks** | Dylan | Any time, about 2 minutes | Sentry → Alerts → new issue alert on the message `Generation fell back to rules`, fired when it happens more than about 5 times in an hour. The events already exist and carry `generation.fallback_reason` and `generation.model` as tags. Not automatable from a Claude session: there is no Sentry API token on this machine. A *retired model* already emails on first occurrence without this rule, because `LlmModelWatch` raises an error-level event. This rule covers the other case, where the model answers but the answer is unusable. |
+| 2 | **Generate one real plan from the phone** | Dylan | Next time the app is open | Make a plan, then look at the Render logs for `[LLM:generateFullProgram] model=gemini:gemini-3.5-flash-lite` and `finish_reason=stop`. ⛔ Deliberately not done from a Claude session: it needs a live Supabase session, and minting a JWT against the production secret risks `ensureUser` overwriting a real account's email. |
+| 3 | **Billing and Sentry, a week in** | Either | On or after **2026-09-21** | Google Cloud Billing for project `jim-app-508300` should read single dollars for the month, against a prepaid $20 with auto-reload off. Sentry should show no `llm-unusable` warnings and no fallback-served plans. If a tester's plan does not read like a coach wrote it, the next candidate up is Claude Sonnet 5, roughly $0.03 a plan; see "A real second provider" in `docs/future.md`. |
 
-Set `LLM_PROVIDER=groq` and `LLM_MODEL=openai/gpt-oss-120b` on Render and redeploy.
-gpt-oss-120b was probed live on 2026-09-13: valid JSON five of five at low reasoning
-effort in under two seconds. The Groq account is on the free plan (8,000 tokens/min);
-upgrade it to Developer if the rollback ever has to carry real traffic.
+A Claude session can do #3 as a read-only pass if asked, by reading Sentry and the
+Render logs; #1 and #2 need Dylan.
+
+## Rollback — read this before relying on it
+
+⚠️ **The Groq path is a code path, not a dependable rollback.** Setting
+`LLM_PROVIDER=groq` and `LLM_MODEL=openai/gpt-oss-120b` on Render does work in the
+sense that the code runs: gpt-oss-120b was probed live on 2026-09-13 and again on
+2026-09-14, returning valid schema JSON in about 0.6 s. But the account behind it is
+the **free tier, which Groq is withdrawing** (Dylan, 2026-09-14; they emailed about
+cutting off free API access back on 2026-08-25). Treat the key as something that can
+stop answering without notice.
+
+Even while it answers, the free tier cannot carry one plan. Measured on 2026-09-14, a
+single ten-session request made two batch calls of 4,121 and 4,327 tokens, so about
+**8.4k tokens inside twelve seconds** against a **8,000 tokens-per-minute** ceiling.
+That is the throttling that produced fallback-served plans during earlier eval drives.
+
+So today the honest position is: **Gemini is a single point of failure, and the safety
+net under it is the rule-based builder, not another model.** That is survivable because
+the fallback returns a real plan rather than an error, which is why this is a future
+item and not an emergency. See "A real second provider" in `docs/future.md`.

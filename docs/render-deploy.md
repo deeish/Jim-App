@@ -45,7 +45,7 @@ Add these in the service **Environment** tab (values from Supabase / Groq / your
 | `LLM_PROVIDER` | Optional | `gemini` (default) or `groq`; see `docs/llm-model-swap.md` |
 | `LLM_MODEL` | Optional | Defaults to `gemini-3.5-flash-lite` / `openai/gpt-oss-120b` per provider |
 | `GEMINI_API_KEY` | Yes for `gemini` | Paid-tier key from project `jim-app-508300`. If unset, every plan is rule-based and the server says so (Sentry + logs, daily) |
-| `GROQ_API_KEY` | Yes for `groq` | Rollback provider only |
+| `GROQ_API_KEY` | Yes for `groq` | Second code path only. Free tier, being withdrawn, and under-quota for one plan — do not treat as a fallback |
 | `PORT` | No | Render injects this automatically |
 
 Copy optional tunables from [`backend/.env.example`](../backend/.env.example) (`AI_RATE_*`, `CATALOG_RATE_*`, `JSON_BODY_LIMIT`) as needed.

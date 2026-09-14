@@ -22,7 +22,7 @@ Mobile app for planning and generating workouts: **Expo (React Native)** fronten
 - **NestJS 10** · **TypeScript**
 - **Prisma** + **PostgreSQL** (e.g. Supabase)
 - **Supabase JWT** validation (`SUPABASE_JWT_SECRET`)
-- **Gemini** (`@google/genai`, `GEMINI_API_KEY`; `groq-sdk` + `GROQ_API_KEY` kept as the rollback provider, see `docs/llm-model-swap.md`)
+- **Gemini** (`@google/genai`, `GEMINI_API_KEY`). `groq-sdk` + `GROQ_API_KEY` remain as a second code path, but the Groq account is the free tier being withdrawn and cannot carry a plan — not a dependable fallback. See `docs/llm-model-swap.md`.
 - Rate limiting (`@nestjs/throttler`), Helmet, structured production logging — see `docs/` for ops
 
 ## Project Structure
@@ -64,7 +64,7 @@ Fill **`.env`** — authoritative list and comments are in **`backend/.env.examp
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_JWT_SECRET` | JWT secret (Settings → API) — not the anon key |
 | `GEMINI_API_KEY` | Gemini API key for plan generation (`LLM_PROVIDER=gemini`, the default) |
-| `GROQ_API_KEY` | Groq API key, only when `LLM_PROVIDER=groq` (rollback) |
+| `GROQ_API_KEY` | Groq API key, only when `LLM_PROVIDER=groq`. Free tier, being withdrawn; see the rollback warning in `docs/llm-model-swap.md` |
 
 Optional: `PORT` (default `3000`), `CORS_ORIGINS`, `AI_RATE_*`, `CATALOG_RATE_*`, `JSON_BODY_LIMIT` — see `.env.example`.
 
@@ -121,7 +121,7 @@ Full behavior and rate limits: **`docs/ai-rate-limits.md`**, **`docs/exercises-p
 
 ## LLM / Groq
 
-Workout and plan generation call the LLM (Gemini by default, Groq as rollback; `LLM_PROVIDER` / `LLM_MODEL`) from the backend only. Do **not** put any LLM key in the Expo app. If the model fails, the service falls back to rule-based generation (`workout-generator.service.ts`) and reports it (`generation-fallback.ts`, Sentry).
+Workout and plan generation call the LLM (Gemini; `LLM_PROVIDER` / `LLM_MODEL`) from the backend only. Do **not** put any LLM key in the Expo app. If the model fails, the service falls back to rule-based generation (`workout-generator.service.ts`) and reports it (`generation-fallback.ts`, Sentry).
 
 ## Scripts (reference)
 

@@ -1,5 +1,39 @@
 # Future ideas
 
+## A real second provider for plan generation
+
+**Noted 2026-09-14 by Dylan. Deliberately parked, not urgent.**
+
+Plan generation runs on Gemini 3.5 Flash-Lite and nothing else. The Groq path in
+`backend/src/llm/llm-client.ts` looks like a rollback and is written up as one, but the
+account behind it is the free tier that Groq is withdrawing, and the free ceiling of
+8,000 tokens per minute is below the roughly 8.4k tokens one plan spends in twelve
+seconds. It cannot carry real traffic even on a day when it answers.
+
+**Why this can wait.** A provider outage does not break the app. The generator catches
+the failure and the rule-based builder returns a real plan, so the loss is quality, not
+availability, and `LlmModelWatch` plus the fallback reports mean it is no longer silent
+the way the August outage was. What would make it urgent: plan quality becoming the
+thing people pay for, or a stretch where the fallback is visibly worse to testers.
+
+**What the work is.** Small, because the shape already exists. `LlmClient` switches on
+`LLM_PROVIDER` and every prompt goes through one `completeJson`, so a third provider is
+one branch plus a key, and the schemas are already provider-neutral JSON Schema.
+
+**Candidates, in the order worth trying:**
+
+1. **Anthropic Claude Haiku 4.5.** Different vendor from Google, so a Google outage does
+   not take out both. Cheap and fast, and the quality index sits above the old Llama.
+2. **Claude Sonnet 5** if the goal is better plans rather than a spare tyre. Roughly
+   $0.03 a plan and about 15 s, against Gemini's ~$0.01 and ~10 s.
+3. **Paid Groq, Developer tier.** The least work of all, since the code path is written
+   and tested, but it keeps a vendor that has already retired a model underneath us and
+   withdrawn the free tier.
+
+Whichever is chosen, re-run `npm run eval:drive` against the captured payloads with
+`--provider` and `--model` and compare to the 137.3 / 140 that Gemini scored, the same
+gate this swap went through.
+
 ## Plan-generation follow-ups (from the retired issues doc)
 
 The full audit lived in `docs/plan-generation-issues.md` (removed 2026-07-08 once

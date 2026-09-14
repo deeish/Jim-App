@@ -17,8 +17,13 @@ import Groq from 'groq-sdk';
  * - `gemini` (default): Gemini API via `@google/genai`, JSON-schema enforced
  *   output, thinking at MINIMAL. Paid tier only: the free tier trains on
  *   prompts, which the privacy policy promises we do not allow.
- * - `groq`: the rollback path. OpenAI-compatible chat completions with
- *   `json_schema` output; `openai/gpt-oss-120b` probed live 2026-09-13.
+ * - `groq`: a second code path, NOT a dependable fallback. OpenAI-compatible chat
+ *   completions with `json_schema` output; `openai/gpt-oss-120b` probed live on
+ *   2026-09-13 and 2026-09-14. ⚠ The account behind it is the FREE tier, which Groq
+ *   is withdrawing, and 8k tokens/minute is below what one plan spends (~8.4k across
+ *   two batch calls in ~12 s, measured 2026-09-14). It answers a probe; it cannot
+ *   carry traffic. Gemini is therefore a single point of failure whose real safety
+ *   net is the rule-based builder. See "A real second provider" in docs/future.md.
  */
 
 export type LlmProvider = 'gemini' | 'groq';
