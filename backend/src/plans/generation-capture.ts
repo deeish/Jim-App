@@ -93,8 +93,13 @@ export type ChunkGenerationTrace = {
    * Preserves `finish_reason` (e.g. length) — folded totals alone lose this.
    */
   groqCallsRaw?: Array<{
+    /** `gemini` | `groq`; the field family keeps its historical `groq` name. */
+    provider?: string;
+    model?: string;
     prompt_tokens?: number;
     completion_tokens?: number;
+    /** Gemini thinking tokens, included in `completion_tokens`. */
+    thought_tokens?: number;
     total_tokens?: number;
     finish_reason?: string | null;
   }>;
@@ -154,8 +159,13 @@ export type SingleSessionPipelineCapture = {
   };
   path: 'single_session_groq';
   groqCallsRaw?: Array<{
+    /** `gemini` | `groq`; the field family keeps its historical `groq` name. */
+    provider?: string;
+    model?: string;
     prompt_tokens?: number;
     completion_tokens?: number;
+    /** Gemini thinking tokens, included in `completion_tokens`. */
+    thought_tokens?: number;
     total_tokens?: number;
     finish_reason?: string | null;
   }>;
@@ -183,6 +193,8 @@ export type GenerationCaptureRecordV1 = {
     groq?: {
       sessionCount: number;
       chunkCount: number;
+      /** `provider:model` of the first completion, e.g. `gemini:gemini-3.5-flash-lite`. */
+      model?: string;
       groqCalls: number;
       prompt_tokens: number;
       completion_tokens: number;

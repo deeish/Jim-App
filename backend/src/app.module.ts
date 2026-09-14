@@ -11,6 +11,7 @@ import { WorkoutLogsModule } from './workout-logs/workout-logs.module';
 import { PlansModule } from './plans/plans.module';
 import { PlanTemplatesModule } from './plan-templates/plan-templates.module';
 import { HealthModule } from './health/health.module';
+import { LlmModule } from './llm/llm.module';
 import { UsersModule } from './users/users.module';
 import { BodyWeightModule } from './body-weight/body-weight.module';
 import { SharesModule } from './shares/shares.module';
@@ -37,7 +38,17 @@ import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
         SUPABASE_URL: Joi.string().uri().required(),
         SUPABASE_JWT_SECRET: Joi.string().min(20).required(),
         SUPABASE_JWT_AUDIENCE: Joi.string().default('authenticated'),
-        GROQ_API_KEY: Joi.string().required(),
+        /**
+         * Plan generation model. Neither key is required at boot on purpose:
+         * with no key for the selected provider the generator serves
+         * rule-based plans and `LlmModelWatch` says so loudly. See
+         * `src/llm/llm-client.ts` and docs/llm-model-swap.md.
+         */
+        LLM_PROVIDER: Joi.string().valid('gemini', 'groq').default('gemini'),
+        LLM_MODEL: Joi.string().optional().allow(''),
+        LLM_TIMEOUT_MS: Joi.number().integer().positive().optional(),
+        GEMINI_API_KEY: Joi.string().optional().allow(''),
+        GROQ_API_KEY: Joi.string().optional().allow(''),
         /** Optional: server-only; required to remove Supabase Auth user on account deletion. */
         SUPABASE_SERVICE_ROLE_KEY: Joi.string().optional().allow(''),
       }),
@@ -106,6 +117,7 @@ import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
       },
     }),
     PrismaModule,
+    LlmModule,
     AuthModule,
     WorkoutsModule,
     ExercisesModule,

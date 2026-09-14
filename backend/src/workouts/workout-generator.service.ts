@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExercisesService } from '../exercises/exercises.service';
-import Groq from 'groq-sdk';
 import { currentGenerationSignal } from '../common/generation-abort.context';
 import { GenerateWorkoutDto } from './dto/generate-workout.dto';
 import { CreateWorkoutDto } from './dto/create-workout.dto';
@@ -13,17 +12,19 @@ import {
 } from '../data/program-templates';
 import { getAnchorIdsForFocus } from '../data/anchor-exercises';
 import { describeError, reportGenerationFallback } from './generation-fallback';
-
 /**
- * The Groq model every generation path asks for.
- *
- * ⚠ ONE constant, because this id has been the single point of failure once
- * already: Groq decommissioned it on 2026-08-16 and it was hardcoded in three
- * separate call sites, so the outage was both invisible and fiddly to fix.
- * Changing models is now one line, and `generation-fallback` names this value
- * in its report so a retired id identifies itself.
+ * ⚠ The model is NOT named in this file. `LlmClient` reads `LLM_PROVIDER` /
+ * `LLM_MODEL` from env, because a hardcoded id was the single point of
+ * failure once already (Groq retired it on 2026-08-16 and it sat in three
+ * call sites). Every prompt below goes through `this.llm.completeJson`.
  */
-export const GROQ_MODEL = 'llama-3.3-70b-versatile';
+import { LlmClient, type LlmCompletionUsage } from '../llm/llm-client';
+import {
+  fullProgramSchema,
+  polishCopySchema,
+  singleSessionSchema,
+} from './generation-schemas';
+export type { LlmCompletionUsage };
 import { getSetRepGuidelines } from '../data/set-rep-schemes';
 import { secondaryMusclesForPreview } from '../data/muscle-preview-tags';
 import { inferPrescriptionTypeFromExerciseName } from '../data/exercise-prescription';
@@ -191,23 +192,6 @@ function formatCandidatesTabularForBatch(
     .join('\n');
 }
 
-type GroqUsageLogShape = {
-  usage?: {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    total_tokens?: number;
-  };
-  choices?: Array<{ finish_reason?: string | null }>;
-};
-
-/** One Groq chat.completions call — for log aggregation / dashboards (no PII). */
-export type GroqCompletionUsage = {
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  total_tokens?: number;
-  finish_reason?: string | null;
-};
-
 export type FullProgramDaySession = {
   weekIndex: number;
   weekday: string;
@@ -226,27 +210,15 @@ export type FullProgramDaySession = {
   }>;
 };
 
-/** `null` = no Groq attempt (bad input / no candidates). */
+/** `null` = no LLM attempt (bad input / no candidates). */
 export type GenerateFullProgramOutcome =
-  | { ok: true; sessions: FullProgramDaySession[]; usage: GroqCompletionUsage }
-  | { ok: false; usage?: GroqCompletionUsage };
+  | { ok: true; sessions: FullProgramDaySession[]; usage: LlmCompletionUsage }
+  | { ok: false; usage?: LlmCompletionUsage };
 
-function groqUsageFromResponse(
-  response: GroqUsageLogShape,
-): GroqCompletionUsage {
-  const u = response.usage;
-  return {
-    prompt_tokens: u?.prompt_tokens,
-    completion_tokens: u?.completion_tokens,
-    total_tokens: u?.total_tokens,
-    finish_reason: response.choices?.[0]?.finish_reason ?? null,
-  };
-}
-
-/** Result of one per-session Groq call (`generateWithGroq`). */
-export type GenerateWithGroqOutcome =
-  | { ok: true; workout: CreateWorkoutDto; usage: GroqCompletionUsage }
-  | { ok: false; usage: GroqCompletionUsage };
+/** Result of one per-session LLM call (`generateWithLlm`). */
+export type GenerateWithLlmOutcome =
+  | { ok: true; workout: CreateWorkoutDto; usage: LlmCompletionUsage }
+  | { ok: false; usage: LlmCompletionUsage };
 
 @Injectable()
 export class WorkoutGeneratorService {
@@ -256,6 +228,7 @@ export class WorkoutGeneratorService {
     private readonly config: ConfigService,
     private readonly exercisesService: ExercisesService,
     private readonly prisma: PrismaService,
+    private readonly llm: LlmClient,
   ) {}
 
   /**
@@ -264,7 +237,7 @@ export class WorkoutGeneratorService {
    */
   async generateWorkout(
     generateWorkoutDto: GenerateWorkoutDto,
-    groqUsageSink?: GroqCompletionUsage[],
+    groqUsageSink?: LlmCompletionUsage[],
   ): Promise<CreateWorkoutDto> {
     const { day, preferences, userId } = generateWorkoutDto;
     const focus = preferences?.focus ?? 'full body';
@@ -346,13 +319,11 @@ export class WorkoutGeneratorService {
       );
     }
 
-    const apiKey = this.config.get<string>('GROQ_API_KEY');
     const skipGroq = preferences?.skipGroq === true;
-    if (apiKey?.trim() && candidateList.length >= 4 && !skipGroq) {
+    if (this.llm.isConfigured && candidateList.length >= 4 && !skipGroq) {
       try {
-        const outcome = await this.generateWithGroq(
+        const outcome = await this.generateWithLlm(
           generateWorkoutDto,
-          apiKey,
           candidateList,
           setRep,
           lastPerformance,
@@ -365,13 +336,13 @@ export class WorkoutGeneratorService {
         reportGenerationFallback(this.logger, {
           stage: 'generateWorkout',
           reason: 'llm-unusable',
-          model: GROQ_MODEL,
+          model: this.llm.describe,
         });
       } catch (err) {
         reportGenerationFallback(this.logger, {
           stage: 'generateWorkout',
           reason: 'llm-error',
-          model: GROQ_MODEL,
+          model: this.llm.describe,
           detail: describeError(err),
         });
       }
@@ -848,48 +819,45 @@ export class WorkoutGeneratorService {
    * Token usage: ~65 exercises as tab-separated lines (id, name, muscle) + system/user text;
    * output max 4096 (3200 when detailLevel is simple). Well under Groq llama-3.3-70b context (131k).
    */
-  async generateFullProgram(
-    options: {
-      sessions: Array<{
-        weekIndex: number;
-        weekday: string;
-        title?: string;
-        type: string;
-        durationMin: number;
-        durationMax: number;
-        isHardDay: boolean;
-      }>;
-      goal?: string;
-      /** Optional secondary emphasis; biases the prompt + cardio finisher, not rep ranges. */
-      secondaryGoal?: string;
-      equipment?: string[];
-      limitations?: string[];
-      /** Free-text limitations rendered verbatim into the prompt. */
-      restrictions?: string;
-      detailLevel?: 'simple' | 'detailed';
-      makeItEasier?: boolean;
-      experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
-      /** Exercise ids already used in earlier weeks (or sub-chunks); soft-avoid for variety. */
-      priorWeekExerciseIds?: string[];
-      /** Ordered run, bike, … — short batch prompt suffix + candidate bias */
-      cardioModalities?: string[];
-      /** Periodization / preview-scope hint (≤200 chars) */
-      mesoHint?: string;
-      /** Per-week intensity/volume targets for progressive overload. */
-      weekProgression?: Array<{
-        weekIndex: number;
-        phase: string;
-        intensityPct: number;
-        volumeMultiplier: number;
-        repModifier: number;
-      }>;
-      /** User's current activity level outside the gym. */
-      currentActivityLevel?: string;
-      /** Preferred movements to bias exercise selection. */
-      preferredExercises?: string[];
-    },
-    apiKey: string,
-  ): Promise<GenerateFullProgramOutcome | null> {
+  async generateFullProgram(options: {
+    sessions: Array<{
+      weekIndex: number;
+      weekday: string;
+      title?: string;
+      type: string;
+      durationMin: number;
+      durationMax: number;
+      isHardDay: boolean;
+    }>;
+    goal?: string;
+    /** Optional secondary emphasis; biases the prompt + cardio finisher, not rep ranges. */
+    secondaryGoal?: string;
+    equipment?: string[];
+    limitations?: string[];
+    /** Free-text limitations rendered verbatim into the prompt. */
+    restrictions?: string;
+    detailLevel?: 'simple' | 'detailed';
+    makeItEasier?: boolean;
+    experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
+    /** Exercise ids already used in earlier weeks (or sub-chunks); soft-avoid for variety. */
+    priorWeekExerciseIds?: string[];
+    /** Ordered run, bike, … — short batch prompt suffix + candidate bias */
+    cardioModalities?: string[];
+    /** Periodization / preview-scope hint (≤200 chars) */
+    mesoHint?: string;
+    /** Per-week intensity/volume targets for progressive overload. */
+    weekProgression?: Array<{
+      weekIndex: number;
+      phase: string;
+      intensityPct: number;
+      volumeMultiplier: number;
+      repModifier: number;
+    }>;
+    /** User's current activity level outside the gym. */
+    currentActivityLevel?: string;
+    /** Preferred movements to bias exercise selection. */
+    preferredExercises?: string[];
+  }): Promise<GenerateFullProgramOutcome | null> {
     const {
       sessions,
       goal = 'hypertrophy',
@@ -1124,25 +1092,18 @@ Set/rep: ${setRep.description} (${setRep.setsMin}-${setRep.setsMax} sets, ${setR
 
 Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.length} objects). Each day: "name", "reasoning", "warmUp", "coolDown", "exercises" (array of objects with exerciseId, sets, reps${wantsExerciseNotes ? ', optional notes (≤' + String(BEGINNER_EXERCISE_NOTE_MAX_CHARS) + ' chars each)' : '; omit notes on every exercise'}).`;
 
-    const groq = new Groq({ apiKey });
-    let response: GroqUsageLogShape & {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
     const batchMaxTokens = detailLevel === 'simple' ? 3200 : 4096;
+    let completion: Awaited<ReturnType<LlmClient['completeJson']>>;
     try {
-      response = await groq.chat.completions.create(
-        {
-          model: GROQ_MODEL,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.73,
-          max_tokens: batchMaxTokens,
-        },
-        { signal: currentGenerationSignal() },
-      );
+      completion = await this.llm.completeJson({
+        label: 'generateFullProgram',
+        systemPrompt,
+        userPrompt,
+        schema: fullProgramSchema(sessions.length, wantsExerciseNotes),
+        temperature: 0.73,
+        maxOutputTokens: batchMaxTokens,
+        signal: currentGenerationSignal(),
+      });
     } catch (err) {
       // The plan path. Its caller has rich `path` telemetry for the QUALITY
       // fallbacks it takes deliberately, but a dead provider is a different
@@ -1150,18 +1111,17 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       reportGenerationFallback(this.logger, {
         stage: 'generateFullProgram',
         reason: 'llm-error',
-        model: GROQ_MODEL,
+        model: this.llm.describe,
         detail: describeError(err),
       });
       return null;
     }
 
-    this.logGroqCompletionMeta('generateFullProgram', response);
-    const usage = groqUsageFromResponse(response);
-    const finishReason = response.choices?.[0]?.finish_reason;
-    if (finishReason === 'length') return { ok: false, usage };
+    const { usage } = completion;
+    this.logLlmCompletionMeta('generateFullProgram', usage);
+    if (usage.finish_reason === 'length') return { ok: false, usage };
 
-    const raw = response.choices?.[0]?.message?.content?.trim();
+    const raw = completion.text;
     if (!raw) return { ok: false, usage };
 
     let parsed: {
@@ -1335,15 +1295,18 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     preferredExercises?: string[];
   }): Promise<{
     program: FullProgramDaySession[] | null;
-    groqUsages: GroqCompletionUsage[];
+    groqUsages: LlmCompletionUsage[];
   }> {
-    const empty = (): { program: null; groqUsages: GroqCompletionUsage[] } => ({
+    const empty = (): { program: null; groqUsages: LlmCompletionUsage[] } => ({
       program: null,
       groqUsages: [],
     });
 
-    const apiKey = this.config.get<string>('GROQ_API_KEY');
-    if (!apiKey?.trim() || dto.sessions.length < 2 || dto.sessions.length > 7)
+    if (
+      !this.llm.isConfigured ||
+      dto.sessions.length < 2 ||
+      dto.sessions.length > 7
+    )
       return empty();
 
     const equipment: string[] =
@@ -1371,7 +1334,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     };
 
     const pushUsage = (
-      list: GroqCompletionUsage[],
+      list: LlmCompletionUsage[],
       outcome: GenerateFullProgramOutcome | null,
     ) => {
       if (!outcome) return;
@@ -1379,12 +1342,12 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       else if (outcome.usage) list.push(outcome.usage);
     };
 
-    const groqUsages: GroqCompletionUsage[] = [];
+    const groqUsages: LlmCompletionUsage[] = [];
 
-    const first = await this.generateFullProgram(
-      { ...baseOpts, sessions: dto.sessions },
-      apiKey,
-    );
+    const first = await this.generateFullProgram({
+      ...baseOpts,
+      sessions: dto.sessions,
+    });
     pushUsage(groqUsages, first);
     if (first?.ok && first.sessions.length === dto.sessions.length) {
       return { program: first.sessions, groqUsages };
@@ -1395,10 +1358,10 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     if (n >= 4) {
       const mid = Math.ceil(n / 2);
       if (mid >= 2 && n - mid >= 2) {
-        const headOutcome = await this.generateFullProgram(
-          { ...baseOpts, sessions: dto.sessions.slice(0, mid) },
-          apiKey,
-        );
+        const headOutcome = await this.generateFullProgram({
+          ...baseOpts,
+          sessions: dto.sessions.slice(0, mid),
+        });
         pushUsage(groqUsages, headOutcome);
         if (!headOutcome?.ok || headOutcome.sessions.length !== mid) {
           return { program: null, groqUsages };
@@ -1416,21 +1379,18 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
             ),
           ),
         ].filter(Boolean);
-        const tailOutcome = await this.generateFullProgram(
-          {
-            ...baseOpts,
-            sessions: dto.sessions.slice(mid),
-            priorWeekExerciseIds: mergedPrior.length ? mergedPrior : undefined,
-          },
-          apiKey,
-        );
+        const tailOutcome = await this.generateFullProgram({
+          ...baseOpts,
+          sessions: dto.sessions.slice(mid),
+          priorWeekExerciseIds: mergedPrior.length ? mergedPrior : undefined,
+        });
         pushUsage(groqUsages, tailOutcome);
         if (!tailOutcome?.ok || tailOutcome.sessions.length !== n - mid) {
           return { program: null, groqUsages };
         }
         const tail = tailOutcome.sessions;
         this.logger.log(
-          `[Groq:tryGenerateFullProgram] split_batch sessions=${mid}+${n - mid}`,
+          `[LLM:tryGenerateFullProgram] split_batch sessions=${mid}+${n - mid}`,
         );
         return { program: [...head, ...tail], groqUsages };
       }
@@ -1440,26 +1400,24 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
   }
 
   /** Token / finish_reason only (no prompt or user content). */
-  private logGroqCompletionMeta(
-    label: string,
-    response: GroqUsageLogShape,
-  ): void {
-    const u = response.usage;
-    const fr = response.choices?.[0]?.finish_reason;
-    if (!u && fr == null) return;
-    const pt = u?.prompt_tokens;
-    const ct = u?.completion_tokens;
-    const tt = u?.total_tokens;
+  private logLlmCompletionMeta(label: string, u: LlmCompletionUsage): void {
+    const fr = u.finish_reason;
+    const pt = u.prompt_tokens;
+    const ct = u.completion_tokens;
+    const tt = u.total_tokens;
     this.logger.log(
-      `[Groq:${label}] finish_reason=${fr ?? 'n/a'} prompt_tokens=${pt ?? 'n/a'} completion_tokens=${ct ?? 'n/a'} total_tokens=${tt ?? 'n/a'}`,
+      `[LLM:${label}] model=${u.provider ?? '?'}:${u.model ?? '?'} finish_reason=${fr ?? 'n/a'} prompt_tokens=${pt ?? 'n/a'} completion_tokens=${ct ?? 'n/a'}${u.thought_tokens ? ` (thinking ${u.thought_tokens})` : ''} total_tokens=${tt ?? 'n/a'}`,
     );
     this.logger.log(
       JSON.stringify({
-        event: 'groq_completion',
+        event: 'llm_completion',
         label,
+        provider: u.provider ?? null,
+        model: u.model ?? null,
         finish_reason: fr ?? null,
         prompt_tokens: pt ?? null,
         completion_tokens: ct ?? null,
+        thought_tokens: u.thought_tokens ?? null,
         total_tokens: tt ?? null,
       }),
     );
@@ -1469,25 +1427,22 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
    * Phase D (simple): one compact Groq JSON pass for titles and warm-up / cool-down / reasoning copy.
    * Exercise lists are fixed in prose only — the model does not choose new movements.
    */
-  async polishSimpleBatchSessionCopy(
-    options: {
-      goal: string;
-      equipmentNote?: string;
-      days: Array<{
-        weekday: string;
-        focusLabel: string;
-        exerciseNames: string[];
-      }>;
-    },
-    apiKey: string,
-  ): Promise<Array<{
+  async polishSimpleBatchSessionCopy(options: {
+    goal: string;
+    equipmentNote?: string;
+    days: Array<{
+      weekday: string;
+      focusLabel: string;
+      exerciseNames: string[];
+    }>;
+  }): Promise<Array<{
     name: string;
     reasoning?: string;
     warmUp?: string;
     coolDown?: string;
   }> | null> {
     const { goal, equipmentNote = 'general gym equipment', days } = options;
-    if (!days.length || !apiKey?.trim()) return null;
+    if (!days.length || !this.llm.isConfigured) return null;
 
     const lines = days.map(
       (d, i) =>
@@ -1511,32 +1466,25 @@ ${lines.join('\n')}
 
 Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, coolDown]}`;
 
-    const groq = new Groq({ apiKey });
-    let response: GroqUsageLogShape & {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
+    let completion: Awaited<ReturnType<LlmClient['completeJson']>>;
     try {
-      response = await groq.chat.completions.create(
-        {
-          model: GROQ_MODEL,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.45,
-          max_tokens: 900,
-        },
-        { signal: currentGenerationSignal() },
-      );
+      completion = await this.llm.completeJson({
+        label: 'polishSimpleBatchSessionCopy',
+        systemPrompt,
+        userPrompt,
+        schema: polishCopySchema(days.length),
+        temperature: 0.45,
+        maxOutputTokens: 900,
+        signal: currentGenerationSignal(),
+      });
     } catch {
       return null;
     }
 
-    this.logGroqCompletionMeta('polishSimpleBatchSessionCopy', response);
-    if (response.choices?.[0]?.finish_reason === 'length') return null;
+    this.logLlmCompletionMeta('polishSimpleBatchSessionCopy', completion.usage);
+    if (completion.usage.finish_reason === 'length') return null;
 
-    const raw = response.choices?.[0]?.message?.content?.trim();
+    const raw = completion.text;
     if (!raw) return null;
     let parsed: { days?: Array<Record<string, unknown>> };
     try {
@@ -1593,9 +1541,8 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
     return out;
   }
 
-  private async generateWithGroq(
+  private async generateWithLlm(
     dto: GenerateWorkoutDto,
-    apiKey: string,
     candidates: CandidateExercise[],
     setRep: {
       setsMin: number;
@@ -1605,7 +1552,7 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
       description: string;
     },
     lastPerformance: Map<string, LastPerformance>,
-  ): Promise<GenerateWithGroqOutcome> {
+  ): Promise<GenerateWithLlmOutcome> {
     const { day, preferences } = dto;
     const focus = preferences?.focus ?? 'full body';
     const focusKey: FocusKey | string = normalizeFocusToKey(focus);
@@ -1798,27 +1745,24 @@ Return valid JSON with exerciseId, sets, reps${wantsExerciseNotes ? ', optional 
 
     const sessionMaxTokens = isSimple ? 2400 : 3072;
 
-    const groq = new Groq({ apiKey });
-    const response = await groq.chat.completions.create(
-      {
-        model: GROQ_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.62,
-        max_tokens: sessionMaxTokens,
-      },
-      { signal: currentGenerationSignal() },
-    );
+    const completion = await this.llm.completeJson({
+      label: 'generateWorkout',
+      systemPrompt,
+      userPrompt,
+      schema: singleSessionSchema({
+        withNotes: wantsExerciseNotes,
+        withCardioFinisher: mixedCardio,
+      }),
+      temperature: 0.62,
+      maxOutputTokens: sessionMaxTokens,
+      signal: currentGenerationSignal(),
+    });
 
-    this.logGroqCompletionMeta('generateWithGroq', response);
-    const usage = groqUsageFromResponse(response);
-    if (response.choices?.[0]?.finish_reason === 'length')
-      return { ok: false, usage };
+    const { usage } = completion;
+    this.logLlmCompletionMeta('generateWorkout', usage);
+    if (usage.finish_reason === 'length') return { ok: false, usage };
 
-    const raw = response.choices?.[0]?.message?.content?.trim();
+    const raw = completion.text;
     if (!raw) return { ok: false, usage };
 
     let parsed: {

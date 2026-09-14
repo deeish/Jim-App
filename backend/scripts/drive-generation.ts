@@ -3,11 +3,13 @@
  * without a server or auth. Pairs with `npm run eval:capture` for scoring.
  *
  * Usage (from backend/):
- *   npm run eval:drive -- <payload-or-capture.json> [label]
+ *   npm run eval:drive -- <payload-or-capture.json> [label] [--provider=gemini|groq] [--model=<id>]
  *
  * Accepts either a bare GenerateSessionsDto payload or a prior capture file
- * (its `inputs` are replayed). Requires GROQ_API_KEY in backend/.env; writes
- * a capture under logs/generation-captures/ like a live request would.
+ * (its `inputs` are replayed). Needs the selected provider's key in
+ * backend/.env (GEMINI_API_KEY or GROQ_API_KEY); `--provider` / `--model`
+ * override LLM_PROVIDER / LLM_MODEL for this run only. Writes a capture
+ * under logs/generation-captures/ like a live request would.
  */
 import * as fs from 'fs';
 import * as path from 'path';
@@ -27,14 +29,24 @@ if (fs.existsSync(envPath)) {
 process.env.GENERATION_CAPTURE = '1';
 
 async function main(): Promise<void> {
-  const src = process.argv[2];
+  const positional: string[] = [];
+  for (const arg of process.argv.slice(2)) {
+    const flag = arg.match(/^--(provider|model)=(.+)$/);
+    if (flag) {
+      process.env[flag[1] === 'provider' ? 'LLM_PROVIDER' : 'LLM_MODEL'] =
+        flag[2];
+    } else {
+      positional.push(arg);
+    }
+  }
+  const src = positional[0];
   if (!src) {
     console.error(
-      'Usage: npm run eval:drive -- <payload-or-capture.json> [label]',
+      'Usage: npm run eval:drive -- <payload-or-capture.json> [label] [--provider=gemini|groq] [--model=<id>]',
     );
     process.exit(1);
   }
-  const label = process.argv[3] ?? path.basename(src, '.json');
+  const label = positional[1] ?? path.basename(src, '.json');
   const raw = JSON.parse(fs.readFileSync(path.resolve(src), 'utf8')) as Record<
     string,
     unknown
@@ -49,13 +61,23 @@ async function main(): Promise<void> {
     WorkoutGeneratorService,
   } = require('../src/workouts/workout-generator.service');
   const { PlansService } = require('../src/plans/plans.service');
+  const { LlmClient } = require('../src/llm/llm-client');
   /* eslint-enable @typescript-eslint/no-var-requires */
 
   const config = new ConfigService();
   const prisma = new PrismaService();
   const exercises = new ExercisesService();
   await exercises.onModuleInit();
-  const generator = new WorkoutGeneratorService(config, exercises, prisma);
+  const llm = new LlmClient(config);
+  console.error(
+    `[drive] llm=${llm.describe} configured=${llm.isConfigured ? 'yes' : 'NO (rule-based only)'}`,
+  );
+  const generator = new WorkoutGeneratorService(
+    config,
+    exercises,
+    prisma,
+    llm,
+  );
   const plans = new PlansService(prisma, generator, exercises, config);
 
   const capturesDir = path.join(__dirname, '..', 'logs', 'generation-captures');

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { LlmClient } from '../llm/llm-client';
 
 export type ProbeResult = 'ok' | 'down' | 'skipped';
 
@@ -8,14 +9,17 @@ const PROBE_CACHE_TTL_MS = 30_000;
 
 /**
  * Liveness/readiness probes. External probes are cached so health checks
- * fired every few seconds don't hammer Supabase / Groq.
+ * fired every few seconds don't hammer Supabase / the LLM provider.
  *
  * DB is not cached — it's the only subsystem whose state we treat as gating;
  * we want to know about it immediately.
  */
 @Injectable()
 export class HealthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly llm: LlmClient,
+  ) {}
 
   private cache = new Map<string, { result: ProbeResult; until: number }>();
 
@@ -41,15 +45,17 @@ export class HealthService {
     });
   }
 
-  async checkGroq(): Promise<ProbeResult> {
-    const apiKey = process.env.GROQ_API_KEY?.trim();
-    if (!apiKey) return 'skipped';
-    return this.cachedProbe('groq', async () => {
-      const res = await this.fetchWithTimeout(
-        'https://api.groq.com/openai/v1/models',
-        { headers: { Authorization: `Bearer ${apiKey}` } },
-      );
-      return res.ok ? 'ok' : 'down';
+  /**
+   * Does the configured model still exist at the configured provider? A
+   * retired model id reads as 'down' here (and pages via `LlmModelWatch`);
+   * the service keeps serving rule-based plans, so this is 'degraded', not
+   * 'unready'.
+   */
+  async checkLlm(): Promise<ProbeResult> {
+    if (!this.llm.isConfigured) return 'skipped';
+    return this.cachedProbe('llm', async () => {
+      const check = await this.llm.checkModel();
+      return check.ok ? 'ok' : 'down';
     });
   }
 

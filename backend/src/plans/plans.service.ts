@@ -15,7 +15,7 @@ import {
   goalWantsStrengthCardioFinisher,
   plainWorkoutTitle,
   type FullProgramDaySession,
-  type GroqCompletionUsage,
+  type LlmCompletionUsage,
 } from '../workouts/workout-generator.service';
 import { ExercisesService } from '../exercises/exercises.service';
 import {
@@ -877,7 +877,15 @@ export class PlansService {
     return cloned;
   }
 
-  private static foldGroqUsages(usages: GroqCompletionUsage[]): {
+  /** `provider:model` of the first completion that names one; undefined when every call was skipped. */
+  private static llmModelLabel(
+    usages: Array<{ provider?: string; model?: string }>,
+  ): string | undefined {
+    const first = usages.find((u) => u.model);
+    return first ? `${first.provider ?? '?'}:${first.model}` : undefined;
+  }
+
+  private static foldGroqUsages(usages: LlmCompletionUsage[]): {
     groqCalls: number;
     prompt_tokens: number;
     completion_tokens: number;
@@ -1199,11 +1207,11 @@ export class PlansService {
     priorContextExerciseIds: string[],
   ): Promise<{
     sessions: GeneratedSession[];
-    chunkGroqUsages: GroqCompletionUsage[];
+    chunkGroqUsages: LlmCompletionUsage[];
     trace: ChunkGenerationTrace;
     warnings: string[];
   }> {
-    const chunkGroqUsages: GroqCompletionUsage[] = [];
+    const chunkGroqUsages: LlmCompletionUsage[] = [];
     const chunkWarnings: string[] = [];
     const weekMin = Math.min(...specs.map((s) => s.weekIndex));
     /** Later preview weeks use the compact Groq style when the user chose detailed (tokens + truncation). */
@@ -1262,8 +1270,11 @@ export class PlansService {
     > => ({
       sessionSpecsSummary,
       groqCallsRaw: chunkGroqUsages.map((u) => ({
+        provider: u.provider,
+        model: u.model,
         prompt_tokens: u.prompt_tokens,
         completion_tokens: u.completion_tokens,
+        thought_tokens: u.thought_tokens,
         total_tokens: u.total_tokens,
         finish_reason: u.finish_reason ?? null,
       })),
@@ -2035,6 +2046,9 @@ export class PlansService {
         groq: {
           sessionCount: dto.sessions.length,
           chunkCount: chunks.length,
+          model: PlansService.llmModelLabel(
+            pipelineChunks.flatMap((c) => c.groqCallsRaw ?? []),
+          ),
           groqCalls: sumGroqCalls,
           prompt_tokens: sumPromptTokens,
           completion_tokens: sumCompletionTokens,
@@ -2324,7 +2338,7 @@ export class PlansService {
       }),
     );
 
-    const singleGroqUsages: GroqCompletionUsage[] = [];
+    const singleGroqUsages: LlmCompletionUsage[] = [];
     const generated = await this.workoutGenerator.generateWorkout(
       {
         day: dto.weekday,
@@ -2407,8 +2421,11 @@ export class PlansService {
         },
         path: 'single_session_groq',
         groqCallsRaw: singleGroqUsages.map((u) => ({
+          provider: u.provider,
+          model: u.model,
           prompt_tokens: u.prompt_tokens,
           completion_tokens: u.completion_tokens,
+          thought_tokens: u.thought_tokens,
           total_tokens: u.total_tokens,
           finish_reason: u.finish_reason ?? null,
         })),
@@ -2417,6 +2434,7 @@ export class PlansService {
         groq: {
           sessionCount: 1,
           chunkCount: 1,
+          model: PlansService.llmModelLabel(singleGroqUsages),
           groqCalls: singleGroqFolded.groqCalls,
           prompt_tokens: singleGroqFolded.prompt_tokens,
           completion_tokens: singleGroqFolded.completion_tokens,
