@@ -31,12 +31,12 @@ const base: PlanInputs = {
 };
 
 describe('planGenerationSummary', () => {
-  it('includes goal, split, equipment, and Groq note', () => {
+  it('includes goal, split, equipment, and AI note', () => {
     const lines = linesForPlanGenerationSnapshot(base);
     expect(lines.some((l) => l.startsWith('Goal:'))).toBe(true);
     expect(lines.some((l) => l.includes('Upper / lower'))).toBe(true);
     expect(lines.some((l) => l.includes('Barbell'))).toBe(true);
-    expect(lines.some((l) => l.includes('Groq'))).toBe(true);
+    expect(lines.some((l) => l.includes('Gemini'))).toBe(true);
   });
 
   it('mentions beginner coach cues when experience is beginner', () => {

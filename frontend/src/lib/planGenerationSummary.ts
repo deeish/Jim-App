@@ -195,7 +195,7 @@ export function linesForPlanGenerationSnapshot(inputs: PlanInputs): string[] {
   if (meso) {
     lines.push(`Periodization hint (sent to AI): ${meso}`);
   }
-  lines.push('AI: Groq (batched per week where possible)');
+  lines.push('AI: Gemini (batched per week where possible)');
   return lines;
 }
 
