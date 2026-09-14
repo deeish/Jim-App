@@ -216,9 +216,13 @@ export default function NavBar() {
         options={{
           tabBarLabel: 'Exercises',
           tabBarButton: tabBarButton('e2e-tab-exercises'),
+          // A weight, not a figure: the tab is the exercise catalogue (Strong,
+          // Hevy and JEFIT use the same idiom). The body map lives on the
+          // exercise detail, so the old standing figure pointed at the wrong
+          // thing. Picked from the 2026-09-13 icon comparison.
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? 'body' : 'body-outline'}
+              name={focused ? 'barbell' : 'barbell-outline'}
               size={focused ? 26 : 24}
               color={color}
             />
