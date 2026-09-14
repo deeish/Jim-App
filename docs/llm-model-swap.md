@@ -1,6 +1,30 @@
 # Switching plan generation to Gemini 3.5 Flash-Lite
 
-**Last reviewed:** 2026-09-13 · **Status:** planned, not started
+**Last reviewed:** 2026-09-14 · **Status:** BUILT 2026-09-14, eval at parity, deploying
+
+## What shipped (2026-09-14)
+
+- `backend/src/llm/llm-client.ts`: one client, `LLM_PROVIDER` (`gemini` default | `groq`)
+  and `LLM_MODEL` env, JSON-schema output on both providers, thinking `MINIMAL`, 45 s
+  timeout (`LLM_TIMEOUT_MS`), one retry on 408/429/5xx/network. All three prompts in
+  `workout-generator.service.ts` go through `completeJson`; schemas in
+  `workouts/generation-schemas.ts`.
+- `LlmModelWatch`: asks the provider whether the model id exists 5 s after boot and
+  every 24 h (daily rather than weekly, so a retirement is known within a day). Failure =
+  error log + Sentry error event. `/api/health/ready` now reports `checks.llm` from the
+  same check (`down` = degraded, never unready).
+- Captures record `provider` + `model` per call and `meta.groq.model`; `eval:drive`
+  takes `--provider=` / `--model=`. `scripts/test-llm-generate.ts` is the live probe.
+- Privacy policy processor row: Google (Gemini API, paid tier). Frontend preview line
+  says Gemini (ships with the next binary).
+
+**Eval, same day.** Eight captured requests replayed (`--limit 8` report vs the 40
+Llama-era captures): mean 137.3 / 140 vs 137.2, min 136, one 140; validator ok 100%,
+fallback 0%, truncation 0%. Per dimension: fatigueStacking up (5.1 vs 4.5 of 6),
+coachingProDepth (7.0 vs 7.3 of 8) and workoutOrder (7.1 vs 7.4 of 8) a touch down,
+everything else at ceiling on both. About 10 s and 2 calls for a four-day week
+(batch, validator retry), ~7–8k tokens, no thinking tokens billed at MINIMAL.
+Rollback probe: `--provider=groq` (gpt-oss-120b) valid schema JSON in 0.6 s.
 
 The app's only LLM, `llama-3.3-70b-versatile` on Groq, was retired on 16 August 2026.
 Every plan since has come from the rule-based fallback. This is the swap plan: Gemini

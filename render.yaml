@@ -39,5 +39,10 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      # Plan generation model (docs/llm-model-swap.md). LLM_PROVIDER defaults to
+      # gemini; GEMINI_API_KEY is the paid-tier key from project jim-app-508300.
+      # GROQ_API_KEY stays only as the rollback provider (LLM_PROVIDER=groq).
+      - key: GEMINI_API_KEY
+        sync: false
       - key: GROQ_API_KEY
         sync: false

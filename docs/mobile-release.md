@@ -160,7 +160,7 @@ Anything prefixed with **`EXPO_PUBLIC_`** is embedded in the client bundle — *
 | Supabase project URL    | Database passwords                   |
 | Sentry **DSN** (client) | Sentry **auth token** (EAS secret only) |
 
-LLM and other secrets belong in **`backend`** env (e.g. `GROQ_API_KEY`), not in the Expo app.
+LLM and other secrets belong in **`backend`** env (e.g. `GEMINI_API_KEY`), not in the Expo app.
 
 Optional: use **EAS Secrets** for values injected at build time that must not be committed — still assume determined users can extract in-app constants; never put true secrets in the client.
 

@@ -22,7 +22,7 @@ Mobile app for planning and generating workouts: **Expo (React Native)** fronten
 - **NestJS 10** · **TypeScript**
 - **Prisma** + **PostgreSQL** (e.g. Supabase)
 - **Supabase JWT** validation (`SUPABASE_JWT_SECRET`)
-- **Groq** (`groq-sdk`, `GROQ_API_KEY`)
+- **Gemini** (`@google/genai`, `GEMINI_API_KEY`; `groq-sdk` + `GROQ_API_KEY` kept as the rollback provider, see `docs/llm-model-swap.md`)
 - Rate limiting (`@nestjs/throttler`), Helmet, structured production logging — see `docs/` for ops
 
 ## Project Structure
@@ -63,7 +63,8 @@ Fill **`.env`** — authoritative list and comments are in **`backend/.env.examp
 | `DATABASE_URL` | PostgreSQL connection string |
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_JWT_SECRET` | JWT secret (Settings → API) — not the anon key |
-| `GROQ_API_KEY` | Groq API key for generation |
+| `GEMINI_API_KEY` | Gemini API key for plan generation (`LLM_PROVIDER=gemini`, the default) |
+| `GROQ_API_KEY` | Groq API key, only when `LLM_PROVIDER=groq` (rollback) |
 
 Optional: `PORT` (default `3000`), `CORS_ORIGINS`, `AI_RATE_*`, `CATALOG_RATE_*`, `JSON_BODY_LIMIT` — see `.env.example`.
 
@@ -97,7 +98,7 @@ The app resolves **`API_BASE_URL`** as `EXPO_PUBLIC_API_BASE` + `/api` (see `fro
 
 1. **Build** the backend: `cd backend && NPM_CONFIG_PRODUCTION=false npm ci && npx prisma generate && npm run build` (on hosts where `NODE_ENV=production` during install, `NPM_CONFIG_PRODUCTION=false` ensures devDependencies such as `@nestjs/cli` are installed).
 2. **Migrations**: apply with **`npm run migrate:deploy`** (uses `prisma migrate deploy`) against production `DATABASE_URL`. On Render, use a **pre-deploy command** or run once from your machine / **`.github/workflows/backend-migrate-deploy.yml`**. See **`docs/database-production.md`**.
-3. **Environment**: set **`NODE_ENV=production`**, **`DATABASE_URL`**, **`SUPABASE_URL`**, **`SUPABASE_JWT_SECRET`**, **`GROQ_API_KEY`**, and **required** **`CORS_ORIGINS`** (comma-separated browser origins). Copy any other keys from **`backend/.env.example`** as needed.
+3. **Environment**: set **`NODE_ENV=production`**, **`DATABASE_URL`**, **`SUPABASE_URL`**, **`SUPABASE_JWT_SECRET`**, **`GEMINI_API_KEY`**, and **required** **`CORS_ORIGINS`** (comma-separated browser origins). Copy any other keys from **`backend/.env.example`** as needed.
 4. **Run**: `npm run start:prod` (or your process manager running `node dist/src/main`).
 5. **Smoke checks**: `GET /api/health` (liveness), `GET /api/health/ready` (DB). See **`docs/backend-operations.md`**, **`docs/security-hardening.md`**, **`docs/cors-production.md`**, **`docs/ai-rate-limits.md`**.
 
@@ -120,7 +121,7 @@ Full behavior and rate limits: **`docs/ai-rate-limits.md`**, **`docs/exercises-p
 
 ## LLM / Groq
 
-Workout and plan generation call **Groq** from the backend only. Do **not** put `GROQ_API_KEY` in the Expo app. If Groq fails, the service can fall back to rule-based generation (`workout-generator.service.ts`).
+Workout and plan generation call the LLM (Gemini by default, Groq as rollback; `LLM_PROVIDER` / `LLM_MODEL`) from the backend only. Do **not** put any LLM key in the Expo app. If the model fails, the service falls back to rule-based generation (`workout-generator.service.ts`) and reports it (`generation-fallback.ts`, Sentry).
 
 ## Scripts (reference)
 

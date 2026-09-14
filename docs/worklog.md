@@ -15,6 +15,35 @@ session can summarise the work without re-deriving it.
 
 ---
 
+## 2026-09-14 — Plan generation moves to Gemini 3.5 Flash-Lite; the model is config, and a retirement now pages
+
+Part 2 of `docs/llm-model-swap.md`, the session after Dylan created the paid-tier
+key. The Groq model had been retired since 2026-08-16 with every plan served by
+rules. Now one client (`backend/src/llm/llm-client.ts`) reads `LLM_PROVIDER` /
+`LLM_MODEL`, the three prompts share it, both providers enforce a JSON schema, and a
+watch asks the provider once a day whether the model id still exists. Verified:
+backend `tsc` clean, lint clean, 63 suites / 869 tests; frontend `tsc` clean +
+summary test; live probes (Gemini ok in 1.1 s, Groq gpt-oss-120b ok in 0.6 s, a fake
+model id reads as `404 NOT_FOUND`); eight captured requests replayed through the real
+pipeline on Gemini and scored against the 40 Llama-era captures.
+
+| # | Task | Status | Where | What and why |
+|---|------|--------|-------|--------------|
+| 1 | Provider-agnostic client | `DONE` | `src/llm/llm-client.ts`, `llm.module.ts` (global) | `completeJson` = system + user prompt, temperature, output cap, JSON schema, abort signal. Gemini: `responseJsonSchema`, `thinkingLevel: MINIMAL`, cap = requested × 1.25 + 512 (thinking bills as output). Groq: `json_schema` response format, `reasoning_effort: low` for gpt-oss. 45 s timeout, one retry on 408/429/5xx/network, never after an abort. Finish reasons normalised (`length` is the one callers act on). |
+| 2 | Generator rewired | `DONE` | `workout-generator.service.ts`, `generation-schemas.ts` | `new Groq(...)` ×3 and `GROQ_MODEL` gone; `generateWithGroq` → `generateWithLlm`; `apiKey` no longer threaded through signatures; fallback reports carry `provider:model`. Schemas mirror the hand parsers, with `days` pinned to the session count; parsers keep their guards (shape is enforced, meaning is not). |
+| 3 | Boot + daily model check | `DONE` | `src/llm/llm-model-watch.service.ts`, `health.service.ts`, `health.controller.ts` | 5 s after boot, then every 24 h: `models.get`. Failure = error log + Sentry ERROR event (Sentry emails new issues by default). `/health/ready` `checks.groq` → `checks.llm`, from the same check, cached 30 s; `down` = degraded, never unready. Daily rather than the planned weekly: the point was "within a day, not eleven". |
+| 4 | Config | `DONE` | `app.module.ts`, `.env.example`, `render.yaml`, README, CLAUDE.md, `docs/render-deploy.md` | `GROQ_API_KEY` no longer required at boot; `LLM_PROVIDER` validated, `LLM_MODEL` / `LLM_TIMEOUT_MS` / `GEMINI_API_KEY` optional. Render needs nothing new: `GEMINI_API_KEY` was added 2026-09-13 and `gemini` is the default. |
+| 5 | Eval on the new model | `DONE` | `scripts/drive-generation.ts` (`--provider=`, `--model=`), captures `generation-17894168*` … `17894169*` | 8 replays: mean 137.3 / 140 (Llama-era 40-capture baseline 137.2), min 136, max 140, validator 100%, fallback 0%, truncated 0%. fatigueStacking 5.1 vs 4.5; coachingProDepth 7.0 vs 7.3; workoutOrder 7.1 vs 7.4. First-pass validator issues 7 of 8, same shape as the same inputs on Llama (5 of 8 then), and the batch retry cleared them every time. ~10 s / 2 calls / ~7.5k tokens for a four-day week, zero thinking tokens. |
+| 6 | Live probe script | `DONE` | `scripts/test-llm-generate.ts` (replaces `test-groq-generate.*`, compiled siblings deleted) | Model check + one schema-enforced completion through the real client. |
+| 7 | Privacy policy processor row | `DONE` | `site/privacy/index.html`, deployed (wrangler, `d2de3906`) | "Google (Gemini API, paid tier) … does not use paid-tier requests to train". Verified on https://jimplanner.app/privacy/ after deploy. |
+| 8 | Preview summary line | `DONE` | `frontend/src/lib/planGenerationSummary.ts` (+test) | "AI: Gemini". JS-only, rides the next binary (no production OTA, see 2026-09-13 row 13). |
+| 9 | Captures name the model | `DONE` | `generation-capture.ts`, `plans.service.ts` | `groqCallsRaw[].provider/model/thought_tokens`, `meta.groq.model`. Field family keeps its `groq` name on purpose: the eval harness reads it. |
+| 10 | Sentry alert rule for `llm-unusable` rate | `NEEDS-DYLAN` | Sentry → Alerts | The events exist (warning "Generation fell back to rules", tags `generation.fallback_reason`); the model-check failure is a separate error-level issue that emails on first occurrence. A rate rule ("more than 5 fallback events in an hour") is a two-minute Sentry UI task; no API token here to do it. |
+| 11 | Deploy + first real plan | see below | Render, main | Pushed to main; Render auto-deploys. Post-deploy check: `/api/health/ready` shows `checks.llm: ok`, then one plan from the app. |
+| — | Deliberately NOT done | | | Temperatures left at the Llama values (0.73 / 0.62 / 0.45): Google suggests 1.0 for Gemini 3 series but the eval held at parity, so no change until a reason appears. Prompt text untouched. `docs/exercises-public-api.md`, `docs/future.md`, `ONBOARDING_WELCOME_REVIEW.md` still say "Groq" in historical context; left. Groq SDK stays installed as the rollback. |
+
+---
+
 ## 2026-09-13 — The mark stays a mark: placements dropped, launch animation replaced by a faster static launch
 
 Dylan came back to the two deferred logo questions. For the in-app placements

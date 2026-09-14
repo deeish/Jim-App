@@ -11,7 +11,7 @@ Use a **staging** stack to validate releases with production-like settings **bef
 | **Auth** | Separate Supabase project **or** same project with isolated DB: JWT secret **`SUPABASE_JWT_SECRET`** must match the Supabase project used for **`SUPABASE_URL`**. Anon key in the app must match that project. |
 | **API URL** | Stable HTTPS origin (e.g. `https://api-staging.example.com`) listed in the **staging** app’s **`EXPO_PUBLIC_API_BASE`**. |
 | **CORS** | Backend **`CORS_ORIGINS`** includes staging **browser** origins (Expo Web preview URL, internal web app host, etc.). Native apps often send no `Origin`; still verify Expo Web if you use it. |
-| **Groq** | Use a real **`GROQ_API_KEY`** (can be the same key as prod or a separate key for quota isolation). Staging should exercise AI paths like production. |
+| **LLM** | Use a real **`GEMINI_API_KEY`** (or `GROQ_API_KEY` with `LLM_PROVIDER=groq`) (can be the same key as prod or a separate key for quota isolation). Staging should exercise AI paths like production. |
 | **Limits / ops** | Same **`AI_RATE_*`**, **`CATALOG_RATE_*`**, **`JSON_BODY_LIMIT`**, Helmet, structured logging as production unless you **explicitly** relax limits for load testing (document any differences). |
 
 **Optional second Supabase project** keeps staging users, auth emails, and RLS data fully separate from production.
