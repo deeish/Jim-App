@@ -25,7 +25,7 @@
     1. **Hybrid (simple only)** — When **`makeItEasier` is false** and **`effectiveDetailLevel === 'simple'`** (user chose **simple**, or chose **detailed** but this chunk’s **`weekIndex` minimum is ≥ 2**, so later weeks use the compact style). Per day: **`generateWorkout`** with **`skipGroq: true`** (rule‑based exercises; same exclude / avoid pattern as per‑session fallback). Then **one** optional Groq JSON call **`polishSimpleBatchSessionCopy`** for titles + warm‑up / cool‑down / reasoning only (exercise lists unchanged). If polish fails or there is no API key, rule‑only copy is kept. A **quality gate** then checks each day’s exercise count against **`exerciseTargetsForSession(..., 'simple', …)`** (aligned with batch prompts). If any day is short, the chunk **falls through** to the paths below (no silent thin sessions). If rule generation fails for a day, hybrid is skipped for that chunk.  
     2. **Batch Groq** — If the chunk has **≥ 2** sessions: **`WorkoutGeneratorService.tryGenerateFullProgram`** (one Groq call for the whole chunk, or **two** calls if a **4–7** day batch hits length/parse issues and an internal **split** succeeds). Batch candidates are a **deduped union** of focus‑specific pulls (capped).  
     3. **Per‑session Groq** — If batch fails or the chunk is a **single** session: **`generateWorkout()`** once per day (Groq when key + enough candidates, else rules).  
-  - **`WorkoutGeneratorService`** logs Groq **`finish_reason`** and token **usage** with labels like **`generateFullProgram`**, **`generateWithGroq`**, **`polishSimpleBatchSessionCopy`** (no prompt text). **`PlansService`** emits one structured **`generate_sessions_chunk`** line per chunk (see Observability).  
+  - **`WorkoutGeneratorService`** logs the model, **`finish_reason`** and token **usage** with labels **`generateFullProgram`**, **`generateWorkout`**, **`polishSimpleBatchSessionCopy`** (no prompt text). **`PlansService`** emits one structured **`generate_sessions_chunk`** line per chunk (see Observability).  
   - Returns name, reasoning, warmUp, coolDown, exercises (name, sets, reps, notes, exerciseId).  
   - Backend responds with `{ sessions: [ ... ] }` in the **same order** as the request. For **multi-week** previews with **`detailLevel: detailed`**, sessions in **`weekIndex >= 2`** use the **`simple`** prompt style (and hybrid when applicable); week 1 stays **detailed** unless the user chose **simple** overall.
 
@@ -53,8 +53,9 @@
   - **`PlansService`** logs a JSON string (Nest `Logger.log`) with **`event":"generate_sessions_chunk"`** and **`path`** among: **`hybrid_ok`**, **`hybrid_quality_fallback`** (hybrid built sessions but failed the min‑exercise gate → batch or per‑session ran), **`hybrid_rule_failed`**, **`hybrid_bad_shape`**, **`batch_ok`**, **`per_session`**. Also **`sessionCount`**, **`weekMin`**, **`effectiveDetailLevel`**, **`makeItEasier`**, and when relevant **`polishApplied`** (hybrid polish succeeded).  
   - In **production**, `JsonProductionLogger` wraps this in a single stdout JSON object; the inner payload is in **`msg`** as a string — parse **`msg`** as JSON for dashboards, or grep **`generate_sessions_chunk`** and **`path`**.
 
-- **Groq usage (per completion)**  
-  - **`[Groq:<label>] finish_reason=… prompt_tokens=…`** from **`WorkoutGeneratorService`** for batch / single‑session / polish calls.
+- **LLM usage (per completion)**  
+  - **`[LLM:<label>] model=<provider>:<model> finish_reason=… prompt_tokens=…`** from **`WorkoutGeneratorService`** for batch / single‑session / polish calls, plus a JSON twin with **`"event":"llm_completion"`** (grep that for dashboards). Renamed from **`[Groq:…]`** / **`groq_completion`** on 2026‑09‑14 when the provider became env (**`LLM_PROVIDER`** / **`LLM_MODEL`**, see `docs/llm-model-swap.md`).
+  - **`[LlmModelWatch] model ok …`** once at boot and every 24 h; **`MODEL UNAVAILABLE`** (error level, also a Sentry error) when the configured model id no longer exists.
 
 ---
 

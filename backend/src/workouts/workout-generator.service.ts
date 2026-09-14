@@ -232,8 +232,10 @@ export class WorkoutGeneratorService {
   ) {}
 
   /**
-   * @param groqUsageSink When set, each completed Groq `generateWithGroq` attempt appends
+   * @param groqUsageSink When set, each completed `generateWithLlm` attempt appends
    *        one usage object (success or parse/length failure after the API returned).
+   *        Named for the capture field family (`meta.groq`), which kept its name so
+   *        the eval harness keeps reading older captures.
    */
   async generateWorkout(
     generateWorkoutDto: GenerateWorkoutDto,
