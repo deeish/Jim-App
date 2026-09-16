@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Appearance, Platform, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { darkPalette, palette, ColorPalette } from './colors';
 
@@ -37,6 +37,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {});
   }, []);
+
+  // Tell UIKit which mode the app is in. Our colours are all JS, but the
+  // system still draws some chrome itself in ITS interface style: on iOS 26
+  // the Liquid Glass pill behind a header's custom back control, alerts,
+  // the keyboard, share sheets. With the app pinned to Light (app.json
+  // `userInterfaceStyle` used to be "light") that pill rendered as LIGHT
+  // glass during every push/pop/press on the dark theme and then settled
+  // dark — Dylan's build-32 recording (2026-09-15): "Month/Week/Day flash
+  // the light colour". Needs `userInterfaceStyle: "automatic"` in app.json
+  // for the override to take effect (a binary change). iOS only: on Android
+  // this call can recreate the Activity.
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    Appearance.setColorScheme(mode);
+  }, [mode]);
 
   const value = useMemo<ThemeContextValue>(
     () => ({
