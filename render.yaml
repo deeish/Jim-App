@@ -46,3 +46,8 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      # Beta switch (docs/llm-model-swap.md, "the beta allowlist"): emails
+      # and/or Supabase user ids that may spend model tokens; everyone else
+      # gets the rule-based builder. Unset = everyone. Set in the dashboard.
+      - key: AI_GENERATION_ALLOWLIST
+        sync: false
