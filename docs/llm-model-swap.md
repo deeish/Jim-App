@@ -32,6 +32,28 @@ Every plan since has come from the rule-based fallback. This is the swap plan: G
 for the old model), speed (a plan in about 4 seconds) and a long runway (released
 summer 2026, no shutdown announced; its predecessor 3.1 Flash-Lite retires 7 May 2027).
 
+## Who can spend tokens: the beta allowlist (2026-09-15)
+
+`AI_GENERATION_ALLOWLIST` on the backend (Render → Environment) is a comma
+separated list of account emails and/or Supabase user ids, case-insensitive.
+While it is set, only those accounts reach Gemini; every other generation is
+served by the rule-based builder, logged as `[GenerationFallback] … reason=policy`
+at info level and never sent to Sentry. Empty or unset = everyone (the switch is
+meant to come off, not to stay). Dylan's call: test the paid model's spend
+himself before the testers do.
+
+Shape: `RequestActorMiddleware` opens a per-request context (AsyncLocalStorage),
+`AuthGuard` records the verified actor on it, and `LlmClient.completeJson`
+refuses with `LlmPolicyDeniedError` when the actor is not listed — before any
+provider call, so nothing is billed. `checkModel` (health, the daily watch) is
+not gated. A request with NO actor is denied too. Verified on the local rig with
+two signed-in users: the listed one reached the provider, the other got
+`reason=policy … is not listed`, both received a plan.
+
+⚠ If the account signed in with Apple's Hide My Email, the JWT carries the
+relay address, not the real one: list the Supabase user id instead (Supabase →
+Authentication → Users), or both.
+
 ## The numbers
 
 | | Old (Llama 3.3 70B) | Gemini 3.5 Flash-Lite |
