@@ -17,11 +17,12 @@ session can summarise the work without re-deriving it.
 
 ## 2026-09-15 — Build-32 bugs: the doubled day is fixed; the dark-mode header flash needs a device
 
-Dylan's two reports from build 1.2.0 (32), one at a time. The doubled day (a
+Dylan's two reports from build 1.2.0 (32), one at a time (both fixed; both ride the next binary). The doubled day (a
 day listing its five exercises, then the same five again in the same order)
 was reproduced in the persistence simulation suite and fixed end to end. The
-dark-mode header flash could not be reproduced from here: the JS side is
-clean and the rest is native iOS, so it waits on a screen recording.
+dark-mode header flash was native after all: Dylan's recording showed the
+Liquid Glass back pill drawn light because UIKit was never told the app is
+dark. Fixed by telling it.
 
 Verified: backend `tsc` clean, lint clean, 64 suites / 872 tests (3 new);
 frontend `tsc` clean, 49 suites / 716 tests (4 new). No phone pass.
@@ -32,7 +33,7 @@ frontend `tsc` clean, 49 suites / 716 tests (4 new). No phone pass.
 | 2 | Atomic day write | `DONE` | `POST /plans/:id/days/replace`, `plans.service.ts` `replaceDay`, `dto/replace-day.dto.ts`, spec | One transaction: unlink the day's Workout rows, delete the day's slots, create the new one (or none, `slot: null`). Idempotent — the same request lands the same day. The old `slots/add` + `slots/remove` endpoints stay for build 32. ⚠ Deploy BE first (done by the push). |
 | 3 | The phone recognises its own landed write | `DONE` | `planCalendarPrototypeStore.ts` `attemptedWrites`, `reconcileLandedWrites` | Before each write the store records the day exactly as sent (exercise ids, in order), persisted. When a fetch arrives whose day matches, the write landed and its response was lost: overlays are cleared as a confirmed write would; an edit made after the attempt is re-expressed against the new base (old base in memory) or carried by identity (cold start, via `baseKeys`/`additionsCount`). Runs before `livePlan` swaps, in both fetch paths. |
 | 4 | Already-doubled days on the server | `NEEDS-DYLAN` | `backend/logs/probe-doubled-days.ts` (gitignored) | Read-only probe: twin slots on one day, and single slots holding a doubled list, per account. A prod read is denied to a session in auto mode; run it yourself: `cd backend; DATABASE_URL=... npx ts-node --transpile-only logs/probe-doubled-days.ts`. Fixing found days = a plain "remove exercise" on the phone, or a one-off script after the numbers are known. Nothing self-heals on purpose (a list repeated twice is never intentional, but silently deleting rows is worse). |
-| 5 | Dark-mode header flash ("Month/Week/Day" back labels show the light colour) | `NEEDS-DYLAN` | `PlanCalendarNavigator.tsx` `BackTo`, `headerOptions.tsx` | Read, not fixed. The labels take `colors.primary` from context on every render; the two imperative `setOptions` calls depend on `colors.primary`; no `enableFreeze`/`freezeOnBlur`; one ThemeProvider. Nothing in JS can produce the light colour after the switch, so it is native (react-native-screens 4.16 header subviews / iOS 26 glass pill). Needs: a screen recording, the exact navigation (tab switch? push? pop? swipe back?), and whether the phone's own appearance is light. The nearest known issue is RNS #3758 (a swipe-back flash of the opposite theme's background). |
+| 5 | Dark-mode header flash ("Month/Week/Day" back labels show the light colour) | `DONE` (no phone pass) | `theme/ThemeContext.tsx`, `app.json` | Dylan's recording settled it: the label is fine, the Liquid Glass PILL behind the custom back control renders as light glass during every push/pop/press and then settles dark. UIKit draws that pill in the system interface style, and the app was pinned to Light (`userInterfaceStyle: "light"`), so it never knew about our dark theme. Now `Appearance.setColorScheme(mode)` on iOS whenever the theme changes, and `userInterfaceStyle: "automatic"` so the override takes effect. Also fixes alerts/keyboard/share sheets appearing light on the dark theme. Needs the next binary (Info.plist). ⚠ Verify on the phone: back pill during Week→Day→Week, and a press-and-hold on it. |
 | — | Deliberately NOT done | | | No self-healing dedupe of doubled days (row 4). No production OTA — the client half rides the next binary, so build-32 phones can still double a day until they update (the backend half alone does not stop that: the old binary keeps the two-step write). The `slots/add` and `slots/remove` endpoints are not deprecated. |
 
 ---
