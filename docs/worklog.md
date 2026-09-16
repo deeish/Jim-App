@@ -15,6 +15,28 @@ session can summarise the work without re-deriving it.
 
 ---
 
+## 2026-09-15 — Build-32 bugs: the doubled day is fixed; the dark-mode header flash needs a device
+
+Dylan's two reports from build 1.2.0 (32), one at a time. The doubled day (a
+day listing its five exercises, then the same five again in the same order)
+was reproduced in the persistence simulation suite and fixed end to end. The
+dark-mode header flash could not be reproduced from here: the JS side is
+clean and the rest is native iOS, so it waits on a screen recording.
+
+Verified: backend `tsc` clean, lint clean, 64 suites / 872 tests (3 new);
+frontend `tsc` clean, 49 suites / 716 tests (4 new). No phone pass.
+
+| # | Task | Status | Where | What and why |
+|---|------|--------|-------|--------------|
+| 1 | Doubled day — root cause | `DONE` | `planCalendarPrototypeStore.persistence.test.ts` finding 9 | The calendar rebuilt an edited day as TWO requests: add the new slot, then remove the old. When the second was lost (signal drop, backgrounded app) the day held both slots. Worse, the retry then read the doubled day back as "the day" and wrote it into ONE slot for good (Bench, Row, Bench, Row, Fly, Fly). And even a single lost response re-applied the phone's "add Fly" overlay on top of a base that already had it. Both halves are simulated: `it.failing`-style first (the retry produced the six-row slot), then flipped. |
+| 2 | Atomic day write | `DONE` | `POST /plans/:id/days/replace`, `plans.service.ts` `replaceDay`, `dto/replace-day.dto.ts`, spec | One transaction: unlink the day's Workout rows, delete the day's slots, create the new one (or none, `slot: null`). Idempotent — the same request lands the same day. The old `slots/add` + `slots/remove` endpoints stay for build 32. ⚠ Deploy BE first (done by the push). |
+| 3 | The phone recognises its own landed write | `DONE` | `planCalendarPrototypeStore.ts` `attemptedWrites`, `reconcileLandedWrites` | Before each write the store records the day exactly as sent (exercise ids, in order), persisted. When a fetch arrives whose day matches, the write landed and its response was lost: overlays are cleared as a confirmed write would; an edit made after the attempt is re-expressed against the new base (old base in memory) or carried by identity (cold start, via `baseKeys`/`additionsCount`). Runs before `livePlan` swaps, in both fetch paths. |
+| 4 | Already-doubled days on the server | `NEEDS-DYLAN` | `backend/logs/probe-doubled-days.ts` (gitignored) | Read-only probe: twin slots on one day, and single slots holding a doubled list, per account. A prod read is denied to a session in auto mode; run it yourself: `cd backend; DATABASE_URL=... npx ts-node --transpile-only logs/probe-doubled-days.ts`. Fixing found days = a plain "remove exercise" on the phone, or a one-off script after the numbers are known. Nothing self-heals on purpose (a list repeated twice is never intentional, but silently deleting rows is worse). |
+| 5 | Dark-mode header flash ("Month/Week/Day" back labels show the light colour) | `NEEDS-DYLAN` | `PlanCalendarNavigator.tsx` `BackTo`, `headerOptions.tsx` | Read, not fixed. The labels take `colors.primary` from context on every render; the two imperative `setOptions` calls depend on `colors.primary`; no `enableFreeze`/`freezeOnBlur`; one ThemeProvider. Nothing in JS can produce the light colour after the switch, so it is native (react-native-screens 4.16 header subviews / iOS 26 glass pill). Needs: a screen recording, the exact navigation (tab switch? push? pop? swipe back?), and whether the phone's own appearance is light. The nearest known issue is RNS #3758 (a swipe-back flash of the opposite theme's background). |
+| — | Deliberately NOT done | | | No self-healing dedupe of doubled days (row 4). No production OTA — the client half rides the next binary, so build-32 phones can still double a day until they update (the backend half alone does not stop that: the old binary keeps the two-step write). The `slots/add` and `slots/remove` endpoints are not deprecated. |
+
+---
+
 ## 2026-09-14 — Plan generation moves to Gemini 3.5 Flash-Lite; the model is config, and a retirement now pages
 
 Part 2 of `docs/llm-model-swap.md`, the session after Dylan created the paid-tier
