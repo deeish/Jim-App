@@ -11,7 +11,11 @@ import {
   type FocusKey,
 } from '../data/program-templates';
 import { getAnchorIdsForFocus } from '../data/anchor-exercises';
-import { describeError, reportGenerationFallback } from './generation-fallback';
+import {
+  describeError,
+  fallbackReasonFor,
+  reportGenerationFallback,
+} from './generation-fallback';
 /**
  * ⚠ The model is NOT named in this file. `LlmClient` reads `LLM_PROVIDER` /
  * `LLM_MODEL` from env, because a hardcoded id was the single point of
@@ -343,7 +347,7 @@ export class WorkoutGeneratorService {
       } catch (err) {
         reportGenerationFallback(this.logger, {
           stage: 'generateWorkout',
-          reason: 'llm-error',
+          reason: fallbackReasonFor(err),
           model: this.llm.describe,
           detail: describeError(err),
         });
@@ -1112,7 +1116,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       // event and only ever reached a warn.
       reportGenerationFallback(this.logger, {
         stage: 'generateFullProgram',
-        reason: 'llm-error',
+        reason: fallbackReasonFor(err),
         model: this.llm.describe,
         detail: describeError(err),
       });

@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/node';
 import { isSentryEnabled } from '../instrument';
+import { LlmPolicyDeniedError } from '../llm/llm-allowlist';
 
 /**
  * Reporting for a generation that quietly fell back to rule-based output.
@@ -25,7 +26,18 @@ export type FallbackReason =
   /** The call threw — network, auth, a decommissioned model id, a 5xx. */
   | 'llm-error'
   /** It answered, and the answer could not be used (truncated, invalid). */
-  | 'llm-unusable';
+  | 'llm-unusable'
+  /**
+   * Nothing failed: the account is not on `AI_GENERATION_ALLOWLIST`, so the
+   * model was never asked. Logged at info, never sent to Sentry — it is the
+   * beta switch doing its job, not an incident.
+   */
+  | 'policy';
+
+/** The reason a thrown LLM call should be reported under. */
+export function fallbackReasonFor(err: unknown): FallbackReason {
+  return err instanceof LlmPolicyDeniedError ? 'policy' : 'llm-error';
+}
 
 export interface GenerationFallback {
   /** Which generator fell back, e.g. `generateWorkout`. */
@@ -74,12 +86,17 @@ export function fallbackLogLine(fallback: GenerationFallback): string {
 /** Minimal logger surface, so callers can pass a Nest logger or a fake. */
 export interface FallbackLogger {
   warn(message: string): void;
+  log?(message: string): void;
 }
 
 export function reportGenerationFallback(
   logger: FallbackLogger,
   fallback: GenerationFallback,
 ): void {
+  if (fallback.reason === 'policy') {
+    (logger.log ?? logger.warn).call(logger, fallbackLogLine(fallback));
+    return;
+  }
   logger.warn(fallbackLogLine(fallback));
   if (!isSentryEnabled) return;
   Sentry.withScope((scope) => {

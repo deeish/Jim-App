@@ -2,6 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FinishReason, GoogleGenAI, ThinkingLevel } from '@google/genai';
 import Groq from 'groq-sdk';
+import { currentRequestActor } from '../common/request-actor.context';
+import {
+  isActorAllowed,
+  LlmPolicyDeniedError,
+  parseAllowlist,
+} from './llm-allowlist';
 
 /**
  * The one door every generation prompt goes through.
@@ -47,6 +53,8 @@ export interface LlmSettings {
   /** `null` when the selected provider has no key: generation runs rule-based. */
   apiKey: string | null;
   timeoutMs: number;
+  /** Accounts allowed to spend model tokens (`AI_GENERATION_ALLOWLIST`); empty = everyone. */
+  allowlist: string[];
 }
 
 export function resolveLlmSettings(
@@ -62,7 +70,8 @@ export function resolveLlmSettings(
     Number.isFinite(timeoutRaw) && timeoutRaw > 0
       ? timeoutRaw
       : LLM_DEFAULT_TIMEOUT_MS;
-  return { provider, model, apiKey, timeoutMs };
+  const allowlist = parseAllowlist(get('AI_GENERATION_ALLOWLIST'));
+  return { provider, model, apiKey, timeoutMs, allowlist };
 }
 
 /** A JSON Schema object (the subset both providers accept). */
@@ -200,6 +209,14 @@ export class LlmClient {
    * request; returns `text: null` when it answered with nothing usable.
    */
   async completeJson(req: LlmJsonRequest): Promise<LlmJsonResult> {
+    // The beta allowlist. Checked before the key so a listed account with no
+    // key still reads as "not configured", not as "denied".
+    if (this.settings.allowlist.length > 0) {
+      const actor = currentRequestActor();
+      if (!isActorAllowed(this.settings.allowlist, actor)) {
+        throw new LlmPolicyDeniedError(actor);
+      }
+    }
     if (!this.isConfigured) {
       throw new Error(
         `LLM not configured: ${LLM_KEY_ENV[this.settings.provider]} is unset`,

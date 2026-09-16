@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { RequestActorMiddleware } from './common/request-actor.context';
 import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -49,6 +50,12 @@ import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
         LLM_TIMEOUT_MS: Joi.number().integer().positive().optional(),
         GEMINI_API_KEY: Joi.string().optional().allow(''),
         GROQ_API_KEY: Joi.string().optional().allow(''),
+        /**
+         * Beta switch: only these accounts (emails or user ids, comma
+         * separated) spend model tokens; everyone else gets the rule-based
+         * builder. Empty = everyone. See `src/llm/llm-allowlist.ts`.
+         */
+        AI_GENERATION_ALLOWLIST: Joi.string().optional().allow(''),
         /** Optional: server-only; required to remove Supabase Auth user on account deletion. */
         SUPABASE_SERVICE_ROLE_KEY: Joi.string().optional().allow(''),
       }),
@@ -136,4 +143,10 @@ import { SanitizedExceptionFilter } from './common/sanitized-exception.filter';
     { provide: APP_FILTER, useClass: SanitizedExceptionFilter },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    // One request context per request, before any guard: AuthGuard fills in
+    // the actor, LlmClient reads it for the generation allowlist.
+    consumer.apply(RequestActorMiddleware).forRoutes('*');
+  }
+}

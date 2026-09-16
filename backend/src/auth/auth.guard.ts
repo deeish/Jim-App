@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { setRequestActor } from '../common/request-actor.context';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -30,7 +31,11 @@ export class AuthGuard implements CanActivate {
     const payload = await this.authService.verifyToken(token);
     await this.authService.ensureUser(payload.sub, payload.email);
 
-    request.user = { id: payload.sub };
+    request.user = { id: payload.sub, email: payload.email ?? null };
+    // Record the actor on this request's context (opened by
+    // RequestActorMiddleware): the LLM client reads it for the generation
+    // allowlist. See request-actor.context.ts for why not `enterWith` here.
+    setRequestActor({ id: payload.sub, email: payload.email ?? null });
     return true;
   }
 }
