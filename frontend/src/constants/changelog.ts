@@ -40,8 +40,58 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
-  // The ONE card for everything since the last thing external testers
-  // actually received, which is build 1.1.0 (25) plus the 2026-08-21
+  // The ONE card for build 1.3.0: everything since 1.2.0 (32), which the
+  // Friends/Family group received on 2026-09-13. Contents: the new icon and
+  // splash with the faster launch (no held logo), Connect Apple Health, the
+  // two build-32 bug fixes (the light flash behind the Calendar back control
+  // in dark mode; a day showing its workout twice), and day names without
+  // the A/B letters. Deliberately absent: the Gemini line in the plan
+  // preview, the legal links, and everything internal. Copy rules: headlines
+  // name the part that changed and read on their own; text says what is
+  // different, no marketing lines.
+  //
+  // ⚠ `date` is a guess until this ships. Set it to the real release date.
+  {
+    id: '2026-09-15',
+    version: '1.3.0',
+    date: '2026-09-16',
+    title: 'Apple Health, a new icon, and fixes',
+    changes: [
+      {
+        type: 'new',
+        headline: 'New icon and a faster launch',
+        icon: 'rocket',
+        text: 'Jim has a new icon and splash screen, and now opens straight into the app instead of holding on the logo.',
+      },
+      {
+        type: 'new',
+        headline: 'Connect Apple Health',
+        icon: 'heart',
+        text: 'Turn it on in your Profile, or when you finish a workout. Finished workouts are added to Apple Health, and your body weight from Health is used to estimate the energy of each session.',
+      },
+      {
+        type: 'fixed',
+        headline: 'Dark mode headers',
+        icon: 'moon',
+        text: 'The back control at the top of the Calendar no longer flashes light while you move between Month, Week and Day.',
+      },
+      {
+        type: 'fixed',
+        headline: 'Doubled days',
+        icon: 'calendar',
+        text: 'A day could show its workout twice after an edit was saved on a weak connection. Edits are now saved in one step, and the app recognises a save that already went through.',
+      },
+      {
+        type: 'improved',
+        headline: 'Clearer workout names',
+        icon: 'text',
+        text: 'New plans name each day by what it trains, without the A and B labels.',
+      },
+    ],
+  },
+  // The card for build 1.2.0 (32), received by Friends/Family 2026-09-13:
+  // everything since the last thing external testers had before it, which
+  // was build 1.1.0 (25) plus the 2026-08-21
   // production OTA — i.e. the card below this one. Verified against App Store
   // Connect (25 is the only build IN_BETA_TESTING; 26 was uploaded and never
   // distributed) and `eas update:list`, not from memory.
@@ -223,30 +273,6 @@ export const CHANGELOG: ChangelogEntry[] = [
         type: 'improved',
         text: 'Gentle tap feedback across the whole app.',
       },
-    ],
-  },
-  // One entry covering the whole Calendar release for the Friends/Family
-  // group: external testers last received the 2026-08-13 update (build 18 +
-  // OTA), so the former 2026-08-14, 2026-08-15 and 2026-08-16 cards were
-  // merged in here. Fixes for regressions that only internal builds ever had
-  // (views opening scrolled down) are dropped, and the completed-day mark is
-  // described as it ships now (gold seal), not the strike or ring it briefly
-  // was between internal builds.
-  {
-    id: '2026-08-17',
-    version: '1.1.0',
-    date: '2026-08-17',
-    title: 'Your plan is now a calendar',
-    changes: [
-      { type: 'new', text: 'The Plan and Train tabs became one Calendar: month, week, and day views with every muscle color coded.' },
-      { type: 'new', text: 'The day view is full color: every exercise card wears its muscle color as a smooth gradient, with the muscle name on a frosted chip.' },
-      { type: 'new', text: 'Log sets right on the calendar with swipeable set cards, a rest timer that counts down in the REST tile, and a celebration when you finish.' },
-      { type: 'new', text: 'Swap or add exercises on any day, with recommendations from the library. Your plan saves the change.' },
-      { type: 'improved', text: 'A finished day earns a gold seal on the month grid, missed days fade back, and everything counts toward History and Progress.' },
-      { type: 'improved', text: 'A finished session shows every set as a completed card, with skipped sets marked.' },
-      { type: 'improved', text: 'A workout in progress now survives closing the app, and you can log a shorter session as done.' },
-      { type: 'new', text: 'The calendar taps back: logging a session, swapping an exercise, flipping a page, and the end of a rest each have their own feel.' },
-      { type: 'improved', text: 'Recommended on the Exercises page is now a proper All | Recommended switch under the search bar.' },
     ],
   },
   // Older cards live in docs/changelog-archive.md.

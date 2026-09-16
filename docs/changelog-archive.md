@@ -5,6 +5,18 @@ Release cards pruned from `frontend/src/constants/changelog.ts`. The in-app
 file); when a card is pruned, it moves here so the full history stays greppable
 without git archaeology. Newest first.
 
+## 2026-08-17 · Version 1.1.0 — Your plan is now a calendar
+
+- **New** — The Plan and Train tabs became one Calendar: month, week, and day views with every muscle color coded.
+- **New** — The day view is full color: every exercise card wears its muscle color as a smooth gradient, with the muscle name on a frosted chip.
+- **New** — Log sets right on the calendar with swipeable set cards, a rest timer that counts down in the REST tile, and a celebration when you finish.
+- **New** — Swap or add exercises on any day, with recommendations from the library. Your plan saves the change.
+- **Improved** — A finished day earns a gold seal on the month grid, missed days fade back, and everything counts toward History and Progress.
+- **Improved** — A finished session shows every set as a completed card, with skipped sets marked.
+- **Improved** — A workout in progress now survives closing the app, and you can log a shorter session as done.
+- **New** — The calendar taps back: logging a session, swapping an exercise, flipping a page, and the end of a rest each have their own feel.
+- **Improved** — Recommended on the Exercises page is now a proper All | Recommended switch under the search bar.
+
 ## 2026-08-13 · Version 1.1.0 — Programs that fit your week
 
 - **New** — Two new coach-built programs: Beginner Full Body, your first eight weeks of barbells, and Home Dumbbell Full Body, which needs only dumbbells and a bench.
