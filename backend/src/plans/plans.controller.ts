@@ -16,6 +16,7 @@ import { PlansService } from './plans.service';
 import { runWithGenerationSignal } from '../common/generation-abort.context';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { RemoveSlotDto } from './dto/remove-slot.dto';
+import { ReplaceDayDto } from './dto/replace-day.dto';
 import { MoveSlotDto } from './dto/move-slot.dto';
 import { RenamePlanDto } from './dto/rename-plan.dto';
 import { ApplyWorkaroundsDto } from './dto/apply-workarounds.dto';
@@ -173,6 +174,18 @@ export class PlansController {
     @UserId() userId: string,
   ) {
     return this.plansService.moveSlot(planId, slotId, dto, userId);
+  }
+
+  /** Set one program day to exactly one slot (or none), atomically. The
+   *  calendar's day edits use this instead of add + remove (see ReplaceDayDto). */
+  @Post(':id/days/replace')
+  @HttpCode(HttpStatus.OK)
+  replaceDay(
+    @Param('id') planId: string,
+    @Body() dto: ReplaceDayDto,
+    @UserId() userId: string,
+  ) {
+    return this.plansService.replaceDay(planId, dto, userId);
   }
 
   @Post(':id/slots/remove')

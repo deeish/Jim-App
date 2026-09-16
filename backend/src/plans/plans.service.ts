@@ -24,6 +24,7 @@ import {
   PlanSlotExerciseDto,
 } from './dto/create-plan.dto';
 import { ApplyWorkaroundsDto } from './dto/apply-workarounds.dto';
+import { ReplaceDayDto } from './dto/replace-day.dto';
 import { substituteAvoidedExercises } from './plan-avoid-substitution';
 import {
   GenerateSessionsDto,
@@ -2669,6 +2670,81 @@ export class PlansService {
       }),
       this.prisma.planWorkout.delete({ where: { id: slotId } }),
     ]);
+    return this.getById(planId, userId);
+  }
+
+  /**
+   * Set one program day to exactly one slot (or to nothing). Whatever slots
+   * the day holds are unlinked from their Workout rows and deleted, and the
+   * new slot created, in ONE transaction — so the day can never be seen
+   * half-rebuilt, and sending the same request twice lands the same day.
+   *
+   * The calendar's day edits used to be add-slot then remove-slot: two
+   * requests, and a dropped second one left the day doubled (build 32,
+   * 2026-09-15). The old endpoints stay for the binaries that still call them.
+   */
+  async replaceDay(planId: string, dto: ReplaceDayDto, userId: string) {
+    const plan = await this.prisma.workoutPlan.findUnique({
+      where: { id: planId },
+      select: { id: true, userId: true },
+    });
+    if (!plan || plan.userId !== userId) {
+      throw new NotFoundException(`Plan with ID ${planId} not found`);
+    }
+    const day = {
+      workoutPlanId: planId,
+      weekNumber: dto.weekNumber,
+      dayOfWeek: dto.dayOfWeek,
+    };
+    const slot = dto.slot ?? null;
+    this.logger.log(
+      `[PlansService] replaceDay planId=${planId} week=${dto.weekNumber} day=${dto.dayOfWeek} ` +
+        `exercises=${slot?.exercises?.length ?? 0}`,
+    );
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      await tx.workout.updateMany({
+        where: { planWorkout: day },
+        data: { workoutPlanId: null, planWorkoutId: null },
+      });
+      await tx.planWorkout.deleteMany({ where: day });
+      if (!slot) return null;
+      return tx.planWorkout.create({
+        data: {
+          ...day,
+          title: slot.title,
+          detailLine: slot.detailLine ?? undefined,
+          type: slot.type,
+          durationMinutes: slot.durationMinutes,
+          intensity: slot.intensity ?? undefined,
+          orderInDay: slot.orderInDay ?? 0,
+          exercises: slot.exercises?.length
+            ? {
+                create: slot.exercises.map((e, i) => ({
+                  exerciseId:
+                    (e.exerciseId && String(e.exerciseId).trim()) ||
+                    `applied_${dto.weekNumber}_${dto.dayOfWeek}_${i}`,
+                  name: e.name ?? null,
+                  sets: e.sets,
+                  reps: e.reps,
+                  repsMin: e.repsMin ?? null,
+                  repsMax: e.repsMax ?? null,
+                  durationSeconds: e.durationSeconds ?? null,
+                  prescriptionType: e.prescriptionType ?? null,
+                  weight: e.weight ?? null,
+                  notes: e.notes ?? null,
+                  orderIndex: e.orderIndex ?? i,
+                })),
+              }
+            : undefined,
+        },
+        include: { exercises: { orderBy: { orderIndex: 'asc' as const } } },
+      });
+    });
+
+    if (created && created.exercises.length > 0) {
+      await this.ensureWorkoutFromPlanSlotExercises(created, planId, userId);
+    }
     return this.getById(planId, userId);
   }
 }
