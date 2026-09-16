@@ -364,6 +364,24 @@ export async function movePlanSlot(
   return response.data;
 }
 
+export interface ReplacePlanDayBody {
+  weekNumber: number;
+  dayOfWeek: string;
+  /** The slot the day becomes; null clears the day (a genuine rest day). */
+  slot: PlanSlot | null;
+}
+
+/**
+ * Set one program day to exactly one slot (or none) in ONE request and one
+ * server transaction. This is how the calendar writes an edited day: the old
+ * add-then-remove pair could half-land and leave the day doubled. Safe to
+ * repeat — the same request lands the same day.
+ */
+export async function replacePlanDay(planId: string, body: ReplacePlanDayBody): Promise<ApiPlan> {
+  const response = await api.post<ApiPlan>(`/plans/${planId}/days/replace`, body);
+  return response.data;
+}
+
 /** Remove a single slot from the plan. Returns the updated plan. */
 export async function removePlanSlot(planId: string, slotId: string): Promise<ApiPlan> {
   const url = `/plans/${planId}/slots/remove`;

@@ -51,6 +51,7 @@ jest.mock('../services/planService', () => ({
   addPlanSlotToCurrent: delegate('addPlanSlotToCurrent'),
   createPlan: delegate('createPlan'),
   removePlanSlot: delegate('removePlanSlot'),
+  replacePlanDay: delegate('replacePlanDay'),
   movePlanSlot: delegate('movePlanSlot'),
   getCurrentPlanWithWeekly: delegate('getCurrentPlanWithWeekly'),
   getCurrentPlan: delegate('getCurrentPlan'),
@@ -194,6 +195,7 @@ type FakeServer = {
   addPlanSlotToCurrent: jest.Mock;
   createPlan: jest.Mock;
   removePlanSlot: jest.Mock;
+  replacePlanDay: jest.Mock;
   movePlanSlot: jest.Mock;
   getCurrentPlanWithWeekly: jest.Mock;
   getCurrentPlan: jest.Mock;
@@ -235,6 +237,23 @@ function makeServer(initialPlan: ApiPlan | null): FakeServer {
       server.plan.planWorkouts = server.plan.planWorkouts.filter((pw) => pw.id !== slotId);
       return clone(server.plan);
     }),
+    // POST /plans/:id/days/replace — one transaction: the day's slots go,
+    // the new one (if any) arrives. Repeating it lands the same day.
+    replacePlanDay: jest.fn(
+      async (
+        _planId: string,
+        body: { weekNumber: number; dayOfWeek: string; slot: PlanSlot | null },
+      ) => {
+        if (!server.plan) throw new Error('404');
+        server.plan.planWorkouts = server.plan.planWorkouts.filter(
+          (pw) => !(pw.weekNumber === body.weekNumber && pw.dayOfWeek === body.dayOfWeek),
+        );
+        if (body.slot) {
+          appendSlot({ ...body.slot, weekNumber: body.weekNumber, dayOfWeek: body.dayOfWeek });
+        }
+        return clone(server.plan);
+      },
+    ),
     movePlanSlot: jest.fn(async () => clone(server.plan)),
     getCurrentPlanWithWeekly: jest.fn(async () => ({
       plan: server.plan ? clone(server.plan) : null,
@@ -370,9 +389,14 @@ describe('control: a healthy server, an in-program day', () => {
     store.addExercisesToDay(MONDAY_ISO, [CABLE_FLY]);
     await flush();
 
-    // Rebuilt as one slot: add the new, remove the old.
-    expect(server.addPlanSlot).toHaveBeenCalledTimes(1);
-    expect(server.removePlanSlot).toHaveBeenCalledWith('plan-1', 'slot-1');
+    // Rebuilt as one slot, in one request.
+    expect(server.replacePlanDay).toHaveBeenCalledTimes(1);
+    expect(server.replacePlanDay).toHaveBeenCalledWith(
+      'plan-1',
+      expect.objectContaining({ weekNumber: 1, dayOfWeek: 'Monday' }),
+    );
+    expect(server.addPlanSlot).not.toHaveBeenCalled();
+    expect(server.removePlanSlot).not.toHaveBeenCalled();
     expect(serverDay(server, 1, 'Monday')).toEqual([
       ['Barbell Bench Press', 'Barbell Row', 'Cable Fly'],
     ]);
@@ -410,7 +434,7 @@ describe('finding 1: the edit is on screen but never made it to disk', () => {
     const server = installServer(plan());
     // Slow backend (a cold Render instance): the write is still out when the
     // user leaves the app.
-    server.addPlanSlot.mockImplementation(() => new Promise(() => {}));
+    server.replacePlanDay.mockImplementation(() => new Promise(() => {}));
     let store = await coldStart();
 
     store.addExercisesToDay(MONDAY_ISO, [CABLE_FLY]);
@@ -423,7 +447,7 @@ describe('finding 1: the edit is on screen but never made it to disk', () => {
 
   it('an added exercise survives a restart after the server write failed', async () => {
     const server = installServer(plan());
-    server.addPlanSlot.mockRejectedValueOnce(new Error('Network Error'));
+    server.replacePlanDay.mockRejectedValueOnce(new Error('Network Error'));
     let store = await coldStart();
 
     store.addExercisesToDay(MONDAY_ISO, [CABLE_FLY]);
@@ -436,7 +460,7 @@ describe('finding 1: the edit is on screen but never made it to disk', () => {
 
   it('a failed write is retried once the server is reachable again', async () => {
     const server = installServer(plan());
-    server.addPlanSlot.mockRejectedValueOnce(new Error('Network Error'));
+    server.replacePlanDay.mockRejectedValueOnce(new Error('Network Error'));
     let store = await coldStart();
 
     store.addExercisesToDay(MONDAY_ISO, [CABLE_FLY]);
@@ -452,7 +476,7 @@ describe('finding 1: the edit is on screen but never made it to disk', () => {
 
   it('a replaced exercise survives a restart after the server write failed', async () => {
     const server = installServer(plan());
-    server.addPlanSlot.mockRejectedValueOnce(new Error('Network Error'));
+    server.replacePlanDay.mockRejectedValueOnce(new Error('Network Error'));
     let store = await coldStart();
 
     store.replaceExercise(MONDAY_ISO, 0, CABLE_FLY);
@@ -548,8 +572,7 @@ describe('finding 3: a day that holds two sessions', () => {
     await flush();
     expect(names(store, MONDAY_ISO)).toEqual(['Barbell Row', 'Barbell Curl']);
 
-    const wrote = server.addPlanSlot.mock.calls.length + server.removePlanSlot.mock.calls.length;
-    expect(wrote).toBeGreaterThan(0);
+    expect(server.replacePlanDay).toHaveBeenCalledTimes(1);
   });
 
   it('a removed exercise stays removed after a restart', async () => {
@@ -662,7 +685,7 @@ describe('finding 8: adding to a day before the plan anchor', () => {
     expect(names(store, NEXT_WEDNESDAY_ISO)).toEqual([]);
     // No slot is created for a date the plan cannot hold; the exercise is
     // kept on the phone and is no longer owed to the server.
-    expect(server.addPlanSlot).not.toHaveBeenCalled();
+    expect(server.replacePlanDay).not.toHaveBeenCalled();
     expect(store.isDayEditPending(WEDNESDAY_ISO)).toBe(false);
   });
 
@@ -721,14 +744,14 @@ describe('at the gym with no signal and no plan yet', () => {
 // Writes that overlap
 // ===========================================================================
 
-/** Hold the next addPlanSlot until `release()` — a slow backend. */
+/** Hold the next day write until `release()` — a slow backend. */
 function holdNextAdd(server: FakeServer): () => void {
-  const realAdd = server.addPlanSlot.getMockImplementation()!;
+  const realWrite = server.replacePlanDay.getMockImplementation()!;
   let release!: () => void;
-  server.addPlanSlot.mockImplementationOnce(
-    (planId: string, s: PlanSlot) =>
+  server.replacePlanDay.mockImplementationOnce(
+    (planId: string, body: unknown) =>
       new Promise((resolve) => {
-        release = () => resolve(realAdd(planId, s));
+        release = () => resolve(realWrite(planId, body));
       }),
   );
   return () => release();
@@ -786,7 +809,7 @@ describe('a plan refetch served before a write landed', () => {
 describe('the "kept on this phone" indicator', () => {
   it('is on after a failed write and off once the retry lands', async () => {
     const server = installServer(plan());
-    server.addPlanSlot.mockRejectedValueOnce(new Error('Network Error'));
+    server.replacePlanDay.mockRejectedValueOnce(new Error('Network Error'));
     let store = await coldStart();
 
     store.addExercisesToDay(MONDAY_ISO, [CABLE_FLY]);
@@ -856,7 +879,7 @@ describe('finding 7: another surface wrote to the day since the last fetch', () 
 describe('a second account signing in on the same phone', () => {
   it('does not inherit the first account\'s pending edits, and nothing is written for it', async () => {
     const serverA = installServer(plan());
-    serverA.addPlanSlot.mockRejectedValueOnce(new Error('Network Error'));
+    serverA.replacePlanDay.mockRejectedValueOnce(new Error('Network Error'));
     let store = await coldStart('user-A');
     store.addExercisesToDay(MONDAY_ISO, [CABLE_FLY]);
     await flush();
@@ -870,12 +893,12 @@ describe('a second account signing in on the same phone', () => {
     expect(names(store, MONDAY_ISO)).toEqual([]);
     expect(store.isDayEditPending(MONDAY_ISO)).toBe(false);
     expect(serverB.createPlan).not.toHaveBeenCalled();
-    expect(serverB.addPlanSlot).not.toHaveBeenCalled();
+    expect(serverB.replacePlanDay).not.toHaveBeenCalled();
   });
 
   it('the same account signing back in keeps what it is owed', async () => {
     const server = installServer(plan());
-    server.addPlanSlot.mockRejectedValueOnce(new Error('Network Error'));
+    server.replacePlanDay.mockRejectedValueOnce(new Error('Network Error'));
     let store = await coldStart('user-A');
     store.addExercisesToDay(MONDAY_ISO, [CABLE_FLY]);
     await flush();
@@ -931,6 +954,128 @@ describe('a Quick Workout on a day that already has a plan session', () => {
     await flush(20);
     expect(todaySlot(server).map((pw) => pw.title)).toEqual(['Push Quick Session']);
     expect(serverDay(server, 1, todayWeekday())).toEqual([['Push-Up', 'Lateral Raise']]);
-    expect(server.removePlanSlot).toHaveBeenCalledWith('plan-1', 'slot-1');
+    expect(server.replacePlanDay).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ===========================================================================
+// Build-32 tester report (2026-09-15): a day shows its session twice — the
+// same exercises, in the same order, listed again below the first set.
+// ===========================================================================
+
+describe('finding 9: the day write lands on the server but its response never reaches the phone', () => {
+  // Before 2026-09-15 the rebuild was add-slot then remove-slot. This
+  // scenario — the server applied the write, the phone saw a failure — left
+  // the day holding both slots, and the retry read the doubled day back as
+  // "the day" and wrote it into one slot for good: Bench, Row, Bench, Row,
+  // Cable Fly, Cable Fly. With one atomic request the retry lands the same
+  // day again.
+  it('the retry does not double the day, on the server or on screen', async () => {
+    const server = installServer(plan());
+    const realWrite = server.replacePlanDay.getMockImplementation()!;
+    server.replacePlanDay.mockImplementationOnce(async (planId: string, body: unknown) => {
+      await realWrite(planId, body); // the server commits…
+      throw new Error('Network Error'); // …and the phone never hears back
+    });
+    let store = await coldStart();
+
+    store.addExercisesToDay(MONDAY_ISO, [CABLE_FLY]);
+    await flush();
+    expect(serverDay(server, 1, 'Monday')).toEqual([
+      ['Barbell Bench Press', 'Barbell Row', 'Cable Fly'],
+    ]);
+    expect(store.isDayEditPending(MONDAY_ISO)).toBe(true);
+
+    // The retry (cold start → plan fetch → drain owed dates).
+    store = await hoursLaterReopen();
+    await flush(20);
+    expect(serverDay(server, 1, 'Monday')).toEqual([
+      ['Barbell Bench Press', 'Barbell Row', 'Cable Fly'],
+    ]);
+    expect(names(store, MONDAY_ISO)).toEqual(['Barbell Bench Press', 'Barbell Row', 'Cable Fly']);
+    expect(store.isDayEditPending(MONDAY_ISO)).toBe(false);
+  });
+
+  it('a refetch in the same session recognises the landed write: no doubling on screen, nothing owed', async () => {
+    const server = installServer(plan());
+    const realWrite = server.replacePlanDay.getMockImplementation()!;
+    server.replacePlanDay.mockImplementationOnce(async (planId: string, body: unknown) => {
+      await realWrite(planId, body);
+      throw new Error('Network Error');
+    });
+    const store = await coldStart();
+
+    store.addExercisesToDay(MONDAY_ISO, [CABLE_FLY]);
+    await flush();
+    expect(store.isDayEditPending(MONDAY_ISO)).toBe(true);
+
+    // The user comes back to the tab: the focus refetch lands the plan that
+    // already holds the write.
+    store.refreshLiveCalendarData(true);
+    await flush(20);
+    expect(names(store, MONDAY_ISO)).toEqual(['Barbell Bench Press', 'Barbell Row', 'Cable Fly']);
+    expect(store.isDayEditPending(MONDAY_ISO)).toBe(false);
+    expect(server.replacePlanDay).toHaveBeenCalledTimes(1);
+  });
+
+  it('an edit made after the lost write is carried onto the landed day, not applied twice', async () => {
+    const server = installServer(plan());
+    const realWrite = server.replacePlanDay.getMockImplementation()!;
+    server.replacePlanDay.mockImplementationOnce(async (planId: string, body: unknown) => {
+      await realWrite(planId, body);
+      throw new Error('Network Error');
+    });
+    const store = await coldStart();
+
+    store.addExercisesToDay(MONDAY_ISO, [CABLE_FLY]);
+    await flush();
+    // Still on the old base as far as the phone knows; the user removes Row.
+    store.removeExerciseFromDay(MONDAY_ISO, 1);
+    await flush();
+    expect(names(store, MONDAY_ISO)).toEqual(['Barbell Bench Press', 'Cable Fly']);
+
+    store.refreshLiveCalendarData(true);
+    await flush(30);
+    expect(names(store, MONDAY_ISO)).toEqual(['Barbell Bench Press', 'Cable Fly']);
+    expect(serverDay(server, 1, 'Monday')).toEqual([['Barbell Bench Press', 'Cable Fly']]);
+    expect(store.isDayEditPending(MONDAY_ISO)).toBe(false);
+  });
+
+  it('a day the old two-step write already doubled is written back as it is, never doubled again', async () => {
+    // What a build-32 phone may have left on the server: the old slot and
+    // the rebuilt one, side by side. The next edit consolidates the day but
+    // must not compound it.
+    const server = installServer(
+      plan({
+        planWorkouts: [
+          slot({ id: 'slot-old', exercises: [BENCH, ROW] }),
+          slot({
+            id: 'slot-new',
+            orderInDay: 1,
+            exercises: [
+              BENCH,
+              ROW,
+              apiExercise({ exerciseId: 'cable-fly', name: 'Cable Fly', orderIndex: 2 }),
+            ],
+          }),
+        ],
+      }),
+    );
+    let store = await coldStart();
+    expect(names(store, MONDAY_ISO)).toEqual([
+      'Barbell Bench Press', 'Barbell Row', 'Barbell Bench Press', 'Barbell Row', 'Cable Fly',
+    ]);
+
+    store.removeExerciseFromDay(MONDAY_ISO, 2);
+    await flush();
+    expect(serverDay(server, 1, 'Monday')).toEqual([
+      ['Barbell Bench Press', 'Barbell Row', 'Barbell Row', 'Cable Fly'],
+    ]);
+
+    store = await hoursLaterReopen();
+    await flush(20);
+    expect(serverDay(server, 1, 'Monday')).toEqual([
+      ['Barbell Bench Press', 'Barbell Row', 'Barbell Row', 'Cable Fly'],
+    ]);
   });
 });
