@@ -522,7 +522,8 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           date.setDate(monday.getDate() + (selectedWeek - 1) * 7 + weekdayIdx);
           dateLabel = `${d.weekday.slice(0, 3)} ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
         }
-        const firstLift = session.exercises[0]?.name ?? '';
+        // The day title already names its lifts ("Upper · Bench + Row"); only a bare title gets the first lift.
+        const firstLift = session.title.includes('·') ? '' : (session.exercises[0]?.name ?? '');
         const minutes =
           session.durationMin === session.durationMax
             ? `${session.durationMin} min`

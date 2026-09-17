@@ -172,7 +172,11 @@ export function coachCheckDetailLines(report: CoachCheckReport | undefined): str
     lines.push(`Sets per muscle this week${aim}:`);
     for (const [muscle, v] of muscles) {
       const sets = Number.isInteger(v.weighted) ? String(v.weighted) : v.weighted.toFixed(1);
-      lines.push(`${muscle}: ${sets} sets over ${v.exposures} day${v.exposures === 1 ? '' : 's'}`);
+      lines.push(
+        v.exposures > 0
+          ? `${muscle}: ${sets} sets over ${v.exposures} day${v.exposures === 1 ? '' : 's'}`
+          : `${muscle}: ${sets} sets as a helper on other lifts`,
+      );
     }
   }
   return lines;

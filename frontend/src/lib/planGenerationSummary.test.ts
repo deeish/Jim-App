@@ -95,6 +95,7 @@ describe('coachCheckHeadline / coachCheckDetailLines', () => {
       Chest: { direct: 12, weighted: 14, exposures: 2 },
       Shoulders: { direct: 6, weighted: 8.5, exposures: 2 },
       Core: { direct: 0, weighted: 0, exposures: 0 },
+      Arms: { direct: 0, weighted: 6, exposures: 0 },
     },
     findings: [
       { code: 'volume_low', severity: 'warn' as const, message: 'Shoulders: 8.5 weekly sets, under the 10 most intermediate lifters need to progress.' },
@@ -120,7 +121,8 @@ describe('coachCheckHeadline / coachCheckDetailLines', () => {
     expect(lines[2]).toBe('Sets per muscle this week (aim 10-20):');
     expect(lines[3]).toBe('Chest: 14 sets over 2 days');
     expect(lines[4]).toBe('Shoulders: 8.5 sets over 2 days');
-    expect(lines).toHaveLength(5);
+    expect(lines[5]).toBe('Arms: 6 sets as a helper on other lifts');
+    expect(lines).toHaveLength(6);
   });
 });
 
