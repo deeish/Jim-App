@@ -58,6 +58,12 @@ export class PlanSlotExerciseDto {
   @Min(0)
   targetRir?: number;
 
+  /** Rest between sets in seconds, stamped by role at generation. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  restSeconds?: number;
+
   /** Duration in seconds for time-based rows (cardio bouts). */
   @IsOptional()
   @IsNumber()
