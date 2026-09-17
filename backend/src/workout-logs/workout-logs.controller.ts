@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Patch,
   Post,
   Body,
   Param,
@@ -11,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { WorkoutLogsService } from './workout-logs.service';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
+import { CheckInDto } from './dto/check-in.dto';
 import { ExerciseHistoryQueryDto } from './dto/exercise-history-query.dto';
 import { LastPerformanceQueryDto } from './dto/last-performance-query.dto';
 import { PersonalBestsQueryDto } from './dto/personal-bests-query.dto';
@@ -89,5 +91,15 @@ export class WorkoutLogsController {
   @Get(':id')
   findOne(@Param('id') id: string, @UserId() userId: string) {
     return this.workoutLogsService.findOne(id, userId);
+  }
+
+  /** Three answers after a session; moves the same day next week by one step. */
+  @Patch(':id/check-in')
+  checkIn(
+    @Param('id') id: string,
+    @Body() dto: CheckInDto,
+    @UserId() userId: string,
+  ) {
+    return this.workoutLogsService.checkIn(id, dto, userId);
   }
 }

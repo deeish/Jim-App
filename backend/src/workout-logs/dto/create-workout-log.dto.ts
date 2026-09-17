@@ -9,6 +9,7 @@ import {
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { CheckInDto } from './check-in.dto';
 
 export class CompletedSetDto {
   @IsNumber()
@@ -89,4 +90,10 @@ export class CreateWorkoutLogDto {
   @ValidateNested({ each: true })
   @Type(() => WorkoutLogEntryDto)
   entries: WorkoutLogEntryDto[];
+
+  /** Answered on the finish screen before the log was posted (offline, or a fast finish). */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CheckInDto)
+  checkIn?: CheckInDto;
 }

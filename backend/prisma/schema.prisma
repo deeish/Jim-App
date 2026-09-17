@@ -294,6 +294,12 @@ model WorkoutLog {
   totalSets        Int?
   totalVolume      Float?
   overallNotes     String?
+  // Post-session check-in (Tier 4a): 1 easy / 2 right / 3 hard; 0-2 soreness; 0-2 joint pain.
+  effort           Int?
+  soreness         Int?
+  jointPain        Int?
+  // Set once the check-in has moved next week's same-day workout, so it never applies twice.
+  checkInAppliedAt DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

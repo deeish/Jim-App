@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { adjustNextWeekFromCheckIn, type CheckIn } from './checkin-adjustment';
+import { CheckInDto } from './dto/check-in.dto';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkoutsService } from '../workouts/workouts.service';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
@@ -29,6 +31,8 @@ export const WORKOUT_LOG_PAGE_MAX = 750;
 
 @Injectable()
 export class WorkoutLogsService {
+  private readonly logger = new Logger(WorkoutLogsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly workoutsService: WorkoutsService,
@@ -54,6 +58,13 @@ export class WorkoutLogsService {
         totalSets: dto.totalSets ?? undefined,
         totalVolume: dto.totalVolume ?? undefined,
         overallNotes: dto.overallNotes ?? undefined,
+        ...(dto.checkIn
+          ? {
+              effort: dto.checkIn.effort,
+              soreness: dto.checkIn.soreness,
+              jointPain: dto.checkIn.jointPain,
+            }
+          : {}),
         entries: {
           create: dto.entries.map((entry) => ({
             exerciseId: entry.exerciseId ?? 'manual',
@@ -82,7 +93,118 @@ export class WorkoutLogsService {
         workout: true,
       },
     });
-    return log;
+    if (!dto.checkIn) return log;
+    const adjustment = await this.applyCheckIn(log.id, dto.checkIn);
+    return { ...log, adjustment };
+  }
+
+  /**
+   * Post-session check-in (Tier 4a): stores the three answers and, once,
+   * moves the same day next week by one step (checkin-adjustment.ts).
+   */
+  async checkIn(id: string, dto: CheckInDto, userId: string) {
+    const existing = await this.prisma.workoutLog.findFirst({
+      where: { id, userId },
+      select: { id: true, checkInAppliedAt: true },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Workout log with ID ${id} not found`);
+    }
+    await this.prisma.workoutLog.update({
+      where: { id },
+      data: {
+        effort: dto.effort,
+        soreness: dto.soreness,
+        jointPain: dto.jointPain,
+      },
+    });
+    const adjustment = existing.checkInAppliedAt
+      ? { applied: false, summary: null, reason: 'already_applied' as const }
+      : await this.applyCheckIn(id, dto);
+    return { id, adjustment };
+  }
+
+  private async applyCheckIn(
+    logId: string,
+    checkIn: CheckIn,
+  ): Promise<{
+    applied: boolean;
+    summary: string | null;
+    reason?:
+      | 'no_plan_day'
+      | 'no_next_week'
+      | 'nothing_to_move'
+      | 'already_applied';
+  }> {
+    const log = await this.prisma.workoutLog.findUnique({
+      where: { id: logId },
+      select: { workout: { select: { planWorkoutId: true } } },
+    });
+    const planWorkoutId = log?.workout?.planWorkoutId;
+    if (!planWorkoutId)
+      return { applied: false, summary: null, reason: 'no_plan_day' };
+    const day = await this.prisma.planWorkout.findUnique({
+      where: { id: planWorkoutId },
+      select: {
+        workoutPlanId: true,
+        weekNumber: true,
+        dayOfWeek: true,
+        orderInDay: true,
+      },
+    });
+    if (!day) return { applied: false, summary: null, reason: 'no_plan_day' };
+    const next = await this.prisma.planWorkout.findFirst({
+      where: {
+        workoutPlanId: day.workoutPlanId,
+        weekNumber: day.weekNumber + 1,
+        dayOfWeek: day.dayOfWeek,
+        orderInDay: day.orderInDay,
+      },
+      include: { exercises: true },
+    });
+    if (!next) return { applied: false, summary: null, reason: 'no_next_week' };
+    const adjustment = adjustNextWeekFromCheckIn(
+      next.exercises.map((e) => ({
+        id: e.id,
+        name: e.name ?? 'Exercise',
+        sets: e.sets,
+        orderIndex: e.orderIndex,
+        prescriptionType: e.prescriptionType,
+        targetRir: e.targetRir,
+        notes: e.notes,
+      })),
+      checkIn,
+      day.dayOfWeek,
+    );
+    if (!adjustment.direction) {
+      return { applied: false, summary: null, reason: 'nothing_to_move' };
+    }
+    await this.prisma.$transaction([
+      ...adjustment.updates.map((u) =>
+        this.prisma.planExercise.update({
+          where: { id: u.id },
+          data: {
+            ...(u.sets != null ? { sets: u.sets } : {}),
+            ...(u.targetRir != null ? { targetRir: u.targetRir } : {}),
+            ...(u.notes != null ? { notes: u.notes } : {}),
+          },
+        }),
+      ),
+      this.prisma.workoutLog.update({
+        where: { id: logId },
+        data: { checkInAppliedAt: new Date() },
+      }),
+    ]);
+    this.logger.log(
+      JSON.stringify({
+        event: 'check_in_applied',
+        direction: adjustment.direction,
+        rows: adjustment.updates.length,
+        weekday: day.dayOfWeek,
+        nextWeek: day.weekNumber + 1,
+      }),
+    );
+    return { applied: true, summary: adjustment.summary };
   }
 
   /**
