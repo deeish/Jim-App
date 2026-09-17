@@ -282,3 +282,11 @@ Same inputs, same rig, backend rebuilt with the post-progression trim and the ro
 | What this draw got wrong | Chest: 7 sets on one day (bench and dips on Monday; the second upper day is press, row, chin-up, face pull with no chest press). The coach line says so ("Chest: 7 weekly sets, under the 8…" and "trained on one day only"). The week's pattern floors guarantee a horizontal press exists, not that it exists twice. Next fix: an exposure floor for the four big muscles when there are three or more lifting days, filled with an isolation on the day that lacks it. |
 | Also worth a look | a four-week "build" profile takes reps from 8–12 to 5–9 by week 4 for a muscle goal; three cuts in a row drift toward strength ranges. Two cuts and a heavier load is what a coach would write. |
 
+### Third run, with the exposure floor (2026-09-17, night)
+
+Same inputs. Raw capture: `docs/audits/2026-09-17-preview-rig-run-3.json`. All four weeks balanced; every big muscle on two days (the floor added a 3-set lateral raise to Upper 2 in each week for shoulders; chest landed on two days on this draw by itself); the post-progression trim held Legs at the band in weeks 3 and 4 and dropped the bodyweight squat before touching a compound. Typed bench came back at 135 lb. No errors, no 4xx.
+
+What this draw shows that the rules do not fix: the model led Monday with a bent-over row, led Tuesday with a goblet squat and put a 4 × 14–19 bodyweight squat on Friday, for an intermediate in a gym. Monday is three lifts and 13 sets. The rules own the numbers; exercise choice is still the model's, and its choice is the weakest part of the plan. That is the case for a stronger model on the week-one design call, or a staple-first selection rule (barbell before dumbbell before bodyweight for the main lift when the equipment allows), before anything else.
+
+Account cleanup (Dylan, `deeish3@gmail.com`, confirmed): 16 plans, 80 plan days, 128 workouts, 7 logs removed; user, preferences, crew and body weight kept; verified empty afterwards. Scripts: `backend/logs/account-inventory.ts`, `account-cleanup.ts` (dry-run by default).
+
