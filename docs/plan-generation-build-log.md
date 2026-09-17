@@ -108,3 +108,13 @@ target (2a-client below); the model is never asked for it.
 
 Log line per generation: `loads_from_history { liftsRequested, liftsWithHistory, rowsLoaded, rowsCalibrated }`. Deliberately not done: no load for weeks 2+ of a lift the user first logs *during* the block (that is Tier 4's post-session check-in); no per-user unit (weights stay canonical pounds, the client formats).
 
+### 2e. Cardio progression and two prompt rules (DONE 2026-09-17)
+
+| Change | Where | Verified by |
+|---|---|---|
+| A cardio day's main block moves with the phase: +10% on a progression week, +20% on a peak (capped at the slot minus the 15 min of warm-up, cool-down and core), -25% on a deload with its own reasoning note; floor 8 min; rounded to whole minutes. Weeks 2+ used to clone week 1's cardio unchanged. | `week-progression.ts` `progressCardioSession`, `cardioDurationFactorForPhase` | 4 new tests (28 in the two specs): 25 min → 28 / 30 / 19; foundation untouched; a day with no timed block untouched |
+| Template copy is rewritten so the minutes in the note match the stamped duration (the eval's copy-sanity check); interval copy stays interval copy; a model-written note that names no minutes is left alone. | `cardio-day-template.ts` `cardioMainBlockNotes`, `cardioBlockStyle` | same spec |
+| Batch prompt rules (6) stacking caps: at most two pressing compounds and two hinges per session; (7) frequency: with 3+ lifting days each big muscle on at least two days. The coach check already scores both. | `workout-generator.service.ts` system prompt | prompt text only; measured by the re-drive below |
+
+70 suites / 926 tests. Deliberately not done: no cardio progression inside a strength session's finisher tail; no interval-structure change on a peak (only the block length moves).
+
