@@ -149,3 +149,31 @@ Re-drive after 2g, same three inputs: **164.3 / 168** (162, 165, 166). Sequence 
 
 **Tier 2 is done.** Everything above is server-side and live on the next Render deploy (auto-deploy on push to main); the one client change (three-day split rule) rides with the next binary or OTA.
 
+## Tier 3: show it (client; needs a binary or OTA; started 2026-09-17)
+
+### 3a. Load, effort and rest reach the preview, the saved plan and the deck (DONE 2026-09-17)
+
+| Change | Where | Verified by |
+|---|---|---|
+| The draft row carries the generator's working load. It was dropped on the way in: `ExerciseDraft` had no `weight`, so Tier 2d's loads were neither previewed nor saved. Apply now sends load, effort target and rest with each slot exercise. | `types/plan.ts`, `planPipeline.ts` (`exerciseDraftFromGenerateResult`, `sessionDraftToPlanSlotExercises`) | pipeline test: bench keeps load, effort and rest; a hold keeps rest but never an effort target |
+| Rest between sets is persisted: `plan_exercises.restSeconds` (nullable), accepted on the slot DTO, written at every site that writes `targetRir`. The deck guessed rest from the exercise name before. | `schema.prisma`, migration `20260917100000_plan_exercise_rest_seconds`, `create-plan.dto.ts`, `plans.service.ts` | backend suites; deploy the backend before the client (the DTO must accept the field) |
+| Preview row: `4 × 8-12 · 135 lb · 2:15 rest · 2 in reserve`; the calibration note shows as the row note. | `PlanPreviewScreen.tsx`, `exercisePrescription.ts` `formatEffortTarget` | 4 prescription tests |
+| Workout deck: the plan's rest when the row has one (heuristic only for older rows); the target line adds the effort target (`Target 8-12 · 135 lb · 2 in reserve`). | `planCalendarPrototypeStore.ts`, `PlanCalendarWorkoutScreen.tsx` | `formatRestClock` tests; store tests |
+
+### 3b. The preview opens with the week at a glance and the coach check (DONE 2026-09-17)
+
+| Change | Where | Verified by |
+|---|---|---|
+| Under the week tabs: one line per training day (date from the plan's start date, day title, first lift, minutes). | `PlanPreviewScreen.tsx` | type-check; visual pass on the web rig below |
+| The coach check in a sentence ("a balanced week", or the first real note with a count of the rest) with every note and sets per muscle against the goal's band behind a tap. The report rides in the draft's debug metadata; the server now includes the band it measured against. | `coach-check.ts` (`band`), `planService.ts`, `planPipeline.ts`, `planGenerationSummary.ts` `coachCheckHeadline` / `coachCheckDetailLines` | 2 summary tests |
+
+### 3c. Rebuild a day, swap everywhere, sticky swaps, generation that outlives the screen (DONE 2026-09-17)
+
+| Change | Where | Verified by |
+|---|---|---|
+| "Rebuild day" in the day sheet: one spec is regenerated and the program repair runs across the plan so the day still fits the week. | `planPipeline.ts` `regeneratePipelineDay`, `PlanPreviewScreen.tsx` | type-check; rig pass |
+| The swap control asks "this week or every week" on multi-week plans; every swap is recorded and re-applied after a week or day rebuild wherever the rebuilt day still carries the original lift (the rebuilt day itself stays fresh). | `planPipeline.ts` `applyRecordedSwaps`, `RecordedSwap` | 3 pipeline tests |
+| The generation request is no longer aborted on unmount: held by draft id, a remount joins it, and a finished run persists its draft itself. Backing out to edit one field no longer pays twice. | `planGenerationKeepAlive.ts` | 3 tests |
+
+Deliberately not done in Tier 3: no per-user unit on the server (loads stay pounds, the client formats); no "keep alive" across an app kill (the persisted draft covers that already); the older Groq per-card preview path is untouched.
+
