@@ -64,6 +64,8 @@ import {
 } from '../lib/planCalendarPrototype';
 import {
   celebrationBaselines,
+  checkInFor,
+  checkInResultFor,
   dayHasLocalLogs,
   getSetLogs,
   isDayFullyLogged,
@@ -71,9 +73,12 @@ import {
   plannedDayForDate,
   saveDayAsWorkout,
   sessionStartIso,
+  submitCheckIn,
   subscribePlanCalendar,
+  type CheckInResult,
   type SetLog,
 } from '../lib/planCalendarPrototypeStore';
+import type { SessionCheckIn } from '../types/workout';
 import {
   calendarSessionsFromLogs,
   dominantMuscle,
@@ -600,6 +605,42 @@ export default function PlanCalendarWorkoutCompleteScreen() {
 
   // ---- Save this workout ---------------------------------------------------
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  // ---- Check-in (Tier 4a) ---------------------------------------------------
+  // Three taps after a session move the same day next week by one step on the
+  // server; the sentence it returns is shown here and kept for a recap.
+  const [checkIn, setCheckIn] = useState<Partial<SessionCheckIn>>(() => checkInFor(dateIso) ?? {});
+  const [checkInResult, setCheckInResult] = useState<CheckInResult | null>(() => checkInResultFor(dateIso));
+  const [checkInSending, setCheckInSending] = useState(false);
+  useEffect(() => subscribePlanCalendar(() => setCheckInResult(checkInResultFor(dateIso))), [dateIso]);
+  const checkInAnswered = checkIn.effort != null && checkIn.soreness != null && checkIn.jointPain != null;
+  const answerCheckIn = useCallback(
+    async (next: Partial<SessionCheckIn>) => {
+      const merged = { ...checkIn, ...next };
+      setCheckIn(merged);
+      if (merged.effort == null || merged.soreness == null || merged.jointPain == null) return;
+      buzzTap();
+      setCheckInSending(true);
+      try {
+        const result = await submitCheckIn(dateIso, merged as SessionCheckIn);
+        setCheckInResult(result);
+      } catch {
+        setCheckInResult({ status: 'nothing', summary: null });
+      } finally {
+        setCheckInSending(false);
+      }
+    },
+    [checkIn, dateIso],
+  );
+  const checkInLine = checkInSending
+    ? 'Sending…'
+    : checkInResult?.status === 'applied' && checkInResult.summary
+      ? checkInResult.summary
+      : checkInResult?.status === 'queued'
+        ? 'Saved with this session. Next week adjusts once it syncs.'
+        : checkInResult?.status === 'nothing'
+          ? 'Noted. Next week stays as planned.'
+          : null;
+
   const onSave = useCallback(async () => {
     buzzTap();
     setSaveState('saving');
@@ -962,6 +1003,47 @@ export default function PlanCalendarWorkoutCompleteScreen() {
               );
             })}
           </View>
+
+          {/* Check-in: three answers, one honest step next week. A recap of an
+              older day can still answer (the server applies it once). */}
+          {day.exercises.length > 0 && (
+            <View style={styles.checkInCard}>
+              <Text style={styles.checkInTitle}>How did it go?</Text>
+              <Text style={styles.checkInSub}>Three taps shape the same day next week.</Text>
+              {(
+                [
+                  { key: 'effort', label: 'It felt', options: [[1, 'Easy'], [2, 'About right'], [3, 'Too hard']] },
+                  { key: 'soreness', label: 'Soreness', options: [[0, 'None'], [1, 'Some'], [2, 'A lot']] },
+                  { key: 'jointPain', label: 'Joints', options: [[0, 'Fine'], [1, 'A niggle'], [2, 'Pain']] },
+                ] as Array<{ key: keyof SessionCheckIn; label: string; options: Array<[number, string]> }>
+              ).map((row) => (
+                <View key={row.key} style={styles.checkInRow}>
+                  <Text style={styles.checkInLabel}>{row.label}</Text>
+                  <View style={styles.checkInChips}>
+                    {row.options.map(([value, label]) => {
+                      const selected = checkIn[row.key] === value;
+                      return (
+                        <TouchableOpacity
+                          key={label}
+                          style={[styles.checkInChip, selected && styles.checkInChipOn]}
+                          onPress={() => void answerCheckIn({ [row.key]: value } as Partial<SessionCheckIn>)}
+                          disabled={checkInSending}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected }}
+                          accessibilityLabel={`${row.label}: ${label}`}
+                        >
+                          <Text style={[styles.checkInChipText, selected && styles.checkInChipTextOn]}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+              {checkInAnswered && checkInLine ? (
+                <Text style={styles.checkInResult}>{checkInLine}</Text>
+              ) : null}
+            </View>
+          )}
 
           {/* saveDayAsWorkout saves the DAY'S prescriptions, so it needs a day
               to save. A history recap whose plan slot is gone (program ended,
@@ -1706,6 +1788,77 @@ function createStyles(c: ColorPalette) {
       fontSize: text.caption,
       lineHeight: leading.caption,
       color: c.textMuted,
+    },
+    checkInCard: {
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.md,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg - 2,
+      marginBottom: spacing.md,
+      gap: spacing.sm,
+    },
+    checkInTitle: {
+      ...sfPro,
+      fontSize: text.body,
+      lineHeight: leading.body,
+      fontWeight: weight.semibold,
+      color: c.text,
+    },
+    checkInSub: {
+      ...sfPro,
+      fontSize: text.caption,
+      lineHeight: leading.caption,
+      color: c.textMuted,
+      marginTop: -spacing.xs,
+    },
+    checkInRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    checkInLabel: {
+      ...sfPro,
+      width: 72,
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+      color: c.textSecondary,
+    },
+    checkInChips: {
+      flex: 1,
+      flexDirection: 'row',
+      gap: spacing.xs,
+    },
+    checkInChip: {
+      flex: 1,
+      height: 32,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xs,
+    },
+    checkInChipOn: {
+      borderColor: GOLD,
+    },
+    checkInChipText: {
+      ...sfPro,
+      fontSize: text.caption,
+      lineHeight: leading.caption,
+      color: c.textSecondary,
+    },
+    checkInChipTextOn: {
+      color: GOLD,
+      fontWeight: weight.semibold,
+    },
+    checkInResult: {
+      ...sfPro,
+      fontSize: text.footnote,
+      lineHeight: leading.footnote,
+      color: c.text,
+      marginTop: spacing.xs,
     },
     saveCard: {
       flexDirection: 'row',

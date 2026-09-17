@@ -79,6 +79,7 @@ import {
 } from './sessionCelebration';
 import { exerciseUsesTimeDisplay } from './exercisePrescription';
 import { api } from '../api/client';
+import type { CheckInAdjustment, SessionCheckIn } from '../types/workout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type SetLog = { reps: string; weight: string };
@@ -132,6 +133,82 @@ const attemptedWrites = new Map<string, AttemptedWrite>();
 /** Finished days whose workout-log POST has not succeeded yet (offline, or a
  *  failed write). Persisted and retried the same way as pendingEdits. */
 const pendingCompletions = new Set<string>();
+
+/**
+ * Post-session check-ins (Tier 4a of the 2026-09-16 plan). A check-in
+ * answered before the day's log has been posted (offline, or a fast finish)
+ * waits here and rides inside the POST; one answered after the log exists
+ * goes straight to PATCH /workout-logs/:id/check-in. The server's answer
+ * (what it moved next week, in a sentence) is kept per day for the finish
+ * screen and a later recap.
+ */
+const pendingCheckIns = new Map<string, SessionCheckIn>();
+export type CheckInResult = {
+  status: 'applied' | 'nothing' | 'queued';
+  summary: string | null;
+};
+const checkInResults = new Map<string, CheckInResult>();
+
+/** The server's answer to this day's check-in, or null when none was sent. */
+export function checkInResultFor(dateIso: string): CheckInResult | null {
+  return checkInResults.get(dateIso) ?? null;
+}
+
+/** The check-in the user gave for this day, whether or not it has reached the server. */
+export function checkInFor(dateIso: string): SessionCheckIn | null {
+  const pending = pendingCheckIns.get(dateIso);
+  if (pending) return pending;
+  const log = loggedSessions.get(dateIso)?.[0];
+  if (log && log.effort != null && log.soreness != null && log.jointPain != null) {
+    return {
+      effort: log.effort as 1 | 2 | 3,
+      soreness: log.soreness as 0 | 1 | 2,
+      jointPain: log.jointPain as 0 | 1 | 2,
+    };
+  }
+  return null;
+}
+
+function recordCheckInAdjustment(
+  dateIso: string,
+  adjustment: CheckInAdjustment | undefined,
+): CheckInResult {
+  const result: CheckInResult = adjustment?.applied
+    ? { status: 'applied', summary: adjustment.summary }
+    : { status: 'nothing', summary: null };
+  checkInResults.set(dateIso, result);
+  return result;
+}
+
+/**
+ * Sends the three answers for a day. Resolves with what the server moved
+ * (or 'queued' when the day's log has not been posted yet: the answers then
+ * ride inside that POST and the result lands in `checkInResultFor`).
+ */
+export async function submitCheckIn(
+  dateIso: string,
+  checkIn: SessionCheckIn,
+): Promise<CheckInResult> {
+  const log = loggedSessions.get(dateIso)?.[0];
+  if (!log?.id || pendingCompletions.has(dateIso)) {
+    pendingCheckIns.set(dateIso, checkIn);
+    const queued: CheckInResult = { status: 'queued', summary: null };
+    checkInResults.set(dateIso, queued);
+    scheduleSessionSave();
+    emit();
+    if (pendingCompletions.has(dateIso)) void syncDayCompletion(dateIso);
+    return queued;
+  }
+  const res = await api.patch<{ id: string; adjustment: CheckInAdjustment }>(
+    `/workout-logs/${log.id}/check-in`,
+    checkIn,
+  );
+  pendingCheckIns.delete(dateIso);
+  const result = recordCheckInAdjustment(dateIso, res.data?.adjustment);
+  scheduleSessionSave();
+  emit();
+  return result;
+}
 const setLogs = new Map<string, SetLog[]>();
 const listeners = new Set<() => void>();
 
@@ -216,6 +293,8 @@ const sessionHydrated: Promise<void> = (async () => {
       customDays?: Record<string, CustomDay>;
       pendingEdits?: string[];
       pendingCompletions?: string[];
+      pendingCheckIns?: Record<string, SessionCheckIn>;
+      checkInResults?: Record<string, CheckInResult>;
       attemptedWrites?: Record<string, AttemptedWrite>;
       snapshotUserId?: string | null;
     };
@@ -241,6 +320,12 @@ const sessionHydrated: Promise<void> = (async () => {
     }
     for (const d of data.pendingEdits ?? []) {
       if (d >= cutoff) pendingEdits.add(d);
+    }
+    for (const [d, c] of Object.entries(data.pendingCheckIns ?? {})) {
+      if (d >= cutoff) pendingCheckIns.set(d, c);
+    }
+    for (const [d, r] of Object.entries(data.checkInResults ?? {})) {
+      if (d >= cutoff) checkInResults.set(d, r);
     }
     for (const d of data.pendingCompletions ?? []) {
       if (d >= cutoff) pendingCompletions.add(d);
@@ -309,6 +394,8 @@ function scheduleSessionSave(): void {
           customDays: Object.fromEntries(customDays),
           pendingEdits: [...pendingEdits],
           pendingCompletions: [...pendingCompletions],
+          pendingCheckIns: Object.fromEntries(pendingCheckIns),
+          checkInResults: Object.fromEntries(checkInResults),
           attemptedWrites: Object.fromEntries(attemptedWrites),
           snapshotUserId,
         }),
@@ -2106,7 +2193,8 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
     const elapsedSeconds = plausibleDuration(
       Math.max(0, Math.round((Date.parse(completedAt) - Date.parse(startedAt)) / 1000)),
     );
-    const saved = await api.post<WorkoutLog>('/workout-logs', {
+    const waitingCheckIn = pendingCheckIns.get(dateIso);
+    const saved = await api.post<WorkoutLog & { adjustment?: CheckInAdjustment }>('/workout-logs', {
       workoutId,
       startedAt,
       completedAt,
@@ -2114,9 +2202,14 @@ async function syncDayCompletion(dateIso: string): Promise<void> {
       totalSets,
       totalVolume: Math.round(totalVolume),
       entries,
+      ...(waitingCheckIn ? { checkIn: waitingCheckIn } : null),
     });
     completedLogDays.add(dateIso);
     pendingCompletions.delete(dateIso);
+    if (waitingCheckIn) {
+      pendingCheckIns.delete(dateIso);
+      recordCheckInAdjustment(dateIso, saved.data?.adjustment);
+    }
     // Keep what came back: the month fetch ran BEFORE this POST, so without
     // it a recap of the session just finished has no stored duration to read.
     if (saved.data?.id) recordLoggedSession(dateIso, saved.data);

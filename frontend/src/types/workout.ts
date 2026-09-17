@@ -187,6 +187,24 @@ export interface WorkoutLog {
   totalSets: number | null;
   totalVolume: number | null;
   overallNotes: string | null;
+  /** Post-session check-in (backend ≥ 2026-09-17): 1 easy / 2 right / 3 hard; 0-2 soreness; 0-2 joint pain. */
+  effort?: number | null;
+  soreness?: number | null;
+  jointPain?: number | null;
   workout: Workout;
   entries: WorkoutLogEntry[];
+}
+
+/** The three answers after a session; the server moves next week's same day by one step. */
+export interface SessionCheckIn {
+  effort: 1 | 2 | 3;
+  soreness: 0 | 1 | 2;
+  jointPain: 0 | 1 | 2;
+}
+
+/** What the server did with a check-in. */
+export interface CheckInAdjustment {
+  applied: boolean;
+  summary: string | null;
+  reason?: 'no_plan_day' | 'no_next_week' | 'nothing_to_move' | 'already_applied';
 }
