@@ -143,6 +143,8 @@ export interface ExerciseDraft {
    * user's goal+difficulty scheme; Cardio rows leave this undefined.
    */
   restSeconds?: number;
+  /** Reps in reserve to stop at (effort target) from the generator. */
+  targetRir?: number;
   notes?: string;
   focus?: string;
 }

@@ -17,6 +17,8 @@ export interface PlanSlotExercise {
   notes?: string;
   orderIndex?: number;
   prescriptionType?: ExercisePrescriptionType;
+  /** Reps in reserve to stop at (effort target), stamped by the generator. */
+  targetRir?: number;
 }
 
 export interface PlanSlot {
@@ -44,6 +46,8 @@ export interface ApiPlanExercise {
   repsMax?: number | null;
   durationSeconds?: number | null;
   prescriptionType?: 'reps' | 'time' | 'distance' | null;
+  /** Reps in reserve to stop at; null on cardio rows and on plans saved before 2026-09-17. */
+  targetRir?: number | null;
   weight: number | null;
   notes: string | null;
   orderIndex: number;
@@ -223,6 +227,8 @@ export interface GenerateSessionResult {
      * the preview modal as `4 × 8 · 90s rest`.
      */
     restSeconds?: number;
+    /** Reps in reserve to stop at (effort target). Undefined on cardio rows. */
+    targetRir?: number;
   }>;
 }
 

@@ -182,6 +182,7 @@ export function exerciseDraftFromGenerateResult(
     ...(typeof e.restSeconds === 'number' && e.restSeconds > 0
       ? { restSeconds: e.restSeconds }
       : {}),
+    ...(typeof e.targetRir === 'number' && e.targetRir >= 0 ? { targetRir: e.targetRir } : {}),
     notes: e.notes,
   };
 }
@@ -1218,6 +1219,7 @@ export function sessionDraftToPlanSlotExercises(
       notes: noteParts.length ? noteParts.join(' ') : undefined,
       orderIndex: i,
       ...(e.prescriptionType ? { prescriptionType: e.prescriptionType } : {}),
+      ...(!hold && typeof e.targetRir === 'number' ? { targetRir: e.targetRir } : {}),
     };
   });
 }
