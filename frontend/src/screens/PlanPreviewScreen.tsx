@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,52 +18,37 @@ import type { RootStackParamList } from '../types/navigation';
 import { leading, planSlotIconColors, radius, spacing, text, tracking, type ColorPalette, useTheme, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
 import PlanBuildLoader from '../components/PlanBuildLoader';
-import { useUserPreferences } from '../contexts/UserPreferencesContext';
-import { formatAtWeightFromLb } from '../lib/weightDisplay';
-import { formatEffortTarget } from '../lib/exercisePrescription';
 import { coachCheckDetailLines, coachCheckHeadline } from '../lib/planGenerationSummary';
 import { moveWorkoutBetweenDays } from '../lib/planPreviewMove';
-import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
 import {
   createPlan,
   GENERATE_SESSIONS_TIMEOUT_MESSAGE,
   type PlanSlot,
   type PlanSlotExercise,
 } from '../services/planService';
-import { generateWorkoutPreview, type WorkoutPreview } from '../services/workoutService';
-import { replaceExercise } from '../services/exerciseService';
 import { refreshLiveCalendarData } from '../lib/planCalendarPrototypeStore';
 import {
   runPipelineSafe,
   regeneratePipelineWeek,
-  regeneratePipelineDay,
   regeneratePipelineCardioSessions,
   applyRecordedSwaps,
   planDraftToWeekPlans,
   sessionDraftToPlanSlotExercises,
-  buildWorkoutPreviewFromSessionDraft,
-  mapGroqPreviewExercise,
-  type RecordedSwap,
 } from '../lib/planPipeline';
 import { runKeepAlive } from '../lib/planGenerationKeepAlive';
+import SheetModal from '../components/SheetModal';
+import { generateWorkoutPreview } from '../services/workoutService';
+import { daySummaryLine, findSession, statedPlanLine, weekPhases } from '../lib/planPreviewEdits';
+import { getPreviewSession, setPreviewSession, subscribePreviewSession } from '../lib/planPreviewSession';
 import {
   linesForPlanGenerationSnapshot,
 } from '../lib/planGenerationSummary';
 import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
 import {
-  formatExercisePrescriptionCompact,
-  profileGoalToPlanGoal,
-} from '../lib/workoutExerciseDisplay';
-import {
   AI_PROGRAMMING_TRANSPARENCY,
   NOT_MEDICAL_FOOTNOTE_SHORT,
 } from '../constants/wellnessCopy';
-import {
-  bodyTagChipColors,
-  previewSecondaryChipLabels,
-  shortBodyTagLabel,
-} from '../lib/previewExerciseMeta';
-import type { ExerciseDraft, PlanDraft, PlanInputs, SessionDraft, Weekday } from '../types/plan';
+import type { PlanDraft, SessionDraft } from '../types/plan';
 import { formatLocalYmd, getWeekStartMonday, parseLocalYmd } from '../lib/planCalendar';
 import {
   savePlanPreviewDraft,
@@ -71,11 +56,6 @@ import {
   clearPlanPreviewDraft,
   saveLastAppliedPlanInputs,
 } from '../lib/planPreviewDraftStorage';
-import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
-import {
-  exercisesLikeFromPrescription,
-  getWorkoutDisplayEstimateMinutes,
-} from '../lib/estimateWorkoutMinutes';
 
 type PlanPreviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlanPreview'>;
 type PlanPreviewScreenRouteProp = RouteProp<RootStackParamList, 'PlanPreview'>;
@@ -125,6 +105,13 @@ interface WeekPlan {
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+
+
+function formatWorkoutTypeLabel(type: PlanWorkout['type']): string {
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+
 /** When library metadata omitted, treat obvious machine/conditioning names as cardio. */
 const CARDIO_EXERCISE_NAME = /\b(treadmill|rower|rowing machine|elliptical|bike|bicycle|ski erg|skierg|stair|stepper|assault|airdyne|swim|pool|arc trainer)\b/i;
 
@@ -155,60 +142,6 @@ function countSessionsWithCardioExerciseInWeek(
   return n;
 }
 
-/** Cache Groq workout previews so reopening the same card does not call the API again. */
-function groqPreviewCacheKey(week: number, day: string, workoutId: string): string {
-  return `${week}|${day}|${workoutId}`;
-}
-
-function groqExerciseSecondaryMuscles(e: unknown): string[] | undefined {
-  const x = e as {
-    secondaryMuscleGroups?: unknown;
-    secondaryMuscleGroup?: string;
-  };
-  if (Array.isArray(x.secondaryMuscleGroups)) {
-    const arr = x.secondaryMuscleGroups.filter(
-      (v): v is string => typeof v === 'string' && v.trim().length > 0,
-    );
-    if (arr.length) return arr.map((s) => s.trim());
-  }
-  const one = typeof x.secondaryMuscleGroup === 'string' ? x.secondaryMuscleGroup.trim() : '';
-  return one ? [one] : undefined;
-}
-
-const REASONING_PREVIEW_CHARS = 220;
-
-type ReasoningSectionKey = 'warmUp' | 'reasoning' | 'coolDown';
-
-function clipReasoningParagraph(text: string, maxChars: number): { short: string; needsMore: boolean } {
-  const t = text.trim();
-  if (t.length <= maxChars) return { short: t, needsMore: false };
-  let cut = t.slice(0, maxChars);
-  const lastSpace = cut.lastIndexOf(' ');
-  if (lastSpace > maxChars * 0.55) cut = cut.slice(0, lastSpace);
-  return { short: `${cut.trim()}…`, needsMore: true };
-}
-
-function formatWorkoutTypeLabel(type: PlanWorkout['type']): string {
-  return type.charAt(0).toUpperCase() + type.slice(1);
-}
-
-function progressionHintFromPlanInputs(planInputs: PlanInputs | undefined): string | null {
-  if (!planInputs) return null;
-  if (!planInputs.progressionStyle) {
-    return 'Progression: when sets feel solid, add a small amount of weight or 1–2 reps next week.';
-  }
-  switch (planInputs.progressionStyle) {
-    case 'build':
-      return 'Progression: add weight or reps when you hit the top of each rep range on all sets.';
-    case 'build_deload':
-      return 'Progression: build for a few weeks, then use a lighter deload week before ramping again.';
-    case 'maintain':
-      return 'Progression: keep loads steady; prioritize technique and recovery.';
-    default:
-      return 'Progression: when sets feel solid, add a small amount of weight or 1–2 reps next week.';
-  }
-}
-
 /** Exercises for API apply — prefer card snapshot, else same mapping as planDraftToWeekPlans uses. */
 function slotExercisesFromDraft(
   draft: PlanDraft,
@@ -222,24 +155,7 @@ function slotExercisesFromDraft(
   return sessionDraftToPlanSlotExercises(session, weekNumber, dayOfWeek);
 }
 
-function legacyGoalToPlanGoal(
-  g: 'fat loss' | 'strength' | 'muscle' | 'endurance' | 'hybrid',
-): PlanInputs['goal'] {
-  if (g === 'fat loss') return 'fat_loss';
-  if (g === 'hybrid') return 'balanced';
-  if (g === 'endurance') return 'endurance';
-  if (g === 'muscle') return 'muscle';
-  return 'strength';
-}
 
-/** Prefer Generate Plan snapshot goal for reps display; else legacy route goal. */
-function previewFormattingGoal(
-  planInputs: PlanInputs | null | undefined,
-  legacyRouteGoal: RootStackParamList['PlanPreview']['inputs']['goal'],
-): PlanInputs['goal'] {
-  if (planInputs?.goal) return planInputs.goal;
-  return legacyGoalToPlanGoal(legacyRouteGoal);
-}
 
 /** Map frontend equipment keys to backend/exercise library display names. */
 function mapEquipmentToBackend(equipment: string[]): string[] {
@@ -271,8 +187,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const styles = useMemo(() => createPlanPreviewStyles(colors), [colors]);
   // The tab bar floats over this screen; the apply/edit footer must sit above it.
   const tabBarInset = useTabBarInset();
-  const { weightUnit, goal } = useUserPreferences();
-  const { inputs, draftId, planInputs, returnToPlanCard, fromOnboarding } = route.params;
+  const { inputs, draftId, planInputs, fromOnboarding } = route.params;
   const goHome = () => {
     // Clear the Plan stack so a stale Preview isn't left mounted, then switch to the Home tab.
     navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'PlanList' }] }));
@@ -285,28 +200,16 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const [swapModalVisible, setSwapModalVisible] = useState(false);
   const [selectedDayForSwap, setSelectedDayForSwap] = useState<string | null>(null);
   const [moveMode, setMoveMode] = useState<{ workoutId: string; fromDay: string } | null>(null);
-  const [previewCard, setPreviewCard] = useState<{ workout: PlanWorkout; day: string } | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewData, setPreviewData] = useState<WorkoutPreview | null>(null);
-  const [replacingExerciseName, setReplacingExerciseName] = useState<string | null>(null);
-  const [expandedReasoning, setExpandedReasoning] = useState<Partial<Record<ReasoningSectionKey, boolean>>>({});
-  const [generationSummaryOpen, setGenerationSummaryOpen] = useState(false);
+  // The three sheets of the redesigned preview (2026-09-17): the coach
+  // detail, the week's adjustments, and how the plan was built.
+  const [coachSheet, setCoachSheet] = useState(false);
+  const [adjustSheet, setAdjustSheet] = useState(false);
+  const [builtSheet, setBuiltSheet] = useState(false);
 
   const [loadingPreview, setLoadingPreview] = useState(!!planInputs);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null);
   const [planData, setPlanData] = useState<WeekPlan[]>([]);
-  const [cardToReopen, setCardToReopen] = useState(returnToPlanCard ?? null);
-  useEffect(() => {
-    setCardToReopen(returnToPlanCard ?? null);
-  }, [returnToPlanCard?.workoutId, returnToPlanCard?.weekNumber, returnToPlanCard?.day]);
-  const groqPreviewCacheRef = useRef<Map<string, WorkoutPreview>>(new Map());
-
-  const planGoal = useMemo(() => profileGoalToPlanGoal(goal), [goal]);
-
-  useEffect(() => {
-    groqPreviewCacheRef.current.clear();
-  }, [planDraft]);
 
   useEffect(() => {
     if (!planInputs) return;
@@ -370,168 +273,92 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     });
   }, [planDraft, planInputs, inputs, draftId, fromOnboarding]);
 
-  useEffect(() => {
-    setExpandedReasoning({});
-  }, [previewCard?.day, previewCard?.workout.id]);
-
   // When user switches away from Plan tab, hide modals so global RN Modal doesn't block the other tab.
   useEffect(() => {
     if (isFocused) return;
-    setPreviewCard(null);
-    setPreviewData(null);
-    setPreviewLoading(false);
     setSwapModalVisible(false);
+    setCoachSheet(false);
+    setAdjustSheet(false);
+    setBuiltSheet(false);
   }, [isFocused]);
-  
-  // When returning from ExerciseDetail, reopen the exact workout card.
+
+  // The pushed day screen reads and edits the same draft through the shared
+  // preview session: publish what this screen holds, take back what the day
+  // screen changed (planPreviewSession.ts).
   useEffect(() => {
-    if (!cardToReopen || !planInputs) return;
-    if (!planDraft) return; // need planDraft to show draft-based session exercises
-
-    let cancelled = false;
-    const run = async (): Promise<void> => {
-      try {
-        setExpandedReasoning({});
-        setSelectedWeek(cardToReopen.weekNumber);
-
-        const weekPlan = planData.find((w) => w.weekNumber === cardToReopen.weekNumber);
-        const workout =
-          weekPlan?.workouts[cardToReopen.day]?.find((w) => w.id === cardToReopen.workoutId) ??
-          weekPlan?.workouts[cardToReopen.day]?.[0];
-
-        if (!workout) {
-          if (!cancelled) setCardToReopen(null);
-          return;
-        }
-
-        // Show the card immediately; if we need Groq fallback we can still replace previewData.
-        setPreviewCard({ workout, day: cardToReopen.day });
-        setPreviewData(null);
-        setPreviewLoading(true);
-
-        if (workout.type === 'recovery') {
-          setPreviewData({ name: workout.title, exercises: [], reasoning: stripCoachAdviceBullets(workout.detailLine) });
-          return;
-        }
-
-        const wkDraft = planDraft.weeks.find((w) => w.weekIndex === cardToReopen.weekNumber);
-        const dayDraft = wkDraft?.days.find((d) => d.weekday === cardToReopen.day);
-        const session = dayDraft?.session;
-
-        if (session?.exercises?.length) {
-          if (!cancelled) {
-            setPreviewData(
-              buildWorkoutPreviewFromSessionDraft(session, workout.title, {
-                goal: previewFormattingGoal(planInputs, inputs.goal),
-              }),
-            );
-          }
-          return;
-        }
-
-        // Groq fallback (cache avoids repeated calls when user taps back multiple times).
-        const cacheKey = groqPreviewCacheKey(cardToReopen.weekNumber, cardToReopen.day, workout.id);
-        const cached = groqPreviewCacheRef.current.get(cacheKey);
-        if (cached) {
-          if (!cancelled) {
-            setPreviewData(cached);
-          }
-          return;
-        }
-
-        const result = await generateWorkoutPreview(cardToReopen.day, {
-          focus: workout.title,
-          duration: workout.durationMinutes,
-          difficulty: intensityToDifficulty(workout.intensity),
-          goal: inputs.goal ?? undefined,
-          experience: inputs.experienceLevel ?? undefined,
-          equipment: inputs.availableEquipment?.length ? mapEquipmentToBackend(inputs.availableEquipment) : undefined,
-          limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
-          programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
-          programDayFocus: workout.title,
+    setPreviewSession({ draftId, planDraft, planInputs, inputs });
+  }, [draftId, planDraft, planInputs, inputs]);
+  useEffect(() => {
+    setPreviewSession({ regenerating });
+  }, [regenerating]);
+  useEffect(
+    () =>
+      subscribePreviewSession((s) => {
+        if (s.draftId !== draftId) return;
+        setPlanDraft((prev) => {
+          if (s.planDraft === prev || !s.planDraft) return prev;
+          setPlanData(planDraftToWeekPlans(s.planDraft) as WeekPlan[]);
+          return s.planDraft;
         });
-
-        const formatGoal = previewFormattingGoal(planInputs, inputs.goal);
-        const mapped: WorkoutPreview = {
-          ...result,
-          exercises: (result.exercises ?? []).map((e, idx) =>
-            mapGroqPreviewExercise(
-              {
-                name: e.name,
-                sets: e.sets,
-                reps: typeof e.reps === 'number' ? e.reps : String(e.reps ?? ''),
-                weight: e.weight,
-                notes: e.notes,
-                prescriptionType: e.prescriptionType,
-                targetRir: (e as { targetRir?: number }).targetRir,
-                exerciseId:
-                  typeof (e as { exerciseId?: string }).exerciseId === 'string'
-                    ? (e as { exerciseId: string }).exerciseId
-                    : undefined,
-                secondaryMuscleGroups: groqExerciseSecondaryMuscles(e),
-              },
-              idx,
-              formatGoal,
-            ),
-          ),
-        };
-
-        groqPreviewCacheRef.current.set(cacheKey, mapped);
-        if (!cancelled) {
-          setPreviewData(mapped);
-        }
-      } catch (_e) {
-        if (!cancelled) setPreviewData({ name: cardToReopen?.workoutId ?? 'Workout', exercises: [], reasoning: 'Could not load preview.' });
-      } finally {
-        if (!cancelled) setPreviewLoading(false);
-        if (!cancelled) setCardToReopen(null);
-      }
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [cardToReopen, planDraft, planData, planInputs, inputs]);
+        setRegenerating((prev) => (prev === s.regenerating ? prev : s.regenerating));
+      }),
+    [draftId],
+  );
+  
   
   const currentWeek = planData.find(w => w.weekNumber === selectedWeek) || planData[0];
+  const phases = useMemo(() => (planDraft ? weekPhases(planDraft, planInputs) : {}), [planDraft, planInputs]);
+  /** One line under a day card, from the draft session (cardio and recovery read differently). */
+  const cardLine = useCallback(
+    (day: string, workout: PlanWorkout): string => {
+      const session = findSession(planDraft, selectedWeek, day);
+      if (session) return daySummaryLine(session);
+      return stripCoachAdviceBullets(workout.detailLine) || formatWorkoutTypeLabel(workout.type);
+    },
+    [planDraft, selectedWeek],
+  );
 
   // The week at a glance and the coach check, straight from the draft
   // (Tier 3 of the 2026-09-16 plan): one line per training day, and the
   // server's read of the week with the per-muscle volume behind a tap.
-  const [coachOpen, setCoachOpen] = useState(false);
   const coachReport = useMemo(
     () => planDraft?.debugMeta?.coachCheck?.find((r) => r.weekIndex === selectedWeek),
     [planDraft, selectedWeek],
   );
   const coachHeadline = useMemo(() => coachCheckHeadline(coachReport), [coachReport]);
   const coachDetail = useMemo(() => coachCheckDetailLines(coachReport), [coachReport]);
-  const glanceRows = useMemo(() => {
-    const week = planDraft?.weeks.find((w) => w.weekIndex === selectedWeek);
-    if (!week) return [];
-    const startIso = planInputs?.startDateISO;
-    const monday = startIso ? getWeekStartMonday(parseLocalYmd(startIso)) : null;
-    return week.days
-      .filter((d) => d.session && d.session.exercises.length > 0)
-      .map((d) => {
-        const session = d.session!;
-        const weekdayIdx = DAYS_OF_WEEK.indexOf(d.weekday);
-        let dateLabel = d.weekday.slice(0, 3);
-        if (monday && weekdayIdx >= 0) {
-          const date = new Date(monday);
-          date.setDate(monday.getDate() + (selectedWeek - 1) * 7 + weekdayIdx);
-          dateLabel = `${d.weekday.slice(0, 3)} ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
-        }
-        // The day title already names its lifts ("Upper · Bench + Row"); only a bare title gets the first lift.
-        const firstLift = session.title.includes('·') ? '' : (session.exercises[0]?.name ?? '');
-        const minutes =
-          session.durationMin === session.durationMax
-            ? `${session.durationMin} min`
-            : `${session.durationMin}-${session.durationMax} min`;
-        return { key: d.weekday, dateLabel, title: session.title, firstLift, minutes };
-      });
-  }, [planDraft, planInputs?.startDateISO, selectedWeek]);
-
+  /** The headline without its "Coach check:" prefix (the dot says it), capitalised. */
+  const coachLineText = useMemo(() => {
+    const t = (coachHeadline ?? '').replace(/^Coach check: /, '');
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }, [coachHeadline]);
+  const coachSeverity: 'ok' | 'note' = useMemo(
+    () => (coachReport?.findings.some((f) => f.severity !== 'info') ? 'note' : 'ok'),
+    [coachReport],
+  );
+  /** Bars for the coach sheet: weighted sets per muscle against the band, heaviest first. */
+  const coachBars = useMemo(() => {
+    if (!coachReport) return [];
+    const band = coachReport.band;
+    const entries = Object.entries(coachReport.volumeByMuscle)
+      .filter(([, v]) => v.weighted > 0)
+      .sort((a, b) => b[1].weighted - a[1].weighted);
+    const scale = Math.max(band ? band.max * 1.15 : 0, ...entries.map(([, v]) => v.weighted), 1);
+    return entries.map(([muscle, v]) => {
+      const sets = Number.isInteger(v.weighted) ? String(v.weighted) : v.weighted.toFixed(1);
+      const small = muscle === 'Arms' || muscle === 'Core';
+      const min = band ? (small ? Math.round(band.min / 2) : band.min) : 0;
+      const max = band ? band.max : Infinity;
+      return {
+        muscle,
+        pct: Math.min(100, (v.weighted / scale) * 100),
+        bandLeft: (min / scale) * 100,
+        bandRight: band ? Math.min(100, (max / scale) * 100) : 100,
+        inBand: v.weighted >= min && (muscle === 'Core' || v.weighted <= max),
+        label: v.exposures > 0 ? `${sets} · ${v.exposures}d` : `${sets}`,
+      };
+    });
+  }, [coachReport]);
   const generationSummaryLines = useMemo(
     () =>
       planInputs
@@ -567,133 +394,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   }, [currentWeek, planDraft, selectedWeek]);
 
   /** Balanced/endurance + modality prefs: conditioning is baked into strength days, not a separate day. */
-  const conditioningInStrengthSessions = useMemo(() => {
-    if (!planInputs) return false;
-    const hasMods = (planInputs.cardioModalities?.length ?? 0) > 0;
-    return (
-      hasMods &&
-      (planInputs.goal === 'balanced' || planInputs.goal === 'endurance')
-    );
-  }, [planInputs]);
-
   const intensityToDifficulty = (intensity: Intensity): 'beginner' | 'intermediate' | 'advanced' => {
     if (intensity === 'Easy') return 'beginner';
     if (intensity === 'Hard') return 'advanced';
     return 'intermediate';
   };
-
-  const handlePreviewExerciseRowPress = useCallback(
-    (exerciseName: string, exerciseId?: string) => {
-      const id = exerciseId?.trim() ?? '';
-      if (!isLinkableLibraryExerciseId(id)) {
-        Alert.alert(
-          'Exercise details',
-          `“${exerciseName}” isn’t linked to the library yet. Open the Exercises tab and search by name.`,
-        );
-        return;
-      }
-      // Close the modal before navigating so the new screen isn't shown "behind" the preview overlay.
-      setPreviewCard(null);
-      setPreviewData(null);
-      setPreviewLoading(false);
-      navigateFromPlanToExerciseDetail(navigation, id, 'preview');
-    },
-    [navigation],
-  );
-
-  const handleCardPress = useCallback(
-    async (workout: PlanWorkout, day: string) => {
-      setPreviewLoading(false);
-      if (workout.type === 'recovery') {
-        setPreviewCard({ workout, day });
-        setPreviewData({ name: workout.title, exercises: [], reasoning: stripCoachAdviceBullets(workout.detailLine) });
-        return;
-      }
-      setPreviewCard({ workout, day });
-
-      if (planDraft && planInputs) {
-        const wk = planDraft.weeks.find((w) => w.weekIndex === selectedWeek);
-        const dayDraft = wk?.days.find((d) => d.weekday === day);
-        const session = dayDraft?.session;
-        if (session?.exercises?.length) {
-          groqPreviewCacheRef.current.delete(
-            groqPreviewCacheKey(selectedWeek, day, workout.id),
-          );
-          setPreviewLoading(false);
-          setPreviewData(
-            buildWorkoutPreviewFromSessionDraft(session, workout.title, {
-              goal: previewFormattingGoal(planInputs, inputs.goal),
-            }),
-          );
-          return;
-        }
-      }
-
-      const cacheKey = groqPreviewCacheKey(selectedWeek, day, workout.id);
-      const cached = groqPreviewCacheRef.current.get(cacheKey);
-      if (cached) {
-        setPreviewLoading(false);
-        setPreviewData(cached);
-        return;
-      }
-
-      setPreviewLoading(true);
-      setPreviewData(null);
-      try {
-        const result = await generateWorkoutPreview(day, {
-          focus: workout.title,
-          duration: workout.durationMinutes,
-          difficulty: intensityToDifficulty(workout.intensity),
-          goal: inputs.goal ?? undefined,
-          experience: inputs.experienceLevel ?? undefined,
-          equipment: inputs.availableEquipment?.length ? mapEquipmentToBackend(inputs.availableEquipment) : undefined,
-          limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
-          programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
-          programDayFocus: workout.title,
-        });
-        const formatGoal = previewFormattingGoal(planInputs, inputs.goal);
-        const mapped: WorkoutPreview = {
-          ...result,
-          exercises: (result.exercises ?? []).map((e, idx) =>
-            mapGroqPreviewExercise(
-              {
-                name: e.name,
-                sets: e.sets,
-                reps: typeof e.reps === 'number' ? e.reps : String(e.reps ?? ''),
-                weight: e.weight,
-                notes: e.notes,
-                prescriptionType: e.prescriptionType,
-                targetRir: (e as { targetRir?: number }).targetRir,
-                exerciseId:
-                  typeof (e as { exerciseId?: string }).exerciseId === 'string'
-                    ? (e as { exerciseId: string }).exerciseId
-                    : undefined,
-                secondaryMuscleGroups: groqExerciseSecondaryMuscles(e),
-              },
-              idx,
-              formatGoal,
-            ),
-          ),
-        };
-        groqPreviewCacheRef.current.set(cacheKey, mapped);
-        setPreviewData(mapped);
-      } catch (_e) {
-        setPreviewData({ name: workout.title, exercises: [], reasoning: 'Could not load preview.' });
-      } finally {
-        setPreviewLoading(false);
-      }
-    },
-    [
-      inputs.goal,
-      inputs.experienceLevel,
-      inputs.availableEquipment,
-      inputs.avoidList,
-      inputs.programType,
-      planDraft,
-      planInputs,
-      selectedWeek,
-    ],
-  );
 
   const handleRetryGenerate = useCallback(async () => {
     if (!planInputs) return;
@@ -714,52 +419,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     }
   }, [planInputs, draftId]);
 
-  // Swaps the user made here, re-applied after a rebuild so a rebuild never
-  // silently undoes a choice (applyRecordedSwaps in planPipeline.ts).
-  const recordedSwapsRef = useRef<RecordedSwap[]>([]);
-
-  const handleRegenerateDay = useCallback(
-    async (weekNum: number, day: string) => {
-      if (!planInputs || !planDraft) return;
-      const key = `day-${weekNum}-${day}`;
-      setRegenerating(key);
-      try {
-        const result = await regeneratePipelineDay(
-          planInputs,
-          draftId,
-          planDraft,
-          weekNum,
-          day as Weekday,
-          { repairIfInvalid: true },
-        );
-        if (!result.ok) {
-          Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't rebuild this day. Try again.");
-          return;
-        }
-        // The rebuilt day is meant to be fresh; every other day keeps its swaps.
-        recordedSwapsRef.current = recordedSwapsRef.current.filter(
-          (sw) => !(sw.weekday === day && (sw.weeks === 'all' || sw.weeks === weekNum)),
-        );
-        const draft = applyRecordedSwaps(result.draft, recordedSwapsRef.current, {
-          skip: { weekIndex: weekNum, weekday: day as Weekday },
-        });
-        setPlanDraft(draft);
-        setPlanData(planDraftToWeekPlans(draft) as WeekPlan[]);
-        const session = draft.weeks
-          .find((w) => w.weekIndex === weekNum)
-          ?.days.find((d) => d.weekday === day)?.session;
-        if (session) {
-          setPreviewData(
-            buildWorkoutPreviewFromSessionDraft(session, session.title, {
-              goal: previewFormattingGoal(planInputs, inputs.goal),
-            }),
-          );
-        }
-      } finally {
-        setRegenerating(null);
-      }
+  const openDay = useCallback(
+    (day: string) => {
+      navigation.navigate('PlanPreviewDay', { weekNumber: selectedWeek, day });
     },
-    [planInputs, planDraft, draftId, inputs.goal],
+    [navigation, selectedWeek],
   );
 
   const handleRegenerateWeek = async (weekNum: number) => {
@@ -777,7 +441,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't generate. Try again.");
           return;
         }
-        const draft = applyRecordedSwaps(result.draft, recordedSwapsRef.current);
+        const draft = applyRecordedSwaps(result.draft, getPreviewSession().recordedSwaps);
         setPlanDraft(draft);
         const weekPlans = planDraftToWeekPlans(draft) as WeekPlan[];
         setPlanData((prev) =>
@@ -789,7 +453,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't generate. Try again.");
           return;
         }
-        const draft = applyRecordedSwaps(result.draft, recordedSwapsRef.current);
+        const draft = applyRecordedSwaps(result.draft, getPreviewSession().recordedSwaps);
         setPlanDraft(draft);
         const weekPlans = planDraftToWeekPlans(draft) as WeekPlan[];
         setPlanData((prev) =>
@@ -915,10 +579,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const handleRemoveWorkout = useCallback(
     (day: string) => {
       if (!planDraft) return;
-      if (previewCard?.day === day) {
-        setPreviewCard(null);
-        setPreviewData(null);
-      }
       const updated: PlanDraft = {
         ...planDraft,
         weeks: planDraft.weeks.map((w) =>
@@ -935,106 +595,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       setPlanDraft(updated);
       setPlanData(planDraftToWeekPlans(updated) as WeekPlan[]);
     },
-    [planDraft, selectedWeek, previewCard?.day],
-  );
-
-  const handleReplaceExercise = useCallback(
-    async (exerciseName: string, scope: 'week' | 'all' = 'week') => {
-      if (!previewCard || !planDraft || !planInputs) return;
-      const week = planDraft.weeks.find((w) => w.weekIndex === selectedWeek);
-      const dayDraft = week?.days.find((d) => d.weekday === previewCard.day);
-      const session = dayDraft?.session;
-      if (!session) return;
-      // Only the tapped exercise should change — find it, swap it, keep the rest.
-      const targetIndex = session.exercises.findIndex((e) => e.name === exerciseName);
-      if (targetIndex < 0) return;
-      const target = session.exercises[targetIndex];
-      setReplacingExerciseName(exerciseName);
-      try {
-        const avoidConstraints = [
-          ...(planInputs.injuriesAvoid?.bodyAreas ?? []),
-          ...(planInputs.injuriesAvoid?.movementsOrEquipment ?? []),
-        ];
-        // Catalog-based swap: one alternative that matches the target's muscle, isn't
-        // already in the day, and doesn't repeat another exercise's movement pattern
-        // (so flat-barbell-bench isn't "replaced" with flat-dumbbell-bench).
-        const picked = await replaceExercise({
-          targetName: target.name,
-          targetExerciseId: target.exerciseId ?? undefined,
-          dayExerciseNames: session.exercises.map((e) => e.name).filter(Boolean),
-          dayExerciseIds: session.exercises
-            .map((e) => e.exerciseId)
-            .filter((id): id is string => !!id),
-          location: planInputs.location,
-          avoid: avoidConstraints.length ? avoidConstraints : undefined,
-        });
-        if (!picked) {
-          Alert.alert(
-            'No replacement found',
-            "Couldn't find a different exercise that fits this day. Try again.",
-          );
-          return;
-        }
-        // Keep the slot's prescription (sets/reps/rest); only the identity changes.
-        const replacement: ExerciseDraft = {
-          ...target,
-          exerciseId: picked.id,
-          name: picked.name,
-          primaryMuscleGroup: picked.primaryMuscleGroup,
-          secondaryMuscleGroups: picked.secondaryMuscleGroups?.length
-            ? [...picked.secondaryMuscleGroups]
-            : undefined,
-          notes: undefined,
-        };
-        const newSession: SessionDraft = {
-          ...session,
-          exercises: session.exercises.map((ex, i) => (i === targetIndex ? replacement : ex)),
-        };
-        const swap: RecordedSwap = {
-          weeks: scope === 'all' ? 'all' : selectedWeek,
-          weekday: previewCard.day as Weekday,
-          fromName: target.name,
-          to: {
-            exerciseId: replacement.exerciseId,
-            name: replacement.name,
-            primaryMuscleGroup: replacement.primaryMuscleGroup,
-            secondaryMuscleGroups: replacement.secondaryMuscleGroups,
-          },
-        };
-        recordedSwapsRef.current = [...recordedSwapsRef.current, swap];
-        const thisWeek: PlanDraft = {
-          ...planDraft,
-          weeks: planDraft.weeks.map((w) =>
-            w.weekIndex === selectedWeek
-              ? {
-                  ...w,
-                  days: w.days.map((d) =>
-                    d.weekday === previewCard.day
-                      ? { ...d, session: newSession }
-                      : d,
-                  ),
-                }
-              : w,
-          ),
-        };
-        // "Every week": the same weekday in the other weeks carries the same
-        // lift (weeks are built from one skeleton), so swap it there too and
-        // keep each week's own sets and reps.
-        const updated = scope === 'all' ? applyRecordedSwaps(thisWeek, [swap]) : thisWeek;
-        setPlanDraft(updated);
-        setPlanData(planDraftToWeekPlans(updated) as WeekPlan[]);
-        setPreviewData(
-          buildWorkoutPreviewFromSessionDraft(newSession, newSession.title, {
-            goal: previewFormattingGoal(planInputs, inputs.goal),
-          }),
-        );
-      } catch (e) {
-        Alert.alert('Replace failed', (e as Error)?.message ?? "Couldn't replace exercise. Try again.");
-      } finally {
-        setReplacingExerciseName(null);
-      }
-    },
-    [previewCard, planDraft, planInputs, selectedWeek, inputs.goal],
+    [planDraft, selectedWeek],
   );
 
   const handleReplaceWithType = useCallback((newType: WorkoutType) => {
@@ -1347,165 +908,37 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                     ]}
                   >
                     Week {week.weekNumber}
+                    {phases[week.weekNumber] === 'deload' ? ' · deload' : ''}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            {/* Week Summary */}
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Sessions</Text>
-                  <Text style={styles.summaryValue}>{weekSummary.sessions}/week</Text>
-                </View>
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Strength</Text>
-                  <Text style={styles.summaryValue}>{weekSummary.strength}</Text>
-                </View>
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Has cardio</Text>
-                  <Text style={styles.summaryValue}>{weekSummary.sessionsWithCardioExercise}</Text>
-                </View>
-              </View>
-              {conditioningInStrengthSessions ? (
-                <Text style={styles.summaryHint}>
-                  Has cardio counts any session with a cardio exercise (including short finishers on strength
-                  days), not only a full cardio-type day.
-                </Text>
-              ) : null}
-            </View>
-
-            {glanceRows.length > 0 ? (
-              <View style={styles.glanceCard} accessibilityRole="summary">
-                {glanceRows.map((r) => (
-                  <View key={r.key} style={styles.glanceRow}>
-                    <Text style={styles.glanceDay} numberOfLines={1}>
-                      {r.dateLabel}
-                    </Text>
-                    <Text style={styles.glanceText} numberOfLines={1}>
-                      {r.title}
-                      {r.firstLift ? ` · ${r.firstLift}` : ''}
-                    </Text>
-                    <Text style={styles.glanceMinutes} numberOfLines={1}>
-                      {r.minutes}
-                    </Text>
-                  </View>
-                ))}
-              </View>
+            {/* The plan stated back, then the coach's one line (2026-09-17 redesign). */}
+            {planDraft ? (
+              <Text style={styles.statedLine}>{statedPlanLine(planDraft, planInputs)}</Text>
             ) : null}
-
             {coachHeadline ? (
-              <View style={styles.coachCard}>
-                <Text style={styles.coachLine}>{coachHeadline}</Text>
-                {coachDetail.length > 0 ? (
-                  <TouchableOpacity
-                    onPress={() => setCoachOpen((o) => !o)}
-                    accessibilityRole="button"
-                    accessibilityLabel={coachOpen ? 'Hide sets per muscle' : 'Show sets per muscle'}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Text style={styles.coachToggle}>
-                      {coachOpen ? 'Hide sets per muscle' : 'Sets per muscle and every note'}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-                {coachOpen
-                  ? coachDetail.map((line, i) => (
-                      <Text key={`${i}-${line.slice(0, 20)}`} style={styles.coachDetailLine}>
-                        {line}
-                      </Text>
-                    ))
-                  : null}
-              </View>
+              <TouchableOpacity
+                style={styles.coachRow}
+                onPress={() => setCoachSheet(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`${coachHeadline}. Opens sets per muscle.`}
+              >
+                <View
+                  style={[
+                    styles.coachDot,
+                    { backgroundColor: coachSeverity === 'ok' ? colors.success : colors.warning },
+                  ]}
+                />
+                <Text style={styles.coachText} numberOfLines={2}>
+                  {coachLineText}
+                </Text>
+                <Text style={styles.coachMore}>Details ›</Text>
+              </TouchableOpacity>
             ) : null}
           </>
         )}
-
-        {planInputs ? (
-          <Text style={styles.previewCoachSurfaceHint}>
-            Tap a session for warm-up, why this workout, cool-down, and any per-exercise coaching notes the
-            generator included. Expand{' '}
-            <Text style={{ fontWeight: weight.bold, color: colors.textSecondary }}>What drove this preview</Text>
-            {' '}for what was sent to the model vs fields only on the form.
-          </Text>
-        ) : null}
-
-        {planInputs && generationSummaryLines.length > 0 ? (
-          <View style={styles.genSummarySection}>
-            <TouchableOpacity
-              style={styles.genSummaryHeader}
-              onPress={() => setGenerationSummaryOpen((o) => !o)}
-              accessibilityRole="button"
-              accessibilityLabel={
-                generationSummaryOpen
-                  ? 'Hide what drove this preview'
-                  : 'Show what drove this preview'
-              }
-            >
-              <Text style={styles.genSummaryTitle}>What drove this preview</Text>
-              <Ionicons
-                name={generationSummaryOpen ? 'chevron-up' : 'chevron-down'}
-                size={18}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-            {generationSummaryOpen ? (
-              <View style={styles.genSummaryBody}>
-                {generationSummaryLines.map((line, i) => (
-                  <Text
-                    key={`${i}-${line.slice(0, 24)}`}
-                    style={[styles.genSummaryLine, { color: colors.textSecondary }]}
-                  >
-                    {line}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* Adjust this week — practical rerolls based on current pipeline actions */}
-        {!loadingPreview && <View style={styles.adjustWeekSection}>
-          <Text style={styles.adjustWeekLabel}>Adjust this week</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.adjustWeekScrollContent}>
-            <TouchableOpacity
-              style={[styles.regenerateButton, regenerating === `week-${selectedWeek}` && styles.regenerateButtonActive]}
-              onPress={() => handleRegenerateWeek(selectedWeek)}
-              disabled={!!regenerating}
-            >
-              {regenerating === `week-${selectedWeek}` ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Text style={styles.regenerateButtonText}>Rebuild Week</Text>
-              )}
-            </TouchableOpacity>
-            {weekSummary.sessionsWithCardioExercise > 0 ? (
-              <TouchableOpacity
-                style={[styles.regenerateButton, regenerating === 'cardio' && styles.regenerateButtonActive]}
-                onPress={handleRegenerateCardioOnly}
-                disabled={!!regenerating}
-              >
-                {regenerating === 'cardio' ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Text style={styles.regenerateButtonText}>Refresh Cardio</Text>
-                )}
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity
-              style={[styles.regenerateButton, regenerating === 'easier' && styles.regenerateButtonActive]}
-              onPress={handleMakeEasier}
-              disabled={!!regenerating}
-            >
-              {regenerating === 'easier' ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Text style={styles.regenerateButtonText}>Reduce Intensity</Text>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
-        </View>}
 
         <View style={styles.dayListColumn}>
         {DAYS_OF_WEEK.map(day => {
@@ -1584,9 +1017,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                     <TouchableOpacity
                       key={workout.id}
                       style={styles.workoutCard}
-                      onPress={() => handleCardPress(workout, day)}
+                      onPress={() => openDay(day)}
                       onLongPress={() => handleMoveWorkout(workout.id, day)}
                       activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${day}, ${workout.title}. ${cardLine(day, workout)}. Opens the day.`}
                     >
                       {(workout.changeType === 'replaced' || workout.changeType === 'moved') && (
                         <View style={[styles.changeBadge, { backgroundColor: badgeStyle.backgroundColor }]}>
@@ -1601,9 +1036,13 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                         </Text>
                       </View>
                       <View style={styles.workoutContent}>
-                        <Text style={styles.workoutTitle}>{workout.title}</Text>
-                        <Text style={styles.workoutDetailLine}>{stripCoachAdviceBullets(workout.detailLine)}</Text>
+                        <View style={styles.workoutTitleRow}>
+                          <Text style={[styles.workoutTitle, styles.workoutTitleGrow]}>{workout.title}</Text>
+                          {workout.intensity === 'Hard' ? <Text style={styles.hardTag}>Hard</Text> : null}
+                        </View>
+                        <Text style={styles.workoutDetailLine}>{cardLine(day, workout)}</Text>
                       </View>
+                      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                       {moveMode?.workoutId === workout.id && (
                         <View style={styles.moveIndicator}>
                           <Text style={styles.moveIndicatorText}>Moving...</Text>
@@ -1617,282 +1056,26 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           );
         })}
         </View>
+
+        {planData.length > 0 ? (
+          <View style={styles.chipRow}>
+            <TouchableOpacity
+              style={styles.chip}
+              onPress={() => setAdjustSheet(true)}
+              disabled={!!regenerating}
+              accessibilityRole="button"
+            >
+              <Text style={styles.chipText}>Adjust this week</Text>
+            </TouchableOpacity>
+            {planInputs ? (
+              <TouchableOpacity style={styles.chip} onPress={() => setBuiltSheet(true)} accessibilityRole="button">
+                <Text style={styles.chipText}>How this was built</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
       </ScrollView>
       )}
-
-      {/* Workout detail preview modal: exercises + reasoning */}
-      <Modal
-        // `Modal` is a global overlay; gate by focus so it can't block the other tab.
-        visible={!!previewCard && isFocused}
-        transparent
-        animationType="slide"
-        onRequestClose={() => { setPreviewCard(null); setPreviewData(null); }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '80%' }]}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {previewCard && (
-                <>
-                  <View style={styles.modalTitleRow}>
-                    <Text style={[styles.modalTitle, styles.modalTitleGrow]}>{previewCard.workout.title}</Text>
-                    {planDraft && !previewLoading ? (
-                      <TouchableOpacity
-                        style={styles.rebuildDayButton}
-                        onPress={() => handleRegenerateDay(selectedWeek, previewCard.day)}
-                        disabled={!!regenerating}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Rebuild ${previewCard.day}`}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        {regenerating === `day-${selectedWeek}-${previewCard.day}` ? (
-                          <ActivityIndicator size="small" color={colors.primary} />
-                        ) : (
-                          <Text style={styles.rebuildDayText}>Rebuild day</Text>
-                        )}
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                  <Text style={styles.modalSubtitle}>
-                    {previewCard.day} •{' '}
-                    {getWorkoutDisplayEstimateMinutes(
-                      exercisesLikeFromPrescription(
-                        previewData?.exercises?.length
-                          ? previewData.exercises
-                          : previewCard.workout.applyExercises,
-                      ),
-                      // Anchor to the slot's planned duration (stable across renders),
-                      // not the card's already-blended estimate. Falls back to the
-                      // card estimate for mock / swap cards that lack a planned slot.
-                      previewCard.workout.plannedDurationMinutes ??
-                        previewCard.workout.durationMinutes,
-                    ) ?? previewCard.workout.durationMinutes}{' '}
-                    min • {formatWorkoutTypeLabel(previewCard.workout.type)}
-                  </Text>
-                  {planInputs ? (
-                    <Text style={styles.progressionHint}>
-                      {progressionHintFromPlanInputs(planInputs)}
-                    </Text>
-                  ) : null}
-                  <Text style={styles.modalWellnessFootnote}>
-                    {AI_PROGRAMMING_TRANSPARENCY} {NOT_MEDICAL_FOOTNOTE_SHORT}
-                  </Text>
-                  {previewLoading ? (
-                    <View style={{ marginVertical: spacing.lg, alignItems: 'center' }}>
-                      <PlanBuildLoader size={56} label={null} />
-                    </View>
-                  ) : previewData ? (
-                    <>
-                      {(previewData.warmUp || previewData.reasoning || previewData.coolDown) ? (
-                        <View style={styles.previewReasoning}>
-                          <Text style={styles.previewSessionAdviceHeading}>Session advice</Text>
-                          {previewData.warmUp ? (
-                            <>
-                              <Text style={styles.previewReasoningLabel}>Warm-up</Text>
-                              {(() => {
-                                const expanded = !!expandedReasoning.warmUp;
-                                const { short, needsMore } = clipReasoningParagraph(previewData.warmUp, REASONING_PREVIEW_CHARS);
-                                return (
-                                  <>
-                                    <Text style={styles.previewReasoningText}>{expanded ? previewData.warmUp : short}</Text>
-                                    {needsMore ? (
-                                      <TouchableOpacity
-                                        onPress={() => setExpandedReasoning(p => ({ ...p, warmUp: !p.warmUp }))}
-                                        hitSlop={{ top: 6, bottom: 6 }}
-                                      >
-                                        <Text style={styles.reasoningToggleText}>{expanded ? 'Show less' : 'Show more'}</Text>
-                                      </TouchableOpacity>
-                                    ) : null}
-                                  </>
-                                );
-                              })()}
-                            </>
-                          ) : null}
-                          {previewData.reasoning ? (
-                            <>
-                              <Text style={[styles.previewReasoningLabel, !!previewData.warmUp && { marginTop: spacing.md }]}>Why this workout</Text>
-                              {(() => {
-                                const expanded = !!expandedReasoning.reasoning;
-                                const { short, needsMore } = clipReasoningParagraph(previewData.reasoning, REASONING_PREVIEW_CHARS);
-                                return (
-                                  <>
-                                    <Text style={styles.previewReasoningText}>{expanded ? previewData.reasoning : short}</Text>
-                                    {needsMore ? (
-                                      <TouchableOpacity
-                                        onPress={() => setExpandedReasoning(p => ({ ...p, reasoning: !p.reasoning }))}
-                                        hitSlop={{ top: 6, bottom: 6 }}
-                                      >
-                                        <Text style={styles.reasoningToggleText}>{expanded ? 'Show less' : 'Show more'}</Text>
-                                      </TouchableOpacity>
-                                    ) : null}
-                                  </>
-                                );
-                              })()}
-                            </>
-                          ) : null}
-                          {previewData.coolDown ? (
-                            <>
-                              <Text style={[styles.previewReasoningLabel, (!!previewData.warmUp || !!previewData.reasoning) && { marginTop: spacing.md }]}>Cool-down</Text>
-                              {(() => {
-                                const expanded = !!expandedReasoning.coolDown;
-                                const { short, needsMore } = clipReasoningParagraph(previewData.coolDown, REASONING_PREVIEW_CHARS);
-                                return (
-                                  <>
-                                    <Text style={styles.previewReasoningText}>{expanded ? previewData.coolDown : short}</Text>
-                                    {needsMore ? (
-                                      <TouchableOpacity
-                                        onPress={() => setExpandedReasoning(p => ({ ...p, coolDown: !p.coolDown }))}
-                                        hitSlop={{ top: 6, bottom: 6 }}
-                                      >
-                                        <Text style={styles.reasoningToggleText}>{expanded ? 'Show less' : 'Show more'}</Text>
-                                      </TouchableOpacity>
-                                    ) : null}
-                                  </>
-                                );
-                              })()}
-                            </>
-                          ) : null}
-                        </View>
-                      ) : null}
-                      {previewData.exercises?.length ? (
-                        <View style={styles.previewExercises}>
-                          <Text style={styles.previewExercisesLabel}>Exercises</Text>
-                          {previewData.exercises.some((e) => e.notes?.trim()) ? (
-                            <Text style={styles.previewExercisesSubLabel}>
-                              Per-exercise notes appear below the set prescription when the model added them
-                              (common for beginners).
-                            </Text>
-                          ) : null}
-                          {(previewData.exercises || [])
-                            .slice()
-                            .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
-                            .map((ex, idx) => {
-                              const tagLabel = ex.bodyTag ?? shortBodyTagLabel(ex.primaryMuscleGroup, ex.name);
-                              const chipStyle = bodyTagChipColors(tagLabel, colors);
-                              const legacySecondary = (ex as { secondaryMuscleGroup?: string })
-                                .secondaryMuscleGroup;
-                              const secondaryChipLabels = previewSecondaryChipLabels(
-                                ex.secondaryMuscleGroups,
-                                legacySecondary,
-                                ex.primaryMuscleGroup,
-                                ex.name,
-                                tagLabel,
-                              );
-                              const showReplace = !!(planDraft && planInputs && !ex.isSyntheticFinisher);
-                              return (
-                                <View key={idx} style={styles.previewExerciseRow}>
-                                  <View
-                                    style={[styles.previewBodyTagChip, { backgroundColor: chipStyle.backgroundColor }]}
-                                    accessibilityElementsHidden
-                                    importantForAccessibility="no-hide-descendants"
-                                  >
-                                    <Text style={[styles.previewBodyTagText, { color: chipStyle.color }]} numberOfLines={1}>
-                                      {tagLabel}
-                                    </Text>
-                                  </View>
-                                  <TouchableOpacity
-                                    style={styles.previewExerciseTextBlock}
-                                    onPress={() => handlePreviewExerciseRowPress(ex.name, ex.exerciseId)}
-                                    activeOpacity={0.65}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`View ${ex.name} in exercise library`}
-                                  >
-                                    <View style={styles.previewExerciseTitleRow}>
-                                      <Text style={styles.previewExerciseName}>{ex.name}</Text>
-                                      {secondaryChipLabels.map((secLabel, secIdx) => {
-                                        const secChipStyle = bodyTagChipColors(secLabel, colors);
-                                        return (
-                                          <View
-                                            key={`${secLabel}-${secIdx}`}
-                                            style={[
-                                              styles.previewSecondaryTagChip,
-                                              { backgroundColor: secChipStyle.backgroundColor },
-                                            ]}
-                                            accessibilityElementsHidden
-                                            importantForAccessibility="no-hide-descendants"
-                                          >
-                                            <Text
-                                              style={[styles.previewBodyTagText, { color: secChipStyle.color }]}
-                                              numberOfLines={1}
-                                            >
-                                              {secLabel}
-                                            </Text>
-                                          </View>
-                                        );
-                                      })}
-                                    </View>
-                                    <Text style={styles.previewExerciseMeta}>
-                                      {formatExercisePrescriptionCompact(
-                                        {
-                                          name: ex.name,
-                                          sets: ex.sets,
-                                          reps: ex.reps,
-                                          prescriptionType: ex.prescriptionType,
-                                          primaryMuscleGroup: ex.primaryMuscleGroup,
-                                        },
-                                        planGoal,
-                                      )}
-                                      {ex.weight != null ? formatAtWeightFromLb(ex.weight, weightUnit) : ''}
-                                      {typeof ex.restSeconds === 'number' && ex.restSeconds > 0
-                                        ? ` · ${formatRestSecondsForPreview(ex.restSeconds)} rest`
-                                        : ''}
-                                      {typeof ex.targetRir === 'number'
-                                        ? ` · ${formatEffortTarget(ex.targetRir)}`
-                                        : ''}
-                                    </Text>
-                                    {ex.notes?.trim() ? (
-                                      <Text style={styles.previewExerciseNotes}>{ex.notes.trim()}</Text>
-                                    ) : null}
-                                  </TouchableOpacity>
-                                  {showReplace ? (
-                                    <TouchableOpacity
-                                      style={styles.previewReplaceIconBtn}
-                                      onPress={() => {
-                                        if ((planDraft?.weeks.length ?? 1) <= 1) {
-                                          void handleReplaceExercise(ex.name, 'week');
-                                          return;
-                                        }
-                                        Alert.alert(
-                                          `Swap ${ex.name}`,
-                                          'Swap it in this week only, or in every week of the plan?',
-                                          [
-                                            { text: 'Cancel', style: 'cancel' },
-                                            { text: 'This week', onPress: () => void handleReplaceExercise(ex.name, 'week') },
-                                            { text: 'Every week', onPress: () => void handleReplaceExercise(ex.name, 'all') },
-                                          ],
-                                        );
-                                      }}
-                                      disabled={!!replacingExerciseName}
-                                      accessibilityLabel={`Replace ${ex.name}`}
-                                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                    >
-                                      {replacingExerciseName === ex.name ? (
-                                        <ActivityIndicator size="small" color={colors.primary} />
-                                      ) : (
-                                        <Ionicons name="refresh-outline" size={22} color={colors.textSecondary} />
-                                      )}
-                                    </TouchableOpacity>
-                                  ) : null}
-                                </View>
-                              );
-                            })}
-                        </View>
-                      ) : (
-                        <Text style={styles.previewNoExercises}>No exercises for this slot.</Text>
-                      )}
-                    </>
-                  ) : null}
-                </>
-              )}
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.modalCancel}
-              onPress={() => { setPreviewCard(null); setPreviewData(null); }}
-            >
-              <Text style={styles.modalCancelText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       {/* Swap Workout Modal */}
       <Modal
@@ -1937,15 +1120,135 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         </View>
       </Modal>
 
+      {/* Coach detail: sets per muscle against the band, then every note. */}
+      <SheetModal visible={coachSheet && isFocused} onClose={() => setCoachSheet(false)} scrimColor={colors.scrim}>
+        <View style={styles.sheetCard}>
+          <View style={styles.sheetGrab} />
+          <Text style={styles.sheetTitle}>Sets per muscle, week {selectedWeek}</Text>
+          {coachReport && coachBars.length > 0 ? (
+            <>
+              <Text style={styles.sheetSub}>
+                {coachReport.band
+                  ? `Aim ${coachReport.band.min}–${coachReport.band.max} a week at your level. Bars inside the band are on target.`
+                  : 'Weighted sets per muscle this week.'}
+              </Text>
+              {coachBars.map((b) => (
+                <View key={b.muscle} style={styles.barRow} accessible accessibilityLabel={`${b.muscle}: ${b.label}`}>
+                  <Text style={styles.barName}>{b.muscle}</Text>
+                  <View style={styles.barTrack}>
+                    {coachReport.band ? (
+                      <View
+                        style={[
+                          styles.barBand,
+                          { left: `${b.bandLeft}%`, right: `${100 - b.bandRight}%`, borderColor: colors.textMuted },
+                        ]}
+                      />
+                    ) : null}
+                    <View
+                      style={[
+                        styles.barFill,
+                        { width: `${b.pct}%`, backgroundColor: b.inBand ? colors.success : colors.warning },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.barValue}>{b.label}</Text>
+                </View>
+              ))}
+            </>
+          ) : (
+            <Text style={styles.sheetSub}>No lifting this week, so there is nothing to count.</Text>
+          )}
+          {coachDetail.filter((l) => !/^Sets per muscle|^[A-Z][a-z]+: [\d.]+ sets/.test(l)).map((line, i) => (
+            <Text key={`${i}-${line.slice(0, 16)}`} style={styles.sheetNote}>
+              {line}
+            </Text>
+          ))}
+        </View>
+      </SheetModal>
+
+      {/* Adjust this week: the rerolls that used to sit above the days. */}
+      <SheetModal visible={adjustSheet && isFocused} onClose={() => setAdjustSheet(false)} scrimColor={colors.scrim}>
+        <View style={styles.sheetCard}>
+          <View style={styles.sheetGrab} />
+          <Text style={styles.sheetTitle}>Adjust week {selectedWeek}</Text>
+          <Text style={styles.sheetSub}>Your swaps are kept when a week is rebuilt.</Text>
+          <TouchableOpacity
+            style={styles.sheetAction}
+            onPress={() => {
+              setAdjustSheet(false);
+              void handleRegenerateWeek(selectedWeek);
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={styles.sheetActionTitle}>Rebuild this week</Text>
+            <Text style={styles.sheetActionSub}>A fresh set of days for the same goal and schedule.</Text>
+          </TouchableOpacity>
+          {weekSummary.sessionsWithCardioExercise > 0 ? (
+            <TouchableOpacity
+              style={styles.sheetAction}
+              onPress={() => {
+                setAdjustSheet(false);
+                void handleRegenerateCardioOnly();
+              }}
+              accessibilityRole="button"
+            >
+              <Text style={styles.sheetActionTitle}>Rebuild the cardio only</Text>
+              <Text style={styles.sheetActionSub}>Keeps every lifting day as it is.</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            style={styles.sheetAction}
+            onPress={() => {
+              setAdjustSheet(false);
+              void handleMakeEasier();
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={styles.sheetActionTitle}>Reduce intensity</Text>
+            <Text style={styles.sheetActionSub}>Rebuilds the week a step easier.</Text>
+          </TouchableOpacity>
+        </View>
+      </SheetModal>
+
+      {/* How this was built: what was sent, who built it, the policy line, once. */}
+      <SheetModal visible={builtSheet && isFocused} onClose={() => setBuiltSheet(false)} scrimColor={colors.scrim}>
+        <View style={styles.sheetCard}>
+          <View style={styles.sheetGrab} />
+          <Text style={styles.sheetTitle}>How this was built</Text>
+          {generationSummaryLines.map((line, i) => (
+            <Text key={`${i}-${line.slice(0, 24)}`} style={styles.sheetNote}>
+              {line}
+            </Text>
+          ))}
+          <Text style={styles.sheetFoot}>{AI_PROGRAMMING_TRANSPARENCY}</Text>
+          <Text style={styles.sheetFoot}>{NOT_MEDICAL_FOOTNOTE_SHORT}</Text>
+        </View>
+      </SheetModal>
+
       <View style={[styles.footer, { paddingBottom: spacing.lg + tabBarInset }]}>
         <TouchableOpacity
           style={styles.secondaryButton}
           onPress={() => {
-            if (planInputs) {
-              navigation.navigate('GeneratePlan', { editFromSnapshot: planInputs });
-            } else {
-              navigation.goBack();
+            const goEdit = () => {
+              if (planInputs) {
+                navigation.navigate('GeneratePlan', { editFromSnapshot: planInputs });
+              } else {
+                navigation.goBack();
+              }
+            };
+            const swaps = getPreviewSession().recordedSwaps.length;
+            if (swaps > 0) {
+              Alert.alert(
+                'Leave this preview?',
+                `Your ${swaps} swap${swaps === 1 ? '' : 's'} on this preview will be lost when the plan is regenerated.`,
+                [
+                  { text: 'Stay', style: 'cancel' },
+                  { text: 'Edit inputs', style: 'destructive', onPress: goEdit },
+                ],
+              );
+              return;
             }
+            goEdit();
           }}
           disabled={applying}
         >
@@ -1958,10 +1261,10 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         <TouchableOpacity
           style={[
             styles.primaryButton,
-            (applying || loadingPreview || planData.length === 0) && styles.primaryButtonDisabled,
+            (applying || loadingPreview || !!regenerating || planData.length === 0) && styles.primaryButtonDisabled,
           ]}
           onPress={handleApply}
-          disabled={applying || loadingPreview || planData.length === 0}
+          disabled={applying || loadingPreview || !!regenerating || planData.length === 0}
         >
           {applying ? (
             <ActivityIndicator size="small" color={colors.onPrimary} />
@@ -2101,80 +1404,72 @@ function createPlanPreviewStyles(colors: ColorPalette) {
     lineHeight: leading.footnote,
     textAlign: 'center',
   },
-  modalTitleRow: {
+  statedLine: {
+    fontSize: text.footnote,
+    lineHeight: leading.footnote,
+    color: colors.textSecondary,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  coachRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
   },
-  modalTitleGrow: {
-    flex: 1,
+  coachDot: { width: 8, height: 8, borderRadius: radius.pill },
+  coachText: { flex: 1, fontSize: text.footnote, lineHeight: leading.footnote, color: colors.text },
+  coachMore: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.primary },
+  workoutTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  workoutTitleGrow: { flexShrink: 1 },
+  hardTag: {
+    fontSize: text.caption,
+    fontWeight: weight.bold,
+    letterSpacing: tracking.wider,
+    textTransform: 'uppercase',
+    color: colors.warning,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
+    borderRadius: radius.sm,
+    backgroundColor: colors.warningSoft,
   },
-  rebuildDayButton: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+  chipRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.md },
+  chip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
-    minWidth: 92,
-    alignItems: 'center',
   },
-  rebuildDayText: {
-    fontSize: text.footnote,
-    fontWeight: weight.semibold,
-    color: colors.primary,
-  },
-  glanceCard: {
+  chipText: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.textSecondary },
+  sheetCard: {
     backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+    maxHeight: '80%',
   },
-  glanceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.xs,
-  },
-  glanceDay: {
-    width: 84,
-    fontSize: text.footnote,
-    fontWeight: weight.semibold,
-    color: colors.textSecondary,
-  },
-  glanceText: {
-    flex: 1,
-    fontSize: text.footnote,
-    color: colors.text,
-  },
-  glanceMinutes: {
-    marginLeft: spacing.sm,
-    fontSize: text.footnote,
-    color: colors.textMuted,
-  },
-  coachCard: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  coachLine: {
-    fontSize: text.footnote,
-    lineHeight: leading.footnote,
-    color: colors.text,
-  },
-  coachToggle: {
-    marginTop: spacing.xs,
-    fontSize: text.footnote,
-    fontWeight: weight.semibold,
-    color: colors.primary,
-  },
-  coachDetailLine: {
-    marginTop: spacing.xs,
-    fontSize: text.footnote,
-    lineHeight: leading.footnote,
-    color: colors.textSecondary,
-  },
+  sheetGrab: { width: 36, height: 4, borderRadius: radius.pill, backgroundColor: colors.border, alignSelf: 'center', marginBottom: spacing.md },
+  sheetTitle: { fontSize: text.headline, fontWeight: weight.bold, color: colors.text, marginBottom: spacing.xs },
+  sheetSub: { fontSize: text.footnote, lineHeight: leading.footnote, color: colors.textSecondary, marginBottom: spacing.md },
+  sheetNote: { fontSize: text.footnote, lineHeight: leading.footnote, color: colors.textSecondary, marginTop: spacing.xs },
+  sheetFoot: { fontSize: text.caption, lineHeight: leading.caption, color: colors.textMuted, marginTop: spacing.md },
+  sheetAction: { paddingVertical: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  sheetActionTitle: { fontSize: text.body, fontWeight: weight.semibold, color: colors.text },
+  sheetActionSub: { fontSize: text.footnote, color: colors.textSecondary, marginTop: 2 },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
+  barName: { width: 76, fontSize: text.footnote, color: colors.text },
+  barTrack: { flex: 1, height: 8, borderRadius: radius.pill, backgroundColor: colors.border, position: 'relative' },
+  barBand: { position: 'absolute', top: -3, bottom: -3, borderLeftWidth: 1, borderRightWidth: 1, borderStyle: 'dashed' },
+  barFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: radius.pill },
+  barValue: { width: 54, textAlign: 'right', fontSize: text.caption, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   previewCoachSurfaceHint: {
     fontSize: text.footnote,
     lineHeight: leading.footnote,

@@ -92,6 +92,8 @@ export type RootStackParamList = {
     planPreviewParams?: any;
     returnToPlanCard?: { weekNumber: number; day: string; workoutId: string };
   };
+  /** One day of the generated preview, pushed from PlanPreview (reads the shared preview session). */
+  PlanPreviewDay: { weekNumber: number; day: string };
   WorkoutDetail: { workoutId: string };
   GeneratePlan:
     | {

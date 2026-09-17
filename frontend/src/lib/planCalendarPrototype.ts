@@ -52,6 +52,7 @@ export type PlanCalendarParamList = {
   | 'TemplateDetail'
   | 'GeneratePlan'
   | 'PlanPreview'
+  | 'PlanPreviewDay'
   | 'WorkoutDetail'
   | 'ExerciseDetail'
 >;

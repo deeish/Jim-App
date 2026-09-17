@@ -19,6 +19,7 @@ import TemplatesScreen from '../screens/TemplatesScreen';
 import TemplateDetailScreen from '../screens/TemplateDetailScreen';
 import GeneratePlanScreen from '../screens/GeneratePlanScreen';
 import PlanPreviewScreen from '../screens/PlanPreviewScreen';
+import PlanPreviewDayScreen from '../screens/PlanPreviewDayScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
 import ExerciseDetailScreen from '../screens/ExerciseDetailScreen';
 import {
@@ -280,6 +281,16 @@ export default function PlanCalendarNavigator() {
           pop to the workout page. */}
       <Stack.Screen name="GeneratePlan" component={GeneratePlanScreen} />
       <Stack.Screen name="PlanPreview" component={PlanPreviewScreen} />
+      <Stack.Screen
+        name="PlanPreviewDay"
+        component={PlanPreviewDayScreen}
+        options={({ route, navigation }) => ({
+          ...nativeHeader,
+          headerLargeTitle: false,
+          title: route.params.day,
+          headerLeft: () => <BackTo label="Preview" onPress={() => navigation.goBack()} />,
+        })}
+      />
       <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
       <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
     </Stack.Navigator>
