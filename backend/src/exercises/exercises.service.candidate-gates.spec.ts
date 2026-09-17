@@ -56,15 +56,15 @@ describe('ExercisesService.getCandidatesForGenerator gates (real catalog)', () =
   it('keeps push-ups and bodyweight squats out of an advanced gym pool, but not pull-ups or dips', () => {
     const gated = service.getCandidatesForGenerator({
       focus: 'upper body',
-      limit: 400,
+      limit: 2000, // the whole pool: the search shuffles for variety, a slice would be flaky
       excludeBasicBodyweight: true,
     });
     expect(gated.some((e) => BASIC_BODYWEIGHT_NAME.test(e.name))).toBe(false);
     expect(gated.some((e) => /pull-?up/i.test(e.name))).toBe(true);
-    expect(gated.some((e) => /dip/i.test(e.name))).toBe(true);
+    expect(gated.some((e) => /dips?/i.test(e.name))).toBe(true);
     const open = service.getCandidatesForGenerator({
       focus: 'upper body',
-      limit: 400,
+      limit: 2000, // the whole pool: the search shuffles for variety, a slice would be flaky
     });
     expect(open.some((e) => e.id === 'push_up')).toBe(true);
   });
