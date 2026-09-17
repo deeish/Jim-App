@@ -25,6 +25,7 @@ import {
 } from './dto/create-plan.dto';
 import { ApplyWorkaroundsDto } from './dto/apply-workarounds.dto';
 import { ReplaceDayDto } from './dto/replace-day.dto';
+import { conformSessionTitleToExercises } from './session-title';
 import { substituteAvoidedExercises } from './plan-avoid-substitution';
 import {
   GenerateSessionsDto,
@@ -834,6 +835,27 @@ export class PlansService {
   /** Matches `WorkoutGeneratorService.generateFullProgram` batch size (2–7 sessions per Groq call). */
   private static readonly GENERATE_SESSIONS_BATCH_SIZE = 7;
 
+  /**
+   * The equipment the generator may draw on.
+   *  - Gym + tags: the mapped library labels. Gym without tags: undefined
+   *    (no candidate filter).
+   *  - Home + tags: the mapped labels plus Bodyweight. Home without tags: the
+   *    fixed minimal list. Until 2026-09-16 home always got the fixed list,
+   *    so a home lifter with a rack never saw a barbell.
+   */
+  private static resolveGeneratorEquipment(
+    location: 'gym' | 'home',
+    equipmentTags: string[] | undefined,
+  ): string[] | undefined {
+    const mapped = mapPlanGenerationUiEquipmentToLibrary(equipmentTags);
+    if (location === 'home') {
+      return mapped.length
+        ? [...new Set([...mapped, 'Bodyweight'])]
+        : [...PlansService.HOME_EQUIPMENT];
+    }
+    return mapped.length ? mapped : undefined;
+  }
+
   /** Raw picks kept for recency; over-counted on purpose (repeats allowed). */
   private static readonly PRIOR_EXERCISE_HISTORY_MAX = 500;
 
@@ -1089,8 +1111,9 @@ export class PlansService {
     const usedExerciseIdsByWeek = new Map<number, string[]>();
 
     for (const spec of specs) {
-      const isHard = spec.isHardDay;
-      const difficulty = isHard ? 'advanced' : experienceLevel;
+      // The rule-based path stamps sets from `difficulty`: a hard day is
+      // still the user's level, never "advanced" for a beginner (2026-09-16).
+      const difficulty = experienceLevel;
       const duration = Math.round((spec.durationMin + spec.durationMax) / 2);
       const specLimits = spec.avoidConstraints?.length
         ? spec.avoidConstraints
@@ -1815,6 +1838,8 @@ export class PlansService {
       }>;
     }>;
     generationNotes?: string[];
+    /** Who designed the exercises: the model, the rule-based builder, or both across chunks. */
+    builtBy: 'ai' | 'rules' | 'mixed';
   }> {
     this.logger.debug(
       `generateSessions user=${userId} sessions=${dto.sessions?.length ?? 0}`,
@@ -1824,17 +1849,10 @@ export class PlansService {
     const detailLevel = dto.detailLevel ?? 'detailed';
     const makeItEasier = dto.makeItEasier === true;
     const limitations = dto.avoidConstraints ?? [];
-    const mappedGymEquipment =
-      location === 'gym'
-        ? mapPlanGenerationUiEquipmentToLibrary(dto.equipmentTags)
-        : [];
-    /** Home: fixed list. Gym + tags: mapped library labels. Gym + no tags: undefined (no candidate filter). */
-    const generatorEquipment: string[] | undefined =
-      location === 'home'
-        ? [...PlansService.HOME_EQUIPMENT]
-        : mappedGymEquipment.length
-          ? mappedGymEquipment
-          : undefined;
+    const generatorEquipment = PlansService.resolveGeneratorEquipment(
+      location,
+      dto.equipmentTags,
+    );
 
     const chunks = this.partitionSessionsForBatching(dto.sessions);
     this.logger.log(
@@ -1862,6 +1880,7 @@ export class PlansService {
       dto.cardioModalities,
     );
 
+    const chunkPaths: string[] = [];
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
       // Client navigated away (e.g. "Edit inputs") — stop before the next chunk's
       // Groq call so an abandoned generation doesn't keep burning free-tier tokens.
@@ -1897,6 +1916,7 @@ export class PlansService {
           priorExerciseHistory = priorExerciseHistory.slice(
             -PlansService.PRIOR_EXERCISE_HISTORY_MAX,
           );
+          chunkPaths.push('clone');
           continue;
         }
       }
@@ -1924,6 +1944,7 @@ export class PlansService {
         priorContextIds,
       );
       allGenerationNotes.push(...warnings);
+      chunkPaths.push(trace.path);
       pipelineChunks.push({
         ...trace,
         chunkIndex,
@@ -1998,6 +2019,7 @@ export class PlansService {
     });
 
     const enriched = await this.applySessionEnrichment(orderedResults, dto);
+    const builtBy = PlansService.builtByFromChunkPaths(chunkPaths);
 
     const generationNotesOut =
       allGenerationNotes.length > 0
@@ -2025,7 +2047,9 @@ export class PlansService {
               ? dto.experienceLevel
               : 'intermediate',
           equipmentTags: dto.equipmentTags,
-          mappedGymEquipment,
+          mappedGymEquipment: mapPlanGenerationUiEquipmentToLibrary(
+            dto.equipmentTags,
+          ),
           generatorEquipment,
           enrichmentEquipment: generatorEquipment,
           cardioModalitiesRaw: dto.cardioModalities,
@@ -2071,7 +2095,24 @@ export class PlansService {
     return {
       sessions: enriched,
       ...(generationNotesOut ? { generationNotes: generationNotesOut } : {}),
+      builtBy,
     };
+  }
+
+  /**
+   * "Built with AI" or "built by rules", from the per-chunk paths. Cloned
+   * weeks inherit whatever built week one, so they are ignored here. A
+   * `batch_*` path means the model chose the exercises (even when the
+   * validator's best-available output was kept); everything else was the
+   * rule-based builder. The preview used to say "AI: Gemini" regardless.
+   */
+  static builtByFromChunkPaths(paths: string[]): 'ai' | 'rules' | 'mixed' {
+    const real = paths.filter((p) => p !== 'clone');
+    if (real.length === 0) return 'rules';
+    const ai = real.filter((p) => p.startsWith('batch_')).length;
+    if (ai === real.length) return 'ai';
+    if (ai === 0) return 'rules';
+    return 'mixed';
   }
 
   /**
@@ -2217,13 +2258,10 @@ export class PlansService {
     sessions: GeneratedSession[],
     dto: GenerateSessionsDto,
   ): Promise<GeneratedSession[]> {
-    const mappedGym = mapPlanGenerationUiEquipmentToLibrary(dto.equipmentTags);
-    const equipment =
-      dto.location === 'home'
-        ? [...PlansService.HOME_EQUIPMENT]
-        : mappedGym.length
-          ? mappedGym
-          : undefined;
+    const equipment = PlansService.resolveGeneratorEquipment(
+      dto.location ?? 'gym',
+      dto.equipmentTags,
+    );
     const enriched = await enrichGeneratedSessionsInChunkOrder(sessions, {
       getSpec: (i) => dto.sessions[i],
       getAvoidPhrases: (i) => {
@@ -2314,17 +2352,27 @@ export class PlansService {
         }),
       );
     }
-    return progressed.sessions;
+    // The model named the day from the lifts it chose; every pass above may
+    // have swapped them. Rebuild the "· Bench + Row" suffix from what is
+    // actually there (see session-title.ts).
+    return progressed.sessions.map((session) => ({
+      ...session,
+      name:
+        conformSessionTitleToExercises(session.name, session.exercises) ??
+        session.name,
+    }));
   }
 
   async generateSingleSession(dto: GenerateSingleSessionDto, userId: string) {
     this.logger.debug(`generateSingleSession user=${userId}`);
     const goal = dto.goal ?? 'strength';
     const location = dto.location ?? 'gym';
-    const equipment =
-      location === 'home' ? [...PlansService.HOME_EQUIPMENT] : undefined;
+    const equipment = PlansService.resolveGeneratorEquipment(
+      location,
+      undefined,
+    );
     const limitations = dto.avoidConstraints ?? [];
-    const difficulty = dto.isHardDay ? 'advanced' : 'intermediate';
+    const difficulty = dto.experienceLevel ?? 'intermediate';
     const duration = Math.round((dto.durationMin + dto.durationMax) / 2);
     const avoidPhrases = (dto.avoidConstraints ?? []).filter(
       (p) => typeof p === 'string' && p.trim().length >= 2,
@@ -2356,6 +2404,9 @@ export class PlansService {
           excludeExerciseNames: dto.excludeExerciseNames?.length
             ? dto.excludeExerciseNames
             : undefined,
+          cardioModalities: PlansService.normalizedCardioModalities(
+            dto.cardioModalities,
+          ),
         },
       },
       singleGroqUsages,

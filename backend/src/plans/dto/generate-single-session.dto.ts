@@ -2,6 +2,7 @@ import {
   IsString,
   IsOptional,
   IsArray,
+  ArrayMaxSize,
   IsNumber,
   IsBoolean,
   IsIn,
@@ -60,4 +61,19 @@ export class GenerateSingleSessionDto {
   @IsArray()
   @IsString({ each: true })
   excludeExerciseNames?: string[];
+
+  /** The user's level. Used to be inferred as advanced/intermediate from
+   *  `isHardDay`, which stamped a beginner's hard day with the advanced band. */
+  @IsOptional()
+  @IsString()
+  @IsIn(['beginner', 'intermediate', 'advanced'])
+  experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
+
+  /** Cardio modality preferences, same whitelist as the plan request. A
+   *  regenerated cardio day used to lose them (docs/future.md, issue 4). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsString({ each: true })
+  cardioModalities?: string[];
 }
