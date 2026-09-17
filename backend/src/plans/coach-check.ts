@@ -59,6 +59,8 @@ export type CoachCheckReport = {
   findings: CoachFinding[];
   /** Sub-scores, each 0..max, for the eval scorer. */
   scores: CoachCheckScores;
+  /** Weekly sets per muscle the goal and level call for (what the volume findings measure against). */
+  band: { min: number; max: number };
 };
 
 export type CoachCheckScores = {
@@ -387,6 +389,7 @@ export function coachCheckWeek(args: {
     effortCoverage,
     findings,
     scores,
+    band,
   };
 }
 
