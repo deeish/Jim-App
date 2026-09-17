@@ -9,7 +9,12 @@ import {
   MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { SessionSpecDto, WeekProgressionDto } from './generate-sessions.dto';
+import {
+  KnownLiftDto,
+  PRIORITY_MUSCLE_GROUPS,
+  SessionSpecDto,
+  WeekProgressionDto,
+} from './generate-sessions.dto';
 
 /**
  * Deterministic library repair on an already-generated program (same ordering as
@@ -103,6 +108,19 @@ export class RepairProgramSessionsDto {
   @ValidateNested({ each: true })
   @Type(() => WeekProgressionDto)
   weekProgression?: WeekProgressionDto[];
+
+  /** Mirrors GenerateSessionsDto (the client spreads the generate request into the repair call). */
+  @IsOptional()
+  @IsString()
+  @IsIn(PRIORITY_MUSCLE_GROUPS)
+  priorityMuscle?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(6)
+  @ValidateNested({ each: true })
+  @Type(() => KnownLiftDto)
+  knownLifts?: KnownLiftDto[];
 
   @IsArray()
   @ValidateNested({ each: true })

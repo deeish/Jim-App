@@ -69,6 +69,21 @@ describe('RepairProgramSessionsDto validation', () => {
     expect(out.sessions).toHaveLength(1);
   });
 
+  it('accepts the Tier 5 fields the client now spreads in (priority muscle, typed lifts)', async () => {
+    const out = (await pipe.transform(
+      {
+        ...realisticClientBody,
+        priorityMuscle: 'Back',
+        knownLifts: [
+          { exerciseId: 'flat_barbell_bench_press', weight: 135, reps: 8 },
+        ],
+      },
+      { type: 'body', metatype: RepairProgramSessionsDto },
+    )) as RepairProgramSessionsDto;
+    expect(out.priorityMuscle).toBe('Back');
+    expect(out.knownLifts?.[0]?.weight).toBe(135);
+  });
+
   it('still rejects genuinely unknown properties', async () => {
     await expect(
       pipe.transform(
