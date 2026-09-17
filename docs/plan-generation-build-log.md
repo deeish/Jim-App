@@ -290,3 +290,21 @@ What this draw shows that the rules do not fix: the model led Monday with a bent
 
 Account cleanup (Dylan, `deeish3@gmail.com`, confirmed): 16 plans, 80 plan days, 128 workouts, 7 logs removed; user, preferences, crew and body weight kept; verified empty afterwards. Scripts: `backend/logs/account-inventory.ts`, `account-cleanup.ts` (dry-run by default).
 
+
+### Research note: model change or call change? (2026-09-17, late)
+
+Dylan asked whether the two weak links (exercise choice and day design; adaptation to the person) need a bigger model, or a different call, and pointed out that a Claude recommending Sonnet is not a neutral witness. Research first, no code. Findings, with what they rest on:
+
+| Finding | Evidence |
+|---|---|
+| Adaptation is not the model's at all | `frontend/src/lib/planGenerationSummary.ts` builds the profile (foundation 0 reps → progression −1 → progression −2 → peak −3; effort 2 in reserve → 1 → 1 → 0 via `rirShiftForPhase`) and `week-progression.ts` stamps it. A model swap changes nothing here. |
+| The pool is fine; the pick is the variance | `getCandidatesForGenerator` sorts by catalog tier, so the 20 lower rows the model sees start deadlift, trap bar, RDL, hip thrust, back squat, front squat, goblet squat, bodyweight squat. Run 2 opened Lower with back squat and front squat; run 3, same inputs, opened with goblet squat and put a 4 × 14–19 bodyweight squat on Friday. |
+| Our own validator accepts the weak opener | `goblet_squat` and `bodyweight_squat` are in the `lower` anchor list (for home users), and `slot_one_not_anchor` checks membership, not equipment or level. `excludeBasicBodyweight` only fires for advanced lifters. So the retry that ran on run 3 (`slot_one_not_anchor`, `under_diversified_across_focus`) was satisfied by a goblet squat. |
+| Three-lift days are our count target | `exerciseTargetsForSession` sends "3-4 ex" for a 30–45 min day; the model took the floor. |
+| One call carries too many constraints | The batch call asks for 4 days × name, reasoning, warm-up, cool-down and exercises in one JSON, under seven numbered rules plus intensity, slot order, naming, tone and progression text, at thinking MINIMAL and temperature 0.73. |
+| Repeated generation is unstable on exactly this task | Lee (2026), Gemini 2.5 Flash, 20 runs per case: the healthy "hypertrophy + strength" case had the lowest consistency of six (cosine 0.879, SD 0.052) and its most common weekly frequency pattern covered only 35% of runs; conclusion: reliability "depends substantially on prompt structure" and needs "additional structural constraints". |
+| Model size does move expert ratings | BMC Sports Science, Medicine and Rehabilitation (2025): coaches rated 12-week ChatGPT programs 2.37 (3.5) → 3.61 (4o) → 4.14 (4.1) out of 5. OpenAI-only; no Flash-Lite vs Sonnet head-to-head exists. |
+| LLMs plan badly out of the box, rank well | Li et al. (2024, includes a fitness-planning dataset): "difficult for LLMs to generate correct plans out-of-the-box", "much better at providing feedback signals ... in the form of comparative heuristic functions". |
+| The apps people rate highly don't ask a model to design the day | Fitbod scores every eligible exercise (recovery, goal/experience rating by trainers, feedback history, split rules, equipment) and picks by rank; Alpha Progression and JuggernautAI are rule and periodisation engines. |
+
+Recommendation given to Dylan: no model change yet. Fix the call and the rules first (equipment- and level-aware opener rule, a per-slot ranked shortlist instead of one 40-row table, split the pick call from the copy call, lower temperature on the pick, a minimum of four lifts on a 30–45 min gym day), fix the profile (hold reps, tighten effort once, let the check-in move load), then measure a bigger Gemini through `npm run eval:drive` on the same captures before any provider work. Decision pending.
