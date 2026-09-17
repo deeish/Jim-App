@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { PlanDraft } from '../types/plan';
+import type { PlanDraft, PlanInputs } from '../types/plan';
 import type { RootStackParamList } from '../types/navigation';
 
 const STORAGE_KEY = 'jim_plan_preview_draft_v1';
@@ -78,3 +78,35 @@ export async function clearPlanPreviewDraft(): Promise<void> {
     /* ignore */
   }
 }
+
+const LAST_APPLIED_KEY = 'jim_last_applied_plan_inputs_v1';
+
+/**
+ * The inputs of the plan the user last applied (Tier 4c of the 2026-09-16
+ * plan). When that plan ends, "Build your next block" opens the form seeded
+ * from them; the generator then reads this block's logs for loads and
+ * plateaus, so nothing repeats silently and nothing has to be re-typed.
+ */
+export async function saveLastAppliedPlanInputs(inputs: PlanInputs): Promise<void> {
+  try {
+    await AsyncStorage.setItem(
+      LAST_APPLIED_KEY,
+      JSON.stringify({ version: 1, savedAtIso: new Date().toISOString(), inputs }),
+    );
+  } catch {
+    /* losing this only means re-picking the form */
+  }
+}
+
+export async function loadLastAppliedPlanInputs(): Promise<PlanInputs | null> {
+  try {
+    const raw = await AsyncStorage.getItem(LAST_APPLIED_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isRecord(parsed) || parsed.version !== 1 || !isRecord(parsed.inputs)) return null;
+    return parsed.inputs as unknown as PlanInputs;
+  } catch {
+    return null;
+  }
+}
+

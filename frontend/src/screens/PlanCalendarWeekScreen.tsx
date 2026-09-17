@@ -1,3 +1,4 @@
+import { loadLastAppliedPlanInputs } from '../lib/planPreviewDraftStorage';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import CalendarPager, {
@@ -260,19 +261,24 @@ export default function PlanCalendarWeekScreen() {
           <View style={styles.anchorBannerText}>
             <Text style={styles.anchorBannerTitle}>Your plan has ended</Text>
             <Text style={styles.anchorBannerBody}>
-              This week is open. Generate a new plan, or add a workout to any day.
+              This week is open. Build your next block from this one's logs, or add a workout to any day.
             </Text>
           </View>
           <TouchableOpacity
             onPress={() => {
               buzzTap();
-              navigation.navigate('GeneratePlan');
+              void loadLastAppliedPlanInputs().then((inputs) => {
+                navigation.navigate(
+                  'GeneratePlan',
+                  inputs ? { editFromSnapshot: inputs, nextBlock: true } : undefined,
+                );
+              });
             }}
             accessibilityRole="button"
-            accessibilityLabel="Generate a new plan"
+            accessibilityLabel="Build your next block"
             hitSlop={8}
           >
-            <Text style={styles.anchorBannerAction}>Generate</Text>
+            <Text style={styles.anchorBannerAction}>Next block</Text>
           </TouchableOpacity>
         </View>
       )}

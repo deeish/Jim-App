@@ -70,6 +70,7 @@ import {
   savePlanPreviewDraft,
   loadPlanPreviewDraft,
   clearPlanPreviewDraft,
+  saveLastAppliedPlanInputs,
 } from '../lib/planPreviewDraftStorage';
 import { navigateFromPlanToExerciseDetail, isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
 import {
@@ -1234,8 +1235,10 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
         programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
       });
-      // Applied — the persisted backup is no longer needed.
+      // Applied — the persisted backup is no longer needed; the inputs are
+      // kept so the next block can start from them when this plan ends.
       void clearPlanPreviewDraft();
+      if (planInputs) void saveLastAppliedPlanInputs(planInputs);
       // The active plan changed: every calendar surface refetches now. (The
       // PlanList landing forces one too; the onboarding path lands on Home.)
       refreshLiveCalendarData(true);

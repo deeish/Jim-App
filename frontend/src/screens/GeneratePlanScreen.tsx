@@ -725,11 +725,18 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     return unsubscribe;
   }, [navigation]);
 
+  const nextBlock = !!route.params?.nextBlock;
   useEffect(() => {
     if (!editFromSnapshot) return;
     const patch = planInputsToFormPatch(editFromSnapshot) as Partial<GeneratePlanInputs>;
-    setInputs((prev) => ({ ...prev, ...patch }));
-  }, [editFromSnapshot]);
+    setInputs((prev) => {
+      const merged = { ...prev, ...patch };
+      // A next block starts on the next training day, not on the old plan's date.
+      return nextBlock
+        ? { ...merged, startDateISO: nextTrainingDayIsoFromToday(merged.trainingDays) }
+        : merged;
+    });
+  }, [editFromSnapshot, nextBlock]);
 
   // AsyncStorage is fast, not instant, and the picker asserted "No saved
   // splits yet" in the gap — telling a user their saved work did not exist.
@@ -1202,6 +1209,20 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           showsVerticalScrollIndicator={true}
           showsHorizontalScrollIndicator={false}
         >
+
+        {currentStep === 0 && nextBlock ? (
+          <View style={styles.resumeCard} accessibilityRole="summary">
+            <View style={styles.resumeCardHeader}>
+              <Ionicons name="trending-up" size={18} color={colors.primary} />
+              <Text style={styles.resumeCardTitle}>Your next block</Text>
+            </View>
+            <Text style={styles.resumeCardMeta}>
+              Same setup as the plan that just ended, starting on your next training day. Loads come
+              from what you logged; a lift that stalled starts lighter on purpose. Change anything
+              below before you generate.
+            </Text>
+          </View>
+        ) : null}
 
         {currentStep === 0 && resumeDraft ? (
           <View style={styles.resumeCard}>

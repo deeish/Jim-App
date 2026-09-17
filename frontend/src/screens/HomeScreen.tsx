@@ -1,3 +1,4 @@
+import { loadLastAppliedPlanInputs } from '../lib/planPreviewDraftStorage';
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   AppState,
@@ -286,6 +287,19 @@ export default function HomeScreen() {
   const goToGeneratePlan = () => {
     haptics.tap();
     navigation.navigate('Calendar', { screen: 'GeneratePlan', initial: false });
+  };
+  // An ended plan offers its continuation: the form seeded from the last
+  // applied inputs, loads from this block's logs (Tier 4c). Nothing repeats
+  // silently; the user still presses Generate.
+  const goToNextBlock = () => {
+    haptics.tap();
+    void loadLastAppliedPlanInputs().then((inputs) => {
+      navigation.navigate('Calendar', {
+        screen: 'GeneratePlan',
+        initial: false,
+        params: inputs ? { editFromSnapshot: inputs, nextBlock: true } : undefined,
+      });
+    });
   };
 
   const goToDay = (dateIso: string) => {
@@ -727,19 +741,19 @@ export default function HomeScreen() {
                     <Text style={[styles.cardEyebrow, { color: colors.textMuted }]}>This week</Text>
                     <Text style={[styles.cardTitle, { color: colors.text }]}>Your plan has ended</Text>
                     <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
-                      The week is open. Generate a new plan, or add a workout to any day from the Calendar.
+                      The week is open. Build your next block from this one's logs, or add a workout to any day from the Calendar.
                     </Text>
                   </View>
                 </View>
                 <TouchableOpacity
                   style={[styles.primaryButton, themedStyles.primaryCta]}
-                  onPress={goToGeneratePlan}
+                  onPress={goToNextBlock}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityHint="Opens AI plan generator"
+                  accessibilityHint="Opens the plan generator seeded from your last plan"
                 >
                   <Ionicons name="flash-outline" size={18} color={colors.background} />
-                  <Text style={[styles.primaryButtonText, themedStyles.primaryCtaText]}>Generate a new plan</Text>
+                  <Text style={[styles.primaryButtonText, themedStyles.primaryCtaText]}>Build your next block</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.noPlanLink} onPress={goToPlan} activeOpacity={0.7}>
                   <Text style={[styles.textLink, { color: colors.primary }]}>Open Calendar</Text>

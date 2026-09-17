@@ -94,7 +94,13 @@ export type RootStackParamList = {
   };
   WorkoutDetail: { workoutId: string };
   GeneratePlan:
-    | { editFromSnapshot?: PlanInputs; autoGenerate?: boolean; fromOnboarding?: boolean }
+    | {
+        editFromSnapshot?: PlanInputs;
+        autoGenerate?: boolean;
+        fromOnboarding?: boolean;
+        /** Seeded from the plan that just ended; loads come from its logs. */
+        nextBlock?: boolean;
+      }
     | undefined;
   History: undefined;
   /** Streaks, totals and the weekly trend. Lives beside History in the Plan stack. */
