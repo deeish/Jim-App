@@ -29,6 +29,7 @@ import { conformSessionTitleToExercises } from './session-title';
 import { coachCheckProgram, type CoachCheckReport } from './coach-check';
 import { allocateWeeklyVolume } from './weekly-volume-allocation';
 import { stampLoadsFromHistory } from './load-from-history';
+import { repairPatternStacking } from './pattern-stacking-repair';
 import {
   fetchLastEntriesForExercises,
   isTrackableExerciseId,
@@ -2371,11 +2372,33 @@ export class PlansService {
       );
     }
 
+    // At most two pressing compounds and two hinges per session; a third
+    // becomes an isolation for the same muscle (pattern-stacking-repair.ts,
+    // Tier 2f of the 2026-09-16 plan). Runs before allocation so the
+    // allocator sees the final roles.
+    const unstacked = repairPatternStacking({
+      sessions: floored.sessions,
+      specs: dto.sessions,
+      library: this.exercises,
+      equipment,
+      avoidConstraintsGlobal: dto.avoidConstraints,
+      prefs: { goal: dto.goal, difficulty: dto.experienceLevel },
+    });
+    if (unstacked.repairs > 0) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'pattern_stacking_repair',
+          repairs: unstacked.repairs,
+          notes: unstacked.notes.slice(0, 8),
+        }),
+      );
+    }
+
     // Sets from the week, not the band: fill muscles under the goal/level
     // band and trim those over it, inside each session's time budget
     // (weekly-volume-allocation.ts, Tier 2b of the 2026-09-16 plan).
     const allocated = allocateWeeklyVolume({
-      sessions: floored.sessions,
+      sessions: unstacked.sessions,
       specs: dto.sessions,
       findMeta: (id) => this.exercises.findOne(id),
       prefs: { goal: dto.goal, difficulty: dto.experienceLevel },

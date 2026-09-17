@@ -294,6 +294,7 @@ export function enforceWeekPatternFloors(args: {
             ...(row.restSeconds != null
               ? { restSeconds: row.restSeconds }
               : {}),
+            ...(row.targetRir != null ? { targetRir: row.targetRir } : {}),
             notes:
               'Added so your week trains every fundamental movement pattern.',
             prescriptionType: pick.prescriptionType ?? 'reps',

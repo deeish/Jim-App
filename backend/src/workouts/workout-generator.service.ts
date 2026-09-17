@@ -1009,7 +1009,14 @@ export class WorkoutGeneratorService {
           slots.length > 0
             ? `\n  Slot order: ${slots.map((sl) => sl.description).join(' → ')}`
             : '';
-        return `Day ${i + 1} (${focus}, ${s.weekday}, ~${duration} min, ${targets.promptRange} ex, cap ${maxN}${intensityLabel}): ${rail}${slotLine}`;
+        const dayWantsFinisher =
+          wantsCardioFinisher &&
+          String(s.type).toLowerCase() === 'strength' &&
+          !isCardioOrRec;
+        const countLine = dayWantsFinisher
+          ? `${targets.promptRange} lifts + 1 cardio finisher, cap ${maxN + 1}`
+          : `${targets.promptRange} ex, cap ${maxN}`;
+        return `Day ${i + 1} (${focus}, ${s.weekday}, ~${duration} min, ${countLine}${intensityLabel}): ${rail}${slotLine}`;
       })
       .join('\n');
 

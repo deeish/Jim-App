@@ -351,6 +351,10 @@ export function tieWarmupToMainLift(
   return prefix + base;
 }
 
+/** Bodyweight movements that read as accessories next to a loaded compound. */
+const BODYWEIGHT_ACCESSORY_NAME =
+  /\b(push-?ups?|inverted rows?|bodyweight squats?|air squats?|glute bridges?|wall sits?|step-?ups?)\b/i;
+
 function compoundSortScore(
   ex: GeneratedSessionExercise,
   meta:
@@ -365,6 +369,10 @@ function compoundSortScore(
   score += Math.min(50, (ex.sets ?? 0) * 8);
   const n = (ex.name ?? '').toLowerCase();
   if (ISOLATION_NAME.test(n)) score -= 42;
+  // A push-up or glute bridge is an accessory, not the lift a day is built
+  // around; a loaded press or squat in the same session leads instead.
+  // Pull-ups and dips are not in this list on purpose (they are main lifts).
+  if (BODYWEIGHT_ACCESSORY_NAME.test(n)) score -= 30;
   if (sessionTitleIsUpperEmphasis(sessionTitle) && LOWER_PATTERN_NAME.test(n)) {
     score -= 75;
   }
