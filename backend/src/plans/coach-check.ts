@@ -323,7 +323,10 @@ export function coachCheckWeek(args: {
         severity: 'warn',
         message: `${g}: ${fmt(v.weighted)} weekly sets, under the ${groupMin} most ${difficulty} lifters need to progress.`,
       });
-    } else if (v.weighted > band.max) {
+    } else if (v.weighted > band.max && g !== 'Core') {
+      // Core collects half-credit from every squat, hinge and carry, so it
+      // reads high on any lower-body week; direct core work is rarely a
+      // recovery problem, so it is never flagged as over the band.
       findings.push({
         code: 'volume_high',
         severity: 'warn',
