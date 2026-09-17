@@ -80,15 +80,19 @@ export function exerciseTargetsForSession(
   if (isCardioOrRecovery) {
     return { minExercises: 3, promptRange: '3-6' };
   }
+  // Fewer movements, more sets each. The old floors (5 exercises at 38
+  // minutes, 6 at 55) forced the duration cap to trim every accessory to
+  // two sets — a 40-minute day is three or four lifts at three or four sets,
+  // not five at two (the 2026-09-16 review's sample week).
   const d = Math.max(25, Math.min(120, durationMinutes));
   if (detailLevel === 'simple') {
-    if (d <= 40) return { minExercises: 4, promptRange: '4-5' };
-    if (d <= 55) return { minExercises: 5, promptRange: '5-6' };
-    return { minExercises: 6, promptRange: '6-8' };
+    if (d <= 40) return { minExercises: 3, promptRange: '3-4' };
+    if (d <= 55) return { minExercises: 4, promptRange: '4-5' };
+    return { minExercises: 5, promptRange: '5-7' };
   }
-  if (d <= 38) return { minExercises: 5, promptRange: '5-6' };
-  if (d <= 55) return { minExercises: 6, promptRange: '6-8' };
-  return { minExercises: 7, promptRange: '7-10' };
+  if (d <= 40) return { minExercises: 3, promptRange: '3-5' };
+  if (d <= 55) return { minExercises: 4, promptRange: '4-6' };
+  return { minExercises: 5, promptRange: '5-8' };
 }
 
 /**

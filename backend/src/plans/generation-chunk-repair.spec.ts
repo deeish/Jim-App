@@ -903,7 +903,7 @@ describe('repairChunkGeneratedSessions', () => {
       effectiveDetailLevel: 'simple',
     });
 
-    expect(belowMinRepairs).toBe(3);
-    expect(out[0]!.exercises).toHaveLength(5);
+    expect(belowMinRepairs).toBe(2);
+    expect(out[0]!.exercises).toHaveLength(4);
   });
 });
