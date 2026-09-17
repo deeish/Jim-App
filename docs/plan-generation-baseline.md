@@ -89,3 +89,59 @@ titles), legs over the band (30), chest under the band (22).
 - Mean total on a fresh replay of the 2026-09-14 captures (`npm run
   eval:drive`) from about 147 to 160 or better, with no old dimension losing
   ground.
+
+## Re-drive after Tier 2 (2026-09-17)
+
+The three 2026-09-14 `generate_sessions` captures (a 5-day advanced hybrid, a
+3+1-day beginner strength, a 4-day advanced hybrid over 4 weeks) were replayed
+through the current pipeline (`npm run eval:drive`, Gemini 3.5 Flash-Lite, no
+user history) and scored with the same scorer as the originals.
+
+| | Before (same 3 inputs, old pipeline) | After (Tier 0-2e) |
+|---|---|---|
+| Mean total | 155.0 / 168 | 161.3 / 168 |
+| Median | 155 | 162 |
+| Min / max | 154 / 156 | 156 / 166 |
+| effortTarget | 0 / 4 | 4 / 4 |
+| restByRole | 4 / 4 | 3.7 / 4 |
+| fatigueStacking | 4.3 / 6 | 5.7 / 6 |
+| workoutOrder | 6.7 / 8 | 7.7 / 8 |
+| patternStacking | 1.3 / 4 | 2.7 / 4 |
+| muscleExposure | 2.7 / 4 | 2.3 / 4 |
+| weeklyVolume | 6.7 / 8 | 6.7 / 8 |
+| coachingProDepth | 7.3 / 8 | 6.7 / 8 |
+
+The target ("160 or better, no old dimension losing ground") is met on the
+total; muscleExposure and coachingProDepth each gave back a little on one
+capture. What the re-driven plans still get wrong, read as a coach would:
+
+1. **Push days still stack three presses.** The prompt rule is not enough:
+   one Push day is push-up, overhead press, dip. Needs a deterministic
+   repair (third press becomes an isolation for the same muscle).
+2. **Hybrid days are light.** A 30-60 min advanced hybrid day carries three
+   lifts and a 10-minute jog (12-13 sets). The exercise count is planned
+   from the 45-minute midpoint and the cardio tail takes one of the four
+   slots.
+3. **A bodyweight main lift on a gym day.** Push-up leads an advanced Push
+   day; the loaded press should.
+4. **Three lifting days as Push/Pull/Legs.** Each muscle is trained once a
+   week; with three days a full-body or upper/lower/full week is what a coach
+   would write, and the exposure score says so.
+5. A pattern-floor insert carries no effort target (band lat pulldown, RIR
+   missing).
+
+These are Tier 2f, below.
+
+### After Tier 2f (same three inputs)
+
+| | After 2e | After 2f |
+|---|---|---|
+| Mean total | 161.3 | 161.7 |
+| patternStacking | 2.7 / 4 | 4 / 4 |
+| muscleExposure | 2.3 / 4 | 2 / 4 |
+| weeklyVolume | 6.7 / 8 | 6 / 8 |
+
+Stacking is solved. Exposure and weekly volume move with the LLM's picks
+between runs (the same three inputs, a different draw), which is why the
+fixture gates, not the re-drive, are the regression guard.
+

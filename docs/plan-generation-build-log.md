@@ -118,3 +118,21 @@ Log line per generation: `loads_from_history { liftsRequested, liftsWithHistory,
 
 70 suites / 926 tests. Deliberately not done: no cardio progression inside a strength session's finisher tail; no interval-structure change on a peak (only the block length moves).
 
+### Re-drive after 2e (2026-09-17)
+
+Three 2026-09-14 `generate_sessions` captures replayed through the pipeline (`npm run eval:drive`, no user history): **155.0 → 161.3 / 168** on the same inputs (target was 160). effortTarget 0 → 4/4, fatigueStacking 4.3 → 5.7, workoutOrder 6.7 → 7.7, patternStacking 1.3 → 2.7. Full table and the coach's read of what was still wrong in `docs/plan-generation-baseline.md` ("Re-drive after Tier 2").
+
+### 2f. What the re-drive showed (DONE 2026-09-17)
+
+| Change | Where | Verified by |
+|---|---|---|
+| Press and hinge stacks repaired deterministically: the third pressing compound (or third hinge) in a session becomes an isolation for the same primary muscle from the catalog, under equipment and avoid list, not already used that week, with the isolation scheme, rest and effort target. Runs after the pattern floors, before allocation. The prompt rule alone did not hold (push-up + overhead press + dip on a Push day). | `plans/pattern-stacking-repair.ts`, wired in `plans.service.ts` | real-catalog spec: Push day loses its third press to a chest isolation and the coach check's stacking finding clears; week-unique picks; Legs day capped at two hinges |
+| A push-up, inverted row, bodyweight squat, glute bridge, wall sit or step-up never leads a day that has a loaded compound (compound-first sort, shared with the eval's ideal order so the score stays aligned). Pull-ups and dips are not penalised: they are main lifts. | `session-enrichment.ts` `compoundSortScore` | full suite |
+| A pattern-floor insert carries the effort target (a band lat pulldown had none). | `week-pattern-floors.ts` | full suite |
+| Batch prompt: on hybrid days the cardio finisher is counted outside the lifting range ("4-6 lifts + 1 cardio finisher, cap 7"). | `workout-generator.service.ts` day line | prompt text |
+| Client: the split recommender knows the training age and counts lifting days; with three or fewer, push/pull/legs and body-part weeks (each muscle once) lose to full body and upper/lower (each muscle twice), more for a beginner. Both call sites pass experience. | `planRecommendation.ts`, `planPipeline.ts`, `GeneratePlanScreen.tsx` | new test: strength and hybrid at three days, every experience → full body or upper/lower (17 tests in the suite); 58 lib tests green |
+
+71 suites / 929 backend tests; frontend `tsc` clean.
+
+Re-drive after 2f, same three inputs: **161.7 / 168** (156, 164, 165). patternStacking 2.7 → 4/4 on all three. Still open, and honest about it: (1) hybrid days at a 30-60 window plan the lifting from the 45-minute midpoint, so an advanced day is three lifts and a 10-minute finisher (~12 sets) and the scorer calls it light; (2) an advanced gym plan still picks goblet squats, bodyweight squats and push-ups as lifts; (3) the beginner capture's push/pull/legs skeleton came from the client, so the replay cannot show the new split rule. (1) and (2) are 2g.
+
