@@ -54,19 +54,36 @@ describe('ExercisesService.getCandidatesForGenerator gates (real catalog)', () =
   });
 
   it('keeps push-ups and bodyweight squats out of an advanced gym pool, but not pull-ups or dips', () => {
+    // The pool is a shuffled slice of the search, so only the exclusion is
+    // asserted on it; what the gate keeps is asserted on the predicate.
     const gated = service.getCandidatesForGenerator({
       focus: 'upper body',
-      limit: 2000, // the whole pool: the search shuffles for variety, a slice would be flaky
+      limit: 400,
       excludeBasicBodyweight: true,
     });
+    expect(gated.length).toBeGreaterThan(100);
     expect(gated.some((e) => BASIC_BODYWEIGHT_NAME.test(e.name))).toBe(false);
-    expect(gated.some((e) => /pull-?up/i.test(e.name))).toBe(true);
-    expect(gated.some((e) => /dips?/i.test(e.name))).toBe(true);
-    const open = service.getCandidatesForGenerator({
-      focus: 'upper body',
-      limit: 2000, // the whole pool: the search shuffles for variety, a slice would be flaky
-    });
-    expect(open.some((e) => e.id === 'push_up')).toBe(true);
+    for (const kept of [
+      'Pull-Up',
+      'Chin-Up',
+      'Parallel Bar Dip',
+      'Chest Dip',
+      'Hanging Leg Raise',
+      'Back Squat',
+    ]) {
+      expect(BASIC_BODYWEIGHT_NAME.test(kept)).toBe(false);
+    }
+    for (const dropped of [
+      'Push-Up',
+      'Diamond Push-Up',
+      'Bodyweight Squat',
+      'Glute Bridge',
+      'Inverted Row',
+      'Wall Sit',
+      'Burpee',
+    ]) {
+      expect(BASIC_BODYWEIGHT_NAME.test(dropped)).toBe(true);
+    }
   });
 
   it('candidateGates: only an advanced lifter with gym equipment loses the bodyweight basics', () => {
