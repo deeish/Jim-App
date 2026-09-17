@@ -27,6 +27,7 @@ import { ApplyWorkaroundsDto } from './dto/apply-workarounds.dto';
 import { ReplaceDayDto } from './dto/replace-day.dto';
 import { conformSessionTitleToExercises } from './session-title';
 import { coachCheckProgram, type CoachCheckReport } from './coach-check';
+import { allocateWeeklyVolume } from './weekly-volume-allocation';
 import { substituteAvoidedExercises } from './plan-avoid-substitution';
 import {
   GenerateSessionsDto,
@@ -2358,12 +2359,33 @@ export class PlansService {
       );
     }
 
+    // Sets from the week, not the band: fill muscles under the goal/level
+    // band and trim those over it, inside each session's time budget
+    // (weekly-volume-allocation.ts, Tier 2b of the 2026-09-16 plan).
+    const allocated = allocateWeeklyVolume({
+      sessions: floored.sessions,
+      specs: dto.sessions,
+      findMeta: (id) => this.exercises.findOne(id),
+      prefs: { goal: dto.goal, difficulty: dto.experienceLevel },
+    });
+    for (const a of allocated.adjustments) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'weekly_volume_allocation',
+          weekIndex: a.weekIndex,
+          added: a.added,
+          removed: a.removed,
+          notes: a.notes.slice(0, 12),
+        }),
+      );
+    }
+
     // Last pass: land each week's volume/rep targets. Must run after
     // stampSetsAndReps (enrichment) re-banded every strength row, or the
     // progression math would be erased — a deload week would silently
     // train at full intensity.
     const progressed = applyWeekProgressionToEnrichedSessions({
-      sessions: floored.sessions,
+      sessions: allocated.sessions,
       specs: dto.sessions,
       weekProgression: dto.weekProgression,
       findMeta: (id) => this.exercises.findOne(id),

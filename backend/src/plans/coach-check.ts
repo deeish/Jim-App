@@ -134,7 +134,25 @@ function isCardio(
   );
 }
 
-type Role = 'main' | 'compound' | 'isolation' | 'core' | 'hold';
+export type CoachRole = 'main' | 'compound' | 'isolation' | 'core' | 'hold';
+type Role = CoachRole;
+
+/** The role a row plays in its session (first compound = main). Shared with the volume allocator. */
+export function coachRoleOf(
+  meta: CoachMeta | undefined,
+  row: { name?: string; prescriptionType?: string },
+  mainAssigned: boolean,
+): CoachRole {
+  return roleOf(meta, row, mainAssigned);
+}
+
+/** Cardio rows carry no strength sets. */
+export function isCardioRowMeta(
+  meta: CoachMeta | undefined,
+  row: { primaryMuscleGroup?: string },
+): boolean {
+  return isCardio(meta, row);
+}
 
 function roleOf(
   meta: CoachMeta | undefined,
