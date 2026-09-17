@@ -188,6 +188,8 @@ export interface PlanDraftDebugMeta {
   constraintsApplied?: string[];
   /** Human-readable notes from the server when generation used repairs or fallbacks. */
   generationNotes?: string[];
+  /** Who chose the exercises: the model, the rule-based builder, or both across weeks. */
+  builtBy?: 'ai' | 'rules' | 'mixed';
 }
 
 export interface PlanDraft {

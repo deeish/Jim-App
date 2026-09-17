@@ -258,10 +258,16 @@ export type RepairProgramSessionsRequest = GenerateSessionsRequest & {
 
 export async function repairProgramSessions(
   body: RepairProgramSessionsRequest
-): Promise<{ sessions: GenerateSessionResult[]; generationNotes?: string[] }> {
+): Promise<{
+  sessions: GenerateSessionResult[];
+  generationNotes?: string[];
+  /** Who chose the exercises (backend ≥ 2026-09-16); older backends omit it. */
+  builtBy?: 'ai' | 'rules' | 'mixed';
+}> {
   const response = await api.post<{
     sessions: GenerateSessionResult[];
     generationNotes?: string[];
+    builtBy?: 'ai' | 'rules' | 'mixed';
   }>('/plans/repair-program-sessions', body, {
     timeout: Math.min(GENERATE_SESSIONS_TIMEOUT_MS, 60_000),
   });
@@ -271,10 +277,16 @@ export async function repairProgramSessions(
 export async function generateSessions(
   body: GenerateSessionsRequest,
   opts?: { signal?: AbortSignal }
-): Promise<{ sessions: GenerateSessionResult[]; generationNotes?: string[] }> {
+): Promise<{
+  sessions: GenerateSessionResult[];
+  generationNotes?: string[];
+  /** Who chose the exercises (backend ≥ 2026-09-16); older backends omit it. */
+  builtBy?: 'ai' | 'rules' | 'mixed';
+}> {
   const response = await api.post<{
     sessions: GenerateSessionResult[];
     generationNotes?: string[];
+    builtBy?: 'ai' | 'rules' | 'mixed';
   }>('/plans/generate-sessions', body, {
     timeout: GENERATE_SESSIONS_TIMEOUT_MS,
     signal: opts?.signal,

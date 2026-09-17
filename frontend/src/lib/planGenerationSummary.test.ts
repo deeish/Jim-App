@@ -72,3 +72,13 @@ describe('planGenerationSummary', () => {
     expect(joined).toMatch(/format|superset|interval/);
   });
 });
+
+describe('builtByLine', () => {
+  it('says so when the rules built the week, and defaults to the AI wording', () => {
+    const { builtByLine } = require('./planGenerationSummary');
+    expect(builtByLine('rules')).toMatch(/rules this time/);
+    expect(builtByLine('mixed')).toMatch(/some weeks/);
+    expect(builtByLine('ai')).toMatch(/Gemini/);
+    expect(builtByLine(undefined)).toMatch(/Gemini/);
+  });
+});

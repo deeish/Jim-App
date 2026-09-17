@@ -479,8 +479,11 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const currentWeek = planData.find(w => w.weekNumber === selectedWeek) || planData[0];
 
   const generationSummaryLines = useMemo(
-    () => (planInputs ? linesForPlanGenerationSnapshot(planInputs) : []),
-    [planInputs],
+    () =>
+      planInputs
+        ? linesForPlanGenerationSnapshot(planInputs, planDraft?.debugMeta?.builtBy)
+        : [],
+    [planInputs, planDraft?.debugMeta?.builtBy],
   );
   const generationLegacyNotSentLines = useMemo(() => linesLegacyFormNotInAiRequest(), []);
   
@@ -968,17 +971,70 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   const handleApply = async () => {
     setApplying(true);
     try {
+      // A day whose type was swapped in the preview has a card but no draft
+      // session, and used to apply as an EMPTY day (July checklist 4.5).
+      // Generate its content now, before the slots are built.
+      const filledByDay = new Map<string, PlanSlotExercise[]>();
+      for (const week of planData) {
+        for (const dayOfWeek of DAYS_OF_WEEK) {
+          for (const w of week.workouts[dayOfWeek] ?? []) {
+            const already =
+              (w.applyExercises?.length ?? 0) > 0 ||
+              (planDraft != null &&
+                (slotExercisesFromDraft(planDraft, week.weekNumber, dayOfWeek)?.length ?? 0) > 0);
+            if (already || w.type === 'recovery') continue;
+            try {
+              const result = await generateWorkoutPreview(dayOfWeek, {
+                focus: w.title,
+                duration: w.durationMinutes,
+                difficulty: intensityToDifficulty(w.intensity),
+                goal: inputs.goal ?? undefined,
+                experience: inputs.experienceLevel ?? undefined,
+                equipment: inputs.availableEquipment?.length
+                  ? mapEquipmentToBackend(inputs.availableEquipment)
+                  : undefined,
+                limitations: inputs.avoidList?.length ? inputs.avoidList : undefined,
+                programTemplateId: programTypeToTemplateId(inputs.programType ?? ''),
+                programDayFocus: w.title,
+              });
+              const rows: PlanSlotExercise[] = (result.exercises ?? []).flatMap((e, idx) => {
+                const exerciseId = (e as { exerciseId?: unknown }).exerciseId;
+                if (typeof exerciseId !== 'string' || !exerciseId) return [];
+                const reps = typeof e.reps === 'number' ? e.reps : parseInt(String(e.reps ?? ''), 10);
+                return [
+                  {
+                    exerciseId,
+                    name: e.name,
+                    sets: Math.max(1, Number(e.sets) || 1),
+                    reps: Number.isFinite(reps) && reps > 0 ? reps : 8,
+                    ...(typeof e.weight === 'number' ? { weight: e.weight } : {}),
+                    ...(e.notes ? { notes: e.notes } : {}),
+                    ...(e.prescriptionType ? { prescriptionType: e.prescriptionType } : {}),
+                    orderIndex: idx,
+                  },
+                ];
+              });
+              if (rows.length > 0) filledByDay.set(`${week.weekNumber}:${dayOfWeek}`, rows);
+            } catch {
+              // The slot applies without exercises and the server fills it on demand.
+            }
+          }
+        }
+      }
       const slots: PlanSlot[] = [];
       planData.forEach((week) => {
         DAYS_OF_WEEK.forEach((dayOfWeek) => {
           const workouts = week.workouts[dayOfWeek] ?? [];
           workouts.forEach((w, orderInDay) => {
-            const exercises =
+            const fromDraft =
               w.applyExercises?.length
                 ? w.applyExercises
                 : planDraft != null
                   ? slotExercisesFromDraft(planDraft, week.weekNumber, dayOfWeek)
                   : undefined;
+            const exercises = fromDraft?.length
+              ? fromDraft
+              : filledByDay.get(`${week.weekNumber}:${dayOfWeek}`);
             slots.push({
               weekNumber: week.weekNumber,
               dayOfWeek,

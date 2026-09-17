@@ -36,6 +36,7 @@ import {
   deriveSessionIntensity,
   pipelineStage5CatchMessage,
   GENERATE_SESSIONS_RATE_LIMIT_MESSAGE,
+  GENERATE_SESSIONS_GENERIC_MESSAGE,
   type PipelineDebugInfo,
 } from './planPipeline';
 import { isTimeHoldExerciseName } from './exercisePrescription';
@@ -740,11 +741,16 @@ describe('pipelineStage5CatchMessage', () => {
     expect(pipelineStage5CatchMessage(axios429)).toBe(GENERATE_SESSIONS_RATE_LIMIT_MESSAGE);
   });
 
-  it('passes other errors through unchanged', () => {
-    expect(pipelineStage5CatchMessage(new Error('boom'))).toBe('boom');
+  it('never shows an internal error string to the user', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(pipelineStage5CatchMessage(new Error('Generate sessions: expected 12 sessions, got 10'))).toBe(
+      GENERATE_SESSIONS_GENERIC_MESSAGE,
+    );
     const axios500 = Object.assign(new Error('Request failed with status code 500'), {
       response: { status: 500 },
     });
-    expect(pipelineStage5CatchMessage(axios500)).toBe('Request failed with status code 500');
+    expect(pipelineStage5CatchMessage(axios500)).toBe(GENERATE_SESSIONS_GENERIC_MESSAGE);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

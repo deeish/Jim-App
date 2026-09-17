@@ -611,8 +611,10 @@ function buildGenerateSessionsRequest(
     cardioModalities:
       planInputs.cardioModalities?.length ? planInputs.cardioModalities : undefined,
     experienceLevel: planInputs.experienceLevel,
+    // Home too: the backend used to substitute a fixed dumbbell/band/bodyweight
+    // list for home, so a home lifter with a rack never saw a barbell.
     equipmentTags:
-      planInputs.location === 'gym' && planInputs.equipmentTags.length
+      planInputs.equipmentTags.length
         ? planInputs.equipmentTags
         : undefined,
     mesoHint: mesoHintForGenerateSessions(planInputs),
@@ -697,7 +699,12 @@ async function stages5And6FromApi(
   planInputs: PlanInputs,
   weekSpecs: WeekSessionSpecs[],
   options?: { makeItEasier?: boolean; signal?: AbortSignal }
-): Promise<{ weeks: WeekDraft[]; rawGrokResponse: unknown; generationNotes?: string[] }> {
+): Promise<{
+  weeks: WeekDraft[];
+  rawGrokResponse: unknown;
+  generationNotes?: string[];
+  builtBy?: 'ai' | 'rules' | 'mixed';
+}> {
   const request = buildGenerateSessionsRequest(planInputs, weekSpecs, options);
   if (request.sessions.length === 0) {
     const weeks: WeekDraft[] = weekSpecs.map((ws) => ({
@@ -706,7 +713,7 @@ async function stages5And6FromApi(
     }));
     return { weeks, rawGrokResponse: null };
   }
-  const { sessions, generationNotes } = await generateSessions(request, {
+  const { sessions, generationNotes, builtBy } = await generateSessions(request, {
     signal: options?.signal,
   });
   if (sessions.length !== request.sessions.length) {
@@ -715,7 +722,7 @@ async function stages5And6FromApi(
     );
   }
   const { weeks } = normalizeSessionsResponse(weekSpecs, sessions, planInputs);
-  return { weeks, rawGrokResponse: sessions, generationNotes };
+  return { weeks, rawGrokResponse: sessions, generationNotes, builtBy };
 }
 
 /** Shown when the backend rate-limits generation (burst and daily limits share one 429). */
@@ -728,6 +735,12 @@ function isRateLimitError(error: unknown): boolean {
   return status === 429;
 }
 
+/** Shown for any failure that is not a timeout or the rate limit. The raw
+ *  error used to be shown verbatim ("Generate sessions: expected 12 sessions,
+ *  got 10"); it now goes to the console and Sentry's breadcrumbs instead. */
+export const GENERATE_SESSIONS_GENERIC_MESSAGE =
+  "We couldn't build your plan just now. Check your connection and try again.";
+
 export function pipelineStage5CatchMessage(error: unknown): string {
   if (isGenerateSessionsTimeoutError(error)) {
     return GENERATE_SESSIONS_TIMEOUT_MESSAGE;
@@ -735,7 +748,8 @@ export function pipelineStage5CatchMessage(error: unknown): string {
   if (isRateLimitError(error)) {
     return GENERATE_SESSIONS_RATE_LIMIT_MESSAGE;
   }
-  return error instanceof Error ? error.message : String(error);
+  console.warn('[planPipeline] generation failed:', error instanceof Error ? error.message : error);
+  return GENERATE_SESSIONS_GENERIC_MESSAGE;
 }
 
 // --- Mock stages 5–6 (fallback when API not used, e.g. tests)
@@ -893,7 +907,7 @@ export async function runPipelineSafe(
     const stage2 = stage2WeekSkeleton(planInputs, stage1);
     const stage3 = stage3TemplateAssignments(planInputs, stage2, stage1);
     const stage4 = stage4SessionSpecs(planInputs, stage2, stage3);
-    const { weeks, rawGrokResponse, generationNotes } = await stages5And6FromApi(
+    const { weeks, rawGrokResponse, generationNotes, builtBy } = await stages5And6FromApi(
       planInputs,
       stage4,
       { makeItEasier, signal: options?.signal }
@@ -909,6 +923,7 @@ export async function runPipelineSafe(
         templateAssignments: stage3.byDay,
         reasons: ['Pipeline run with LLM generation'],
         ...(generationNotes?.length ? { generationNotes } : {}),
+        ...(builtBy ? { builtBy } : {}),
       },
     };
     const validation = validateDraft(draft);

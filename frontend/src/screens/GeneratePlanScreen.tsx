@@ -543,7 +543,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     restDayPreference: null,
     allowDoubleSessions: false,
     maxDoubleDaysPerWeek: 1,
-    weeks: 1,
+    weeks: 4,
     // Onboarding's session length seeds the window: 45 → 30–45, 75 ("75+") → 60–90.
     timePerSession: {
       min: Math.max(DURATION_MIN, prefSessionMinutes - 15),

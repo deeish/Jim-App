@@ -140,7 +140,18 @@ export function mesoHintForGenerateSessions(inputs: PlanInputs): string | undefi
 /**
  * Bullet-style lines shown under “What drove this preview” on Plan Preview.
  */
-export function linesForPlanGenerationSnapshot(inputs: PlanInputs): string[] {
+/** The honest one-liner for who built the week. `undefined` = not reported by
+ *  this backend build, so the old wording stands. */
+export function builtByLine(builtBy: 'ai' | 'rules' | 'mixed' | undefined): string {
+  if (builtBy === 'rules') return 'Built by our rules this time (the AI was not used)';
+  if (builtBy === 'mixed') return 'Built with AI for some weeks and by our rules for others';
+  return 'Built with AI (Gemini), then checked by our rules';
+}
+
+export function linesForPlanGenerationSnapshot(
+  inputs: PlanInputs,
+  builtBy?: 'ai' | 'rules' | 'mixed',
+): string[] {
   const lines: string[] = [];
   lines.push(goalLine(inputs.goal));
   lines.push(
@@ -195,7 +206,7 @@ export function linesForPlanGenerationSnapshot(inputs: PlanInputs): string[] {
   if (meso) {
     lines.push(`Periodization hint (sent to AI): ${meso}`);
   }
-  lines.push('AI: Gemini (batched per week where possible)');
+  lines.push(builtByLine(builtBy));
   return lines;
 }
 
