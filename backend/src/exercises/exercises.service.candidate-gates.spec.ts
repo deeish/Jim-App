@@ -1,6 +1,10 @@
 import { ExercisesService } from './exercises.service';
 import { getJointDemands } from '../data/exercise-joint-demands';
-import { TECHNICAL_LIFT_NAME } from '../data/technical-lifts';
+import {
+  BASIC_BODYWEIGHT_NAME,
+  TECHNICAL_LIFT_NAME,
+} from '../data/technical-lifts';
+import { WorkoutGeneratorService } from '../workouts/workout-generator.service';
 
 /**
  * Selection-side gates on the generator's candidate pool (Tier 2c of the
@@ -47,6 +51,38 @@ describe('ExercisesService.getCandidatesForGenerator gates (real catalog)', () =
       !(getJointDemands('back_squat') ?? []).includes('knee'),
     );
     expect(pool.length).toBeGreaterThan(10);
+  });
+
+  it('keeps push-ups and bodyweight squats out of an advanced gym pool, but not pull-ups or dips', () => {
+    const gated = service.getCandidatesForGenerator({
+      focus: 'upper body',
+      limit: 400,
+      excludeBasicBodyweight: true,
+    });
+    expect(gated.some((e) => BASIC_BODYWEIGHT_NAME.test(e.name))).toBe(false);
+    expect(gated.some((e) => /pull-?up/i.test(e.name))).toBe(true);
+    expect(gated.some((e) => /dip/i.test(e.name))).toBe(true);
+    const open = service.getCandidatesForGenerator({
+      focus: 'upper body',
+      limit: 400,
+    });
+    expect(open.some((e) => e.id === 'push_up')).toBe(true);
+  });
+
+  it('candidateGates: only an advanced lifter with gym equipment loses the bodyweight basics', () => {
+    const gym = ['barbell', 'dumbbells', 'cable_machine'];
+    expect(
+      WorkoutGeneratorService.candidateGates([], 'advanced', gym)
+        .excludeBasicBodyweight,
+    ).toBe(true);
+    expect(
+      WorkoutGeneratorService.candidateGates([], 'advanced', ['dumbbells'])
+        .excludeBasicBodyweight,
+    ).toBe(false);
+    expect(
+      WorkoutGeneratorService.candidateGates([], 'intermediate', gym)
+        .excludeBasicBodyweight,
+    ).toBe(false);
   });
 
   it('is a no-op with empty gates', () => {

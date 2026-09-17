@@ -103,6 +103,35 @@ export function exerciseTargetsForSession(
  * When true, batch Groq prompts require a library Cardio exercise last on strength days.
  * Same rule as `WorkoutGeneratorService` private `programGoalWantsCardioFinisher`.
  */
+/** Minutes a strength day's appended cardio finisher takes (one 10-minute block). */
+export const STRENGTH_CARDIO_FINISHER_MINUTES = 10;
+
+/**
+ * Minutes the lifting on a strength day is planned for. A day whose goal
+ * appends a cardio finisher plans its lifts at the window's midpoint plus the
+ * finisher, capped at the window's top, so the finisher rides on spare time
+ * instead of taking a lifting slot (a 30-60 hybrid day used to be three
+ * lifts and a jog).
+ */
+export function plannedLiftingMinutes(args: {
+  durationMin: number;
+  durationMax: number;
+  sessionType: string;
+  goal: string | undefined;
+}): number {
+  const mid = Math.round((args.durationMin + args.durationMax) / 2);
+  if (
+    String(args.sessionType).toLowerCase() !== 'strength' ||
+    !goalWantsStrengthCardioFinisher(args.goal)
+  ) {
+    return mid;
+  }
+  return Math.min(
+    Math.max(mid, args.durationMax),
+    mid + STRENGTH_CARDIO_FINISHER_MINUTES,
+  );
+}
+
 export function goalWantsStrengthCardioFinisher(
   goal: string | undefined,
 ): boolean {
@@ -263,6 +292,7 @@ export class WorkoutGeneratorService {
     const poolGates = WorkoutGeneratorService.candidateGates(
       preferences?.limitations,
       preferences?.difficulty ?? preferences?.experience,
+      equipment,
     );
     const rawCandidates = this.exercisesService.getCandidatesForGenerator({
       focus,
@@ -715,10 +745,22 @@ export class WorkoutGeneratorService {
   static candidateGates(
     limitations: string[] | undefined,
     difficulty: string | undefined,
-  ): { avoidJoints: JointId[]; excludeTechnical: boolean } {
+    equipment: string[] = [],
+  ): {
+    avoidJoints: JointId[];
+    excludeTechnical: boolean;
+    excludeBasicBodyweight: boolean;
+  } {
+    const level = (difficulty ?? '').toLowerCase();
+    // A gym is any pool with a bar, cables or machines; at home a push-up
+    // may be the only press there is.
+    const gymLike = equipment.some((e) =>
+      /barbell|cable|machine|smith|rack/i.test(e),
+    );
     return {
       avoidJoints: jointsFromAvoidPhrases(limitations ?? []),
-      excludeTechnical: (difficulty ?? '').toLowerCase() === 'beginner',
+      excludeTechnical: level === 'beginner',
+      excludeBasicBodyweight: level === 'advanced' && gymLike,
     };
   }
 
@@ -726,7 +768,11 @@ export class WorkoutGeneratorService {
     sessions: Array<{ title?: string; type: string }>,
     equipment: string[],
     programGoal?: string,
-    gates: { avoidJoints: JointId[]; excludeTechnical: boolean } = {
+    gates: {
+      avoidJoints: JointId[];
+      excludeTechnical: boolean;
+      excludeBasicBodyweight?: boolean;
+    } = {
       avoidJoints: [],
       excludeTechnical: false,
     },
@@ -937,6 +983,7 @@ export class WorkoutGeneratorService {
     const batchGates = WorkoutGeneratorService.candidateGates(
       limitations,
       difficulty,
+      equipment,
     );
     let candidates = this.mergeCandidatesForBatchProgram(
       sessions,
@@ -982,7 +1029,12 @@ export class WorkoutGeneratorService {
     const dayLines = sessions
       .map((s, i) => {
         const focus = (s.title ?? s.type).trim() || 'full body';
-        const duration = Math.round((s.durationMin + s.durationMax) / 2);
+        const duration = plannedLiftingMinutes({
+          durationMin: s.durationMin,
+          durationMax: s.durationMax,
+          sessionType: s.type,
+          goal: wantsCardioFinisher ? goal : undefined,
+        });
         const fk = normalizeFocusToKey(focus);
         const isCardioOrRec = fk === 'cardio' || fk === 'recovery';
         const targets = exerciseTargetsForSession(

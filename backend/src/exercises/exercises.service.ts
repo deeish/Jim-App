@@ -27,7 +27,10 @@ import {
   jointsFromAvoidPhrases,
   type JointId,
 } from '../data/exercise-joint-demands';
-import { TECHNICAL_LIFT_NAME } from '../data/technical-lifts';
+import {
+  BASIC_BODYWEIGHT_NAME,
+  TECHNICAL_LIFT_NAME,
+} from '../data/technical-lifts';
 import { getExerciseProgressions } from '../data/exercise-progressions';
 import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
 import { isRetiredExercise } from '../data/retired-exercise-ids';
@@ -1045,6 +1048,8 @@ export class ExercisesService implements OnModuleInit {
     avoidJoints?: JointId[];
     /** Beginners: keep technical lifts (cleans, snatches, jerks, pistols…) out of the pool. */
     excludeTechnical?: boolean;
+    /** Advanced lifters in a gym: push-ups, bodyweight squats, glute bridges are not lifts. */
+    excludeBasicBodyweight?: boolean;
   }): TransformedExercise[] {
     const {
       focus,
@@ -1053,6 +1058,7 @@ export class ExercisesService implements OnModuleInit {
       limit = 70,
       avoidJoints = [],
       excludeTechnical = false,
+      excludeBasicBodyweight = false,
     } = options;
     const focusNorm = focus
       .toLowerCase()
@@ -1084,6 +1090,9 @@ export class ExercisesService implements OnModuleInit {
     }
     if (excludeTechnical) {
       results = results.filter((e) => !TECHNICAL_LIFT_NAME.test(e.name));
+    }
+    if (excludeBasicBodyweight) {
+      results = results.filter((e) => !BASIC_BODYWEIGHT_NAME.test(e.name));
     }
     return this.dedupeCandidateNames(results).slice(0, limit);
   }

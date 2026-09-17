@@ -153,6 +153,55 @@ describe('allocateWeeklyVolume', () => {
     expect(out.adjustments).toEqual([]);
   });
 
+  it('a cardio finisher rides on the spare window: it does not eat the lifting budget unless the window is fixed', () => {
+    const lifts = () => [
+      row('bench', 'Bench', 5, 180),
+      row('row', 'Row', 2, 150),
+    ];
+    const tail = (): Row => ({
+      exerciseId: 'jog',
+      name: 'Treadmill Jog',
+      sets: 1,
+      reps: 600,
+      durationSeconds: 600,
+      prescriptionType: 'time',
+      primaryMuscleGroup: 'Cardio',
+    });
+    const window = (min: number, max: number): AllocationSpec => ({
+      type: 'strength',
+      weekday: 'Monday',
+      title: 'Upper',
+      weekIndex: 1,
+      durationMin: min,
+      durationMax: max,
+    });
+    const noTail = allocateWeeklyVolume({
+      sessions: [session('Monday', 'Upper', lifts())],
+      specs: [window(30, 60)],
+      findMeta,
+      prefs,
+    });
+    const withTail = allocateWeeklyVolume({
+      sessions: [session('Monday', 'Upper', [...lifts(), tail()])],
+      specs: [window(30, 60)],
+      findMeta,
+      prefs,
+    });
+    const rowSets = (out: typeof noTail) => out.sessions[0]!.exercises[1]!.sets;
+    expect(rowSets(noTail)).toBeGreaterThan(2);
+    expect(rowSets(withTail)).toBe(rowSets(noTail));
+
+    // A fixed 45-minute slot has no spare window: the tail costs lifting sets.
+    const fixed = allocateWeeklyVolume({
+      sessions: [session('Monday', 'Upper', [...lifts(), tail()])],
+      specs: [window(45, 45)],
+      findMeta,
+      prefs,
+    });
+    expect(rowSets(fixed)).toBeLessThan(rowSets(withTail));
+    expect(fixed.sessions[0]!.exercises[2]!.durationSeconds).toBe(600);
+  });
+
   it('trims a muscle over the band from isolation first, never the main lift, never below two', () => {
     // Legs: squat 6 + rdl 5 + legext 4 + squat 6 + rdl 5 + legext 4 = 30 weighted (band max 22)
     const sessions = [

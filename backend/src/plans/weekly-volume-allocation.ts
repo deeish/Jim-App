@@ -76,9 +76,34 @@ function setCost(row: Row): number {
   return (row.restSeconds ?? 90) + SECONDS_UNDER_LOAD;
 }
 
-function sessionBudgetSeconds(spec: AllocationSpec): number {
-  const minutes = Math.round((spec.durationMin + spec.durationMax) / 2);
+function sessionBudgetSeconds(
+  spec: AllocationSpec,
+  cardioTailSeconds: number,
+): number {
+  // The lifting is planned at the window's midpoint; a cardio tail rides on
+  // the spare window above it (capped at the top), the same rule the prompt
+  // and the enrichment caps use (`plannedLiftingMinutes`).
+  const mid = Math.round((spec.durationMin + spec.durationMax) / 2);
+  const tailMinutes = Math.round(cardioTailSeconds / 60);
+  const minutes =
+    tailMinutes > 0
+      ? Math.min(Math.max(mid, spec.durationMax), mid + tailMinutes)
+      : mid;
   return Math.max(0, minutes * 60 - WARMUP_SECONDS);
+}
+
+/** Seconds of cardio rows in the session (the finisher tail). */
+function cardioTailSeconds(
+  session: GeneratedSession,
+  findMeta: (id: string) => CoachMeta | undefined,
+): number {
+  let total = 0;
+  for (const row of session.exercises ?? []) {
+    const meta = row.exerciseId ? findMeta(row.exerciseId) : undefined;
+    if (!isCardioRowMeta(meta, row)) continue;
+    total += (row.durationSeconds ?? 0) * Math.max(1, row.sets || 1);
+  }
+  return total;
 }
 
 function sessionCostSeconds(
@@ -166,8 +191,10 @@ export function allocateWeeklyVolume(args: {
         prefs,
       }).volumeByMuscle;
     const spare = (i: number) =>
-      sessionBudgetSeconds(specs[i]!) -
-      sessionCostSeconds(sessions[i]!, findMeta);
+      sessionBudgetSeconds(
+        specs[i]!,
+        cardioTailSeconds(sessions[i]!, findMeta),
+      ) - sessionCostSeconds(sessions[i]!, findMeta);
     const groupMin = (g: string) =>
       g === 'Arms' || g === 'Core' ? Math.round(band.min / 2) : band.min;
 

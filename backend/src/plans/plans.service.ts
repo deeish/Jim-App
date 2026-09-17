@@ -30,6 +30,7 @@ import { coachCheckProgram, type CoachCheckReport } from './coach-check';
 import { allocateWeeklyVolume } from './weekly-volume-allocation';
 import { stampLoadsFromHistory } from './load-from-history';
 import { repairPatternStacking } from './pattern-stacking-repair';
+import { plannedLiftingMinutes } from '../workouts/workout-generator.service';
 import {
   fetchLastEntriesForExercises,
   isTrackableExerciseId,
@@ -2320,9 +2321,12 @@ export class PlansService {
         return {
           goal: dto.goal,
           cardioModalities: dto.cardioModalities,
-          durationMinutes: Math.round(
-            (spec.durationMin + spec.durationMax) / 2,
-          ),
+          durationMinutes: plannedLiftingMinutes({
+            durationMin: spec.durationMin,
+            durationMax: spec.durationMax,
+            sessionType: spec.type,
+            goal: dto.goal,
+          }),
           detailLevel: dto.detailLevel ?? 'detailed',
           difficulty: dto.experienceLevel,
           cardioDayIndex: dto.sessions
