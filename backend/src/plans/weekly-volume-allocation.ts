@@ -156,7 +156,7 @@ export function allocateWeeklyVolume(args: {
   sessions: GeneratedSession[];
   specs: AllocationSpec[];
   findMeta: (id: string) => CoachMeta | undefined;
-  prefs: { goal?: string; difficulty?: string };
+  prefs: { goal?: string; difficulty?: string; priorityMuscle?: string };
 }): AllocationResult {
   const { specs, findMeta, prefs } = args;
   if (args.sessions.length !== specs.length) {
@@ -195,8 +195,14 @@ export function allocateWeeklyVolume(args: {
         specs[i]!,
         cardioTailSeconds(sessions[i]!, findMeta),
       ) - sessionCostSeconds(sessions[i]!, findMeta);
+    // The priority muscle is filled toward the top of its band (two sets
+    // under the ceiling), every other group to the floor.
     const groupMin = (g: string) =>
-      g === 'Arms' || g === 'Core' ? Math.round(band.min / 2) : band.min;
+      g === prefs.priorityMuscle
+        ? Math.max(band.min, band.max - 2)
+        : g === 'Arms' || g === 'Core'
+          ? Math.round(band.min / 2)
+          : band.min;
 
     // 2. Fill muscles under the band.
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {

@@ -202,6 +202,44 @@ describe('allocateWeeklyVolume', () => {
     expect(fixed.sessions[0]!.exercises[2]!.durationSeconds).toBe(600);
   });
 
+  it('the priority muscle is filled toward the top of its band, the others to the floor', () => {
+    // Two back rows: plain allocation stops at the band's floor (8), the
+    // priority target reaches for the ceiling and adds where ceilings allow.
+    const lifts = () => [
+      row('bench', 'Bench', 4, 120),
+      row('row', 'Row', 3, 120),
+      row('pulldown', 'Pulldown', 2, 90),
+      row('curl', 'Curl', 2, 60),
+    ];
+    const window = (): AllocationSpec => ({
+      type: 'strength',
+      weekday: 'Monday',
+      title: 'Upper',
+      weekIndex: 1,
+      durationMin: 60,
+      durationMax: 90,
+    });
+    const plain = allocateWeeklyVolume({
+      sessions: [session('Monday', 'Upper', lifts())],
+      specs: [window()],
+      findMeta,
+      prefs,
+    });
+    const prioritised = allocateWeeklyVolume({
+      sessions: [session('Monday', 'Upper', lifts())],
+      specs: [window()],
+      findMeta,
+      prefs: { ...prefs, priorityMuscle: 'Back' },
+    });
+    const backSets = (out: typeof plain) =>
+      out.sessions[0]!.exercises[1]!.sets + out.sessions[0]!.exercises[2]!.sets;
+    expect(backSets(plain)).toBe(8);
+    expect(backSets(prioritised)).toBeGreaterThan(8);
+    expect(prioritised.sessions[0]!.exercises[0]!.sets).toBe(
+      plain.sessions[0]!.exercises[0]!.sets,
+    );
+  });
+
   it('trims a muscle over the band from isolation first, never the main lift, never below two', () => {
     // Legs: squat 6 + rdl 5 + legext 4 + squat 6 + rdl 5 + legext 4 = 30 weighted (band max 22)
     const sessions = [

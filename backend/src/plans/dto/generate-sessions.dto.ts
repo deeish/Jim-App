@@ -8,6 +8,9 @@ import {
   IsIn,
   ArrayMaxSize,
   MaxLength,
+  IsInt,
+  Max,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -61,6 +64,33 @@ export class SessionSpecDto {
   @IsArray()
   @IsString({ each: true })
   avoidConstraints?: string[];
+}
+
+/** Muscle groups a plan can prioritise (the coach check's counted groups). */
+export const PRIORITY_MUSCLE_GROUPS = [
+  'Chest',
+  'Back',
+  'Legs',
+  'Shoulders',
+  'Arms',
+  'Core',
+] as const;
+
+export class KnownLiftDto {
+  @IsString()
+  @MaxLength(80)
+  exerciseId: string;
+
+  /** Canonical pounds. */
+  @IsNumber()
+  @Min(1)
+  @Max(2000)
+  weight: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  reps: number;
 }
 
 export class GenerateSessionsDto {
@@ -150,6 +180,28 @@ export class GenerateSessionsDto {
   @IsString({ each: true })
   @MaxLength(40, { each: true })
   preferredExercises?: string[];
+
+  /**
+   * One muscle group to bring up (Tier 5 of the 2026-09-16 plan): the
+   * allocator fills it toward the top of its weekly band and the prompt asks
+   * for it in the first accessory slot on the days it fits.
+   */
+  @IsOptional()
+  @IsString()
+  @IsIn(PRIORITY_MUSCLE_GROUPS)
+  priorityMuscle?: string;
+
+  /**
+   * Current numbers the user typed instead of logging (up to six lifts).
+   * Used as history where no logs exist, so week one can carry loads
+   * instead of a calibration note.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(6)
+  @ValidateNested({ each: true })
+  @Type(() => KnownLiftDto)
+  knownLifts?: KnownLiftDto[];
 
   @IsArray()
   @ValidateNested({ each: true })

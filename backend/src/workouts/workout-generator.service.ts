@@ -942,6 +942,8 @@ export class WorkoutGeneratorService {
     currentActivityLevel?: string;
     /** Preferred movements to bias exercise selection. */
     preferredExercises?: string[];
+    /** One muscle group to bring up (first accessory slot where it fits). */
+    priorityMuscle?: string;
   }): Promise<GenerateFullProgramOutcome | null> {
     const {
       sessions,
@@ -959,6 +961,7 @@ export class WorkoutGeneratorService {
       weekProgression,
       currentActivityLevel,
       preferredExercises,
+      priorityMuscle,
     } = options;
     if (sessions.length < 2 || sessions.length > 7) return null;
 
@@ -1182,6 +1185,9 @@ ${detailLevel !== 'simple' ? coachCopyToneBlock() : "No hype words in any text f
       preferredExercises?.length
         ? `Preferred movements (favor these when they fit the day's focus and pattern): ${preferredExercises.slice(0, 8).join(', ')}.`
         : '',
+      priorityMuscle
+        ? `Priority muscle: ${priorityMuscle}. On every day where it fits the focus, give it the first accessory slot after the compounds, and train it on one more day of the week than the other groups.`
+        : '',
     ]
       .filter(Boolean)
       .join(' ');
@@ -1399,6 +1405,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     }>;
     currentActivityLevel?: string;
     preferredExercises?: string[];
+    priorityMuscle?: string;
   }): Promise<{
     program: FullProgramDaySession[] | null;
     groqUsages: LlmCompletionUsage[];
@@ -1437,6 +1444,7 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
       weekProgression: dto.weekProgression,
       currentActivityLevel: dto.currentActivityLevel,
       preferredExercises: dto.preferredExercises,
+      priorityMuscle: dto.priorityMuscle,
     };
 
     const pushUsage = (

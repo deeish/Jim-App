@@ -2408,7 +2408,11 @@ export class PlansService {
       sessions: unstacked.sessions,
       specs: dto.sessions,
       findMeta: (id) => this.exercises.findOne(id),
-      prefs: { goal: dto.goal, difficulty: dto.experienceLevel },
+      prefs: {
+        goal: dto.goal,
+        difficulty: dto.experienceLevel,
+        priorityMuscle: dto.priorityMuscle,
+      },
     });
     for (const a of allocated.adjustments) {
       this.logger.log(
@@ -2473,7 +2477,6 @@ export class PlansService {
     dto: GenerateSessionsDto,
     userId: string | undefined,
   ): Promise<GeneratedSession[]> {
-    if (!userId) return sessions;
     const ids = [
       ...new Set(
         sessions
@@ -2482,17 +2485,39 @@ export class PlansService {
       ),
     ];
     if (ids.length === 0) return sessions;
-    let history: Map<string, LastExercisePerformance[]>;
-    try {
-      history = await fetchRecentEntriesForExercises(this.prisma, userId, ids);
-    } catch (err) {
-      this.logger.warn(
-        JSON.stringify({
-          event: 'loads_from_history_skipped',
-          reason: err instanceof Error ? err.message : String(err),
-        }),
-      );
-      return sessions;
+    let history = new Map<string, LastExercisePerformance[]>();
+    if (userId) {
+      try {
+        history = await fetchRecentEntriesForExercises(
+          this.prisma,
+          userId,
+          ids,
+        );
+      } catch (err) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'loads_from_history_skipped',
+            reason: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      }
+    }
+    // Numbers the user typed stand in where the logs have nothing (Tier 5):
+    // a single stated set at the target effort, never overriding a real log.
+    for (const known of dto.knownLifts ?? []) {
+      if (!ids.includes(known.exerciseId) || history.has(known.exerciseId)) {
+        continue;
+      }
+      history.set(known.exerciseId, [
+        {
+          workoutLogId: 'known-lift',
+          performedAt: new Date(),
+          sets: [{ setNumber: 1, reps: known.reps, weight: known.weight }],
+        },
+      ]);
+    }
+    if (history.size === 0) {
+      return this.stampCalibrationOnly(sessions, dto);
     }
     const result = stampLoadsFromHistory({
       sessions,
@@ -2510,6 +2535,20 @@ export class PlansService {
         rowsDeloaded: result.deloaded,
       }),
     );
+    return result.sessions;
+  }
+
+  /** No logs and no typed numbers: still stamp the first-week calibration notes. */
+  private stampCalibrationOnly(
+    sessions: GeneratedSession[],
+    dto: GenerateSessionsDto,
+  ): GeneratedSession[] {
+    const result = stampLoadsFromHistory({
+      sessions,
+      specs: dto.sessions,
+      history: new Map(),
+      findMeta: (id) => this.exercises.findOne(id),
+    });
     return result.sessions;
   }
 
