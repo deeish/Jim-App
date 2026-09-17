@@ -193,30 +193,54 @@ Recommendation: the plan should be a living thing. A three-question check-in aft
 
 ---
 
-## 10. What I would do, in order
+## 10. What I would do, in order (revised after a second pass)
 
-**P0, make the output right (backend; no binary needed)**
+A second pass on the first draft's plan, read as the person opening "Generate a plan" and as the person who would ask a coach to write one, changed five things: the quick wins are split out, measurement comes first, new users get a calibration week because they have no history to draw loads from, fat-loss and hybrid users get cardio progression (the first draft only looked at strength), and the preview is reshaped for a user rather than a coach with the load landing in the workout deck where it is used. The form rewrite moves last: visible, but the least urgent with ten testers, and independent of everything else.
 
-1. **A prescription layer that owns volume and effort.** Session set budget from minutes (about one working set per 2.5 to 3 minutes including rest), 3 to 5 exercises at 3 to 5 sets rather than 5 at 2, rest by role, and a weekly per-muscle tally with fractional counting checked against targets by goal and experience, with the pattern-floor logic folded in. The bands in `set-rep-schemes.ts` become inputs to this layer, not the answer.
-2. **Loads and RIR from history.** Pass the user id into `generate-sessions`; use the existing last-performance query and an Epley e1RM to suggest a working load for exercises with logs; stamp an RIR target per week that drifts 3-4 to 1 and a reduced-volume deload.
-3. **Use the inputs we have.** Joint-demand tags pre-filter candidates for injuries; the home equipment checklist is sent; experience gates exercise skill; preferred and saved exercises are passed as candidates.
-4. **Coach check plus title fix.** A deterministic per-plan report (volume per muscle, stacking, rest sanity, skill gate) that also becomes new eval dimensions; rename sessions from the final list.
+**Tier 0, quick wins (about a day, backend and small client fixes)**
 
-**P1, reshape the UI (frontend; rides a binary)**
+- Send the home equipment checklist instead of the fixed dumbbell, band and bodyweight list.
+- Default plan length to four weeks.
+- Rename each session from its final exercise list, after repairs.
+- Disclose the path taken: built with AI, or built by rules this time.
+- Route every generation error through one function that never shows internal strings.
+- Fix the preview's swap-type bug that applies an empty day.
 
-5. One-screen form with smart defaults, dead controls removed, weeks default 4 to 6, templates framing moved out of the form.
-6. Preview: volume strip, dates, load and RIR per row, rationale per row, rebuild day, sticky edits, honest fallback disclosure, staged progress, error copy, and the empty-day bug.
-7. Onboarding auto-generate restored.
+**Tier 1, measure first (two or three days)**
 
-**P2, make the plan live**
+- A deterministic coach check per plan: sets per muscle per week with fractional counting, exposures per muscle, hinge and press stacking, rest sanity for holds, a skill gate by experience, and whether every row carries an effort target and, where possible, a load.
+- The same checks become eval dimensions; re-baseline the existing captures so the next tier is built against numbers that can move.
 
-8. Post-session check-in, plateau deload, regenerate-a-day with constraints, and the weekly re-plan that uses them.
+**Tier 2, the prescription layer (the big one, backend only)**
 
-**Model and cost.** Do not spend the next effort on a stronger model. The model is not deciding the things that are wrong. Once the prescription layer exists, a week-one design call on a stronger model (Sonnet 5 at about three cents a plan) is a cheap experiment to run through `eval:drive`, and a second provider remains parked as before.
+1. Session set budget from minutes (about one working set per 2.5 to 3 minutes including rest), 3 to 5 exercises at 3 to 5 sets rather than 5 at 2, rest by role. The bands in `set-rep-schemes.ts` become inputs, not the answer.
+2. Weekly per-muscle tally against targets by goal and experience, at least two exposures per muscle, the pattern floors folded in.
+3. Effort: an RIR target per week that drifts from 3-4 to 1, and a reduced-volume deload.
+4. Loads: pass the user id into `generate-sessions`; an Epley e1RM from logged sets gives a working load where history exists. Where it does not, **week one is a calibration week**: each main lift gets a ramp instruction and a top set at a stated RIR, the deck logs it, and week two's loads come from that. An optional "current lifts" entry on the form lets a user skip calibration.
+5. Cardio for fat-loss, endurance and hybrid goals: intervals and steady work that progress week to week, not a fixed template.
+6. Injuries pre-filter candidates through the joint-demand tags; experience gates exercise skill; saved and preferred exercises become candidates.
+
+**Tier 3, show it (frontend, rides a binary)**
+
+- Preview top: the week at a glance (days, minutes, first lift of each day) and a plain coach check ("balanced, fits your 45 minutes, uses your gear"). The per-muscle volume detail sits behind a tap, not as the hero.
+- Each exercise row: load and RIR where known, "find your weight, stop 2 reps short" where not, one line of rationale, the longer "why" behind a tap.
+- Dates, rebuild this day, swap here or in every week, manual edits sticky across rebuild, staged progress, the request kept alive when the user leaves.
+- The workout deck shows the suggested load and RIR where the user actually lifts; the calibration top set is a first-class step there.
+
+**Tier 4, make the plan live (backend plus a binary)**
+
+- A three-question check-in after a session (how hard, soreness, joint pain) that adjusts next week's sets; a plateau rule that deloads an exercise; regenerate-a-day that keeps constraints and history.
+- At the end of a block, a "next block" built from this block's logs, which is consistent with the no-roll-forward rule: nothing repeats silently, the user is offered the continuation.
+
+**Tier 5, the form (frontend, last)**
+
+- One screen of smart defaults, the plan stated back as a sentence with tappable nouns, adjustments behind a disclosure.
+- Wire what a coach asks first: current activity level (exists in the request, never collected) and an optional three-lift "current numbers" entry; add a priority muscle.
+- Remove the dead controls, move the templates framing out of the generator, restore the onboarding auto-generate exit.
+
+**Model and cost.** Do not spend the next effort on a stronger model. The model is not deciding the things that are wrong. Once the prescription layer exists, a week-one design call on a stronger model (Sonnet 5 at about three cents a plan) is a cheap experiment to run through `eval:drive`, and a second provider remains parked.
 
 **What not to do.** Do not add more knobs to the form. Do not ask the model for sets, reps and loads directly; the literature on run-to-run instability says a rule layer must own the numbers. Do not surface the "not sent" list to users; remove the inputs instead.
-
----
 
 ## 11. Where things live
 
