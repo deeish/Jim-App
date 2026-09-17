@@ -205,3 +205,23 @@ Real 4-week muscle plan generated on the web rig (local backend on 3005, real Ge
 
 **Tier 4 is done.** Server parts deploy with the next push to Render (two migrations: rest seconds, check-in); every client part waits for the next binary or OTA, and the backend must be live first.
 
+## Tier 5: the form (client + a little server; started 2026-09-17)
+
+### 5a. What a coach asks first (DONE 2026-09-17)
+
+| Change | Where | Verified by |
+|---|---|---|
+| Server: `priorityMuscle` (one of Chest, Back, Legs, Shoulders, Arms, Core) fills that group toward the top of its weekly band in the allocator and asks the model for it in the first accessory slot on the days it fits. `knownLifts` (up to six typed sets, pounds) stand in for missing history so week one carries loads instead of a calibration note; a real log always wins; a plan with no user or no history still gets its calibration notes. | `generate-sessions.dto.ts`, `workout-generator.service.ts` (prompt line), `weekly-volume-allocation.ts`, `plans.service.ts` | allocator spec: two back rows stop at the floor (8) plain and pass it prioritised; 73 suites / 945 tests |
+| Client: three controls under Experience on step 2: "Training now" (0 / 1-2 / 3-4 / 5+ a week; was in the request, never collected), "Bring up" (one muscle), "Your numbers" (bench, squat, deadlift as weight × reps in the user's unit, sent as pounds). All three reach the request through `PlanInputs`; the review step states them back. | `GeneratePlanScreen.tsx`, `planInputs.ts` (`normalizeKnownLifts`), `planPipeline.ts`, `planService.ts`, `types/plan.ts` | input tests (drops incomplete or implausible lifts, one per exercise); web-rig pass of all three steps |
+
+### 5b. The dead controls are gone (DONE 2026-09-17)
+
+| Change | Where | Verified by |
+|---|---|---|
+| Removed from the form: age, cardio equipment, emphasis, focus, per-day time limits, and the "Start from a template" card (templates stay reachable from the calendar and onboarding), with the handlers, state and styles that only served them. Formats and the weekday/weekend split were never rendered and keep only their state. | `GeneratePlanScreen.tsx` (4,406 → 4,046 lines) | type-check + lint; rig pass: step 2 shows location, experience, the three new sections, equipment, duration, style, split, detail, progression |
+| The preview no longer prints "Also on Generate Plan (not in the AI request)": nothing on the form is outside the request now. Helper and test removed. | `PlanPreviewScreen.tsx`, `planGenerationSummary.ts` | summary tests |
+
+Deliberately not done in Tier 5: the one-screen "plan as a sentence" rewrite of the wizard (three lean steps now; a full re-layout is a design call for Dylan and needs a phone pass); the onboarding exit still opens the form rather than auto-generating (the 2026-09 onboarding rework chose a matching moment with a one-tap Start, and changing that exit without a phone pass is not worth the risk).
+
+**All five tiers are built.** Server side is live on the next Render deploy (three migrations since Tier 2: targetRir, restSeconds, check-in). Every client change since Tier 0 waits for the next binary or OTA and needs the backend live first; none has had a phone pass.
+
