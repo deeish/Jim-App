@@ -186,6 +186,26 @@ describe('Invariant tests', () => {
     }
   });
 
+  it('three lifting days go to a full-body or upper/lower week, never push/pull/legs (each muscle once)', () => {
+    for (const experience of ['beginner', 'intermediate', 'advanced'] as const) {
+      for (const goal of ['strength', 'hybrid'] as const) {
+        const ctx = fullContext({
+          goal,
+          planStyle: goal === 'strength' ? 'heavy_compounds' : null,
+          daysPerWeek: 3,
+          selectedWeekdays: ['Monday', 'Wednesday', 'Friday'],
+          durationMin: 45,
+          durationMax: 60,
+          hasRestGaps: true,
+          experience,
+        });
+        const result = getRecommendation(ctx);
+        expect(result).not.toBeNull();
+        expect(['full body', 'upper-lower']).toContain(result!.recommendedSplit);
+      }
+    }
+  });
+
   it('7-day fat loss steady returns Full Body + Cardio structure with lift/cardio/recovery counts', () => {
     const ctx = fullContext({
       goal: 'fat loss',
