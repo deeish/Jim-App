@@ -3,7 +3,7 @@
  * (PlanInputs → buildGenerateSessionsRequest), not legacy route `inputs`.
  */
 
-import type { PlanInputs, Weekday } from '../types/plan';
+import type { CoachCheckReport, PlanInputs, Weekday } from '../types/plan';
 
 /** Matches server `GenerateSessionsDto.mesoHint` max length. */
 export const MESO_HINT_MAX_LENGTH = 200;
@@ -143,6 +143,41 @@ export function mesoHintForGenerateSessions(inputs: PlanInputs): string | undefi
  */
 /** The honest one-liner for who built the week. `undefined` = not reported by
  *  this backend build, so the old wording stands. */
+/**
+ * The coach check in one sentence for the preview: balanced, or the first
+ * thing a coach would raise. Info-level findings do not make a note.
+ */
+export function coachCheckHeadline(report: CoachCheckReport | undefined): string | null {
+  if (!report) return null;
+  const notes = report.findings.filter((f) => f.severity !== 'info');
+  if (notes.length === 0) {
+    return 'Coach check: a balanced week. Every muscle sits inside its weekly band and no day stacks the same pattern.';
+  }
+  const first = notes[0]!.message.replace(/\s+$/, '');
+  const rest = notes.length - 1;
+  return rest === 0
+    ? `Coach check: ${first}`
+    : `Coach check: ${first} (${rest} more note${rest === 1 ? '' : 's'})`;
+}
+
+/** The detail behind the headline: every finding, then sets per muscle against the band. */
+export function coachCheckDetailLines(report: CoachCheckReport | undefined): string[] {
+  if (!report) return [];
+  const lines: string[] = report.findings.map((f) => f.message);
+  const muscles = Object.entries(report.volumeByMuscle)
+    .filter(([, v]) => v.weighted > 0)
+    .sort((a, b) => b[1].weighted - a[1].weighted);
+  if (muscles.length > 0) {
+    const aim = report.band ? ` (aim ${report.band.min}-${report.band.max})` : '';
+    lines.push(`Sets per muscle this week${aim}:`);
+    for (const [muscle, v] of muscles) {
+      const sets = Number.isInteger(v.weighted) ? String(v.weighted) : v.weighted.toFixed(1);
+      lines.push(`${muscle}: ${sets} sets over ${v.exposures} day${v.exposures === 1 ? '' : 's'}`);
+    }
+  }
+  return lines;
+}
+
 export function builtByLine(builtBy: 'ai' | 'rules' | 'mixed' | undefined): string {
   if (builtBy === 'rules') return 'Built by our rules this time (the AI was not used)';
   if (builtBy === 'mixed') return 'Built with AI for some weeks and by our rules for others';

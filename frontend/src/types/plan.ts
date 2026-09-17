@@ -184,6 +184,27 @@ export interface PlanDraftMetrics {
   hardDaysCount: number;
 }
 
+/** One note from the server's coach check, written for the user. */
+export interface CoachCheckFinding {
+  code: string;
+  severity: 'info' | 'warn' | 'high';
+  message: string;
+  weekday?: string;
+}
+
+/** The server's coach check for one week of the generated program (backend ≥ 2026-09-17). */
+export interface CoachCheckReport {
+  weekIndex: number;
+  sessionCount: number;
+  /** Weighted weekly sets per muscle (secondary movers count half) and the sessions that train it. */
+  volumeByMuscle: Record<string, { direct: number; weighted: number; exposures: number }>;
+  /** 0..1 share of strength rows carrying a load, an effort target, or a hold duration. */
+  effortCoverage: number;
+  findings: CoachCheckFinding[];
+  /** Weekly sets per muscle the goal and level call for. */
+  band?: { min: number; max: number };
+}
+
 export interface PlanDraftDebugMeta {
   effectiveSplitId?: string;
   mappingDecisions?: string[];
@@ -194,6 +215,8 @@ export interface PlanDraftDebugMeta {
   generationNotes?: string[];
   /** Who chose the exercises: the model, the rule-based builder, or both across weeks. */
   builtBy?: 'ai' | 'rules' | 'mixed';
+  /** The server's coach check per week: volume, exposure, stacking, rest, effort. */
+  coachCheck?: CoachCheckReport[];
 }
 
 export interface PlanDraft {

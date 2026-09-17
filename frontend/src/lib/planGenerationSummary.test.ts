@@ -1,4 +1,6 @@
 import {
+  coachCheckDetailLines,
+  coachCheckHeadline,
   linesForPlanGenerationSnapshot,
   linesLegacyFormNotInAiRequest,
   mesoHintForGenerateSessions,
@@ -82,3 +84,43 @@ describe('builtByLine', () => {
     expect(builtByLine(undefined)).toMatch(/Gemini/);
   });
 });
+
+describe('coachCheckHeadline / coachCheckDetailLines', () => {
+  const report = {
+    weekIndex: 1,
+    sessionCount: 4,
+    effortCoverage: 1,
+    band: { min: 10, max: 20 },
+    volumeByMuscle: {
+      Chest: { direct: 12, weighted: 14, exposures: 2 },
+      Shoulders: { direct: 6, weighted: 8.5, exposures: 2 },
+      Core: { direct: 0, weighted: 0, exposures: 0 },
+    },
+    findings: [
+      { code: 'volume_low', severity: 'warn' as const, message: 'Shoulders: 8.5 weekly sets, under the 10 most intermediate lifters need to progress.' },
+      { code: 'rest_accessory_long', severity: 'info' as const, message: 'Curl rests 120 seconds; 60 to 90 is enough.' },
+    ],
+  };
+
+  it('is one sentence: balanced, or the first real note with a count of the rest', () => {
+    expect(coachCheckHeadline(undefined)).toBeNull();
+    expect(coachCheckHeadline({ ...report, findings: [] })).toMatch(/^Coach check: a balanced week/);
+    expect(coachCheckHeadline(report)).toBe(
+      'Coach check: Shoulders: 8.5 weekly sets, under the 10 most intermediate lifters need to progress.',
+    );
+    expect(
+      coachCheckHeadline({ ...report, findings: [report.findings[0], report.findings[0], report.findings[1]] }),
+    ).toMatch(/\(1 more note\)$/);
+  });
+
+  it('lists every note, then sets per muscle against the band, heaviest first, untrained muscles left out', () => {
+    const lines = coachCheckDetailLines(report);
+    expect(lines[0]).toMatch(/^Shoulders: 8.5 weekly sets/);
+    expect(lines[1]).toMatch(/^Curl rests/);
+    expect(lines[2]).toBe('Sets per muscle this week (aim 10-20):');
+    expect(lines[3]).toBe('Chest: 14 sets over 2 days');
+    expect(lines[4]).toBe('Shoulders: 8.5 sets over 2 days');
+    expect(lines).toHaveLength(5);
+  });
+});
+

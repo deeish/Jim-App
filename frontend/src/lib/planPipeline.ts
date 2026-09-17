@@ -3,6 +3,7 @@
  * Stages 1–4 + 7 in code; stages 5–6 call backend LLM and normalize response.
  */
 
+import type { CoachCheckReport } from '../types/plan';
 import type {
   PlanInputs,
   PlanDraft,
@@ -717,6 +718,7 @@ async function stages5And6FromApi(
   rawGrokResponse: unknown;
   generationNotes?: string[];
   builtBy?: 'ai' | 'rules' | 'mixed';
+  coachCheck?: CoachCheckReport[];
 }> {
   const request = buildGenerateSessionsRequest(planInputs, weekSpecs, options);
   if (request.sessions.length === 0) {
@@ -726,7 +728,7 @@ async function stages5And6FromApi(
     }));
     return { weeks, rawGrokResponse: null };
   }
-  const { sessions, generationNotes, builtBy } = await generateSessions(request, {
+  const { sessions, generationNotes, builtBy, coachCheck } = await generateSessions(request, {
     signal: options?.signal,
   });
   if (sessions.length !== request.sessions.length) {
@@ -735,7 +737,7 @@ async function stages5And6FromApi(
     );
   }
   const { weeks } = normalizeSessionsResponse(weekSpecs, sessions, planInputs);
-  return { weeks, rawGrokResponse: sessions, generationNotes, builtBy };
+  return { weeks, rawGrokResponse: sessions, generationNotes, builtBy, coachCheck };
 }
 
 /** Shown when the backend rate-limits generation (burst and daily limits share one 429). */
@@ -920,7 +922,7 @@ export async function runPipelineSafe(
     const stage2 = stage2WeekSkeleton(planInputs, stage1);
     const stage3 = stage3TemplateAssignments(planInputs, stage2, stage1);
     const stage4 = stage4SessionSpecs(planInputs, stage2, stage3);
-    const { weeks, rawGrokResponse, generationNotes, builtBy } = await stages5And6FromApi(
+    const { weeks, rawGrokResponse, generationNotes, builtBy, coachCheck } = await stages5And6FromApi(
       planInputs,
       stage4,
       { makeItEasier, signal: options?.signal }
@@ -937,6 +939,7 @@ export async function runPipelineSafe(
         reasons: ['Pipeline run with LLM generation'],
         ...(generationNotes?.length ? { generationNotes } : {}),
         ...(builtBy ? { builtBy } : {}),
+        ...(coachCheck?.length ? { coachCheck } : {}),
       },
     };
     const validation = validateDraft(draft);

@@ -1,3 +1,4 @@
+import type { CoachCheckReport } from '../types/plan';
 import axios from 'axios';
 import { api } from '../api/client';
 import type { Workout } from '../types/workout';
@@ -273,11 +274,14 @@ export async function repairProgramSessions(
   generationNotes?: string[];
   /** Who chose the exercises (backend ≥ 2026-09-16); older backends omit it. */
   builtBy?: 'ai' | 'rules' | 'mixed';
+  /** The coach check per week (backend ≥ 2026-09-17); older backends omit it. */
+  coachCheck?: CoachCheckReport[];
 }> {
   const response = await api.post<{
     sessions: GenerateSessionResult[];
     generationNotes?: string[];
     builtBy?: 'ai' | 'rules' | 'mixed';
+    coachCheck?: CoachCheckReport[];
   }>('/plans/repair-program-sessions', body, {
     timeout: Math.min(GENERATE_SESSIONS_TIMEOUT_MS, 60_000),
   });
@@ -292,11 +296,14 @@ export async function generateSessions(
   generationNotes?: string[];
   /** Who chose the exercises (backend ≥ 2026-09-16); older backends omit it. */
   builtBy?: 'ai' | 'rules' | 'mixed';
+  /** The coach check per week (backend ≥ 2026-09-17); older backends omit it. */
+  coachCheck?: CoachCheckReport[];
 }> {
   const response = await api.post<{
     sessions: GenerateSessionResult[];
     generationNotes?: string[];
     builtBy?: 'ai' | 'rules' | 'mixed';
+    coachCheck?: CoachCheckReport[];
   }>('/plans/generate-sessions', body, {
     timeout: GENERATE_SESSIONS_TIMEOUT_MS,
     signal: opts?.signal,

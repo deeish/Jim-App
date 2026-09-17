@@ -21,6 +21,7 @@ import PlanBuildLoader from '../components/PlanBuildLoader';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { formatEffortTarget } from '../lib/exercisePrescription';
+import { coachCheckDetailLines, coachCheckHeadline } from '../lib/planGenerationSummary';
 import { moveWorkoutBetweenDays } from '../lib/planPreviewMove';
 import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
 import {
@@ -480,6 +481,41 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   }, [cardToReopen, planDraft, planData, planInputs, inputs]);
   
   const currentWeek = planData.find(w => w.weekNumber === selectedWeek) || planData[0];
+
+  // The week at a glance and the coach check, straight from the draft
+  // (Tier 3 of the 2026-09-16 plan): one line per training day, and the
+  // server's read of the week with the per-muscle volume behind a tap.
+  const [coachOpen, setCoachOpen] = useState(false);
+  const coachReport = useMemo(
+    () => planDraft?.debugMeta?.coachCheck?.find((r) => r.weekIndex === selectedWeek),
+    [planDraft, selectedWeek],
+  );
+  const coachHeadline = useMemo(() => coachCheckHeadline(coachReport), [coachReport]);
+  const coachDetail = useMemo(() => coachCheckDetailLines(coachReport), [coachReport]);
+  const glanceRows = useMemo(() => {
+    const week = planDraft?.weeks.find((w) => w.weekIndex === selectedWeek);
+    if (!week) return [];
+    const startIso = planInputs?.startDateISO;
+    const monday = startIso ? getWeekStartMonday(parseLocalYmd(startIso)) : null;
+    return week.days
+      .filter((d) => d.session && d.session.exercises.length > 0)
+      .map((d) => {
+        const session = d.session!;
+        const weekdayIdx = DAYS_OF_WEEK.indexOf(d.weekday);
+        let dateLabel = d.weekday.slice(0, 3);
+        if (monday && weekdayIdx >= 0) {
+          const date = new Date(monday);
+          date.setDate(monday.getDate() + (selectedWeek - 1) * 7 + weekdayIdx);
+          dateLabel = `${d.weekday.slice(0, 3)} ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+        }
+        const firstLift = session.exercises[0]?.name ?? '';
+        const minutes =
+          session.durationMin === session.durationMax
+            ? `${session.durationMin} min`
+            : `${session.durationMin}-${session.durationMax} min`;
+        return { key: d.weekday, dateLabel, title: session.title, firstLift, minutes };
+      });
+  }, [planDraft, planInputs?.startDateISO, selectedWeek]);
 
   const generationSummaryLines = useMemo(
     () =>
@@ -1257,6 +1293,50 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                 </Text>
               ) : null}
             </View>
+
+            {glanceRows.length > 0 ? (
+              <View style={styles.glanceCard} accessibilityRole="summary">
+                {glanceRows.map((r) => (
+                  <View key={r.key} style={styles.glanceRow}>
+                    <Text style={styles.glanceDay} numberOfLines={1}>
+                      {r.dateLabel}
+                    </Text>
+                    <Text style={styles.glanceText} numberOfLines={1}>
+                      {r.title}
+                      {r.firstLift ? ` · ${r.firstLift}` : ''}
+                    </Text>
+                    <Text style={styles.glanceMinutes} numberOfLines={1}>
+                      {r.minutes}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {coachHeadline ? (
+              <View style={styles.coachCard}>
+                <Text style={styles.coachLine}>{coachHeadline}</Text>
+                {coachDetail.length > 0 ? (
+                  <TouchableOpacity
+                    onPress={() => setCoachOpen((o) => !o)}
+                    accessibilityRole="button"
+                    accessibilityLabel={coachOpen ? 'Hide sets per muscle' : 'Show sets per muscle'}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.coachToggle}>
+                      {coachOpen ? 'Hide sets per muscle' : 'Sets per muscle and every note'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+                {coachOpen
+                  ? coachDetail.map((line, i) => (
+                      <Text key={`${i}-${line.slice(0, 20)}`} style={styles.coachDetailLine}>
+                        {line}
+                      </Text>
+                    ))
+                  : null}
+              </View>
+            ) : null}
           </>
         )}
 
@@ -1917,6 +1997,58 @@ function createPlanPreviewStyles(colors: ColorPalette) {
     marginTop: spacing.md,
     lineHeight: leading.footnote,
     textAlign: 'center',
+  },
+  glanceCard: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  glanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  glanceDay: {
+    width: 84,
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
+    color: colors.textSecondary,
+  },
+  glanceText: {
+    flex: 1,
+    fontSize: text.footnote,
+    color: colors.text,
+  },
+  glanceMinutes: {
+    marginLeft: spacing.sm,
+    fontSize: text.footnote,
+    color: colors.textMuted,
+  },
+  coachCard: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  coachLine: {
+    fontSize: text.footnote,
+    lineHeight: leading.footnote,
+    color: colors.text,
+  },
+  coachToggle: {
+    marginTop: spacing.xs,
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
+    color: colors.primary,
+  },
+  coachDetailLine: {
+    marginTop: spacing.xs,
+    fontSize: text.footnote,
+    lineHeight: leading.footnote,
+    color: colors.textSecondary,
   },
   previewCoachSurfaceHint: {
     fontSize: text.footnote,
