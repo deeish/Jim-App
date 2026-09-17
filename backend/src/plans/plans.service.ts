@@ -33,6 +33,7 @@ import {
 } from './weekly-volume-allocation';
 import { stampLoadsFromHistory } from './load-from-history';
 import { repairPatternStacking } from './pattern-stacking-repair';
+import { enforceMuscleExposureFloor } from './muscle-exposure-floor';
 import { plannedLiftingMinutes } from '../workouts/workout-generator.service';
 import {
   fetchRecentEntriesForExercises,
@@ -2382,12 +2383,33 @@ export class PlansService {
       );
     }
 
+    // With three or more lifting days every big muscle is trained twice:
+    // a once-a-week muscle gets an isolation on a day that fits and has
+    // room (muscle-exposure-floor.ts, rig run 2026-09-17).
+    const exposed = enforceMuscleExposureFloor({
+      sessions: floored.sessions,
+      specs: dto.sessions,
+      library: this.exercises,
+      equipment,
+      avoidConstraintsGlobal: dto.avoidConstraints,
+      prefs: { goal: dto.goal, difficulty: dto.experienceLevel },
+    });
+    if (exposed.repairs > 0) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'muscle_exposure_floor',
+          repairs: exposed.repairs,
+          notes: exposed.notes.slice(0, 8),
+        }),
+      );
+    }
+
     // At most two pressing compounds and two hinges per session; a third
     // becomes an isolation for the same muscle (pattern-stacking-repair.ts,
     // Tier 2f of the 2026-09-16 plan). Runs before allocation so the
     // allocator sees the final roles.
     const unstacked = repairPatternStacking({
-      sessions: floored.sessions,
+      sessions: exposed.sessions,
       specs: dto.sessions,
       library: this.exercises,
       equipment,

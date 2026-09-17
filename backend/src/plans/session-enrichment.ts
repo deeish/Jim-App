@@ -731,7 +731,7 @@ function sessionLooksLikeFinisherConditioning(
  * coach-language rewrite).
  */
 const BALANCE_INSERT_NOTES =
-  /Added (so pressing and pulling|so your week trains|to round out the day|for (pull balance|squat\/knee|hip hinge|pattern balance))/i;
+  /Added (so pressing and pulling|so your week trains|so [a-z]+ is trained twice|to round out the day|for (pull balance|squat\/knee|hip hinge|pattern balance))/i;
 
 export function exerciseRowIsBalanceInsert(
   e: GeneratedSessionExercise,
