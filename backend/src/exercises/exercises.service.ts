@@ -25,7 +25,9 @@ import {
 import {
   getJointDemands,
   jointsFromAvoidPhrases,
+  type JointId,
 } from '../data/exercise-joint-demands';
+import { TECHNICAL_LIFT_NAME } from '../data/technical-lifts';
 import { getExerciseProgressions } from '../data/exercise-progressions';
 import { isExcludedFromExerciseCatalog } from '../data/cardio-catalog-exclusions';
 import { isRetiredExercise } from '../data/retired-exercise-ids';
@@ -1033,8 +1035,25 @@ export class ExercisesService implements OnModuleInit {
     equipment?: string[];
     excludeIds?: string[];
     limit?: number;
+    /**
+     * Joints the user is working around. Rows the joint-demand audit marks as
+     * loading one of them never enter the pool, so the model cannot pick them
+     * and the rule-based builder cannot either. Until 2026-09-17 the joint
+     * tags were only consulted by the replacement picker; generation relied
+     * on prompt text and a name regex (2026-09-16 review).
+     */
+    avoidJoints?: JointId[];
+    /** Beginners: keep technical lifts (cleans, snatches, jerks, pistols…) out of the pool. */
+    excludeTechnical?: boolean;
   }): TransformedExercise[] {
-    const { focus, equipment = [], excludeIds = [], limit = 70 } = options;
+    const {
+      focus,
+      equipment = [],
+      excludeIds = [],
+      limit = 70,
+      avoidJoints = [],
+      excludeTechnical = false,
+    } = options;
     const focusNorm = focus
       .toLowerCase()
       .split(/\+|&|,/)[0]
@@ -1055,6 +1074,16 @@ export class ExercisesService implements OnModuleInit {
     if (excludeIds.length) {
       const excludeSet = new Set(excludeIds);
       results = results.filter((e) => !excludeSet.has(e.id));
+    }
+    if (avoidJoints.length) {
+      const avoid = new Set(avoidJoints);
+      results = results.filter((e) => {
+        const demands = getJointDemands(e.id);
+        return !demands?.some((j) => avoid.has(j));
+      });
+    }
+    if (excludeTechnical) {
+      results = results.filter((e) => !TECHNICAL_LIFT_NAME.test(e.name));
     }
     return this.dedupeCandidateNames(results).slice(0, limit);
   }

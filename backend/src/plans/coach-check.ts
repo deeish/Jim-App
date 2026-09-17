@@ -1,5 +1,6 @@
 import { ISOLATION_NAME, type GeneratedSession } from './session-enrichment';
 import { normalizeDifficulty, normalizeGoal } from '../data/set-rep-schemes';
+import { TECHNICAL_LIFT_NAME } from '../data/technical-lifts';
 
 /**
  * The coach check: a deterministic read of one generated week, the way a
@@ -121,8 +122,7 @@ export function weeklyVolumeBand(
   return base;
 }
 
-const SKILL_GATED_NAME =
-  /\b(snatch|power clean|hang clean|clean and jerk|clean & jerk|jerk|pistol squat|muscle-?up|handstand|push press|turkish get-?up|kipping|overhead squat)\b/i;
+const SKILL_GATED_NAME = TECHNICAL_LIFT_NAME;
 
 function isCardio(
   meta: CoachMeta | undefined,

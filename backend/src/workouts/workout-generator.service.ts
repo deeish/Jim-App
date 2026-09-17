@@ -16,6 +16,10 @@ import {
   fallbackReasonFor,
   reportGenerationFallback,
 } from './generation-fallback';
+import {
+  jointsFromAvoidPhrases,
+  type JointId,
+} from '../data/exercise-joint-demands';
 /**
  * ⚠ The model is NOT named in this file. `LlmClient` reads `LLM_PROVIDER` /
  * `LLM_MODEL` from env, because a hardcoded id was the single point of
@@ -256,11 +260,16 @@ export class WorkoutGeneratorService {
     const recentIds = userId ? await this.getRecentExerciseIds(userId) : [];
     const excludeFromVariety = preferences?.excludeExerciseIds ?? [];
     const allExclude = [...new Set([...recentIds, ...excludeFromVariety])];
+    const poolGates = WorkoutGeneratorService.candidateGates(
+      preferences?.limitations,
+      preferences?.difficulty ?? preferences?.experience,
+    );
     const rawCandidates = this.exercisesService.getCandidatesForGenerator({
       focus,
       equipment: equipment.length ? equipment : undefined,
       excludeIds: allExclude,
       limit: PER_SESSION_CANDIDATE_LIMIT,
+      ...poolGates,
     });
 
     const excludeNames = preferences?.excludeExerciseNames ?? [];
@@ -699,10 +708,28 @@ export class WorkoutGeneratorService {
    * Union of focus-specific candidate pulls (deduped), capped for batch prompts.
    * Falls back toward full-body fill when the union is thin.
    */
+  /**
+   * Selection-side gates for a candidate pool: joints the user is working
+   * around (from the avoid phrases) and, for beginners, technical lifts.
+   */
+  static candidateGates(
+    limitations: string[] | undefined,
+    difficulty: string | undefined,
+  ): { avoidJoints: JointId[]; excludeTechnical: boolean } {
+    return {
+      avoidJoints: jointsFromAvoidPhrases(limitations ?? []),
+      excludeTechnical: (difficulty ?? '').toLowerCase() === 'beginner',
+    };
+  }
+
   private mergeCandidatesForBatchProgram(
     sessions: Array<{ title?: string; type: string }>,
     equipment: string[],
     programGoal?: string,
+    gates: { avoidJoints: JointId[]; excludeTechnical: boolean } = {
+      avoidJoints: [],
+      excludeTechnical: false,
+    },
   ): CandidateExercise[] {
     const focusLabelsInOrder: string[] = [];
     const seen = new Set<string>();
@@ -727,6 +754,7 @@ export class WorkoutGeneratorService {
         equipment: equipment.length ? equipment : undefined,
         excludeIds: [],
         limit: perFocus,
+        ...gates,
       });
       for (const row of list) {
         const c = this.libraryRowToCandidate(row);
@@ -742,6 +770,7 @@ export class WorkoutGeneratorService {
         equipment: equipment.length ? equipment : undefined,
         excludeIds,
         limit: Math.max(0, BATCH_CANDIDATE_CAP - mergedById.size) + 12,
+        ...gates,
       });
       for (const row of fill) {
         const c = this.libraryRowToCandidate(row);
@@ -905,10 +934,15 @@ export class WorkoutGeneratorService {
       this.programGoalWantsCardioFinisher(goal) ||
       this.programGoalWantsCardioFinisher(secondaryGoal);
 
+    const batchGates = WorkoutGeneratorService.candidateGates(
+      limitations,
+      difficulty,
+    );
     let candidates = this.mergeCandidatesForBatchProgram(
       sessions,
       equipment,
       goal,
+      batchGates,
     );
     if (candidates.length < 20) {
       const fallbackRaw = this.exercisesService.getCandidatesForGenerator({
@@ -916,6 +950,7 @@ export class WorkoutGeneratorService {
         equipment: equipment.length ? equipment : undefined,
         excludeIds: [],
         limit: 65,
+        ...batchGates,
       });
       candidates = this.buildCandidateListWithAnchorsFirst(
         fallbackRaw.map((e) => this.libraryRowToCandidate(e)),
