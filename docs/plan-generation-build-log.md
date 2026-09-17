@@ -225,3 +225,7 @@ Deliberately not done in Tier 5: the one-screen "plan as a sentence" rewrite of 
 
 **All five tiers are built.** Server side is live on the next Render deploy (three migrations since Tier 2: targetRir, restSeconds, check-in). Every client change since Tier 0 waits for the next binary or OTA and needs the backend live first; none has had a phone pass.
 
+### 5c. Web-rig pass (DONE 2026-09-17)
+
+Muscle goal, "Training now 3-4", "Bring up: Back", bench 135 × 8 typed, four weeks generated in 10 s against the local backend. The review step listed all three answers; the request carried `priorityMuscle: Back`, `currentActivityLevel: 3-4`, `knownLifts: [bench 135 × 8]`; week one's bench read "4 × 8 @ 135" from the typed set with no logs at all; Back landed at 20.5 weighted sets (band 8-22) over two days, the highest group of the week; the coach check read "a balanced week". Fixed from the look: the six priority chips squeezed into one row and truncated, now three to a row.
+
