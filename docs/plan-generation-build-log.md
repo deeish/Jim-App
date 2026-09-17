@@ -269,3 +269,16 @@ Two things the run shows that are worth fixing next (server, small):
 
 Priority Back landed at 15 sets against a 20 target: the 45-minute budget, not the rule, is the ceiling there; that is honest.
 
+### Re-run after the two fixes (2026-09-17, later)
+
+Same inputs, same rig, backend rebuilt with the post-progression trim and the role floors. Raw capture: `docs/audits/2026-09-17-preview-rig-run-2.json`.
+
+| | |
+|---|---|
+| Generation | 10 s, model-built, Upper/Lower, no console errors, no 4xx |
+| Fix 1 (peak weeks) | no week is over the band any more; the backend logged the trim: week 3 dropped the hip thrust (Legs at the ceiling), week 4 took one set each off deadlift, RDL and hip thrust, then dropped the hip thrust and a second row rather than go lower |
+| Fix 2 (compound floor) | no secondary compound below three sets anywhere in the four weeks; the trim removed rows instead |
+| Typed bench | 135 lb in week 1 → 140 → 145 → 150 lb across the weeks as reps and effort tightened (4 × 8–12 at 2 in reserve → 5 × 5–9 at 1 in reserve) |
+| What this draw got wrong | Chest: 7 sets on one day (bench and dips on Monday; the second upper day is press, row, chin-up, face pull with no chest press). The coach line says so ("Chest: 7 weekly sets, under the 8…" and "trained on one day only"). The week's pattern floors guarantee a horizontal press exists, not that it exists twice. Next fix: an exposure floor for the four big muscles when there are three or more lifting days, filled with an isolation on the day that lacks it. |
+| Also worth a look | a four-week "build" profile takes reps from 8–12 to 5–9 by week 4 for a muscle goal; three cuts in a row drift toward strength ranges. Two cuts and a heavier load is what a coach would write. |
+
