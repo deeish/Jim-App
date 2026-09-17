@@ -15,6 +15,7 @@ export type ParsedGenerateSessionsCapture = {
   inputs: {
     goal?: string;
     detailLevel?: string;
+    experienceLevel?: string;
     sessions: GenerateSessionsDto['sessions'];
   };
   sessionsOut: GeneratedSession[];
@@ -355,6 +356,7 @@ function scoreSessionsWithCatalog(
     validation,
     effectiveDetailLevel,
     enrichGoal: inputs.goal,
+    enrichDifficulty: inputs.experienceLevel,
     generatorEquipment,
   });
   return { score, validation, effectiveDetailLevel };

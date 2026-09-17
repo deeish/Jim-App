@@ -13,6 +13,11 @@ import {
   goalWantsStrengthCardioFinisher,
 } from '../../workouts/workout-generator.service';
 import { equipmentSatisfies } from '../../data/exercise-mappings';
+import {
+  COACH_CHECK_MAX,
+  coachCheckProgram,
+  type CoachCheckScores,
+} from '../coach-check';
 
 export type EvalScoringOptions = {
   skipBalance?: boolean;
@@ -26,6 +31,8 @@ export type EvalScoringOptions = {
   skipFatigueStacking?: boolean;
   skipEquipmentConformance?: boolean;
   skipCopySanity?: boolean;
+  /** Skip the coach check (weekly volume, exposure, stacking, rest by role, skill gate, effort target). */
+  skipCoachCheck?: boolean;
 };
 
 export type EvalScoreBreakdown = {
@@ -48,11 +55,24 @@ export type EvalScoreBreakdown = {
   equipmentConformance: number;
   /** User-facing copy free of machine ids, pipeline jargon, and stale duration notes. */
   copySanity: number;
+  /** Coach check (2026-09-16): weighted sets per muscle inside the goal/level band. */
+  weeklyVolume: number;
+  /** Each big muscle trained on two or more days when the week has three or more. */
+  muscleExposure: number;
+  /** No session with three or more hinge or press movements. */
+  patternStacking: number;
+  /** Main lift rests 2+ min; isolation, core and holds 90 s or less. */
+  restByRole: number;
+  /** No technical lift (cleans, snatches, pistols, push press) in a beginner's week. */
+  skillGate: number;
+  /** Share of strength rows carrying a load, an RIR target, or a hold duration (0 until Tier 2 stamps them). */
+  effortTarget: number;
   total: number;
 };
 
-/** Sum of structural..copySanity when every dimension is at its ceiling (used for fail caps). */
-export const EVAL_SCORE_MAX_TOTAL = 140;
+/** Sum of every dimension at its ceiling (used for fail caps). 140 before the
+ *  coach check landed on 2026-09-16; the six coach dimensions add 28. */
+export const EVAL_SCORE_MAX_TOTAL = 168;
 
 /** Per-dimension ceilings (must stay in sync with the score functions below; spec asserts the sum). */
 export const EVAL_SCORE_DIMENSION_MAX: Record<
@@ -72,6 +92,7 @@ export const EVAL_SCORE_DIMENSION_MAX: Record<
   fatigueStacking: 6,
   equipmentConformance: 10,
   copySanity: 6,
+  ...COACH_CHECK_MAX,
 };
 
 export type EvalScoreResult = {
@@ -785,6 +806,8 @@ export function scoreGeneratedChunk(args: {
   validation: ChunkValidationResult;
   effectiveDetailLevel: 'simple' | 'detailed';
   enrichGoal?: string;
+  /** The user's level; the coach check bands volume and gates skill by it. */
+  enrichDifficulty?: string;
   evalScoring?: EvalScoringOptions;
   /** Equipment the generator resolved for the user; drives equipmentConformance. */
   generatorEquipment?: string[];
@@ -874,6 +897,15 @@ export function scoreGeneratedChunk(args: {
     findings,
     !!opt.skipCopySanity,
   );
+  const coach = scoreCoachCheck(
+    args.specs,
+    args.sessions,
+    byId,
+    args.enrichGoal,
+    args.enrichDifficulty,
+    findings,
+    !!opt.skipCoachCheck,
+  );
   checkStrengthStimulusAdequacy(args.specs, args.sessions, byId, findings);
   if (coachingProDepth < 6) {
     findings.push(
@@ -894,7 +926,13 @@ export function scoreGeneratedChunk(args: {
     prescriptionHygiene +
     fatigueStacking +
     equipmentConformance +
-    copySanity;
+    copySanity +
+    coach.weeklyVolume +
+    coach.muscleExposure +
+    coach.patternStacking +
+    coach.restByRole +
+    coach.skillGate +
+    coach.effortTarget;
 
   if (!args.validation.ok) {
     const cap = Math.round(EVAL_SCORE_MAX_TOTAL * 0.45);
@@ -921,8 +959,63 @@ export function scoreGeneratedChunk(args: {
       fatigueStacking,
       equipmentConformance,
       copySanity,
+      ...coach,
       total,
     },
     findings,
   };
+}
+
+/**
+ * The coach check as eval points. Weeks are scored separately and averaged so
+ * a multi-week chunk is judged per week. Skipped (ceiling) for toy fixtures
+ * whose catalog carries no muscle metadata, the same rule `scoreBalance` uses.
+ */
+function scoreCoachCheck(
+  specs: GenerateSessionsDto['sessions'],
+  sessions: GeneratedSession[],
+  byId: Map<string, EvalCatalogExercise>,
+  enrichGoal: string | undefined,
+  enrichDifficulty: string | undefined,
+  findings: string[],
+  skip: boolean,
+): CoachCheckScores {
+  const ceiling: CoachCheckScores = { ...COACH_CHECK_MAX };
+  if (skip) return ceiling;
+  const strengthSessions = sessions.filter(
+    (_, i) => specs[i]?.type === 'strength',
+  );
+  if (strengthSessions.length === 0) return ceiling;
+  const coverage =
+    strengthSessions.reduce((sum, s) => sum + sessionMetaCoverage(s, byId), 0) /
+    strengthSessions.length;
+  if (coverage < 0.55) {
+    findings.push(
+      `Coach check skipped (low catalog metadata coverage ${Math.round(coverage * 100)}%).`,
+    );
+    return ceiling;
+  }
+  const reports = coachCheckProgram({
+    sessions,
+    specs,
+    findMeta: (id) => byId.get(id),
+    prefs: { goal: enrichGoal, difficulty: enrichDifficulty },
+  });
+  if (reports.length === 0) return ceiling;
+  const keys = Object.keys(COACH_CHECK_MAX) as Array<keyof CoachCheckScores>;
+  const out = { ...ceiling };
+  for (const k of keys) {
+    out[k] = Math.round(
+      reports.reduce((sum, r) => sum + r.scores[k], 0) / reports.length,
+    );
+  }
+  for (const r of reports) {
+    for (const f of r.findings) {
+      if (f.severity === 'info') continue;
+      findings.push(
+        `Coach check (week ${r.weekIndex}${f.weekday ? `, ${f.weekday}` : ''}): ${f.message}`,
+      );
+    }
+  }
+  return out;
 }

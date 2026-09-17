@@ -37,6 +37,7 @@ export async function scoreEvalScenario(
       validation: out.validationAfterEnrich,
       effectiveDetailLevel: s.effectiveDetailLevel,
       enrichGoal: s.enrichPrefs.goal,
+      enrichDifficulty: s.enrichPrefs.difficulty,
       evalScoring: s.evalScoring,
       generatorEquipment: s.equipment,
     });
@@ -65,6 +66,7 @@ export async function scoreEvalScenario(
     validation: out.validation,
     effectiveDetailLevel: s.effectiveDetailLevel,
     enrichGoal: s.enrichPrefs?.goal,
+    enrichDifficulty: s.enrichPrefs?.difficulty,
     evalScoring: s.evalScoring,
     generatorEquipment: s.equipment,
   });

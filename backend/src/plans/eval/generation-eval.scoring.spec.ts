@@ -169,7 +169,7 @@ describe('generation eval scoring', () => {
   const scenarios = loadAllEvalScenarios();
   const minByScenarioId: Record<string, number> = {
     // Intentionally dirty input; scoring skips balance/coaching noise from synthetic fillers.
-    chunk_duplicate_across_four_strength_days: 136,
+    chunk_duplicate_across_four_strength_days: 152,
   };
 
   it('meets quality thresholds on regression suite', async () => {
@@ -177,7 +177,7 @@ describe('generation eval scoring', () => {
     for (const s of scenarios) {
       const row = await scoreEvalScenario(s);
       rows.push({ id: row.id, total: row.score.breakdown.total });
-      const min = minByScenarioId[s.id] ?? 134;
+      const min = minByScenarioId[s.id] ?? 152;
       if (row.score.breakdown.total < min) {
         throw new Error(
           `Score too low for ${s.id}: ${row.score.breakdown.total} < ${min}. Findings: ${row.score.findings.join(' | ')}`,
@@ -186,6 +186,6 @@ describe('generation eval scoring', () => {
     }
 
     const avg = rows.reduce((sum, r) => sum + r.total, 0) / rows.length;
-    expect(avg).toBeGreaterThanOrEqual(136);
+    expect(avg).toBeGreaterThanOrEqual(156);
   });
 });

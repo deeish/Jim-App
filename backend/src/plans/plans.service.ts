@@ -26,6 +26,7 @@ import {
 import { ApplyWorkaroundsDto } from './dto/apply-workarounds.dto';
 import { ReplaceDayDto } from './dto/replace-day.dto';
 import { conformSessionTitleToExercises } from './session-title';
+import { coachCheckProgram, type CoachCheckReport } from './coach-check';
 import { substituteAvoidedExercises } from './plan-avoid-substitution';
 import {
   GenerateSessionsDto,
@@ -1840,6 +1841,8 @@ export class PlansService {
     generationNotes?: string[];
     /** Who designed the exercises: the model, the rule-based builder, or both across chunks. */
     builtBy: 'ai' | 'rules' | 'mixed';
+    /** The coach check per week: volume per muscle, exposures, stacking, rest, skill, effort. */
+    coachCheck: CoachCheckReport[];
   }> {
     this.logger.debug(
       `generateSessions user=${userId} sessions=${dto.sessions?.length ?? 0}`,
@@ -2020,6 +2023,25 @@ export class PlansService {
 
     const enriched = await this.applySessionEnrichment(orderedResults, dto);
     const builtBy = PlansService.builtByFromChunkPaths(chunkPaths);
+    const coachCheck = coachCheckProgram({
+      sessions: enriched,
+      specs: dto.sessions,
+      findMeta: (id) => this.exercises.findOne(id),
+      prefs: { goal: dto.goal, difficulty: dto.experienceLevel },
+    });
+    for (const report of coachCheck) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'coach_check',
+          weekIndex: report.weekIndex,
+          scores: report.scores,
+          effortCoverage: Number(report.effortCoverage.toFixed(2)),
+          warnings: report.findings
+            .filter((f) => f.severity !== 'info')
+            .map((f) => f.code),
+        }),
+      );
+    }
 
     const generationNotesOut =
       allGenerationNotes.length > 0
@@ -2096,6 +2118,7 @@ export class PlansService {
       sessions: enriched,
       ...(generationNotesOut ? { generationNotes: generationNotesOut } : {}),
       builtBy,
+      coachCheck,
     };
   }
 
