@@ -162,7 +162,10 @@ export default function PlanPreviewDayScreen({ navigation, route }: Props) {
     (exerciseName: string) => {
       const weeks = getPreviewSession().planDraft?.weeks.length ?? 1;
       if (weeks <= 1) {
-        void doSwap(exerciseName, 'week');
+        Alert.alert(`Swap ${exerciseName}?`, 'A different exercise for the same muscle takes its place. The sets and reps stay.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Swap', onPress: () => void doSwap(exerciseName, 'week') },
+        ]);
         return;
       }
       Alert.alert(`Swap ${exerciseName}`, 'Swap it in this week only, or in every week of the plan?', [
@@ -177,6 +180,13 @@ export default function PlanPreviewDayScreen({ navigation, route }: Props) {
   const rebuildDay = useCallback(async () => {
     const s = getPreviewSession();
     if (!s.planDraft || !s.planInputs || s.regenerating) return;
+    const go = await new Promise<boolean>((resolve) =>
+      Alert.alert(`Rebuild ${day}?`, 'A fresh set of exercises for this day. Swaps you made on this day are replaced too.', [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Rebuild', onPress: () => resolve(true) },
+      ]),
+    );
+    if (!go) return;
     setPreviewSession({ regenerating: rebuildKey });
     try {
       const result = await regeneratePipelineDay(s.planInputs, draftId, s.planDraft, weekNumber, day as Weekday, {

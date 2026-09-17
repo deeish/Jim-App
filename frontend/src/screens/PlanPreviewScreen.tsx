@@ -308,6 +308,19 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   
   const currentWeek = planData.find(w => w.weekNumber === selectedWeek) || planData[0];
   const phases = useMemo(() => (planDraft ? weekPhases(planDraft, planInputs) : {}), [planDraft, planInputs]);
+  /** "Sep 14" for a weekday of the selected week, from the plan's start date; empty without one. */
+  const dayDateLabel = useCallback(
+    (day: string): string => {
+      const start = planInputs?.startDateISO;
+      const idx = DAYS_OF_WEEK.indexOf(day);
+      if (!start || idx < 0) return '';
+      const monday = getWeekStartMonday(parseLocalYmd(start));
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + (selectedWeek - 1) * 7 + idx);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    },
+    [planInputs?.startDateISO, selectedWeek],
+  );
   /** One line under a day card, from the draft session (cardio and recovery read differently). */
   const cardLine = useCallback(
     (day: string, workout: PlanWorkout): string => {
@@ -441,12 +454,18 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't generate. Try again.");
           return;
         }
+        const kept = getPreviewSession().recordedSwaps.filter(
+          (sw) => sw.weeks === 'all' || sw.weeks === weekNum,
+        ).length;
         const draft = applyRecordedSwaps(result.draft, getPreviewSession().recordedSwaps);
         setPlanDraft(draft);
         const weekPlans = planDraftToWeekPlans(draft) as WeekPlan[];
         setPlanData((prev) =>
           prev.map((w) => (w.weekNumber === weekNum ? weekPlans[weekNum - 1] : w))
         );
+        if (kept > 0) {
+          Alert.alert('Week rebuilt', `Kept your ${kept} swap${kept === 1 ? '' : 's'}.`);
+        }
       } else if (planInputs) {
         const result = await runPipelineSafe(planInputs, draftId, { repairIfInvalid: true });
         if (!result.ok) {
@@ -885,7 +904,8 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
       >
         {planData.length > 0 && (
           <>
-            {/* Week Tabs */}
+            {/* Week Tabs (a one-week plan has nothing to switch between) */}
+            {planData.length > 1 ? (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -913,6 +933,19 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+            ) : null}
+            {regenerating && regenerating !== `week-${selectedWeek}` ? null : regenerating ? (
+              <View style={styles.busyRow} accessibilityLiveRegion="polite">
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.busyText}>
+                  {regenerating === 'cardio'
+                    ? 'Rebuilding the cardio…'
+                    : regenerating === 'easier'
+                      ? 'Rebuilding the week a step easier…'
+                      : `Rebuilding week ${selectedWeek}…`}
+                </Text>
+              </View>
+            ) : null}
 
             {/* The plan stated back, then the coach's one line (2026-09-17 redesign). */}
             {planDraft ? (
@@ -957,7 +990,10 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           return (
             <View key={day} style={styles.daySection}>
               <View style={styles.dayHeader}>
-                <Text style={styles.dayTitle}>{day}</Text>
+                <Text style={styles.dayTitle}>
+                  {day}
+                  {dayDateLabel(day) ? <Text style={styles.dayDate}>{`  ${dayDateLabel(day)}`}</Text> : null}
+                </Text>
                 <View style={styles.dayActions}>
                   <TouchableOpacity
                     style={styles.dayActionIcon}
@@ -1438,6 +1474,15 @@ function createPlanPreviewStyles(colors: ColorPalette) {
     borderRadius: radius.sm,
     backgroundColor: colors.warningSoft,
   },
+  busyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  busyText: { fontSize: text.footnote, color: colors.textSecondary },
+  dayDate: { fontSize: text.footnote, fontWeight: weight.regular, color: colors.textMuted },
   chipRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.md },
   chip: {
     paddingHorizontal: spacing.md,
