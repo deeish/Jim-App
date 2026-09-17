@@ -52,6 +52,12 @@ export class PlanSlotExerciseDto {
   @Min(1)
   repsMax?: number;
 
+  /** Reps in reserve to stop at (effort target). 0 = to failure. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  targetRir?: number;
+
   /** Duration in seconds for time-based rows (cardio bouts). */
   @IsOptional()
   @IsNumber()

@@ -16,6 +16,24 @@ import { isUnilateralByName } from './cross-session-diversity';
 export const DELOAD_REASONING_NOTE =
   'Deload week: sets and reps are intentionally lighter so you recover and come back stronger.';
 
+/** How far the block's phase moves the effort target: harder as it builds, easier on a deload. */
+export function rirShiftForPhase(phase: string | undefined): number {
+  switch ((phase ?? '').toLowerCase()) {
+    case 'progression':
+      return -1;
+    case 'peak':
+      return -2;
+    case 'deload':
+      return 2;
+    default:
+      return 0;
+  }
+}
+
+function clampRir(value: number, floor: number): number {
+  return Math.max(floor, Math.min(4, Math.round(value)));
+}
+
 function clampReps(value: number): number {
   return Math.max(1, Math.min(100, value));
 }
@@ -122,16 +140,27 @@ export function applyWeekProgressionToEnrichedSessions(args: {
         shiftReps && ex.repsMax != null
           ? clampReps(ex.repsMax + prog.repModifier)
           : ex.repsMax;
+      // Effort drifts with the phase: closer to failure as the block builds,
+      // eased on a deload. Compounds never go below 1 RIR (a heavy lift to
+      // failure is a technique risk, not a stimulus); isolation may reach 0.
+      const targetRir =
+        ex.targetRir == null
+          ? undefined
+          : clampRir(
+              ex.targetRir + rirShiftForPhase(prog.phase),
+              keepsCanonicalRepBand(ex, meta) ? 0 : 1,
+            );
       if (
         sets === ex.sets &&
         reps === ex.reps &&
         repsMin === ex.repsMin &&
-        repsMax === ex.repsMax
+        repsMax === ex.repsMax &&
+        targetRir === ex.targetRir
       ) {
         return ex;
       }
       changed = true;
-      return { ...ex, sets, reps, repsMin, repsMax };
+      return { ...ex, sets, reps, repsMin, repsMax, targetRir };
     });
     if (!changed) return session;
 

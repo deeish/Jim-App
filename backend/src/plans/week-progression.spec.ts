@@ -93,6 +93,43 @@ describe('applyWeekProgressionToEnrichedSessions', () => {
     expect(row.reps).toBe(9);
   });
 
+  it('drifts the effort target with the phase and never sends a compound to failure', () => {
+    const withRir = (weekIndex: number) =>
+      session({
+        weekIndex,
+        exercises: [
+          {
+            name: 'Bench Press',
+            sets: 4,
+            reps: 5,
+            repsMin: 5,
+            repsMax: 8,
+            exerciseId: 'bench',
+            targetRir: 2,
+          },
+          {
+            name: 'Cable Curl',
+            sets: 3,
+            reps: 12,
+            repsMin: 12,
+            repsMax: 15,
+            exerciseId: 'curl',
+            targetRir: 1,
+          },
+        ],
+      });
+    const run = (weekIndex: number, phase: string, mult: number, mod: number) =>
+      applyWeekProgressionToEnrichedSessions({
+        sessions: [withRir(weekIndex)],
+        specs: [spec({ weekIndex })],
+        weekProgression: [progression(weekIndex, phase, mult, mod)],
+      }).sessions[0].exercises.map((e) => e.targetRir);
+    expect(run(2, 'progression', 1.15, -1)).toEqual([1, 0]);
+    // peak: −2, but the bench floors at 1 while the curl (isolation) may hit 0
+    expect(run(3, 'peak', 1.25, -2)).toEqual([1, 0]);
+    expect(run(4, 'deload', 0.7, 2)).toEqual([4, 3]);
+  });
+
   it('trims sets, lightens reps, and appends the note on a deload week', () => {
     const { sessions } = applyWeekProgressionToEnrichedSessions({
       sessions: [session({ weekIndex: 4 })],

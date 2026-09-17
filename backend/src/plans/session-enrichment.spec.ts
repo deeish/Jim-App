@@ -2257,6 +2257,8 @@ describe('enrichGeneratedSessionsInChunkOrder', () => {
     expect(rows[0]!.restSeconds).toBe(180);
     expect(rows[1]!.restSeconds).toBe(150);
     expect(rows[2]!.restSeconds).toBe(90);
+    // …and an effort target: 2 RIR on compounds and on strength-goal isolation.
+    expect(rows.map((r) => r.targetRir)).toEqual([2, 2, 2]);
   });
 
   it('does not stamp restSeconds on the cardio finisher row', async () => {

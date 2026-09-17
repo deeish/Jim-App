@@ -171,6 +171,7 @@ model PlanExercise {
   reps          Int      // working default / legacy scalar (= repsMin when a range is set)
   repsMin       Int?     // target rep range low end (role-aware prescription)
   repsMax       Int?     // target rep range high end
+  targetRir     Int?     // reps in reserve to stop at (effort target); null on cardio rows
   durationSeconds  Int?  // for time-based rows (cardio bouts); reps/range left null
   prescriptionType String? // "reps" | "time" | "distance"
   weight        Float?

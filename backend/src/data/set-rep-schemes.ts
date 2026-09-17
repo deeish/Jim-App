@@ -357,6 +357,41 @@ export function getRoleAwareScheme(
 }
 
 /**
+ * Reps in reserve per set at the START of a block, by role, goal and level.
+ * The evidence: hypertrophy needs sets close to failure (proximity matters),
+ * strength does not, and beginners should stop while technique is clean. So
+ * heavy compounds sit at 2 RIR (3 for beginners, 3 for endurance support
+ * work), isolation work closer to failure at 1, core at 2. Weeks drift this
+ * toward 0–1 and a deload lifts it (see week-progression.ts).
+ */
+export function getRoleTargetRir(
+  goal: string | undefined,
+  difficulty: string | undefined,
+  role: ExerciseRole,
+): number {
+  const g = normalizeGoal(goal);
+  const d = normalizeDifficulty(difficulty);
+  let rir: number;
+  switch (role) {
+    case 'primary_compound':
+      rir = g === 'endurance' ? 3 : 2;
+      break;
+    case 'secondary_compound':
+      rir = 2;
+      break;
+    case 'isolation':
+      rir = g === 'strength' || g === 'endurance' ? 2 : 1;
+      break;
+    case 'core':
+      rir = 2;
+      break;
+  }
+  if (d === 'beginner') rir += 1;
+  if (d === 'advanced' && role === 'isolation') rir = Math.max(0, rir - 1);
+  return Math.min(4, rir);
+}
+
+/**
  * Rest by ROLE, derived from the goal band's base rest. One rest value per
  * goal meant a plank and a face pull rested as long as the squat (the
  * 2026-09-16 review). The heavy anchor gets the longest rest (the evidence

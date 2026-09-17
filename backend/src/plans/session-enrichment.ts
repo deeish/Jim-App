@@ -13,6 +13,7 @@ import { equipmentSatisfies } from '../data/exercise-mappings';
 import {
   getSetRepGuidelines,
   getRoleAwareScheme,
+  getRoleTargetRir,
   normalizeDifficulty,
   type ExerciseRole,
 } from '../data/set-rep-schemes';
@@ -63,6 +64,13 @@ export type GeneratedSessionExercise = {
    * instead of a rep count stuffed into `reps`.
    */
   durationSeconds?: number;
+  /**
+   * Reps in reserve to stop at, per set (0 = to failure). Stamped by role
+   * and goal in `stampSetsAndReps` (`getRoleTargetRir`) and drifted across
+   * the block by `week-progression.ts`: a rep range without an effort target
+   * was half a prescription (2026-09-16 review). Undefined on cardio rows.
+   */
+  targetRir?: number;
 };
 
 export type GeneratedSession = {
@@ -1829,6 +1837,10 @@ function stampSetsAndReps(
     // fills rows this pass did not reach.
     if (ex.restSeconds == null && scheme.restSeconds) {
       ex.restSeconds = scheme.restSeconds;
+    }
+    // The effort target that makes the range a prescription.
+    if (ex.targetRir == null) {
+      ex.targetRir = getRoleTargetRir(prefs?.goal, prefs?.difficulty, role);
     }
   }
 }
