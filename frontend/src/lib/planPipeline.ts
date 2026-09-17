@@ -369,6 +369,7 @@ function stage1EffectiveSplit(inputs: PlanInputs): EffectiveSplitResult {
       trainingDays: inputs.selectedWeekdays,
       timePerSession: { min: inputs.durationMin, max: inputs.durationMax },
       trainingSplitPreference: trainingSplitForCtx ?? 'ai decide',
+      experience: inputs.experienceLevel,
     });
     const rec = getRecommendation(ctx);
     const effectiveId = rec?.recommendedSplit ?? 'full body';

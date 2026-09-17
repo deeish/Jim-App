@@ -825,8 +825,9 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
         trainingDays: inputs.trainingDays,
         timePerSession: inputs.timePerSession,
         trainingSplitPreference: inputs.trainingSplitPreference,
+        experience: inputs.experienceLevel,
       }),
-    [inputs.goal, inputs.programType, inputs.trainingDays, inputs.timePerSession, inputs.trainingSplitPreference]
+    [inputs.goal, inputs.programType, inputs.trainingDays, inputs.timePerSession, inputs.trainingSplitPreference, inputs.experienceLevel]
   );
   const recommendation = React.useMemo(() => getRecommendation(recContext), [recContext]);
   const effectiveSplitPreference =

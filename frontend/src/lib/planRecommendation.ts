@@ -156,6 +156,8 @@ export interface UserContext {
   hypertrophyBias: 'low' | 'medium' | 'high';
   densityBias: 'low' | 'high';
   recoveryNeed: 'low' | 'medium' | 'high';
+  /** Training age; a beginner at three days gets a full-body week, not a body-part split. */
+  experience?: 'beginner' | 'intermediate' | 'advanced' | null;
 }
 
 const WEEKDAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -173,6 +175,7 @@ export function normalizeContext(params: {
   trainingDays: string[];
   timePerSession: { min: number; max: number };
   trainingSplitPreference: string | null;
+  experience?: 'beginner' | 'intermediate' | 'advanced' | null;
 }): UserContext {
   const { goal, planStyle, trainingDays, timePerSession, trainingSplitPreference } = params;
   const daysPerWeek = trainingDays.length;
@@ -255,6 +258,7 @@ export function normalizeContext(params: {
     hypertrophyBias,
     densityBias,
     recoveryNeed,
+    experience: params.experience ?? null,
   };
 }
 
@@ -387,6 +391,21 @@ function scoreCandidate(
     simplicity += 5;
   }
   simplicity = Math.min(5, simplicity);
+
+  // Frequency: with three or fewer lifting days a body-part split trains each
+  // muscle once a week; full body and upper/lower hit everything twice. The
+  // coach check on the server scores the same rule.
+  const liftingDays = template.dayTypes.filter(
+    (d) => d !== 'REST' && d !== 'MOBILITY' && !String(d).startsWith('CARDIO')
+  ).length;
+  if (liftingDays <= 3) {
+    if (fam === 'ppl' || fam === 'body part') {
+      goalFit -= ctx.experience === 'beginner' ? 18 : 12;
+    } else if (fam === 'full body' || fam === 'upper-lower') {
+      goalFit += 4;
+    }
+  }
+  goalFit = Math.max(0, goalFit);
 
   const total = goalFit + styleFit + timeFit + scheduleFit + simplicity - (warning ? 3 : 0);
   return {
