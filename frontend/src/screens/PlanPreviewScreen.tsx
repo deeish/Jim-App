@@ -48,7 +48,6 @@ import {
 import { runKeepAlive } from '../lib/planGenerationKeepAlive';
 import {
   linesForPlanGenerationSnapshot,
-  linesLegacyFormNotInAiRequest,
 } from '../lib/planGenerationSummary';
 import { stripCoachAdviceBullets } from '../lib/planDetailLineDisplay';
 import {
@@ -540,7 +539,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
         : [],
     [planInputs, planDraft?.debugMeta?.builtBy],
   );
-  const generationLegacyNotSentLines = useMemo(() => linesLegacyFormNotInAiRequest(), []);
   
   // Calculate summaries for current week
   const weekSummary = useMemo(() => {
@@ -1458,17 +1456,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                   <Text
                     key={`${i}-${line.slice(0, 24)}`}
                     style={[styles.genSummaryLine, { color: colors.textSecondary }]}
-                  >
-                    {line}
-                  </Text>
-                ))}
-                <Text style={[styles.genSummarySubhead, { color: colors.textMuted }]}>
-                  Also on Generate Plan (not in the AI request)
-                </Text>
-                {generationLegacyNotSentLines.map((line, i) => (
-                  <Text
-                    key={`legacy-${i}-${line.slice(0, 20)}`}
-                    style={[styles.genSummarySubLine, { color: colors.textMuted }]}
                   >
                     {line}
                   </Text>

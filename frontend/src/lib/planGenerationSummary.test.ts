@@ -2,7 +2,6 @@ import {
   coachCheckDetailLines,
   coachCheckHeadline,
   linesForPlanGenerationSnapshot,
-  linesLegacyFormNotInAiRequest,
   mesoHintForGenerateSessions,
   MESO_HINT_MAX_LENGTH,
 } from './planGenerationSummary';
@@ -66,13 +65,6 @@ describe('planGenerationSummary', () => {
     expect(hint?.toLowerCase()).toMatch(/deload|recovery/i);
   });
 
-  it('legacy-not-sent lines mention caps and formats', () => {
-    const lines = linesLegacyFormNotInAiRequest();
-    expect(lines.length).toBeGreaterThanOrEqual(3);
-    const joined = lines.join(' ').toLowerCase();
-    expect(joined).toMatch(/time cap|per-day/);
-    expect(joined).toMatch(/format|superset|interval/);
-  });
 });
 
 describe('builtByLine', () => {

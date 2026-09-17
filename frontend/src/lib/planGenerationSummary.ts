@@ -255,11 +255,3 @@ export function linesForPlanGenerationSnapshot(
  * `POST /plans/generate-sessions` (see `GenerateSessionsDto`). `PlanInputs` may still
  * carry some of these for round-trip (e.g. activity level) without sending them to Groq.
  */
-export function linesLegacyFormNotInAiRequest(): string[] {
-  return [
-    'Not sent to the AI request: two-a-day rules; auto-schedule and rest-day preference; weekday/weekend and per-day time caps.',
-    'Not sent: workout formats (e.g. supersets vs straight sets; cardio steady-state vs intervals); hybrid mix ratio; program line variation index.',
-    'Not sent: detailed equipment and cardio machine extras beyond the gym checklist filter; deload frequency, ramp, and progression target beyond the short periodization line above.',
-    'Not sent: focus priority; activity level; preferred lifts; age; custom split hint text.',
-  ];
-}

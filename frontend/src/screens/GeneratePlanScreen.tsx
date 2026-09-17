@@ -693,7 +693,6 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   const [showSavedSplitsPicker, setShowSavedSplitsPicker] = useState(false);
   const [openDurationOverrides, setOpenDurationOverrides] = useState(false);
   const [openAvoidInjuries, setOpenAvoidInjuries] = useState(false);
-  const [openPerDayTime, setOpenPerDayTime] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showWellnessDetail, setShowWellnessDetail] = useState(false);
 
@@ -897,10 +896,6 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     return n === 0 ? 'None selected' : `${n} selected`;
   }, [inputs.avoidList]);
 
-  const perDayTimeSummary = useMemo(() => {
-    if (!inputs.usePerDayTimeCaps) return 'Same cap as workout duration';
-    return 'Custom limit per training day';
-  }, [inputs.usePerDayTimeCaps]);
 
   const handleGoalSelect = (goal: Goal) => {
     setInputs(prev => ({
@@ -1021,9 +1016,6 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     }));
   };
 
-  const handleCardioEquipmentSelect = (cardio: CardioEquipment) => {
-    setInputs(prev => ({ ...prev, cardioEquipment: cardio }));
-  };
 
   const handleProgressionTargetSelect = (target: ProgressionTarget) => {
     setInputs(prev => ({ ...prev, progressionTarget: target }));
@@ -1297,29 +1289,6 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
             </View>
           </View>
         ) : null}
-
-        {/* The other way to get a plan: coach-built templates. Lives here (and
-            in PlanScreen's no-plan hero) instead of the Plan header — choosing
-            a template is a creation-time decision, so the fork belongs at the
-            start of the creation flow. */}
-        {currentStep === 0 && (
-          <TouchableOpacity
-            style={styles.templateEntryCard}
-            onPress={() => navigation.navigate('Templates')}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel="Start from a template"
-          >
-            <View style={styles.templateEntryIcon}>
-              <Ionicons name="grid-outline" size={20} color={colors.primary} />
-            </View>
-            <View style={styles.templateEntryText}>
-              <Text style={styles.templateEntryTitle}>Start from a template</Text>
-              <Text style={styles.templateEntrySub}>Coach-built programs, ready to apply.</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-        )}
 
         {/* Step 1: Plan basics — goal, training days, weeks, start date */}
         {currentStep === 0 && (
@@ -1643,48 +1612,6 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {/* Age (optional) */}
-        <View style={styles.section}>
-          <View style={styles.sectionCard}>
-            <View style={styles.formRow}>
-              <Text style={styles.formRowLabel}>Age</Text>
-              <View style={styles.stepperGroup}>
-                <TouchableOpacity
-                  style={styles.stepperButton}
-                  onPressIn={holdAgeDown.onPressIn}
-                  onPressOut={holdAgeDown.onPressOut}
-                  accessibilityRole="button"
-                  accessibilityLabel="Decrease age"
-                >
-                  <Ionicons name="remove" size={18} color={colors.primary} />
-                </TouchableOpacity>
-                <Text style={styles.stepperValue}>
-                  {inputs.age != null ? inputs.age : '—'}
-                </Text>
-                <TouchableOpacity
-                  style={styles.stepperButton}
-                  onPressIn={holdAgeUp.onPressIn}
-                  onPressOut={holdAgeUp.onPressOut}
-                  accessibilityRole="button"
-                  accessibilityLabel="Increase age"
-                >
-                  <Ionicons name="add" size={18} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-            {inputs.age != null && (
-              <TouchableOpacity
-                style={{ marginTop: spacing.sm }}
-                onPress={() => setInputs(prev => ({ ...prev, age: null }))}
-                accessibilityRole="button"
-                accessibilityLabel="Clear age"
-              >
-                <Text style={styles.clearLink}>Clear</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <Text style={styles.sectionFootnote}>Optional. Tunes recovery and progression.</Text>
-        </View>
 
         {/* Gym: assume standard equipment (no selector). Home: equipment selector shown below. */}
         {inputs.primaryLocation === 'home' && (
@@ -1714,37 +1641,6 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               <Text style={styles.sectionFootnote}>Select at least one.</Text>
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Cardio equipment</Text>
-              <View style={styles.sectionCard}>
-              <View style={styles.optionsRow}>
-                {(['treadmill', 'bike', 'rower', 'none'] as CardioEquipment[]).map(cardio => (
-                  <TouchableOpacity
-                    key={cardio}
-                    style={[styles.optionButton, inputs.cardioEquipment === cardio && styles.optionButtonSelected]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: inputs.cardioEquipment === cardio }}
-                    onPress={() => setInputs(prev => ({
-                      ...prev,
-                      cardioEquipment: prev.cardioEquipment === cardio ? null : cardio,
-                    }))}
-                  >
-                    <Text
-                      style={[styles.optionButtonText, inputs.cardioEquipment === cardio && styles.optionButtonTextSelected]}
-                      // Same single-word overflow risk as the Experience row,
-                      // but four-across: "Treadmill" on a 375pt phone needs a
-                      // deeper shrink floor than the three-across rows.
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.65}
-                    >
-                      {cardio.charAt(0).toUpperCase() + cardio.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              </View>
-            </View>
           </>
         )}
 
@@ -2390,37 +2286,6 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
           </Pressable>
         </Modal>
 
-        {/* Hybrid control (conditional on goal) */}
-        {inputs.goal === 'hybrid' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Emphasis</Text>
-            <View style={styles.sectionCard}>
-            <View style={styles.optionsRow}>
-              {(['more strength', 'balanced', 'more cardio'] as HybridGoalRatio[]).map(ratio => (
-                <TouchableOpacity
-                  key={ratio}
-                  style={[styles.optionButton, inputs.hybridGoalRatio === ratio && styles.optionButtonSelected]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: inputs.hybridGoalRatio === ratio }}
-                  onPress={() => setInputs(prev => ({ ...prev, hybridGoalRatio: ratio }))}
-                >
-                  <Text
-                    style={[styles.optionButtonText, inputs.hybridGoalRatio === ratio && styles.optionButtonTextSelected]}
-                    // "Strength-leaning" is the longest chip label in this file
-                    // — wider than the "Intermediate" that broke on device.
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.75}
-                  >
-                    {ratio === 'more strength' ? 'Strength-leaning' : ratio === 'balanced' ? 'Balanced' : 'Cardio-leaning'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            </View>
-          </View>
-        )}
-
         {/* Workout detail level (Advanced) */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Detail</Text>
@@ -2730,208 +2595,6 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
               </View>
             </View>
 
-            <View style={styles.section}>
-              <View style={styles.sectionCard}>
-              <TouchableOpacity
-                style={styles.accordionHeader}
-                onPress={() => setOpenPerDayTime((v) => !v)}
-                activeOpacity={0.75}
-              >
-                <View style={styles.accordionHeaderText}>
-                  <Text style={styles.accordionTitle}>Per-day time limits</Text>
-                  <Text style={styles.accordionSummary}>{perDayTimeSummary}</Text>
-                </View>
-                <Ionicons name={openPerDayTime ? 'chevron-up' : 'chevron-down'} size={22} color={colors.textMuted} />
-              </TouchableOpacity>
-              {openPerDayTime && (
-                <View style={styles.accordionBody}>
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleLabelContainer}>
-                  <Text style={styles.switchRowLabel}>Set different time limits per training day</Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.toggleSwitch, inputs.usePerDayTimeCaps && styles.toggleSwitchOn]}
-                  accessibilityRole="switch"
-                  accessibilityLabel="Set different time limits per training day"
-                  accessibilityState={{ checked: inputs.usePerDayTimeCaps }}
-                  onPress={() => {
-                    setInputs(prev => {
-                      const next = !prev.usePerDayTimeCaps;
-                      return { ...prev, usePerDayTimeCaps: next };
-                    });
-                    setOpenPerDayTime(true);
-                  }}
-                >
-                  <View style={[styles.toggleThumb, inputs.usePerDayTimeCaps && styles.toggleThumbOn]} />
-                </TouchableOpacity>
-              </View>
-              
-              {inputs.usePerDayTimeCaps && (
-                <View style={styles.perDayCapsSection}>
-                  <Text style={styles.helperText}>Caps apply to total time for that day.</Text>
-                  
-                  {/* Shortcut buttons */}
-                  <View style={styles.shortcutButtonsRow}>
-                    <TouchableOpacity
-                      style={styles.shortcutButton}
-                      onPress={() => {
-                        setInputs(prev => {
-                          const caps: Partial<Record<DayOfWeek, number | 'default'>> = {};
-                          prev.trainingDays.forEach(day => {
-                            caps[day] = Math.round((prev.timePerSession.min + prev.timePerSession.max) / 2 / 5) * 5;
-                          });
-                          return { ...prev, perDayTimeCaps: { ...prev.perDayTimeCaps, ...caps } };
-                        });
-                      }}
-                    >
-                      <Text style={styles.shortcutButtonText}>Apply to all</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.shortcutButton}
-                      onPress={() => {
-                        setInputs(prev => {
-                          const weekdayCaps: Partial<Record<DayOfWeek, number | 'default'>> = {};
-                          const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-                          const avgCap = Math.round((prev.timePerSession.min + prev.timePerSession.max) / 2 / 5) * 5;
-                          weekdays.forEach(day => {
-                            if (prev.trainingDays.includes(day)) {
-                              weekdayCaps[day] = avgCap;
-                            }
-                          });
-                          return { ...prev, perDayTimeCaps: { ...prev.perDayTimeCaps, ...weekdayCaps } };
-                        });
-                      }}
-                    >
-                      <Text style={styles.shortcutButtonText}>Weekdays</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.shortcutButton}
-                      onPress={() => {
-                        setInputs(prev => {
-                          const weekendCaps: Partial<Record<DayOfWeek, number | 'default'>> = {};
-                          const weekends: DayOfWeek[] = ['Saturday', 'Sunday'];
-                          const avgCap = Math.round((prev.timePerSession.min + prev.timePerSession.max) / 2 / 5) * 5;
-                          weekends.forEach(day => {
-                            if (prev.trainingDays.includes(day)) {
-                              weekendCaps[day] = avgCap;
-                            }
-                          });
-                          return { ...prev, perDayTimeCaps: { ...prev.perDayTimeCaps, ...weekendCaps } };
-                        });
-                      }}
-                    >
-                      <Text style={styles.shortcutButtonText}>Weekends</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Day caps grid - only show training days */}
-                  <View style={styles.perDayCapsGrid}>
-                    {inputs.trainingDays.map(day => {
-                      const dayCap = inputs.perDayTimeCaps[day];
-                      const isCustom = dayCap !== undefined && dayCap !== 'default';
-                      const customValue = typeof dayCap === 'number' ? dayCap : Math.round((inputs.timePerSession.min + inputs.timePerSession.max) / 2 / 5) * 5;
-                      
-                      return (
-                        <View key={day} style={styles.perDayCapItem}>
-                          <Text style={styles.perDayCapLabel}>{day.slice(0, 3)}</Text>
-                          
-                          {/* Custom toggle */}
-                          <TouchableOpacity
-                            style={styles.customToggle}
-                            onPress={() => {
-                              setInputs(prev => {
-                                if (prev.perDayTimeCaps[day] === 'default' || prev.perDayTimeCaps[day] === undefined) {
-                                  // Switch to custom
-                                  const defaultVal = Math.round((prev.timePerSession.min + prev.timePerSession.max) / 2 / 5) * 5;
-                                  return {
-                                    ...prev,
-                                    perDayTimeCaps: { ...prev.perDayTimeCaps, [day]: defaultVal },
-                                  };
-                                } else {
-                                  // Switch to default
-                                  return {
-                                    ...prev,
-                                    perDayTimeCaps: { ...prev.perDayTimeCaps, [day]: 'default' },
-                                  };
-                                }
-                              });
-                            }}
-                          >
-                            <View style={[styles.customToggleSwitch, isCustom && styles.customToggleSwitchOn]}>
-                              <View style={[styles.customToggleThumb, isCustom && styles.customToggleThumbOn]} />
-                            </View>
-                            <Text style={styles.customToggleLabel}>Custom</Text>
-                          </TouchableOpacity>
-
-                          {/* Number input (only if custom) */}
-                          {isCustom && (
-                            <View style={styles.dayCapStepper}>
-                              <TouchableOpacity
-                                style={styles.stepperButton}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Decrease ${day} time limit`}
-                                onPress={() => {
-                                  setInputs(prev => {
-                                    const current = typeof prev.perDayTimeCaps[day] === 'number' ? prev.perDayTimeCaps[day]! : 45;
-                                    const newValue = Math.max(0, Math.round((current - 5) / 5) * 5);
-                                    return {
-                                      ...prev,
-                                      perDayTimeCaps: { ...prev.perDayTimeCaps, [day]: newValue },
-                                    };
-                                  });
-                                }}
-                              >
-                                <Ionicons name="remove" size={16} color={colors.primary} />
-                              </TouchableOpacity>
-                              <TextInput
-                                style={styles.dayCapInput}
-                                accessibilityLabel={`${day} time limit in minutes`}
-                                value={customValue.toString()}
-                                onChangeText={(text) => {
-                                  const num = parseInt(text) || 0;
-                                  const clamped = Math.max(0, Math.min(180, Math.round(num / 5) * 5));
-                                  setInputs(prev => ({
-                                    ...prev,
-                                    perDayTimeCaps: { ...prev.perDayTimeCaps, [day]: clamped },
-                                  }));
-                                }}
-                                keyboardType="numeric"
-                                selectTextOnFocus
-                              />
-                              <TouchableOpacity
-                                style={styles.stepperButton}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Increase ${day} time limit`}
-                                onPress={() => {
-                                  setInputs(prev => {
-                                    const current = typeof prev.perDayTimeCaps[day] === 'number' ? prev.perDayTimeCaps[day]! : 45;
-                                    const newValue = Math.min(180, Math.round((current + 5) / 5) * 5);
-                                    return {
-                                      ...prev,
-                                      perDayTimeCaps: { ...prev.perDayTimeCaps, [day]: newValue },
-                                    };
-                                  });
-                                }}
-                              >
-                                <Ionicons name="add" size={16} color={colors.primary} />
-                              </TouchableOpacity>
-                            </View>
-                          )}
-
-                          {/* Default indicator */}
-                          {!isCustom && (
-                            <Text style={styles.defaultIndicator}>Default</Text>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-                </View>
-              )}
-              </View>
-            </View>
 
             {(inputs.goal === 'endurance' || inputs.goal === 'hybrid') && (
               <View style={styles.section}>
@@ -2966,50 +2629,6 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
               </View>
             )}
 
-            {(inputs.goal === 'strength' || inputs.goal === 'hybrid') && (
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Focus</Text>
-                <View style={styles.sectionCard}>
-                <View style={styles.optionsRow}>
-                  {inputs.goal === 'strength' ? (
-                    (['upper', 'lower', 'balanced'] as StrengthFocusPriority[]).map(priority => (
-                      <TouchableOpacity
-                        key={priority}
-                        style={[styles.optionButton, inputs.focusPriority === priority && styles.optionButtonSelected]}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: inputs.focusPriority === priority }}
-                        onPress={() => setInputs(prev => ({
-                          ...prev,
-                          focusPriority: prev.focusPriority === priority ? null : priority,
-                        }))}
-                      >
-                        <Text style={[styles.optionButtonText, inputs.focusPriority === priority && styles.optionButtonTextSelected]}>
-                          {priority.charAt(0).toUpperCase() + priority.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))
-                  ) : (
-                    (['strength priority', 'cardio priority'] as HybridFocusPriority[]).map(priority => (
-                      <TouchableOpacity
-                        key={priority}
-                        style={[styles.optionButton, inputs.focusPriority === priority && styles.optionButtonSelected]}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: inputs.focusPriority === priority }}
-                        onPress={() => setInputs(prev => ({
-                          ...prev,
-                          focusPriority: prev.focusPriority === priority ? null : priority,
-                        }))}
-                      >
-                        <Text style={[styles.optionButtonText, inputs.focusPriority === priority && styles.optionButtonTextSelected]}>
-                          {priority.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                        </Text>
-                      </TouchableOpacity>
-                    ))
-                  )}
-                </View>
-                </View>
-              </View>
-            )}
           </>
         )}
 
@@ -3245,27 +2864,6 @@ function createGeneratePlanStyles(c: ColorPalette) {
   contentContainer: {
     padding: spacing.lg,
   },
-  templateEntryCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: c.surface,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
-  },
-  templateEntryIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: c.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  templateEntryText: { flex: 1, minWidth: 0 },
-  templateEntryTitle: { fontSize: text.callout, fontWeight: weight.semibold, color: c.text },
-  templateEntrySub: { fontSize: text.footnote, color: c.textMuted, marginTop: spacing.xxs },
   resumeCard: {
     backgroundColor: c.surface,
     borderRadius: radius.md,
