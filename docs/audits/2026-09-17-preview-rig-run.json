@@ -1,0 +1,424 @@
+{
+  "startedAt": "2026-09-17T23:01:49.678Z",
+  "steps": [
+    {
+      "step": "review",
+      "line": "| Goal | Build muscle | Schedule | 4 days/week · 4 weeks | Where | Gym | Time/session | 30–45 min | Training now | 3-4 sessions/wk | Bring up | Back | Your numbers | Bench press 135 lb × 8 | Split | Upper/Lower |"
+    },
+    {
+      "step": "generation",
+      "seconds": 10,
+      "landed": true
+    },
+    {
+      "step": "list",
+      "statedLine": "Week 2",
+      "coach": "A balanced week. Every muscle sits inside its weekly band and no day stacks the same pattern.",
+      "days": [
+        "Wednesday",
+        "Saturday",
+        "Sunday"
+      ]
+    },
+    {
+      "step": "coachSheet"
+    },
+    {
+      "step": "builtSheet",
+      "text": "How this was built | "
+    },
+    {
+      "step": "day",
+      "head": "Upper · Bench + Row | Monday Sep 14 · 30–45 min · 4 exercises · hard day | Rebuild day | CHEST | Flat Dumbbell Bench Press | A compound chest press using dumbbe",
+      "howToLines": 5
+    },
+    {
+      "step": "exercise",
+      "opened": "Flat Dumbbell Bench Press",
+      "head": " | Back | Flat Dumbbell Bench Press |  | Beginner |  | Recommended |  | A compound chest press using dumbbells that "
+    },
+    {
+      "step": "backToDay",
+      "ok": true
+    },
+    {
+      "step": "backToList",
+      "ok": true
+    },
+    {
+      "step": "tabs",
+      "week4": "Week 4 "
+    }
+  ],
+  "inputs": {
+    "goal": "muscle",
+    "days": 4,
+    "minutes": [
+      30,
+      45
+    ],
+    "weeks": 4,
+    "experience": "intermediate",
+    "priorityMuscle": "Back",
+    "activity": "3-4",
+    "knownLifts": [
+      {
+        "exerciseId": "flat_barbell_bench_press",
+        "weight": 135,
+        "reps": 8
+      }
+    ]
+  },
+  "builtBy": "ai",
+  "effectiveSplit": "upper-lower",
+  "coachCheck": [
+    {
+      "week": 1,
+      "band": {
+        "min": 8,
+        "max": 22
+      },
+      "findings": [],
+      "volume": {
+        "Chest": "8 sets / 2d",
+        "Back": "15 sets / 2d",
+        "Legs": "22 sets / 2d",
+        "Shoulders": "17 sets / 2d",
+        "Arms": "13 sets / 0d",
+        "Core": "25.5 sets / 4d"
+      }
+    },
+    {
+      "week": 2,
+      "band": {
+        "min": 8,
+        "max": 22
+      },
+      "findings": [],
+      "volume": {
+        "Chest": "8 sets / 2d",
+        "Back": "15 sets / 2d",
+        "Legs": "22 sets / 2d",
+        "Shoulders": "17 sets / 2d",
+        "Arms": "13 sets / 0d",
+        "Core": "25.5 sets / 4d"
+      }
+    },
+    {
+      "week": 3,
+      "band": {
+        "min": 8,
+        "max": 22
+      },
+      "findings": [
+        "warn: Legs: 24.5 weekly sets, above the 22 most intermediate lifters recover from."
+      ],
+      "volume": {
+        "Chest": "10 sets / 2d",
+        "Back": "18 sets / 2d",
+        "Legs": "24.5 sets / 2d",
+        "Shoulders": "20.5 sets / 2d",
+        "Arms": "16 sets / 0d",
+        "Core": "28.5 sets / 4d"
+      }
+    },
+    {
+      "week": 4,
+      "band": {
+        "min": 8,
+        "max": 22
+      },
+      "findings": [
+        "warn: Legs: 26.5 weekly sets, above the 22 most intermediate lifters recover from."
+      ],
+      "volume": {
+        "Chest": "10 sets / 2d",
+        "Back": "18.5 sets / 2d",
+        "Legs": "26.5 sets / 2d",
+        "Shoulders": "20.5 sets / 2d",
+        "Arms": "16 sets / 0d",
+        "Core": "29.5 sets / 4d"
+      }
+    }
+  ],
+  "weeks": [
+    {
+      "week": 1,
+      "days": [
+        {
+          "day": "Monday",
+          "title": "Upper · Bench + Row",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Flat Dumbbell Bench Press 4x8-12 rest 120s rir 2 [note]",
+            "Barbell Bent-Over Row 4x10-15 rest 90s rir 2",
+            "Seated Dumbbell Shoulder Press 4x10-15 rest 90s rir 2",
+            "Ab Wheel Rollout 2x12-15 rest 60s rir 2"
+          ]
+        },
+        {
+          "day": "Tuesday",
+          "title": "Lower · Squat + Deadlift",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Back Squat 5x8-12 rest 120s rir 2 [note]",
+            "Conventional Deadlift 2x10-15 rest 90s rir 2",
+            "Goblet Squat 2x10-15 rest 90s rir 2",
+            "Dead Bug 2x12-15 rest 60s rir 2"
+          ]
+        },
+        {
+          "day": "Thursday",
+          "title": "Upper · Press + Pull-Up",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Barbell Overhead Press 4x8-12 rest 120s rir 2 [note]",
+            "Pull-Up 4x10-15 rest 90s rir 2",
+            "Flat Barbell Bench Press 4x10-15 @130lb rest 90s rir 2",
+            "Side Plank 2x40 sec rest 60s rir -"
+          ]
+        },
+        {
+          "day": "Friday",
+          "title": "Lower · RDL + Squat",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Dumbbell Romanian Deadlift 4x8-12 rest 120s rir 2 [note]",
+            "Front Squat 3x10-15 rest 90s rir 2",
+            "Barbell Hip Thrust 3x10-15 rest 90s rir 2",
+            "Front Plank 2x40 sec rest 60s rir -"
+          ]
+        }
+      ]
+    },
+    {
+      "week": 2,
+      "days": [
+        {
+          "day": "Monday",
+          "title": "Upper · Bench + Row",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Flat Dumbbell Bench Press 4x7-11 rest 120s rir 1 [note]",
+            "Barbell Bent-Over Row 4x9-14 rest 90s rir 1",
+            "Seated Dumbbell Shoulder Press 4x9-14 rest 90s rir 1",
+            "Ab Wheel Rollout 2x11-14 rest 60s rir 1"
+          ]
+        },
+        {
+          "day": "Tuesday",
+          "title": "Lower · Squat + Deadlift",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Back Squat 5x7-11 rest 120s rir 1",
+            "Conventional Deadlift 2x9-14 rest 90s rir 1",
+            "Goblet Squat 2x9-14 rest 90s rir 1",
+            "Dead Bug 2x12-15 rest 60s rir 1"
+          ]
+        },
+        {
+          "day": "Thursday",
+          "title": "Upper · Press + Pull-Up",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Barbell Overhead Press 4x7-11 rest 120s rir 1",
+            "Pull-Up 4x9-14 rest 90s rir 1",
+            "Flat Barbell Bench Press 4x9-14 @135lb rest 90s rir 1",
+            "Side Plank 2x40 sec rest 60s rir -"
+          ]
+        },
+        {
+          "day": "Friday",
+          "title": "Lower · RDL + Squat",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Dumbbell Romanian Deadlift 4x7-11 rest 120s rir 1 [note]",
+            "Front Squat 3x9-14 rest 90s rir 1",
+            "Barbell Hip Thrust 3x9-14 rest 90s rir 1",
+            "Front Plank 2x40 sec rest 60s rir -"
+          ]
+        }
+      ]
+    },
+    {
+      "week": 3,
+      "days": [
+        {
+          "day": "Monday",
+          "title": "Upper · Bench + Row",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Flat Dumbbell Bench Press 5x6-10 rest 120s rir 1 [note]",
+            "Barbell Bent-Over Row 5x8-13 rest 90s rir 1",
+            "Seated Dumbbell Shoulder Press 5x8-13 rest 90s rir 1",
+            "Ab Wheel Rollout 2x10-13 rest 60s rir 1"
+          ]
+        },
+        {
+          "day": "Tuesday",
+          "title": "Lower · Squat + Deadlift",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Back Squat 6x6-10 rest 120s rir 1",
+            "Conventional Deadlift 2x8-13 rest 90s rir 1",
+            "Goblet Squat 2x8-13 rest 90s rir 1",
+            "Dead Bug 2x12-15 rest 60s rir 1"
+          ]
+        },
+        {
+          "day": "Thursday",
+          "title": "Upper · Press + Pull-Up",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Barbell Overhead Press 5x6-10 rest 120s rir 1",
+            "Pull-Up 5x8-13 rest 90s rir 1",
+            "Flat Barbell Bench Press 5x8-13 @140lb rest 90s rir 1",
+            "Side Plank 2x40 sec rest 60s rir -"
+          ]
+        },
+        {
+          "day": "Friday",
+          "title": "Lower · RDL + Squat",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Dumbbell Romanian Deadlift 5x6-10 rest 120s rir 1 [note]",
+            "Front Squat 3x8-13 rest 90s rir 1",
+            "Barbell Hip Thrust 3x8-13 rest 90s rir 1",
+            "Front Plank 2x40 sec rest 60s rir -"
+          ]
+        }
+      ]
+    },
+    {
+      "week": 4,
+      "days": [
+        {
+          "day": "Monday",
+          "title": "Upper · Bench + Row",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Flat Dumbbell Bench Press 5x5-9 rest 120s rir 1 [note]",
+            "Barbell Bent-Over Row 5x7-12 rest 90s rir 1",
+            "Seated Dumbbell Shoulder Press 5x7-12 rest 90s rir 1",
+            "Ab Wheel Rollout 2x9-12 rest 60s rir 1"
+          ]
+        },
+        {
+          "day": "Tuesday",
+          "title": "Lower · Squat + Deadlift",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Back Squat 6x5-9 rest 120s rir 1",
+            "Conventional Deadlift 2x7-12 rest 90s rir 1",
+            "Goblet Squat 2x7-12 rest 90s rir 1",
+            "Dead Bug 2x12-15 rest 60s rir 0"
+          ]
+        },
+        {
+          "day": "Thursday",
+          "title": "Upper · Press + Pull-Up",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Barbell Overhead Press 5x5-9 rest 120s rir 1",
+            "Pull-Up 5x7-12 rest 90s rir 1",
+            "Flat Barbell Bench Press 5x7-12 @140lb rest 90s rir 1",
+            "Side Plank 2x40 sec rest 60s rir -"
+          ]
+        },
+        {
+          "day": "Friday",
+          "title": "Lower · RDL + Squat",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Dumbbell Romanian Deadlift 5x5-9 rest 120s rir 1 [note]",
+            "Front Squat 4x7-12 rest 90s rir 1",
+            "Barbell Hip Thrust 4x7-12 rest 90s rir 1",
+            "Front Plank 2x40 sec rest 60s rir -"
+          ]
+        }
+      ]
+    }
+  ],
+  "consoleErrors": [],
+  "finishedAt": "2026-09-17T23:02:29.790Z"
+}

@@ -244,3 +244,28 @@ Not verified on a phone: the sheets' swipe-to-dismiss, VoiceOver on the cards, t
 
 Follow-up (2026-09-17, Dylan's "was a confirm built in?"): every destructive or replacing action now asks first. Remove a day (header trash and the day screen's "Remove this day"): Cancel / Remove. Swap the day type: a choice sheet with Cancel. Swap an exercise: This week / Every week / Cancel on multi-week plans, and now Swap / Cancel on a one-week plan too (it used to go straight through). Rebuild day: Rebuild / Cancel (it used to go straight through). Rebuild week, cardio only and reduce intensity sit behind the Adjust chip, two taps by design. Also missed and fixed: a one-week plan showed a lone "Week 1" tab (hidden now); a week rebuild had no visible busy state once the button moved into a sheet (a "Rebuilding week 1…" line under the tabs now, and a "Week rebuilt. Kept your 2 swaps." alert when swaps were re-applied); day headers had no date (now "Monday  Sep 14"). Type-check, lint and lib tests green; not re-run on the rig.
 
+### Logged run through the redesigned preview (2026-09-17, evening)
+
+Web rig, local backend on the latest build, real Gemini. Raw capture: `docs/audits/2026-09-17-preview-rig-run.json`.
+
+| | |
+|---|---|
+| Inputs | Build muscle · 4 days · 30–45 min · 4 weeks · intermediate · training now 3-4/wk · bring up Back · bench 135 lb × 8 typed |
+| Review step | listed every answer, including the three new ones |
+| Generation | 10 s, built by the model, split Upper/Lower, no console errors, no 4xx from the backend (the repair fix holds) |
+| Stated line | "4 weeks · Upper/Lower · 4 days · 30–45 min" |
+| Coach, weeks 1-2 | balanced: Chest 8, Back 15, Legs 22, Shoulders 17, Arms 13 (helper only), Core 25.5 weighted sets |
+| Coach, weeks 3-4 | one note each: Legs 24.5 then 26.5 sets, above the 22 band |
+| Week 1 Monday | Upper · Bench + Row, hard: DB bench 4×8-12 (calibration note) · bent-over row 4×10-15 · DB shoulder press 4×10-15 · ab wheel 2×12-15; rest 120/90/90/60; 2 in reserve |
+| Week 1 Thursday | OHP 4×8-12 · pull-up 4×10-15 · flat barbell bench 4×10-15 @130 lb (from the typed 135 × 8) · side plank 2×40 s |
+| Week 4 Monday | same lifts, 5×5-9 / 5×7-12, 1 in reserve (peak week; a 4-week build has no deload) |
+| Day screen | rows first with a "how to" line on all four lifts; exercise pushed (Flat Dumbbell Bench Press) and Back returned to the day, then to the list |
+| Sheets | coach bars, Adjust, How this was built all opened and closed |
+
+Two things the run shows that are worth fixing next (server, small):
+
+1. **Peak weeks push a muscle over the band.** The allocator fills week 1 to the band, then the week progression multiplies sets (×1.15, ×1.25) with no ceiling, so Legs sits at 22 in week 1 and 26.5 in week 4. The trim pass should run again after progression, or the multiplier should stop at the band.
+2. **Trimming can leave a compound at two sets.** Tuesday's Lower has back squat 5 sets, then deadlift 2 and goblet squat 2. A coach would drop the goblet squat and give the deadlift its sets back. The trim should remove the last accessory before it takes a compound below three.
+
+Priority Back landed at 15 sets against a 20 target: the 45-minute budget, not the rule, is the ceiling there; that is honest.
+
