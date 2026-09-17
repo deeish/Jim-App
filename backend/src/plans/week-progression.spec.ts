@@ -6,6 +6,7 @@ import type { GeneratedSession } from './session-enrichment';
 import { workingSetCap } from './session-enrichment';
 import {
   applyWeekProgressionToEnrichedSessions,
+  DELOAD_CARDIO_REASONING_NOTE,
   DELOAD_REASONING_NOTE,
 } from './week-progression';
 
@@ -195,7 +196,7 @@ describe('applyWeekProgressionToEnrichedSessions', () => {
     expect(jog.durationSeconds).toBe(600);
   });
 
-  it('skips cardio-type sessions entirely', () => {
+  it('leaves a cardio-type session with no timed block untouched', () => {
     const cardioDay = session({ name: 'Cardio', weekIndex: 2 });
     const { sessions, adjustedSessionCount } =
       applyWeekProgressionToEnrichedSessions({
@@ -431,5 +432,107 @@ describe('applyWeekProgressionToEnrichedSessions', () => {
     expect(sessions[0].exercises[0].reps).toBe(5);
     expect(sessions[1].exercises[0].sets).toBe(5);
     expect(sessions[1].exercises[0].reps).toBe(4);
+  });
+});
+
+describe('cardio days across the block (Tier 2e)', () => {
+  const cardioDay = (weekIndex: number): GeneratedSession =>
+    session({
+      name: 'Cardio',
+      weekIndex,
+      reasoning: 'Aerobic base day.',
+      exercises: [
+        {
+          name: 'Treadmill Jog (Steady)',
+          exerciseId: 'treadmill_jog_steady',
+          sets: 1,
+          reps: 1500,
+          durationSeconds: 1500,
+          prescriptionType: 'time',
+          primaryMuscleGroup: 'Cardio',
+          notes:
+            "25 min at a steady, conversational pace (zone 2). If you can't talk in short sentences, ease off.",
+        },
+        {
+          name: 'Plank',
+          exerciseId: 'plank',
+          sets: 3,
+          reps: 40,
+          durationSeconds: 40,
+          prescriptionType: 'time',
+          primaryMuscleGroup: 'Core',
+          notes: 'Easy core work while your heart rate settles.',
+        },
+      ],
+    });
+  const cardioSpec = (weekIndex: number) =>
+    spec({
+      type: 'cardio',
+      title: 'Cardio',
+      weekIndex,
+      durationMin: 30,
+      durationMax: 45,
+    });
+
+  it('lengthens the main block by a tenth on a progression week and rewrites the note to match', () => {
+    const { sessions, adjustedSessionCount } =
+      applyWeekProgressionToEnrichedSessions({
+        sessions: [cardioDay(2)],
+        specs: [cardioSpec(2)],
+        weekProgression: [progression(2, 'progression', 1.15, -1)],
+      });
+    expect(adjustedSessionCount).toBe(1);
+    const main = sessions[0].exercises[0];
+    expect(main.durationSeconds).toBe(28 * 60); // 25 × 1.1 = 27.5 → 28
+    expect(main.reps).toBe(28 * 60);
+    expect(main.notes?.startsWith('28 min at a steady')).toBe(true);
+    // The core tail is untouched.
+    expect(sessions[0].exercises[1].durationSeconds).toBe(40);
+  });
+
+  it('caps a peak week at the slot and shortens a deload by a quarter with its own note', () => {
+    const peak = applyWeekProgressionToEnrichedSessions({
+      sessions: [cardioDay(3)],
+      specs: [cardioSpec(3)],
+      weekProgression: [progression(3, 'peak', 1.25, -2)],
+    }).sessions[0];
+    // 25 × 1.2 = 30 min, the 45-min slot minus 15 of overhead allows exactly that.
+    expect(peak.exercises[0].durationSeconds).toBe(30 * 60);
+
+    const deload = applyWeekProgressionToEnrichedSessions({
+      sessions: [cardioDay(4)],
+      specs: [cardioSpec(4)],
+      weekProgression: [progression(4, 'deload', 0.7, 2)],
+    }).sessions[0];
+    expect(deload.exercises[0].durationSeconds).toBe(19 * 60); // 25 × 0.75 = 18.75 → 19
+    expect(deload.exercises[0].notes?.startsWith('19 min')).toBe(true);
+    expect(deload.reasoning).toContain(DELOAD_CARDIO_REASONING_NOTE);
+  });
+
+  it('keeps interval copy as intervals and leaves a model-written note that names no minutes alone', () => {
+    const day = cardioDay(2);
+    day.exercises[0] = {
+      ...day.exercises[0],
+      name: 'Treadmill Run (Intervals)',
+      notes: 'Keep the brisk minutes honest.',
+    };
+    const out = applyWeekProgressionToEnrichedSessions({
+      sessions: [day],
+      specs: [cardioSpec(2)],
+      weekProgression: [progression(2, 'progression', 1.15, -1)],
+    }).sessions[0];
+    expect(out.exercises[0].durationSeconds).toBe(28 * 60);
+    expect(out.exercises[0].notes).toBe('Keep the brisk minutes honest.');
+  });
+
+  it('leaves a foundation week and a cardio day with no timed block untouched', () => {
+    const day = cardioDay(1);
+    const same = applyWeekProgressionToEnrichedSessions({
+      sessions: [day],
+      specs: [cardioSpec(1)],
+      weekProgression: [progression(1, 'foundation', 1, 0)],
+    });
+    expect(same.sessions[0]).toBe(day);
+    expect(same.adjustedSessionCount).toBe(0);
   });
 });

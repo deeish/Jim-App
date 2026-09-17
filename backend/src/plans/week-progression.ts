@@ -8,6 +8,7 @@ import type {
 } from './session-enrichment';
 import { clampSessionWorkingSets, ISOLATION_NAME } from './session-enrichment';
 import { isUnilateralByName } from './cross-session-diversity';
+import { cardioBlockStyle, cardioMainBlockNotes } from './cardio-day-template';
 
 /**
  * Appended once to a deload session's reasoning so the lighter prescriptions
@@ -15,6 +16,113 @@ import { isUnilateralByName } from './cross-session-diversity';
  */
 export const DELOAD_REASONING_NOTE =
   'Deload week: sets and reps are intentionally lighter so you recover and come back stronger.';
+
+/**
+ * How far a cardio day's main block moves with the phase (Tier 2e of the
+ * 2026-09-16 plan). Aerobic time grows more gently than lifting volume: the
+ * usual guidance is about 10% a week, so a build phase adds a tenth, a peak
+ * a fifth, and a deload gives a quarter back. Unknown phases fall back to the
+ * week's set multiplier, capped to the same range.
+ */
+export function cardioDurationFactorForPhase(
+  phase: string | undefined,
+  volumeMultiplier: number,
+): number {
+  switch ((phase ?? '').toLowerCase()) {
+    case 'foundation':
+    case 'maintain':
+      return 1;
+    case 'progression':
+      return 1.1;
+    case 'peak':
+      return 1.2;
+    case 'deload':
+      return 0.75;
+    default:
+      return Math.min(1.2, Math.max(0.75, volumeMultiplier));
+  }
+}
+
+/** The shortest a progressed main block may get, and the copy/core allowance inside a cardio slot. */
+const CARDIO_MAIN_MIN_SECONDS = 8 * 60;
+const CARDIO_SLOT_OVERHEAD_MINUTES = 15;
+
+/** Re-times a cardio day's main block for the week's phase; the same object comes back when nothing moves. */
+function progressCardioSession(
+  session: GeneratedSession,
+  spec: GenerateSessionsDto['sessions'][number],
+  prog: WeekProgressionDto,
+  findMeta: ((id: string) => ProgressionExerciseMeta | undefined) | undefined,
+): GeneratedSession {
+  const factor = cardioDurationFactorForPhase(
+    prog.phase,
+    prog.volumeMultiplier,
+  );
+  if (factor === 1) return session;
+  const isCardioRow = (e: GeneratedSessionExercise): boolean => {
+    if (e.durationSeconds == null) return false;
+    const group =
+      (e.exerciseId
+        ? findMeta?.(e.exerciseId)?.primaryMuscleGroup
+        : undefined) ?? e.primaryMuscleGroup;
+    return (group ?? '').trim() === 'Cardio';
+  };
+  let mainIndex = -1;
+  session.exercises.forEach((e, i) => {
+    if (!isCardioRow(e)) return;
+    if (
+      mainIndex < 0 ||
+      (e.durationSeconds ?? 0) >
+        (session.exercises[mainIndex]!.durationSeconds ?? 0)
+    ) {
+      mainIndex = i;
+    }
+  });
+  if (mainIndex < 0) return session;
+  const main = session.exercises[mainIndex]!;
+  const seconds = main.durationSeconds ?? 0;
+  if (seconds <= 0) return session;
+  const slotCap = Math.max(
+    seconds,
+    (spec.durationMax - CARDIO_SLOT_OVERHEAD_MINUTES) * 60,
+  );
+  const next = Math.min(
+    slotCap,
+    Math.max(CARDIO_MAIN_MIN_SECONDS, Math.round((seconds * factor) / 60) * 60),
+  );
+  if (next === seconds) return session;
+  const minutes = Math.round(next / 60);
+  // Only template copy is rewritten; a model-written note that names no
+  // duration is left alone (the eval flags a note whose minutes disagree).
+  const notes =
+    !main.notes || /^\d+ min/.test(main.notes)
+      ? cardioMainBlockNotes(minutes, cardioBlockStyle(main))
+      : main.notes;
+  const exercises = session.exercises.map((e, i) =>
+    i === mainIndex
+      ? {
+          ...e,
+          durationSeconds: next,
+          reps: e.reps === seconds ? next : e.reps,
+          notes,
+        }
+      : e,
+  );
+  let reasoning = session.reasoning;
+  if (
+    prog.phase === 'deload' &&
+    !(reasoning ?? '').includes(DELOAD_CARDIO_REASONING_NOTE)
+  ) {
+    reasoning = reasoning
+      ? `${reasoning.trim()} ${DELOAD_CARDIO_REASONING_NOTE}`
+      : DELOAD_CARDIO_REASONING_NOTE;
+  }
+  return { ...session, exercises, reasoning };
+}
+
+/** Appended to a cardio day's reasoning on a deload week. */
+export const DELOAD_CARDIO_REASONING_NOTE =
+  'Deload week: the main block is intentionally shorter so you recover and come back stronger.';
 
 /** How far the block's phase moves the effort target: harder as it builds, easier on a deload. */
 export function rirShiftForPhase(phase: string | undefined): number {
@@ -115,9 +223,15 @@ export function applyWeekProgressionToEnrichedSessions(args: {
   let adjustedSessionCount = 0;
   const sessions = args.sessions.map((session, i) => {
     const spec = specs[i];
-    if (!spec || spec.type !== 'strength') return session;
+    if (!spec) return session;
     const prog = progByWeek.get(spec.weekIndex);
     if (!prog) return session;
+    if (spec.type === 'cardio') {
+      const progressed = progressCardioSession(session, spec, prog, findMeta);
+      if (progressed !== session) adjustedSessionCount += 1;
+      return progressed;
+    }
+    if (spec.type !== 'strength') return session;
     if (prog.volumeMultiplier === 1 && prog.repModifier === 0) return session;
 
     let changed = false;

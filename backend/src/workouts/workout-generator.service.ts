@@ -1062,6 +1062,8 @@ ${exercisesSchemaLine}`;
 (3) Pattern balance per session — Push day: exactly 1 horizontal press + 1 vertical press (not 2 of the same angle). Pull day: exactly 1 vertical pull + 1 horizontal row. Lower/Legs day: 1 squat-pattern + 1 hinge-pattern. Upper day: 1 push compound + 1 pull compound in the first 2 slots.
 (4) When a focus repeats across the week, the FIRST exercise must differ in movement angle (flat bench → incline or OHP on repeat push day; back squat → front squat or hack squat on repeat lower day).
 (5) Follow the weekly progression targets exactly when provided — do not default to the same rep/set range every week.
+(6) Stacking caps — at most 2 pressing compounds (bench/incline/overhead/dip) and at most 2 hip-hinge movements (deadlift/RDL/good morning/hip thrust) in any one session; a third goes to another day or becomes an isolation exercise.
+(7) Frequency — with 3 or more lifting days, each big muscle group (chest, back, quads, hamstrings/glutes, shoulders) is trained on at least 2 different days of the week.
 INTENSITY: high days → favor heavier compound-first selection, keep rep range at lower end of scheme. INTENSITY: low days → favor moderate loads, higher rep accessories, include more variety and isolation work.
 For every day in the list: use only exercise ids from the provided list; place main compounds first then accessories; include only one variant of each movement per day (e.g. one bench press — not flat + incline bench in the same session).
 You must choose exercises ONLY from the provided list by their "id". Respond with exactly one JSON object, no markdown.

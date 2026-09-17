@@ -94,16 +94,32 @@ function nameMatchesAvoid(name: string, phrases: string[]): boolean {
   });
 }
 
+/** The main block's note; the leading minutes must match the stamped duration (the eval checks). */
+export function cardioMainBlockNotes(
+  minutes: number,
+  style: 'steady' | 'intervals',
+): string {
+  return style === 'steady'
+    ? `${minutes} min at a steady, conversational pace (zone 2). If you can't talk in short sentences, ease off.`
+    : `${minutes} min total: 3 min easy, then alternate 1 min brisk / 2 min easy. Finish the last 2 min easy.`;
+}
+
+/** Steady or intervals, read back off a main-block row. */
+export function cardioBlockStyle(
+  row: Pick<GeneratedSessionExercise, 'name' | 'notes'>,
+): 'steady' | 'intervals' {
+  if (/interval/i.test(row.name ?? '')) return 'intervals';
+  if (/alternate|brisk/i.test(row.notes ?? '')) return 'intervals';
+  return 'steady';
+}
+
 function mainBlockRow(
   meta: CardioTemplateExerciseMeta,
   seconds: number,
   style: 'steady' | 'intervals',
   minutes: number,
 ): GeneratedSessionExercise {
-  const notes =
-    style === 'steady'
-      ? `${minutes} min at a steady, conversational pace (zone 2). If you can't talk in short sentences, ease off.`
-      : `${minutes} min total: 3 min easy, then alternate 1 min brisk / 2 min easy. Finish the last 2 min easy.`;
+  const notes = cardioMainBlockNotes(minutes, style);
   return {
     name: meta.name,
     exerciseId: meta.id,
