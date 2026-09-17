@@ -177,3 +177,7 @@ Re-drive after 2g, same three inputs: **164.3 / 168** (162, 165, 166). Sequence 
 
 Deliberately not done in Tier 3: no per-user unit on the server (loads stay pounds, the client formats); no "keep alive" across an app kill (the persisted draft covers that already); the older Groq per-card preview path is untouched.
 
+### 3d. Web-rig pass (DONE 2026-09-17)
+
+Real 4-week muscle plan generated on the web rig (local backend on 3005, real Gemini, throwaway Postgres; the rig needs `EXPO_PUBLIC_SUPABASE_URL=http://localhost:9999` and `CORS_ORIGINS=http://localhost:8090`). Seen: the glance list (dates, titles, minutes), the coach sentence with the per-muscle detail behind the tap, rest and effort on every strength row, the calibration note on the main lift, "Rebuild day" in the sheet regenerating one day (a second generate-sessions call plus the program repair; warm-up, why and cool-down changed). Three things fixed from the look: the glance line repeated the title's own lift suffix; a helper-only muscle read "over 0 days"; core was flagged over the band on any lower-body week (half-credit from every squat and hinge), so core is no longer flagged high. Unverified on a phone (no binary yet): the deck's target line and rest clock.
+
