@@ -181,3 +181,27 @@ Deliberately not done in Tier 3: no per-user unit on the server (loads stay poun
 
 Real 4-week muscle plan generated on the web rig (local backend on 3005, real Gemini, throwaway Postgres; the rig needs `EXPO_PUBLIC_SUPABASE_URL=http://localhost:9999` and `CORS_ORIGINS=http://localhost:8090`). Seen: the glance list (dates, titles, minutes), the coach sentence with the per-muscle detail behind the tap, rest and effort on every strength row, the calibration note on the main lift, "Rebuild day" in the sheet regenerating one day (a second generate-sessions call plus the program repair; warm-up, why and cool-down changed). Three things fixed from the look: the glance line repeated the title's own lift suffix; a helper-only muscle read "over 0 days"; core was flagged over the band on any lower-body week (half-credit from every squat and hinge), so core is no longer flagged high. Unverified on a phone (no binary yet): the deck's target line and rest clock.
 
+## Tier 4: make the plan live (server + client; started 2026-09-17)
+
+### 4a. Post-session check-in → next week's sets (DONE 2026-09-17)
+
+| Change | Where | Verified by |
+|---|---|---|
+| Three answers after a session (it felt easy / about right / too hard; soreness none / some / a lot; joints fine / a niggle / pain) stored on the workout log (`effort`, `soreness`, `jointPain`, `checkInAppliedAt`), inline with the POST or via `PATCH /workout-logs/:id/check-in`. | `schema.prisma`, migration `20260917120000_workout_log_check_in`, `check-in.dto.ts`, `workout-logs.controller.ts`, `workout-logs.service.ts` | full backend suite (73 suites / 944) |
+| The rule, applied once to the same weekday of the next week in the plan: too hard, a lot of soreness or joint pain takes one set off every accessory (never below two); joint pain also holds the main lift back one rep in reserve; an easy, clean session adds one set to every accessory (never above five); about right or mixed answers move nothing; time rows never move. Each touched row gets a plain note; the response carries a one-sentence summary. | `workout-logs/checkin-adjustment.ts` (pure) | 6-test spec |
+| Client: "How did it go?" card on the finish screen; once all three are answered the store sends them (PATCH when the day's log exists, otherwise queued and carried inside the log POST, persisted like a pending completion); the server's sentence shows under the card and is kept for a recap. | `PlanCalendarWorkoutCompleteScreen.tsx`, `planCalendarPrototypeStore.ts` `submitCheckIn`, `types/workout.ts` | type-check + lint; store suites green. Deliberately not done: no store test for the queued path (the persistence harness simulates a server; adding a scenario there is a follow-up) |
+
+### 4b. A stalled lift deloads on purpose (DONE 2026-09-17)
+
+| Change | Where | Verified by |
+|---|---|---|
+| Loads from history read the last three sessions of each lift. Three sessions at the same top load (within 2.5 lb) with no rep gained from the oldest to the newest is a plateau: the first week's load is cut by a tenth, rounded to a plate, with a plain note; later weeks progress from history as usual. | `load-from-history.ts` `isPlateaued`, `last-performance.ts` `fetchRecentEntriesForExercises` | 3 new tests (13 in the spec): flat = plateau, a rep gained or a load change is not; week 1 at 120 from 135, week 2 at 135 |
+
+### 4c. The next block from this block's logs (DONE 2026-09-17)
+
+| Change | Where | Verified by |
+|---|---|---|
+| Apply keeps the plan's inputs (`jim_last_applied_plan_inputs_v1`). When the plan ends, the Home card and the week banner read "Build your next block" and open the form seeded from those inputs, start date moved to the next training day, with a one-line banner. The generator reads this block's logs (4b loads and deloads), so the continuation is offered, never rolled forward silently, and the user still presses Generate. | `planPreviewDraftStorage.ts`, `PlanPreviewScreen.tsx`, `GeneratePlanScreen.tsx`, `HomeScreen.tsx`, `PlanCalendarWeekScreen.tsx`, `types/navigation.ts` | type-check + lint; 677 lib tests. Not verified on a phone. |
+
+**Tier 4 is done.** Server parts deploy with the next push to Render (two migrations: rest seconds, check-in); every client part waits for the next binary or OTA, and the backend must be live first.
+
