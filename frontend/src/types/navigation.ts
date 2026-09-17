@@ -110,7 +110,7 @@ export type RootStackParamList = {
     /** Canonical snapshot when user taps Generate; use this downstream. */
     planInputs?: PlanInputs;
     inputs: {
-      goal: 'fat loss' | 'strength' | 'endurance' | 'hybrid';
+      goal: 'fat loss' | 'strength' | 'muscle' | 'endurance' | 'hybrid';
       programType: string;
       programVariationIndex: number;
       trainingDays: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[];

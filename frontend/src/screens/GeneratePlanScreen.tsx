@@ -40,7 +40,7 @@ import {
   type PersistedPlanPreviewDraft,
 } from '../lib/planPreviewDraftStorage';
 import { MonthCalendarPicker } from '../components/MonthCalendarPicker';
-import BenchPressLoader from '../components/BenchPressLoader';
+import PlanBuildLoader from '../components/PlanBuildLoader';
 import {
   WELLNESS_SCOPE_TITLE,
   WELLNESS_SCOPE_BODY,
@@ -71,7 +71,7 @@ type Props = {
   route: GeneratePlanScreenRouteProp;
 };
 
-type Goal = 'fat loss' | 'strength' | 'endurance' | 'hybrid';
+type Goal = 'fat loss' | 'strength' | 'muscle' | 'endurance' | 'hybrid';
 type PrimaryLocation = 'gym' | 'home';
 /** Plan style = training emphasis only. Week structure is from Recommended split + Training split preference. */
 type PlanStyle =
@@ -332,6 +332,7 @@ function autoNameFromTemplates(templates: DayTemplate[]): string {
 const GOAL_LABELS: Record<Goal, string> = {
   'fat loss': 'Fat loss',
   strength: 'Strength',
+  muscle: 'Build muscle',
   endurance: 'Endurance',
   hybrid: 'Balanced (Strength + Cardio)',
 };
@@ -339,6 +340,7 @@ const GOAL_LABELS: Record<Goal, string> = {
 const GOAL_DESCRIPTORS: Record<Goal, string> = {
   'fat loss': 'Lift to keep muscle + add cardio/steps',
   strength: 'Heavier compounds + longer rest',
+  muscle: 'More sets in the 6–12 range, fuller rest',
   endurance: 'More cardio volume + strength support',
   hybrid: 'Strength and cardio in one plan',
 };
@@ -346,7 +348,10 @@ const GOAL_DESCRIPTORS: Record<Goal, string> = {
 const DEFAULT_GYM_EQUIPMENT: EquipmentItem[] = ['barbell', 'dumbbells', 'machines', 'cable', 'kettlebells', 'pull-up bar', 'bands', 'cardio machines'];
 
 function prefGoalToForm(g: GoalOption): Goal | null {
-  if (g === 'Strength' || g === 'Hypertrophy') return 'strength';
+  // Hypertrophy used to collapse into strength and get the 4-6 rep scheme;
+  // the backend has had a hypertrophy table all along (2026-09-16 review).
+  if (g === 'Strength') return 'strength';
+  if (g === 'Hypertrophy') return 'muscle';
   if (g === 'Fat loss') return 'fat loss';
   if (g === 'Endurance') return 'endurance';
   if (g === 'General fitness') return 'hybrid';
@@ -460,6 +465,12 @@ function getPlanStyleOptions(goal: Goal | null): PlanStyleOption[] {
         { value: 'heavy_compounds', label: 'Heavy strength focus (lower reps)' },
         { value: 'powerbuilding', label: 'Strength + muscle focus (more accessories)' },
         { value: 'strength_conditioning', label: 'Strength + cardio (mixed)' },
+      ];
+    case 'muscle':
+      return [
+        { value: 'muscle_bias', label: 'Classic muscle building (6–12 reps)' },
+        { value: 'powerbuilding', label: 'Muscle + strength (heavier main lifts)' },
+        { value: 'strength_conditioning', label: 'Muscle + cardio (mixed)' },
       ];
     case 'endurance':
       return [
@@ -807,7 +818,9 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
   const recContext = React.useMemo(
     () =>
       normalizeContext({
-        goal: inputs.goal,
+        // The split recommender knows four goals; muscle building shares
+        // strength's splits and differs only in the set/rep scheme.
+        goal: inputs.goal === 'muscle' ? 'strength' : inputs.goal,
         planStyle: inputs.programType,
         trainingDays: inputs.trainingDays,
         timePerSession: inputs.timePerSession,
@@ -1139,7 +1152,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     return (
       <View style={styles.outerContainer}>
         <SafeAreaView style={[styles.container, styles.autoGenCenter]} edges={['top', 'bottom']}>
-          <BenchPressLoader size={200} colors={colors} />
+          <PlanBuildLoader size={96} label={null} />
           <Text style={styles.autoGenTitle}>Building your plan…</Text>
           <Text style={styles.autoGenSub}>Setting things up from your answers.</Text>
         </SafeAreaView>
@@ -1248,7 +1261,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
           <Text style={styles.sectionLabel}>Goal</Text>
           <View style={styles.sectionCard}>
           <View style={styles.goalChipsRow}>
-            {(['fat loss', 'strength', 'endurance', 'hybrid'] as Goal[]).map(goal => (
+            {(['fat loss', 'strength', 'muscle', 'endurance', 'hybrid'] as Goal[]).map(goal => (
               <TouchableOpacity
                 key={goal}
                 style={[styles.goalChip, inputs.goal === goal && styles.goalChipSelected]}
@@ -1269,7 +1282,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
             <View style={{ marginTop: spacing.lg }}>
               <Text style={styles.inCardLabel}>Secondary focus (optional)</Text>
               <View style={styles.goalChipsRow}>
-                {(['fat loss', 'strength', 'endurance', 'hybrid'] as Goal[])
+                {(['fat loss', 'strength', 'muscle', 'endurance', 'hybrid'] as Goal[])
                   .filter(g => g !== inputs.goal)
                   .map(goal => (
                     <TouchableOpacity

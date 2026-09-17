@@ -310,6 +310,8 @@ function previewRepsLineForGoal(e: ExerciseDraft, goal: PlanInputs['goal'] | und
 function goalToRecommendation(goal: PlanInputs['goal']): Goal | null {
   if (goal === 'fat_loss') return 'fat loss';
   if (goal === 'strength') return 'strength';
+  // Muscle building uses the same splits as strength; only the set/rep scheme differs.
+  if (goal === 'muscle') return 'strength';
   if (goal === 'endurance') return 'endurance';
   if (goal === 'balanced') return 'hybrid';
   return null;
@@ -585,7 +587,9 @@ function buildGenerateSessionsRequest(
       ? 'fat loss'
       : planInputs.goal === 'balanced'
         ? 'hybrid'
-        : planInputs.goal;
+        : planInputs.goal === 'muscle'
+          ? 'hypertrophy'
+          : planInputs.goal;
   const secondaryGoal =
     planInputs.secondaryGoal == null
       ? undefined
@@ -593,7 +597,9 @@ function buildGenerateSessionsRequest(
         ? 'fat loss'
         : planInputs.secondaryGoal === 'balanced'
           ? 'hybrid'
-          : planInputs.secondaryGoal;
+          : planInputs.secondaryGoal === 'muscle'
+            ? 'hypertrophy'
+            : planInputs.secondaryGoal;
   const avoidConstraints = [
     ...(planInputs.injuriesAvoid?.bodyAreas ?? []),
     ...(planInputs.injuriesAvoid?.movementsOrEquipment ?? []),

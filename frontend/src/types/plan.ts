@@ -16,7 +16,7 @@ export type Weekday =
   | 'Sunday';
 
 // --- PlanInputs (snapshot when user taps "Generate Week 1 Preview")
-export type GoalId = 'fat_loss' | 'strength' | 'endurance' | 'balanced';
+export type GoalId = 'fat_loss' | 'strength' | 'muscle' | 'endurance' | 'balanced';
 export type DurationMode = 'fixed' | 'range';
 export type SplitPreferenceId =
   | 'full_body'

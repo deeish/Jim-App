@@ -17,7 +17,7 @@ import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
 import { leading, planSlotIconColors, radius, spacing, text, tracking, type ColorPalette, useTheme, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
-import BenchPressLoader from '../components/BenchPressLoader';
+import PlanBuildLoader from '../components/PlanBuildLoader';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
 import { moveWorkoutBetweenDays } from '../lib/planPreviewMove';
@@ -217,11 +217,12 @@ function slotExercisesFromDraft(
 }
 
 function legacyGoalToPlanGoal(
-  g: 'fat loss' | 'strength' | 'endurance' | 'hybrid',
+  g: 'fat loss' | 'strength' | 'muscle' | 'endurance' | 'hybrid',
 ): PlanInputs['goal'] {
   if (g === 'fat loss') return 'fat_loss';
   if (g === 'hybrid') return 'balanced';
   if (g === 'endurance') return 'endurance';
+  if (g === 'muscle') return 'muscle';
   return 'strength';
 }
 
@@ -1054,14 +1055,18 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           ? 'fat loss'
           : planInputs.goal === 'balanced'
             ? 'hybrid'
-            : planInputs.goal
+            : planInputs.goal === 'muscle'
+              ? 'hypertrophy'
+              : planInputs.goal
         : inputs.goal;
       const secondaryGoalForApi = planInputs?.secondaryGoal
         ? planInputs.secondaryGoal === 'fat_loss'
           ? 'fat loss'
           : planInputs.secondaryGoal === 'balanced'
             ? 'hybrid'
-            : planInputs.secondaryGoal
+            : planInputs.secondaryGoal === 'muscle'
+              ? 'hypertrophy'
+              : planInputs.secondaryGoal
         : undefined;
       const goalIdToLabel = (g?: string | null): string | null => {
         switch (g) {
@@ -1073,6 +1078,8 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             return 'Endurance';
           case 'strength':
             return 'Strength';
+          case 'muscle':
+            return 'Muscle';
           default:
             return null;
         }
@@ -1157,7 +1164,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
 
       {loadingPreview && (
         <View style={styles.loadingOverlay}>
-          <BenchPressLoader size={200} colors={colors} />
+          <PlanBuildLoader size={96} />
           <Text style={[styles.loadingText, { color: colors.text }]}>
             {fromOnboarding
               ? 'Building your plan… This may take a minute.'
@@ -1499,7 +1506,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                   </Text>
                   {previewLoading ? (
                     <View style={{ marginVertical: spacing.lg, alignItems: 'center' }}>
-                      <BenchPressLoader size={140} colors={colors} />
+                      <PlanBuildLoader size={56} label={null} />
                     </View>
                   ) : previewData ? (
                     <>

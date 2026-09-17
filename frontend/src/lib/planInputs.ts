@@ -40,9 +40,9 @@ const WEEKDAY_ORDER: Weekday[] = [
 ];
 
 export interface FormStateForPlanInputs {
-  goal: 'fat loss' | 'strength' | 'endurance' | 'hybrid' | null;
+  goal: 'fat loss' | 'strength' | 'muscle' | 'endurance' | 'hybrid' | null;
   /** Optional second focus; null when the user picks a single goal. */
-  secondaryGoal?: 'fat loss' | 'strength' | 'endurance' | 'hybrid' | null;
+  secondaryGoal?: 'fat loss' | 'strength' | 'muscle' | 'endurance' | 'hybrid' | null;
   programType: string | null;
   trainingDays: Weekday[];
   startDateISO: string;
@@ -308,8 +308,8 @@ export function buildPlanInputs(options: BuildPlanInputsOptions): PlanInputs {
 
 /** Map PlanInputs back to form-like state for re-hydrating the Generate Plan form (Edit Inputs round-trip). */
 export function planInputsToFormPatch(inputs: PlanInputs): Partial<{
-  goal: 'fat loss' | 'strength' | 'endurance' | 'hybrid' | null;
-  secondaryGoal: 'fat loss' | 'strength' | 'endurance' | 'hybrid' | null;
+  goal: 'fat loss' | 'strength' | 'muscle' | 'endurance' | 'hybrid' | null;
+  secondaryGoal: 'fat loss' | 'strength' | 'muscle' | 'endurance' | 'hybrid' | null;
   programType: string | null;
   trainingDays: Weekday[];
   startDateISO: string;
@@ -336,13 +336,13 @@ export function planInputsToFormPatch(inputs: PlanInputs): Partial<{
       ? ('fat loss' as const)
       : inputs.goal === 'balanced'
         ? ('hybrid' as const)
-        : (inputs.goal as 'strength' | 'endurance');
+        : (inputs.goal as 'strength' | 'muscle' | 'endurance');
   const secondaryGoal = inputs.secondaryGoal
     ? inputs.secondaryGoal === 'fat_loss'
       ? ('fat loss' as const)
       : inputs.secondaryGoal === 'balanced'
         ? ('hybrid' as const)
-        : (inputs.secondaryGoal as 'strength' | 'endurance')
+        : (inputs.secondaryGoal as 'strength' | 'muscle' | 'endurance')
     : null;
   const trainingSplitPreference =
     inputs.splitPreference === 'full_body'

@@ -67,6 +67,7 @@ const WEEKDAY_ABBR: Record<Weekday, string> = {
 
 function goalLine(goal: PlanInputs['goal']): string {
   if (goal === 'fat_loss') return 'Goal: Fat loss';
+  if (goal === 'muscle') return 'Goal: Build muscle';
   if (goal === 'balanced') return 'Goal: Balanced (strength + cardio)';
   return `Goal: ${goal.charAt(0).toUpperCase()}${goal.slice(1)}`;
 }
