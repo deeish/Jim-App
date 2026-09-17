@@ -1,3 +1,4 @@
+import { formatEffortTarget } from '../lib/exercisePrescription';
 import React, {
   useEffect,
   useMemo,
@@ -240,9 +241,11 @@ export default function PlanCalendarWorkoutScreen() {
         }
       }
     }
+    const effort =
+      typeof exercise.targetRir === 'number' ? ` · ${formatEffortTarget(exercise.targetRir)}` : '';
     return exercise.weight === '—'
-      ? `Target ${exercise.reps}`
-      : `Target ${exercise.reps} · ${displayWeight(exercise.weight, unit)}`;
+      ? `Target ${exercise.reps}${effort}`
+      : `Target ${exercise.reps} · ${displayWeight(exercise.weight, unit)}${effort}`;
   }, [exercise, lastPerf, unit]);
 
   const logs = getSetLogs(dateIso, exerciseIndex);

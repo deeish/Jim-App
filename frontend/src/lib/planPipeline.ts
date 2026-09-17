@@ -183,6 +183,7 @@ export function exerciseDraftFromGenerateResult(
       ? { restSeconds: e.restSeconds }
       : {}),
     ...(typeof e.targetRir === 'number' && e.targetRir >= 0 ? { targetRir: e.targetRir } : {}),
+    ...(typeof e.weight === 'number' && e.weight > 0 ? { weight: e.weight } : {}),
     notes: e.notes,
   };
 }
@@ -208,6 +209,8 @@ export function buildWorkoutPreviewFromSessionDraft(
     ...(typeof e.restSeconds === 'number' && e.restSeconds > 0
       ? { restSeconds: e.restSeconds }
       : {}),
+    ...(typeof e.targetRir === 'number' ? { targetRir: e.targetRir } : {}),
+    ...(typeof e.weight === 'number' && e.weight > 0 ? { weight: e.weight } : {}),
     ...(e.notes?.trim() ? { notes: e.notes.trim() } : {}),
   }));
 
@@ -248,6 +251,7 @@ export function mapGroqPreviewExercise(
     secondaryMuscleGroups?: string[];
     secondaryMuscleGroup?: string;
     restSeconds?: number;
+    targetRir?: number;
   },
   idx: number,
   goal: PlanInputs['goal'],
@@ -273,6 +277,7 @@ export function mapGroqPreviewExercise(
     ...(typeof e.restSeconds === 'number' && e.restSeconds > 0
       ? { restSeconds: e.restSeconds }
       : {}),
+    ...(typeof e.targetRir === 'number' ? { targetRir: e.targetRir } : {}),
   };
 }
 
@@ -1221,6 +1226,10 @@ export function sessionDraftToPlanSlotExercises(
       orderIndex: i,
       ...(e.prescriptionType ? { prescriptionType: e.prescriptionType } : {}),
       ...(!hold && typeof e.targetRir === 'number' ? { targetRir: e.targetRir } : {}),
+      ...(typeof e.restSeconds === 'number' && e.restSeconds > 0
+        ? { restSeconds: Math.round(e.restSeconds) }
+        : {}),
+      ...(typeof e.weight === 'number' && e.weight > 0 ? { weight: e.weight } : {}),
     };
   });
 }

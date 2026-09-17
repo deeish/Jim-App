@@ -43,6 +43,23 @@ export function isTimeHoldExerciseName(name: string): boolean {
  *   - exact minute → `2 min`
  *   - mixed → `1m 30s`
  */
+/**
+ * The effort target as the user reads it: how many reps to leave in the tank.
+ * 0 means the last rep is the last one you could do with good form.
+ */
+export function formatEffortTarget(targetRir: number): string {
+  const rir = Math.max(0, Math.round(targetRir));
+  if (rir === 0) return 'last rep hard';
+  if (rir === 1) return '1 in reserve';
+  return `${rir} in reserve`;
+}
+
+/** Rest seconds as the workout deck shows them, mm:ss. */
+export function formatRestClock(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 export function formatRestSecondsForPreview(seconds: number): string {
   const s = Math.max(0, Math.round(seconds));
   if (s < 60) return `${s}s`;

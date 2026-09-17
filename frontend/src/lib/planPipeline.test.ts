@@ -243,6 +243,48 @@ describe('planPipeline', () => {
       expect(out![0].reps).toBeGreaterThanOrEqual(1);
     });
 
+    it('carries the effort target and rest to the saved row, but never an effort target on a hold', () => {
+      const session: SessionDraft = {
+        type: 'strength',
+        title: 'Upper',
+        focusTags: [],
+        durationMin: 45,
+        durationMax: 45,
+        isHardDay: false,
+        exercises: [
+          {
+            exerciseId: 'bench',
+            name: 'Bench Press',
+            sets: 4,
+            reps: '8–12',
+            repsRaw: 8,
+            repsMin: 8,
+            repsMax: 12,
+            targetRir: 2,
+            restSeconds: 135,
+            weight: 135,
+          },
+          {
+            exerciseId: 'plank',
+            name: 'Front Plank',
+            sets: 3,
+            reps: '45 sec',
+            durationSeconds: 45,
+            prescriptionType: 'time',
+            targetRir: 2,
+            restSeconds: 60,
+          },
+        ],
+      };
+      const out = sessionDraftToPlanSlotExercises(session, 1, 'Monday')!;
+      expect(out[0].targetRir).toBe(2);
+      expect(out[0].restSeconds).toBe(135);
+      expect(out[0].weight).toBe(135);
+      expect(out[1].targetRir).toBeUndefined();
+      expect(out[1].weight).toBeUndefined();
+      expect(out[1].restSeconds).toBe(60);
+    });
+
     it('persists the stored rep range and uses repsMin as the working scalar', () => {
       const session: SessionDraft = {
         type: 'strength',

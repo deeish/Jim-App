@@ -27,6 +27,7 @@
  * start) and on every later edit.
  */
 
+import { formatRestClock } from './exercisePrescription';
 import {
   WEEKDAYS,
   addDays,
@@ -721,15 +722,21 @@ function toPlannedExercise(ex: ApiPlanExercise, slot: ApiPlanWorkout): PlannedEx
         : bodyweightOnly
           ? 'Bodyweight'
           : '—',
-    rest: isCardio ? '—' : restHeuristic(name, ex.sets),
+    rest: isCardio
+      ? '—'
+      : typeof ex.restSeconds === 'number' && ex.restSeconds > 0
+        ? formatRestClock(ex.restSeconds)
+        : restHeuristic(name, ex.sets),
     equipment: meta?.equipment ?? '—',
     note: ex.notes ?? '',
+    ...(typeof ex.targetRir === 'number' ? { targetRir: ex.targetRir } : {}),
   };
 }
 
 /**
- * Rest guidance by movement class (generation-time restSeconds isn't
- * persisted): heavy compounds breathe longest, isolation work shortest.
+ * Rest guidance by movement class for rows saved before the generator's rest
+ * was persisted (2026-09-17): heavy compounds breathe longest, isolation work
+ * shortest.
  */
 function restHeuristic(name: string, sets: number): string {
   const n = name.toLowerCase();

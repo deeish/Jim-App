@@ -145,6 +145,8 @@ export interface ExerciseDraft {
   restSeconds?: number;
   /** Reps in reserve to stop at (effort target) from the generator. */
   targetRir?: number;
+  /** Working load in pounds from the user's own logs (generator, 2026-09-17); undefined without history. */
+  weight?: number;
   notes?: string;
   focus?: string;
 }

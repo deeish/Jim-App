@@ -20,6 +20,7 @@ import { useTabBarInset } from '../navigation/useTabBarInset';
 import PlanBuildLoader from '../components/PlanBuildLoader';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { formatAtWeightFromLb } from '../lib/weightDisplay';
+import { formatEffortTarget } from '../lib/exercisePrescription';
 import { moveWorkoutBetweenDays } from '../lib/planPreviewMove';
 import { formatRestSecondsForPreview } from '../lib/exercisePrescription';
 import {
@@ -447,6 +448,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                 weight: e.weight,
                 notes: e.notes,
                 prescriptionType: e.prescriptionType,
+                targetRir: (e as { targetRir?: number }).targetRir,
                 exerciseId:
                   typeof (e as { exerciseId?: string }).exerciseId === 'string'
                     ? (e as { exerciseId: string }).exerciseId
@@ -611,6 +613,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                 weight: e.weight,
                 notes: e.notes,
                 prescriptionType: e.prescriptionType,
+                targetRir: (e as { targetRir?: number }).targetRir,
                 exerciseId:
                   typeof (e as { exerciseId?: string }).exerciseId === 'string'
                     ? (e as { exerciseId: string }).exerciseId
@@ -1662,6 +1665,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                                       {ex.weight != null ? formatAtWeightFromLb(ex.weight, weightUnit) : ''}
                                       {typeof ex.restSeconds === 'number' && ex.restSeconds > 0
                                         ? ` · ${formatRestSecondsForPreview(ex.restSeconds)} rest`
+                                        : ''}
+                                      {typeof ex.targetRir === 'number'
+                                        ? ` · ${formatEffortTarget(ex.targetRir)}`
                                         : ''}
                                     </Text>
                                     {ex.notes?.trim() ? (

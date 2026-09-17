@@ -275,6 +275,8 @@ export type PlannedExercise = {
   rest: string;
   equipment: string;
   note: string;
+  /** Reps in reserve to stop at, when the plan carries an effort target. */
+  targetRir?: number;
 };
 
 export type PlannedDay = {

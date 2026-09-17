@@ -109,6 +109,8 @@ export interface WorkoutPreview {
      * a "· 90s rest" suffix on the preview row.
      */
     restSeconds?: number;
+    /** Reps in reserve to stop at (effort target), stamped server-side. */
+    targetRir?: number;
   }>;
 }
 

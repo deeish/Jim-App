@@ -3,6 +3,8 @@ import {
   exerciseUsesTimeDisplay,
   formatRestSecondsForPreview,
   isTimeHoldExerciseName,
+  formatEffortTarget,
+  formatRestClock,
 } from './exercisePrescription';
 
 describe('defaultPrescriptionForNewExercise', () => {
@@ -126,3 +128,20 @@ describe('formatRestSecondsForPreview', () => {
     expect(formatRestSecondsForPreview(-10)).toBe('0s');
   });
 });
+
+describe('formatEffortTarget / formatRestClock', () => {
+  it('reads the effort target the way a lifter would', () => {
+    expect(formatEffortTarget(2)).toBe('2 in reserve');
+    expect(formatEffortTarget(1)).toBe('1 in reserve');
+    expect(formatEffortTarget(0)).toBe('last rep hard');
+    expect(formatEffortTarget(3.4)).toBe('3 in reserve');
+  });
+
+  it('shows rest as the deck clock, mm:ss', () => {
+    expect(formatRestClock(90)).toBe('1:30');
+    expect(formatRestClock(120)).toBe('2:00');
+    expect(formatRestClock(75)).toBe('1:15');
+    expect(formatRestClock(0)).toBe('0:00');
+  });
+});
+

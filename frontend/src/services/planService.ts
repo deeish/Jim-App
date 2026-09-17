@@ -19,6 +19,8 @@ export interface PlanSlotExercise {
   prescriptionType?: ExercisePrescriptionType;
   /** Reps in reserve to stop at (effort target), stamped by the generator. */
   targetRir?: number;
+  /** Rest between sets in seconds (backend ≥ 2026-09-17 persists it). */
+  restSeconds?: number;
 }
 
 export interface PlanSlot {
@@ -48,6 +50,8 @@ export interface ApiPlanExercise {
   prescriptionType?: 'reps' | 'time' | 'distance' | null;
   /** Reps in reserve to stop at; null on cardio rows and on plans saved before 2026-09-17. */
   targetRir?: number | null;
+  /** Rest between sets in seconds; older rows have none and the deck falls back to a heuristic. */
+  restSeconds?: number | null;
   weight: number | null;
   notes: string | null;
   orderIndex: number;
