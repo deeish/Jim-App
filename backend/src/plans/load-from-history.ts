@@ -58,6 +58,46 @@ const REUSE_BEST_SET_REP_TOLERANCE = 4;
 /** Rows lighter than this are not worth prescribing (a bar is 45 lb). */
 const MIN_PRESCRIBED_LOAD_LB = 5;
 
+/** Sessions to compare for a plateau, and the cut when one is found (Tier 4b). */
+export const PLATEAU_SESSIONS = 3;
+export const PLATEAU_DELOAD_FACTOR = 0.9;
+export const PLATEAU_NOTE =
+  'Deload on purpose: three sessions at the same weight without a rep gained. Drop about 10% this week and build back up.';
+
+/** Heaviest loaded set of a session and the most reps done at that load. */
+function topSet(
+  perf: LastExercisePerformance,
+): { weight: number; reps: number } | null {
+  let best: { weight: number; reps: number } | null = null;
+  for (const s of perf.sets) {
+    const w = s.weight ?? 0;
+    if (w <= 0) continue;
+    if (!best || w > best.weight || (w === best.weight && s.reps > best.reps)) {
+      best = { weight: w, reps: s.reps };
+    }
+  }
+  return best;
+}
+
+/**
+ * True when the last `PLATEAU_SESSIONS` sessions sat at the same top load
+ * with no rep gained from the oldest to the newest: the double progression
+ * has stalled and a deload is the next honest step. `history` is newest
+ * first.
+ */
+export function isPlateaued(
+  history: ReadonlyArray<LastExercisePerformance>,
+): boolean {
+  if (history.length < PLATEAU_SESSIONS) return false;
+  const tops = history.slice(0, PLATEAU_SESSIONS).map(topSet);
+  if (tops.some((t) => t == null)) return false;
+  const [newest, ...rest] = tops as Array<{ weight: number; reps: number }>;
+  const sameLoad = rest.every((t) => Math.abs(t.weight - newest.weight) < 2.5);
+  if (!sameLoad) return false;
+  const oldest = tops[PLATEAU_SESSIONS - 1]!;
+  return newest.reps <= oldest.reps;
+}
+
 /** Estimated one-rep max from the logged sets of one lift, or undefined without a loaded set in range. */
 export function estimateOneRepMax(
   sets: ReadonlyArray<LastPerformedSet>,
@@ -153,6 +193,8 @@ export type StampLoadsResult = {
   loaded: number;
   /** First-week main lifts that received a calibration note. */
   calibrated: number;
+  /** First-week rows whose load was cut for a plateau. */
+  deloaded: number;
   /** Distinct lifts with usable history. */
   liftsWithHistory: number;
 };
@@ -160,10 +202,20 @@ export type StampLoadsResult = {
 export function stampLoadsFromHistory(args: {
   sessions: GeneratedSession[];
   specs: GenerateSessionsDto['sessions'];
-  history: ReadonlyMap<string, LastExercisePerformance>;
+  /** Per lift, the most recent sessions newest first (one is enough for a load; three for a plateau). */
+  history: ReadonlyMap<
+    string,
+    LastExercisePerformance | LastExercisePerformance[]
+  >;
   findMeta: (id: string) => LoadExerciseMeta | undefined;
 }): StampLoadsResult {
-  const { specs, history, findMeta } = args;
+  const { specs, findMeta } = args;
+  const history = new Map<string, LastExercisePerformance[]>();
+  for (const [id, v] of args.history) {
+    const list = Array.isArray(v) ? v : [v];
+    if (list.length > 0) history.set(id, list);
+  }
+  let deloaded = 0;
   const firstWeek = specs.length
     ? Math.min(...specs.map((s) => s.weekIndex))
     : 0;
@@ -184,15 +236,38 @@ export function stampLoadsFromHistory(args: {
       if (role === 'core' || role === 'hold') return ex;
       if (isBodyweightOnly(meta)) return ex;
 
-      const perf = ex.exerciseId ? history.get(ex.exerciseId) : undefined;
-      if (perf) {
-        const load = loadFromPerformance(ex, perf);
+      const recent = ex.exerciseId ? history.get(ex.exerciseId) : undefined;
+      const perf = recent?.[0];
+      if (perf && recent) {
+        let load = loadFromPerformance(ex, perf);
         if (load != null) {
           liftsUsed.add(ex.exerciseId!);
-          if (ex.weight === load) return ex;
+          // Only the first week deloads; later weeks progress from it through
+          // the phase's reps and effort target as usual.
+          const weekIndex = spec?.weekIndex ?? session.weekIndex;
+          const plateau = weekIndex === firstWeek && isPlateaued(recent);
+          if (plateau) {
+            load = Math.max(
+              MIN_PRESCRIBED_LOAD_LB,
+              roundLoadLb(load * PLATEAU_DELOAD_FACTOR),
+            );
+            deloaded += 1;
+          }
+          const notes = plateau
+            ? (ex.notes ?? '').includes(PLATEAU_NOTE)
+              ? ex.notes
+              : ex.notes?.trim()
+                ? `${ex.notes.trim()} ${PLATEAU_NOTE}`
+                : PLATEAU_NOTE
+            : ex.notes;
+          if (ex.weight === load && notes === ex.notes) return ex;
           loaded += 1;
           changed = true;
-          return { ...ex, weight: load };
+          return {
+            ...ex,
+            weight: load,
+            ...(notes !== ex.notes ? { notes } : {}),
+          };
         }
       }
       const weekIndex = spec?.weekIndex ?? session.weekIndex;
@@ -219,6 +294,7 @@ export function stampLoadsFromHistory(args: {
     sessions,
     loaded,
     calibrated,
+    deloaded,
     liftsWithHistory: liftsUsed.size,
   };
 }

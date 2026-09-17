@@ -118,6 +118,59 @@ export function bestCompletedSetByWeight(
   };
 }
 
+/**
+ * Like `pickLastEntriesForExercises`, but keeps up to `limit` entries per
+ * exercise, newest first (the plateau rule needs three sessions to compare).
+ */
+export function pickRecentEntriesForExercises(
+  logs: LogWithEntries[],
+  exerciseIds: string[],
+  limit: number,
+): Map<string, LastExercisePerformance[]> {
+  const idSet = new Set(exerciseIds);
+  const result = new Map<string, LastExercisePerformance[]>();
+  for (const log of logs) {
+    for (const entry of log.entries) {
+      if (!entry.exerciseId || !idSet.has(entry.exerciseId)) continue;
+      const list = result.get(entry.exerciseId) ?? [];
+      if (list.length >= limit) continue;
+      const sets = (entry.completedSets ?? [])
+        .filter((s) => s.completed)
+        .map((s) => ({
+          setNumber: s.setNumber,
+          reps: s.reps,
+          weight: s.weight ?? null,
+        }))
+        .sort((a, b) => a.setNumber - b.setNumber);
+      if (sets.length === 0) continue;
+      list.push({ workoutLogId: log.id, performedAt: log.startedAt, sets });
+      result.set(entry.exerciseId, list);
+    }
+  }
+  return result;
+}
+
+/** Fetches the recent-log window and keeps up to `limit` entries per exercise id, newest first. */
+export async function fetchRecentEntriesForExercises(
+  prisma: PrismaService,
+  userId: string,
+  exerciseIds: string[],
+  limit = 3,
+): Promise<Map<string, LastExercisePerformance[]>> {
+  if (exerciseIds.length === 0) {
+    return new Map();
+  }
+  const logs = await prisma.workoutLog.findMany({
+    where: { userId },
+    orderBy: { startedAt: 'desc' },
+    take: RECENT_LOGS_WINDOW,
+    include: {
+      entries: { include: { completedSets: true } },
+    },
+  });
+  return pickRecentEntriesForExercises(logs, exerciseIds, limit);
+}
+
 /** Fetches the recent-log window for a user and reduces it per exercise id. */
 export async function fetchLastEntriesForExercises(
   prisma: PrismaService,

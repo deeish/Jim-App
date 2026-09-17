@@ -32,7 +32,7 @@ import { stampLoadsFromHistory } from './load-from-history';
 import { repairPatternStacking } from './pattern-stacking-repair';
 import { plannedLiftingMinutes } from '../workouts/workout-generator.service';
 import {
-  fetchLastEntriesForExercises,
+  fetchRecentEntriesForExercises,
   isTrackableExerciseId,
   type LastExercisePerformance,
 } from '../workout-logs/last-performance';
@@ -2482,9 +2482,9 @@ export class PlansService {
       ),
     ];
     if (ids.length === 0) return sessions;
-    let history: Map<string, LastExercisePerformance>;
+    let history: Map<string, LastExercisePerformance[]>;
     try {
-      history = await fetchLastEntriesForExercises(this.prisma, userId, ids);
+      history = await fetchRecentEntriesForExercises(this.prisma, userId, ids);
     } catch (err) {
       this.logger.warn(
         JSON.stringify({
@@ -2507,6 +2507,7 @@ export class PlansService {
         liftsWithHistory: result.liftsWithHistory,
         rowsLoaded: result.loaded,
         rowsCalibrated: result.calibrated,
+        rowsDeloaded: result.deloaded,
       }),
     );
     return result.sessions;

@@ -7,6 +7,8 @@ import {
   loadFromPerformance,
   roundLoadLb,
   stampLoadsFromHistory,
+  isPlateaued,
+  PLATEAU_NOTE,
   type LoadExerciseMeta,
 } from './load-from-history';
 
@@ -318,5 +320,87 @@ describe('stampLoadsFromHistory', () => {
     });
     expect(out.sessions[0]).toBe(s);
     expect(out.loaded).toBe(0);
+  });
+});
+
+describe('plateau (Tier 4b)', () => {
+  const flat = () => [
+    perf([
+      [8, 135],
+      [8, 135],
+    ]),
+    perf([
+      [8, 135],
+      [7, 135],
+    ]),
+    perf([
+      [8, 135],
+      [8, 135],
+    ]),
+  ];
+
+  it('three sessions at the same top load with no rep gained is a plateau; a rep gained or a load change is not', () => {
+    expect(isPlateaued(flat())).toBe(true);
+    expect(isPlateaued(flat().slice(0, 2))).toBe(false);
+    expect(
+      isPlateaued([perf([[9, 135]]), perf([[8, 135]]), perf([[8, 135]])]),
+    ).toBe(false);
+    expect(
+      isPlateaued([perf([[8, 140]]), perf([[8, 135]]), perf([[8, 135]])]),
+    ).toBe(false);
+    expect(
+      isPlateaued([perf([[8, null]]), perf([[8, 135]]), perf([[8, 135]])]),
+    ).toBe(false);
+  });
+
+  it('cuts the first week by a tenth with a note and lets later weeks progress from history as usual', () => {
+    const history = new Map<string, LastExercisePerformance[]>([
+      ['bench', flat()],
+    ]);
+    const row = () => ({
+      name: 'Bench Press',
+      exerciseId: 'bench',
+      sets: 4,
+      reps: 8,
+      repsMin: 8,
+      repsMax: 12,
+      targetRir: 2,
+    });
+    const out = stampLoadsFromHistory({
+      sessions: [session(0, [row()]), session(1, [row()])],
+      specs: [spec({ weekIndex: 0 }), spec({ weekIndex: 1 })],
+      history,
+      findMeta,
+    });
+    expect(out.deloaded).toBe(1);
+    const w0 = out.sessions[0].exercises[0];
+    const w1 = out.sessions[1].exercises[0];
+    expect(w1.weight).toBe(135);
+    expect(w0.weight).toBe(120); // 135 × 0.9 = 121.5 → nearest 5 lb
+    expect(w0.notes).toBe(PLATEAU_NOTE);
+    expect(w1.notes).toBeUndefined();
+  });
+
+  it('still accepts a single performance per lift', () => {
+    const out = stampLoadsFromHistory({
+      sessions: [
+        session(0, [
+          {
+            name: 'Bench Press',
+            exerciseId: 'bench',
+            sets: 4,
+            reps: 8,
+            repsMin: 8,
+            repsMax: 12,
+            targetRir: 2,
+          },
+        ]),
+      ],
+      specs: [spec({ weekIndex: 0 })],
+      history: new Map([['bench', perf([[8, 135]])]]),
+      findMeta,
+    });
+    expect(out.sessions[0].exercises[0].weight).toBe(135);
+    expect(out.deloaded).toBe(0);
   });
 });
