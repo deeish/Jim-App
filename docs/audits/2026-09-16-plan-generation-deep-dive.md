@@ -82,6 +82,56 @@ None of this is the model misbehaving. It is what the rule layer produces from a
 
 ---
 
+## 4b. Do the sets and reps make sense for the goal?
+
+The numbers below are what `getRoleAwareScheme` in `backend/src/data/set-rep-schemes.ts` actually produces, printed from the function, before the time cap trims accessories. Format is sets × reps.
+
+| Goal | Level | Main lift | Second compound | Isolation | Core | Rest (all rows) |
+|---|---|---|---|---|---|---|
+| Strength | beginner | 4×5-8 | 4×6-10 | 3×8-12 | 3×12-15 | 90 s (+30 s on the first row) |
+| Strength | intermediate | 5×4-6 | 5×5-8 | 3×8-10 | 3×12-15 | 120 s |
+| Strength | advanced | 6×3-5 | 5×4-6 | 3×6-10 | 3×12-15 | 150 s |
+| Hypertrophy | beginner | 3×10-12 | 3×10-15 | 2×12-15 | 3×12-15 | 60 s |
+| Hypertrophy | intermediate | 4×8-12 | 4×10-15 | 3×12-15 | 3×12-15 | 75 s |
+| Hypertrophy | advanced | 5×6-10 | 4×8-12 | 3×10-15 | 3×12-15 | 90 s |
+| Fat loss | beginner | 3×10-15 | 3×10-15 | 2×15-20 | 3×15-20 | 45 s |
+| Fat loss | intermediate | 4×8-12 | 4×10-15 | 3×12-15 | 3×12-15 | 60 s |
+| Fat loss | advanced | 4×8-12 | 4×10-15 | 3×12-15 | 3×12-15 | 60 s |
+| Endurance | beginner | 3×12-15 | 3×12-15 | 2×15-20 | 3×15-20 | 45 s |
+| Endurance | intermediate | 3×12-15 | 3×15-20 | 2×15-20 | 3×15-20 | 45 s |
+| Endurance | advanced | 4×12-15 | 3×15-20 | 2×15-20 | 3×15-20 | 30 s |
+| Balanced | beginner | 4×8-12 | 4×10-15 | 3×12-15 | 3×12-15 | 75 s |
+| Balanced | intermediate | 4×6-10 | 4×8-12 | 3×10-15 | 3×12-15 | 90 s |
+| Balanced | advanced | 4×5-8 | 4×6-10 | 3×10-15 | 3×12-15 | 90 s |
+
+Verdict by goal:
+
+- **Strength: mostly right, rest too short.** Heavy main lift at 4-6 or 3-5 reps with 5-6 sets is the correct shape. The rest is 120 to 150 seconds on the main lift; the evidence and every strength app say 3 to 5 minutes for heavy compounds. The 5×5-8 second compound is a lot of heavy work, which is fine until the time cap trims it to 2 sets.
+- **Hypertrophy: the table is reasonable and nobody can reach it.** The form offers four goals: fat loss, strength, endurance, balanced. There is no "build muscle" goal. A profile or onboarding goal of Hypertrophy ("Grow muscle size and definition") is mapped to the form's "strength" and gets 5×4-6. The plan style "Strength + muscle focus" is never sent. So the most common goal in a gym app is served a powerlifting scheme. The hypertrophy rows also rest 60 to 90 seconds; the 2016 rest-interval trial found 3 minutes beat 1 minute for size as well as strength.
+- **Fat loss: the wrong idea in the lifting rows.** 8 to 15 reps at 45 to 60 seconds rest turns the lifting into a density circuit. Fat loss is set by the diet; the job of the lifting is to keep muscle, which means hypertrophy-style sets with normal rest. The "calorie burn" belongs on the cardio days and the finisher, not in shortened rest on the bench.
+- **Endurance: probably backwards for the people who pick it.** Someone who picks Endurance is usually a runner or cyclist wanting strength support. Their lifting rows here are 12 to 25 reps at 30 to 45 seconds rest, 2 to 4 sets, which is more cardio. The endurance-sport literature (Rønnestad and Mujika 2014; Blagrove 2018) finds heavy and explosive strength work improves running economy and performance, not high-rep lifting. Those two papers are from my own knowledge, not fetched in this session's research, so confirm before acting on this one.
+- **Balanced: fine.** 4×6-10 main, 4×8-12 second, 3×10-15 isolation at 90 seconds is a sensible general scheme.
+
+Cross-cutting problems, which matter more than any single row:
+
+1. **One rest value per goal.** The base rest is stamped on every strength row, plus 30 seconds on the first row. So a plank and a face pull rest 120 seconds while the squat rests 150. Rest should follow the role: main 3 to 4 minutes, second compound 2 to 3, isolation 60 to 90 seconds, core 45 to 60.
+2. **Short sessions are forced to five exercises.** `exerciseTargetsForSession` demands at least 5 exercises for any detailed session up to 38 minutes and 6 up to 55. The working-set cap for a 30 to 45 minute strength session is about 13. Five rows into 13 sets means one main lift at 5 and everything else trimmed to 2. That is the mechanism behind the sample week's 2×5-8 rows. A short session should have 3 or 4 movements at 3 or 4 sets.
+3. **Hard days on the simple path use the wrong table.** In the rule-based path, `difficulty = isHardDay ? 'advanced' : experienceLevel`, so a beginner's hard day is stamped with the advanced band (6×3-5 for strength). The single-session endpoint hard-codes advanced or intermediate and ignores experience entirely. The batch path uses the real experience level, which is why the sample was consistent.
+4. **"Build" progression is undone by the cap.** Weeks two onward multiply sets by 1.08 to 1.24, then the working-set cap re-clamps to the session length, so on a short session the volume never builds. Rep drops of 1 to 3 per week on a 4-6 main lift land at 3-5 and stop.
+5. **A rep range without an effort target is ambiguous.** 5×4-6 at what load, stopping how far from failure? Every row needs an RIR or a load, or both.
+
+What the tables should say, as a starting point for the prescription layer:
+
+| Goal | Main lift | Second compound | Isolation | Core | Rest by role |
+|---|---|---|---|---|---|
+| Strength | 4-5×3-5, RIR 2 to 1 across the block | 3-4×5-8, RIR 2 | 2-3×8-12 | 2-3×10-15 | 3-4 min / 2-3 min / 60-90 s / 45-60 s |
+| Muscle (new goal) | 3-4×6-10, RIR 2 to 0-1 | 3×8-12 | 2-3×10-15 | 2-3×12-20 | 2-3 min / 90-120 s / 60-90 s / 45-60 s |
+| Fat loss, lifting rows | same as Muscle | same | same | same | same, plus a 8-12 min conditioning finisher or a cardio day |
+| Endurance, support lifting | 3×4-6, RIR 2-3 | 2-3×6-10 | 2×8-12 | 2×12-20 | 2-3 min / 2 min / 60-90 s; cardio volume lives on cardio days |
+| Balanced | 4×5-8 | 3×8-12 | 2-3×10-15 | 2-3×12-20 | 2-3 min / 90-120 s / 60-90 s / 45-60 s |
+
+Beginners: the same zones, one fewer set, RIR 3, and week one as calibration. How many exercises a session holds should fall out of the weekly per-muscle tally and the minutes, not a fixed five.
+
 ## 5. The good
 
 - **The guardrails work.** Hallucinated ids are replaced, duplicates and cross-day repeats are caught, lower-body lifts cannot land on an upper day, equipment is conformed, cardio is templated, titles are de-hyped. The July generation-quality rounds and the eval harness (137 of 140 on the September captures) are real assets. Most LLM-program critiques in the literature (section 8) are about exactly the failures this pipeline already blocks.
@@ -185,6 +235,33 @@ Recommendation:
 - Move "What drove this preview" behind a small "How this was built" link and write it in plain words; keep the "not sent" list out of the product entirely by not collecting those fields.
 - Fix the empty-day swap bug before anything else ships in this screen.
 
+### 9.3b The preview screen, honestly
+
+Dylan flagged this screen as "iffy". Looking at it as a user: it reads as an admin view of the generator's output, not as "your program". Specifically:
+
+- **The screen explains itself.** A paragraph in the middle of the page tells the user to tap a session and to expand "What drove this preview" for "what was sent to the model". Copy that explains the UI, in the vocabulary of the system, is the screen admitting its layout does not communicate.
+- **The stats row says nothing.** "Sessions 4/week · Strength 4 · Has cardio 0". A zero is not a stat. There is no total time, no first-lift summary, no volume.
+- **The day cards hide the plan.** Each day shows a blue "S" tile, a title and "43 min • Strength • 5 exercises". You cannot see a single exercise without opening each day. A person judging a plan wants to see the lifts.
+- **Destructive controls sit at rest.** Trash and swap icons on every day, always visible.
+- **"Adjust this week" chips** (Rebuild Week, Reduce Intensity) sit above the content they change, and Reduce Intensity silently regenerates every week.
+- **The session sheet leads with boilerplate.** Title, then an italic progression line, then a grey paragraph about AI and rules and "for education only", and only then the warm-up and the exercises. The legal and transparency text is above the content.
+- **No dates, no weights, no effort, no rationale per row.** Already covered in section 9.3.
+- **Minor:** a text "← Back" instead of the native chevron the rest of the app uses; a "Week 1" pill when there is one week; "Apply to Plan" is system wording ("Start this plan").
+
+What the screen should be, top to bottom:
+
+1. A plan card: the name, one sentence ("4 days · 45 min · Upper/Lower · 6 weeks · built around strength"), a plain coach check line ("Balanced push and pull. Fits your time. Uses your gym."), and the primary button. Volume detail behind a tap.
+2. Weeks as a segmented control only when there is more than one.
+3. Each training day expanded: title, minutes, then the first three exercise rows inline with sets, reps, load or RIR, and "and 2 more". Tap for the full session. Rest days as thin rows.
+4. Per-row: one line of rationale and a swap that asks "this week or all weeks".
+5. Adjust as a secondary menu on the day (Rebuild this day, Shorter, Easier, Swap for cardio), not as a global chip row.
+6. Transparency ("How this was built") and the wellness note as a footer link.
+7. Edit inputs and Start this plan in the footer, with Start disabled only while generating.
+
+### 9.3c The loader
+
+The wait uses a Skia bench-press silhouette (`BenchPressLoader`) at three sites: the preview's full-screen wait, the per-session regenerate, and the dead onboarding auto-generate path. Dylan wants the logo there instead. The right shape, consistent with the 2026-09-13 decision that the mark is identity only and never a meter: the segmented-J mark at the splash size, a slow breathing pulse in opacity and scale (static when reduce-motion is on), and the staged status lines beneath it (pick exercises, balance the week, set your numbers, check the plan). No mapping of segments to progress. This also removes the Skia guarded-require path from the screen. One component swap, rides the next binary. In the plan it is a Tier 0 item.
+
 ### 9.4 After Apply
 
 Today: frozen.
@@ -205,6 +282,11 @@ A second pass on the first draft's plan, read as the person opening "Generate a 
 - Disclose the path taken: built with AI, or built by rules this time.
 - Route every generation error through one function that never shows internal strings.
 - Fix the preview's swap-type bug that applies an empty day.
+- **Add a "Build muscle" goal to the form** and map the Hypertrophy profile goal to it, so muscle-building users stop getting the strength scheme.
+- Rest by role instead of one value per goal (main 3-4 min, second 2-3, isolation 60-90 s, core 45-60 s).
+- Drop the five-exercise minimum for sessions under 40 minutes (3 or 4 movements at 3 or 4 sets).
+- Hard days use the experience band, never "advanced" for a beginner; the single-session endpoint takes experience.
+- Replace the bench-press loader with the logo mark and staged copy (client, rides a binary).
 
 **Tier 1, measure first (two or three days)**
 
