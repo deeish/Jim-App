@@ -136,3 +136,16 @@ Three 2026-09-14 `generate_sessions` captures replayed through the pipeline (`np
 
 Re-drive after 2f, same three inputs: **161.7 / 168** (156, 164, 165). patternStacking 2.7 → 4/4 on all three. Still open, and honest about it: (1) hybrid days at a 30-60 window plan the lifting from the 45-minute midpoint, so an advanced day is three lifts and a 10-minute finisher (~12 sets) and the scorer calls it light; (2) an advanced gym plan still picks goblet squats, bodyweight squats and push-ups as lifts; (3) the beginner capture's push/pull/legs skeleton came from the client, so the replay cannot show the new split rule. (1) and (2) are 2g.
 
+### 2g. The hybrid window and an advanced-gym gate (DONE 2026-09-17)
+
+| Change | Where | Verified by |
+|---|---|---|
+| On a day whose goal appends a cardio finisher (hybrid, fat loss, endurance), the lifting is planned at the window's midpoint plus the finisher's 10 minutes, capped at the window's top. The batch prompt's exercise range, the enrichment caps and the weekly allocator's time budget all use the same number (`plannedLiftingMinutes`), so a 30-60 hybrid day is 3-4 lifts, core and the tail (15-16 sets) instead of three lifts and a jog (12). A fixed window still pays for the tail out of lifting time. | `workout-generator.service.ts` `plannedLiftingMinutes`, `plans.service.ts` prefs, `weekly-volume-allocation.ts` budget | 3-test spec for the minutes; allocator spec: a tail does not reduce the lifting budget in a 30-60 window and does in a fixed 45 |
+| Advanced lifters with gym equipment (a bar, cables or machines) no longer get push-ups, bodyweight squats, glute bridges, inverted rows, wall sits, burpees in the candidate pool; pull-ups, chin-ups, dips and hanging work stay (`BASIC_BODYWEIGHT_NAME`). | `exercises.service.ts` `excludeBasicBodyweight`, `candidateGates(limitations, difficulty, equipment)` | real-catalog spec (the pool is a shuffled slice, so the kept set is asserted on the predicate; a first version of the test was flaky for that reason and was fixed) |
+
+72 suites / 935 tests.
+
+Re-drive after 2g, same three inputs: **164.3 / 168** (162, 165, 166). Sequence on the same inputs: 155.0 (old pipeline) → 161.3 (2e) → 161.7 (2f) → 164.3 (2g). weeklyVolume 6 → 7.3, muscleExposure 2 → 2.7, coachingProDepth 6.7 → 7. Still open: a goblet squat can lead an advanced lower day (a loaded lift, but not the one a coach would pick first); one beginner day still reads light to the scorer (13 sets in a 30-45 window, which is right for a beginner); the beginner capture's push/pull/legs skeleton is a client decision the replay cannot change.
+
+**Tier 2 is done.** Everything above is server-side and live on the next Render deploy (auto-deploy on push to main); the one client change (three-day split rule) rides with the next binary or OTA.
+

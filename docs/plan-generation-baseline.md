@@ -145,3 +145,14 @@ Stacking is solved. Exposure and weekly volume move with the LLM's picks
 between runs (the same three inputs, a different draw), which is why the
 fixture gates, not the re-drive, are the regression guard.
 
+### After Tier 2g (same three inputs)
+
+| | Before | 2e | 2f | 2g |
+|---|---|---|---|---|
+| Mean total | 155.0 | 161.3 | 161.7 | 164.3 |
+| effortTarget | 0 | 4 | 4 | 4 |
+| patternStacking | 1.3 | 2.7 | 4 | 4 |
+| weeklyVolume | 6.7 | 6.7 | 6 | 7.3 |
+| muscleExposure | 2.7 | 2.3 | 2 | 2.7 |
+| coachingProDepth | 7.3 | 6.7 | 6.7 | 7 |
+
