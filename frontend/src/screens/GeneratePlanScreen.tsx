@@ -1547,7 +1547,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               {PRIORITY_MUSCLE_IDS.map(m => (
                 <TouchableOpacity
                   key={m}
-                  style={[styles.optionButton, inputs.priorityMuscle === m && styles.optionButtonSelected]}
+                  style={[styles.optionButton, styles.priorityChip, inputs.priorityMuscle === m && styles.optionButtonSelected]}
                   accessibilityRole="button"
                   accessibilityState={{ selected: inputs.priorityMuscle === m }}
                   onPress={() =>
@@ -2661,6 +2661,30 @@ const t = [...(prev.templates.length ? prev.templates : [{ primaries: [], second
                   <Text style={styles.reviewRowLabel}>Time/session</Text>
                   <Text style={styles.reviewRowValue}>{`${inputs.timePerSession.min}–${inputs.timePerSession.max} min`}</Text>
                 </View>
+                {inputs.currentActivityLevel ? (
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewRowLabel}>Training now</Text>
+                    <Text style={styles.reviewRowValue}>
+                      {inputs.currentActivityLevel === '0' ? 'Not yet' : `${inputs.currentActivityLevel} sessions/wk`}
+                    </Text>
+                  </View>
+                ) : null}
+                {inputs.priorityMuscle ? (
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewRowLabel}>Bring up</Text>
+                    <Text style={styles.reviewRowValue}>{inputs.priorityMuscle}</Text>
+                  </View>
+                ) : null}
+                {knownLiftsFromText(inputs.knownLiftText, weightUnit).length > 0 ? (
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewRowLabel}>Your numbers</Text>
+                    <Text style={styles.reviewRowValue}>
+                      {KNOWN_LIFT_ROWS.filter(r => inputs.knownLiftText[r.key].weight && inputs.knownLiftText[r.key].reps)
+                        .map(r => `${r.label} ${inputs.knownLiftText[r.key].weight} ${weightUnit} × ${inputs.knownLiftText[r.key].reps}`)
+                        .join(', ')}
+                    </Text>
+                  </View>
+                ) : null}
                 {inputs.programType ? (
                   <View style={styles.reviewRow}>
                     <Text style={styles.reviewRowLabel}>Style</Text>
@@ -3062,6 +3086,11 @@ function createGeneratePlanStyles(c: ColorPalette) {
     backgroundColor: c.surface,
     borderRadius: radius.md,
     padding: spacing.lg,
+  },
+  priorityChip: {
+    flexGrow: 0,
+    flexBasis: '31%',
+    minWidth: 96,
   },
   knownLiftRow: {
     flexDirection: 'row',
