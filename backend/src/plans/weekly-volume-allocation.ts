@@ -59,6 +59,19 @@ const WARMUP_SECONDS = 6 * 60;
 const SECONDS_UNDER_LOAD = 35;
 const MAX_ITERATIONS = 24;
 
+/**
+ * The fewest sets a trim may leave on a row. A secondary compound at two
+ * sets is not a compound any more; the trim drops the day's last accessory
+ * before it takes a compound below three (rig run, 2026-09-17).
+ */
+const ROLE_SET_FLOOR: Record<CoachRole, number> = {
+  main: 3,
+  compound: 3,
+  isolation: 2,
+  core: 2,
+  hold: 2,
+};
+
 const ROLE_SET_CEILING: Record<CoachRole, number> = {
   main: 6,
   compound: 5,
@@ -150,6 +163,148 @@ function classifyRows(
     });
   });
   return refs;
+}
+
+/**
+ * One week's over-band trim. Takes a set off the accessory with the most
+ * sets (isolation first, then core, then secondary compounds) while it is
+ * above its role's floor; when every accessory of that muscle sits at its
+ * floor, drops the day's last isolation or core row for that muscle rather
+ * than cutting a compound to two sets. Never touches the main lift. Mutates
+ * the cloned rows in place; returns sets removed (a dropped row counts its
+ * sets).
+ */
+function trimWeekOverBand(ctx: {
+  sessions: GeneratedSession[];
+  idx: number[];
+  findMeta: (id: string) => CoachMeta | undefined;
+  bandMax: number;
+  volume: () => Record<string, { weighted: number }>;
+  notes: string[];
+}): number {
+  const { sessions, idx, findMeta, bandMax, volume, notes } = ctx;
+  let removed = 0;
+  const weekSessions = () => idx.map((i) => sessions[i]!);
+  for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+    const vol = volume();
+    const over = Object.entries(vol).filter(
+      ([g, v]) => g !== 'Core' && v.weighted > bandMax,
+    );
+    if (over.length === 0) break;
+    const refs = classifyRows(weekSessions(), findMeta).map((r) => ({
+      ...r,
+      sessionIndex: idx[r.sessionIndex]!,
+    }));
+    let trimmed = false;
+    for (const [group] of over) {
+      const rowOf = (r: RowRef) =>
+        sessions[r.sessionIndex]!.exercises[r.rowIndex]!;
+      const rank = (r: RowRef) =>
+        r.role === 'isolation'
+          ? 0
+          : r.role === 'core' || r.role === 'hold'
+            ? 1
+            : 2;
+      const candidates = refs
+        .filter((r) => r.group === group && r.role !== 'main')
+        .filter((r) => (rowOf(r).sets ?? 0) > ROLE_SET_FLOOR[r.role])
+        .sort(
+          (a, b) =>
+            rank(a) - rank(b) || (rowOf(b).sets ?? 0) - (rowOf(a).sets ?? 0),
+        );
+      const pick = candidates[0];
+      if (pick) {
+        const row = rowOf(pick);
+        row.sets = (row.sets ?? 0) - 1;
+        removed += 1;
+        trimmed = true;
+        notes.push(
+          `-1 set ${row.name ?? row.exerciseId} (${group} over ${bandMax}/wk)`,
+        );
+        break;
+      }
+      // Every accessory of this muscle is at its floor: drop one row rather
+      // than cut a compound to two sets. Isolation first, then core, then the
+      // day's last secondary compound; a session keeps at least two rows.
+      const droppable = refs
+        .filter((r) => r.group === group && r.role !== 'main')
+        .filter((r) => (sessions[r.sessionIndex]!.exercises?.length ?? 0) > 2)
+        .sort((a, b) => rank(a) - rank(b) || b.rowIndex - a.rowIndex);
+      const drop = droppable[0];
+      if (!drop) continue;
+      const session = sessions[drop.sessionIndex]!;
+      const row = session.exercises[drop.rowIndex]!;
+      removed += Math.max(0, row.sets ?? 0);
+      session.exercises = session.exercises.filter(
+        (_, j) => j !== drop.rowIndex,
+      );
+      trimmed = true;
+      notes.push(
+        `dropped ${row.name ?? row.exerciseId} (${group} over ${bandMax}/wk, accessories at their floor)`,
+      );
+      break;
+    }
+    if (!trimmed) break;
+  }
+  return removed;
+}
+
+/**
+ * The over-band trim on its own, for after the week progression has
+ * multiplied sets: a peak week keeps its extra sets up to the band and no
+ * further (rig run 2026-09-17: Legs at 22 in week 1 became 26.5 in week 4).
+ */
+export function trimWeeklyVolumeToBand(args: {
+  sessions: GeneratedSession[];
+  specs: AllocationSpec[];
+  findMeta: (id: string) => CoachMeta | undefined;
+  prefs: { goal?: string; difficulty?: string };
+}): AllocationResult {
+  const { specs, findMeta, prefs } = args;
+  if (args.sessions.length !== specs.length) {
+    return { sessions: args.sessions, adjustments: [] };
+  }
+  const sessions = args.sessions.map((s) => ({
+    ...s,
+    exercises: (s.exercises ?? []).map((e) => ({ ...e })),
+  }));
+  const band = weeklyVolumeBand(prefs.goal, prefs.difficulty);
+  const adjustments: AllocationResult['adjustments'] = [];
+  for (const weekIndex of [...new Set(specs.map((s) => s.weekIndex))]) {
+    const idx = specs
+      .map((s, i) =>
+        s.weekIndex === weekIndex && s.type === 'strength' ? i : -1,
+      )
+      .filter((i) => i >= 0);
+    if (idx.length === 0) continue;
+    const notes: string[] = [];
+    const volume = () =>
+      coachCheckWeek({
+        weekIndex,
+        sessions: idx.map((i) => ({ session: sessions[i]!, spec: specs[i]! })),
+        findMeta,
+        prefs,
+      }).volumeByMuscle;
+    const removed = trimWeekOverBand({
+      sessions,
+      idx,
+      findMeta,
+      bandMax: band.max,
+      volume,
+      notes,
+    });
+    if (removed > 0) adjustments.push({ weekIndex, added: 0, removed, notes });
+  }
+  const out = sessions.map((s, i) => {
+    const before = args.sessions[i]!;
+    const changed =
+      (s.exercises ?? []).length !== (before.exercises ?? []).length ||
+      (s.exercises ?? []).some(
+        (e, j) => e.sets !== before.exercises?.[j]?.sets,
+      );
+    return changed ? s : before;
+  });
+  return { sessions: out, adjustments };
 }
 
 export function allocateWeeklyVolume(args: {
@@ -252,48 +407,14 @@ export function allocateWeeklyVolume(args: {
     }
 
     // 3. Trim muscles over the band, from accessory rows only.
-    for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
-      const vol = volume();
-      const over = Object.entries(vol).filter(([, v]) => v.weighted > band.max);
-      if (over.length === 0) break;
-      const refs = classifyRows(weekSessions(), findMeta).map((r) => ({
-        ...r,
-        sessionIndex: idx[r.sessionIndex]!,
-      }));
-      let trimmed = false;
-      for (const [group] of over) {
-        const candidates = refs
-          .filter((r) => r.group === group && r.role !== 'main')
-          .filter(
-            (r) =>
-              (sessions[r.sessionIndex]!.exercises[r.rowIndex]!.sets ?? 0) > 2,
-          )
-          .sort((a, b) => {
-            const rank = (r: RowRef) =>
-              r.role === 'isolation'
-                ? 0
-                : r.role === 'core' || r.role === 'hold'
-                  ? 1
-                  : 2;
-            const sa =
-              sessions[a.sessionIndex]!.exercises[a.rowIndex]!.sets ?? 0;
-            const sb =
-              sessions[b.sessionIndex]!.exercises[b.rowIndex]!.sets ?? 0;
-            return rank(a) - rank(b) || sb - sa;
-          });
-        const pick = candidates[0];
-        if (!pick) continue;
-        const row = sessions[pick.sessionIndex]!.exercises[pick.rowIndex]!;
-        row.sets = (row.sets ?? 0) - 1;
-        removed += 1;
-        trimmed = true;
-        notes.push(
-          `-1 set ${row.name ?? row.exerciseId} (${group} over ${band.max}/wk)`,
-        );
-        break;
-      }
-      if (!trimmed) break;
-    }
+    removed += trimWeekOverBand({
+      sessions,
+      idx,
+      findMeta,
+      bandMax: band.max,
+      volume,
+      notes,
+    });
 
     // 4. Spare time goes to the main lift, one set, while its muscle stays in band.
     for (const i of idx) {
@@ -322,9 +443,11 @@ export function allocateWeeklyVolume(args: {
   // sessions that changed.
   const out = sessions.map((s, i) => {
     const before = args.sessions[i]!;
-    const changed = (s.exercises ?? []).some(
-      (e, j) => e.sets !== before.exercises?.[j]?.sets,
-    );
+    const changed =
+      (s.exercises ?? []).length !== (before.exercises ?? []).length ||
+      (s.exercises ?? []).some(
+        (e, j) => e.sets !== before.exercises?.[j]?.sets,
+      );
     return changed ? s : before;
   });
   return { sessions: out, adjustments };

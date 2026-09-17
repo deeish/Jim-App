@@ -1,5 +1,6 @@
 import {
   allocateWeeklyVolume,
+  trimWeeklyVolumeToBand,
   type AllocationSpec,
 } from './weekly-volume-allocation';
 import type { CoachMeta } from './coach-check';
@@ -358,3 +359,79 @@ describe('allocateWeeklyVolume', () => {
     expect(out.adjustments.map((a) => a.weekIndex)).toEqual([1, 2]);
   });
 });
+
+describe('after the progression (rig run 2026-09-17)', () => {
+  it('trims a peak week back to the band from the accessories, never the main lift', () => {
+    // Legs: squat 6 + rdl 5 + leg extension 5 = 16 direct; band max 22 for hypertrophy intermediate
+    // is exceeded once secondary credit is counted, so the trim has to give sets back.
+    const sessions = [
+      session('Monday', 'Lower', [
+        row('squat', 'Back Squat', 6, 150),
+        row('rdl', 'RDL', 5, 120),
+        row('legext', 'Leg Extension', 5, 60),
+      ]),
+      session('Thursday', 'Lower 2', [
+        row('squat', 'Front Squat', 6, 150),
+        row('rdl', 'Hip Thrust', 5, 120),
+        row('legext', 'Leg Curl', 5, 60),
+      ]),
+    ];
+    const out = trimWeeklyVolumeToBand({
+      sessions,
+      specs: [spec('Monday', 'Lower', 60), spec('Thursday', 'Lower 2', 60)],
+      findMeta,
+      prefs,
+    });
+    expect(out.adjustments[0]!.removed).toBeGreaterThan(0);
+    for (const s of out.sessions) {
+      expect(s.exercises[0]!.sets).toBe(6); // main untouched
+      for (const e of s.exercises.slice(1))
+        expect(e.sets).toBeGreaterThanOrEqual(2);
+    }
+    const legs = coachLegs(out.sessions);
+    expect(legs).toBeLessThanOrEqual(22);
+  });
+
+  it('never cuts a secondary compound below three; it drops an isolation at its floor instead', () => {
+    const sessions = [
+      session('Monday', 'Lower', [
+        row('squat', 'Back Squat', 6, 150),
+        row('rdl', 'RDL', 3, 120),
+        row('legext', 'Leg Extension', 2, 60),
+        row('legext', 'Leg Curl', 2, 60),
+      ]),
+      session('Thursday', 'Lower 2', [
+        row('squat', 'Front Squat', 6, 150),
+        row('rdl', 'Hip Thrust', 3, 120),
+        row('legext', 'Sissy Squat', 2, 60),
+        row('legext', 'Nordic Curl', 2, 60),
+      ]),
+    ];
+    const out = trimWeeklyVolumeToBand({
+      sessions,
+      specs: [spec('Monday', 'Lower', 60), spec('Thursday', 'Lower 2', 60)],
+      findMeta,
+      prefs,
+    });
+    for (const s of out.sessions) {
+      const compounds = s.exercises.filter((e) =>
+        /RDL|Hip Thrust/.test(e.name ?? ''),
+      );
+      for (const c of compounds) expect(c.sets).toBeGreaterThanOrEqual(3);
+      expect(s.exercises.length).toBeGreaterThanOrEqual(2);
+    }
+    const dropped = out.adjustments
+      .flatMap((a) => a.notes)
+      .filter((n) => n.startsWith('dropped'));
+    expect(dropped.length).toBeGreaterThan(0);
+  });
+});
+
+function coachLegs(sessions: GeneratedSession[]): number {
+  let direct = 0;
+  for (const s of sessions)
+    for (const e of s.exercises)
+      if (findMeta(e.exerciseId!)?.primaryMuscleGroup === 'Legs')
+        direct += e.sets;
+  return direct;
+}

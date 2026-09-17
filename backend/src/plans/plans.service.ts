@@ -27,7 +27,10 @@ import { ApplyWorkaroundsDto } from './dto/apply-workarounds.dto';
 import { ReplaceDayDto } from './dto/replace-day.dto';
 import { conformSessionTitleToExercises } from './session-title';
 import { coachCheckProgram, type CoachCheckReport } from './coach-check';
-import { allocateWeeklyVolume } from './weekly-volume-allocation';
+import {
+  allocateWeeklyVolume,
+  trimWeeklyVolumeToBand,
+} from './weekly-volume-allocation';
 import { stampLoadsFromHistory } from './load-from-history';
 import { repairPatternStacking } from './pattern-stacking-repair';
 import { plannedLiftingMinutes } from '../workouts/workout-generator.service';
@@ -2446,12 +2449,31 @@ export class PlansService {
         }),
       );
     }
+    // The progression multiplied sets; a peak week keeps its extra sets up
+    // to the band and no further (weekly-volume-allocation.ts, rig 2026-09-17).
+    const trimmed = trimWeeklyVolumeToBand({
+      sessions: progressed.sessions,
+      specs: dto.sessions,
+      findMeta: (id) => this.exercises.findOne(id),
+      prefs: { goal: dto.goal, difficulty: dto.experienceLevel },
+    });
+    for (const a of trimmed.adjustments) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'weekly_volume_trim_after_progression',
+          weekIndex: a.weekIndex,
+          removed: a.removed,
+          notes: a.notes.slice(0, 8),
+        }),
+      );
+    }
+
     // Loads from the user's own logs, after progression so each week's load
     // is inverted at that week's reps and effort target; a first-week main
     // lift with no history gets a calibration note (load-from-history.ts,
     // Tier 2d of the 2026-09-16 plan).
     const loaded = await this.stampLoadsFromUserHistory(
-      progressed.sessions,
+      trimmed.sessions,
       dto,
       userId,
     );
