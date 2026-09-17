@@ -36,12 +36,16 @@ import { refreshLiveCalendarData } from '../lib/planCalendarPrototypeStore';
 import {
   runPipelineSafe,
   regeneratePipelineWeek,
+  regeneratePipelineDay,
   regeneratePipelineCardioSessions,
+  applyRecordedSwaps,
   planDraftToWeekPlans,
   sessionDraftToPlanSlotExercises,
   buildWorkoutPreviewFromSessionDraft,
   mapGroqPreviewExercise,
+  type RecordedSwap,
 } from '../lib/planPipeline';
+import { runKeepAlive } from '../lib/planGenerationKeepAlive';
 import {
   linesForPlanGenerationSnapshot,
   linesLegacyFormNotInAiRequest,
@@ -60,7 +64,7 @@ import {
   previewSecondaryChipLabels,
   shortBodyTagLabel,
 } from '../lib/previewExerciseMeta';
-import type { ExerciseDraft, PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
+import type { ExerciseDraft, PlanDraft, PlanInputs, SessionDraft, Weekday } from '../types/plan';
 import { formatLocalYmd, getWeekStartMonday, parseLocalYmd } from '../lib/planCalendar';
 import {
   savePlanPreviewDraft,
@@ -309,7 +313,6 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     setGenerateError(null);
     setLoadingPreview(true);
     let cancelled = false;
-    const controller = new AbortController();
     const frameId = requestAnimationFrame(async () => {
       try {
         // Same draft already persisted (resume after app kill, or remount of the
@@ -321,10 +324,22 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           setPlanData(planDraftToWeekPlans(persisted.planDraft) as WeekPlan[]);
           return;
         }
-        const result = await runPipelineSafe(planInputs, draftId, {
-          repairIfInvalid: true,
-          signal: controller.signal,
-        });
+        // The run outlives this screen: backing out to edit one field and
+        // returning joins the same request, and a finished run persists its
+        // draft even if nobody is listening (planGenerationKeepAlive.ts).
+        const result = await runKeepAlive(
+          draftId,
+          () => runPipelineSafe(planInputs, draftId, { repairIfInvalid: true }),
+          async (r) => {
+            if (r.ok) {
+              await savePlanPreviewDraft({
+                draftId,
+                params: { planInputs, inputs, draftId, fromOnboarding },
+                planDraft: r.draft,
+              });
+            }
+          },
+        );
         if (cancelled) return;
         if (result.ok) {
           setPlanDraft(result.draft);
@@ -339,10 +354,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     return () => {
       cancelled = true;
       cancelAnimationFrame(frameId);
-      // Abort the in-flight Groq generation so leaving (e.g. "Edit inputs")
-      // stops burning free-tier tokens server-side.
-      controller.abort();
     };
+    // inputs/fromOnboarding only feed the persisted params; the run is keyed by draftId.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planInputs, draftId]);
 
   // Back up the generated preview (and any edits to it) so an app kill or crash
@@ -700,6 +714,54 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     }
   }, [planInputs, draftId]);
 
+  // Swaps the user made here, re-applied after a rebuild so a rebuild never
+  // silently undoes a choice (applyRecordedSwaps in planPipeline.ts).
+  const recordedSwapsRef = useRef<RecordedSwap[]>([]);
+
+  const handleRegenerateDay = useCallback(
+    async (weekNum: number, day: string) => {
+      if (!planInputs || !planDraft) return;
+      const key = `day-${weekNum}-${day}`;
+      setRegenerating(key);
+      try {
+        const result = await regeneratePipelineDay(
+          planInputs,
+          draftId,
+          planDraft,
+          weekNum,
+          day as Weekday,
+          { repairIfInvalid: true },
+        );
+        if (!result.ok) {
+          Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't rebuild this day. Try again.");
+          return;
+        }
+        // The rebuilt day is meant to be fresh; every other day keeps its swaps.
+        recordedSwapsRef.current = recordedSwapsRef.current.filter(
+          (sw) => !(sw.weekday === day && (sw.weeks === 'all' || sw.weeks === weekNum)),
+        );
+        const draft = applyRecordedSwaps(result.draft, recordedSwapsRef.current, {
+          skip: { weekIndex: weekNum, weekday: day as Weekday },
+        });
+        setPlanDraft(draft);
+        setPlanData(planDraftToWeekPlans(draft) as WeekPlan[]);
+        const session = draft.weeks
+          .find((w) => w.weekIndex === weekNum)
+          ?.days.find((d) => d.weekday === day)?.session;
+        if (session) {
+          setPreviewData(
+            buildWorkoutPreviewFromSessionDraft(session, session.title, {
+              goal: previewFormattingGoal(planInputs, inputs.goal),
+            }),
+          );
+        }
+      } finally {
+        setRegenerating(null);
+      }
+    },
+    [planInputs, planDraft, draftId, inputs.goal],
+  );
+
   const handleRegenerateWeek = async (weekNum: number) => {
     setRegenerating(`week-${weekNum}`);
     try {
@@ -715,8 +777,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't generate. Try again.");
           return;
         }
-        setPlanDraft(result.draft);
-        const weekPlans = planDraftToWeekPlans(result.draft) as WeekPlan[];
+        const draft = applyRecordedSwaps(result.draft, recordedSwapsRef.current);
+        setPlanDraft(draft);
+        const weekPlans = planDraftToWeekPlans(draft) as WeekPlan[];
         setPlanData((prev) =>
           prev.map((w) => (w.weekNumber === weekNum ? weekPlans[weekNum - 1] : w))
         );
@@ -726,8 +789,9 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           Alert.alert(regenFailureAlertTitle(result.error), result.error || "Couldn't generate. Try again.");
           return;
         }
-        setPlanDraft(result.draft);
-        const weekPlans = planDraftToWeekPlans(result.draft) as WeekPlan[];
+        const draft = applyRecordedSwaps(result.draft, recordedSwapsRef.current);
+        setPlanDraft(draft);
+        const weekPlans = planDraftToWeekPlans(draft) as WeekPlan[];
         setPlanData((prev) =>
           prev.map((w) => (w.weekNumber === weekNum ? weekPlans[weekNum - 1] : w))
         );
@@ -875,7 +939,7 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
   );
 
   const handleReplaceExercise = useCallback(
-    async (exerciseName: string) => {
+    async (exerciseName: string, scope: 'week' | 'all' = 'week') => {
       if (!previewCard || !planDraft || !planInputs) return;
       const week = planDraft.weeks.find((w) => w.weekIndex === selectedWeek);
       const dayDraft = week?.days.find((d) => d.weekday === previewCard.day);
@@ -926,7 +990,19 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
           ...session,
           exercises: session.exercises.map((ex, i) => (i === targetIndex ? replacement : ex)),
         };
-        const updated: PlanDraft = {
+        const swap: RecordedSwap = {
+          weeks: scope === 'all' ? 'all' : selectedWeek,
+          weekday: previewCard.day as Weekday,
+          fromName: target.name,
+          to: {
+            exerciseId: replacement.exerciseId,
+            name: replacement.name,
+            primaryMuscleGroup: replacement.primaryMuscleGroup,
+            secondaryMuscleGroups: replacement.secondaryMuscleGroups,
+          },
+        };
+        recordedSwapsRef.current = [...recordedSwapsRef.current, swap];
+        const thisWeek: PlanDraft = {
           ...planDraft,
           weeks: planDraft.weeks.map((w) =>
             w.weekIndex === selectedWeek
@@ -941,6 +1017,10 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
               : w,
           ),
         };
+        // "Every week": the same weekday in the other weeks carries the same
+        // lift (weeks are built from one skeleton), so swap it there too and
+        // keep each week's own sets and reps.
+        const updated = scope === 'all' ? applyRecordedSwaps(thisWeek, [swap]) : thisWeek;
         setPlanDraft(updated);
         setPlanData(planDraftToWeekPlans(updated) as WeekPlan[]);
         setPreviewData(
@@ -1562,7 +1642,25 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
             <ScrollView showsVerticalScrollIndicator={false}>
               {previewCard && (
                 <>
-                  <Text style={styles.modalTitle}>{previewCard.workout.title}</Text>
+                  <View style={styles.modalTitleRow}>
+                    <Text style={[styles.modalTitle, styles.modalTitleGrow]}>{previewCard.workout.title}</Text>
+                    {planDraft && !previewLoading ? (
+                      <TouchableOpacity
+                        style={styles.rebuildDayButton}
+                        onPress={() => handleRegenerateDay(selectedWeek, previewCard.day)}
+                        disabled={!!regenerating}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Rebuild ${previewCard.day}`}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        {regenerating === `day-${selectedWeek}-${previewCard.day}` ? (
+                          <ActivityIndicator size="small" color={colors.primary} />
+                        ) : (
+                          <Text style={styles.rebuildDayText}>Rebuild day</Text>
+                        )}
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
                   <Text style={styles.modalSubtitle}>
                     {previewCard.day} •{' '}
                     {getWorkoutDisplayEstimateMinutes(
@@ -1757,7 +1855,21 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
                                   {showReplace ? (
                                     <TouchableOpacity
                                       style={styles.previewReplaceIconBtn}
-                                      onPress={() => handleReplaceExercise(ex.name)}
+                                      onPress={() => {
+                                        if ((planDraft?.weeks.length ?? 1) <= 1) {
+                                          void handleReplaceExercise(ex.name, 'week');
+                                          return;
+                                        }
+                                        Alert.alert(
+                                          `Swap ${ex.name}`,
+                                          'Swap it in this week only, or in every week of the plan?',
+                                          [
+                                            { text: 'Cancel', style: 'cancel' },
+                                            { text: 'This week', onPress: () => void handleReplaceExercise(ex.name, 'week') },
+                                            { text: 'Every week', onPress: () => void handleReplaceExercise(ex.name, 'all') },
+                                          ],
+                                        );
+                                      }}
                                       disabled={!!replacingExerciseName}
                                       accessibilityLabel={`Replace ${ex.name}`}
                                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -1997,6 +2109,28 @@ function createPlanPreviewStyles(colors: ColorPalette) {
     marginTop: spacing.md,
     lineHeight: leading.footnote,
     textAlign: 'center',
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  modalTitleGrow: {
+    flex: 1,
+  },
+  rebuildDayButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minWidth: 92,
+    alignItems: 'center',
+  },
+  rebuildDayText: {
+    fontSize: text.footnote,
+    fontWeight: weight.semibold,
+    color: colors.primary,
   },
   glanceCard: {
     backgroundColor: colors.surface,

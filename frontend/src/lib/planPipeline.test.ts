@@ -29,6 +29,7 @@ import {
   repairDraft,
   planDraftToWeekPlans,
   sessionDraftToPlanSlotExercises,
+  applyRecordedSwaps,
   formatExerciseRepsDisplay,
   formatDraftReps,
   sessionHasCoachPreviewFields,
@@ -44,7 +45,7 @@ import {
   exercisesLikeFromPrescription,
   getWorkoutDisplayEstimateMinutes,
 } from './estimateWorkoutMinutes';
-import type { PlanInputs, SessionDraft, Weekday } from '../types/plan';
+import type { DayDraft, ExerciseDraft, PlanDraft, PlanInputs, SessionDraft, Weekday } from '../types/plan';
 
 const MON: Weekday = 'Monday';
 const TUE: Weekday = 'Tuesday';
@@ -796,3 +797,49 @@ describe('pipelineStage5CatchMessage', () => {
     warn.mockRestore();
   });
 });
+
+describe('applyRecordedSwaps', () => {
+  const ex = (name: string, sets = 4): ExerciseDraft => ({ exerciseId: name.toLowerCase().replace(/ /g, '_'), name, sets, reps: '8–12' });
+  const day = (weekday: Weekday, names: string[], sets = 4): DayDraft => ({
+    weekday,
+    dateOrLabel: 'Week',
+    session: { type: 'strength', title: 'Upper', focusTags: [], durationMin: 45, durationMax: 60, isHardDay: false, exercises: names.map((n) => ex(n, sets)) },
+  });
+  const draft = (): PlanDraft => ({
+    draftId: 'd',
+    inputsSnapshot: {} as PlanInputs,
+    metrics: { sessionsPerWeek: 1, strengthCount: 1, cardioCount: 0, hardDaysCount: 0 },
+    weeks: [
+      { weekIndex: 1, days: [day('Monday', ['Bench Press', 'Row'], 4)] },
+      { weekIndex: 2, days: [day('Monday', ['Bench Press', 'Row'], 5)] },
+    ],
+  });
+  const swapTo = { exerciseId: 'incline_db_press', name: 'Incline Dumbbell Press', primaryMuscleGroup: 'Chest' };
+
+  it('re-applies a one-week swap to that week only and keeps the rebuilt prescription', () => {
+    const out = applyRecordedSwaps(draft(), [{ weeks: 1, weekday: 'Monday', fromName: 'Bench Press', to: swapTo }]);
+    expect(out.weeks[0].days[0].session!.exercises[0]).toMatchObject({ name: 'Incline Dumbbell Press', sets: 4 });
+    expect(out.weeks[1].days[0].session!.exercises[0].name).toBe('Bench Press');
+  });
+
+  it('an every-week swap lands in each week, and a day that already has the pick or lost the original is left alone', () => {
+    const d = draft();
+    d.weeks[1].days[0].session!.exercises[0] = ex('Overhead Press');
+    const out = applyRecordedSwaps(d, [{ weeks: 'all', weekday: 'Monday', fromName: 'Bench Press', to: swapTo }]);
+    expect(out.weeks[0].days[0].session!.exercises[0].name).toBe('Incline Dumbbell Press');
+    expect(out.weeks[1].days[0].session!.exercises[0].name).toBe('Overhead Press');
+    const again = applyRecordedSwaps(out, [{ weeks: 'all', weekday: 'Monday', fromName: 'Bench Press', to: swapTo }]);
+    expect(again).toBe(out);
+  });
+
+  it('skips the day that was just rebuilt on purpose', () => {
+    const out = applyRecordedSwaps(
+      draft(),
+      [{ weeks: 'all', weekday: 'Monday', fromName: 'Bench Press', to: swapTo }],
+      { skip: { weekIndex: 1, weekday: 'Monday' } },
+    );
+    expect(out.weeks[0].days[0].session!.exercises[0].name).toBe('Bench Press');
+    expect(out.weeks[1].days[0].session!.exercises[0].name).toBe('Incline Dumbbell Press');
+  });
+});
+

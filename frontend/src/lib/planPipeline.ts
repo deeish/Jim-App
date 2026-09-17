@@ -1071,6 +1071,169 @@ export async function regeneratePipelineWeek(
 }
 
 /**
+ * Re-run stages 5–6 for ONE day, merge into the existing draft, then run the
+ * program repair across the whole plan so the rebuilt day still fits the week
+ * (no duplicate lifts across days, pattern floors, weekly volume).
+ */
+export async function regeneratePipelineDay(
+  planInputs: PlanInputs,
+  draftId: string,
+  existingDraft: PlanDraft,
+  weekIndex: number,
+  weekday: Weekday,
+  options?: { makeItEasier?: boolean; repairIfInvalid?: boolean }
+): Promise<PipelineRunResult> {
+  const repairIfInvalid = options?.repairIfInvalid ?? true;
+  const makeItEasier = options?.makeItEasier ?? false;
+  try {
+    const stage1 = stage1EffectiveSplit(planInputs);
+    const stage2 = stage2WeekSkeleton(planInputs, stage1);
+    const stage3 = stage3TemplateAssignments(planInputs, stage2, stage1);
+    const stage4 = stage4SessionSpecs(planInputs, stage2, stage3);
+    const weekSpecs = stage4.find((ws) => ws.weekIndex === weekIndex);
+    const dayIdx = WEEKDAYS.indexOf(weekday);
+    if (!weekSpecs || dayIdx < 0 || !weekSpecs.specs[dayIdx]) {
+      return { ok: false, error: `No ${weekday} in week ${weekIndex}.` };
+    }
+    const oneDay: WeekSessionSpecs = {
+      ...weekSpecs,
+      specs: weekSpecs.specs.map((spec, i) => (i === dayIdx ? spec : null)),
+    };
+    const { weeks: regeneratedPartial, generationNotes } = await stages5And6FromApi(
+      planInputs,
+      [oneDay],
+      { makeItEasier },
+    );
+    const newDay = regeneratedPartial
+      .find((w) => w.weekIndex === weekIndex)
+      ?.days.find((d) => d.weekday === weekday);
+    if (!newDay?.session) {
+      return { ok: false, error: 'Unexpected regeneration response for this day.' };
+    }
+    let mergedWeeks = existingDraft.weeks.map((w) =>
+      w.weekIndex === weekIndex
+        ? { ...w, days: w.days.map((d) => (d.weekday === weekday ? newDay : d)) }
+        : w,
+    );
+
+    const baseRequest = buildGenerateSessionsRequest(planInputs, stage4, { makeItEasier });
+    const generatedSessions = buildGeneratedSessionsFromMergedDraft(stage4, mergedWeeks);
+    let postRepairNotes: string[] | undefined;
+    if (
+      generatedSessions.length === baseRequest.sessions.length &&
+      baseRequest.sessions.length > 0
+    ) {
+      try {
+        const repaired = await repairProgramSessions({
+          ...baseRequest,
+          generatedSessions,
+        });
+        if (repaired.sessions.length === baseRequest.sessions.length) {
+          const { weeks: repairedWeeks } = normalizeSessionsResponse(
+            stage4,
+            repaired.sessions,
+            planInputs,
+          );
+          mergedWeeks = repairedWeeks;
+          postRepairNotes = repaired.generationNotes;
+        }
+      } catch {
+        // Keep the merged day if repair is unavailable (older backend / network).
+      }
+    }
+
+    const mergedGenNotes = [
+      ...(existingDraft.debugMeta?.generationNotes ?? []),
+      ...(generationNotes ?? []),
+      ...(postRepairNotes ?? []),
+    ];
+    let draft: PlanDraft = {
+      ...existingDraft,
+      draftId,
+      weeks: mergedWeeks,
+      metrics: stage7Metrics(mergedWeeks),
+      debugMeta: {
+        ...existingDraft.debugMeta,
+        reasons: [
+          ...(existingDraft.debugMeta?.reasons ?? []),
+          `Rebuilt ${weekday} of week ${weekIndex} (targeted generate-sessions)`,
+        ],
+        ...(mergedGenNotes.length ? { generationNotes: mergedGenNotes } : {}),
+      },
+    };
+    const validation = validateDraft(draft);
+    if (!validation.valid && repairIfInvalid) {
+      draft = repairDraft(draft);
+    } else if (!validation.valid) {
+      return { ok: false, error: validation.errors.join('; ') };
+    }
+    return { ok: true, draft };
+  } catch (e) {
+    return { ok: false, error: pipelineStage5CatchMessage(e) };
+  }
+}
+
+/** A swap the user made on the preview, kept so a rebuild does not undo it. */
+export interface RecordedSwap {
+  /** The week it was made in, or every week. */
+  weeks: number | 'all';
+  weekday: Weekday;
+  /** The exercise the user swapped out, by name. */
+  fromName: string;
+  /** Identity of what they chose; the slot's prescription is whatever the rebuild wrote. */
+  to: Pick<ExerciseDraft, 'exerciseId' | 'name' | 'primaryMuscleGroup' | 'secondaryMuscleGroups'>;
+}
+
+/**
+ * Re-applies the user's swaps to a rebuilt draft: where the rebuilt day still
+ * has the exercise they swapped out (and not yet the one they chose), the
+ * identity is swapped again and the new prescription is kept. Days that no
+ * longer carry the original are left alone.
+ */
+export function applyRecordedSwaps(
+  draft: PlanDraft,
+  swaps: readonly RecordedSwap[],
+  options?: { skip?: { weekIndex: number; weekday: Weekday } },
+): PlanDraft {
+  if (swaps.length === 0) return draft;
+  let changed = false;
+  const weeks = draft.weeks.map((w) => {
+    const days = w.days.map((d) => {
+      if (!d.session) return d;
+      if (options?.skip && options.skip.weekIndex === w.weekIndex && options.skip.weekday === d.weekday) {
+        return d;
+      }
+      let exercises = d.session.exercises;
+      for (const swap of swaps) {
+        if (swap.weekday !== d.weekday) continue;
+        if (swap.weeks !== 'all' && swap.weeks !== w.weekIndex) continue;
+        if (exercises.some((e) => e.name === swap.to.name)) continue;
+        const idx = exercises.findIndex((e) => e.name === swap.fromName);
+        if (idx < 0) continue;
+        exercises = exercises.map((e, i) =>
+          i === idx
+            ? {
+                ...e,
+                exerciseId: swap.to.exerciseId,
+                name: swap.to.name,
+                primaryMuscleGroup: swap.to.primaryMuscleGroup,
+                secondaryMuscleGroups: swap.to.secondaryMuscleGroups?.length
+                  ? [...swap.to.secondaryMuscleGroups]
+                  : undefined,
+                notes: undefined,
+              }
+            : e,
+        );
+        changed = true;
+      }
+      return exercises === d.session.exercises ? d : { ...d, session: { ...d.session, exercises } };
+    });
+    return { ...w, days };
+  });
+  return changed ? { ...draft, weeks } : draft;
+}
+
+/**
  * Re-run stages 5–6 for every **cardio** session only, merge into the existing draft.
  * Strength / recovery days are left unchanged.
  */
