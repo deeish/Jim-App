@@ -348,5 +348,47 @@ export function getRoleAwareScheme(
 
   [repsMin, repsMax] = snapToCoachBand(repsMin, repsMax);
 
-  return { sets, repsMin, repsMax, restSeconds: base.restSeconds };
+  return {
+    sets,
+    repsMin,
+    repsMax,
+    restSeconds: getRoleRestSeconds(goal, difficulty, role),
+  };
+}
+
+/**
+ * Rest by ROLE, derived from the goal band's base rest. One rest value per
+ * goal meant a plank and a face pull rested as long as the squat (the
+ * 2026-09-16 review). The heavy anchor gets the longest rest (the evidence
+ * puts heavy compounds at 3 to 5 minutes), the second compound a little
+ * less, isolation and core work 60 to 90 seconds. Rounded to 15 s so the
+ * rest tile reads like a coach wrote it.
+ */
+export function getRoleRestSeconds(
+  goal: string | undefined,
+  difficulty: string | undefined,
+  role: ExerciseRole,
+): number {
+  const base = getSetRepGuidelines(goal, difficulty).restSeconds ?? 90;
+  let raw: number;
+  let cap: number;
+  switch (role) {
+    case 'primary_compound':
+      raw = Math.max(120, base * 1.5);
+      cap = 240;
+      break;
+    case 'secondary_compound':
+      raw = Math.max(90, base * 1.25);
+      cap = 180;
+      break;
+    case 'isolation':
+      raw = Math.max(60, base * 0.75);
+      cap = 90;
+      break;
+    case 'core':
+      raw = 60;
+      cap = 60;
+      break;
+  }
+  return Math.round(Math.min(cap, raw) / 15) * 15;
 }

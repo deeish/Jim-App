@@ -1786,6 +1786,8 @@ function stampSetsAndReps(
       }
       ex.repsMin = undefined;
       ex.repsMax = undefined;
+      // A hold rests like core work, never like the heavy lift it follows.
+      if (ex.restSeconds == null) ex.restSeconds = 60;
       continue;
     }
 
@@ -1823,6 +1825,11 @@ function stampSetsAndReps(
     ex.repsMin = repsMin;
     ex.repsMax = repsMax;
     ex.reps = repsMin;
+    // Rest follows the role (see getRoleRestSeconds); stampRestSeconds only
+    // fills rows this pass did not reach.
+    if (ex.restSeconds == null && scheme.restSeconds) {
+      ex.restSeconds = scheme.restSeconds;
+    }
   }
 }
 

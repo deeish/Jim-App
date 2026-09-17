@@ -1426,7 +1426,7 @@ describe('enrichGeneratedSession prescriptionType', () => {
       },
     );
 
-    expect(out.exercises).toHaveLength(6);
+    expect(out.exercises).toHaveLength(5);
     expect(out.exercises.map((e) => e.exerciseId)).not.toContain('tread1');
     expect(out.reasoning?.toLowerCase()).toMatch(
       /shortened|target length|lower-priority|main lifts/,
@@ -1488,7 +1488,7 @@ describe('enrichGeneratedSession prescriptionType', () => {
       },
     );
 
-    expect(out.exercises).toHaveLength(7);
+    expect(out.exercises).toHaveLength(6);
     expect(out.exercises[out.exercises.length - 1]?.exerciseId).toBe('tread1');
   });
 
@@ -1537,7 +1537,7 @@ describe('enrichGeneratedSession prescriptionType', () => {
     const ids = out.exercises.map((e) => e.exerciseId);
     expect(ids).toContain('bench');
     expect(ids).toContain('row');
-    expect(out.exercises).toHaveLength(6);
+    expect(out.exercises).toHaveLength(5);
   });
 
   it('does not append hybrid cardio when metabolic finisher is already implied', async () => {
@@ -2216,7 +2216,7 @@ describe('enrichGeneratedSessionsInChunkOrder', () => {
     expect(last.sets).toBe(1);
   });
 
-  it('stamps restSeconds on each strength row from the goal+difficulty scheme (anchor +30s)', async () => {
+  it('stamps restSeconds on each strength row by role from the goal+difficulty scheme', async () => {
     const session: GeneratedSession = {
       weekIndex: 1,
       weekday: 'Monday',
@@ -2251,11 +2251,12 @@ describe('enrichGeneratedSessionsInChunkOrder', () => {
       equipment: ['Barbell'],
     });
 
-    // strength + intermediate → 120s base rest. Anchor (slot 1) gets +30s.
+    // strength + intermediate → 120s base rest, then by ROLE: the heavy
+    // anchor 180s, the second compound 150s, the curl (isolation) 90s.
     const rows = out[0]!.exercises;
-    expect(rows[0]!.restSeconds).toBe(150);
-    expect(rows[1]!.restSeconds).toBe(120);
-    expect(rows[2]!.restSeconds).toBe(120);
+    expect(rows[0]!.restSeconds).toBe(180);
+    expect(rows[1]!.restSeconds).toBe(150);
+    expect(rows[2]!.restSeconds).toBe(90);
   });
 
   it('does not stamp restSeconds on the cardio finisher row', async () => {
