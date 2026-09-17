@@ -87,3 +87,22 @@ describe('buildPlanInputs — secondaryGoal', () => {
     expect(patch.secondaryGoal).toBeNull();
   });
 });
+
+describe('buildPlanInputs — priority muscle and typed lifts (Tier 5)', () => {
+  it('keeps a valid priority muscle and complete, plausible lifts; drops the rest', () => {
+    const { normalizeKnownLifts } = require('./planInputs') as typeof import('./planInputs');
+    expect(
+      normalizeKnownLifts([
+        { exerciseId: 'flat_barbell_bench_press', weight: 135, reps: 8 },
+        { exerciseId: 'back_squat', weight: 0, reps: 5 },
+        { exerciseId: 'conventional_deadlift', weight: 225.26, reps: 5 },
+        { exerciseId: 'flat_barbell_bench_press', weight: 140, reps: 8 },
+        { exerciseId: '', weight: 100, reps: 5 },
+      ]),
+    ).toEqual([
+      { exerciseId: 'flat_barbell_bench_press', weight: 135, reps: 8 },
+      { exerciseId: 'conventional_deadlift', weight: 225.5, reps: 5 },
+    ]);
+  });
+});
+

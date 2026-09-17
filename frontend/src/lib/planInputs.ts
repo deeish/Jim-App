@@ -19,6 +19,7 @@ import type {
   ExperienceLevelId,
   Weekday,
 } from '../types/plan';
+import { PRIORITY_MUSCLE_IDS, type KnownLift, type PriorityMuscleId } from '../types/plan';
 
 const BODY_AREAS = [
   'knees',
@@ -72,6 +73,8 @@ export interface FormStateForPlanInputs {
   } | null;
   currentActivityLevel?: string | null;
   preferredExercises?: string[];
+  priorityMuscle?: string | null;
+  knownLifts?: KnownLift[];
   /** Lower-case modality ids: run, bike, swim, row, elliptical */
   cardioModalityPreference?: string[];
   /** Generate Plan checklist values (e.g. barbell, dumbbells); omitted when not collected */
@@ -238,6 +241,26 @@ function startWeekdayFromIsoDate(startDateISO: string): Weekday {
  * Build a single PlanInputs snapshot from current form state and effective choices.
  * Use this result as the only input for the generation pipeline and Preview.
  */
+function isPriorityMuscle(v: unknown): v is PriorityMuscleId {
+  return typeof v === 'string' && (PRIORITY_MUSCLE_IDS as readonly string[]).includes(v);
+}
+
+/** Keeps only complete, plausible typed lifts (pounds, 1..2000; reps 1..30), one per exercise. */
+export function normalizeKnownLifts(lifts: KnownLift[] | undefined): KnownLift[] {
+  const seen = new Set<string>();
+  const out: KnownLift[] = [];
+  for (const l of lifts ?? []) {
+    if (!l || typeof l.exerciseId !== 'string' || !l.exerciseId.trim()) continue;
+    if (!Number.isFinite(l.weight) || l.weight < 1 || l.weight > 2000) continue;
+    if (!Number.isInteger(l.reps) || l.reps < 1 || l.reps > 30) continue;
+    if (seen.has(l.exerciseId)) continue;
+    seen.add(l.exerciseId);
+    out.push({ exerciseId: l.exerciseId, weight: Math.round(l.weight * 2) / 2, reps: l.reps });
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+
 export function buildPlanInputs(options: BuildPlanInputsOptions): PlanInputs {
   const { form, effectiveSplitPreference, useRecommended } = options;
   const daysPerWeek = form.trainingDays.length;
@@ -300,6 +323,8 @@ export function buildPlanInputs(options: BuildPlanInputsOptions): PlanInputs {
     restrictions: form.restrictions?.trim() ? form.restrictions.trim() : undefined,
     currentActivityLevel,
     preferredExercises: form.preferredExercises ?? [],
+    priorityMuscle: isPriorityMuscle(form.priorityMuscle) ? form.priorityMuscle : null,
+    knownLifts: normalizeKnownLifts(form.knownLifts),
     experienceLevel: normalizeExperienceLevel(form.experienceLevel ?? undefined),
     equipmentTags: normalizeEquipmentTagsForPlan(form.availableEquipment),
     cardioModalities: normalizeCardioModalities(form.cardioModalityPreference),
@@ -327,6 +352,8 @@ export function planInputsToFormPatch(inputs: PlanInputs): Partial<{
   customSplit: { name?: string; templates: { primaries: string[]; secondaries: string[] }[]; rotationRule: string; abs: string; cardio: string } | null;
   currentActivityLevel: string | null;
   preferredExercises: string[];
+  priorityMuscle: string | null;
+  knownLifts: KnownLift[];
   cardioModalityPreference?: string[];
   availableEquipment?: string[];
   experienceLevel?: 'beginner' | 'intermediate' | 'advanced' | null;
@@ -403,6 +430,8 @@ export function planInputsToFormPatch(inputs: PlanInputs): Partial<{
     customSplit,
     currentActivityLevel: inputs.currentActivityLevel ?? null,
     preferredExercises: inputs.preferredExercises ?? [],
+    priorityMuscle: inputs.priorityMuscle ?? null,
+    knownLifts: inputs.knownLifts ?? [],
     cardioModalityPreference: inputs.cardioModalities ?? [],
     availableEquipment: inputs.equipmentTags?.length ? [...inputs.equipmentTags] : undefined,
     experienceLevel: inputs.experienceLevel,

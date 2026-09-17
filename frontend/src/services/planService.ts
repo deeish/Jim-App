@@ -182,6 +182,10 @@ export interface GenerateSessionsRequest {
   currentActivityLevel?: string;
   /** Preferred movements/lifts (max 8) to bias exercise selection. */
   preferredExercises?: string[];
+  /** One muscle group to bring up (backend ≥ 2026-09-17). */
+  priorityMuscle?: string;
+  /** Typed current lifts, pounds (backend ≥ 2026-09-17). */
+  knownLifts?: Array<{ exerciseId: string; weight: number; reps: number }>;
   sessions: Array<{
     type: 'strength' | 'cardio' | 'recovery';
     title?: string;

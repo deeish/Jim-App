@@ -1,3 +1,5 @@
+import { PRIORITY_MUSCLE_IDS, type CurrentActivityLevelId, type KnownLift, type PriorityMuscleId } from '../types/plan';
+import { kgToLb } from '../lib/weightDisplay';
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
@@ -183,6 +185,43 @@ interface GeneratePlanInputs {
   customSplit: CustomSplitData | null;
   equipmentAccess: EquipmentAccess[];
   age: number | null;
+  /** Sessions a week outside this plan; scales total volume on the server. */
+  currentActivityLevel: CurrentActivityLevelId | null;
+  /** One muscle group to bring up. */
+  priorityMuscle: PriorityMuscleId | null;
+  /** Typed current numbers for the three main lifts, as text in the user's unit. */
+  knownLiftText: Record<KnownLiftKey, { weight: string; reps: string }>;
+}
+
+type KnownLiftKey = 'bench' | 'squat' | 'deadlift';
+const KNOWN_LIFT_ROWS: Array<{ key: KnownLiftKey; label: string; exerciseId: string }> = [
+  { key: 'bench', label: 'Bench press', exerciseId: 'flat_barbell_bench_press' },
+  { key: 'squat', label: 'Back squat', exerciseId: 'back_squat' },
+  { key: 'deadlift', label: 'Deadlift', exerciseId: 'conventional_deadlift' },
+];
+const EMPTY_KNOWN_LIFT_TEXT: Record<KnownLiftKey, { weight: string; reps: string }> = {
+  bench: { weight: '', reps: '' },
+  squat: { weight: '', reps: '' },
+  deadlift: { weight: '', reps: '' },
+};
+
+/** Typed numbers in the user's unit → canonical pounds; incomplete rows are dropped. */
+function knownLiftsFromText(
+  text: Record<KnownLiftKey, { weight: string; reps: string }>,
+  unit: 'lb' | 'kg',
+): KnownLift[] {
+  const out: KnownLift[] = [];
+  for (const row of KNOWN_LIFT_ROWS) {
+    const w = Number(String(text[row.key].weight).replace(',', '.'));
+    const r = Number(text[row.key].reps);
+    if (!Number.isFinite(w) || w <= 0 || !Number.isFinite(r) || r <= 0) continue;
+    out.push({
+      exerciseId: row.exerciseId,
+      weight: unit === 'kg' ? kgToLb(w) : w,
+      reps: Math.round(r),
+    });
+  }
+  return out;
 }
 
 const DAYS_OF_WEEK: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -537,6 +576,7 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     setTrainingDaysFlexible,
     setPreferredTrainingDays,
     setSessionMinutes,
+    weightUnit,
   } = useUserPreferences();
   const [inputs, setInputs] = useState<GeneratePlanInputs>(() => ({
     goal: prefGoalToForm(prefGoal),
@@ -596,6 +636,9 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
     customSplit: null,
     equipmentAccess: [],
     age: null,
+    currentActivityLevel: null,
+    priorityMuscle: null,
+    knownLiftText: EMPTY_KNOWN_LIFT_TEXT,
   }));
   /**
    * Wizard state. The screen is split into 3 steps so users aren't dumped onto a single
@@ -1012,6 +1055,9 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
 
     const planInputs = buildPlanInputs({
       form: {
+        currentActivityLevel: inputs.currentActivityLevel,
+        priorityMuscle: inputs.priorityMuscle,
+        knownLifts: knownLiftsFromText(inputs.knownLiftText, weightUnit),
         goal: inputs.goal!,
         secondaryGoal: inputs.secondaryGoal,
         programType: inputs.programType ?? '',
@@ -1482,6 +1528,118 @@ export default function GeneratePlanScreen({ navigation, route }: Props) {
               </TouchableOpacity>
             ))}
           </View>
+          </View>
+        </View>
+
+        {/* What a coach asks first (Tier 5): how much you train now, what to bring up, your numbers. */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Training now</Text>
+          <View style={styles.sectionCard}>
+            <View style={styles.optionsRow}>
+              {(
+                [
+                  ['0', 'Not yet'],
+                  ['1-2', '1-2 / wk'],
+                  ['3-4', '3-4 / wk'],
+                  ['5+', '5+ / wk'],
+                ] as Array<[CurrentActivityLevelId, string]>
+              ).map(([id, label]) => (
+                <TouchableOpacity
+                  key={id}
+                  style={[styles.optionButton, inputs.currentActivityLevel === id && styles.optionButtonSelected]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: inputs.currentActivityLevel === id }}
+                  onPress={() =>
+                    setInputs(prev => ({
+                      ...prev,
+                      currentActivityLevel: prev.currentActivityLevel === id ? null : id,
+                    }))
+                  }
+                >
+                  <Text
+                    style={[styles.optionButtonText, inputs.currentActivityLevel === id && styles.optionButtonTextSelected]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.sectionFootnote}>Sessions a week you already do. Sets scale to it.</Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Bring up</Text>
+          <View style={styles.sectionCard}>
+            <View style={[styles.optionsRow, { flexWrap: 'wrap' }]}>
+              {PRIORITY_MUSCLE_IDS.map(m => (
+                <TouchableOpacity
+                  key={m}
+                  style={[styles.optionButton, inputs.priorityMuscle === m && styles.optionButtonSelected]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: inputs.priorityMuscle === m }}
+                  onPress={() =>
+                    setInputs(prev => ({ ...prev, priorityMuscle: prev.priorityMuscle === m ? null : m }))
+                  }
+                >
+                  <Text
+                    style={[styles.optionButtonText, inputs.priorityMuscle === m && styles.optionButtonTextSelected]}
+                    numberOfLines={1}
+                  >
+                    {m}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.sectionFootnote}>
+              Optional. One group gets more weekly sets and an extra day; leave it off for an even week.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Your numbers</Text>
+          <View style={styles.sectionCard}>
+            {KNOWN_LIFT_ROWS.map(row => (
+              <View key={row.key} style={styles.knownLiftRow}>
+                <Text style={styles.knownLiftLabel}>{row.label}</Text>
+                <TextInput
+                  style={styles.knownLiftInput}
+                  keyboardType="decimal-pad"
+                  placeholder={weightUnit}
+                  placeholderTextColor={colors.textMuted}
+                  value={inputs.knownLiftText[row.key].weight}
+                  onChangeText={t =>
+                    setInputs(prev => ({
+                      ...prev,
+                      knownLiftText: { ...prev.knownLiftText, [row.key]: { ...prev.knownLiftText[row.key], weight: t } },
+                    }))
+                  }
+                  accessibilityLabel={`${row.label} weight in ${weightUnit}`}
+                />
+                <Text style={styles.knownLiftTimes}>×</Text>
+                <TextInput
+                  style={[styles.knownLiftInput, styles.knownLiftReps]}
+                  keyboardType="number-pad"
+                  placeholder="reps"
+                  placeholderTextColor={colors.textMuted}
+                  value={inputs.knownLiftText[row.key].reps}
+                  onChangeText={t =>
+                    setInputs(prev => ({
+                      ...prev,
+                      knownLiftText: { ...prev.knownLiftText, [row.key]: { ...prev.knownLiftText[row.key], reps: t } },
+                    }))
+                  }
+                  accessibilityLabel={`${row.label} reps`}
+                />
+              </View>
+            ))}
+            <Text style={styles.sectionFootnote}>
+              Optional. A recent working set, not a max. Week one carries loads from it; what you log after that takes over.
+            </Text>
           </View>
         </View>
 
@@ -3306,6 +3464,35 @@ function createGeneratePlanStyles(c: ColorPalette) {
     backgroundColor: c.surface,
     borderRadius: radius.md,
     padding: spacing.lg,
+  },
+  knownLiftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  knownLiftLabel: {
+    flex: 1,
+    fontSize: text.body,
+    color: c.text,
+  },
+  knownLiftInput: {
+    width: 84,
+    height: 40,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    paddingHorizontal: spacing.sm,
+    fontSize: text.body,
+    color: c.text,
+    textAlign: 'center',
+  },
+  knownLiftReps: {
+    width: 64,
+  },
+  knownLiftTimes: {
+    fontSize: text.body,
+    color: c.textMuted,
   },
   sectionFootnote: {
     fontSize: text.footnote,

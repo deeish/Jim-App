@@ -68,6 +68,17 @@ export interface InjuriesAvoidInput {
 
 export type CurrentActivityLevelId = '0' | '1-2' | '3-4' | '5+';
 
+/** Muscle groups a plan can bring up (the server's coach-check groups). */
+export const PRIORITY_MUSCLE_IDS = ['Chest', 'Back', 'Shoulders', 'Legs', 'Arms', 'Core'] as const;
+export type PriorityMuscleId = (typeof PRIORITY_MUSCLE_IDS)[number];
+
+/** A current number the user typed instead of logging; weight in canonical pounds. */
+export interface KnownLift {
+  exerciseId: string;
+  weight: number;
+  reps: number;
+}
+
 export type ExperienceLevelId = 'beginner' | 'intermediate' | 'advanced';
 
 /**
@@ -100,6 +111,10 @@ export interface PlanInputs {
   restrictions?: string;
   currentActivityLevel: CurrentActivityLevelId | null;
   preferredExercises: string[];
+  /** One muscle group to bring up; the server fills it toward the top of its weekly band. */
+  priorityMuscle?: PriorityMuscleId | null;
+  /** Typed current lifts; stand in for history where no logs exist. */
+  knownLifts?: KnownLift[];
   /** Maps to POST /plans/generate-sessions; drives set/rep + Groq difficulty (default intermediate). */
   experienceLevel: ExperienceLevelId;
   /**

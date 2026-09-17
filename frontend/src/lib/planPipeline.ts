@@ -639,6 +639,8 @@ function buildGenerateSessionsRequest(
     preferredExercises: planInputs.preferredExercises?.length
       ? planInputs.preferredExercises.slice(0, 8)
       : undefined,
+    priorityMuscle: planInputs.priorityMuscle ?? undefined,
+    knownLifts: planInputs.knownLifts?.length ? planInputs.knownLifts.slice(0, 6) : undefined,
   };
 }
 
