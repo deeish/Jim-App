@@ -28,6 +28,12 @@ import { ReplaceDayDto } from './dto/replace-day.dto';
 import { conformSessionTitleToExercises } from './session-title';
 import { coachCheckProgram, type CoachCheckReport } from './coach-check';
 import { allocateWeeklyVolume } from './weekly-volume-allocation';
+import { stampLoadsFromHistory } from './load-from-history';
+import {
+  fetchLastEntriesForExercises,
+  isTrackableExerciseId,
+  type LastExercisePerformance,
+} from '../workout-logs/last-performance';
 import { substituteAvoidedExercises } from './plan-avoid-substitution';
 import {
   GenerateSessionsDto,
@@ -2025,7 +2031,11 @@ export class PlansService {
       total_tokens: sumTotalTokens,
     });
 
-    const enriched = await this.applySessionEnrichment(orderedResults, dto);
+    const enriched = await this.applySessionEnrichment(
+      orderedResults,
+      dto,
+      userId,
+    );
     const builtBy = PlansService.builtByFromChunkPaths(chunkPaths);
     const coachCheck = coachCheckProgram({
       sessions: enriched,
@@ -2208,6 +2218,7 @@ export class PlansService {
     const enriched = await this.applySessionEnrichment(
       repaired.sessions,
       enrichDto,
+      userId,
     );
 
     const repairNotes = [...new Set(repaired.notes)];
@@ -2284,6 +2295,7 @@ export class PlansService {
   private async applySessionEnrichment(
     sessions: GeneratedSession[],
     dto: GenerateSessionsDto,
+    userId?: string,
   ): Promise<GeneratedSession[]> {
     const equipment = PlansService.resolveGeneratorEquipment(
       dto.location ?? 'gym',
@@ -2400,15 +2412,74 @@ export class PlansService {
         }),
       );
     }
+    // Loads from the user's own logs, after progression so each week's load
+    // is inverted at that week's reps and effort target; a first-week main
+    // lift with no history gets a calibration note (load-from-history.ts,
+    // Tier 2d of the 2026-09-16 plan).
+    const loaded = await this.stampLoadsFromUserHistory(
+      progressed.sessions,
+      dto,
+      userId,
+    );
+
     // The model named the day from the lifts it chose; every pass above may
     // have swapped them. Rebuild the "· Bench + Row" suffix from what is
     // actually there (see session-title.ts).
-    return progressed.sessions.map((session) => ({
+    return loaded.map((session) => ({
       ...session,
       name:
         conformSessionTitleToExercises(session.name, session.exercises) ??
         session.name,
     }));
+  }
+
+  /**
+   * Reads the user's recent logs for every trackable lift in the program and
+   * stamps working loads (see `stampLoadsFromHistory`). Skipped without a
+   * user; a failed read never fails a generation.
+   */
+  private async stampLoadsFromUserHistory(
+    sessions: GeneratedSession[],
+    dto: GenerateSessionsDto,
+    userId: string | undefined,
+  ): Promise<GeneratedSession[]> {
+    if (!userId) return sessions;
+    const ids = [
+      ...new Set(
+        sessions
+          .flatMap((s) => s.exercises.map((e) => e.exerciseId))
+          .filter(isTrackableExerciseId),
+      ),
+    ];
+    if (ids.length === 0) return sessions;
+    let history: Map<string, LastExercisePerformance>;
+    try {
+      history = await fetchLastEntriesForExercises(this.prisma, userId, ids);
+    } catch (err) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'loads_from_history_skipped',
+          reason: err instanceof Error ? err.message : String(err),
+        }),
+      );
+      return sessions;
+    }
+    const result = stampLoadsFromHistory({
+      sessions,
+      specs: dto.sessions,
+      history,
+      findMeta: (id) => this.exercises.findOne(id),
+    });
+    this.logger.log(
+      JSON.stringify({
+        event: 'loads_from_history',
+        liftsRequested: ids.length,
+        liftsWithHistory: result.liftsWithHistory,
+        rowsLoaded: result.loaded,
+        rowsCalibrated: result.calibrated,
+      }),
+    );
+    return result.sessions;
   }
 
   async generateSingleSession(dto: GenerateSingleSessionDto, userId: string) {
