@@ -420,3 +420,16 @@ All three: model-built, 6 s, no console errors, no 4xx, every week balanced, rep
 - Shoulders still sit at 21.5 in week 1 from fractional credit (every press and pull adds half a set), so the peak week drops a lateral raise on Monday. The same accounting question as Legs, one size down; not changed tonight.
 - The client's bar change (per-group ceiling) rides the next binary; old clients draw Legs against 22 and will show it "over" once the plan grows past that.
 - The coach report's `band` stays the per-muscle band; the sheet's "Aim 8–22 a week" line does not mention that Legs is wider.
+
+### Run 11: the Shoulders ceiling (2026-09-17, night)
+
+Dylan: "fix the shoulders one too and run the rig again". Raw capture: `docs/audits/2026-09-17-preview-rig-run-11.json`.
+
+| | |
+|---|---|
+| Change | "Shoulders" is front, side and rear delts, and half of its count is secondary credit from every press and pull (run 10: 10 direct sets read as 21.5). The group ceilings are now a table: Legs 1.5 bands, Shoulders 1.25 (28 for an intermediate). `GROUP_BAND_SCALE` in `coach-check.ts`; `groupBandMax` reads it. |
+| Verified by | 406 backend tests green; run 11 below |
+| Run 11 | Model-built, 6 s, first validator pass clean, no console errors, no 4xx. No post-progression trim fired in any week for the first time. Every day is five rows in all four weeks. Legs 25.5 → 25.5 → 28 → 30; Shoulders 21.5 → 21.5 → 22 → 22 inside 28; Back 15 → 18.5; bench 135 → 150; reps held at 8–12. |
+| Week 1 | Upper: bench, bent-over row, overhead press, lateral raise, cable curl. Lower: back squat, RDL, leg extension, plank, farmer carry. Upper 2: incline dumbbell press, pull-up, seated dumbbell press, cable lateral raise, pushdown. Lower 2: deadlift, leg press, standing calf raise, seated calf raise, leg curl. |
+
+Left as found: the peak week's time clamp on Upper 2 takes the seated dumbbell press from three sets to two (the day is at the 18-set session cap); and the model put two calf raises on Lower 2, both slots that allow calves. Neither costs the plan anything a coach would flag; both are in the log for the next pass.
