@@ -433,3 +433,18 @@ Dylan: "fix the shoulders one too and run the rig again". Raw capture: `docs/aud
 | Week 1 | Upper: bench, bent-over row, overhead press, lateral raise, cable curl. Lower: back squat, RDL, leg extension, plank, farmer carry. Upper 2: incline dumbbell press, pull-up, seated dumbbell press, cable lateral raise, pushdown. Lower 2: deadlift, leg press, standing calf raise, seated calf raise, leg curl. |
 
 Left as found: the peak week's time clamp on Upper 2 takes the seated dumbbell press from three sets to two (the day is at the 18-set session cap); and the model put two calf raises on Lower 2, both slots that allow calves. Neither costs the plan anything a coach would flag; both are in the log for the next pass.
+
+### Run 12: one calf exercise a day; isolations give sets back first (2026-09-17, night)
+
+Dylan: "fix those two as well and run the rig again". Raw capture: `docs/audits/2026-09-17-preview-rig-run-12.json`.
+
+| # | Change | Where | Verified by |
+|---|---|---|---|
+| 1 | One calf exercise a day. Standing and seated calf raises are different families by name but the same work; the within-day family cap now keys calf work as one family with a cap of one, and swaps the second out like any other duplicate. | `session-enrichment.ts` (`CALF_NAME`, `capByKey(..., 1)`) | `block-headroom.spec.ts` (two calf raises on a Lower 2 → one) |
+| 2 | The duration clamp takes a set from an isolation before a compound, after sparing the priority muscle and before the most-sets tiebreak. Run 11 had the peak week take the seated dumbbell press from three sets to two while a lateral raise and a pushdown kept theirs. | `session-enrichment.ts` (`clampSessionWorkingSets`, now reads the catalog `type`) | `priority-and-trim.spec.ts` (19 sets against the 18 cap: the press keeps three, the raise or the pushdown gives one) |
+
+Run 12: model-built, 6 s, first validator pass clean, no console errors, no 4xx, no trim fired in any week, five rows on every day of all four weeks, one calf raise per lower day. The seated dumbbell press holds four sets and reaches five in the peak; the curl and the triceps extension are the rows that give a set back in week 4. Back (the priority) 15.5 → 15.5 → 16.5 → 19.5; Legs 26.5 → 31.5; Shoulders 22 → 25 inside 28; bench 135 → 150, reps 8–12 throughout.
+
+Week 1: Upper = bench, bent-over row, overhead press, lateral raise, cable curl. Lower = back squat, RDL, leg extension, standing calf raise, farmer carry. Upper 2 = incline dumbbell press, pull-up, seated dumbbell press, reverse pec deck, triceps extension. Lower 2 = deadlift, front squat, hanging leg raise, seated calf raise, leg curl.
+
+Nothing left open from runs 4–12. Twelve logged runs on the same inputs; the write-ups above are the trail from a goblet-squat-led three-lift day to this.
