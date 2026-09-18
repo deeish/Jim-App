@@ -52,19 +52,30 @@ export type MuscleVolume = {
 };
 
 /**
- * "Legs" is one catalog group for quads, hamstrings, glutes and calves, so a
- * plain per-muscle ceiling is far too tight for it: two lower days with four
- * lifts each at their floor sets already read as 22, and every peak week
- * from rig runs 4 to 9 had rows cut back out. One and a half bands is the
- * whole lower body's ceiling.
+ * Some catalog groups are several muscles, so a plain per-muscle ceiling is
+ * too tight for them:
+ *
+ * - "Legs" is quads, hamstrings, glutes and calves. Two lower days with four
+ *   lifts each at their floor sets already read as 22, and every peak week
+ *   from rig runs 4 to 9 had rows cut back out. One and a half bands.
+ * - "Shoulders" is front, side and rear delts, and half of its count is
+ *   secondary credit from every press and pull (rig run 10: 10 direct sets
+ *   read as 21.5, and the peak week dropped a lateral raise). A band and a
+ *   quarter.
  */
-export const LEGS_BAND_SCALE = 1.5;
+export const GROUP_BAND_SCALE: Readonly<Record<string, number>> = {
+  Legs: 1.5,
+  Shoulders: 1.25,
+};
+/** Kept for callers that only care about the biggest case. */
+export const LEGS_BAND_SCALE = GROUP_BAND_SCALE.Legs!;
 
 export function groupBandMax(
   group: string,
   band: { min: number; max: number },
 ): number {
-  return group === 'Legs' ? Math.round(band.max * LEGS_BAND_SCALE) : band.max;
+  const scale = GROUP_BAND_SCALE[group] ?? 1;
+  return Math.round(band.max * scale);
 }
 
 export type CoachCheckReport = {
