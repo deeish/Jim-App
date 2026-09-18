@@ -4,7 +4,10 @@ import {
   type GeneratedSession,
 } from './session-enrichment';
 import { exerciseTargetsForSession } from '../workouts/workout-generator.service';
-import { getAcceptedAnchorIdsForFocus } from '../data/anchor-exercises';
+import {
+  getAcceptedOpenerIdsForFocus,
+  type OpenerContext,
+} from '../data/anchor-exercises';
 import {
   buildSessionDiversitySignature,
   compareSameFocusSessionPair,
@@ -248,8 +251,12 @@ function findSlotOneNonAnchorId(
   exercises: ReadonlyArray<{ exerciseId?: string }>,
   sessionTitle: string | undefined,
   primaryMuscleGroupByExerciseId: ChunkValidationPrimaryMuscleMeta,
+  openerContext?: OpenerContext,
 ): string | null {
-  const accepted = getAcceptedAnchorIdsForFocus(sessionTitle ?? '');
+  const accepted = getAcceptedOpenerIdsForFocus(
+    sessionTitle ?? '',
+    openerContext,
+  );
   if (!accepted.length) return null;
   const acceptedSet = new Set(accepted);
   for (const ex of exercises) {
@@ -396,6 +403,11 @@ export function validateGeneratedProgramChunk(
    * bug they were minted to lock in.
    */
   enforceAnchorSlotOne: boolean = false,
+  /**
+   * Equipment and level for the slot-one check: in a gym, past beginner, the
+   * light anchors (goblet squat, push-up, ...) no longer count as an opener.
+   */
+  openerContext?: OpenerContext,
 ): ChunkValidationResult {
   const issues: ChunkValidatorIssue[] = [];
   const duplicateExerciseIds = new Set<string>();
@@ -532,6 +544,7 @@ export function validateGeneratedProgramChunk(
           session.exercises ?? [],
           spec.title,
           primaryMuscleGroupByExerciseId,
+          openerContext,
         );
         if (slotOneOffender) {
           issues.push('slot_one_not_anchor');

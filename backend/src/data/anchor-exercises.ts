@@ -151,3 +151,46 @@ export function getAcceptedAnchorIdsForFocus(focus: string): string[] {
   }
   return getAnchorIdsForFocus(focus);
 }
+
+/**
+ * Anchors that open a session only when nothing heavier is on hand: a home
+ * dumbbell or bodyweight list, or a beginner learning the pattern. In a gym
+ * an intermediate's first lift is a barbell or machine staple. Rig run
+ * 2026-09-17: a goblet squat and a bodyweight squat led two lower days for
+ * an intermediate with a full rack, and the slot-one check let them through
+ * because membership in the anchor list was the only test.
+ */
+export const LIGHT_ANCHOR_IDS: ReadonlySet<string> = new Set([
+  'goblet_squat',
+  'bodyweight_squat',
+  'push_up',
+  'single_arm_dumbbell_row',
+  'dumbbell_romanian_deadlift',
+]);
+
+export type OpenerContext = {
+  equipment?: string[];
+  difficulty?: string;
+};
+
+/** A gym is any equipment list with a bar, cables or machines. */
+export function isGymLikeEquipment(equipment: string[] | undefined): boolean {
+  return (equipment ?? []).some((e) =>
+    /barbell|cable|machine|smith|rack/i.test(e),
+  );
+}
+
+/**
+ * The anchors a session may open with for this user: the accepted set for the
+ * focus, minus the light anchors when the user trains in a gym and is past
+ * beginner.
+ */
+export function getAcceptedOpenerIdsForFocus(
+  focus: string,
+  ctx?: OpenerContext,
+): string[] {
+  const accepted = getAcceptedAnchorIdsForFocus(focus);
+  if (!ctx || !isGymLikeEquipment(ctx.equipment)) return accepted;
+  if ((ctx.difficulty ?? '').toLowerCase() === 'beginner') return accepted;
+  return accepted.filter((id) => !LIGHT_ANCHOR_IDS.has(id));
+}

@@ -86,15 +86,19 @@ export function exerciseTargetsForSession(
   }
   // Fewer movements, more sets each. The old floors (5 exercises at 38
   // minutes, 6 at 55) forced the duration cap to trim every accessory to
-  // two sets — a 40-minute day is three or four lifts at three or four sets,
-  // not five at two (the 2026-09-16 review's sample week).
+  // two sets — a 40-minute day is four lifts at three or four sets, not
+  // five at two (the 2026-09-16 review's sample week). Under about half an
+  // hour, three. The model takes the floor of any range it is given, so a
+  // 30–45 minute day asked for "3-4" came back as three lifts and thirteen
+  // sets (rig run 2026-09-17); four is the floor from 32 minutes up.
   const d = Math.max(25, Math.min(120, durationMinutes));
   if (detailLevel === 'simple') {
-    if (d <= 40) return { minExercises: 3, promptRange: '3-4' };
+    if (d <= 31) return { minExercises: 3, promptRange: '3-4' };
     if (d <= 55) return { minExercises: 4, promptRange: '4-5' };
     return { minExercises: 5, promptRange: '5-7' };
   }
-  if (d <= 40) return { minExercises: 3, promptRange: '3-5' };
+  if (d <= 31) return { minExercises: 3, promptRange: '3-5' };
+  if (d <= 40) return { minExercises: 4, promptRange: '4-5' };
   if (d <= 55) return { minExercises: 4, promptRange: '4-6' };
   return { minExercises: 5, promptRange: '5-8' };
 }
@@ -1119,7 +1123,7 @@ ${exercisesSchemaLine}`
 ${exercisesSchemaLine}`;
 
     const systemPrompt = `You are a strength and conditioning coach. Your job is to produce well-structured programs, not just lists of exercises. Programming rules you must follow:
-(1) Compounds before accessories — the first 1-2 exercises of each day must be primary compound lifts for that day's pattern (e.g. Bench Press or Overhead Press for Push; Pull-up or Row for Pull; Squat or Deadlift for Lower/Legs).
+(1) Compounds before accessories — the first 1-2 exercises of each day must be primary compound lifts for that day's pattern (e.g. Bench Press or Overhead Press for Push; Pull-up or Row for Pull; Squat or Deadlift for Lower/Legs). In a gym (barbell, machines or cables available) the first lift is a barbell or machine staple; goblet squats, bodyweight squats and push-ups open a session only at home or for a beginner.
 (2) No sub-muscle stacking — do not place 3+ exercises that load the same sub-muscle in the same session (e.g. three quad-dominant movements, three pec exercises, three bicep curl variations). At most 2 per sub-muscle; Calves, Core, Cardio are exempt.
 (3) Pattern balance per session — Push day: exactly 1 horizontal press + 1 vertical press (not 2 of the same angle). Pull day: exactly 1 vertical pull + 1 horizontal row. Lower/Legs day: 1 squat-pattern + 1 hinge-pattern. Upper day: 1 push compound + 1 pull compound in the first 2 slots.
 (4) When a focus repeats across the week, the FIRST exercise must differ in movement angle (flat bench → incline or OHP on repeat push day; back squat → front squat or hack squat on repeat lower day).

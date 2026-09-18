@@ -1370,6 +1370,7 @@ export class PlansService {
           this.primaryMuscleGroupMapForSessions(hybridRepaired.sessions),
           this.subMusclesMapForSessions(hybridRepaired.sessions),
           true,
+          { equipment, difficulty: dto.experienceLevel },
         );
         const hybridQuality = this.hybridChunkPassesQualityGate(
           specs,
@@ -1513,6 +1514,7 @@ export class PlansService {
             this.primaryMuscleGroupMapForSessions(mapped),
             this.subMusclesMapForSessions(mapped),
             true,
+            { equipment, difficulty: dto.experienceLevel },
           )
         : null;
 
@@ -1586,6 +1588,7 @@ export class PlansService {
               this.primaryMuscleGroupMapForSessions(mapped),
               this.subMusclesMapForSessions(mapped),
               true,
+              { equipment, difficulty: dto.experienceLevel },
             )
           : null;
         if (mapped && validationRetry?.ok) {

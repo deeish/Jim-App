@@ -8,7 +8,7 @@ import {
   exerciseTargetsForSession,
   goalWantsStrengthCardioFinisher,
 } from '../workouts/workout-generator.service';
-import { getAcceptedAnchorIdsForFocus } from '../data/anchor-exercises';
+import { getAcceptedOpenerIdsForFocus } from '../data/anchor-exercises';
 import { equipmentSatisfies } from '../data/exercise-mappings';
 import {
   getSetRepGuidelines,
@@ -938,13 +938,18 @@ function ensureAnchorInSlotOne(args: {
   spec: { title?: string; type: string };
   exercisesService: ExercisesService;
   equipment?: string[];
+  /** Past beginner in a gym, a light anchor is not an opener (anchor-exercises.ts). */
+  difficulty?: string;
   avoidPhrases: string[];
   chunkExcludeExerciseIds: string[];
   coachNotes: string[];
 }): void {
   const { exercises, spec } = args;
   if (spec.type !== 'strength') return;
-  const accepted = getAcceptedAnchorIdsForFocus(spec.title ?? '');
+  const accepted = getAcceptedOpenerIdsForFocus(spec.title ?? '', {
+    equipment: args.equipment,
+    difficulty: args.difficulty,
+  });
   if (!accepted.length) return;
   const acceptedSet = new Set(accepted);
   const findMeta = (id: string) => args.exercisesService.findOne(id);
@@ -1657,6 +1662,7 @@ export async function enrichGeneratedSession(
     spec,
     exercisesService,
     equipment,
+    difficulty: generationPrefs?.difficulty,
     avoidPhrases,
     chunkExcludeExerciseIds: generationPrefs?.chunkExcludeExerciseIds ?? [],
     coachNotes,
