@@ -278,6 +278,10 @@ export type PlannedExercise = {
   note: string;
   /** Reps in reserve to stop at, when the plan carries an effort target. */
   targetRir?: number;
+  /** The week's rep target inside the band, when the server's ledger set one from last week's log. */
+  aimReps?: number;
+  /** True when the row was rewritten by the ledger; the workout screen shows its target instead of guessing. */
+  ledger?: boolean;
 };
 
 export type PlannedDay = {

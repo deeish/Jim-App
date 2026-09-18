@@ -817,6 +817,8 @@ function toPlannedExercise(ex: ApiPlanExercise, slot: ApiPlanWorkout): PlannedEx
     equipment: meta?.equipment ?? '—',
     note: ex.notes ?? '',
     ...(typeof ex.targetRir === 'number' ? { targetRir: ex.targetRir } : {}),
+    ...(aimRepsOf(ex) != null ? { aimReps: aimRepsOf(ex) } : {}),
+    ...(/Ledger:/.test(ex.notes ?? '') ? { ledger: true } : {}),
   };
 }
 
@@ -843,9 +845,16 @@ function formatRepsDisplay(ex: ApiPlanExercise): string {
     return `${s} sec`;
   }
   if (ex.repsMin != null && ex.repsMax != null && ex.repsMax > ex.repsMin) {
-    return `${ex.repsMin}–${ex.repsMax}`;
+    const aim = aimRepsOf(ex);
+    return aim != null ? `${ex.repsMin}–${ex.repsMax} · aim ${aim}` : `${ex.repsMin}–${ex.repsMax}`;
   }
   return `${ex.reps}`;
+}
+
+/** The ledger's rep target for the week: the scalar sits strictly inside the band. */
+function aimRepsOf(ex: ApiPlanExercise): number | undefined {
+  if (ex.repsMin == null || ex.repsMax == null || ex.repsMax <= ex.repsMin) return undefined;
+  return ex.reps > ex.repsMin && ex.reps <= ex.repsMax ? ex.reps : undefined;
 }
 
 function formatEquipment(equipment: string[] | undefined): string {

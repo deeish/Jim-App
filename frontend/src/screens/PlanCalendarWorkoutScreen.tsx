@@ -216,6 +216,16 @@ export default function PlanCalendarWorkoutScreen() {
   // back to the plan prescription when history is absent, stale, or bandless.
   const targetLine = useMemo(() => {
     if (!exercise) return '';
+    // The server's ledger already turned last week's log into this week's
+    // number and target; show it rather than re-deriving one here.
+    if (exercise.ledger) {
+      const reps = exercise.aimReps != null ? String(exercise.aimReps) : exercise.reps.replace(/ · aim .*$/, '');
+      const effort =
+        typeof exercise.targetRir === 'number' ? ` · ${formatEffortTarget(exercise.targetRir)}` : '';
+      return exercise.weight === '—' || exercise.weight === 'Bodyweight'
+        ? `Target ${reps} reps${effort}`
+        : `Target ${reps} · ${displayWeight(exercise.weight, unit)}${effort}`;
+    }
     if (lastPerf) {
       const ageDays =
         (Date.now() - new Date(lastPerf.performedAt).getTime()) / 86_400_000;
