@@ -1070,12 +1070,22 @@ export class PlansService {
     issues: string[];
     duplicateExerciseIds: string[];
     patternClashExerciseIds: string[];
+    patternOverflowExerciseIds: string[];
+    subMuscleOverflowExerciseIds: string[];
+    nonAnchorSlotOneExerciseIds: string[];
+    crossSessionOverlapExerciseIds: string[];
   } {
+    // Every offender list, so a capture says which rows failed and why
+    // (rig run 4: an `over_concentrated_pattern` with no row named).
     return {
       ok: v.ok,
       issues: v.issues,
       duplicateExerciseIds: v.duplicateExerciseIds,
       patternClashExerciseIds: v.patternClashExerciseIds,
+      patternOverflowExerciseIds: v.patternOverflowExerciseIds ?? [],
+      subMuscleOverflowExerciseIds: v.subMuscleOverflowExerciseIds ?? [],
+      nonAnchorSlotOneExerciseIds: v.nonAnchorSlotOneExerciseIds ?? [],
+      crossSessionOverlapExerciseIds: v.crossSessionOverlapExerciseIds ?? [],
     };
   }
 

@@ -72,6 +72,13 @@ const ROLE_SET_FLOOR: Record<CoachRole, number> = {
   hold: 2,
 };
 
+/**
+ * A main lift gives a set back before the trim drops a second accessory row
+ * (rig run 4, 2026-09-17: week-4 Lower kept a 6-set squat and lost both leg
+ * accessories, leaving a three-row day).
+ */
+const MAIN_TRIM_CAP = 5;
+
 const ROLE_SET_CEILING: Record<CoachRole, number> = {
   main: 6,
   compound: 5,
@@ -223,9 +230,25 @@ function trimWeekOverBand(ctx: {
         );
         break;
       }
-      // Every accessory of this muscle is at its floor: drop one row rather
-      // than cut a compound to two sets. Isolation first, then core, then the
-      // day's last secondary compound; a session keeps at least two rows.
+      // Every accessory is at its floor: a main lift above the cap gives a
+      // set back before any row is dropped.
+      const mainOverCap = refs
+        .filter((r) => r.group === group && r.role === 'main')
+        .filter((r) => (rowOf(r).sets ?? 0) > MAIN_TRIM_CAP)
+        .sort((a, b) => (rowOf(b).sets ?? 0) - (rowOf(a).sets ?? 0))[0];
+      if (mainOverCap) {
+        const row = rowOf(mainOverCap);
+        row.sets = (row.sets ?? 0) - 1;
+        removed += 1;
+        trimmed = true;
+        notes.push(
+          `-1 set ${row.name ?? row.exerciseId} (${group} over ${bandMax}/wk, main lift above ${MAIN_TRIM_CAP})`,
+        );
+        break;
+      }
+      // Then drop one row rather than cut a compound to two sets. Isolation
+      // first, then core, then the day's last secondary compound; a session
+      // keeps at least two rows.
       const droppable = refs
         .filter((r) => r.group === group && r.role !== 'main')
         .filter((r) => (sessions[r.sessionIndex]!.exercises?.length ?? 0) > 2)
@@ -404,6 +427,65 @@ export function allocateWeeklyVolume(args: {
         break;
       }
       if (!placed) break;
+    }
+
+    // 2b. The priority muscle on a full day: when no session has spare time
+    // for another set, move one from the biggest non-priority accessory in
+    // the same session, as long as that muscle stays inside the band (rig
+    // run 4: Back, the "bring up" choice, landed at 13.5 sets while
+    // Shoulders sat at the 22-set ceiling on 30-45 minute days).
+    if (prefs.priorityMuscle) {
+      const priority = prefs.priorityMuscle;
+      for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+        const vol = volume();
+        const pv = vol[priority];
+        if (!pv || pv.direct <= 0 || pv.weighted >= groupMin(priority)) break;
+        const refs = classifyRows(weekSessions(), findMeta).map((r) => ({
+          ...r,
+          sessionIndex: idx[r.sessionIndex]!,
+        }));
+        const rowOf = (r: RowRef) =>
+          sessions[r.sessionIndex]!.exercises[r.rowIndex]!;
+        const receivers = refs
+          .filter((r) => r.group === priority)
+          .filter((r) => (rowOf(r).sets ?? 0) < ROLE_SET_CEILING[r.role])
+          .sort((a, b) => {
+            const rank = (r: RowRef) =>
+              r.role === 'main' ? 0 : r.role === 'compound' ? 1 : 2;
+            return rank(a) - rank(b);
+          });
+        let moved = false;
+        for (const receiver of receivers) {
+          const donor = refs
+            .filter(
+              (r) =>
+                r.sessionIndex === receiver.sessionIndex &&
+                r.group !== priority &&
+                r.group !== 'Core' &&
+                r.role !== 'main' &&
+                (rowOf(r).sets ?? 0) > ROLE_SET_FLOOR[r.role] &&
+                (vol[r.group]?.weighted ?? 0) - 1 >= groupMin(r.group),
+            )
+            .sort(
+              (a, b) =>
+                (vol[b.group]?.weighted ?? 0) - (vol[a.group]?.weighted ?? 0) ||
+                (rowOf(b).sets ?? 0) - (rowOf(a).sets ?? 0),
+            )[0];
+          if (!donor) continue;
+          const from = rowOf(donor);
+          const to = rowOf(receiver);
+          from.sets = (from.sets ?? 0) - 1;
+          to.sets = (to.sets ?? 0) + 1;
+          removed += 1;
+          added += 1;
+          moved = true;
+          notes.push(
+            `moved 1 set ${from.name ?? from.exerciseId} → ${to.name ?? to.exerciseId} (${priority} is the priority, under ${groupMin(priority)}/wk)`,
+          );
+          break;
+        }
+        if (!moved) break;
+      }
     }
 
     // 3. Trim muscles over the band, from accessory rows only.

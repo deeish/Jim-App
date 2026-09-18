@@ -295,6 +295,9 @@ export function buildFocusShortlist(args: {
   const priority = (args.priorityMuscle ?? '').trim();
   const openerSet = args.openerIds?.length ? new Set(args.openerIds) : null;
   const taken = new Set<string>();
+  // Muscles the main slots train; the priority muscle joins an accessory
+  // slot only on a day that already works it (Back on Upper, not on Lower).
+  const mainMuscles = new Set<string>();
   const out: SlotShortlist[] = [];
   kinds.forEach((kind, index) => {
     const slot = slots[index];
@@ -307,12 +310,19 @@ export function buildFocusShortlist(args: {
         ? MAIN_SLOT_SIZE
         : ACCESSORY_SLOT_SIZE;
     const fits = PREDICATES[kind];
+    const priorityFits = (c: ShortlistCandidate) =>
+      !isMain &&
+      !optional &&
+      !!priority &&
+      c.primaryMuscleGroup === priority &&
+      mainMuscles.has(priority);
     const fitting = args.pool.filter(
       (c) =>
         !taken.has(c.id) &&
-        fits(c) &&
+        (fits(c) || priorityFits(c)) &&
         !(isMain && heavyOpeners && LIGHT_ANCHOR_IDS.has(c.id)),
     );
+    if (isMain) for (const c of fitting) mainMuscles.add(c.primaryMuscleGroup);
     // Slot 1: the validator's accepted openers first, then the other
     // fitting rows (a band-only pool may have one accepted opener; the
     // list must not be empty, and the model reads the first options as
