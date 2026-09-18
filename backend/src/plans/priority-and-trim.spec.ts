@@ -191,4 +191,30 @@ describe('priority rebalance and the main-lift trim cap (real catalog)', () => {
     expect(rowSets).toBe(5);
     expect(Math.max(...others)).toBeLessThan(4);
   });
+
+  it('the duration clamp takes a set from an isolation before a compound', () => {
+    // 19 sets against the 18-set cap: the lateral raise gives one back, the
+    // seated press keeps its three (rig run 11).
+    const exercises = [
+      row('incline_dumbbell_bench_press', 5, 120),
+      row('pull_up_pronated', 5),
+      row('seated_dumbbell_shoulder_press', 3),
+      row('cable_lateral_raise', 3, 60),
+      row('rope_cable_pushdown', 3, 60),
+    ];
+    clampSessionWorkingSets(exercises, (id) => library.findOne(id), {
+      goal: 'hypertrophy',
+      difficulty: 'intermediate',
+      priorityMuscle: 'Back',
+      durationMinutes: 45,
+    });
+    const sets = Object.fromEntries(
+      exercises.map((e) => [e.exerciseId, e.sets]),
+    );
+    expect(sets.seated_dumbbell_shoulder_press).toBe(3);
+    expect(sets.pull_up_pronated).toBe(5);
+    expect(
+      (sets.cable_lateral_raise ?? 0) + (sets.rope_cable_pushdown ?? 0),
+    ).toBe(5);
+  });
 });

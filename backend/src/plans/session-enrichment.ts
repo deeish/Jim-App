@@ -556,9 +556,14 @@ export function workingSetCap(
  * highest-set accessory (never the slot-0 anchor, never below 2, never cardio).
  * Only ever removes sets, so it can't inflate a reasonable session.
  */
+/** Calf work, whatever the stance or machine. */
+export const CALF_NAME = /\bcalf\b|\bcalves\b/i;
+
 export function clampSessionWorkingSets(
   exercises: GeneratedSessionExercise[],
-  findOne: (id: string) => { primaryMuscleGroup?: string } | undefined,
+  findOne: (
+    id: string,
+  ) => { primaryMuscleGroup?: string; type?: string } | undefined,
   prefs: EnrichSessionGenerationPrefs | undefined,
 ): void {
   const cap = workingSetCap(prefs);
@@ -575,19 +580,32 @@ export function clampSessionWorkingSets(
     ((e.exerciseId ? findOne(e.exerciseId)?.primaryMuscleGroup : undefined) ??
       e.primaryMuscleGroup) === priority;
 
+  // An isolation gives a set back before a compound (rig run 11: the peak
+  // week's cap took the seated dumbbell press from three sets to two while
+  // a lateral raise and a pushdown kept theirs).
+  const isIsolation = (e: GeneratedSessionExercise) =>
+    ISOLATION_NAME.test(e.name ?? '') ||
+    (
+      (e.exerciseId ? findOne(e.exerciseId)?.type : undefined) ?? ''
+    ).toLowerCase() === 'isolation';
+
   let guard = 0;
   while (total() > cap && guard < 200) {
     guard++;
     // Skip slot 0 (the anchor / heaviest main lift) and cardio; only trim rows
     // still above the floor of 2 sets. The priority muscle's rows give sets
-    // back only when no other row can.
+    // back only when no other row can; isolations before compounds; then
+    // the most sets.
     let target: GeneratedSessionExercise | undefined;
+    const better = (a: GeneratedSessionExercise, b: GeneratedSessionExercise) =>
+      Number(isIsolation(a)) - Number(isIsolation(b)) ||
+      (a.sets ?? 0) - (b.sets ?? 0);
     for (const sparePriority of [true, false]) {
       for (let i = 1; i < exercises.length; i++) {
         const e = exercises[i]!;
         if (!isStrength(e) || (e.sets ?? 0) <= 2) continue;
         if (sparePriority && isPriority(e)) continue;
-        if (!target || (e.sets ?? 0) > (target.sets ?? 0)) target = e;
+        if (!target || better(e, target) > 0) target = e;
       }
       if (target) break;
     }
@@ -1324,6 +1342,9 @@ function capRedundantMovementFamilies(args: {
     const f = baseMovementFamily(n);
     return f ? `base:${f}` : null;
   });
+  // One calf exercise a day: standing and seated calf raises are different
+  // families by name but the same work (rig run 11, two on one lower day).
+  capByKey((n) => (CALF_NAME.test(n) ? 'calves' : null), 1);
 
   // Total-press cap: the per-angle caps still allow flat + incline + decline +
   // overhead on one day (live: 4 presses vs 1 pull on an Upper day). Days whose

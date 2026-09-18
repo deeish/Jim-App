@@ -4,6 +4,7 @@ import { coachCheckProgram } from './coach-check';
 import { allocateWeeklyVolume } from './weekly-volume-allocation';
 import { applyWeekProgressionToEnrichedSessions } from './week-progression';
 import { validateGeneratedProgramChunk } from './generated-chunk-validators';
+import { enrichGeneratedSession } from './session-enrichment';
 
 /**
  * Rig run 7 (2026-09-17): week 1 was allocated to the 22-set ceiling, so
@@ -168,6 +169,36 @@ describe('block headroom, progressed-set ceilings, carries (real catalog)', () =
     expect(
       tuesday.find((e) => e.exerciseId === 'seated_leg_extension')!.sets,
     ).toBe(2);
+  });
+
+  it('one calf exercise a day: a second calf raise is swapped out', async () => {
+    const out = await enrichGeneratedSession(
+      {
+        weekIndex: 1,
+        weekday: 'Friday',
+        name: 'Lower 2',
+        exercises: [
+          row('conventional_deadlift', 4, 120),
+          row('forty_five_degree_leg_press', 3),
+          row('standing_calf_raise_machine', 2, 60),
+          row('seated_calf_raise_machine', 2, 60),
+          row('lying_leg_curl', 2, 60),
+        ],
+      },
+      { type: 'strength', title: 'Lower 2' },
+      library,
+      ['Barbell', 'Dumbbell', 'Machine', 'Cable'],
+      [],
+      {
+        goal: 'hypertrophy',
+        durationMinutes: 38,
+        detailLevel: 'detailed',
+        difficulty: 'intermediate',
+      },
+    );
+    const calves = out.exercises.filter((e) => /calf/i.test(e.name ?? ''));
+    expect(calves.length).toBe(1);
+    expect(out.exercises.length).toBeGreaterThanOrEqual(4);
   });
 
   it('a farmer carry beside a plank is not a second core row', () => {
