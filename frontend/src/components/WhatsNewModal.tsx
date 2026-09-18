@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -61,6 +61,7 @@ function formatShortDate(iso: string): string {
 export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }: WhatsNewModalProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
 
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -165,8 +166,20 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }:
 
   return (
     <SheetModal visible={visible} onClose={close} scrimColor={colors.scrim}>
-      {/* The card guards its own taps; see SheetModal. */}
-      <Pressable style={styles.sheet} accessible={false} onPress={(e) => e.stopPropagation()}>
+      {/* ⚠ A plain View, on purpose, and a pixel height, on purpose
+          (2026-09-18). The phone could not scroll this list at all while the
+          web rig scrolled it fine: web only proves the layout, never the
+          native touch responder. This card differs from every list that
+          does scroll in the app in exactly two ways, so both go. (1) It was
+          the only VERTICAL ScrollView inside a Pressable tap-guard; the guard
+          is not needed here, because the dismiss target is the scrim, a
+          sibling behind the card, which a touch on the card never reaches.
+          (2) `height: '92%'` was the only percentage height under the
+          positioner; a percentage that fails to resolve on a device leaves
+          the card as tall as its content, and a list as tall as its content
+          has nothing to scroll. Verify on a phone; if it still refuses to
+          drag, the next thing to try is gesture-handler's ScrollView. */}
+      <View style={[styles.sheet, { height: Math.round(windowHeight * 0.92) }]} accessible={false}>
         <View style={styles.grabber} />
 
         {view === 'release' ? (
@@ -184,7 +197,9 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }:
                 style={styles.scroll}
                 contentContainerStyle={styles.releaseContent}
                 showsVerticalScrollIndicator
-                scrollEventThrottle={16}
+                alwaysBounceVertical
+                nestedScrollEnabled
+                scrollEventThrottle={32}
                 onScroll={({ nativeEvent: e }) =>
                   setAtEnd(
                     e.layoutMeasurement.height + e.contentOffset.y >=
@@ -280,7 +295,7 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }:
             </View>
           </>
         )}
-      </Pressable>
+      </View>
     </SheetModal>
   );
 }
@@ -288,7 +303,6 @@ export default function WhatsNewModal({ visible, onClose, entries = CHANGELOG }:
 function createStyles(colors: ColorPalette) {
   return StyleSheet.create({
     sheet: {
-      height: '92%',
       backgroundColor: colors.surface,
       borderTopLeftRadius: radius.xxl,
       borderTopRightRadius: radius.xxl,
