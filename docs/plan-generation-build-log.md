@@ -345,3 +345,22 @@ The scorer is flat across all of this (it mostly measures what the rules already
 - The client's meso hint text still mentions `programSummary`; the pick prompt no longer renders it. Harmless; rides a binary if cleaned.
 - Sex is not an input anywhere (form, DTO, rules). Dylan asked; see the session answer.
 - Loads: nothing is invented. A lift with no log and no typed number gets no weight; a first-week main lift gets the calibration note ("no logged history for this lift yet. Work up over 2-3 sets to one set of N with about R left in the tank, log it, and your next plan builds its loads from it"). Accessories with no history get no weight and no note.
+
+### Fourth run, on the Tier 6 pipeline (2026-09-17, late night)
+
+Same inputs as runs 1–3 (Build muscle, 4 days, 4 weeks, gym, 30–45 min, intermediate, 3–4 sessions a week, bring up Back, bench 135 × 8). Same rig, backend rebuilt at c1e8893. Raw capture: `docs/audits/2026-09-17-preview-rig-run-4.json`.
+
+| | |
+|---|---|
+| Generation | 8 s, model-built, Upper/Lower, no console errors, no 4xx; pick call 1,950 prompt / 867 completion tokens, one retry, copy call 432 / 393 |
+| Week 1 | Upper: bench @135, bent-over row, overhead press, lateral raise, cable curl. Lower: back squat, trap-bar deadlift, leg extension, crunch. Upper 2: incline bench, pull-up, seated dumbbell press, cable lateral raise, pushdown. Lower 2: conventional deadlift, leg press, hanging leg raise, leg curl, Russian twist. Five lifts on the upper days, four to five on the lower. |
+| Against run 3 | Run 3 opened Upper with a bent-over row, Lower with a goblet squat, and put a 4 × 14–19 bodyweight squat on Friday, with three-lift days. Every opener is now a barbell staple, the second lower day is hinge-led, the second upper day is incline-led. |
+| Profile | Reps 8–12 on the main lifts all four weeks (run 3 cut them to 5–9 by week 4). Effort 2 in reserve in weeks 1–2, 1 in weeks 3–4 (run 3 went to 1 in week 2). Bench 135 → 140 → 145 → 150 lb. Sets climb with the build (squat 5 → 6). |
+| Coach check | All four weeks balanced, every big muscle on two days, no findings. Legs and Shoulders at the 22-set ceiling, Chest at the 8-set floor, Back 13.5–15. |
+| Validator | First pass `over_concentrated_pattern`, retry the same, so the week shipped as best-available batch output (the rows above). The offending day is not recorded in the capture; the chunk log names only the issue. |
+
+What this run shows that the rules do not fix yet:
+
+1. **The priority muscle is not the biggest muscle.** Back is the "bring up" choice and lands at 13.5 sets while Shoulders sit at 22. The prompt gives Back the first accessory slot; the allocator fills bands, not the priority. A priority target above the band midpoint, and a lateral-raise ceiling, is the next rule.
+2. **Week 4 Lower 1 is three rows** (squat 6 sets, trap bar, crunch): the post-progression trim dropped the leg extension and the leg curl to hold Legs at the band rather than take a set off the 6-set squat. A main lift is never trimmed by design; a coach would cap the main lift at 5 sets before dropping a second accessory.
+3. The validator still fails its first pass on this week and the capture does not say why. Record the offending ids in the chunk record next.
