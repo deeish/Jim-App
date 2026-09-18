@@ -57,11 +57,11 @@ export const CHANGELOG: ChangelogEntry[] = [
   // everything internal. Copy rules: headlines name the part that changed
   // and read on their own; text says what is different, no marketing lines.
   //
-  // ⚠ `date` is a guess until this ships. Set it to the real release date.
+  // Shipped as build 1.4.0 (35), TestFlight internal, 2026-09-18.
   {
     id: '2026-09-18',
     version: '1.4.0',
-    date: '2026-09-19',
+    date: '2026-09-18',
     title: 'Plans built like a coach builds them',
     changes: [
       {
