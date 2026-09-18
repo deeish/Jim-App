@@ -122,7 +122,7 @@ describe('priority rebalance and the main-lift trim cap (real catalog)', () => {
         row('floor_crunch', 3, 60),
       ]),
       session('Friday', 'Lower 2', [
-        row('conventional_deadlift', 5, 120),
+        row('conventional_deadlift', 4, 120),
         row('forty_five_degree_leg_press', 3),
         row('lying_leg_curl', 2, 60),
         row('hanging_leg_raise', 3, 60),
@@ -148,7 +148,7 @@ describe('priority rebalance and the main-lift trim cap (real catalog)', () => {
       (e) => e.exerciseId === 'conventional_deadlift',
     )!;
     expect(squat.sets).toBe(5);
-    expect(deadlift.sets).toBe(5);
+    expect(deadlift.sets).toBe(4);
     // the leg isolations at their floor survive while a main lift had sets to give
     expect(
       out.sessions[0]!.exercises.some(
