@@ -167,13 +167,15 @@ export const SLOTS_BY_FOCUS: Record<string, SlotDefinition[]> = {
   lower: [
     {
       role: 'main_compound_1',
-      description: 'Squat or leg press',
+      description:
+        'Squat or leg press (a deadlift instead on the second lower day of a week)',
       min: 1,
       max: 1,
     },
     {
       role: 'main_compound_2',
-      description: 'Hinge (deadlift, RDL)',
+      description:
+        'Hinge (deadlift, RDL), or a squat pattern when slot 1 is a deadlift',
       min: 1,
       max: 1,
     },

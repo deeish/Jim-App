@@ -45,6 +45,8 @@ export type SlotKind =
   | 'pull_any'
   | 'squat'
   | 'hinge'
+  | 'lower_opener'
+  | 'lower_second'
   | 'lower_compound'
   | 'leg_isolation'
   | 'calves_or_core'
@@ -82,7 +84,13 @@ export const SLOT_KINDS_BY_FOCUS: Record<string, SlotKind[]> = {
     'biceps',
     'core_or_grip',
   ],
-  lower: ['squat', 'hinge', 'leg_isolation', 'calves_or_core', 'core'],
+  lower: [
+    'lower_opener',
+    'lower_second',
+    'leg_isolation',
+    'calves_or_core',
+    'core',
+  ],
   upper: [
     'horizontal_push',
     'pull_any',
@@ -161,6 +169,11 @@ const squat = (c: ShortlistCandidate) =>
   classifyLowerDominance(c.name) !== 'lunge';
 const hinge = (c: ShortlistCandidate) =>
   has(c, 'Hinge') && c.primaryMuscleGroup === 'Legs' && isCompound(c);
+/** The deadlifts a lower day may open with (not the RDL or a hip thrust). */
+const OPENER_DEADLIFT =
+  /\b(conventional|trap[-\s]?bar|sumo)\b.*deadlift|^deadlift$/i;
+const openerDeadlift = (c: ShortlistCandidate) =>
+  hinge(c) && OPENER_DEADLIFT.test(c.name);
 const core = (c: ShortlistCandidate) => c.primaryMuscleGroup === 'Core';
 const armIsolation = (c: ShortlistCandidate) =>
   c.primaryMuscleGroup === 'Arms' && isIsolation(c);
@@ -188,6 +201,11 @@ const PREDICATES: Record<SlotKind, (c: ShortlistCandidate) => boolean> = {
   pull_any: pullAny,
   squat,
   hinge,
+  // Squats first, then the deadlifts, so the week's second lower day can
+  // open with a hinge (the cross-session check asks squat-led then
+  // hinge-led; a squat-only opener list could never satisfy it).
+  lower_opener: (c) => squat(c) || openerDeadlift(c),
+  lower_second: (c) => hinge(c) || squat(c),
   lower_compound: (c) => squat(c) || hinge(c),
   leg_isolation: (c) =>
     c.primaryMuscleGroup === 'Legs' &&
@@ -216,8 +234,8 @@ const PREDICATES: Record<SlotKind, (c: ShortlistCandidate) => boolean> = {
   core_or_grip: (c) => core(c) || has(c, 'Carry'),
   core_or_cardio: (c) => core(c) || c.primaryMuscleGroup === 'Cardio',
   pump_finisher: (c) =>
-    isIsolation(c) &&
-    ['Arms', 'Chest', 'Shoulders'].includes(c.primaryMuscleGroup),
+    (isIsolation(c) && ['Chest', 'Shoulders'].includes(c.primaryMuscleGroup)) ||
+    triceps(c),
   shoulder_raise: (c) =>
     c.primaryMuscleGroup === 'Shoulders' &&
     (/\braise\b/i.test(c.name) || /side delt|front delt/.test(subs(c))),
@@ -295,21 +313,33 @@ export function buildFocusShortlist(args: {
         fits(c) &&
         !(isMain && heavyOpeners && LIGHT_ANCHOR_IDS.has(c.id)),
     );
-    const accepted =
+    // Slot 1: the validator's accepted openers first, then the other
+    // fitting rows (a band-only pool may have one accepted opener; the
+    // list must not be empty, and the model reads the first options as
+    // the best).
+    const matches =
       index === 0 && openerSet
-        ? fitting.filter((c) => openerSet.has(c.id))
+        ? [
+            ...fitting.filter((c) => openerSet.has(c.id)),
+            ...fitting.filter((c) => !openerSet.has(c.id)),
+          ]
         : fitting;
-    // A thin anchor list (a narrow focus, a band-only pool) falls back to
-    // the fitting rows so the slot is never empty.
-    const matches = accepted.length >= 2 ? accepted : fitting;
     const rank = (c: ShortlistCandidate) =>
-      (isPreferred(c) ? 0 : 2) +
-      (!isMain && priority && c.primaryMuscleGroup === priority ? 0 : 1);
-    const ordered = matches
+      (isPreferred(c) ? 0 : 4) +
+      (!isMain && priority && c.primaryMuscleGroup === priority ? 0 : 2) +
+      (kind === 'lower_opener' && !squat(c) ? 1 : 0);
+    const orderedAll = matches
       .map((c, i) => ({ c, i, r: rank(c) }))
       .sort((a, b) => a.r - b.r || a.i - b.i)
-      .map((x) => x.c)
-      .slice(0, size);
+      .map((x) => x.c);
+    // The lower opener keeps room for two deadlifts behind three squats.
+    const ordered =
+      kind === 'lower_opener'
+        ? [
+            ...orderedAll.filter(squat).slice(0, 3),
+            ...orderedAll.filter((c) => !squat(c)).slice(0, 2),
+          ]
+        : orderedAll.slice(0, size);
     for (const c of ordered) taken.add(c.id);
     out.push({
       index,

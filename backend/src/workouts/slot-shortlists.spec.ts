@@ -55,8 +55,14 @@ describe('slot shortlists (real catalog)', () => {
     expect(openers).not.toContain('goblet_squat');
     expect(openers).not.toContain('bodyweight_squat');
     expect(openers.length).toBeLessThanOrEqual(5);
+    // squats lead the opener list, then the deadlifts for a hinge-led second day
+    const openerIds = squat!.candidates.map((c) => c.id);
+    expect(openerIds.indexOf('back_squat')).toBeLessThan(
+      openerIds.indexOf('conventional_deadlift'),
+    );
+    expect(openerIds).toContain('conventional_deadlift');
     expect(hinge!.candidates.map((c) => c.id)).toContain(
-      'conventional_deadlift',
+      'barbell_romanian_deadlift',
     );
     expect(iso!.candidates.every((c) => c.type === 'Isolation')).toBe(true);
     expect(calvesCore!.candidates.length).toBeGreaterThan(0);

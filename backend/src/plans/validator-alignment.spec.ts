@@ -29,12 +29,13 @@ const spec = (
 const row = (id: string) => ({ name: id, sets: 3, reps: 10, exerciseId: id });
 
 describe('validator alignment with the ranked shortlists', () => {
-  it('a Push day may carry four push-pattern rows; an Upper day still caps at three', () => {
+  it('a Push day may carry five push-pattern rows; an Upper day caps at four', () => {
     const movement = new Map([
       ['flat_barbell_bench_press', ['Push']],
       ['barbell_overhead_press', ['Push']],
       ['pec_deck_fly', ['Push']],
       ['rope_cable_pushdown', ['Push']],
+      ['cable_crossover', ['Push']],
       ['barbell_bent_over_row', ['Pull']],
     ]);
     const primary = new Map([
@@ -42,6 +43,7 @@ describe('validator alignment with the ranked shortlists', () => {
       ['barbell_overhead_press', 'Shoulders'],
       ['pec_deck_fly', 'Chest'],
       ['rope_cable_pushdown', 'Arms'],
+      ['cable_crossover', 'Chest'],
       ['barbell_bent_over_row', 'Back'],
     ]);
     const pushDay: GeneratedSession = {
@@ -53,6 +55,7 @@ describe('validator alignment with the ranked shortlists', () => {
         row('barbell_overhead_press'),
         row('pec_deck_fly'),
         row('rope_cable_pushdown'),
+        row('cable_crossover'),
       ],
     };
     const push = validateGeneratedProgramChunk(

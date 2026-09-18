@@ -174,9 +174,13 @@ interface PatternBudget {
 /** Same-pattern rows allowed on a Push or Pull day (see the budget use site). */
 const SINGLE_PATTERN_DAY_CAP = 5;
 
+// Four, not three: the catalog tags curls and lateral raises as Pull, so a
+// normal upper day (row, pulldown, curl, lateral raise) reads as four
+// "Pull" rows. The sub-muscle cap is the stacking guard; this is the
+// pattern-pileup guard (2026-09-17 drives).
 const FOCUS_BUDGET: Record<SessionFocus, PatternBudget | null> = {
-  upper: { maxCore: 1, maxSamePattern: 3 },
-  lower: { maxCore: 1, maxSamePattern: 3 },
+  upper: { maxCore: 1, maxSamePattern: 4 },
+  lower: { maxCore: 1, maxSamePattern: 4 },
   fullbody: { maxCore: 2, maxSamePattern: 2 },
   other: null,
 };

@@ -383,12 +383,13 @@ describe('validateGeneratedProgramChunk', () => {
       expect(r.patternOverflowExerciseIds).toEqual([]);
     });
 
-    it('flags 4+ same-pattern (4 push moves) on an Upper day', () => {
+    it('flags 5+ same-pattern (5 push moves) on an Upper day; four pass since the catalog tags curls and raises as Pull', () => {
       const specs = [spec({ title: 'Upper' })];
       const movement = new Map<string, string[]>([
         ['p1', ['Push']],
         ['p2', ['Push']],
         ['p3', ['Push']],
+        ['p0', ['Push']],
         ['p4', ['Push']],
         ['pull1', ['Pull']],
         ['pull2', ['Pull']],
@@ -397,6 +398,7 @@ describe('validateGeneratedProgramChunk', () => {
         ['p1', 'Chest'],
         ['p2', 'Chest'],
         ['p3', 'Shoulders'],
+        ['p0', 'Chest'],
         ['p4', 'Triceps'],
         ['pull1', 'Back'],
         ['pull2', 'Back'],
@@ -406,6 +408,7 @@ describe('validateGeneratedProgramChunk', () => {
           { name: 'Bench', sets: 4, reps: 6, exerciseId: 'p1' },
           { name: 'Incline DB Press', sets: 4, reps: 8, exerciseId: 'p2' },
           { name: 'OHP', sets: 4, reps: 8, exerciseId: 'p3' },
+          { name: 'Pec Deck', sets: 3, reps: 12, exerciseId: 'p0' },
           { name: 'Close-Grip Bench', sets: 3, reps: 10, exerciseId: 'p4' },
           { name: 'Row', sets: 4, reps: 8, exerciseId: 'pull1' },
           { name: 'Lat Pulldown', sets: 3, reps: 10, exerciseId: 'pull2' },
@@ -420,7 +423,7 @@ describe('validateGeneratedProgramChunk', () => {
       );
       expect(r.ok).toBe(false);
       expect(r.issues).toContain('over_concentrated_pattern');
-      // 4th push (p4) is the one beyond the cap.
+      // 5th push (p4) is the one beyond the cap.
       expect(r.patternOverflowExerciseIds).toContain('p4');
     });
 
