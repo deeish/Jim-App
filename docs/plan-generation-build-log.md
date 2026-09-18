@@ -702,3 +702,7 @@ Dylan: in dark mode the loading screen into the app is always light. It was, by 
 ### Deliberately not done
 
 - The native splash follows the phone's appearance, not the in-app choice: iOS draws it before any app code runs. A phone set to light with the app set to dark opens on the light native splash and crosses to dark at the loader. The only way around that is pinning the app to dark in the binary, which is what caused the build-32 header flash.
+
+### Build 1.4.0 (35) cut (2026-09-18, 00:00)
+
+EAS build `998933ec` (iOS, production profile, auto-submit), queued 23:48, finished 23:56, uploaded 23:58; `tf:status` at 00:00 → `1.4.0 (35) VALID, external: READY_FOR_BETA_SUBMISSION`. Internal testers only (Dylan); Friends/Family is a separate distribute step and stays on hold. Carries everything above: the plan-generation tiers, the ledger, hidden exercises, similar exercises, the What's New card, the sheet scroll fix and the dark launch. Backend was already live on Render before the build. The phone checks this build owes: the What's New sheet scrolls; a dark launch is dark; the first plan of the week on Monday.
