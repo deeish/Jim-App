@@ -202,11 +202,15 @@ function pickCoreRows(
   avoidPhrases: string[],
   count: number,
 ): CardioTemplateExerciseMeta[] {
+  // A deep pool: the "core" focus pool is tier-sorted across every group,
+  // so the first forty rows held five core moves and a second cardio day in
+  // the same week (whose ids are excluded) got none (scenario matrix
+  // 2026-09-17, two plans failed the minimum-rows check).
   const pool = library.getCandidatesForGenerator({
     focus: 'core',
     equipment: equipment?.length ? equipment : undefined,
     excludeIds,
-    limit: 40,
+    limit: 400,
   });
   const picks: CardioTemplateExerciseMeta[] = [];
   const usedKeys = new Set<string>();

@@ -48,6 +48,7 @@ import {
 import { RepairProgramSessionsDto } from './dto/repair-program-sessions.dto';
 import { GenerateSingleSessionDto } from './dto/generate-single-session.dto';
 import {
+  CALF_NAME,
   enrichGeneratedSession,
   enrichGeneratedSessionsInChunkOrder,
   type GeneratedSession,
@@ -894,6 +895,19 @@ export class PlansService {
    * the week's volume/rep targets land afterwards in
    * {@link applyWeekProgressionToEnrichedSessions}.
    */
+  /** `weekday|title`, lower-cased; the title alone is the fallback key. */
+  private static cloneKey(spec: {
+    weekday: string;
+    title?: string;
+    type: string;
+  }): string {
+    return `${spec.weekday.toLowerCase().trim()}|${PlansService.cloneTitleKey(spec)}`;
+  }
+
+  private static cloneTitleKey(spec: { title?: string; type: string }): string {
+    return ((spec.title ?? spec.type) || 'full body').toLowerCase().trim();
+  }
+
   private static tryCloneFirstWeekSessions(
     specs: GenerateSessionsDto['sessions'],
     week1ByFocus: Map<string, GeneratedSession>,
@@ -908,10 +922,13 @@ export class PlansService {
 
     const cloned: GeneratedSession[] = [];
     for (const spec of specs) {
-      const key = ((spec.title ?? spec.type) || 'full body')
-        .toLowerCase()
-        .trim();
-      const source = week1ByFocus.get(key);
+      // Weekday first: a week of three "Full Body" days must clone each
+      // day from its own week-1 counterpart, not all three from the last
+      // one (scenario matrix 2026-09-17: weeks 2+ were the wrong days,
+      // then the week dedupe churned them into new exercises).
+      const source =
+        week1ByFocus.get(PlansService.cloneKey(spec)) ??
+        week1ByFocus.get(PlansService.cloneTitleKey(spec));
       if (!source) return null;
 
       cloned.push({
@@ -2010,10 +2027,14 @@ export class PlansService {
         firstWeekIndex = chunk.specs[0]!.weekIndex;
         for (let j = 0; j < chunkResults.length; j++) {
           const spec = chunk.specs[j]!;
-          const key = ((spec.title ?? spec.type) || 'full body')
-            .toLowerCase()
-            .trim();
-          firstWeekSessionsByFocus.set(key, chunkResults[j]!);
+          firstWeekSessionsByFocus.set(
+            PlansService.cloneKey(spec),
+            chunkResults[j]!,
+          );
+          const titleKey = PlansService.cloneTitleKey(spec);
+          if (!firstWeekSessionsByFocus.has(titleKey)) {
+            firstWeekSessionsByFocus.set(titleKey, chunkResults[j]!);
+          }
         }
       }
       for (const session of chunkResults) {
@@ -2529,10 +2550,33 @@ export class PlansService {
       userId,
     );
 
+    // One calf exercise a day, after every row-changing pass has run: the
+    // week dedupe, the family swaps and the stacking repair all pick
+    // replacements by id and can put a second calf raise back (scenario
+    // matrix 2026-09-17, four of sixteen plans).
+    let calfDrops = 0;
+    const oneCalf = loaded.map((s) => {
+      let seen = false;
+      const kept = (s.exercises ?? []).filter((e) => {
+        if (!CALF_NAME.test(e.name ?? '')) return true;
+        if (seen) return false;
+        seen = true;
+        return true;
+      });
+      if (kept.length === (s.exercises ?? []).length) return s;
+      calfDrops += (s.exercises ?? []).length - kept.length;
+      return { ...s, exercises: kept };
+    });
+    if (calfDrops > 0) {
+      this.logger.log(
+        JSON.stringify({ event: 'second_calf_row_dropped', rows: calfDrops }),
+      );
+    }
+
     // The model named the day from the lifts it chose; every pass above may
     // have swapped them. Rebuild the "· Bench + Row" suffix from what is
     // actually there (see session-title.ts).
-    const named = loaded.map((session) => ({
+    const named = oneCalf.map((session) => ({
       ...session,
       name:
         conformSessionTitleToExercises(session.name, session.exercises) ??

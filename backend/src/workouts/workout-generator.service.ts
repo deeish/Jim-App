@@ -797,7 +797,12 @@ export class WorkoutGeneratorService {
       excludeTechnical: boolean;
       excludeBasicBodyweight?: boolean;
     };
-  }): { text: string; candidates: CandidateExercise[] } | null {
+  }): {
+    text: string;
+    candidates: CandidateExercise[];
+    /** Per normalized focus key: the ids offered in each slot, in slot order. */
+    slotsByFocus: Map<string, string[][]>;
+  } | null {
     const { sessions, equipment, gates } = args;
     const focusLabels: string[] = [];
     const seen = new Set<string>();
@@ -813,6 +818,7 @@ export class WorkoutGeneratorService {
     const gymLike = isGymLikeEquipment(equipment);
     const byId = new Map<string, CandidateExercise>();
     const lists: FocusShortlist[] = [];
+    const slotsByFocus = new Map<string, string[][]>();
     for (const label of focusLabels) {
       const pool = this.exercisesService
         .getCandidatesForGenerator({
@@ -844,6 +850,10 @@ export class WorkoutGeneratorService {
         }
       }
       lists.push(list);
+      slotsByFocus.set(
+        String(normalizeFocusToKey(label)),
+        list.slots.map((sl) => sl.candidates.map((c) => c.id)),
+      );
     }
     if (!lists.length) return null;
     const blocks = lists.map((l) =>
@@ -866,7 +876,11 @@ export class WorkoutGeneratorService {
           .join('; ')}`,
       );
     }
-    return { text: blocks.join('\n'), candidates: [...byId.values()] };
+    return {
+      text: blocks.join('\n'),
+      candidates: [...byId.values()],
+      slotsByFocus,
+    };
   }
 
   private mergeCandidatesForBatchProgram(
@@ -1104,6 +1118,8 @@ export class WorkoutGeneratorService {
     });
     let candidates: CandidateExercise[] = shortlists?.candidates ?? [];
     let shortlistText: string | null = shortlists?.text ?? null;
+    const slotsByFocus =
+      shortlists?.slotsByFocus ?? new Map<string, string[][]>();
     if (candidates.length < 12) {
       shortlistText = null;
       candidates = this.mergeCandidatesForBatchProgram(
@@ -1371,6 +1387,20 @@ Return valid JSON: "days" (array of ${sessions.length} objects). Each day: "name
         isCardioOrRec,
       ).minExercises;
       const usedIdsThisDay = new Set<string>();
+      // The day's own list (its focus's slots plus the cardio rows). The
+      // model sometimes borrows an id from another day's list (scenario
+      // matrix 2026-09-17: an incline press on Back day, a dip opening
+      // Arms, a bench on Pull); a borrowed id becomes the slot's first
+      // unused option, or is dropped when the slot has none.
+      const daySlots = shortlistText ? slotsByFocus.get(String(fk)) : undefined;
+      const dayAllowed = daySlots
+        ? new Set([
+            ...daySlots.flat(),
+            ...candidates
+              .filter((c) => c.primaryMuscleGroup === 'Cardio')
+              .map((c) => c.id),
+          ])
+        : null;
 
       const exercises: Array<{
         name: string;
@@ -1383,7 +1413,12 @@ Return valid JSON: "days" (array of ${sessions.length} objects). Each day: "name
 
       if (day?.exercises?.length) {
         for (const ex of day.exercises) {
-          const id = ex.exerciseId?.trim();
+          let id = ex.exerciseId?.trim();
+          if (id && dayAllowed && daySlots && !dayAllowed.has(id)) {
+            const slot = daySlots[exercises.length] ?? [];
+            id = slot.find((x) => !usedIdsThisDay.has(x));
+            if (!id) continue;
+          }
           let candidate = id ? idToCandidate.get(id) : null;
           if (!candidate && id) {
             const fallback = candidates.find((c) => !usedIdsThisDay.has(c.id));

@@ -1004,7 +1004,12 @@ function ensureAnchorInSlotOne(args: {
   if (acceptedSet.has(slotOneId)) return;
 
   const slotOneMeta = findMeta(slotOneId);
-  const slotOnePatterns = new Set(slotOneMeta?.movementPatterns ?? []);
+  // An opener the catalog does not know cannot be judged by pattern, so it
+  // is left alone rather than swapped for the first anchor that fits the
+  // equipment.
+  if (!slotOneMeta) return;
+  const slotOnePatterns = new Set(slotOneMeta.movementPatterns ?? []);
+  if (slotOnePatterns.size === 0) return;
   const sessionExcludeIds = new Set(
     exercises.map((e) => e.exerciseId?.trim()).filter((x): x is string => !!x),
   );

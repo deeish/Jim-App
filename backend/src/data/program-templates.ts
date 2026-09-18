@@ -265,10 +265,11 @@ export const SLOTS_BY_FOCUS: Record<string, SlotDefinition[]> = {
     },
     {
       role: 'accessory_2',
-      description: 'Optional dip or push-up',
-      min: 0,
+      description: 'Dip, push-up or a second chest isolation',
+      min: 1,
       max: 1,
     },
+    { role: 'finisher', description: 'Optional triceps', min: 0, max: 1 },
   ],
   back: [
     {
@@ -285,13 +286,31 @@ export const SLOTS_BY_FOCUS: Record<string, SlotDefinition[]> = {
     },
     {
       role: 'accessory_1',
+      description: 'A second pull at the other angle or a chest-supported row',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_2',
       description: 'Back or bicep isolation',
       min: 1,
+      max: 1,
+    },
+    {
+      role: 'finisher',
+      description: 'Optional rear delt or biceps',
+      min: 0,
       max: 1,
     },
   ],
   shoulders: [
     { role: 'main_compound_1', description: 'Overhead press', min: 1, max: 1 },
+    {
+      role: 'main_compound_2',
+      description: 'A second press or an upright row',
+      min: 1,
+      max: 1,
+    },
     {
       role: 'accessory_1',
       description: 'Lateral or front raise',
@@ -304,19 +323,32 @@ export const SLOTS_BY_FOCUS: Record<string, SlotDefinition[]> = {
       min: 1,
       max: 1,
     },
+    { role: 'finisher', description: 'Optional raise or core', min: 0, max: 1 },
   ],
   arms: [
     {
       role: 'main_compound_1',
-      description: 'Triceps (pushdown, extension, dip)',
+      description: 'Triceps (pushdown, extension, close-grip press)',
       min: 1,
       max: 1,
     },
     { role: 'main_compound_2', description: 'Biceps (curl)', min: 1, max: 1 },
     {
       role: 'accessory_1',
-      description: 'Additional arm isolation',
+      description: 'A second triceps movement',
       min: 1,
+      max: 1,
+    },
+    {
+      role: 'accessory_2',
+      description: 'A second biceps movement',
+      min: 1,
+      max: 1,
+    },
+    {
+      role: 'finisher',
+      description: 'Optional forearms or core',
+      min: 0,
       max: 1,
     },
   ],

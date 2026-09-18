@@ -101,25 +101,61 @@ function mergeCandidatePools(
   return merged;
 }
 
+/**
+ * The pools a fill or a replacement may draw from, by the day's title. Until
+ * 2026-09-17 every strength day fell back through upper, push, pull and every
+ * body part, so a Back day was filled with an incline press, an Arms day
+ * with a dip, and a Push day's duplicate pushdown became a curl (scenario
+ * matrix). A day's replacements now stay inside its own muscles.
+ */
 function focusTriesForSpec(
   spec: GenerateSessionsDto['sessions'][number],
 ): string[] {
   const primary = (spec.title ?? spec.type ?? 'Session').trim() || 'Session';
-  const fallbacks =
-    spec.type === 'strength'
-      ? [
-          'upper',
-          'push',
-          'pull',
-          'chest',
-          'back',
-          'shoulders',
-          'arms',
-          'accessory',
-          'core',
-          'full body',
-        ]
-      : ['strength', 'conditioning', 'core'];
+  const t = primary.toLowerCase();
+  let fallbacks: string[];
+  if (spec.type !== 'strength') {
+    fallbacks = ['strength', 'conditioning', 'core'];
+  } else if (/\bpush\b/.test(t)) {
+    fallbacks = ['push', 'chest', 'shoulders', 'accessory', 'core'];
+  } else if (/\bpull\b/.test(t)) {
+    fallbacks = ['pull', 'back', 'accessory', 'core'];
+  } else if (/\blegs?\b|\blower\b/.test(t)) {
+    fallbacks = ['lower', 'legs', 'accessory', 'core'];
+  } else if (/^chest\b/.test(t)) {
+    fallbacks = ['chest', 'accessory', 'core'];
+  } else if (/^back\b/.test(t)) {
+    fallbacks = ['back', 'accessory', 'core'];
+  } else if (/^shoulders?\b/.test(t)) {
+    fallbacks = ['shoulders', 'accessory', 'core'];
+  } else if (/^arms\b/.test(t)) {
+    fallbacks = ['arms', 'accessory', 'core'];
+  } else if (/\bupper\b/.test(t)) {
+    fallbacks = [
+      'upper',
+      'push',
+      'pull',
+      'chest',
+      'back',
+      'shoulders',
+      'arms',
+      'accessory',
+      'core',
+    ];
+  } else {
+    fallbacks = [
+      'full body',
+      'upper',
+      'push',
+      'pull',
+      'chest',
+      'back',
+      'shoulders',
+      'arms',
+      'accessory',
+      'core',
+    ];
+  }
   return [...new Set([primary, ...fallbacks])];
 }
 

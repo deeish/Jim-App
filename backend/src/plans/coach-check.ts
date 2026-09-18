@@ -66,6 +66,15 @@ export type MuscleVolume = {
 export const GROUP_BAND_SCALE: Readonly<Record<string, number>> = {
   Legs: 1.5,
   Shoulders: 1.25,
+  // Biceps, triceps and forearms, and half-credit from every press and
+  // pull: a six-day push/pull/legs week carries 19 secondary sets before a
+  // single curl, so a 22-set ceiling dropped every arm isolation (scenario
+  // matrix 2026-09-17).
+  Arms: 1.5,
+  // Lats, upper back, lower back and traps, plus half-credit from curls,
+  // carries and every hinge: a six-day week with four pulls read as over
+  // 22 and the trim dropped a row (scenario matrix 2026-09-17).
+  Back: 1.25,
 };
 /** Kept for callers that only care about the biggest case. */
 export const LEGS_BAND_SCALE = GROUP_BAND_SCALE.Legs!;

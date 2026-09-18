@@ -36,6 +36,7 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'front_squat',
     'forty_five_degree_leg_press',
     'conventional_deadlift',
+    'trap_bar_deadlift',
     'barbell_sumo_deadlift',
     'goblet_squat',
     'dumbbell_romanian_deadlift',
@@ -56,6 +57,7 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'back_squat',
     'forty_five_degree_leg_press',
     'conventional_deadlift',
+    'trap_bar_deadlift',
     'goblet_squat',
     'dumbbell_romanian_deadlift',
     'bodyweight_squat',
@@ -79,6 +81,7 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
   ],
   'full body': [
     'conventional_deadlift',
+    'trap_bar_deadlift',
     'back_squat',
     'flat_barbell_bench_press',
     'pull_up_pronated',

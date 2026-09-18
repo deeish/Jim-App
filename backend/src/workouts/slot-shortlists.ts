@@ -67,7 +67,12 @@ export type SlotKind =
   | 'pump_finisher'
   | 'shoulder_raise'
   | 'rear_delt'
-  | 'dip_or_pushup';
+  | 'dip_or_pushup'
+  | 'chest_second_accessory'
+  | 'rear_delt_or_biceps'
+  | 'shoulder_second_press'
+  | 'shoulder_finisher'
+  | 'forearms_or_core';
 
 /** One kind per slot of `SLOTS_BY_FOCUS`, by normalized focus key, same order. */
 export const SLOT_KINDS_BY_FOCUS: Record<string, SlotKind[]> = {
@@ -110,11 +115,24 @@ export const SLOT_KINDS_BY_FOCUS: Record<string, SlotKind[]> = {
     'horizontal_push',
     'push_variation',
     'chest_isolation',
-    'dip_or_pushup',
+    'chest_second_accessory',
+    'triceps',
   ],
-  back: ['vertical_pull', 'horizontal_pull', 'back_or_biceps_isolation'],
-  shoulders: ['vertical_push', 'shoulder_raise', 'rear_delt'],
-  arms: ['triceps', 'biceps', 'arm_isolation'],
+  back: [
+    'vertical_pull',
+    'horizontal_pull',
+    'pull_any',
+    'back_or_biceps_isolation',
+    'rear_delt_or_biceps',
+  ],
+  shoulders: [
+    'vertical_push',
+    'shoulder_second_press',
+    'shoulder_raise',
+    'rear_delt',
+    'shoulder_finisher',
+  ],
+  arms: ['triceps', 'biceps', 'triceps', 'biceps', 'forearms_or_core'],
 };
 
 const MAIN_SLOT_SIZE = 5;
@@ -248,6 +266,17 @@ const PREDICATES: Record<SlotKind, (c: ShortlistCandidate) => boolean> = {
     (/\braise\b/i.test(c.name) || /side delt|front delt/.test(subs(c))),
   rear_delt: rearDelt,
   dip_or_pushup: (c) => DIP_OR_PUSHUP.test(c.name),
+  chest_second_accessory: (c) =>
+    DIP_OR_PUSHUP.test(c.name) ||
+    (c.primaryMuscleGroup === 'Chest' && isIsolation(c)),
+  rear_delt_or_biceps: (c) => rearDelt(c) || biceps(c),
+  shoulder_second_press: (c) => verticalPush(c) || /upright row/i.test(c.name),
+  shoulder_finisher: (c) =>
+    (c.primaryMuscleGroup === 'Shoulders' && isIsolation(c)) || core(c),
+  forearms_or_core: (c) =>
+    /forearm|wrist|grip|reverse curl/i.test(`${subs(c)} ${c.name}`) ||
+    has(c, 'Carry') ||
+    core(c),
 };
 
 export type SlotShortlist = {
