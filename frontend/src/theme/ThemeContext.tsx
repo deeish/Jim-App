@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Appearance, Platform, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { darkPalette, palette, ColorPalette } from './colors';
+import { readThemeModeSync, writeThemeModeSync } from '../lib/themeStore';
 
 /**
  * Light / dark selection for the app's two palettes (`palette` = light,
@@ -10,8 +11,10 @@ import { darkPalette, palette, ColorPalette } from './colors';
  * Dylan's call: a Light | Dark control in Profile, no system-following —
  * persisted to AsyncStorage so it survives restarts.
  *
- * Hydration is async, so the first frames render light before a saved 'dark'
- * lands; the launch loader overlay covers that window in practice.
+ * The saved mode is read synchronously at launch (lib/themeStore.ts, the
+ * keychain on native, localStorage on web), so the very first frame is
+ * already the right theme; AsyncStorage keeps a copy for the phones that
+ * saved the choice before the sync store existed.
  */
 
 export type ThemeMode = 'light' | 'dark';
@@ -28,12 +31,18 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>('light');
+  const [mode, setModeState] = useState<ThemeMode>(() => readThemeModeSync() ?? 'light');
 
+  // Migration: a phone that chose dark before the sync store existed has it
+  // only in AsyncStorage. One launch on the light frame, then it is copied.
   useEffect(() => {
+    if (readThemeModeSync() !== null) return;
     AsyncStorage.getItem(STORAGE_KEY)
       .then((stored) => {
-        if (stored === 'dark') setModeState('dark');
+        if (stored === 'dark') {
+          setModeState('dark');
+          writeThemeModeSync('dark');
+        }
       })
       .catch(() => {});
   }, []);
@@ -59,6 +68,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       mode,
       setMode: (next: ThemeMode) => {
         setModeState(next);
+        writeThemeModeSync(next);
         AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {});
       },
     }),

@@ -30,6 +30,8 @@ export type SegmentCount = 0 | 1 | 2 | 3 | 4 | 5;
  * together with the generator.
  */
 export const SPLASH = { background: '#F2F2F7', mark: '#2563EB', markPt: 96 } as const;
+/** The dark splash (`splash-dark.png`, app.json `splash.dark`): the app's dark ground, the dark brand blue. */
+export const SPLASH_DARK = { background: '#0A0D13', mark: '#4D9BFF', markPt: 96 } as const;
 
 /** Dash pattern that draws all five segments. */
 export const DASH_BASE: readonly number[] = [JIM_MARK.segmentLength, JIM_MARK.gap];

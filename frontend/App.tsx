@@ -96,9 +96,9 @@ function AppContent() {
 
   // Keep the loader mounted across the hand-off and cross-fade it out over the
   // app, so launch ends on a dissolve instead of a hard cut. The loader is the
-  // light splash frame whatever the theme, so on the dark theme this dissolve is
-  // also where the ground crosses from light to dark. The app mounts underneath
-  // while it is still covered.
+  // splash frame of the current theme (LoadingScreen), so the dissolve only
+  // reveals the app, never a change of ground. The app mounts underneath while
+  // it is still covered.
   const [loaderMounted, setLoaderMounted] = useState(true);
   const loaderFade = useSharedValue(1);
   useEffect(() => {
