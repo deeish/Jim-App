@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "s": "booted"
+    },
+    {
+      "s": "library_detail",
+      "hasSimilar": true,
+      "excerpt": "Similar exercises | Same muscle, best swaps first. | Flat Dumbbell Bench Press | Easier version · Same lift, different equipment |  | Push-Up | Mid Chest focus · Same push pattern |  | Machine Chest Press | Mid Chest focus · Same push pattern |  | Floor Press | Mid Chest focus · Same push pattern |  | Weighted Push-Up | Mid Chest focus · Same push pattern |  | Wide-Grip Bench Press | Mid Chest focus · Same push pattern |  | How to Perform | 4 steps |  | C"
+    },
+    {
+      "s": "first_similar",
+      "firstRow": "Flat Dumbbell Bench Press"
+    },
+    {
+      "s": "drilled",
+      "title": [
+        "Back",
+        "Flat Dumbbell Bench Press"
+      ],
+      "hasSimilar": true,
+      "hasUseBar": false
+    },
+    {
+      "s": "day",
+      "opened": true,
+      "excerpt": " | Rest Day · Sep 20 · 0 exercises |  |  | Rest day — nothing scheduled. |  | Add Exercise |  | Upper · Bench + Row · Sep 21 · 5 exercises |  | Flat Dumbbell Bench Press | Chest |  | Barbell Bent-Over Row | Back |  | Barbell Overhead Press | Shoulders |  | Dumbbell Lateral Raise | Shoulders |  | Rope Cable Pushdown | Triceps |  |  | Add Exercise | Hold an exercise to replace or remove it |  | Lower · Squat + RDL · Sep 22 · 5 exercises |  | Back Squat | Quads |  | Barbell Romanian Deadlift | Hamstrings |  | Lying Leg Curl | Hamstrings |  | Front Plank | Core | "
+    },
+    {
+      "s": "row",
+      "rowName": "Barbell Bent-Over Row"
+    },
+    {
+      "s": "workout_detail",
+      "guide": true,
+      "hasSimilar": true,
+      "useCount": 6,
+      "excerpt": "Similar exercises | Same muscle, best swaps first. Use one instead of Barbell Bent-Over Row. | Smith Machine Bent-Over Row | Same lift, different equipment · Mid Back focus | Use instead | Resistance Band Bent-Over Row | Same lift, different equipment · Mid Back focus | Use instead | Single-Arm Dumbbell Row | Mid Back focus · Same pull pattern | Use instead | Pull-Up | Upper Back focus · Same pull pattern | Use instead | Pendlay Row | Mid Back focus · Same pull pattern | Use instead | T-Bar Row | Mid Back focus · Same pull pattern"
+    },
+    {
+      "s": "after_swap",
+      "clicked": true,
+      "chosenName": "Smith Machine Bent-Over Row",
+      "nowShows": "Smith Machine Bent-Over Row",
+      "stillOld": false,
+      "excerpt": "Back | 5 × 1 | SETS × REPS | 50 lb | WEIGHT | 2:00 | REST | SET BREAKDOWN | Set 1 of 5 | Target 1 · 50 lb | REPS | WEIGHT (LB) |  | DETAILS | Muscle | Back | Equipment | Smith Machine | Session | Monday · Upper · Bench + Row | Date | Sep 21 |  | Exercise Guide |  |  | Day | Smith Machine Bent-Over Row |  |  | Home |  |  | Calendar |  |  | Crew |  |  | Exercises"
+    }
+  ]
+}

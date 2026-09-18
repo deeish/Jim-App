@@ -647,3 +647,25 @@ Backend: 996 tests in 84 suites green after the change (two new suites). Client:
 - Plans already saved keep their rows; the list applies from the next generation, rebuild or swap. The hide sheet says so.
 - Hiding does not un-save a liked exercise. Both flags can hold at once; the heart is the browse list, the eye is the planner.
 - No "hide from the catalog search" mode: the browse must still find a hidden lift so it can be shown again.
+
+
+## Similar exercises on the exercise page (2026-09-18)
+
+Dylan: next to "Easier versions", a section that suggests exercises for the same main muscle, best first, that reads the same whether you are browsing, swapping during generation, or standing at a taken machine. Named "Similar exercises" so it makes sense in every one of those. Client only; rides the next binary.
+
+| # | Piece | Change | Where | Verified by |
+|---|---|---|---|---|
+| 1 | The list | A "Similar exercises" card under the easier/harder ladder: six rows, each with the name and the ranker's reason ("Easier version · Same lift, different equipment", "Mid Chest focus · Same push pattern"). Same server ranker as the swap picker's rail (`POST /exercises/replace-suggestions`): ladder neighbours, same lift on other equipment, shared sub-muscle, compound-for-compound, same pattern, then history, gear, goal and level, catalog quality as the stable tiebreak. Sent with the user's gear, goal and level from Profile; the hidden list applies on the server. Tapping a row opens that exercise, which shows its own list | `ExerciseDetailScreen.tsx` | rig, library path: Flat Barbell Bench Press → Flat Dumbbell Bench Press (easier version, same lift on dumbbells), Push-Up, Machine Chest Press, Floor Press, Weighted Push-Up, Wide-Grip Bench Press |
+| 2 | Use instead | When the page was opened from a plan row, the opener passes a `swapTarget` (a calendar slot: date + index; a preview slot: week + weekday + name). Every similar row then carries a "Use instead" button, and a drilled-into exercise shows an "Instead of <outgoing>" bar at the top. Confirm sheet, then the swap lands and every pushed page pops back to the row in one go (`swapDepth`). The rest of the day and week go to the ranker so nothing already planned is offered | `lib/exerciseSwap.ts` (`outgoingForSwapTarget`, `applySwapTarget`), `types/navigation.ts` (`ExerciseSwapTarget`), `PlanCalendarWorkoutScreen.tsx`, `PlanPreviewDayScreen.tsx` | rig, workout path: Monday Upper → Barbell Bent-Over Row → Exercise Guide → Smith Machine Bent-Over Row "Use instead" → back on the row with the new name, equipment and header; persisted in `plan_exercises` |
+| 3 | Preview apply | `swapExerciseInDraft` split: the server pick and the apply are separate, and `applyChosenSwapToDraft` takes a chosen exercise directly. The slot keeps its prescription; the swap is recorded so a rebuild keeps it; "Use instead" in a preview applies to every week | `lib/planPreviewEdits.ts` | `planPreviewEdits.test.ts` (3 new), `exerciseSwap.test.ts` (6) |
+| 4 | Header follows the row | The workout screen's title came from the `exerciseName` param it was opened with, so a swap made from the guide came back under the old name. The param now follows the row | `PlanCalendarWorkoutScreen.tsx` | rig run 2: header reads the new name |
+| 5 | Confirm on web too | The swap confirm uses `showConfirmDialog` (native Alert, `window.confirm` on web); the first rig run showed the RN-web Alert no-op silently dropping the tap | `ExerciseDetailScreen.tsx` | rig run 2 |
+
+Rig outcome: `docs/audits/2026-09-18-similar-exercises-rig-run.json`. Frontend: `tsc` clean, full suite green.
+
+### Deliberately not done
+
+- No "Use instead" from the Exercises tab on its own: with no slot to put it in, a row only opens the exercise. The list still reads as swaps, which is what the machine-is-taken case wants; the actual swap is one tap away on the workout screen's Exercise Guide.
+- The live workout deck (Workout tab, `returnToPlanExerciseContext: 'workout'`) does not pass a slot yet; the calendar workout screen and the preview day do. The deck's rows are the same calendar store, so it is the same two params when wanted.
+- The ranker's per-day context is only as good as the opener: from the library there is no day, so the "already in the day" and "already this week" signals stay quiet there on purpose.
+- Six rows, not a scrolling list: the ranker's tail is weak past the first handful and a longer list reads as padding.
