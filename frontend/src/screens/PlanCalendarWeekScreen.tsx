@@ -191,7 +191,7 @@ export default function PlanCalendarWeekScreen() {
     // where you're going. Weeks outside a program show their date range.
     const headerText =
       pWeekInfo?.state === 'in'
-        ? `Week ${pWeekInfo.week} of ${pWeekInfo.totalWeeks} · ${pWeekInfo.planName}`
+        ? `Week ${pWeekInfo.week} of ${pWeekInfo.totalWeeks} · ${pWeekInfo.planName}${pWeekInfo.week > 1 ? ' · adjusts to what you log' : ''}`
         : pWeekInfo?.state === 'after'
           ? `Program complete · ${pWeekInfo.planName} (${pWeekInfo.totalWeeks} weeks)`
           : `${shortDate(fromIso(mondayIso))} – ${shortDate(addDays(fromIso(mondayIso), 6))}`;

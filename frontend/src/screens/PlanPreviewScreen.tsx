@@ -954,7 +954,10 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
 
             {/* The plan stated back, then the coach's one line (2026-09-17 redesign). */}
             {planDraft ? (
-              <Text style={styles.statedLine}>{statedPlanLine(planDraft, planInputs)}</Text>
+              <Text style={styles.statedLine}>
+                {statedPlanLine(planDraft, planInputs)}
+                {planDraft.weeks.length > 1 ? ' · week 1 as planned, later weeks adjust to what you log' : ''}
+              </Text>
             ) : null}
             {coachHeadline ? (
               <TouchableOpacity
