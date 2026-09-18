@@ -64,6 +64,38 @@ export const PLATEAU_DELOAD_FACTOR = 0.9;
 export const PLATEAU_NOTE =
   'Deload on purpose: three sessions at the same weight without a rep gained. Drop about 10% this week and build back up.';
 
+/**
+ * A number from an old log is not this block's number (Tier 7 addendum,
+ * 2026-09-17). Strength holds for three to four weeks off, drops after two
+ * to three months and comes back fast once training resumes, so the load
+ * is discounted by the age of the newest log for the lift, one band harsher
+ * when the form says "currently sedentary"; past six months the history is
+ * ignored and the calibration note runs. The ledger corrects within a week
+ * either way; guessing low costs one easy session, guessing high costs a
+ * missed week.
+ */
+const DAY_MS = 24 * 60 * 60 * 1000;
+export const STALE_BANDS: ReadonlyArray<{ maxDays: number; factor: number }> = [
+  { maxDays: 42, factor: 1 },
+  { maxDays: 90, factor: 0.925 },
+  { maxDays: 180, factor: 0.85 },
+];
+/** Logs older than this do not count toward a plateau. */
+export const PLATEAU_MAX_AGE_DAYS = 90;
+
+/** 1 for fresh history, a discount for old, undefined when the history is too old to use. */
+export function staleFactor(
+  performedAt: Date,
+  now: Date,
+  activityLevel?: string,
+): number | undefined {
+  const days = Math.max(0, (now.getTime() - performedAt.getTime()) / DAY_MS);
+  let band = STALE_BANDS.findIndex((b) => days < b.maxDays);
+  if (band < 0) return undefined;
+  if ((activityLevel ?? '').trim() === '0') band += 1;
+  return band < STALE_BANDS.length ? STALE_BANDS[band]!.factor : undefined;
+}
+
 /** Heaviest loaded set of a session and the most reps done at that load. */
 function topSet(
   perf: LastExercisePerformance,
@@ -214,8 +246,13 @@ export function stampLoadsFromHistory(args: {
    * every week. 1 when omitted.
    */
   loadFactorForWeek?: (weekIndex: number) => number;
+  /** For the stale-history discount; defaults to the current time. */
+  now?: Date;
+  /** The form's "Training now" answer ('0' is sedentary). */
+  activityLevel?: string;
 }): StampLoadsResult {
   const { specs, findMeta, loadFactorForWeek } = args;
+  const now = args.now ?? new Date();
   const history = new Map<string, LastExercisePerformance[]>();
   for (const [id, v] of args.history) {
     const list = Array.isArray(v) ? v : [v];
@@ -242,10 +279,18 @@ export function stampLoadsFromHistory(args: {
       if (role === 'core' || role === 'hold') return ex;
       if (isBodyweightOnly(meta)) return ex;
 
-      const recent = ex.exerciseId ? history.get(ex.exerciseId) : undefined;
-      const perf = recent?.[0];
-      if (perf && recent) {
+      const recentAll = ex.exerciseId ? history.get(ex.exerciseId) : undefined;
+      const perf = recentAll?.[0];
+      const stale = perf
+        ? staleFactor(perf.performedAt, now, args.activityLevel)
+        : undefined;
+      // Too old to be this block's number: fall through to the calibration note.
+      const recent = perf && stale != null ? recentAll : undefined;
+      if (perf && recent && stale != null) {
         let load = loadFromPerformance(ex, perf);
+        if (load != null && stale !== 1) {
+          load = Math.max(MIN_PRESCRIBED_LOAD_LB, roundLoadLb(load * stale));
+        }
         if (load != null) {
           liftsUsed.add(ex.exerciseId!);
           // Only the first week deloads; later weeks progress from it through
@@ -255,7 +300,15 @@ export function stampLoadsFromHistory(args: {
           if (factor !== 1) {
             load = Math.max(MIN_PRESCRIBED_LOAD_LB, roundLoadLb(load * factor));
           }
-          const plateau = weekIndex === firstWeek && isPlateaued(recent);
+          const plateau =
+            weekIndex === firstWeek &&
+            isPlateaued(
+              recent.filter(
+                (p) =>
+                  now.getTime() - p.performedAt.getTime() <
+                  PLATEAU_MAX_AGE_DAYS * DAY_MS,
+              ),
+            );
           if (plateau) {
             load = Math.max(
               MIN_PRESCRIBED_LOAD_LB,

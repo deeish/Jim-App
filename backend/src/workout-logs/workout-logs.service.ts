@@ -1,4 +1,21 @@
-import { adjustNextWeekFromCheckIn, type CheckIn } from './checkin-adjustment';
+import {
+  adjustNextWeekFromCheckIn,
+  checkInDirection,
+  type CheckIn,
+} from './checkin-adjustment';
+import {
+  deloadRow,
+  rowIsDeloaded,
+  stepLiftFromLog,
+  TRIGGERED_DELOAD_NOTE,
+  type LiftStep,
+  type LoggedSet,
+} from './lift-progression';
+import {
+  isPlateaued,
+  PLATEAU_MAX_AGE_DAYS,
+  PLATEAU_SESSIONS,
+} from '../plans/load-from-history';
 import { CheckInDto } from './dto/check-in.dto';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -6,6 +23,7 @@ import { WorkoutsService } from '../workouts/workouts.service';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
 import {
   fetchLastEntriesForExercises,
+  fetchRecentEntriesForExercises,
   isTrackableExerciseId,
 } from './last-performance';
 import {
@@ -94,7 +112,7 @@ export class WorkoutLogsService {
       },
     });
     if (!dto.checkIn) return log;
-    const adjustment = await this.applyCheckIn(log.id, dto.checkIn);
+    const adjustment = await this.applyCheckIn(log.id, dto.checkIn, userId);
     return { ...log, adjustment };
   }
 
@@ -120,13 +138,29 @@ export class WorkoutLogsService {
     });
     const adjustment = existing.checkInAppliedAt
       ? { applied: false, summary: null, reason: 'already_applied' as const }
-      : await this.applyCheckIn(id, dto);
+      : await this.applyCheckIn(id, dto, userId);
     return { id, adjustment };
   }
 
+  /**
+   * After a session is logged and checked in, the same day next week is
+   * rewritten from it (Tier 4a sets, Tier 7 the ledger):
+   *
+   * 1. sets from the check-in (`checkin-adjustment.ts`);
+   * 2. load and rep target per lift from the logged sets
+   *    (`lift-progression.ts`), following the load the user actually used;
+   * 3. a lighter week on trigger: two eased check-ins on the same day type
+   *    in a row, or a main lift stalled over its last three logs. The
+   *    trigger rewrites every day of the coming week once; a week already
+   *    shaped by a deload is not touched by the ledger.
+   *
+   * Only the next week moves. Weeks further out stay as the projection
+   * until their predecessor is logged.
+   */
   private async applyCheckIn(
     logId: string,
     checkIn: CheckIn,
+    userId: string,
   ): Promise<{
     applied: boolean;
     summary: string | null;
@@ -138,10 +172,20 @@ export class WorkoutLogsService {
   }> {
     const log = await this.prisma.workoutLog.findUnique({
       where: { id: logId },
-      select: { workout: { select: { planWorkoutId: true } } },
+      select: {
+        workout: { select: { planWorkoutId: true } },
+        entries: {
+          select: {
+            exerciseId: true,
+            completedSets: {
+              select: { reps: true, weight: true, completed: true },
+            },
+          },
+        },
+      },
     });
     const planWorkoutId = log?.workout?.planWorkoutId;
-    if (!planWorkoutId)
+    if (!log || !planWorkoutId)
       return { applied: false, summary: null, reason: 'no_plan_day' };
     const day = await this.prisma.planWorkout.findUnique({
       where: { id: planWorkoutId },
@@ -160,9 +204,99 @@ export class WorkoutLogsService {
         dayOfWeek: day.dayOfWeek,
         orderInDay: day.orderInDay,
       },
-      include: { exercises: true },
+      include: { exercises: { orderBy: { orderIndex: 'asc' } } },
     });
     if (!next) return { applied: false, summary: null, reason: 'no_next_week' };
+
+    const loggedById = new Map<string, LoggedSet[]>();
+    for (const e of log.entries) {
+      if (!e.exerciseId) continue;
+      const sets = (e.completedSets ?? [])
+        .filter((c) => c.completed !== false && c.reps > 0)
+        .map((c) => ({ reps: c.reps, weight: c.weight }));
+      if (!sets.length) continue;
+      loggedById.set(e.exerciseId, [
+        ...(loggedById.get(e.exerciseId) ?? []),
+        ...sets,
+      ]);
+    }
+    const mainRow = next.exercises.find(
+      (e) => (e.prescriptionType ?? 'reps') !== 'time' && e.sets > 0,
+    );
+
+    // 3. The trigger, decided first: a deload week supersedes the other two.
+    const nextWeekDeloaded = next.exercises.some((e) => rowIsDeloaded(e.notes));
+    const trigger = nextWeekDeloaded
+      ? null
+      : await this.deloadTrigger({
+          userId,
+          workoutPlanId: day.workoutPlanId,
+          weekNumber: day.weekNumber,
+          dayOfWeek: day.dayOfWeek,
+          orderInDay: day.orderInDay,
+          checkIn,
+          mainExerciseId: mainRow?.exerciseId,
+        });
+    if (trigger) {
+      const week = await this.prisma.planWorkout.findMany({
+        where: {
+          workoutPlanId: day.workoutPlanId,
+          weekNumber: day.weekNumber + 1,
+        },
+        include: { exercises: true },
+      });
+      const updates = week.flatMap((w) =>
+        w.exercises.map((e) => {
+          const eased = deloadRow({
+            id: e.id,
+            exerciseId: e.exerciseId,
+            name: e.name ?? 'Exercise',
+            sets: e.sets,
+            reps: e.reps,
+            repsMin: e.repsMin,
+            repsMax: e.repsMax,
+            targetRir: e.targetRir,
+            weight: e.weight,
+            prescriptionType: e.prescriptionType,
+            notes: e.notes,
+          });
+          const base = (e.notes ?? '').trim();
+          return this.prisma.planExercise.update({
+            where: { id: e.id },
+            data: {
+              ...eased,
+              notes: base
+                ? `${base} ${TRIGGERED_DELOAD_NOTE}`
+                : TRIGGERED_DELOAD_NOTE,
+            },
+          });
+        }),
+      );
+      await this.prisma.$transaction([
+        ...updates,
+        this.prisma.workoutLog.update({
+          where: { id: logId },
+          data: { checkInAppliedAt: new Date() },
+        }),
+      ]);
+      this.logger.log(
+        JSON.stringify({
+          event: 'deload_triggered',
+          reason: trigger,
+          week: day.weekNumber + 1,
+          rows: updates.length,
+        }),
+      );
+      return {
+        applied: true,
+        summary:
+          trigger === 'plateau'
+            ? `Week ${day.weekNumber + 1} is a lighter week: ${mainRow?.name ?? 'your main lift'} has stalled three sessions running. Sets, reps and weight ease; build back after.`
+            : `Week ${day.weekNumber + 1} is a lighter week: two hard weeks in a row. Sets, reps and weight ease; build back after.`,
+      };
+    }
+
+    // 1. Sets from the check-in.
     const adjustment = adjustNextWeekFromCheckIn(
       next.exercises.map((e) => ({
         id: e.id,
@@ -176,20 +310,61 @@ export class WorkoutLogsService {
       checkIn,
       day.dayOfWeek,
     );
-    if (!adjustment.direction) {
+    const setUpdateById = new Map(adjustment.updates.map((u) => [u.id, u]));
+
+    // 2. The ledger, on top of the set adjustment's notes.
+    const steps: LiftStep[] = [];
+    if (!nextWeekDeloaded) {
+      for (const e of next.exercises) {
+        const logged = loggedById.get(e.exerciseId);
+        if (!logged) continue;
+        const setUpdate = setUpdateById.get(e.id);
+        const step = stepLiftFromLog(
+          {
+            id: e.id,
+            exerciseId: e.exerciseId,
+            name: e.name ?? 'Exercise',
+            sets: e.sets,
+            reps: e.reps,
+            repsMin: e.repsMin,
+            repsMax: e.repsMax,
+            targetRir: setUpdate?.targetRir ?? e.targetRir,
+            weight: e.weight,
+            prescriptionType: e.prescriptionType,
+            notes: setUpdate?.notes ?? e.notes,
+          },
+          logged,
+          checkIn,
+        );
+        if (step) steps.push(step);
+      }
+    }
+    const stepById = new Map(steps.map((st) => [st.id, st]));
+
+    const rowIds = new Set([...setUpdateById.keys(), ...stepById.keys()]);
+    if (rowIds.size === 0) {
       return { applied: false, summary: null, reason: 'nothing_to_move' };
     }
+    const updates = [...rowIds].map((id) => {
+      const u = setUpdateById.get(id);
+      const st = stepById.get(id);
+      return this.prisma.planExercise.update({
+        where: { id },
+        data: {
+          ...(u?.sets != null ? { sets: u.sets } : {}),
+          ...(u?.targetRir != null ? { targetRir: u.targetRir } : {}),
+          ...(st?.weight != null ? { weight: st.weight } : {}),
+          ...(st ? { reps: st.reps } : {}),
+          ...(st
+            ? { notes: st.notes }
+            : u?.notes != null
+              ? { notes: u.notes }
+              : {}),
+        },
+      });
+    });
     await this.prisma.$transaction([
-      ...adjustment.updates.map((u) =>
-        this.prisma.planExercise.update({
-          where: { id: u.id },
-          data: {
-            ...(u.sets != null ? { sets: u.sets } : {}),
-            ...(u.targetRir != null ? { targetRir: u.targetRir } : {}),
-            ...(u.notes != null ? { notes: u.notes } : {}),
-          },
-        }),
-      ),
+      ...updates,
       this.prisma.workoutLog.update({
         where: { id: logId },
         data: { checkInAppliedAt: new Date() },
@@ -199,12 +374,87 @@ export class WorkoutLogsService {
       JSON.stringify({
         event: 'check_in_applied',
         direction: adjustment.direction,
-        rows: adjustment.updates.length,
+        setRows: adjustment.updates.length,
+        ledgerRows: steps.length,
+        ledger: steps.map((st) => `${st.name}:${st.kind}`),
         weekday: day.dayOfWeek,
         nextWeek: day.weekNumber + 1,
       }),
     );
-    return { applied: true, summary: adjustment.summary };
+    const parts: string[] = [];
+    if (adjustment.summary) parts.push(adjustment.summary);
+    if (steps.length) {
+      const shown = steps.slice(0, 3).map((st) => st.summary);
+      const more = steps.length - shown.length;
+      parts.push(
+        `Next ${day.dayOfWeek}: ${shown.join(', ')}${more > 0 ? `, and ${more} more` : ''}.`,
+      );
+    }
+    return { applied: true, summary: parts.join(' ') };
+  }
+
+  /**
+   * Why the coming week should be lighter, or null: two eased check-ins on
+   * this day type in a row, or a stalled main lift (three logs at the same
+   * top load without a rep gained, none older than three months).
+   */
+  private async deloadTrigger(args: {
+    userId: string;
+    workoutPlanId: string;
+    weekNumber: number;
+    dayOfWeek: string;
+    orderInDay: number;
+    checkIn: CheckIn;
+    mainExerciseId?: string;
+  }): Promise<'two_hard_weeks' | 'plateau' | null> {
+    if (checkInDirection(args.checkIn) === 'ease' && args.weekNumber > 1) {
+      const prev = await this.prisma.planWorkout.findFirst({
+        where: {
+          workoutPlanId: args.workoutPlanId,
+          weekNumber: args.weekNumber - 1,
+          dayOfWeek: args.dayOfWeek,
+          orderInDay: args.orderInDay,
+        },
+        select: {
+          workouts: {
+            where: { userId: args.userId },
+            select: {
+              workoutLogs: {
+                orderBy: { startedAt: 'desc' },
+                take: 1,
+                select: { effort: true, soreness: true, jointPain: true },
+              },
+            },
+          },
+        },
+      });
+      const last = prev?.workouts.flatMap((w) => w.workoutLogs)[0];
+      if (
+        last?.effort != null &&
+        checkInDirection({
+          effort: last.effort as 1 | 2 | 3,
+          soreness: (last.soreness ?? 0) as 0 | 1 | 2,
+          jointPain: (last.jointPain ?? 0) as 0 | 1 | 2,
+        }) === 'ease'
+      ) {
+        return 'two_hard_weeks';
+      }
+    }
+    if (args.mainExerciseId && isTrackableExerciseId(args.mainExerciseId)) {
+      const history = await fetchRecentEntriesForExercises(
+        this.prisma,
+        args.userId,
+        [args.mainExerciseId],
+        PLATEAU_SESSIONS,
+      );
+      const recent = (history.get(args.mainExerciseId) ?? []).filter(
+        (p) =>
+          Date.now() - p.performedAt.getTime() <
+          PLATEAU_MAX_AGE_DAYS * 24 * 60 * 60 * 1000,
+      );
+      if (isPlateaued(recent)) return 'plateau';
+    }
+    return null;
   }
 
   /**

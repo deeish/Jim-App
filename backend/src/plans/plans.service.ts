@@ -2731,6 +2731,7 @@ export class PlansService {
       history,
       findMeta: (id) => this.exercises.findOne(id),
       loadFactorForWeek: loadFactorByWeek(dto.weekProgression),
+      activityLevel: dto.currentActivityLevel,
     });
     this.logger.log(
       JSON.stringify({
