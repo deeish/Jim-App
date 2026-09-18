@@ -392,7 +392,7 @@ describe('after the progression (rig run 2026-09-17)', () => {
     expect(legs).toBeLessThanOrEqual(22);
   });
 
-  it('never cuts a secondary compound below three; it drops an isolation at its floor instead', () => {
+  it('never cuts a secondary compound below three; the main lift gives sets back, then an isolation at its floor is dropped', () => {
     const sessions = [
       session('Monday', 'Lower', [
         row('squat', 'Back Squat', 6, 150),
@@ -420,10 +420,15 @@ describe('after the progression (rig run 2026-09-17)', () => {
       for (const c of compounds) expect(c.sets).toBeGreaterThanOrEqual(3);
       expect(s.exercises.length).toBeGreaterThanOrEqual(2);
     }
-    const dropped = out.adjustments
-      .flatMap((a) => a.notes)
-      .filter((n) => n.startsWith('dropped'));
-    expect(dropped.length).toBeGreaterThan(0);
+    const notes = out.adjustments.flatMap((a) => a.notes);
+    // 24 direct sets against a ceiling of 22: the two 6-set squats give
+    // sets back (down to four on these four-row days) before any row is
+    // dropped, and nothing else is cut.
+    expect(
+      notes.filter((n) => n.includes('main lift above')).length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(notes.some((n) => n.startsWith('dropped'))).toBe(false);
+    expect(coachLegs(out.sessions)).toBeLessThanOrEqual(22);
   });
 });
 

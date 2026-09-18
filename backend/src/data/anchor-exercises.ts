@@ -16,6 +16,7 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
   push: [
     'flat_barbell_bench_press',
     'incline_barbell_bench_press',
+    'incline_dumbbell_bench_press',
     'barbell_overhead_press',
     'seated_barbell_overhead_press',
     'chest_dip',
@@ -43,6 +44,7 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
   upper: [
     'flat_barbell_bench_press',
     'flat_dumbbell_bench_press',
+    'incline_dumbbell_bench_press',
     'barbell_bent_over_row',
     'lat_pulldown_wide',
     'barbell_overhead_press',

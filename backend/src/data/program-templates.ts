@@ -181,7 +181,12 @@ export const SLOTS_BY_FOCUS: Record<string, SlotDefinition[]> = {
     },
     { role: 'accessory_1', description: 'Leg isolation', min: 1, max: 1 },
     { role: 'accessory_2', description: 'Calves or core', min: 1, max: 1 },
-    { role: 'finisher', description: 'Optional', min: 0, max: 1 },
+    {
+      role: 'finisher',
+      description: 'Optional calves or a loaded carry',
+      min: 0,
+      max: 1,
+    },
   ],
   'upper body': [
     {

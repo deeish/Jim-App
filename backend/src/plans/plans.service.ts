@@ -2351,6 +2351,7 @@ export class PlansService {
           }),
           detailLevel: dto.detailLevel ?? 'detailed',
           difficulty: dto.experienceLevel,
+          priorityMuscle: dto.priorityMuscle,
           cardioDayIndex: dto.sessions
             .slice(0, i)
             .filter((s) => s.type === 'cardio').length,
@@ -2475,7 +2476,11 @@ export class PlansService {
       specs: dto.sessions,
       weekProgression: dto.weekProgression,
       findMeta: (id) => this.exercises.findOne(id),
-      prefs: { goal: dto.goal, difficulty: dto.experienceLevel },
+      prefs: {
+        goal: dto.goal,
+        difficulty: dto.experienceLevel,
+        priorityMuscle: dto.priorityMuscle,
+      },
     });
     if (progressed.adjustedSessionCount > 0) {
       this.logger.log(

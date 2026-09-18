@@ -78,6 +78,9 @@ const ROLE_SET_FLOOR: Record<CoachRole, number> = {
  * accessories, leaving a three-row day).
  */
 const MAIN_TRIM_CAP = 5;
+/** ...and down to four when dropping a row would leave the day with three or fewer lifts (rig run 6). */
+const MAIN_TRIM_CAP_THIN_DAY = 4;
+const THIN_DAY_ROWS = 3;
 
 const ROLE_SET_CEILING: Record<CoachRole, number> = {
   main: 6,
@@ -232,9 +235,20 @@ function trimWeekOverBand(ctx: {
       }
       // Every accessory is at its floor: a main lift above the cap gives a
       // set back before any row is dropped.
+      const liftRows = (i: number) =>
+        sessions[i]!.exercises.filter(
+          (e) =>
+            (e.exerciseId
+              ? findMeta(e.exerciseId)?.primaryMuscleGroup
+              : undefined) !== 'Cardio' && e.prescriptionType !== 'time',
+        ).length;
+      const capFor = (r: RowRef) =>
+        liftRows(r.sessionIndex) - 1 <= THIN_DAY_ROWS
+          ? MAIN_TRIM_CAP_THIN_DAY
+          : MAIN_TRIM_CAP;
       const mainOverCap = refs
         .filter((r) => r.group === group && r.role === 'main')
-        .filter((r) => (rowOf(r).sets ?? 0) > MAIN_TRIM_CAP)
+        .filter((r) => (rowOf(r).sets ?? 0) > capFor(r))
         .sort((a, b) => (rowOf(b).sets ?? 0) - (rowOf(a).sets ?? 0))[0];
       if (mainOverCap) {
         const row = rowOf(mainOverCap);
@@ -242,7 +256,7 @@ function trimWeekOverBand(ctx: {
         removed += 1;
         trimmed = true;
         notes.push(
-          `-1 set ${row.name ?? row.exerciseId} (${group} over ${bandMax}/wk, main lift above ${MAIN_TRIM_CAP})`,
+          `-1 set ${row.name ?? row.exerciseId} (${group} over ${bandMax}/wk, main lift above ${capFor(mainOverCap)})`,
         );
         break;
       }

@@ -1,6 +1,7 @@
 import { ExercisesService } from '../exercises/exercises.service';
 import type { GeneratedSession } from './session-enrichment';
 import { coachCheckProgram } from './coach-check';
+import { clampSessionWorkingSets } from './session-enrichment';
 import {
   allocateWeeklyVolume,
   trimWeeklyVolumeToBand,
@@ -140,7 +141,7 @@ describe('priority rebalance and the main-lift trim cap (real catalog)', () => {
     const findMeta = (id: string) => library.findOne(id);
     const out = trimWeeklyVolumeToBand({ sessions, specs, findMeta, prefs });
     const notes = out.adjustments.flatMap((a) => a.notes);
-    expect(notes.some((n) => n.includes('main lift above 5'))).toBe(true);
+    expect(notes.some((n) => n.includes('main lift above'))).toBe(true);
     const squat = out.sessions[0]!.exercises.find(
       (e) => e.exerciseId === 'back_squat',
     )!;
@@ -155,5 +156,68 @@ describe('priority rebalance and the main-lift trim cap (real catalog)', () => {
         (e) => e.exerciseId === 'seated_leg_extension',
       ),
     ).toBe(true);
+  });
+
+  it('on a thin day the main lift gives a set back down to four before the last accessory goes', () => {
+    // Four rows: squat 5, RDL 3, leg extension 2, plank. Dropping the
+    // extension would leave three lifts, so the squat gives a set first.
+    const sessions = [
+      session('Tuesday', 'Lower', [
+        row('back_squat', 6, 120),
+        row('barbell_romanian_deadlift', 3),
+        row('seated_leg_extension', 2, 60),
+        row('front_plank', 3, 60),
+      ]),
+      session('Friday', 'Lower 2', [
+        row('conventional_deadlift', 5, 120),
+        row('forty_five_degree_leg_press', 3),
+        row('seated_calf_raise_machine', 2, 60),
+        row('hanging_leg_raise', 3, 60),
+      ]),
+    ];
+    const specs = [spec('Tuesday', 'Lower'), spec('Friday', 'Lower 2')];
+    const findMeta = (id: string) => library.findOne(id);
+    const legs = coachCheckProgram({ sessions, specs, findMeta, prefs })[0]!
+      .volumeByMuscle.Legs!.weighted;
+    expect(legs).toBeGreaterThan(22);
+    const out = trimWeeklyVolumeToBand({ sessions, specs, findMeta, prefs });
+    expect(
+      out.sessions[0]!.exercises.some(
+        (e) => e.exerciseId === 'seated_leg_extension',
+      ),
+    ).toBe(true);
+    expect(
+      out.sessions[0]!.exercises.find((e) => e.exerciseId === 'back_squat')!
+        .sets,
+    ).toBeLessThanOrEqual(5);
+  });
+
+  it('the duration clamp takes sets from every other row before the priority muscle', () => {
+    const exercises = [
+      row('flat_barbell_bench_press', 5, 120),
+      row('barbell_bent_over_row', 5),
+      row('barbell_overhead_press', 4),
+      row('dumbbell_lateral_raise', 4, 60),
+      row('rope_cable_pushdown', 4, 60),
+    ];
+    clampSessionWorkingSets(exercises, (id) => library.findOne(id), {
+      goal: 'hypertrophy',
+      difficulty: 'intermediate',
+      priorityMuscle: 'Back',
+      durationMinutes: 38,
+    });
+    const rowSets = exercises.find(
+      (e) => e.exerciseId === 'barbell_bent_over_row',
+    )!.sets;
+    const others = exercises
+      .filter(
+        (e) =>
+          !['flat_barbell_bench_press', 'barbell_bent_over_row'].includes(
+            e.exerciseId!,
+          ),
+      )
+      .map((e) => e.sets);
+    expect(rowSets).toBe(5);
+    expect(Math.max(...others)).toBeLessThan(4);
   });
 });

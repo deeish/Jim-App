@@ -1237,7 +1237,7 @@ ${exercisesSchemaLine}`;
 (1) One id per slot, in slot order, from that day's own list; an optional slot may be skipped. Never repeat an id within a day.
 (2) Slot 1 is the day's main lift. Prefer the first options listed. ${openerLine}
 (3) When a focus repeats in the week, the second day opens with a different slot-1 option (flat bench → incline bench or dumbbell bench; back squat → front squat or leg press) and its other slots mostly differ too.
-(4) No sub-muscle stacking — at most 2 exercises loading the same sub-muscle in one day (Calves, Core and Cardio are exempt).
+(4) No sub-muscle stacking — at most 2 exercises loading the same sub-muscle in one day (Calves and Cardio are exempt). At most ONE core exercise per day.
 (5) At most 2 pressing compounds and at most 2 hip hinges in one day.
 (6) With 3 or more lifting days, each big muscle group (chest, back, quads, hamstrings/glutes, shoulders) is trained on at least 2 different days.
 INTENSITY: high days → the heavier compound options; INTENSITY: low days → more isolation and variety in the accessory slots.

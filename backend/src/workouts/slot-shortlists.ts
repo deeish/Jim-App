@@ -50,6 +50,7 @@ export type SlotKind =
   | 'lower_compound'
   | 'leg_isolation'
   | 'calves_or_core'
+  | 'calves_or_carry'
   | 'core'
   | 'chest_shoulder_isolation'
   | 'chest_isolation'
@@ -89,7 +90,7 @@ export const SLOT_KINDS_BY_FOCUS: Record<string, SlotKind[]> = {
     'lower_second',
     'leg_isolation',
     'calves_or_core',
-    'core',
+    'calves_or_carry',
   ],
   upper: [
     'horizontal_push',
@@ -214,6 +215,12 @@ const PREDICATES: Record<SlotKind, (c: ShortlistCandidate) => boolean> = {
   calves_or_core: (c) =>
     core(c) ||
     (c.primaryMuscleGroup === 'Legs' && CALF.test(`${subs(c)} ${c.name}`)),
+  // The validator allows one core row per upper or lower day, so the
+  // optional lower finisher never offers a second one (rig run 5: hanging
+  // leg raise plus Russian twist failed every first pass).
+  calves_or_carry: (c) =>
+    (c.primaryMuscleGroup === 'Legs' && CALF.test(`${subs(c)} ${c.name}`)) ||
+    has(c, 'Carry'),
   core,
   chest_shoulder_isolation: (c) =>
     (c.primaryMuscleGroup === 'Chest' ||

@@ -569,16 +569,27 @@ export function clampSessionWorkingSets(
       0,
     );
 
+  const priority = (prefs?.priorityMuscle ?? '').trim();
+  const isPriority = (e: GeneratedSessionExercise) =>
+    !!priority &&
+    ((e.exerciseId ? findOne(e.exerciseId)?.primaryMuscleGroup : undefined) ??
+      e.primaryMuscleGroup) === priority;
+
   let guard = 0;
   while (total() > cap && guard < 200) {
     guard++;
     // Skip slot 0 (the anchor / heaviest main lift) and cardio; only trim rows
-    // still above the floor of 2 sets.
+    // still above the floor of 2 sets. The priority muscle's rows give sets
+    // back only when no other row can.
     let target: GeneratedSessionExercise | undefined;
-    for (let i = 1; i < exercises.length; i++) {
-      const e = exercises[i]!;
-      if (!isStrength(e) || (e.sets ?? 0) <= 2) continue;
-      if (!target || (e.sets ?? 0) > (target.sets ?? 0)) target = e;
+    for (const sparePriority of [true, false]) {
+      for (let i = 1; i < exercises.length; i++) {
+        const e = exercises[i]!;
+        if (!isStrength(e) || (e.sets ?? 0) <= 2) continue;
+        if (sparePriority && isPriority(e)) continue;
+        if (!target || (e.sets ?? 0) > (target.sets ?? 0)) target = e;
+      }
+      if (target) break;
     }
     if (!target) break;
     target.sets -= 1;
@@ -896,6 +907,12 @@ export type EnrichSessionGenerationPrefs = {
    * `'intermediate'` inside the scheme lookup when omitted.
    */
   difficulty?: string;
+  /**
+   * The "bring up" muscle. The duration clamp takes sets from every other
+   * row first (rig runs 5-6: the peak week's clamp took the priority's
+   * extra sets straight back because they were the biggest rows).
+   */
+  priorityMuscle?: string;
   /**
    * Library `exerciseId`s already present on other sessions in this generated chunk.
    * Hybrid cardio finisher picks merge these into `excludeIds` so we do not append the

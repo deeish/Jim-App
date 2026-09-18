@@ -196,8 +196,8 @@ export function applyWeekProgressionToEnrichedSessions(args: {
   weekProgression: WeekProgressionDto[] | undefined;
   /** Library lookup — enables the rep-band guard's catalog checks and the duration re-clamp. */
   findMeta?: (id: string) => ProgressionExerciseMeta | undefined;
-  /** Goal + difficulty feed the working-set cap's rest math (see `workingSetCap`). */
-  prefs?: { goal?: string; difficulty?: string };
+  /** Goal + difficulty feed the working-set cap's rest math (see `workingSetCap`); the priority muscle is clamped last. */
+  prefs?: { goal?: string; difficulty?: string; priorityMuscle?: string };
 }): { sessions: GeneratedSession[]; adjustedSessionCount: number } {
   const { specs, weekProgression, findMeta, prefs } = args;
   if (!weekProgression?.length || args.sessions.length !== specs.length) {
@@ -299,6 +299,7 @@ export function applyWeekProgressionToEnrichedSessions(args: {
       clampSessionWorkingSets(exercises, findMeta, {
         goal: prefs?.goal,
         difficulty: prefs?.difficulty,
+        priorityMuscle: prefs?.priorityMuscle,
         durationMinutes: spec.durationMax - Math.round(cardioSeconds / 60),
       });
     }
