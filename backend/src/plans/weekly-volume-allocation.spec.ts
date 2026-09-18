@@ -242,17 +242,20 @@ describe('allocateWeeklyVolume', () => {
   });
 
   it('trims a muscle over the band from isolation first, never the main lift, never below two', () => {
-    // Legs: squat 6 + rdl 5 + legext 4 + squat 6 + rdl 5 + legext 4 = 30 weighted (band max 22)
+    // Legs: 6 + 5 + 5 + 5 on two lower days = 42 weighted (Legs ceiling 33);
+    // the accessories alone can give back 16, so the squats stay at six.
     const sessions = [
       session('Tuesday', 'Lower', [
         row('squat', 'Squat', 6, 180),
         row('rdl', 'RDL', 5, 150),
-        row('legext', 'Leg Extension', 4, 60),
+        row('legext', 'Leg Extension', 5, 60),
+        row('legext', 'Leg Curl', 5, 60),
       ]),
       session('Friday', 'Lower', [
         row('squat', 'Front Squat', 6, 180),
         row('rdl', 'DB RDL', 5, 150),
-        row('legext', 'Leg Extension', 4, 60),
+        row('legext', 'Leg Extension', 5, 60),
+        row('legext', 'Nordic Curl', 5, 60),
       ]),
     ];
     const out = allocateWeeklyVolume({
@@ -264,7 +267,7 @@ describe('allocateWeeklyVolume', () => {
     const legs = out.sessions
       .flatMap((s) => s.exercises)
       .reduce((n, e) => n + (e.sets ?? 0), 0);
-    expect(legs).toBeLessThanOrEqual(22);
+    expect(legs).toBeLessThanOrEqual(33);
     for (const s of out.sessions) {
       expect(s.exercises[0]!.sets).toBe(6); // main lift untouched
       for (const e of s.exercises) expect(e.sets).toBeGreaterThanOrEqual(2);
@@ -366,13 +369,15 @@ describe('after the progression (rig run 2026-09-17)', () => {
     // is exceeded once secondary credit is counted, so the trim has to give sets back.
     const sessions = [
       session('Monday', 'Lower', [
-        row('squat', 'Back Squat', 6, 150),
+        row('squat', 'Back Squat', 5, 150),
         row('rdl', 'RDL', 5, 120),
         row('legext', 'Leg Extension', 5, 60),
+        row('legext', 'Leg Curl', 5, 60),
       ]),
       session('Thursday', 'Lower 2', [
-        row('squat', 'Front Squat', 6, 150),
+        row('squat', 'Front Squat', 5, 150),
         row('rdl', 'Hip Thrust', 5, 120),
+        row('legext', 'Leg Extension', 5, 60),
         row('legext', 'Leg Curl', 5, 60),
       ]),
     ];
@@ -384,12 +389,12 @@ describe('after the progression (rig run 2026-09-17)', () => {
     });
     expect(out.adjustments[0]!.removed).toBeGreaterThan(0);
     for (const s of out.sessions) {
-      expect(s.exercises[0]!.sets).toBe(6); // main untouched
+      expect(s.exercises[0]!.sets).toBe(5); // main at the cap, untouched
       for (const e of s.exercises.slice(1))
         expect(e.sets).toBeGreaterThanOrEqual(2);
     }
     const legs = coachLegs(out.sessions);
-    expect(legs).toBeLessThanOrEqual(22);
+    expect(legs).toBeLessThanOrEqual(33);
   });
 
   it('never cuts a secondary compound below three; the main lift gives sets back, then an isolation at its floor is dropped', () => {
@@ -400,7 +405,13 @@ describe('after the progression (rig run 2026-09-17)', () => {
         row('legext', 'Leg Extension', 2, 60),
         row('legext', 'Leg Curl', 2, 60),
       ]),
-      session('Thursday', 'Lower 2', [
+      session('Wednesday', 'Lower 2', [
+        row('squat', 'Hack Squat', 6, 150),
+        row('rdl', 'Good Morning', 3, 120),
+        row('legext', 'Leg Extension', 2, 60),
+        row('legext', 'Leg Curl', 2, 60),
+      ]),
+      session('Thursday', 'Lower 3', [
         row('squat', 'Front Squat', 6, 150),
         row('rdl', 'Hip Thrust', 3, 120),
         row('legext', 'Sissy Squat', 2, 60),
@@ -409,7 +420,11 @@ describe('after the progression (rig run 2026-09-17)', () => {
     ];
     const out = trimWeeklyVolumeToBand({
       sessions,
-      specs: [spec('Monday', 'Lower', 60), spec('Thursday', 'Lower 2', 60)],
+      specs: [
+        spec('Monday', 'Lower', 60),
+        spec('Wednesday', 'Lower 2', 60),
+        spec('Thursday', 'Lower 3', 60),
+      ],
       findMeta,
       prefs,
     });
@@ -421,14 +436,14 @@ describe('after the progression (rig run 2026-09-17)', () => {
       expect(s.exercises.length).toBeGreaterThanOrEqual(2);
     }
     const notes = out.adjustments.flatMap((a) => a.notes);
-    // 24 direct sets against a ceiling of 22: the two 6-set squats give
-    // sets back (down to four on these four-row days) before any row is
-    // dropped, and nothing else is cut.
+    // 39 direct sets against a Legs ceiling of 33: the three 6-set squats
+    // give sets back (down to four on these four-row days) before any row
+    // is dropped, and nothing else is cut.
     expect(
       notes.filter((n) => n.includes('main lift above')).length,
-    ).toBeGreaterThanOrEqual(2);
+    ).toBeGreaterThanOrEqual(3);
     expect(notes.some((n) => n.startsWith('dropped'))).toBe(false);
-    expect(coachLegs(out.sessions)).toBeLessThanOrEqual(22);
+    expect(coachLegs(out.sessions)).toBeLessThanOrEqual(33);
   });
 });
 

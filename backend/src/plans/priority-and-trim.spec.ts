@@ -113,83 +113,54 @@ describe('priority rebalance and the main-lift trim cap (real catalog)', () => {
     expect(after.volumeByMuscle.Shoulders!.weighted).toBeGreaterThanOrEqual(8);
   });
 
-  it('takes a set off a six-set main lift before dropping a second accessory row', () => {
-    // Legs far over the band with every accessory at its floor.
-    const sessions = [
-      session('Tuesday', 'Lower', [
-        row('back_squat', 6, 120),
-        row('trap_bar_deadlift', 3),
-        row('seated_leg_extension', 2, 60),
-        row('floor_crunch', 3, 60),
-      ]),
-      session('Friday', 'Lower 2', [
-        row('conventional_deadlift', 4, 120),
-        row('forty_five_degree_leg_press', 3),
-        row('lying_leg_curl', 2, 60),
-        row('hanging_leg_raise', 3, 60),
-      ]),
-      session('Monday', 'Upper', [
-        row('flat_barbell_bench_press', 4, 120),
-        row('barbell_bent_over_row', 3),
-      ]),
-    ];
-    const specs = [
-      spec('Tuesday', 'Lower'),
-      spec('Friday', 'Lower 2'),
-      spec('Monday', 'Upper'),
-    ];
-    const findMeta = (id: string) => library.findOne(id);
-    const out = trimWeeklyVolumeToBand({ sessions, specs, findMeta, prefs });
-    const notes = out.adjustments.flatMap((a) => a.notes);
-    expect(notes.some((n) => n.includes('main lift above'))).toBe(true);
-    const squat = out.sessions[0]!.exercises.find(
-      (e) => e.exerciseId === 'back_squat',
-    )!;
-    const deadlift = out.sessions[1]!.exercises.find(
-      (e) => e.exerciseId === 'conventional_deadlift',
-    )!;
-    expect(squat.sets).toBe(5);
-    expect(deadlift.sets).toBe(4);
-    // the leg isolations at their floor survive while a main lift had sets to give
-    expect(
-      out.sessions[0]!.exercises.some(
-        (e) => e.exerciseId === 'seated_leg_extension',
-      ),
-    ).toBe(true);
-  });
-
-  it('on a thin day the main lift gives a set back down to four before the last accessory goes', () => {
-    // Four rows: squat 5, RDL 3, leg extension 2, plank. Dropping the
-    // extension would leave three lifts, so the squat gives a set first.
-    const sessions = [
-      session('Tuesday', 'Lower', [
-        row('back_squat', 6, 120),
+  it('main lifts give sets back, down to four on a four-row day, before the last accessory goes', () => {
+    // A beginner's Legs ceiling is 27 (18 × 1.5). Three lower days at
+    // their floors with six-set main lifts are 33 direct sets, so only
+    // the squats can give sets back; no row goes.
+    const lower = (weekday: string, name: string, opener: string) => ({
+      weekIndex: 1,
+      weekday,
+      name,
+      exercises: [
+        row(opener, 6, 120),
         row('barbell_romanian_deadlift', 3),
         row('seated_leg_extension', 2, 60),
         row('front_plank', 3, 60),
-      ]),
-      session('Friday', 'Lower 2', [
-        row('conventional_deadlift', 5, 120),
-        row('forty_five_degree_leg_press', 3),
-        row('seated_calf_raise_machine', 2, 60),
-        row('hanging_leg_raise', 3, 60),
-      ]),
+      ],
+    });
+    const sessions = [
+      lower('Monday', 'Lower', 'back_squat'),
+      lower('Wednesday', 'Lower 2', 'front_squat'),
+      lower('Friday', 'Lower 3', 'machine_hack_squat'),
     ];
-    const specs = [spec('Tuesday', 'Lower'), spec('Friday', 'Lower 2')];
+    const specs = [
+      spec('Monday', 'Lower'),
+      spec('Wednesday', 'Lower 2'),
+      spec('Friday', 'Lower 3'),
+    ];
     const findMeta = (id: string) => library.findOne(id);
-    const legs = coachCheckProgram({ sessions, specs, findMeta, prefs })[0]!
-      .volumeByMuscle.Legs!.weighted;
-    expect(legs).toBeGreaterThan(22);
-    const out = trimWeeklyVolumeToBand({ sessions, specs, findMeta, prefs });
-    expect(
-      out.sessions[0]!.exercises.some(
-        (e) => e.exerciseId === 'seated_leg_extension',
-      ),
-    ).toBe(true);
-    expect(
-      out.sessions[0]!.exercises.find((e) => e.exerciseId === 'back_squat')!
-        .sets,
-    ).toBeLessThanOrEqual(5);
+    const beginner = { ...prefs, difficulty: 'beginner' };
+    const legs = coachCheckProgram({
+      sessions,
+      specs,
+      findMeta,
+      prefs: beginner,
+    })[0]!.volumeByMuscle.Legs!.weighted;
+    expect(legs).toBeGreaterThan(27);
+    const out = trimWeeklyVolumeToBand({
+      sessions,
+      specs,
+      findMeta,
+      prefs: beginner,
+    });
+    const notes = out.adjustments.flatMap((a) => a.notes);
+    expect(notes.some((n) => n.includes('main lift above'))).toBe(true);
+    expect(notes.some((n) => n.startsWith('dropped'))).toBe(false);
+    for (const s of out.sessions) {
+      expect(s.exercises.length).toBe(4);
+      expect(s.exercises[0]!.sets).toBeLessThanOrEqual(5);
+      expect(s.exercises[0]!.sets).toBeGreaterThanOrEqual(4);
+    }
   });
 
   it('the duration clamp takes sets from every other row before the priority muscle', () => {

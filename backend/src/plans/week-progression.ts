@@ -10,6 +10,20 @@ import { clampSessionWorkingSets, ISOLATION_NAME } from './session-enrichment';
 import { isUnilateralByName } from './cross-session-diversity';
 import { cardioBlockStyle, cardioMainBlockNotes } from './cardio-day-template';
 import { normalizeWeekProgression } from './progression-profile';
+import { coachRoleOf } from './coach-check';
+
+/**
+ * The most sets a row may reach after the week's multiplier, by role:
+ * mirrors the allocator's ceilings (weekly-volume-allocation.ts). A
+ * five-set row times a peak multiplier of 1.24 rounded to six (rig run 7).
+ */
+const PROGRESSED_SET_CEILING: Record<ReturnType<typeof coachRoleOf>, number> = {
+  main: 6,
+  compound: 5,
+  isolation: 4,
+  core: 4,
+  hold: 4,
+};
 
 /**
  * Appended once to a deload session's reasoning so the lighter prescriptions
@@ -146,6 +160,7 @@ export type ProgressionExerciseMeta = {
   primaryEquipment?: string[];
   /** Raw catalog kind: "Compound" | "Isolation" | … */
   type?: string;
+  movementPatterns?: string[];
 };
 
 /**
@@ -232,13 +247,22 @@ export function applyWeekProgressionToEnrichedSessions(args: {
     }
 
     let changed = false;
+    let mainAssigned = false;
     let exercises = session.exercises.map((ex) => {
       if (isTimeOrCardioRow(ex)) return ex;
       const meta = ex.exerciseId ? findMeta?.(ex.exerciseId) : undefined;
+      const role = coachRoleOf(meta, ex, mainAssigned);
+      if (role === 'main') mainAssigned = true;
+      // Without the catalog's kind or patterns the role is a guess, so no
+      // ceiling applies.
+      const ceiling =
+        meta?.type || meta?.movementPatterns?.length
+          ? Math.max(ex.sets, PROGRESSED_SET_CEILING[role])
+          : Number.POSITIVE_INFINITY;
       const setsFloor = Math.min(2, ex.sets);
       const sets = Math.max(
         setsFloor,
-        Math.round(ex.sets * prog.volumeMultiplier),
+        Math.min(ceiling, Math.round(ex.sets * prog.volumeMultiplier)),
       );
       const shiftReps =
         prog.repModifier >= 0 || !keepsCanonicalRepBand(ex, meta);

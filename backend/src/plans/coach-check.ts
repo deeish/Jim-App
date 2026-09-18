@@ -47,7 +47,25 @@ export type MuscleVolume = {
   weighted: number;
   /** Sessions in the week with at least one direct set. */
   exposures: number;
+  /** This group's own weekly ceiling (see `groupBandMax`); the report's `band.max` is the per-muscle one. */
+  bandMax?: number;
 };
+
+/**
+ * "Legs" is one catalog group for quads, hamstrings, glutes and calves, so a
+ * plain per-muscle ceiling is far too tight for it: two lower days with four
+ * lifts each at their floor sets already read as 22, and every peak week
+ * from rig runs 4 to 9 had rows cut back out. One and a half bands is the
+ * whole lower body's ceiling.
+ */
+export const LEGS_BAND_SCALE = 1.5;
+
+export function groupBandMax(
+  group: string,
+  band: { min: number; max: number },
+): number {
+  return group === 'Legs' ? Math.round(band.max * LEGS_BAND_SCALE) : band.max;
+}
 
 export type CoachCheckReport = {
   weekIndex: number;
@@ -302,6 +320,9 @@ export function coachCheckWeek(args: {
   // Weekly volume against the band, for the groups this week actually trains
   // plus the big groups a whole-body week is expected to cover.
   const band = weeklyVolumeBand(args.prefs.goal, args.prefs.difficulty);
+  for (const g of Object.keys(volume)) {
+    volume[g]!.bandMax = groupBandMax(g, band);
+  }
   const expected = new Set<string>(MAIN_GROUPS);
   for (const g of COUNTED_GROUPS) if (volume[g]!.direct > 0) expected.add(g);
   let inBand = 0;
@@ -323,14 +344,14 @@ export function coachCheckWeek(args: {
         severity: 'warn',
         message: `${g}: ${fmt(v.weighted)} weekly sets, under the ${groupMin} most ${difficulty} lifters need to progress.`,
       });
-    } else if (v.weighted > band.max && g !== 'Core') {
+    } else if (v.weighted > groupBandMax(g, band) && g !== 'Core') {
       // Core collects half-credit from every squat, hinge and carry, so it
       // reads high on any lower-body week; direct core work is rarely a
       // recovery problem, so it is never flagged as over the band.
       findings.push({
         code: 'volume_high',
         severity: 'warn',
-        message: `${g}: ${fmt(v.weighted)} weekly sets, above the ${band.max} most ${difficulty} lifters recover from.`,
+        message: `${g}: ${fmt(v.weighted)} weekly sets, above the ${groupBandMax(g, band)} most ${difficulty} lifters recover from.`,
       });
     } else {
       inBand += 1;

@@ -65,7 +65,10 @@ import {
 } from './generation-capture';
 import { enforceWeekPatternFloors } from './week-pattern-floors';
 import { applyWeekProgressionToEnrichedSessions } from './week-progression';
-import { loadFactorByWeek } from './progression-profile';
+import {
+  loadFactorByWeek,
+  normalizeWeekProgression,
+} from './progression-profile';
 import {
   dedupeEnrichedProgramSessions,
   repairChunkGeneratedSessions,
@@ -2454,6 +2457,12 @@ export class PlansService {
         difficulty: dto.experienceLevel,
         priorityMuscle: dto.priorityMuscle,
       },
+      peakVolumeMultiplier: Math.max(
+        1,
+        ...normalizeWeekProgression(dto.weekProgression)
+          .filter((p) => p.phase.toLowerCase() !== 'deload')
+          .map((p) => p.volumeMultiplier),
+      ),
     });
     for (const a of allocated.adjustments) {
       this.logger.log(

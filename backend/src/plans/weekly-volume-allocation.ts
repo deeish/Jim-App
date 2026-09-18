@@ -7,6 +7,7 @@ import {
   coachRoleOf,
   isCardioRowMeta,
   weeklyVolumeBand,
+  groupBandMax,
   type CoachMeta,
   type CoachRole,
 } from './coach-check';
@@ -57,7 +58,7 @@ export type AllocationResult = {
 
 const WARMUP_SECONDS = 6 * 60;
 const SECONDS_UNDER_LOAD = 35;
-const MAX_ITERATIONS = 24;
+const MAX_ITERATIONS = 60;
 
 /**
  * The fewest sets a trim may leave on a row. A secondary compound at two
@@ -188,17 +189,26 @@ function trimWeekOverBand(ctx: {
   sessions: GeneratedSession[];
   idx: number[];
   findMeta: (id: string) => CoachMeta | undefined;
-  bandMax: number;
+  /** The ceiling for a group (Legs is one and a half bands, see coach-check.ts). */
+  bandMaxFor: (group: string) => number;
   volume: () => Record<string, { weighted: number }>;
   notes: string[];
+  /**
+   * The allocation runs before the progression and works toward a lowered
+   * ceiling (block headroom); it takes sets down to the floors and the main
+   * lift down to four, and stops there. Only the post-progression trim may
+   * drop a row (rig run 8: the headroom ceiling dropped every accessory and
+   * left two- and three-row days).
+   */
+  allowDrop: boolean;
 }): number {
-  const { sessions, idx, findMeta, bandMax, volume, notes } = ctx;
+  const { sessions, idx, findMeta, bandMaxFor, volume, notes, allowDrop } = ctx;
   let removed = 0;
   const weekSessions = () => idx.map((i) => sessions[i]!);
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     const vol = volume();
     const over = Object.entries(vol).filter(
-      ([g, v]) => g !== 'Core' && v.weighted > bandMax,
+      ([g, v]) => g !== 'Core' && v.weighted > bandMaxFor(g),
     );
     if (over.length === 0) break;
     const refs = classifyRows(weekSessions(), findMeta).map((r) => ({
@@ -229,7 +239,7 @@ function trimWeekOverBand(ctx: {
         removed += 1;
         trimmed = true;
         notes.push(
-          `-1 set ${row.name ?? row.exerciseId} (${group} over ${bandMax}/wk)`,
+          `-1 set ${row.name ?? row.exerciseId} (${group} over ${bandMaxFor(group)}/wk)`,
         );
         break;
       }
@@ -243,7 +253,7 @@ function trimWeekOverBand(ctx: {
               : undefined) !== 'Cardio' && e.prescriptionType !== 'time',
         ).length;
       const capFor = (r: RowRef) =>
-        liftRows(r.sessionIndex) - 1 <= THIN_DAY_ROWS
+        !allowDrop || liftRows(r.sessionIndex) - 1 <= THIN_DAY_ROWS
           ? MAIN_TRIM_CAP_THIN_DAY
           : MAIN_TRIM_CAP;
       const mainOverCap = refs
@@ -256,13 +266,14 @@ function trimWeekOverBand(ctx: {
         removed += 1;
         trimmed = true;
         notes.push(
-          `-1 set ${row.name ?? row.exerciseId} (${group} over ${bandMax}/wk, main lift above ${capFor(mainOverCap)})`,
+          `-1 set ${row.name ?? row.exerciseId} (${group} over ${bandMaxFor(group)}/wk, main lift above ${capFor(mainOverCap)})`,
         );
         break;
       }
       // Then drop one row rather than cut a compound to two sets. Isolation
       // first, then core, then the day's last secondary compound; a session
       // keeps at least two rows.
+      if (!allowDrop) continue;
       const droppable = refs
         .filter((r) => r.group === group && r.role !== 'main')
         .filter((r) => (sessions[r.sessionIndex]!.exercises?.length ?? 0) > 2)
@@ -277,7 +288,7 @@ function trimWeekOverBand(ctx: {
       );
       trimmed = true;
       notes.push(
-        `dropped ${row.name ?? row.exerciseId} (${group} over ${bandMax}/wk, accessories at their floor)`,
+        `dropped ${row.name ?? row.exerciseId} (${group} over ${bandMaxFor(group)}/wk, accessories at their floor)`,
       );
       break;
     }
@@ -326,9 +337,10 @@ export function trimWeeklyVolumeToBand(args: {
       sessions,
       idx,
       findMeta,
-      bandMax: band.max,
+      bandMaxFor: (g) => groupBandMax(g, band),
       volume,
       notes,
+      allowDrop: true,
     });
     if (removed > 0) adjustments.push({ weekIndex, added: 0, removed, notes });
   }
@@ -349,6 +361,15 @@ export function allocateWeeklyVolume(args: {
   specs: AllocationSpec[];
   findMeta: (id: string) => CoachMeta | undefined;
   prefs: { goal?: string; difficulty?: string; priorityMuscle?: string };
+  /**
+   * The block's largest set multiplier (progression-profile.ts). The
+   * allocation runs before the progression multiplies sets, so a week
+   * allocated to the ceiling had nowhere to grow: the peak week overflowed
+   * the band and the trim cut rows back out (rig runs 4-7, Legs at 22 in
+   * week 1 and a three-row lower day in week 4). The block now starts at
+   * ceiling ÷ peak and grows into the ceiling. 1 when omitted.
+   */
+  peakVolumeMultiplier?: number;
 }): AllocationResult {
   const { specs, findMeta, prefs } = args;
   if (args.sessions.length !== specs.length) {
@@ -360,6 +381,11 @@ export function allocateWeeklyVolume(args: {
     exercises: (s.exercises ?? []).map((e) => ({ ...e })),
   }));
   const band = weeklyVolumeBand(prefs.goal, prefs.difficulty);
+  const peak = Math.max(1, args.peakVolumeMultiplier ?? 1);
+  // The ceiling this allocation works toward: the group's own band max,
+  // divided by the block's peak multiplier so the peak week lands on it.
+  const ceilingFor = (g: string) =>
+    Math.max(band.min + 2, Math.floor(groupBandMax(g, band) / peak));
   const adjustments: AllocationResult['adjustments'] = [];
 
   const weekIndices = [...new Set(specs.map((s) => s.weekIndex))];
@@ -391,7 +417,7 @@ export function allocateWeeklyVolume(args: {
     // under the ceiling), every other group to the floor.
     const groupMin = (g: string) =>
       g === prefs.priorityMuscle
-        ? Math.max(band.min, band.max - 2)
+        ? Math.max(band.min, ceilingFor(g) - 2)
         : g === 'Arms' || g === 'Core'
           ? Math.round(band.min / 2)
           : band.min;
@@ -507,9 +533,10 @@ export function allocateWeeklyVolume(args: {
       sessions,
       idx,
       findMeta,
-      bandMax: band.max,
+      bandMaxFor: ceilingFor,
       volume,
       notes,
+      allowDrop: false,
     });
 
     // 4. Spare time goes to the main lift, one set, while its muscle stays in band.
@@ -522,7 +549,7 @@ export function allocateWeeklyVolume(args: {
       if (spare(i) < setCost(row)) continue;
       const g = main.group;
       const v = g ? volume()[g] : undefined;
-      if (v && v.weighted + 1 > band.max) continue;
+      if (v && v.weighted + 1 > ceilingFor(g)) continue;
       row.sets = (row.sets ?? 0) + 1;
       added += 1;
       notes.push(

@@ -151,18 +151,18 @@ describe('coachCheckWeek', () => {
         },
       ],
     });
-    expect(r.volumeByMuscle.Chest).toEqual({
+    expect(r.volumeByMuscle.Chest).toMatchObject({
       direct: 4,
       weighted: 4,
       exposures: 1,
     });
-    expect(r.volumeByMuscle.Back).toEqual({
+    expect(r.volumeByMuscle.Back).toMatchObject({
       direct: 8,
       weighted: 8,
       exposures: 2,
     });
     // Arms: 0 direct, 0.5 × (4 + 4 + 4 + 4) secondary
-    expect(r.volumeByMuscle.Arms).toEqual({
+    expect(r.volumeByMuscle.Arms).toMatchObject({
       direct: 0,
       weighted: 8,
       exposures: 0,

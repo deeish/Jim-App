@@ -295,14 +295,18 @@ function findOverConcentratedPatternIds(
     const id = ex.exerciseId?.trim();
     if (!id) continue;
     const primary = primaryMuscleGroupByExerciseId.get(id)?.trim();
-    if (primary === 'Core') {
+    const patterns = movementPatternsByExerciseId.get(id);
+    // A loaded carry is tagged Core in the catalog; it is grip and trunk
+    // work beside a plank, not a second core row (rig run 7).
+    const isCarry = patterns?.includes('Carry') ?? false;
+    if (primary === 'Core' && !isCarry) {
       coreOrder.push(id);
       continue;
     }
+    if (isCarry) continue;
     if (primary && PATTERN_BUDGET_EXEMPT_PRIMARY.has(primary)) {
       continue;
     }
-    const patterns = movementPatternsByExerciseId.get(id);
     if (!patterns?.length) continue;
     // First tracked pattern wins so we don't double-count Push+Pull style cross-tagged moves.
     const primaryPattern = TRACKED_PATTERNS.find((p) => patterns.includes(p));

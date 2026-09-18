@@ -356,12 +356,17 @@ export default function PlanPreviewScreen({ navigation, route }: Props) {
     const entries = Object.entries(coachReport.volumeByMuscle)
       .filter(([, v]) => v.weighted > 0)
       .sort((a, b) => b[1].weighted - a[1].weighted);
-    const scale = Math.max(band ? band.max * 1.15 : 0, ...entries.map(([, v]) => v.weighted), 1);
+    const scale = Math.max(
+      band ? band.max * 1.15 : 0,
+      ...entries.map(([, v]) => Math.max(v.weighted, (v.bandMax ?? 0) * 1.15)),
+      1,
+    );
     return entries.map(([muscle, v]) => {
       const sets = Number.isInteger(v.weighted) ? String(v.weighted) : v.weighted.toFixed(1);
       const small = muscle === 'Arms' || muscle === 'Core';
       const min = band ? (small ? Math.round(band.min / 2) : band.min) : 0;
-      const max = band ? band.max : Infinity;
+      // Legs (quads, hamstrings, glutes, calves) gets its own, wider ceiling from the server.
+      const max = band ? (v.bandMax ?? band.max) : Infinity;
       return {
         muscle,
         pct: Math.min(100, (v.weighted / scale) * 100),

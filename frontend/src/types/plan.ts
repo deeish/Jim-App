@@ -212,7 +212,10 @@ export interface CoachCheckReport {
   weekIndex: number;
   sessionCount: number;
   /** Weighted weekly sets per muscle (secondary movers count half) and the sessions that train it. */
-  volumeByMuscle: Record<string, { direct: number; weighted: number; exposures: number }>;
+  volumeByMuscle: Record<
+    string,
+    { direct: number; weighted: number; exposures: number; bandMax?: number }
+  >;
   /** 0..1 share of strength rows carrying a load, an effort target, or a hold duration. */
   effortCoverage: number;
   findings: CoachCheckFinding[];
