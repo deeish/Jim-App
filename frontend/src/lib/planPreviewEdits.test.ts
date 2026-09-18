@@ -3,6 +3,7 @@ jest.mock('../services/planService', () => ({ generateSessions: jest.fn(), repai
 
 import type { PlanDraft, PlanInputs, SessionDraft } from '../types/plan';
 import {
+  applyChosenSwapToDraft,
   daySummaryLine,
   leadLiftName,
   minutesLabel,
@@ -96,5 +97,46 @@ describe('removeDayFromDraft', () => {
     const out = removeDayFromDraft(draft(), 1, 'Monday');
     expect(out.weeks[0]!.days[0]!.session).toBeNull();
     expect(out.weeks[1]!.days[0]!.session).toBe(strength);
+  });
+});
+
+describe('applyChosenSwapToDraft', () => {
+  const chosen = {
+    id: 'db_bench',
+    name: 'Dumbbell Bench Press',
+    primaryMuscleGroup: 'Chest',
+    secondaryMuscleGroups: ['Triceps'],
+  };
+  const base = { weekIndex: 1, weekday: 'Monday', exerciseName: 'Flat Barbell Bench Press', chosen } as const;
+
+  it('puts the chosen exercise into the slot and keeps its prescription', () => {
+    const out = applyChosenSwapToDraft({ ...base, draft: draft(), scope: 'week' });
+    expect(out).not.toBeNull();
+    const row = out!.draft.weeks[0]!.days[0]!.session!.exercises[0]!;
+    expect(row.exerciseId).toBe('db_bench');
+    expect(row.name).toBe('Dumbbell Bench Press');
+    expect(row.sets).toBe(4);
+    expect(row.repsMin).toBe(8);
+    expect(row.repsMax).toBe(12);
+    expect(row.secondaryMuscleGroups).toEqual(['Triceps']);
+    // week only: week 2 still has the barbell bench
+    expect(out!.draft.weeks[1]!.days[0]!.session!.exercises[0]!.exerciseId).toBe('bench');
+    expect(out!.swap).toEqual({
+      weeks: 1,
+      weekday: 'Monday',
+      fromName: 'Flat Barbell Bench Press',
+      to: { exerciseId: 'db_bench', name: 'Dumbbell Bench Press', primaryMuscleGroup: 'Chest', secondaryMuscleGroups: ['Triceps'] },
+    });
+  });
+
+  it('scope all reaches every week and records the swap as all', () => {
+    const out = applyChosenSwapToDraft({ ...base, draft: draft(), scope: 'all' });
+    expect(out!.draft.weeks[1]!.days[0]!.session!.exercises[0]!.exerciseId).toBe('db_bench');
+    expect(out!.swap.weeks).toBe('all');
+  });
+
+  it('returns null when the day or the row is gone', () => {
+    expect(applyChosenSwapToDraft({ ...base, draft: draft(), weekday: 'Tuesday', scope: 'week' })).toBeNull();
+    expect(applyChosenSwapToDraft({ ...base, draft: draft(), exerciseName: 'Not there', scope: 'week' })).toBeNull();
   });
 });

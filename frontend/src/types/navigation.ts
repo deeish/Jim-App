@@ -17,6 +17,11 @@ export type AuthStackParamList = {
   Password: { email: string };
 };
 
+/** A plan or workout slot the exercise page can swap into. */
+export type ExerciseSwapTarget =
+  | { kind: 'calendar'; dateIso: string; exerciseIndex: number }
+  | { kind: 'preview'; weekIndex: number; weekday: string; exerciseName: string };
+
 export type RootNavigatorParamList = {
   Onboarding: undefined;
   Main: NavigatorScreenParams<RootTabParamList> | undefined;
@@ -82,6 +87,15 @@ export type RootStackParamList = {
   } | undefined;
   ExerciseDetail: {
     exerciseId: string;
+    /**
+     * The slot this page was opened from, when it was a plan or workout row.
+     * The page's similar-exercise list then offers "Use instead", which puts
+     * a row into that slot (see lib/exerciseSwap.ts). Carried forward when
+     * the user drills into a similar exercise, with `swapDepth` counting the
+     * pushed pages so a swap can pop back to the row in one go.
+     */
+    swapTarget?: ExerciseSwapTarget;
+    swapDepth?: number;
     /**
      * Set when opened cross-tab from a plan/workout flow. Back resets the Exercises
      * stack to SearchList and refocuses the originating tab: Plan for

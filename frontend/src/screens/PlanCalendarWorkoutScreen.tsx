@@ -183,6 +183,16 @@ export default function PlanCalendarWorkoutScreen() {
   const plan = plannedDayForDate(dateIso);
   const exercise = plan.exercises[exerciseIndex];
 
+  // The navigator titles this screen from the `exerciseName` param it was
+  // opened with. A swap made from the Exercise Guide ("Use instead") lands
+  // back here with a different row, so the param follows the row.
+  const rowName = exercise?.name;
+  useEffect(() => {
+    if (rowName && rowName !== route.params.exerciseName) {
+      navigation.setParams({ exerciseName: rowName });
+    }
+  }, [rowName, route.params.exerciseName, navigation]);
+
   const { weightUnit } = useUserPreferences();
   const unit: WeightUnit = weightUnit === 'kg' ? 'kg' : 'lb';
 
@@ -614,7 +624,11 @@ export default function PlanCalendarWorkoutScreen() {
             activeOpacity={0.8}
             onPress={() => {
               buzzTap();
-              navigation.navigate('ExerciseDetail', { exerciseId: exercise.exerciseId! });
+              navigation.navigate('ExerciseDetail', {
+                exerciseId: exercise.exerciseId!,
+                swapTarget: { kind: 'calendar', dateIso, exerciseIndex },
+                swapDepth: 1,
+              });
             }}
             accessibilityRole="button"
             accessibilityLabel="Open exercise guide"

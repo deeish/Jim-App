@@ -25,7 +25,12 @@ import {
   getDislikedExerciseIds,
   dislikeExercise,
   undislikeExercise,
+  getReplaceSuggestions,
+  type ReplaceSuggestion,
 } from '../services/exerciseService';
+import { applySwapTarget, outgoingForSwapTarget } from '../lib/exerciseSwap';
+import { showConfirmDialog } from '../lib/confirmAlert';
+import { buzzEditApplied } from '../lib/planCalendarPrototype';
 import { useTheme } from '../theme/ThemeContext';
 import { getMuscleGroupVisual } from '../constants/muscleGroupMeta';
 import MuscleBodyMap from '../components/bodymap/MuscleBodyMap';
@@ -111,13 +116,14 @@ type Props = {
 };
 
 export default function ExerciseDetailScreen({ navigation, route }: Props) {
-  const { exerciseId, returnToPlanPreview } = route.params || {};
+  const { exerciseId, returnToPlanPreview, swapTarget } = route.params || {};
+  const swapDepth = Math.max(1, route.params?.swapDepth ?? 1);
   const returnToPlanExerciseContext =
     route.params?.returnToPlanExerciseContext ??
     (returnToPlanPreview ? ('preview' as const) : undefined);
   const leaveExerciseForPlanFlow = returnToPlanExerciseContext != null;
   const { colors } = useTheme();
-  const { weightUnit } = useUserPreferences();
+  const { weightUnit, equipment: profileGear, goal, experience } = useUserPreferences();
   // The tab bar floats over this screen; keep the last sections clear of it.
   const tabBarInset = useTabBarInset();
   const [exercise, setExercise] = useState<Exercise | null>(null);
@@ -366,6 +372,40 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
         sectionTitle: { fontSize: text.headline, fontWeight: weight.semibold, color: colors.text, marginBottom: spacing.md },
         progressionLabel: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
         progressionGroup: { marginTop: spacing.md },
+        similarSub: { fontSize: text.footnote, color: colors.textSecondary, marginTop: -spacing.sm, marginBottom: spacing.md },
+        similarRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.md,
+          paddingVertical: spacing.md,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.border,
+        },
+        similarRowFirst: { borderTopWidth: 0, paddingTop: 0 },
+        similarText: { flex: 1 },
+        similarName: { fontSize: text.callout, fontWeight: weight.semibold, color: colors.text },
+        similarWhy: { fontSize: text.footnote, color: colors.textSecondary, marginTop: 2 },
+        useBtn: {
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.xs,
+          borderRadius: radius.pill,
+          backgroundColor: colors.primary,
+        },
+        useBtnText: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.onPrimary },
+        useBar: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: spacing.md,
+          marginTop: spacing.md,
+          padding: spacing.md,
+          borderRadius: radius.md,
+          backgroundColor: colors.primarySoft,
+          borderWidth: 1,
+          borderColor: colors.primary,
+        },
+        useBarText: { flex: 1, fontSize: text.footnote, color: colors.text },
+        similarEmpty: { fontSize: text.footnote, color: colors.textMuted },
         cueRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginBottom: spacing.sm },
         cueIcon: { marginTop: 2 },
         cueText: { flex: 1, fontSize: text.body, color: colors.textSecondary, lineHeight: 21 },
@@ -558,6 +598,92 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     if (exerciseId) loadExercise();
   }, [exerciseId, loadExercise]);
 
+  // ---- Similar exercises (2026-09-18) ----
+  // The same ranker as the swap picker's rail: ladder neighbours, the same
+  // lift on other equipment, shared sub-muscle, same pattern, then history,
+  // gear, goal and level. Ranked for THIS page's exercise; when the page was
+  // opened from a plan or workout row, the rest of that day and week go
+  // along so nothing already planned is offered.
+  const [similar, setSimilar] = useState<ReplaceSuggestion[] | null>(null);
+  const [similarFailed, setSimilarFailed] = useState(false);
+  // What sits in the slot right now (null when there is no slot, or it is gone).
+  const outgoing = useMemo(() => (swapTarget ? outgoingForSwapTarget(swapTarget) : null), [swapTarget]);
+  useEffect(() => {
+    if (!exercise) return;
+    let cancelled = false;
+    setSimilar(null);
+    setSimilarFailed(false);
+    void getReplaceSuggestions({
+      targetName: exercise.name,
+      targetExerciseId: exercise.id,
+      ...(outgoing
+        ? {
+            dayExerciseNames: outgoing.dayNames,
+            dayExerciseIds: outgoing.dayIds,
+            ...(outgoing.weekIds.length ? { weekExerciseIds: outgoing.weekIds } : null),
+            ...(outgoing.weekNames.length ? { weekExerciseNames: outgoing.weekNames } : null),
+          }
+        : null),
+      ...(profileGear.length > 0 ? { equipment: [...profileGear] } : null),
+      goal,
+      experience,
+      count: 6,
+    })
+      .then((rows) => {
+        if (!cancelled) setSimilar(rows);
+      })
+      .catch((e) => {
+        if (__DEV__) console.warn('[ExerciseDetail] similar exercises failed', e);
+        if (!cancelled) {
+          setSimilar([]);
+          setSimilarFailed(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // The list is ranked for the exercise on the page; gear/goal/level are
+    // stable for a visit and the outgoing slot is fixed by the route.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercise?.id, outgoing]);
+
+  const openSimilar = useCallback(
+    (id: string) => {
+      navigation.push('ExerciseDetail', {
+        exerciseId: id,
+        ...(swapTarget ? { swapTarget, swapDepth: swapDepth + 1 } : null),
+        ...(returnToPlanExerciseContext ? { returnToPlanExerciseContext } : null),
+      });
+    },
+    [navigation, swapTarget, swapDepth, returnToPlanExerciseContext],
+  );
+
+  /** "Use instead": the chosen exercise goes into the slot this page was
+   *  opened from, then every pushed exercise page pops in one go. */
+  const useInstead = useCallback(
+    (chosen: Exercise) => {
+      if (!swapTarget || !outgoing) return;
+      showConfirmDialog({
+        title: `Use ${chosen.name} instead?`,
+        message:
+          swapTarget.kind === 'preview'
+            ? `It takes the place of ${outgoing.name} in every week of the plan. The sets and reps stay.`
+            : `It takes the place of ${outgoing.name} in this workout. The sets and reps stay.`,
+        confirmText: 'Use it',
+        onConfirm: () => {
+          const ok = applySwapTarget(swapTarget, chosen);
+          if (!ok) {
+            Alert.alert("Couldn't swap", 'That row is no longer in the workout.');
+            return;
+          }
+          buzzEditApplied();
+          navigation.pop(swapDepth);
+        },
+      });
+    },
+    [swapTarget, outgoing, navigation, swapDepth],
+  );
+
   const handleBack = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
@@ -743,6 +869,24 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
             </View>
           )}
         </View>
+
+        {/* Opened from a plan or workout row and drilled into a similar
+            exercise: this page IS a candidate, so the swap sits right here. */}
+        {swapTarget && outgoing && outgoing.id !== exercise.id ? (
+          <View style={[styles.useBar, { marginHorizontal: spacing.lg }]}>
+            <Text style={styles.useBarText} numberOfLines={2}>
+              Instead of {outgoing.name}
+            </Text>
+            <TouchableOpacity
+              style={styles.useBtn}
+              onPress={() => useInstead(exercise)}
+              accessibilityRole="button"
+              accessibilityLabel={`Use ${exercise.name} instead of ${outgoing.name}`}
+            >
+              <Text style={styles.useBtnText}>Use instead</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         {/* Description */}
         {exercise.description && (
@@ -1018,6 +1162,62 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                 </View>
               </View>
             ) : null}
+          </View>
+        ) : null}
+
+        {/* Similar exercises — the ranked swaps for this lift. Reads the same
+            in the library and from a workout: what to do instead when the
+            machine is taken, or when this one is not wanted in the plan. */}
+        {similar === null || similar.length > 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Similar exercises</Text>
+            <Text style={styles.similarSub}>
+              {swapTarget && outgoing
+                ? `Same muscle, best swaps first. Use one instead of ${outgoing.name}.`
+                : 'Same muscle, best swaps first.'}
+            </Text>
+            {similar === null ? (
+              <SkeletonCard lines={3} />
+            ) : (
+              similar.map((s, i) => (
+                <View key={s.exercise.id} style={[styles.similarRow, i === 0 && styles.similarRowFirst]}>
+                  <TouchableOpacity
+                    style={styles.similarText}
+                    onPress={() => openSimilar(s.exercise.id)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${s.exercise.name}. ${s.reasons.join(', ')}. Opens the exercise.`}
+                  >
+                    <Text style={styles.similarName} numberOfLines={2}>
+                      {s.exercise.name}
+                    </Text>
+                    {s.reasons.length ? (
+                      <Text style={styles.similarWhy} numberOfLines={2}>
+                        {s.reasons.join(' · ')}
+                      </Text>
+                    ) : null}
+                  </TouchableOpacity>
+                  {swapTarget && outgoing ? (
+                    <TouchableOpacity
+                      style={styles.useBtn}
+                      onPress={() => useInstead(s.exercise)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Use ${s.exercise.name} instead of ${outgoing.name}`}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Text style={styles.useBtnText}>Use instead</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                  )}
+                </View>
+              ))
+            )}
+          </View>
+        ) : similarFailed ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Similar exercises</Text>
+            <Text style={styles.similarEmpty}>Couldn’t load swaps. Check your connection.</Text>
           </View>
         ) : null}
 

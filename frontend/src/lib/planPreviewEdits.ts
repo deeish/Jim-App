@@ -63,9 +63,8 @@ export async function swapExerciseInDraft(args: {
   const { draft, planInputs, weekIndex, weekday, exerciseName, scope } = args;
   const session = findSession(draft, weekIndex, weekday);
   if (!session) return null;
-  const targetIndex = session.exercises.findIndex((e) => e.name === exerciseName);
-  if (targetIndex < 0) return null;
-  const target = session.exercises[targetIndex]!;
+  const target = session.exercises.find((e) => e.name === exerciseName);
+  if (!target) return null;
   const avoid = [
     ...(planInputs.injuriesAvoid?.bodyAreas ?? []),
     ...(planInputs.injuriesAvoid?.movementsOrEquipment ?? []),
@@ -79,12 +78,44 @@ export async function swapExerciseInDraft(args: {
     avoid: avoid.length ? avoid : undefined,
   });
   if (!picked) return null;
+  return applyChosenSwapToDraft({ draft, weekIndex, weekday, exerciseName, chosen: picked, scope });
+}
+
+/** The identity a swap needs from a catalog exercise. */
+export type SwapChoice = {
+  id: string;
+  name: string;
+  primaryMuscleGroup: string;
+  secondaryMuscleGroups?: string[];
+};
+
+/**
+ * Puts a chosen catalog exercise into one slot of the draft (the exercise
+ * page's "Use instead", 2026-09-18). The slot keeps its prescription; only
+ * the identity changes. Same shape as the server-picked swap above so both
+ * paths record the swap and survive a rebuild.
+ */
+export function applyChosenSwapToDraft(args: {
+  draft: PlanDraft;
+  weekIndex: number;
+  weekday: string;
+  exerciseName: string;
+  chosen: SwapChoice;
+  scope: 'week' | 'all';
+}): { draft: PlanDraft; swap: RecordedSwap } | null {
+  const { draft, weekIndex, exerciseName, chosen, scope } = args;
+  const weekday = args.weekday as Weekday;
+  const session = findSession(draft, weekIndex, weekday);
+  if (!session) return null;
+  const targetIndex = session.exercises.findIndex((e) => e.name === exerciseName);
+  if (targetIndex < 0) return null;
+  const target = session.exercises[targetIndex]!;
   const replacement: ExerciseDraft = {
     ...target,
-    exerciseId: picked.id,
-    name: picked.name,
-    primaryMuscleGroup: picked.primaryMuscleGroup,
-    secondaryMuscleGroups: picked.secondaryMuscleGroups?.length ? [...picked.secondaryMuscleGroups] : undefined,
+    exerciseId: chosen.id,
+    name: chosen.name,
+    primaryMuscleGroup: chosen.primaryMuscleGroup,
+    secondaryMuscleGroups: chosen.secondaryMuscleGroups?.length ? [...chosen.secondaryMuscleGroups] : undefined,
     notes: undefined,
   };
   const swap: RecordedSwap = {

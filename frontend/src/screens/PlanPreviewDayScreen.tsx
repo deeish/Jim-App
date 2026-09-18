@@ -125,9 +125,13 @@ export default function PlanPreviewDayScreen({ navigation, route }: Props) {
         Alert.alert('Exercise details', `“${e.name}” isn’t linked to the library yet. Open the Exercises tab and search by name.`);
         return;
       }
-      navigation.navigate('ExerciseDetail', { exerciseId: id });
+      navigation.navigate('ExerciseDetail', {
+        exerciseId: id,
+        swapTarget: { kind: 'preview', weekIndex: weekNumber, weekday: day, exerciseName: e.name },
+        swapDepth: 1,
+      });
     },
-    [navigation],
+    [navigation, weekNumber, day],
   );
 
   const doSwap = useCallback(
