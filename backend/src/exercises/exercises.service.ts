@@ -39,6 +39,7 @@ import { SearchExercisesDto } from './dto/search-exercises.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 import { SuggestAdditionsDto } from './dto/suggest-additions.dto';
 import type { UserTrainingHistory } from './user-training-history.service';
+import { currentExcludedExerciseIds } from '../common/excluded-exercises.context';
 import {
   normalizeSearchText,
   tokenizeQuery,
@@ -322,6 +323,16 @@ export class ExercisesService implements OnModuleInit {
 
   search(searchDto: SearchExercisesDto): TransformedExercise[] {
     let results = this.exercises.filter((e) => this.isCatalogVisible(e.id));
+
+    // The user's disliked list (excluded-exercises.context.ts). Every pool
+    // pull (generator, chunk repair, floors, the swap and add pickers) comes
+    // through here, so one filter covers them all. Outside a run scope the
+    // set is empty and the catalog search shows everything, on purpose: the
+    // browse and the hidden list must still find a disliked lift.
+    const excluded = currentExcludedExerciseIds();
+    if (excluded.size) {
+      results = results.filter((e) => !excluded.has(e.id));
+    }
 
     // "Recommended" scope: explicit user intent for the curated staples only.
     if (searchDto.recommendedOnly) {

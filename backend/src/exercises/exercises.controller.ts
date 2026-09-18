@@ -18,6 +18,8 @@ import { getExerciseProgressions } from '../data/exercise-progressions';
 import { getFormCues } from '../data/exercise-form-cues';
 import { getJointDemands, JOINT_LABELS } from '../data/exercise-joint-demands';
 import { SavedExercisesService } from './saved-exercises.service';
+import { DislikedExercisesService } from './disliked-exercises.service';
+import { runWithExcludedExerciseIds } from '../common/excluded-exercises.context';
 import {
   UserTrainingHistoryService,
   UserTrainingHistory,
@@ -45,6 +47,7 @@ export class ExercisesController {
   constructor(
     private readonly exercisesService: ExercisesService,
     private readonly savedExercisesService: SavedExercisesService,
+    private readonly dislikedExercisesService: DislikedExercisesService,
     private readonly authService: AuthService,
     private readonly trainingHistory: UserTrainingHistoryService,
   ) {}
@@ -56,6 +59,33 @@ export class ExercisesController {
    * absent/invalid one silently degrades to catalog-only. Never throws —
    * personalization must not turn a public route into an authed one.
    */
+  private async optionalUserId(
+    req: MaybeAuthedRequest,
+  ): Promise<string | undefined> {
+    const header = req.headers?.authorization;
+    const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
+    if (!token) return undefined;
+    try {
+      const payload = await this.authService.verifyToken(token);
+      return payload.sub || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** The caller's disliked ids when a valid token is attached; empty otherwise. */
+  private async optionalExcludedIds(
+    req: MaybeAuthedRequest,
+  ): Promise<string[]> {
+    const userId = await this.optionalUserId(req);
+    if (!userId) return [];
+    try {
+      return await this.dislikedExercisesService.getDislikedExerciseIds(userId);
+    } catch {
+      return [];
+    }
+  }
+
   private async optionalHistory(
     req: MaybeAuthedRequest,
   ): Promise<UserTrainingHistory | undefined> {
@@ -109,7 +139,12 @@ export class ExercisesController {
     @Req() req: MaybeAuthedRequest,
   ) {
     const history = await this.optionalHistory(req);
-    return { exercise: this.exercisesService.pickReplacement(dto, history) };
+    const excluded = await this.optionalExcludedIds(req);
+    return {
+      exercise: runWithExcludedExerciseIds(excluded, () =>
+        this.exercisesService.pickReplacement(dto, history),
+      ),
+    };
   }
 
   /** Ranked top-N alternatives for one exercise, each with why-tags — the
@@ -121,10 +156,10 @@ export class ExercisesController {
     @Req() req: MaybeAuthedRequest,
   ) {
     const history = await this.optionalHistory(req);
+    const excluded = await this.optionalExcludedIds(req);
     return {
-      suggestions: this.exercisesService.pickReplacementSuggestions(
-        dto,
-        history,
+      suggestions: runWithExcludedExerciseIds(excluded, () =>
+        this.exercisesService.pickReplacementSuggestions(dto, history),
       ),
     };
   }
@@ -138,8 +173,11 @@ export class ExercisesController {
     @Req() req: MaybeAuthedRequest,
   ) {
     const history = await this.optionalHistory(req);
+    const excluded = await this.optionalExcludedIds(req);
     return {
-      suggestions: this.exercisesService.pickAdditionSuggestions(dto, history),
+      suggestions: runWithExcludedExerciseIds(excluded, () =>
+        this.exercisesService.pickAdditionSuggestions(dto, history),
+      ),
     };
   }
 
@@ -184,6 +222,47 @@ export class ExercisesController {
     @UserId() userId: string,
   ): Promise<void> {
     await this.savedExercisesService.unsaveExercise(userId, exerciseId);
+  }
+
+  // --- Exercises the user never wants to see (2026-09-17) ---
+
+  @Get('disliked/ids')
+  @UseGuards(AuthGuard)
+  async getDislikedIds(
+    @UserId() userId: string,
+  ): Promise<{ exerciseIds: string[] }> {
+    const exerciseIds =
+      await this.dislikedExercisesService.getDislikedExerciseIds(userId);
+    return { exerciseIds };
+  }
+
+  @Get('disliked')
+  @UseGuards(AuthGuard)
+  async getDislikedExercises(@UserId() userId: string) {
+    const ids =
+      await this.dislikedExercisesService.getDislikedExerciseIds(userId);
+    const exercises = this.exercisesService.findByIds(ids);
+    return { exercises };
+  }
+
+  @Post(':exerciseId/dislike')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async dislikeExercise(
+    @Param('exerciseId') exerciseId: string,
+    @UserId() userId: string,
+  ): Promise<void> {
+    await this.dislikedExercisesService.dislikeExercise(userId, exerciseId);
+  }
+
+  @Delete(':exerciseId/dislike')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async undislikeExercise(
+    @Param('exerciseId') exerciseId: string,
+    @UserId() userId: string,
+  ): Promise<void> {
+    await this.dislikedExercisesService.undislikeExercise(userId, exerciseId);
   }
 
   @Get(':id')

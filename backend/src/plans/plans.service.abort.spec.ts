@@ -19,6 +19,7 @@ describe('PlansService.generateSessions — client abort', () => {
       generator as never,
       exercises as never,
       {} as never,
+      { getDislikedExerciseIds: jest.fn(async () => []) } as never,
     );
 
     const dto = {

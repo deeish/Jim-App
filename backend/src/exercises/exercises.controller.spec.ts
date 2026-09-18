@@ -19,6 +19,7 @@ describe('ExercisesController search limit', () => {
     controller = new ExercisesController(
       exercisesService,
       {} as SavedExercisesService,
+      { getDislikedExerciseIds: jest.fn(async () => []) } as never,
       {} as AuthService,
       {} as UserTrainingHistoryService,
     );

@@ -35,6 +35,7 @@ describe('PlansService.repairProgramSessions', () => {
       {} as never,
       exercises as never,
       {} as never,
+      { getDislikedExerciseIds: jest.fn(async () => []) } as never,
     );
 
     const dto: RepairProgramSessionsDto = {
@@ -80,6 +81,7 @@ describe('PlansService.repairProgramSessions', () => {
       {} as never,
       exercises as never,
       {} as never,
+      { getDislikedExerciseIds: jest.fn(async () => []) } as never,
     );
 
     jest

@@ -29,6 +29,7 @@ model User {
   workoutLogs       WorkoutLog[]
   savedWorkouts     SavedWorkout[]
   savedExercises    SavedExercise[]
+  dislikedExercises DislikedExercise[]
   bodyWeightEntries BodyWeightEntry[]
   shares            Share[]           @relation("SharesOwned")
   shareRedemptions  ShareRedemption[]
@@ -251,6 +252,22 @@ model SavedExercise {
 
   @@unique([userId, exerciseId])
   @@map("saved_exercises")
+  @@index([userId])
+  @@index([exerciseId])
+}
+
+// Exercises a user never wants to see (2026-09-17). Excluded from every
+// catalog pool pull and the replacement picker; see excluded-exercises.context.ts.
+model DislikedExercise {
+  id         String   @id @default(uuid())
+  userId     String
+  exerciseId String   // library exercise id
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, exerciseId])
+  @@map("disliked_exercises")
   @@index([userId])
   @@index([exerciseId])
 }

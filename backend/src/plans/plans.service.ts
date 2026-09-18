@@ -18,6 +18,11 @@ import {
   type LlmCompletionUsage,
 } from '../workouts/workout-generator.service';
 import { ExercisesService } from '../exercises/exercises.service';
+import { DislikedExercisesService } from '../exercises/disliked-exercises.service';
+import {
+  currentExcludedExerciseIds,
+  runWithExcludedExerciseIds,
+} from '../common/excluded-exercises.context';
 import {
   CreatePlanDto,
   PlanSlotDto,
@@ -92,7 +97,33 @@ export class PlansService {
     private readonly workoutGenerator: WorkoutGeneratorService,
     private readonly exercises: ExercisesService,
     private readonly config: ConfigService,
+    private readonly disliked: DislikedExercisesService,
   ) {}
+
+  /**
+   * Runs `fn` with the user's disliked exercises excluded from every catalog
+   * pool pull (excluded-exercises.context.ts). A failed read never blocks a
+   * generation.
+   */
+  private async withUserExclusions<T>(
+    userId: string | undefined,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    let ids: string[] = [];
+    if (userId) {
+      try {
+        ids = await this.disliked.getDislikedExerciseIds(userId);
+      } catch (err) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'disliked_exercises_read_failed',
+            reason: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      }
+    }
+    return runWithExcludedExerciseIds(ids, fn);
+  }
 
   private static readonly CARDIO_MODALITY_WHITELIST = new Set([
     'run',
@@ -1872,7 +1903,13 @@ export class PlansService {
     };
   }
 
-  async generateSessions(
+  async generateSessions(dto: GenerateSessionsDto, userId: string) {
+    return this.withUserExclusions(userId, () =>
+      this.generateSessionsUnscoped(dto, userId),
+    );
+  }
+
+  private async generateSessionsUnscoped(
     dto: GenerateSessionsDto,
     userId: string,
   ): Promise<{
@@ -2205,6 +2242,18 @@ export class PlansService {
    * regenerating one week client-side) without calling Groq.
    */
   async repairProgramSessions(
+    dto: RepairProgramSessionsDto,
+    userId: string,
+  ): Promise<{
+    sessions: GeneratedSession[];
+    generationNotes?: string[];
+  }> {
+    return this.withUserExclusions(userId, () =>
+      this.repairProgramSessionsUnscoped(dto, userId),
+    );
+  }
+
+  private async repairProgramSessionsUnscoped(
     dto: RepairProgramSessionsDto,
     userId: string,
   ): Promise<{
@@ -2573,10 +2622,34 @@ export class PlansService {
       );
     }
 
+    // Safety net for the disliked list: every pool pull already excludes
+    // those ids, so this should never fire; if a side door opens, the row
+    // goes rather than the lift the user said no to.
+    const excluded = currentExcludedExerciseIds();
+    let dislikedDrops = 0;
+    const cleared = excluded.size
+      ? oneCalf.map((s) => {
+          const kept = (s.exercises ?? []).filter(
+            (e) => !e.exerciseId || !excluded.has(e.exerciseId),
+          );
+          if (kept.length === (s.exercises ?? []).length) return s;
+          dislikedDrops += (s.exercises ?? []).length - kept.length;
+          return { ...s, exercises: kept };
+        })
+      : oneCalf;
+    if (dislikedDrops > 0) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'disliked_row_dropped_late',
+          rows: dislikedDrops,
+        }),
+      );
+    }
+
     // The model named the day from the lifts it chose; every pass above may
     // have swapped them. Rebuild the "· Bench + Row" suffix from what is
     // actually there (see session-title.ts).
-    const named = oneCalf.map((session) => ({
+    const named = cleared.map((session) => ({
       ...session,
       name:
         conformSessionTitleToExercises(session.name, session.exercises) ??
@@ -2761,6 +2834,15 @@ export class PlansService {
   }
 
   async generateSingleSession(dto: GenerateSingleSessionDto, userId: string) {
+    return this.withUserExclusions(userId, () =>
+      this.generateSingleSessionUnscoped(dto, userId),
+    );
+  }
+
+  private async generateSingleSessionUnscoped(
+    dto: GenerateSingleSessionDto,
+    userId: string,
+  ) {
     this.logger.debug(`generateSingleSession user=${userId}`);
     const goal = dto.goal ?? 'strength';
     const location = dto.location ?? 'gym';
