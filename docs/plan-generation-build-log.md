@@ -687,3 +687,18 @@ Backend: already live. Render deployed main as it was pushed; production answers
 
 - No binary cut in this step. The card and the version are in place for it; the build and the TestFlight submit are the next action.
 - The 1.3.0 card was not archived: it never reached external testers, so its rows live on in the 1.4.0 card and the cap of four is unchanged.
+
+
+## Dark launch: the splash and the loader follow the theme (2026-09-18)
+
+Dylan: in dark mode the loading screen into the app is always light. It was, by design of the 2026-09-13 loader pass ("the light splash frame whatever the theme, the dissolve is where the ground crosses"). Two layers, both fixed.
+
+| # | Piece | Change | Where | Verified by |
+|---|---|---|---|---|
+| 1 | Native splash | A dark variant: the app's dark ground (#0A0D13) with the mark in the dark brand blue (#4D9BFF), the same pair the dark app icon uses. `splash.dark` in app.json; iOS and Android pick it from the phone's appearance since `userInterfaceStyle` is automatic. Made by recolouring the light splash exactly (one solid mark colour on a flat ground, so the anti-aliasing carries over); the generator now emits both for the next regeneration | `assets/splash-dark.png`, `app.json`, `brand/tools/generate.js` | pixel check: 13,619 mark pixels, solid #4D9BFF at the stem, corners #0A0D13; binary change |
+| 2 | The JS loader | `LoadingScreen` draws the splash frame of the current theme (`SPLASH` / `SPLASH_DARK` in `jimMark.ts`), so the dissolve only reveals the app, never a change of ground | `components/LoadingScreen.tsx`, `lib/jimMark.ts`, `App.tsx` (comment) | rig with the dark theme saved: the loader frame is the dark mark on the dark ground over the dark app |
+| 3 | The first frame | The theme used to start on light and learn the saved dark from AsyncStorage a few frames later, so every dark launch began light. The saved mode is now read synchronously at launch: the keychain through expo-secure-store's sync `getItem` on native, localStorage on web; AsyncStorage keeps its copy so a phone that chose dark before this migrates on its first launch (one light frame, then never again) | `lib/themeStore.ts`, `theme/ThemeContext.tsx` | `tsc`, 745 tests; the native read needs the phone |
+
+### Deliberately not done
+
+- The native splash follows the phone's appearance, not the in-app choice: iOS draws it before any app code runs. A phone set to light with the app set to dark opens on the light native splash and crosses to dark at the loader. The only way around that is pinning the app to dark in the binary, which is what caused the build-32 header flash.
