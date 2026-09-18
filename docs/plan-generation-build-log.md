@@ -669,3 +669,21 @@ Rig outcome: `docs/audits/2026-09-18-similar-exercises-rig-run.json`. Frontend: 
 - Correction (same night): there is no Workout tab any more (tabs are Home, Calendar, Crew, Exercises); the live workout IS the calendar workout screen, which passes the slot. The `'workout'` context in the navigation types is a leftover nobody sends. The only opener left without a slot is the replace picker's own detail link, where the picker is already the swap surface.
 - The ranker's per-day context is only as good as the opener: from the library there is no day, so the "already in the day" and "already this week" signals stay quiet there on purpose.
 - Six rows, not a scrolling list: the ranker's tail is weak past the first handful and a longer list reads as padding.
+
+
+## Release prep: the What's New card and the sheet that would not scroll (2026-09-18)
+
+Dylan: before the next build goes to the internal tester, one What's New card carrying everything since the last build external testers had, selective; and the sheet cannot be scrolled on his phone.
+
+| # | Piece | Change | Where | Verified by |
+|---|---|---|---|---|
+| 1 | The card | One card, id `2026-09-18`, version 1.4.0, eleven rows: the plan builder's questions and weekly volume, weight/effort/rest on every set, weeks that adjust to what you log (with the next block), the new preview, hidden exercises, similar exercises with Use instead, then the 1.3.0 items (icon and launch, Connect Apple Health, the two fixes, day names). Build 1.3.0 (34) only reached the internal tester, so its card is folded in, not kept. Left out: the Gemini line, the allowlist, the logo loader, the Build muscle goal, legal links | `constants/changelog.ts` | rig: sheet opens with the title, the version line, all eleven rows reachable |
+| 2 | Version | 1.3.0 → 1.4.0 in `app.json`; the runtime policy is `appVersion`, so this binary never shares an OTA runtime with 34 | `app.json` | `tsc` |
+| 3 | The scroll | The list could not be dragged on the phone. The August fix (`5175aa3`) added the indicator and the fade and was verified on the web rig only; its own message warned that web proves the layout, never the native responder. The card differed from every scrolling list in the app in two ways and both are gone: it was the only vertical ScrollView inside a Pressable tap-guard (the guard is redundant, the scrim is a sibling behind the card and a touch on the card never reaches it), and it was the only percentage height under the sheet positioner (a percentage that fails to resolve leaves the card as tall as its content, and a list as tall as its content has nothing to scroll). Now a plain View with a pixel height from the window, `alwaysBounceVertical` so a touch shows it registered | `components/WhatsNewModal.tsx` | rig: overflows and scrolls to the end, Continue pinned. ⚠ the native half needs Dylan's phone; if it still refuses to drag, the next step is gesture-handler's ScrollView inside the sheet |
+
+Backend: already live. Render deployed main as it was pushed; production answers 401 on the new hidden-exercise route (the guard, so the route exists) and the readiness check reports db, supabase and llm ok.
+
+### Deliberately not done
+
+- No binary cut in this step. The card and the version are in place for it; the build and the TestFlight submit are the next action.
+- The 1.3.0 card was not archived: it never reached external testers, so its rows live on in the 1.4.0 card and the cap of four is unchanged.
