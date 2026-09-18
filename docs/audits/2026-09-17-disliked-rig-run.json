@@ -1,0 +1,91 @@
+{
+  "user": "22222222-3333-4444-8555-666666666666",
+  "steps": [
+    {
+      "step": "disliked",
+      "ids": [
+        "barbell_romanian_deadlift",
+        "barbell_sumo_deadlift",
+        "conventional_deadlift",
+        "dumbbell_romanian_deadlift",
+        "flat_barbell_bench_press",
+        "trap_bar_deadlift"
+      ],
+      "names": [
+        "Conventional Deadlift",
+        "Trap Bar Deadlift",
+        "Barbell Sumo Deadlift",
+        "Barbell Romanian Deadlift",
+        "Dumbbell Romanian Deadlift",
+        "Flat Barbell Bench Press"
+      ]
+    },
+    {
+      "step": "generated",
+      "sessions": 8,
+      "builtBy": "ai",
+      "notes": [
+        "This week used best-available batch output (minor quality warnings present)."
+      ],
+      "leaked": [],
+      "lowerDays": [
+        "1 Tuesday: Back Squat | Barbell Hip Thrust | Standing Calf Raise Machine | Walking Lunge | Front Plank",
+        "1 Friday: Front Squat | Barbell Good Morning | Seated Leg Extension | Seated Calf Raise Machine | Hanging Leg Raise",
+        "2 Tuesday: Back Squat | Barbell Hip Thrust | Standing Calf Raise Machine | Walking Lunge | Front Plank",
+        "2 Friday: Front Squat | Barbell Good Morning | Seated Leg Extension | Seated Calf Raise Machine | Hanging Leg Raise"
+      ],
+      "upperDays": [
+        "1 Monday: Incline Dumbbell Bench Press | Barbell Bent-Over Row | Barbell Overhead Press | Dumbbell Lateral Raise | Standing EZ-Bar Cable Curl",
+        "1 Thursday: Chest Dip | Pull-Up | Standing Barbell Curl | Cable Lateral Raise | Lying EZ-Bar Triceps Extension",
+        "2 Monday: Incline Dumbbell Bench Press | Barbell Bent-Over Row | Barbell Overhead Press | Dumbbell Lateral Raise | Standing EZ-Bar Cable Curl",
+        "2 Thursday: Chest Dip | Pull-Up | Standing Barbell Curl | Cable Lateral Raise | Lying EZ-Bar Triceps Extension"
+      ]
+    },
+    {
+      "step": "swap",
+      "target": "Barbell Hip Thrust",
+      "swaps": [
+        {
+          "id": "barbell_good_morning",
+          "name": "Barbell Good Morning"
+        },
+        {
+          "id": "glute_bridge",
+          "name": "Glute Bridge"
+        },
+        {
+          "id": "dumbbell_bulgarian_split_squat",
+          "name": "Dumbbell Bulgarian Split Squat"
+        },
+        {
+          "id": "bodyweight_squat",
+          "name": "Bodyweight Squat"
+        },
+        {
+          "id": "machine_hack_squat",
+          "name": "Machine Hack Squat"
+        },
+        {
+          "id": "cable_pull_through",
+          "name": "Cable Pull-Through"
+        }
+      ],
+      "suggestions": [
+        "barbell_glute_bridge",
+        "glute_bridge",
+        "barbell_good_morning"
+      ],
+      "leaked": []
+    },
+    {
+      "step": "swap_anonymous",
+      "picked": "Conventional Deadlift"
+    },
+    {
+      "step": "undisliked",
+      "remaining": 5,
+      "stillHas": false
+    }
+  ],
+  "ok": true
+}
