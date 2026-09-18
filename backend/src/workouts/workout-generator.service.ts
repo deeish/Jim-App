@@ -11,6 +11,7 @@ import {
   type FocusKey,
 } from '../data/program-templates';
 import {
+  getAcceptedOpenerIdsForFocus,
   getAnchorIdsForFocus,
   isGymLikeEquipment,
 } from '../data/anchor-exercises';
@@ -829,6 +830,10 @@ export class WorkoutGeneratorService {
         difficulty: args.difficulty,
         priorityMuscle: args.priorityMuscle,
         preferredExercises: args.preferredExercises,
+        openerIds: getAcceptedOpenerIdsForFocus(label, {
+          equipment,
+          difficulty: args.difficulty,
+        }),
       });
       if (!list) continue;
       const poolById = new Map(pool.map((c) => [c.id, c]));
@@ -1231,7 +1236,7 @@ ${exercisesSchemaLine}`;
       ? `You are a strength and conditioning coach choosing the lifts for one training week. Each day's structure is fixed: its slots are listed in order with the options for each slot, best options first. Rules:
 (1) One id per slot, in slot order, from that day's own list; an optional slot may be skipped. Never repeat an id within a day.
 (2) Slot 1 is the day's main lift. Prefer the first options listed. ${openerLine}
-(3) When a focus repeats in the week, the second day opens with a different lift or angle (flat bench → incline or overhead; back squat → front squat or leg press) and its other slots mostly differ too.
+(3) When a focus repeats in the week, the second day opens with a different slot-1 option (flat bench → incline bench or dumbbell bench; back squat → front squat or leg press) and its other slots mostly differ too.
 (4) No sub-muscle stacking — at most 2 exercises loading the same sub-muscle in one day (Calves, Core and Cardio are exempt).
 (5) At most 2 pressing compounds and at most 2 hip hinges in one day.
 (6) With 3 or more lifting days, each big muscle group (chest, back, quads, hamstrings/glutes, shoulders) is trained on at least 2 different days.

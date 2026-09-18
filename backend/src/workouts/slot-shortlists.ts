@@ -256,6 +256,12 @@ export function buildFocusShortlist(args: {
   difficulty?: string;
   priorityMuscle?: string;
   preferredExercises?: string[];
+  /**
+   * The ids the chunk validator accepts in slot 1 for this focus and user
+   * (anchor-exercises.ts `getAcceptedOpenerIdsForFocus`). When given, the
+   * first slot offers those only, so the prompt and the validator agree.
+   */
+  openerIds?: string[];
 }): FocusShortlist | null {
   const key = String(normalizeFocusToKey(args.focusLabel));
   const kinds = SLOT_KINDS_BY_FOCUS[key];
@@ -269,6 +275,7 @@ export function buildFocusShortlist(args: {
   const isPreferred = (c: ShortlistCandidate) =>
     preferred.some((p) => c.name.toLowerCase().includes(p));
   const priority = (args.priorityMuscle ?? '').trim();
+  const openerSet = args.openerIds?.length ? new Set(args.openerIds) : null;
   const taken = new Set<string>();
   const out: SlotShortlist[] = [];
   kinds.forEach((kind, index) => {
@@ -282,12 +289,19 @@ export function buildFocusShortlist(args: {
         ? MAIN_SLOT_SIZE
         : ACCESSORY_SLOT_SIZE;
     const fits = PREDICATES[kind];
-    const matches = args.pool.filter(
+    const fitting = args.pool.filter(
       (c) =>
         !taken.has(c.id) &&
         fits(c) &&
         !(isMain && heavyOpeners && LIGHT_ANCHOR_IDS.has(c.id)),
     );
+    const accepted =
+      index === 0 && openerSet
+        ? fitting.filter((c) => openerSet.has(c.id))
+        : fitting;
+    // A thin anchor list (a narrow focus, a band-only pool) falls back to
+    // the fitting rows so the slot is never empty.
+    const matches = accepted.length >= 2 ? accepted : fitting;
     const rank = (c: ShortlistCandidate) =>
       (isPreferred(c) ? 0 : 2) +
       (!isMain && priority && c.primaryMuscleGroup === priority ? 0 : 1);

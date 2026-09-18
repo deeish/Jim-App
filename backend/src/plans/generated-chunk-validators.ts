@@ -171,6 +171,9 @@ interface PatternBudget {
 }
 
 /** Tunable caps. Keep conservative for v1 — we only flag obvious over-concentration. */
+/** Same-pattern rows allowed on a Push or Pull day (see the budget use site). */
+const SINGLE_PATTERN_DAY_CAP = 5;
+
 const FOCUS_BUDGET: Record<SessionFocus, PatternBudget | null> = {
   upper: { maxCore: 1, maxSamePattern: 3 },
   lower: { maxCore: 1, maxSamePattern: 3 },
@@ -511,7 +514,18 @@ export function validateGeneratedProgramChunk(
       spec.type === 'strength'
     ) {
       const focus = classifySessionFocus(spec.type, spec.title);
-      const budget = FOCUS_BUDGET[focus];
+      const baseBudget = FOCUS_BUDGET[focus];
+      // A Push or Pull day is one movement pattern by design (bench, press,
+      // fly, pushdown are all Push); the sub-muscle cap below still stops
+      // three chest movements. The same-pattern cap is for Upper and Lower
+      // days, where a third squat-pattern lift is the defect.
+      const singlePatternDay =
+        /\b(push|pull)\b/i.test(spec.title ?? '') &&
+        !/\bupper\b/i.test(spec.title ?? '');
+      const budget =
+        baseBudget && singlePatternDay
+          ? { ...baseBudget, maxSamePattern: SINGLE_PATTERN_DAY_CAP }
+          : baseBudget;
       if (budget) {
         const overflow = findOverConcentratedPatternIds(
           session.exercises ?? [],
@@ -630,12 +644,21 @@ export function buildRetryPriorExerciseIds(args: {
   cappedPrior: string[];
   validation: ChunkValidationResult;
   sessions: GeneratedSession[];
+  /**
+   * Demote only the rows the validator named, not the whole first attempt.
+   * With ranked shortlists (2026-09-17) the first attempt is mostly the best
+   * options; telling the retry to avoid every one of them handed the week to
+   * the second-best rows (a chest dip opening Push with the bench unused).
+   */
+  offendersOnly?: boolean;
 }): string[] {
-  const fromSessions = args.sessions.flatMap((s) =>
-    (s.exercises ?? [])
-      .map((e) => e.exerciseId?.trim())
-      .filter((id): id is string => !!id),
-  );
+  const fromSessions = args.offendersOnly
+    ? []
+    : args.sessions.flatMap((s) =>
+        (s.exercises ?? [])
+          .map((e) => e.exerciseId?.trim())
+          .filter((id): id is string => !!id),
+      );
   const dupOrdered = [
     ...new Set(
       args.validation.duplicateExerciseIds

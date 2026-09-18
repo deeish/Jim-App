@@ -1558,6 +1558,7 @@ export class PlansService {
           cappedPrior,
           validation: validationFirst,
           sessions: mapped,
+          offendersOnly: true,
         });
         const retryOut = await runTryGenerateBatch(
           retryPrior.length ? retryPrior : undefined,
