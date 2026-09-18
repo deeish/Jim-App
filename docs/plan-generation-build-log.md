@@ -364,3 +364,30 @@ What this run shows that the rules do not fix yet:
 1. **The priority muscle is not the biggest muscle.** Back is the "bring up" choice and lands at 13.5 sets while Shoulders sit at 22. The prompt gives Back the first accessory slot; the allocator fills bands, not the priority. A priority target above the band midpoint, and a lateral-raise ceiling, is the next rule.
 2. **Week 4 Lower 1 is three rows** (squat 6 sets, trap bar, crunch): the post-progression trim dropped the leg extension and the leg curl to hold Legs at the band rather than take a set off the 6-set squat. A main lift is never trimmed by design; a coach would cap the main lift at 5 sets before dropping a second accessory.
 3. The validator still fails its first pass on this week and the capture does not say why. Record the offending ids in the chunk record next.
+
+### Runs 5–7: the three run-4 findings fixed (2026-09-17, late night)
+
+Dylan: "fix those three and run the rig again". Same inputs and rig as runs 1–4. Raw captures: `docs/audits/2026-09-17-preview-rig-run-5.json`, `-6.json`, `-7.json`.
+
+| # | Change | Where | Verified by |
+|---|---|---|---|
+| 1 | Priority muscle on a full day: when no session has spare time for another set, the allocator moves one from the biggest non-priority accessory in the same session, as long as that muscle stays inside the band. The shortlists also admit the priority muscle's rows to an accessory slot on a day that already trains it. | `weekly-volume-allocation.ts` (step 2b), `slot-shortlists.ts` (`priorityFits`) | `priority-and-trim.spec.ts`; run 5: Back 13.5 → 17 sets in weeks 1–3 |
+| 1b | The peak week's duration clamp took those sets straight back (run 5, week 4: row 5 → 3, pull-up 5 → 3, Back 14.5). The clamp now takes sets from every other row before the priority muscle's. | `session-enrichment.ts` (`clampSessionWorkingSets`, `priorityMuscle` in the prefs), `week-progression.ts`, `plans.service.ts` | `priority-and-trim.spec.ts`; run 7: Back 16.5 / 16.5 / 18.5 / 18.5 across the four weeks |
+| 2 | A main lift gives a set back (down to five, and down to four when dropping a row would leave three lifts) before the trim drops a second accessory row. | `weekly-volume-allocation.ts` (`MAIN_TRIM_CAP`, `MAIN_TRIM_CAP_THIN_DAY`) | `priority-and-trim.spec.ts`, `weekly-volume-allocation.spec.ts` (one test rewritten); run 7 week 4: Lower 1 keeps four rows with the squat at four sets |
+| 3 | Captures name the validator's offending rows (pattern overflow, sub-muscle overflow, non-anchor opener, cross-session overlap). | `plans.service.ts` (`serializeChunkValidation`) | run 5's capture named them at once: `russian_twist` (a second core row) and `incline_dumbbell_bench_press` (not in the anchor list) |
+| 3b | What the named rows led to: the lower finisher slot offers calves or a loaded carry, never a second core row, and the prompt says one core exercise a day; the incline dumbbell press is an accepted push and upper opener. | `slot-shortlists.ts` (`calves_or_carry`), `program-templates.ts`, `anchor-exercises.ts`, the pick prompt | run 6: first pass clean, 6 s |
+
+| Run | First pass | Back (priority) by week | Week-4 Lower 1 rows | Openers |
+|---|---|---|---|---|
+| 4 | over_concentrated_pattern, row not named | 13.5 / 13.5 / 14.5 / 15 | 3 | bench, back squat, incline bench, deadlift |
+| 5 | over_concentrated_pattern (`russian_twist`) | 17 / 17 / 18 / 14.5 | 4 | bench, back squat, flat dumbbell bench, deadlift |
+| 6 | clean | 17 / 17 / 18 / 14 | 3 | bench, back squat, incline dumbbell bench, deadlift |
+| 7 | over_concentrated_pattern (`farmer_carry`, a second core-pattern row next to a plank), retry clean | 16.5 / 16.5 / 18.5 / 18.5 | 4 | bench, back squat, incline dumbbell bench, deadlift |
+
+All three runs: model-built, Upper/Lower, 6–8 s, no console errors, no 4xx, every week balanced with no coach findings, reps held at 8–12, effort 2 in reserve then 1, bench 135 → 150.
+
+### Deliberately not done
+
+- Run 7 week-4 Lower 2 is three rows (deadlift, leg press, leg raise): with two lower days in 30–45 minutes, Legs sit at the 22-set ceiling and the calf raise is the only row left to give once both main lifts are at four. A coach might keep the calf raise and take the leg press to two sets; the compound floor of three forbids that on purpose.
+- The farmer carry counts as a core-pattern row for the validator's one-core cap, so a plank plus a carry fails the first pass. Either the carry gets its own pattern in the catalog or the cap allows a carry beside one core row.
+- The bent-over row reached six sets in week 4 (five from the priority fill, times the peak multiplier). The compound ceiling is five in the allocator; the progression multiplier is not subject to it.
