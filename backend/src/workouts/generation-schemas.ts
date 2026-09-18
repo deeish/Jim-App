@@ -66,7 +66,44 @@ export function fullProgramSchema(
   };
 }
 
-/** `polishSimpleBatchSessionCopy`: titles and copy only, exercises are fixed. */
+/**
+ * `generateFullProgram` since 2026-09-17: the pick call. Ids, sets, reps and
+ * a name per day; no reasoning, warm-up or cool-down (the copy is written by
+ * `writeSessionCopy` from the final rows, and the strength reasoning is
+ * rule-built in session-enrichment.ts).
+ */
+export function pickProgramSchema(
+  dayCount: number,
+  withNotes: boolean,
+): LlmJsonSchema {
+  return {
+    type: 'object',
+    properties: {
+      days: {
+        type: 'array',
+        minItems: dayCount,
+        maxItems: dayCount,
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            exercises: {
+              type: 'array',
+              minItems: 1,
+              items: exerciseSchema(withNotes, false),
+            },
+          },
+          required: ['name', 'exercises'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['days'],
+    additionalProperties: false,
+  };
+}
+
+/** `writeSessionCopy`: titles and copy only, exercises are fixed. */
 export function polishCopySchema(dayCount: number): LlmJsonSchema {
   return {
     type: 'object',

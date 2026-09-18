@@ -10,7 +10,15 @@ import {
   normalizeFocusToKey,
   type FocusKey,
 } from '../data/program-templates';
-import { getAnchorIdsForFocus } from '../data/anchor-exercises';
+import {
+  getAnchorIdsForFocus,
+  isGymLikeEquipment,
+} from '../data/anchor-exercises';
+import {
+  buildFocusShortlist,
+  renderFocusShortlist,
+  type FocusShortlist,
+} from './slot-shortlists';
 import {
   describeError,
   fallbackReasonFor,
@@ -28,7 +36,7 @@ import {
  */
 import { LlmClient, type LlmCompletionUsage } from '../llm/llm-client';
 import {
-  fullProgramSchema,
+  pickProgramSchema,
   polishCopySchema,
   singleSessionSchema,
 } from './generation-schemas';
@@ -62,6 +70,8 @@ export interface CandidateExercise {
   variationGroup: string;
   /** First equipment or "mixed". */
   equipmentType: string;
+  /** Catalog kind: "Compound" | "Isolation". Drives the per-slot shortlists. */
+  type?: string;
 }
 
 /** Last performance for one exercise (from logs). */
@@ -620,6 +630,7 @@ export class WorkoutGeneratorService {
     equipment?: string[];
     movementPatterns?: string[];
     subMuscles?: string[];
+    type?: string;
   }): CandidateExercise {
     return {
       id: e.id,
@@ -630,6 +641,7 @@ export class WorkoutGeneratorService {
       subMuscles: e.subMuscles ?? [],
       variationGroup: this.getVariationGroupFromName(e.name),
       equipmentType: e.equipment && e.equipment[0] ? e.equipment[0] : 'mixed',
+      ...(e.type ? { type: e.type } : {}),
     };
   }
 
@@ -766,6 +778,90 @@ export class WorkoutGeneratorService {
       excludeTechnical: level === 'beginner',
       excludeBasicBodyweight: level === 'advanced' && gymLike,
     };
+  }
+
+  /**
+   * The per-slot shortlists for every distinct strength focus in the batch,
+   * plus the cardio rows when a day or a finisher needs them. Returns null
+   * when no focus produced a list (see slot-shortlists.ts).
+   */
+  private buildBatchShortlists(args: {
+    sessions: Array<{ title?: string; type: string }>;
+    equipment: string[];
+    difficulty: string;
+    priorityMuscle?: string;
+    preferredExercises?: string[];
+    gates: {
+      avoidJoints: JointId[];
+      excludeTechnical: boolean;
+      excludeBasicBodyweight?: boolean;
+    };
+  }): { text: string; candidates: CandidateExercise[] } | null {
+    const { sessions, equipment, gates } = args;
+    const focusLabels: string[] = [];
+    const seen = new Set<string>();
+    for (const s of sessions) {
+      const label = ((s.title ?? s.type).trim() || 'full body').trim();
+      const key = String(normalizeFocusToKey(label));
+      if (key === 'cardio' || key === 'recovery') continue;
+      if (!seen.has(key)) {
+        seen.add(key);
+        focusLabels.push(label);
+      }
+    }
+    const gymLike = isGymLikeEquipment(equipment);
+    const byId = new Map<string, CandidateExercise>();
+    const lists: FocusShortlist[] = [];
+    for (const label of focusLabels) {
+      const pool = this.exercisesService
+        .getCandidatesForGenerator({
+          focus: label,
+          equipment: equipment.length ? equipment : undefined,
+          excludeIds: [],
+          limit: 400,
+          ...gates,
+        })
+        .map((row) => this.libraryRowToCandidate(row));
+      const list = buildFocusShortlist({
+        focusLabel: label,
+        pool,
+        gymLike,
+        difficulty: args.difficulty,
+        priorityMuscle: args.priorityMuscle,
+        preferredExercises: args.preferredExercises,
+      });
+      if (!list) continue;
+      const poolById = new Map(pool.map((c) => [c.id, c]));
+      for (const slot of list.slots) {
+        for (const c of slot.candidates) {
+          const full = poolById.get(c.id);
+          if (full && !byId.has(full.id)) byId.set(full.id, full);
+        }
+      }
+      lists.push(list);
+    }
+    if (!lists.length) return null;
+    const blocks = lists.map((l) =>
+      renderFocusShortlist(l, compactExerciseNameForBatchPrompt),
+    );
+    // Cardio rows always ride along (twelve ids): a cardio day or a
+    // conditioning finisher needs them and they cost little.
+    const cardio = this.exercisesService.getCandidatesForGenerator({
+      focus: 'cardio',
+      equipment: equipment.length ? equipment : undefined,
+      excludeIds: [...byId.keys()],
+      limit: 12,
+    });
+    const cardioRows = cardio.map((row) => this.libraryRowToCandidate(row));
+    for (const c of cardioRows) if (!byId.has(c.id)) byId.set(c.id, c);
+    if (cardioRows.length) {
+      blocks.push(
+        `Cardio rows (cardio days and finishers only): ${cardioRows
+          .map((c) => `${c.id} = ${compactExerciseNameForBatchPrompt(c.name)}`)
+          .join('; ')}`,
+      );
+    }
+    return { text: blocks.join('\n'), candidates: [...byId.values()] };
   }
 
   private mergeCandidatesForBatchProgram(
@@ -961,9 +1057,6 @@ export class WorkoutGeneratorService {
       experienceLevel: experienceLevelOpt,
       priorWeekExerciseIds = [],
       cardioModalities,
-      mesoHint,
-      weekProgression,
-      currentActivityLevel,
       preferredExercises,
       priorityMuscle,
     } = options;
@@ -992,13 +1085,30 @@ export class WorkoutGeneratorService {
       difficulty,
       equipment,
     );
-    let candidates = this.mergeCandidatesForBatchProgram(
+    // Per-slot shortlists (slot-shortlists.ts): the rules fix the day's
+    // shape and rank the options; the model picks one id per slot. The flat
+    // forty-row table remains only as the fallback for a pool too thin to
+    // fill slots (a bare band-only list).
+    const shortlists = this.buildBatchShortlists({
       sessions,
       equipment,
-      goal,
-      batchGates,
-    );
-    if (candidates.length < 20) {
+      difficulty,
+      priorityMuscle,
+      preferredExercises,
+      gates: batchGates,
+    });
+    let candidates: CandidateExercise[] = shortlists?.candidates ?? [];
+    let shortlistText: string | null = shortlists?.text ?? null;
+    if (candidates.length < 12) {
+      shortlistText = null;
+      candidates = this.mergeCandidatesForBatchProgram(
+        sessions,
+        equipment,
+        goal,
+        batchGates,
+      );
+    }
+    if (candidates.length < 20 && !shortlistText) {
       const fallbackRaw = this.exercisesService.getCandidatesForGenerator({
         focus: 'full body',
         equipment: equipment.length ? equipment : undefined,
@@ -1031,7 +1141,8 @@ export class WorkoutGeneratorService {
       }
     }
 
-    const candidateTable = formatCandidatesTabularForBatch(candidates);
+    const candidateSection =
+      shortlistText ?? formatCandidatesTabularForBatch(candidates);
 
     const dayLines = sessions
       .map((s, i) => {
@@ -1065,7 +1176,7 @@ export class WorkoutGeneratorService {
             : ', INTENSITY: low';
         const slots = isCardioOrRec ? [] : getSlotsForFocus(fk);
         const slotLine =
-          slots.length > 0
+          !shortlistText && slots.length > 0
             ? `\n  Slot order: ${slots.map((sl) => sl.description).join(' → ')}`
             : '';
         const dayWantsFinisher =
@@ -1100,49 +1211,53 @@ export class WorkoutGeneratorService {
       'Workout "name" must be plain and short: the day focus label, plus " · " and a two-word emphasis naming the main lifts when the same focus repeats in the week (e.g. "Upper · Bench + Row", "Upper · Press + Pull-Up"). Never suffix letters or numbers ("A"/"B", "1"/"2"). No hype words: Blast, Power, Beast, Savage, Shred, Endurance, Destroy, Nitro, Inferno, or similar marketing.';
 
     const exercisesSchemaLine = wantsExerciseNotes
-      ? `  - "exercises": array of objects, each with "exerciseId" (must be an id from the list), "sets" (number), "reps" (number), and optionally "notes" (string, ≤${BEGINNER_EXERCISE_NOTE_MAX_CHARS} chars: one line, form or intent only). Order: main compounds first, then accessories.`
-      : `  - "exercises": array of objects, each with "exerciseId" (must be an id from the list), "sets" (number), "reps" (number) only — do NOT include "notes". Order: main compounds first, then accessories.`;
+      ? `  - "exercises": array of objects, each with "exerciseId" (an id from that day's list), "sets" (number), "reps" (number), and optionally "notes" (string, ≤${BEGINNER_EXERCISE_NOTE_MAX_CHARS} chars: one line, form or intent only). One per slot, in slot order.`
+      : `  - "exercises": array of objects, each with "exerciseId" (an id from that day's list), "sets" (number), "reps" (number) only — do NOT include "notes". One per slot, in slot order.`;
 
-    const structureBlock =
-      detailLevel === 'simple'
-        ? `Structure:
-- "programSummary": string (1–2 short sentences describing the program).
-- "days": array of objects, one per day, in the same order as the day list below. Each day object must have:
+    const structureBlock = `Structure:
+- "days": array of objects, one per day, in the same order as the day list below. Each day object has:
   - "name": string (${nameRules})
-  - "reasoning": string (one short sentence)
-  - "warmUp": string (one short sentence)
-  - "coolDown": string (one short sentence)
-${exercisesSchemaLine}`
-        : `Structure:
-- "programSummary": string (2-4 sentences describing the program and how the days work together).
-- "days": array of objects, one per day, in the same order as the day list below. Each day object must have:
-  - "name": string (${nameRules})
-  - "reasoning": string (1-3 sentences on why this day is structured this way)
-  - "warmUp": string (1-2 sentences)
-  - "coolDown": string (1-2 sentences)
 ${exercisesSchemaLine}`;
 
-    const systemPrompt = `You are a strength and conditioning coach. Your job is to produce well-structured programs, not just lists of exercises. Programming rules you must follow:
-(1) Compounds before accessories — the first 1-2 exercises of each day must be primary compound lifts for that day's pattern (e.g. Bench Press or Overhead Press for Push; Pull-up or Row for Pull; Squat or Deadlift for Lower/Legs). In a gym (barbell, machines or cables available) the first lift is a barbell or machine staple; goblet squats, bodyweight squats and push-ups open a session only at home or for a beginner.
-(2) No sub-muscle stacking — do not place 3+ exercises that load the same sub-muscle in the same session (e.g. three quad-dominant movements, three pec exercises, three bicep curl variations). At most 2 per sub-muscle; Calves, Core, Cardio are exempt.
-(3) Pattern balance per session — Push day: exactly 1 horizontal press + 1 vertical press (not 2 of the same angle). Pull day: exactly 1 vertical pull + 1 horizontal row. Lower/Legs day: 1 squat-pattern + 1 hinge-pattern. Upper day: 1 push compound + 1 pull compound in the first 2 slots.
-(4) When a focus repeats across the week, the FIRST exercise must differ in movement angle (flat bench → incline or OHP on repeat push day; back squat → front squat or hack squat on repeat lower day).
-(5) Follow the weekly progression targets exactly when provided — do not default to the same rep/set range every week.
-(6) Stacking caps — at most 2 pressing compounds (bench/incline/overhead/dip) and at most 2 hip-hinge movements (deadlift/RDL/good morning/hip thrust) in any one session; a third goes to another day or becomes an isolation exercise.
-(7) Frequency — with 3 or more lifting days, each big muscle group (chest, back, quads, hamstrings/glutes, shoulders) is trained on at least 2 different days of the week.
-INTENSITY: high days → favor heavier compound-first selection, keep rep range at lower end of scheme. INTENSITY: low days → favor moderate loads, higher rep accessories, include more variety and isolation work.
-For every day in the list: use only exercise ids from the provided list; place main compounds first then accessories; include only one variant of each movement per day (e.g. one bench press — not flat + incline bench in the same session).
-You must choose exercises ONLY from the provided list by their "id". Respond with exactly one JSON object, no markdown.
-
-Exercise list format: each line is id<TAB>exercise name<TAB>primary muscle (header columns only—parse each line; use the first field as the id for "exerciseId").
+    // The pick call (2026-09-17): the rules own the day's shape and rank the
+    // options per slot; the model chooses one id per slot and names the day.
+    // No copy fields here — the strength reasoning is rule-built from the
+    // final rows and the warm-up / cool-down are written afterwards by
+    // `writeSessionCopy`, so the prompt carries the choosing rules only.
+    const openerLine = isGymLikeEquipment(equipment)
+      ? 'In a gym, slot 1 is a barbell or machine staple; goblet squats, bodyweight squats and push-ups open a session only at home or for a beginner.'
+      : 'Slot 1 is the heaviest option the equipment allows.';
+    const systemPrompt = shortlistText
+      ? `You are a strength and conditioning coach choosing the lifts for one training week. Each day's structure is fixed: its slots are listed in order with the options for each slot, best options first. Rules:
+(1) One id per slot, in slot order, from that day's own list; an optional slot may be skipped. Never repeat an id within a day.
+(2) Slot 1 is the day's main lift. Prefer the first options listed. ${openerLine}
+(3) When a focus repeats in the week, the second day opens with a different lift or angle (flat bench → incline or overhead; back squat → front squat or leg press) and its other slots mostly differ too.
+(4) No sub-muscle stacking — at most 2 exercises loading the same sub-muscle in one day (Calves, Core and Cardio are exempt).
+(5) At most 2 pressing compounds and at most 2 hip hinges in one day.
+(6) With 3 or more lifting days, each big muscle group (chest, back, quads, hamstrings/glutes, shoulders) is trained on at least 2 different days.
+INTENSITY: high days → the heavier compound options; INTENSITY: low days → more isolation and variety in the accessory slots.
+Respond with exactly one JSON object, no markdown.
 
 ${structureBlock}
-Rep selection: pick rep numbers in the middle of the allowed range; main compounds can be slightly lower reps than accessories (2–4 reps lower is fine).
+Rep selection: pick rep numbers in the middle of the allowed range; main compounds can be slightly lower reps than accessories (2–4 reps lower is fine).`
+      : `You are a strength and conditioning coach. Programming rules you must follow:
+(1) Compounds before accessories — the first 1-2 exercises of each day must be primary compound lifts for that day's pattern (e.g. Bench Press or Overhead Press for Push; Pull-up or Row for Pull; Squat or Deadlift for Lower/Legs). ${openerLine}
+(2) No sub-muscle stacking — do not place 3+ exercises that load the same sub-muscle in the same session. At most 2 per sub-muscle; Calves, Core, Cardio are exempt.
+(3) Pattern balance per session — Push day: exactly 1 horizontal press + 1 vertical press. Pull day: exactly 1 vertical pull + 1 horizontal row. Lower/Legs day: 1 squat-pattern + 1 hinge-pattern. Upper day: 1 push compound + 1 pull compound in the first 2 slots.
+(4) When a focus repeats across the week, the FIRST exercise must differ in movement angle.
+(5) Stacking caps — at most 2 pressing compounds and at most 2 hip-hinge movements in any one session.
+(6) Frequency — with 3 or more lifting days, each big muscle group is trained on at least 2 different days of the week.
+INTENSITY: high days → favor heavier compound-first selection. INTENSITY: low days → favor moderate loads, higher rep accessories, more variety and isolation work.
+Use only exercise ids from the provided list; place main compounds first then accessories; one variant of each movement per day.
+Respond with exactly one JSON object, no markdown.
 
-${detailLevel !== 'simple' ? coachCopyToneBlock() : "No hype words in any text field. Keep warmUp and coolDown practical and specific to the day's movements."}`;
+Exercise list format: each line is id<TAB>exercise name<TAB>primary muscle (use the first field as the id for "exerciseId").
+
+${structureBlock}
+Rep selection: pick rep numbers in the middle of the allowed range; main compounds can be slightly lower reps than accessories (2–4 reps lower is fine).`;
 
     const conditioningBlock = wantsCardioFinisher
-      ? `\nConditioning (user goal includes strength + conditioning): For each day whose type is **strength**, end that day's "exercises" array with exactly ONE exercise taken from the list rows whose third column (muscle) is **Cardio** (bike, rower, ski erg, treadmill, elliptical, versa climber, assault runner, etc.)—a short machine/modality finisher. Put it **last**. Keep total exercises for that day within each day's range/cap (drop a small accessory if needed to fit; keep main compounds). Do **not** add this extra cardio line on days that are already cardio or recovery.`
+      ? `\nConditioning (user goal includes strength + conditioning): For each day whose type is **strength**, end that day's "exercises" array with exactly ONE exercise from the Cardio rows (bike, rower, ski erg, treadmill, elliptical, etc.) — a short machine/modality finisher. Put it **last**. Keep the day within its range/cap (drop a small accessory if needed; keep main compounds). Do **not** add this extra cardio line on days that are already cardio or recovery.`
       : '';
     const conditioningModalityHint =
       this.compactCardioModalityHint(cardioModalities);
@@ -1152,42 +1267,9 @@ ${detailLevel !== 'simple' ? coachCopyToneBlock() : "No hype words in any text f
         ? ` Rest between working sets: about ${setRep.restSeconds}s unless notes say otherwise.`
         : '';
 
-    const mesoTrim = (mesoHint ?? '').trim().slice(0, 200);
-    const mesoBlock = mesoTrim.length ? `\nProgram intent: ${mesoTrim}` : '';
-
-    const progressionBlock = (weekProgression ?? []).length
-      ? `\nWeekly progression targets — follow these when choosing sets/reps within the allowed range:\n` +
-        (weekProgression ?? [])
-          .map((wp) => {
-            const repNote =
-              wp.repModifier < 0
-                ? `${Math.abs(wp.repModifier)} fewer reps than base (heavier load)`
-                : wp.repModifier > 0
-                  ? `${wp.repModifier} more reps than base (lighter, recovery week)`
-                  : 'same reps as base';
-            const volNote =
-              wp.volumeMultiplier < 0.99
-                ? `reduce sets to ~${Math.round(wp.volumeMultiplier * 100)}% of normal`
-                : wp.volumeMultiplier > 1.01
-                  ? `increase sets by ~${Math.round((wp.volumeMultiplier - 1) * 100)}%`
-                  : 'normal set count';
-            return `  Week ${wp.weekIndex} (${wp.phase}): ~${wp.intensityPct}% effort, ${volNote}, ${repNote}.`;
-          })
-          .join('\n')
-      : '';
-
-    const activityMap: Record<string, string> = {
-      '0': 'currently sedentary',
-      '1-2': 'lightly active (1–2 sessions/week outside this plan)',
-      '3-4': 'moderately active (3–4 sessions/week)',
-      '5+': 'highly active (5+ sessions/week)',
-    };
     const profileLines = [
-      currentActivityLevel
-        ? `User activity: ${activityMap[currentActivityLevel] ?? currentActivityLevel} — scale total volume accordingly.`
-        : '',
       preferredExercises?.length
-        ? `Preferred movements (favor these when they fit the day's focus and pattern): ${preferredExercises.slice(0, 8).join(', ')}.`
+        ? `Preferred movements (favor these when they fit the day's focus and slot): ${preferredExercises.slice(0, 8).join(', ')}.`
         : '',
       priorityMuscle
         ? `Priority muscle: ${priorityMuscle}. On every day where it fits the focus, give it the first accessory slot after the compounds, and train it on one more day of the week than the other groups.`
@@ -1197,26 +1279,29 @@ ${detailLevel !== 'simple' ? coachCopyToneBlock() : "No hype words in any text f
       .join(' ');
     const profileBlock = profileLines.length ? `\n${profileLines}` : '';
 
-    const userPrompt = `Design a ${sessions.length}-day program. Use ONLY exercise ids from the first column of each line below.
-${candidateTable}
+    const userPrompt = `Design a ${sessions.length}-day week. Use ONLY the exercise ids listed below.
+${candidateSection}
 ${priorWeekInstruction}
 ${profileBlock}
 ${dayLines}
-${conditioningBlock}${conditioningModalityHint}${mesoBlock}${progressionBlock}
+${conditioningBlock}${conditioningModalityHint}
 
 Set/rep: ${setRep.description} (${setRep.setsMin}-${setRep.setsMax} sets, ${setRep.repsMin}-${setRep.repsMax} reps).${restHint} Goal: ${goal}.${secondaryGoal ? ` Secondary emphasis: ${secondaryGoal} (blend this in without changing the set/rep scheme above).` : ''} Difficulty: ${difficulty}. Equipment: ${equipmentStr}.${limitationsBlock}${restrictionsBlock}
 
-Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.length} objects). Each day: "name", "reasoning", "warmUp", "coolDown", "exercises" (array of objects with exerciseId, sets, reps${wantsExerciseNotes ? ', optional notes (≤' + String(BEGINNER_EXERCISE_NOTE_MAX_CHARS) + ' chars each)' : '; omit notes on every exercise'}).`;
+Return valid JSON: "days" (array of ${sessions.length} objects). Each day: "name", "exercises" (array of objects with exerciseId, sets, reps${wantsExerciseNotes ? ', optional notes (≤' + String(BEGINNER_EXERCISE_NOTE_MAX_CHARS) + ' chars each)' : '; omit notes on every exercise'}).`;
 
-    const batchMaxTokens = detailLevel === 'simple' ? 3200 : 4096;
+    // Ids only: a small output, so the cap can be tight, and a low
+    // temperature — variety is already in the shortlists and the prior-week
+    // exclusions, and the pick is where run-to-run quality varied.
+    const batchMaxTokens = wantsExerciseNotes ? 2600 : 1800;
     let completion: Awaited<ReturnType<LlmClient['completeJson']>>;
     try {
       completion = await this.llm.completeJson({
         label: 'generateFullProgram',
         systemPrompt,
         userPrompt,
-        schema: fullProgramSchema(sessions.length, wantsExerciseNotes),
-        temperature: 0.73,
+        schema: pickProgramSchema(sessions.length, wantsExerciseNotes),
+        temperature: 0.35,
         maxOutputTokens: batchMaxTokens,
         signal: currentGenerationSignal(),
       });
@@ -1241,12 +1326,8 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
     if (!raw) return { ok: false, usage };
 
     let parsed: {
-      programSummary?: string;
       days?: Array<{
         name?: string;
-        reasoning?: string;
-        warmUp?: string;
-        coolDown?: string;
         exercises?: Array<{
           exerciseId?: string;
           sets?: number;
@@ -1352,18 +1433,6 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
           (spec.title ?? spec.type ?? 'Workout').trim(),
           spec.weekday,
         ),
-        reasoning:
-          day?.reasoning != null
-            ? String(day.reasoning).trim().slice(0, 500)
-            : undefined,
-        warmUp:
-          day?.warmUp != null
-            ? String(day.warmUp).trim().slice(0, 300)
-            : undefined,
-        coolDown:
-          day?.coolDown != null
-            ? String(day.coolDown).trim().slice(0, 300)
-            : undefined,
         exercises,
       });
     }
@@ -1542,16 +1611,21 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
   }
 
   /**
-   * Phase D (simple): one compact Groq JSON pass for titles and warm-up / cool-down / reasoning copy.
-   * Exercise lists are fixed in prose only — the model does not choose new movements.
+   * The copy call: warm-up, cool-down and a title for each day, written from
+   * the rows the user will actually perform (every enrichment pass may have
+   * swapped the model's picks). Since 2026-09-17 the pick call chooses ids
+   * only, so this is where the words come from; the strength reasoning stays
+   * rule-built (session-enrichment.ts). The model does not choose movements.
    */
-  async polishSimpleBatchSessionCopy(options: {
+  async writeSessionCopy(options: {
     goal: string;
     equipmentNote?: string;
     days: Array<{
       weekday: string;
       focusLabel: string;
       exerciseNames: string[];
+      /** The day's opener; the warm-up ramps toward it. */
+      mainLift?: string;
     }>;
   }): Promise<Array<{
     name: string;
@@ -1564,19 +1638,18 @@ Return valid JSON: "programSummary" (string) and "days" (array of ${sessions.len
 
     const lines = days.map(
       (d, i) =>
-        `Day ${i + 1} (${d.weekday}, ${d.focusLabel}): ${d.exerciseNames
-          .slice(0, 10)
-          .join('; ')
-          .slice(0, 220)}`,
+        `Day ${i + 1} (${d.weekday}, ${d.focusLabel}${
+          d.mainLift ? `, main lift ${d.mainLift}` : ''
+        }): ${d.exerciseNames.slice(0, 10).join('; ').slice(0, 220)}`,
     );
 
     const systemPrompt = `You are a concise coach. Return exactly one JSON object, no markdown.
 Field "days": array of ${days.length} objects, same order as the numbered day list below. Each object:
 - "name": short, plain title: the day's focus label, plus " · " and a two-word emphasis naming the main lifts when the same focus repeats in the week (e.g. "Upper · Bench + Row"). Never suffix letters or numbers ("A"/"B", "1"/"2"). No hype: never use Blast, Power, Beast, Savage, Shred, Inferno, Nitro, Destroy, or similar marketing words.
 - "reasoning": one motivating sentence (do not list individual exercises)
-- "warmUp": one practical sentence (about 5–8 minutes of prep)
+- "warmUp": one practical sentence: about 5–8 minutes of general prep specific to the day's movements, then 2–3 light ramp sets toward working weight on the main lift when one is named
 - "coolDown": one practical sentence
-The exercise list for each day is fixed — only improve the copy fields.`;
+The exercise list for each day is fixed — only write the copy fields.`;
 
     const userPrompt = `Goal: ${goal}. Equipment: ${equipmentNote}.
 
@@ -1587,7 +1660,7 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
     let completion: Awaited<ReturnType<LlmClient['completeJson']>>;
     try {
       completion = await this.llm.completeJson({
-        label: 'polishSimpleBatchSessionCopy',
+        label: 'writeSessionCopy',
         systemPrompt,
         userPrompt,
         schema: polishCopySchema(days.length),
@@ -1599,7 +1672,7 @@ Return JSON: {"days":[...${days.length} objects with name, reasoning, warmUp, co
       return null;
     }
 
-    this.logLlmCompletionMeta('polishSimpleBatchSessionCopy', completion.usage);
+    this.logLlmCompletionMeta('writeSessionCopy', completion.usage);
     if (completion.usage.finish_reason === 'length') return null;
 
     const raw = completion.text;

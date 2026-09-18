@@ -2507,12 +2507,101 @@ export class PlansService {
     // The model named the day from the lifts it chose; every pass above may
     // have swapped them. Rebuild the "· Bench + Row" suffix from what is
     // actually there (see session-title.ts).
-    return loaded.map((session) => ({
+    const named = loaded.map((session) => ({
       ...session,
       name:
         conformSessionTitleToExercises(session.name, session.exercises) ??
         session.name,
     }));
+    return this.writeWeekOneCopy(named, dto);
+  }
+
+  /**
+   * Warm-up and cool-down for the first week's strength days, written from
+   * the lifts the user will actually do, then carried to the later weeks'
+   * matching days (the clones). The pick call chooses ids only
+   * (2026-09-17); a failed copy call keeps enrichment's deterministic lines.
+   */
+  private async writeWeekOneCopy(
+    sessions: GeneratedSession[],
+    dto: GenerateSessionsDto,
+  ): Promise<GeneratedSession[]> {
+    const specs = dto.sessions;
+    if (sessions.length !== specs.length || specs.length === 0) return sessions;
+    const firstWeek = Math.min(...specs.map((s) => s.weekIndex));
+    const idx = specs
+      .map((s, i) =>
+        s.weekIndex === firstWeek &&
+        s.type === 'strength' &&
+        (sessions[i]?.exercises?.length ?? 0) > 0
+          ? i
+          : -1,
+      )
+      .filter((i) => i >= 0);
+    if (idx.length === 0) return sessions;
+    const titleKey = (s: GenerateSessionsDto['sessions'][number]) =>
+      ((s.title ?? s.type) || 'full body').toLowerCase().trim();
+    const equipment = PlansService.resolveGeneratorEquipment(
+      dto.location ?? 'gym',
+      dto.equipmentTags,
+    );
+    const days = idx.map((i) => {
+      const names = sessions[i]!.exercises.map((e) =>
+        (e.name ?? '').trim(),
+      ).filter(Boolean);
+      return {
+        weekday: specs[i]!.weekday,
+        focusLabel: (specs[i]!.title ?? specs[i]!.type).trim() || 'full body',
+        exerciseNames: names,
+        mainLift: names[0],
+      };
+    });
+    let copy: Awaited<ReturnType<WorkoutGeneratorService['writeSessionCopy']>> =
+      null;
+    try {
+      copy = await this.workoutGenerator.writeSessionCopy({
+        goal: dto.goal ?? 'hypertrophy',
+        equipmentNote: equipment.length
+          ? equipment.join(', ')
+          : 'general gym equipment',
+        days,
+      });
+    } catch (err) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'session_copy_skipped',
+          reason: err instanceof Error ? err.message : String(err),
+        }),
+      );
+      copy = null;
+    }
+    if (!copy) return sessions;
+    const apply = (
+      session: GeneratedSession,
+      c: { warmUp?: string; coolDown?: string },
+    ): GeneratedSession => ({
+      ...session,
+      warmUp: c.warmUp?.trim() || session.warmUp,
+      coolDown: c.coolDown?.trim() || session.coolDown,
+    });
+    const byKey = new Map<string, { warmUp?: string; coolDown?: string }>();
+    const out = [...sessions];
+    idx.forEach((i, j) => {
+      const c = copy![j];
+      if (!c) return;
+      byKey.set(titleKey(specs[i]!), c);
+      out[i] = apply(out[i]!, c);
+    });
+    for (let i = 0; i < specs.length; i++) {
+      const spec = specs[i]!;
+      if (spec.weekIndex === firstWeek || spec.type !== 'strength') continue;
+      const c = byKey.get(titleKey(spec));
+      if (c) out[i] = apply(out[i]!, c);
+    }
+    this.logger.log(
+      JSON.stringify({ event: 'session_copy_written', days: idx.length }),
+    );
+    return out;
   }
 
   /**
