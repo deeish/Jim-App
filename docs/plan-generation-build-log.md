@@ -581,3 +581,18 @@ Found and fixed on the first drive: a fifteen-rep accessory sat above the Epley 
 - The rep target lives in the row's `reps` scalar and the note; the client still shows the `repsMin–repsMax` band. A "aim for N" chip is a client change for the next binary.
 - Per-set effort is not logged (the check-in's session effort stands in); if a set-level RIR field is added to the log later, the ledger can read it in place of the session effort.
 - Plate rounding is by name (dumbbell 5 lb, heavy lower-body barbell 10 lb, otherwise 5 lb); a per-equipment table with 2.5 lb microplates is a follow-up.
+
+### Tier 7, the last items (2026-09-17, night)
+
+Dylan: "fix the last items in the build log". The three left open under Tier 7, plus one found on the way.
+
+| # | Change | Where | Verified by |
+|---|---|---|---|
+| 1 | The rep target shows. A row whose scalar `reps` sits strictly inside its band is the ledger's target for the week: the day list reads "8–12 · aim 11", and the workout screen's header reads "Target 11 · 135 lb · 2 in reserve" straight from the row when the row carries a ledger note, instead of re-deriving a target from history on the client. Rides the next binary. | `planCalendarPrototype.ts` (`aimReps`, `ledger`), `planCalendarPrototypeStore.ts` (`aimRepsOf`, `formatRepsDisplay`, `toPlannedExercise`), `PlanCalendarWorkoutScreen.tsx` (`targetLine`) | frontend `tsc`, store tests |
+| 2 | Per-set effort counts. When a set was rated (the log's `rpe`, 1–10, already stored), the ledger reads it as reps in reserve: a set at RPE 10 against an effort target above zero, or a worst set more than a rep past the target, makes the lift "too hard" even on an "about right" check-in. Unrated sets fall back to the session check-in as before. | `lift-progression.ts` (`liftTooHard`), `workout-logs.service.ts` reads `rpe` | `lift-progression.spec.ts` |
+| 3 | The step is by what the row is loaded with: a dumbbell 5 lb (2.5 below 20), a kettlebell about 9 lb, a stack pin 5 lb (10 past 100), a bar 5 lb (10 on a lower-body lift past 200). | `lift-progression.ts` (`loadStepLb`) | `lift-progression.spec.ts` |
+| 4 | Found on the way: a day the user had already opened has its own workout rows (`materializeFromPlanSlot`), and the check-in only ever rewrote the plan rows, so the screen kept showing the forecast. Every ledger, set and deload write now reaches the day's materialized workout rows too. This gap predates the ledger (Tier 4a had it). | `workout-logs.service.ts` (`mirrorRowsForDays`) | rig drive: week-2 Monday opened before week 1 was logged, then read back with the new loads and notes |
+
+Rig drive re-run with the mirror check (`docs/audits/2026-09-17-ledger-rig-run.json`): the opened week-2 Monday workout shows "Bench 4x8 @130, Row 5x10 @55, …" with the ledger notes after week 1 is logged; week 3 backs off after a hard week 2; week 4 is the lighter week after two hard weeks. 106 workout-log tests, full backend suite green.
+
+Still listed from the scenario matrix, unchanged: the peak week's session cap drops one accessory row on two five-row plans; the home dumbbell lower pool is thin; home and beginner openers (glute bridge, box squat) trip the anchor check before enrichment swaps them.
