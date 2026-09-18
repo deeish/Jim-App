@@ -148,14 +148,24 @@ const files = {
   // loader handoff is invisible; change them together.
   const SPLASH_MARK_PT = 96;
   const SPLASH_BG = '#F2F2F7';
+  // The dark variant (app.json `splash.dark`, 2026-09-18): the app's dark
+  // ground (`darkPalette.background`) with the mark in the dark brand blue,
+  // the same pair LoadingScreen draws on the dark theme (`SPLASH_DARK`).
+  const SPLASH_DARK_BG = '#0A0D13';
+  const SPLASH_DARK_FILL = C.dark.fill;
   const markPx = SPLASH_MARK_PT * 3;
-  const markPng = await sharp(Buffer.from(fav)).resize(markPx, markPx).png().toBuffer();
-  await sharp({ create: { width: 1284, height: 2778, channels: 3, background: SPLASH_BG } })
-    .composite([
-      { input: markPng, left: Math.round((1284 - markPx) / 2), top: Math.round((2778 - markPx) / 2) },
-    ])
-    .png()
-    .toFile(path.join(ASSETS, 'splash.png'));
+  const splash = async (fill, bg, out) => {
+    const mark = files['jim-mark.svg'].replace('stroke="currentColor"', `stroke="${fill}"`);
+    const markPng = await sharp(Buffer.from(mark)).resize(markPx, markPx).png().toBuffer();
+    await sharp({ create: { width: 1284, height: 2778, channels: 3, background: bg } })
+      .composite([
+        { input: markPng, left: Math.round((1284 - markPx) / 2), top: Math.round((2778 - markPx) / 2) },
+      ])
+      .png()
+      .toFile(path.join(ASSETS, out));
+  };
+  await splash(C.light.fill, SPLASH_BG, 'splash.png');
+  await splash(SPLASH_DARK_FILL, SPLASH_DARK_BG, 'splash-dark.png');
 
   console.log(
     JSON.stringify(

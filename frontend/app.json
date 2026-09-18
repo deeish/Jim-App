@@ -18,7 +18,11 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F2F2F7"
+      "backgroundColor": "#F2F2F7",
+      "dark": {
+        "image": "./assets/splash-dark.png",
+        "backgroundColor": "#0A0D13"
+      }
     },
     "assetBundlePatterns": [
       "**/*"
