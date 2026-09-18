@@ -1462,6 +1462,18 @@ Return valid JSON: "days" (array of ${sessions.length} objects). Each day: "name
         usedIdsThisDay.add(next.id);
       }
 
+      // The model sometimes answers in its own order (a glute bridge first
+      // on a bands-only day); the day's rows go back into slot order, ids
+      // the slots do not know last.
+      if (daySlots) {
+        const slotOf = (id: string | undefined): number => {
+          if (!id) return daySlots.length;
+          const i = daySlots.findIndex((slot) => slot.includes(id));
+          return i < 0 ? daySlots.length : i;
+        };
+        exercises.sort((a, b) => slotOf(a.exerciseId) - slotOf(b.exerciseId));
+      }
+
       this.moveCardioExercisesLast(exercises, idToCandidate);
 
       results.push({

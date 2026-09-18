@@ -9,6 +9,7 @@ import {
 } from './session-enrichment';
 import { exerciseTargetsForSession } from '../workouts/workout-generator.service';
 import { baseMovementKey } from './base-movement-key';
+import { getAcceptedOpenerIdsForFocus } from '../data/anchor-exercises';
 
 export type ChunkRepairExerciseMeta = {
   id: string;
@@ -389,6 +390,22 @@ function pickWithEquipmentTiers(
   return undefined;
 }
 
+/** True when `ei` is the session's first non-cardio row: the day's opener. */
+function isFirstStrengthRow(
+  library: ChunkRepairExerciseLibrary,
+  exercises: ReadonlyArray<GeneratedSessionExercise>,
+  ei: number,
+): boolean {
+  for (let i = 0; i < exercises.length; i++) {
+    const row = exercises[i]!;
+    const id = row.exerciseId?.trim();
+    if (!id) continue;
+    if (isCardioRow(library, id, row)) continue;
+    return i === ei;
+  }
+  return false;
+}
+
 function runDuplicatePass(
   sessions: GeneratedSession[],
   specs: GenerateSessionsDto['sessions'],
@@ -420,13 +437,33 @@ function runDuplicatePass(
         const avoidPhrases = avoidPhrasesForSpec(avoidConstraintsGlobal, spec);
         const usedBaseKeys = sessionBaseKeys(session, ei);
         const basePredicate = duplicateReplacementPredicate(origMeta);
+        // A duplicate opener is replaced by another accepted opener for the
+        // focus, or left alone: a bands-only week of three full-body days
+        // had two accepted openers, and the third day's duplicate became a
+        // glute bridge the validator then sent back (scenario matrix).
+        const acceptedOpeners =
+          !cardio &&
+          spec.type === 'strength' &&
+          isFirstStrengthRow(library, exercises, ei)
+            ? getAcceptedOpenerIdsForFocus(spec.title ?? '', { equipment })
+            : [];
+        // Only when the library knows those openers (synthetic test
+        // libraries and narrow focuses do not): otherwise any replacement.
+        const openerSet = acceptedOpeners.some(
+          (oid) => library.findOne(oid)?.id === oid,
+        )
+          ? new Set(acceptedOpeners)
+          : null;
         const pick = pickWithEquipmentTiers(
           library,
           focusTriesForSpec(spec),
           equipment,
           excludeIds,
           origMeta,
-          (c) => basePredicate(c) && !usedBaseKeys.has(baseMovementKey(c.id)),
+          (c) =>
+            basePredicate(c) &&
+            !usedBaseKeys.has(baseMovementKey(c.id)) &&
+            (openerSet == null || openerSet.size === 0 || openerSet.has(c.id)),
           tierFlags,
           avoidPhrases,
         );
@@ -480,13 +517,33 @@ function runDuplicatePassReverse(
         const avoidPhrases = avoidPhrasesForSpec(avoidConstraintsGlobal, spec);
         const usedBaseKeys = sessionBaseKeys(session, ei);
         const basePredicate = duplicateReplacementPredicate(origMeta);
+        // A duplicate opener is replaced by another accepted opener for the
+        // focus, or left alone: a bands-only week of three full-body days
+        // had two accepted openers, and the third day's duplicate became a
+        // glute bridge the validator then sent back (scenario matrix).
+        const acceptedOpeners =
+          !cardio &&
+          spec.type === 'strength' &&
+          isFirstStrengthRow(library, exercises, ei)
+            ? getAcceptedOpenerIdsForFocus(spec.title ?? '', { equipment })
+            : [];
+        // Only when the library knows those openers (synthetic test
+        // libraries and narrow focuses do not): otherwise any replacement.
+        const openerSet = acceptedOpeners.some(
+          (oid) => library.findOne(oid)?.id === oid,
+        )
+          ? new Set(acceptedOpeners)
+          : null;
         const pick = pickWithEquipmentTiers(
           library,
           focusTriesForSpec(spec),
           equipment,
           excludeIds,
           origMeta,
-          (c) => basePredicate(c) && !usedBaseKeys.has(baseMovementKey(c.id)),
+          (c) =>
+            basePredicate(c) &&
+            !usedBaseKeys.has(baseMovementKey(c.id)) &&
+            (openerSet == null || openerSet.size === 0 || openerSet.has(c.id)),
           tierFlags,
           avoidPhrases,
         );

@@ -34,6 +34,8 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
   legs: [
     'back_squat',
     'front_squat',
+    'box_squat',
+    'machine_hack_squat',
     'forty_five_degree_leg_press',
     'conventional_deadlift',
     'trap_bar_deadlift',
@@ -41,6 +43,10 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'goblet_squat',
     'dumbbell_romanian_deadlift',
     'bodyweight_squat',
+    'dumbbell_sumo_squat',
+    'sumo_squat',
+    'glute_bridge',
+    'bodyweight_single_leg_romanian_deadlift',
   ],
   upper: [
     'flat_barbell_bench_press',
@@ -55,12 +61,19 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
   ],
   lower: [
     'back_squat',
+    'front_squat',
+    'box_squat',
+    'machine_hack_squat',
     'forty_five_degree_leg_press',
     'conventional_deadlift',
     'trap_bar_deadlift',
     'goblet_squat',
     'dumbbell_romanian_deadlift',
     'bodyweight_squat',
+    'dumbbell_sumo_squat',
+    'sumo_squat',
+    'glute_bridge',
+    'bodyweight_single_leg_romanian_deadlift',
   ],
   'upper body': [
     'flat_barbell_bench_press',
@@ -93,6 +106,8 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'single_arm_dumbbell_row',
     'push_up',
     'bodyweight_squat',
+    'glute_bridge',
+    'bodyweight_single_leg_romanian_deadlift',
   ],
 };
 
@@ -168,6 +183,10 @@ export function getAcceptedAnchorIdsForFocus(focus: string): string[] {
 export const LIGHT_ANCHOR_IDS: ReadonlySet<string> = new Set([
   'goblet_squat',
   'bodyweight_squat',
+  'dumbbell_sumo_squat',
+  'sumo_squat',
+  'glute_bridge',
+  'bodyweight_single_leg_romanian_deadlift',
   'push_up',
   'single_arm_dumbbell_row',
   'dumbbell_romanian_deadlift',

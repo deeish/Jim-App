@@ -49,8 +49,11 @@ export type SlotKind =
   | 'lower_second'
   | 'lower_compound'
   | 'leg_isolation'
+  | 'leg_isolation_or_lunge'
   | 'calves_or_core'
   | 'calves_or_carry'
+  | 'calves_or_glutes'
+  | 'core_or_carry'
   | 'core'
   | 'chest_shoulder_isolation'
   | 'chest_isolation'
@@ -93,9 +96,9 @@ export const SLOT_KINDS_BY_FOCUS: Record<string, SlotKind[]> = {
   lower: [
     'lower_opener',
     'lower_second',
-    'leg_isolation',
-    'calves_or_core',
-    'calves_or_carry',
+    'leg_isolation_or_lunge',
+    'calves_or_glutes',
+    'core_or_carry',
   ],
   upper: [
     'horizontal_push',
@@ -189,8 +192,11 @@ const squat = (c: ShortlistCandidate) =>
 const hinge = (c: ShortlistCandidate) =>
   has(c, 'Hinge') && c.primaryMuscleGroup === 'Legs' && isCompound(c);
 /** The deadlifts a lower day may open with (not the RDL or a hip thrust). */
-const OPENER_DEADLIFT =
+const OPENER_DEADLIFT = /deadlift/i;
+const STAPLE_DEADLIFT =
   /\b(conventional|trap[-\s]?bar|sumo)\b.*deadlift|^deadlift$/i;
+// A home pool has no barbell deadlift; the dumbbell Romanian deadlift is
+// its hinge opener, or a second lower day could never be hinge-led.
 const openerDeadlift = (c: ShortlistCandidate) =>
   hinge(c) && OPENER_DEADLIFT.test(c.name);
 const core = (c: ShortlistCandidate) => c.primaryMuscleGroup === 'Core';
@@ -230,9 +236,29 @@ const PREDICATES: Record<SlotKind, (c: ShortlistCandidate) => boolean> = {
     c.primaryMuscleGroup === 'Legs' &&
     isIsolation(c) &&
     !CALF.test(`${subs(c)} ${c.name}`),
+  // A home pool has few leg machines; the split squat, lunge and step-up
+  // are its leg accessories (scenario matrix: a home lower day came out as
+  // three lifts with clamshells in this slot).
+  leg_isolation_or_lunge: (c) =>
+    (c.primaryMuscleGroup === 'Legs' &&
+      isIsolation(c) &&
+      !CALF.test(`${subs(c)} ${c.name}`)) ||
+    (c.primaryMuscleGroup === 'Legs' &&
+      isCompound(c) &&
+      classifyLowerDominance(c.name) === 'lunge'),
   calves_or_core: (c) =>
     core(c) ||
     (c.primaryMuscleGroup === 'Legs' && CALF.test(`${subs(c)} ${c.name}`)),
+  // The fourth lower slot is a lift, not a plank: calves, or glute work
+  // (hip thrust, bridge, abduction). A home lower day used to fill its last
+  // two slots with a plank and a carry and read as three lifts.
+  calves_or_glutes: (c) =>
+    c.primaryMuscleGroup === 'Legs' &&
+    (CALF.test(`${subs(c)} ${c.name}`) ||
+      ((/glute/i.test(subs(c)) ||
+        /hip thrust|glute bridge|abduct/i.test(c.name)) &&
+        (isIsolation(c) || /hip thrust|glute bridge/i.test(c.name)))),
+  core_or_carry: (c) => core(c) || has(c, 'Carry'),
   // The validator allows one core row per upper or lower day, so the
   // optional lower finisher never offers a second one (rig run 5: hanging
   // leg raise plus Russian twist failed every first pass).
@@ -363,17 +389,26 @@ export function buildFocusShortlist(args: {
     // fitting rows (a band-only pool may have one accepted opener; the
     // list must not be empty, and the model reads the first options as
     // the best).
+    // With two or more accepted openers, slot 1 offers those only, so the
+    // model cannot pick a glute bridge or a box squat the validator will
+    // send back for a retry (scenario matrix: every home and beginner plan
+    // paid that retry). A one-opener pool (bands only) keeps the tail.
+    const acceptedFirst =
+      index === 0 && openerSet
+        ? fitting.filter((c) => openerSet.has(c.id))
+        : [];
     const matches =
       index === 0 && openerSet
-        ? [
-            ...fitting.filter((c) => openerSet.has(c.id)),
-            ...fitting.filter((c) => !openerSet.has(c.id)),
-          ]
+        ? acceptedFirst.length >= 2
+          ? acceptedFirst
+          : [...acceptedFirst, ...fitting.filter((c) => !openerSet.has(c.id))]
         : fitting;
+    const openerRank = (c: ShortlistCandidate) =>
+      squat(c) ? 0 : STAPLE_DEADLIFT.test(c.name) ? 1 : 2;
     const rank = (c: ShortlistCandidate) =>
-      (isPreferred(c) ? 0 : 4) +
-      (!isMain && priority && c.primaryMuscleGroup === priority ? 0 : 2) +
-      (kind === 'lower_opener' && !squat(c) ? 1 : 0);
+      (isPreferred(c) ? 0 : 8) +
+      (!isMain && priority && c.primaryMuscleGroup === priority ? 0 : 4) +
+      (kind === 'lower_opener' ? openerRank(c) : 0);
     const orderedAll = matches
       .map((c, i) => ({ c, i, r: rank(c) }))
       .sort((a, b) => a.r - b.r || a.i - b.i)

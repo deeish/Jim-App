@@ -64,11 +64,41 @@ describe('slot shortlists (real catalog)', () => {
     expect(hinge!.candidates.map((c) => c.id)).toContain(
       'barbell_romanian_deadlift',
     );
-    expect(iso!.candidates.every((c) => c.type === 'Isolation')).toBe(true);
+    expect(
+      iso!.candidates.every(
+        (c) =>
+          c.type === 'Isolation' || /split squat|lunge|step-up/i.test(c.name),
+      ),
+    ).toBe(true);
     expect(calvesCore!.candidates.length).toBeGreaterThan(0);
     // one meaning per id: no row appears in two slots
     const all = list.slots.flatMap((s) => s.candidates.map((c) => c.id));
     expect(new Set(all).size).toBe(all.length);
+  });
+
+  it('a home lower day offers a loaded split squat or lunge in the leg accessory slot, and only accepted openers in slot 1', () => {
+    const list = buildFocusShortlist({
+      focusLabel: 'Lower',
+      pool: pool('lower', HOME),
+      gymLike: false,
+      difficulty: 'intermediate',
+      openerIds: [
+        'goblet_squat',
+        'dumbbell_romanian_deadlift',
+        'bodyweight_squat',
+        'dumbbell_sumo_squat',
+      ],
+    })!;
+    const openers = list.slots[0]!.candidates.map((c) => c.id);
+    expect(openers).not.toContain('glute_bridge');
+    expect(openers).not.toContain('dumbbell_sumo_deadlift');
+    expect(openers).toContain('goblet_squat');
+    const accessory = list.slots[2]!.candidates.map((c) =>
+      c.name.toLowerCase(),
+    );
+    expect(accessory.some((n) => /split squat|lunge|step-up/.test(n))).toBe(
+      true,
+    );
   });
 
   it('at home the goblet squat is a legitimate opener', () => {
