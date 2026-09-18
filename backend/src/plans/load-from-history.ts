@@ -208,8 +208,14 @@ export function stampLoadsFromHistory(args: {
     LastExercisePerformance | LastExercisePerformance[]
   >;
   findMeta: (id: string) => LoadExerciseMeta | undefined;
+  /**
+   * The block's small weekly load step (progression-profile.ts): reps hold
+   * across a build, so the same history would otherwise stamp the same load
+   * every week. 1 when omitted.
+   */
+  loadFactorForWeek?: (weekIndex: number) => number;
 }): StampLoadsResult {
-  const { specs, findMeta } = args;
+  const { specs, findMeta, loadFactorForWeek } = args;
   const history = new Map<string, LastExercisePerformance[]>();
   for (const [id, v] of args.history) {
     const list = Array.isArray(v) ? v : [v];
@@ -243,8 +249,12 @@ export function stampLoadsFromHistory(args: {
         if (load != null) {
           liftsUsed.add(ex.exerciseId!);
           // Only the first week deloads; later weeks progress from it through
-          // the phase's reps and effort target as usual.
+          // the block's load step and, past the halfway point, its effort target.
           const weekIndex = spec?.weekIndex ?? session.weekIndex;
+          const factor = loadFactorForWeek?.(weekIndex) ?? 1;
+          if (factor !== 1) {
+            load = Math.max(MIN_PRESCRIBED_LOAD_LB, roundLoadLb(load * factor));
+          }
           const plateau = weekIndex === firstWeek && isPlateaued(recent);
           if (plateau) {
             load = Math.max(

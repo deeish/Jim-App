@@ -9,6 +9,7 @@ import type {
 import { clampSessionWorkingSets, ISOLATION_NAME } from './session-enrichment';
 import { isUnilateralByName } from './cross-session-diversity';
 import { cardioBlockStyle, cardioMainBlockNotes } from './cardio-day-template';
+import { normalizeWeekProgression } from './progression-profile';
 
 /**
  * Appended once to a deload session's reasoning so the lighter prescriptions
@@ -124,20 +125,6 @@ function progressCardioSession(
 export const DELOAD_CARDIO_REASONING_NOTE =
   'Deload week: the main block is intentionally shorter so you recover and come back stronger.';
 
-/** How far the block's phase moves the effort target: harder as it builds, easier on a deload. */
-export function rirShiftForPhase(phase: string | undefined): number {
-  switch ((phase ?? '').toLowerCase()) {
-    case 'progression':
-      return -1;
-    case 'peak':
-      return -2;
-    case 'deload':
-      return 2;
-    default:
-      return 0;
-  }
-}
-
 function clampRir(value: number, floor: number): number {
   return Math.max(floor, Math.min(4, Math.round(value)));
 }
@@ -217,8 +204,12 @@ export function applyWeekProgressionToEnrichedSessions(args: {
     return { sessions: args.sessions, adjustedSessionCount: 0 };
   }
 
-  const progByWeek = new Map<number, WeekProgressionDto>();
-  for (const p of weekProgression) progByWeek.set(p.weekIndex, p);
+  // The profile as the rules apply it: reps hold across a build, effort
+  // tightens once at the halfway point, a deload eases both
+  // (progression-profile.ts).
+  const progByWeek = new Map(
+    normalizeWeekProgression(weekProgression).map((p) => [p.weekIndex, p]),
+  );
 
   let adjustedSessionCount = 0;
   const sessions = args.sessions.map((session, i) => {
@@ -232,7 +223,13 @@ export function applyWeekProgressionToEnrichedSessions(args: {
       return progressed;
     }
     if (spec.type !== 'strength') return session;
-    if (prog.volumeMultiplier === 1 && prog.repModifier === 0) return session;
+    if (
+      prog.volumeMultiplier === 1 &&
+      prog.repModifier === 0 &&
+      prog.rirShift === 0
+    ) {
+      return session;
+    }
 
     let changed = false;
     let exercises = session.exercises.map((ex) => {
@@ -254,14 +251,14 @@ export function applyWeekProgressionToEnrichedSessions(args: {
         shiftReps && ex.repsMax != null
           ? clampReps(ex.repsMax + prog.repModifier)
           : ex.repsMax;
-      // Effort drifts with the phase: closer to failure as the block builds,
-      // eased on a deload. Compounds never go below 1 RIR (a heavy lift to
-      // failure is a technique risk, not a stimulus); isolation may reach 0.
+      // Effort tightens once, halfway through the build, and eases on a
+      // deload. Compounds never go below 1 RIR (a heavy lift to failure is
+      // a technique risk, not a stimulus); isolation may reach 0.
       const targetRir =
         ex.targetRir == null
           ? undefined
           : clampRir(
-              ex.targetRir + rirShiftForPhase(prog.phase),
+              ex.targetRir + prog.rirShift,
               keepsCanonicalRepBand(ex, meta) ? 0 : 1,
             );
       if (

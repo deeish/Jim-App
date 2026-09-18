@@ -75,26 +75,29 @@ describe('applyWeekProgressionToEnrichedSessions', () => {
     expect(sessions[0]).toBe(input[0]);
   });
 
-  it('scales sets and shifts the rep band on a progression week', () => {
+  it('scales sets on a progression week and holds the rep band (the load moves, not the reps)', () => {
     const { sessions, adjustedSessionCount } =
       applyWeekProgressionToEnrichedSessions({
         sessions: [session({ weekIndex: 2 })],
         specs: [spec({ weekIndex: 2 })],
-        weekProgression: [progression(2, 'progression', 1.15, -1)],
+        weekProgression: [
+          progression(1, 'foundation', 1.0, 0),
+          progression(2, 'progression', 1.15, -1),
+        ],
       });
     expect(adjustedSessionCount).toBe(1);
     const [bench, row] = sessions[0].exercises;
-    // round(4 * 1.15) = 5; 5-8 shifts to 4-7
+    // round(4 * 1.15) = 5; the client's −1 rep is ignored, 5-8 stays 5-8
     expect(bench.sets).toBe(5);
-    expect(bench.reps).toBe(4);
-    expect(bench.repsMin).toBe(4);
-    expect(bench.repsMax).toBe(7);
+    expect(bench.reps).toBe(5);
+    expect(bench.repsMin).toBe(5);
+    expect(bench.repsMax).toBe(8);
     // round(3 * 1.15) = 3 — a +15% week must not add a set to every row
     expect(row.sets).toBe(3);
-    expect(row.reps).toBe(9);
+    expect(row.reps).toBe(10);
   });
 
-  it('drifts the effort target with the phase and never sends a compound to failure', () => {
+  it('tightens the effort target once, halfway through the build, and never sends a compound to failure', () => {
     const withRir = (weekIndex: number) =>
       session({
         weekIndex,
@@ -119,16 +122,28 @@ describe('applyWeekProgressionToEnrichedSessions', () => {
           },
         ],
       });
-    const run = (weekIndex: number, phase: string, mult: number, mod: number) =>
+    // A four-week build with a deload: the client's per-week rep cuts and
+    // the old per-phase drift are both replaced by one step at the halfway
+    // point of the build weeks.
+    const block = [
+      progression(1, 'foundation', 1.0, 0),
+      progression(2, 'progression', 1.08, -1),
+      progression(3, 'progression', 1.16, -2),
+      progression(4, 'peak', 1.24, -3),
+      progression(5, 'deload', 0.7, 2),
+    ];
+    const run = (weekIndex: number) =>
       applyWeekProgressionToEnrichedSessions({
         sessions: [withRir(weekIndex)],
         specs: [spec({ weekIndex })],
-        weekProgression: [progression(weekIndex, phase, mult, mod)],
+        weekProgression: block,
       }).sessions[0].exercises.map((e) => e.targetRir);
-    expect(run(2, 'progression', 1.15, -1)).toEqual([1, 0]);
-    // peak: −2, but the bench floors at 1 while the curl (isolation) may hit 0
-    expect(run(3, 'peak', 1.25, -2)).toEqual([1, 0]);
-    expect(run(4, 'deload', 0.7, 2)).toEqual([4, 3]);
+    expect(run(1)).toEqual([2, 1]);
+    expect(run(2)).toEqual([2, 1]);
+    // second half of the build: one rep closer, bench floors at 1, the curl (isolation) may hit 0
+    expect(run(3)).toEqual([1, 0]);
+    expect(run(4)).toEqual([1, 0]);
+    expect(run(5)).toEqual([4, 3]);
   });
 
   it('trims sets, lightens reps, and appends the note on a deload week', () => {
@@ -261,7 +276,7 @@ describe('applyWeekProgressionToEnrichedSessions', () => {
     expect(press.sets).toBe(2); // round(2 * 0.7) = 1 floored to 2
   });
 
-  it('keeps the canonical rep band on bodyweight, unilateral, and isolation rows when the week goes heavier', () => {
+  it('holds every rep band when the week goes heavier: the load moves, the reps do not', () => {
     const peak = session({
       weekIndex: 3,
       exercises: [
@@ -310,11 +325,11 @@ describe('applyWeekProgressionToEnrichedSessions', () => {
       findMeta,
     });
     const [bench, bss, raise, bridge] = sessions[0].exercises;
-    expect(bench.reps).toBe(4); // loaded bilateral compound takes the shift
-    expect(bench.repsMax).toBe(6);
-    expect(bss.reps).toBe(6); // unilateral keeps its band
-    expect(raise.reps).toBe(8); // isolation keeps its band
-    expect(bridge.reps).toBe(8); // bodyweight keeps its band
+    expect(bench.reps).toBe(6); // the client's -2 is ignored on a build week
+    expect(bench.repsMax).toBe(8);
+    expect(bss.reps).toBe(6);
+    expect(raise.reps).toBe(8);
+    expect(bridge.reps).toBe(8);
     expect(bridge.repsMax).toBe(12);
   });
 
@@ -431,7 +446,7 @@ describe('applyWeekProgressionToEnrichedSessions', () => {
     expect(sessions[0].exercises[0].sets).toBe(4);
     expect(sessions[0].exercises[0].reps).toBe(5);
     expect(sessions[1].exercises[0].sets).toBe(5);
-    expect(sessions[1].exercises[0].reps).toBe(4);
+    expect(sessions[1].exercises[0].reps).toBe(5);
   });
 });
 

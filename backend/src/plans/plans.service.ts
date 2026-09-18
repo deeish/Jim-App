@@ -65,6 +65,7 @@ import {
 } from './generation-capture';
 import { enforceWeekPatternFloors } from './week-pattern-floors';
 import { applyWeekProgressionToEnrichedSessions } from './week-progression';
+import { loadFactorByWeek } from './progression-profile';
 import {
   dedupeEnrichedProgramSessions,
   repairChunkGeneratedSessions,
@@ -2571,6 +2572,7 @@ export class PlansService {
       specs: dto.sessions,
       history,
       findMeta: (id) => this.exercises.findOne(id),
+      loadFactorForWeek: loadFactorByWeek(dto.weekProgression),
     });
     this.logger.log(
       JSON.stringify({

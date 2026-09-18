@@ -22,8 +22,9 @@ export interface WeekProgressionEntry {
 
 /**
  * Computes per-week intensity/volume targets from the user's progression style.
- * Sent to the backend as `weekProgression` so the LLM receives concrete weekly
- * targets rather than a vague periodization hint.
+ * Sent to the backend as `weekProgression`. Reps hold across a build (the load
+ * moves, not the rep band; the server's progression-profile.ts enforces the
+ * same shape for older clients); only a deload lightens the reps.
  */
 export function weekProgressionForGenerateSessions(
   inputs: PlanInputs,
@@ -36,21 +37,21 @@ export function weekProgressionForGenerateSessions(
     }
     if (ps === 'build_deload') {
       const rows = [
-        { phase: 'foundation',  intensityPct: 65, volumeMultiplier: 1.0,  repModifier:  0 },
-        { phase: 'progression', intensityPct: 70, volumeMultiplier: 1.15, repModifier: -1 },
-        { phase: 'peak',        intensityPct: 75, volumeMultiplier: 1.25, repModifier: -2 },
-        { phase: 'deload',      intensityPct: 60, volumeMultiplier: 0.70, repModifier:  2 },
+        { phase: 'foundation',  intensityPct: 65, volumeMultiplier: 1.0,  repModifier: 0 },
+        { phase: 'progression', intensityPct: 70, volumeMultiplier: 1.15, repModifier: 0 },
+        { phase: 'peak',        intensityPct: 75, volumeMultiplier: 1.25, repModifier: 0 },
+        { phase: 'deload',      intensityPct: 60, volumeMultiplier: 0.70, repModifier: 2 },
       ];
       return { weekIndex: wi, ...rows[(wi - 1) % 4]! };
     }
-    // 'build' — linear ramp, no formal deload
+    // 'build' — linear ramp, no formal deload; reps hold, load and sets climb
     const ramp = Math.min(wi - 1, 3);
     return {
       weekIndex: wi,
       phase: ramp === 0 ? 'foundation' : ramp < 3 ? 'progression' : 'peak',
       intensityPct: 65 + ramp * 4,
       volumeMultiplier: parseFloat((1.0 + ramp * 0.08).toFixed(2)),
-      repModifier: -ramp,
+      repModifier: 0,
     };
   });
 }
