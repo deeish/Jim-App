@@ -706,3 +706,21 @@ Dylan: in dark mode the loading screen into the app is always light. It was, by 
 ### Build 1.4.0 (35) cut (2026-09-18, 00:00)
 
 EAS build `998933ec` (iOS, production profile, auto-submit), queued 23:48, finished 23:56, uploaded 23:58; `tf:status` at 00:00 → `1.4.0 (35) VALID, external: READY_FOR_BETA_SUBMISSION`. Internal testers only (Dylan); Friends/Family is a separate distribute step and stays on hold. Carries everything above: the plan-generation tiers, the ledger, hidden exercises, similar exercises, the What's New card, the sheet scroll fix and the dark launch. Backend was already live on Render before the build. The phone checks this build owes: the What's New sheet scrolls; a dark launch is dark; the first plan of the week on Monday.
+
+
+## Open items for the week of 2026-09-21
+
+Dylan's phone confirmations on build 1.4.0 (35), 2026-09-18: the What's New sheet scrolls (closed); a cold launch starts light and switches to dark (parked, see 1).
+
+| # | Item | What is known | Where to start |
+|---|---|---|---|
+| 1 | Cold launch starts light, then dark | Three possible causes, not yet told apart: (a) the phone's own appearance is light, so the native splash is light by design and only the loader can be dark; (b) the first launch after this build migrates the saved choice from AsyncStorage into the sync store, so exactly one launch shows the light loader; (c) the sync keychain read fails on the device and the loader is always light until AsyncStorage arrives. Ask: is the phone set to light or dark, and does the second launch behave the same? If (c), read the theme through a different sync store (MMKV or a file) or move the theme into the launch args | `lib/themeStore.ts`, `theme/ThemeContext.tsx`, `components/LoadingScreen.tsx` |
+| 2 | Peak-week session cap drops one accessory row | Two of sixteen matrix plans lose a five-row day's last accessory in the peak week: the time cap and the band cap agree on trimming sets, then the row count cap still removes a row. The fix is to let the peak week keep the row at two sets rather than drop it | `plans.service.ts` (`trimWeeklyVolumeToBand`, main cap 5/4), matrix `docs/audits/2026-09-17-scenario-matrix/` |
+| 3 | Copy items | The finish-screen check-in text still reads as a survey rather than "this shapes next week"; draft rows in the preview do not show the ledger's "aim N" (only applied plans do) | `PlanCalendarWorkoutCompleteScreen.tsx`, `PlanPreviewDayScreen.tsx` |
+| 4 | Duplicate repair ignores the user's level | `getAcceptedOpenerIdsForFocus` inside the duplicate repair runs without difficulty, so a gym intermediate's duplicate opener can be repaired into a goblet squat; enrichment's slot-one swap then replaces it with a staple, so the plan is right but the path is two steps | `generation-chunk-repair.ts` (both duplicate passes), thread `difficulty` from the caller |
+| 5 | Bands-only hinge openers | The bands pool has no hinge opener beyond the glute bridge and the single-leg RDL. Catalog work, not rules: a band good morning and a band pull-through would fill it | `data/exercise-mappings.ts`, `anchor-exercises.ts` |
+| 6 | Friends/Family distribution | 1.4.0 (35) is internal only. Dylan's call after his own week on it; then `npm run tf:distribute -- --group "Friends/Family" --wait` and Beta App Review | `scripts/testflight-distribute.mjs` |
+| 7 | Gemini checks | Sentry rate alert (Dylan), billing and Sentry on or after 2026-09-21; `AI_GENERATION_ALLOWLIST` set on Render is the tell that only Dylan's account spends tokens | Render dashboard, `docs/llm-model-swap.md` |
+| 8 | Monday's real plan | Dylan generates a plan for himself on 2026-09-21 from a clean history; first real ledger week follows | the app |
+
+Closed this week and not carried: the What's New scroll (confirmed on the phone), the hidden exercises, similar exercises, the dark loader and splash assets, the Tier 7 ledger and the check-in mirror, the home and beginner pass.
