@@ -666,6 +666,6 @@ Rig outcome: `docs/audits/2026-09-18-similar-exercises-rig-run.json`. Frontend: 
 ### Deliberately not done
 
 - No "Use instead" from the Exercises tab on its own: with no slot to put it in, a row only opens the exercise. The list still reads as swaps, which is what the machine-is-taken case wants; the actual swap is one tap away on the workout screen's Exercise Guide.
-- The live workout deck (Workout tab, `returnToPlanExerciseContext: 'workout'`) does not pass a slot yet; the calendar workout screen and the preview day do. The deck's rows are the same calendar store, so it is the same two params when wanted.
+- Correction (same night): there is no Workout tab any more (tabs are Home, Calendar, Crew, Exercises); the live workout IS the calendar workout screen, which passes the slot. The `'workout'` context in the navigation types is a leftover nobody sends. The only opener left without a slot is the replace picker's own detail link, where the picker is already the swap surface.
 - The ranker's per-day context is only as good as the opener: from the library there is no day, so the "already in the day" and "already this week" signals stay quiet there on purpose.
 - Six rows, not a scrolling list: the ranker's tail is weak past the first handful and a longer list reads as padding.
