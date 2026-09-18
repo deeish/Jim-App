@@ -544,3 +544,7 @@ Sets: the existing check-in direction (push adds one to the main lift and an acc
 3. Eval: the scorer does not see the ledger; a short capture of the check-in path (before/after rows) goes in `docs/audits/`.
 
 Estimate: a day for the server pieces and tests, an hour for the client copy, a rig pass. Backend deploys before any client build, as always.
+
+### Tier 7 addendum: stale history (Dylan's question, 2026-09-17)
+
+Every log carries `performedAt`, and neither the load stamping (`load-from-history.ts`) nor the plateau check reads it: a plan built a year after the last session would prescribe last year's numbers at the block's effort target. Decision for the build: a staleness discount on the history-derived load by age of the newest log for that lift — under 6 weeks none; 6 weeks to 3 months −7.5%; 3 to 6 months −15%; over 6 months treat as no history (the calibration note, and the first logged session sets the number). The form's "Training now" answer sharpens it: "currently sedentary" moves each band one step harsher. The ledger then corrects within a week either way. Plateau detection ignores logs older than 3 months.
