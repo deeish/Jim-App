@@ -207,3 +207,47 @@ export const unsaveExercise = async (exerciseId: string): Promise<void> => {
     throw e;
   }
 };
+
+// --- Hidden exercises: lifts the user never wants in a plan (2026-09-17) ---
+// The list is applied on the server: the generator, every repair and swap,
+// and the replacement picker exclude these ids. The catalog browse still
+// shows them, so a hidden lift can be found and un-hidden.
+
+export const getDislikedExerciseIds = async (): Promise<string[]> => {
+  try {
+    const response = await api.get<{ exerciseIds: string[] }>('/exercises/disliked/ids');
+    return response.data.exerciseIds ?? [];
+  } catch (e) {
+    if (__DEV__) console.warn('[exerciseService] getDislikedExerciseIds failed', e);
+    throw e;
+  }
+};
+
+/** Full exercise objects for the user's hidden list (Profile -> Hidden exercises). */
+export const getDislikedExercises = async (): Promise<Exercise[]> => {
+  try {
+    const response = await api.get<{ exercises: Exercise[] }>('/exercises/disliked');
+    return response.data.exercises ?? [];
+  } catch (e) {
+    if (__DEV__) console.warn('[exerciseService] getDislikedExercises failed', e);
+    throw e;
+  }
+};
+
+export const dislikeExercise = async (exerciseId: string): Promise<void> => {
+  try {
+    await api.post(`/exercises/${encodeURIComponent(exerciseId)}/dislike`);
+  } catch (e) {
+    if (__DEV__) console.warn('[exerciseService] dislikeExercise failed', exerciseId, e);
+    throw e;
+  }
+};
+
+export const undislikeExercise = async (exerciseId: string): Promise<void> => {
+  try {
+    await api.delete(`/exercises/${encodeURIComponent(exerciseId)}/dislike`);
+  } catch (e) {
+    if (__DEV__) console.warn('[exerciseService] undislikeExercise failed', exerciseId, e);
+    throw e;
+  }
+};

@@ -21,7 +21,7 @@ import { formatEffortTarget, formatRestSecondsForPreview } from '../lib/exercise
 import { formatExercisePrescriptionCompact } from '../lib/workoutExerciseDisplay';
 import { bodyTagChipColors, shortBodyTagLabel } from '../lib/previewExerciseMeta';
 import { isLinkableLibraryExerciseId } from '../lib/exerciseNavigation';
-import { getExerciseById } from '../services/exerciseService';
+import { dislikeExercise, getExerciseById } from '../services/exerciseService';
 import { applyRecordedSwaps, regeneratePipelineDay } from '../lib/planPipeline';
 import {
   findSession,
@@ -158,23 +158,52 @@ export default function PlanPreviewDayScreen({ navigation, route }: Props) {
     [weekNumber, day],
   );
 
-  const askSwap = useCallback(
-    (exerciseName: string) => {
-      const weeks = getPreviewSession().planDraft?.weeks.length ?? 1;
-      if (weeks <= 1) {
-        Alert.alert(`Swap ${exerciseName}?`, 'A different exercise for the same muscle takes its place. The sets and reps stay.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Swap', onPress: () => void doSwap(exerciseName, 'week') },
-        ]);
+  /** "Never show it": onto the hidden list first, so the swap that follows
+   *  (and every plan after it) already excludes the lift on the server. */
+  const neverShow = useCallback(
+    async (exerciseName: string, exerciseId: string) => {
+      try {
+        await dislikeExercise(exerciseId);
+      } catch (e) {
+        Alert.alert("Couldn't hide this exercise", (e as Error)?.message ?? 'Check your connection and try again.');
         return;
       }
-      Alert.alert(`Swap ${exerciseName}`, 'Swap it in this week only, or in every week of the plan?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'This week', onPress: () => void doSwap(exerciseName, 'week') },
-        { text: 'Every week', onPress: () => void doSwap(exerciseName, 'all') },
-      ]);
+      await doSwap(exerciseName, 'all');
     },
     [doSwap],
+  );
+
+  const askSwap = useCallback(
+    (exerciseName: string, exerciseId?: string) => {
+      const weeks = getPreviewSession().planDraft?.weeks.length ?? 1;
+      const id = exerciseId?.trim() ?? '';
+      const never = isLinkableLibraryExerciseId(id)
+        ? [{ text: 'Never show it', style: 'destructive' as const, onPress: () => void neverShow(exerciseName, id) }]
+        : [];
+      if (weeks <= 1) {
+        Alert.alert(
+          `Swap ${exerciseName}?`,
+          'A different exercise for the same muscle takes its place. The sets and reps stay. "Never show it" also keeps it out of every plan from now on.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            ...never,
+            { text: 'Swap', onPress: () => void doSwap(exerciseName, 'week') },
+          ],
+        );
+        return;
+      }
+      Alert.alert(
+        `Swap ${exerciseName}`,
+        'Swap it in this week only, or in every week of the plan? "Never show it" also keeps it out of every plan from now on.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          ...never,
+          { text: 'This week', onPress: () => void doSwap(exerciseName, 'week') },
+          { text: 'Every week', onPress: () => void doSwap(exerciseName, 'all') },
+        ],
+      );
+    },
+    [doSwap, neverShow],
   );
 
   const rebuildDay = useCallback(async () => {
@@ -317,7 +346,7 @@ export default function PlanPreviewDayScreen({ navigation, route }: Props) {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.swapBtn}
-                  onPress={() => askSwap(e.name)}
+                  onPress={() => askSwap(e.name, e.exerciseId ?? undefined)}
                   disabled={!!swapping || anyBusy}
                   accessibilityRole="button"
                   accessibilityLabel={`Swap ${e.name}`}

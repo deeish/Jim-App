@@ -22,6 +22,8 @@ export type RootNavigatorParamList = {
   Main: NavigatorScreenParams<RootTabParamList> | undefined;
   Profile: undefined;
   WeightTracker: undefined;
+  /** Profile -> exercises the user never wants in a plan. */
+  HiddenExercises: undefined;
   /** Redeem a shared plan/workout code (deep link jimapp://share/CODE or manual entry). */
   ShareRedeem: { code?: string } | undefined;
 };

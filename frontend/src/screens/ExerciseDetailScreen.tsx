@@ -16,7 +16,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CommonActions, RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
-import { getExerciseById, Exercise, getSavedExerciseIds, saveExercise, unsaveExercise } from '../services/exerciseService';
+import {
+  getExerciseById,
+  Exercise,
+  getSavedExerciseIds,
+  saveExercise,
+  unsaveExercise,
+  getDislikedExerciseIds,
+  dislikeExercise,
+  undislikeExercise,
+} from '../services/exerciseService';
 import { useTheme } from '../theme/ThemeContext';
 import { getMuscleGroupVisual } from '../constants/muscleGroupMeta';
 import MuscleBodyMap from '../components/bodymap/MuscleBodyMap';
@@ -117,6 +126,9 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   const [loadFailed, setLoadFailed] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savingLike, setSavingLike] = useState(false);
+  /** On the user's hidden list: never generated, repaired or swapped in. */
+  const [hidden, setHidden] = useState(false);
+  const [togglingHidden, setTogglingHidden] = useState(false);
   // Collapsed by default: most users go straight to the video, and the step
   // list is the longest block on the page.
   const [instructionsOpen, setInstructionsOpen] = useState(false);
@@ -256,6 +268,16 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           fontWeight: weight.semibold,
           color: colors.primary,
         },
+        hideRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.xs,
+          alignSelf: 'flex-start',
+          marginTop: spacing.md,
+          paddingVertical: spacing.xxs,
+        },
+        hideText: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.textSecondary },
+        hiddenText: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.error },
         legendRow: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -443,17 +465,19 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     try {
       setLoading(true);
       setLoadFailed(false);
-      const [data, savedIds] = await Promise.all([
+      const [data, savedIds, hiddenIds] = await Promise.all([
         getExerciseById(exerciseId),
         getSavedExerciseIds().catch((e) => {
           if (__DEV__) console.warn('[ExerciseDetail] getSavedExerciseIds failed', e);
           return [] as string[];
         }),
+        getDislikedExerciseIds().catch(() => [] as string[]),
       ]);
       setExercise(data);
       const isSaved = savedIds.includes(exerciseId);
       if (__DEV__) console.log('[ExerciseDetail] loadExercise', exerciseId, 'saved:', isSaved, 'savedIds:', savedIds);
       setSaved(isSaved);
+      setHidden(hiddenIds.includes(exerciseId));
     } catch (error) {
       if (__DEV__) console.error('[ExerciseDetail] Error loading exercise:', error);
       // ⚠ The catch used to swallow this, and the render below then said
@@ -477,6 +501,9 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
             setSaved(isSaved);
           })
           .catch((e) => { if (__DEV__) console.warn('[ExerciseDetail] focus: getSavedExerciseIds failed', e); });
+        getDislikedExerciseIds()
+          .then((ids) => setHidden(ids.includes(exerciseId)))
+          .catch(() => {});
       }
     }, [exerciseId, loading, exercise])
   );
@@ -554,6 +581,42 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     } finally {
       setSavingLike(false);
     }
+  };
+
+  /** Hide from every plan, or show again. Optimistic; a failed call reverts. */
+  const handleToggleHidden = async () => {
+    if (!exerciseId || togglingHidden) return;
+    const next = !hidden;
+    setTogglingHidden(true);
+    setHidden(next);
+    try {
+      if (next) await dislikeExercise(exerciseId);
+      else await undislikeExercise(exerciseId);
+    } catch (e) {
+      if (__DEV__) console.warn('[ExerciseDetail] handleToggleHidden failed', exerciseId, e);
+      setHidden(!next);
+      Alert.alert(
+        next ? "Couldn't hide this exercise" : "Couldn't show it again",
+        'Check your connection and try again.',
+      );
+    } finally {
+      setTogglingHidden(false);
+    }
+  };
+
+  const askHide = () => {
+    if (hidden) {
+      void handleToggleHidden();
+      return;
+    }
+    Alert.alert(
+      `Hide ${exercise?.name ?? 'this exercise'}?`,
+      'It never goes into a plan, a rebuilt day or a swap again. Plans you already have keep it. You can show it again from Profile → Hidden exercises.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Hide', style: 'destructive', onPress: () => void handleToggleHidden() },
+      ],
+    );
   };
 
   if (loading) {
@@ -637,6 +700,26 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
               size={26}
             />
           </View>
+          {/* The opposite of the heart: a lift the user never wants planned.
+              Kept off the title row so the two never read as one toggle. */}
+          <TouchableOpacity
+            style={styles.hideRow}
+            onPress={askHide}
+            disabled={togglingHidden}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={hidden ? 'Hidden from your plans. Tap to show it again.' : "Don't show me this exercise in plans"}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons
+              name={hidden ? 'eye-off' : 'eye-off-outline'}
+              size={15}
+              color={hidden ? colors.error : colors.textSecondary}
+            />
+            <Text style={hidden ? styles.hiddenText : styles.hideText}>
+              {hidden ? 'Hidden from your plans · Show again' : "Don't show me this"}
+            </Text>
+          </TouchableOpacity>
           {(exercise.difficulty || exercise.recommended) && (
             <View style={styles.badgeRow}>
               {exercise.difficulty && (

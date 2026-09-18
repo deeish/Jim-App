@@ -17,6 +17,7 @@ import NavBar from './src/components/NavBar';
 import LoadingScreen from './src/components/LoadingScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import WeightTrackerScreen from './src/screens/WeightTrackerScreen';
+import HiddenExercisesScreen from './src/screens/HiddenExercisesScreen';
 import ShareRedeemScreen from './src/screens/ShareRedeemScreen';
 import ShareDeepLinkHandler from './src/components/ShareDeepLinkHandler';
 import OnboardingScreen from './src/screens/OnboardingScreen';
@@ -165,6 +166,7 @@ function AppContent() {
               <RootStack.Screen name="Main" component={NavBar} />
               <RootStack.Screen name="Profile" component={ProfileScreen} />
               <RootStack.Screen name="WeightTracker" component={WeightTrackerScreen} />
+              <RootStack.Screen name="HiddenExercises" component={HiddenExercisesScreen} />
               <RootStack.Screen name="ShareRedeem" component={ShareRedeemScreen} />
             </RootStack.Navigator>
           )

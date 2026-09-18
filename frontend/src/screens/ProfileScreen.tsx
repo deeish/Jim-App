@@ -54,6 +54,7 @@ import {
 import { exportMyData, deleteMyAccount } from '../services/userService';
 import { connectAppleHealth, isAppleHealthAvailable } from '../lib/appleHealth';
 import { listWeighIns, type BodyWeightEntry } from '../services/bodyWeightService';
+import { getDislikedExerciseIds } from '../services/exerciseService';
 import {
   getPersonalBests,
   getWorkoutLogs,
@@ -671,6 +672,8 @@ export default function ProfileScreen() {
    * page that arrives once, correct.
    */
   const [bandLoading, setBandLoading] = useState(true);
+  /** Hidden-exercise count for the Preferences row; null until the first read. */
+  const [hiddenCount, setHiddenCount] = useState<number | null>(null);
   /** Refetch on focus keeps what is already on screen — the band must never
    *  blink back to skeletons over data we have. Same rule ProgressScreen
    *  documents at its own load. */
@@ -714,11 +717,18 @@ export default function ProfileScreen() {
         setWeighIns([]);
         setStats(null);
         setBestLifts([]);
+        setHiddenCount(null);
         setBandLoading(false);
         return;
       }
       let active = true;
       if (!bandLoadedOnce.current) setBandLoading(true);
+      // Independent of the band: the row shows its count when it arrives.
+      getDislikedExerciseIds()
+        .then((ids) => {
+          if (active) setHiddenCount(ids.length);
+        })
+        .catch(() => {});
       const weighInsDone = listWeighIns(180)
         .then((rows) => {
           if (active) setWeighIns(rows);
@@ -1417,6 +1427,15 @@ export default function ProfileScreen() {
               />
             </>
           ) : null}
+          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+          <ChipRow
+            icon="eye-off-outline"
+            tint={colors.workoutCardio}
+            label="Hidden exercises"
+            value={hiddenCount == null ? undefined : hiddenCount === 0 ? 'None' : String(hiddenCount)}
+            onPress={() => navigation.navigate('HiddenExercises')}
+            colors={colors}
+          />
           <View style={[styles.rowDivider, themedStyles.rowDivider]} />
           <View style={styles.chipRow}>
             <View style={[styles.chip, { backgroundColor: colors.workoutRecovery }]}>
