@@ -479,3 +479,68 @@ Rig run 13 on the same build: first pass clean, 6 s, five rows every day, no tri
 - The home dumbbell upper/lower has a three-lift lower day (goblet squat, RDL, leg curl plus core and a carry): the home lower pool is thin and the model filled the last slots with time rows. A home lower shortlist with more dumbbell leg options is the next step.
 - `slot_one_not_anchor` still fires on home and beginner plans (glute bridge, sumo squat, box squat) and on a push-up opener under a shoulder limitation; enrichment swaps them and the plans are fine. The anchor list could learn the home openers.
 - The sixteen captures themselves (1.4 MB per pass) stay in the scratchpad; the payloads, the generator and the pass summaries are in the audits folder.
+
+## Tier 7 spec: template plus ledger (written 2026-09-17, NOT built)
+
+Dylan: "the method you suggest is the template plus ledger, how do we go about writing this up and is it pretty much changing exercises or reps/weight each week depending on how they did the previous week?"
+
+**One line.** Exercises are fixed for the block. Every logged session rewrites the *next* occurrence of that day: load and rep target per lift from the logged sets, set count from the check-in, effort from the block's schedule. Weeks that have not been reached stay as the projection.
+
+### What stays as it is
+
+- Week 1 generation, the shortlists, the rules, the coach check, the clone of weeks 2+ with the volume ramp, the load step and the effort schedule. These become the *default* for weeks 2+, shown as "projected".
+- The check-in card (effort, soreness, joint pain) and its set adjustment (`checkin-adjustment.ts`).
+- The next-block builder (Tier 4c): exercises change between blocks, not inside one.
+
+### The ledger rule, per lift, run when a session is logged
+
+Inputs: the day just logged (its plan rows with `sets`, `repsMin`, `repsMax`, `targetRir`, `weight`), the log's working sets (`reps`, `weight`), the check-in (`effort` 1–3), and the next occurrence of the same day (same weekday and title, week + 1), which `applyCheckIn` already locates.
+
+| Logged result on the lift | Next week's row |
+|---|---|
+| Every working set at the top of the rep range and effort not "too hard" | load + one step (the larger of 2.5% and one plate: 5 lb upper, 10 lb lower), rep target back to the bottom of the range |
+| Sets inside the range | same load, rep target = best set + 1, capped at the top |
+| Any set below the bottom of the range, or effort "too hard" | same load if the miss was one rep; otherwise load − 5% and the bottom of the range |
+| No load prescribed (accessory with no history) | the logged load becomes the number: Epley e1RM from the best set, inverted at next week's reps and effort (`loadForTarget`), then the table above applies from week 3 |
+| Bodyweight or timed row | sets only (the check-in rule); a bodyweight row that logged added load is treated as loaded |
+| Lift skipped in the log | unchanged |
+| Session not logged | nothing changes; the projection stands |
+
+Sets: the existing check-in direction (push adds one to the main lift and an accessory; ease removes one; neutral holds). Effort target: the block's schedule, unchanged. The rewritten row keeps its `repsMin`/`repsMax` band; only `weight`, the displayed target reps and `sets` move.
+
+### Deload on trigger, not calendar
+
+- Trigger: two consecutive "ease" check-ins on the same day type, or a main lift that `isPlateaued` over its last three logs.
+- Action: the next occurrence of every day in the coming week gets the existing deload transform (sets × 0.7, +2 reps, +2 in reserve, load × 0.9) and the deload note. The block's own calendar deload (build_deload style) stays available as a user choice but is no longer forced.
+- One deload per block from the trigger; a second trigger suggests ending the block early (the "Build your next block" card).
+
+### What the user sees
+
+- Preview and week screens: week 1 "as planned"; weeks 2+ "adjusts to what you log" (one line of copy, rides a binary).
+- A rewritten row carries a short note: "Up 5 lb: you hit the top of the range last week" / "Holding: last week was a grind" / "Your first logged set sets the number".
+- Nothing is rewritten silently more than one week ahead. When week 2 Monday is logged, week 3 Monday is rewritten; week 4 stays projected until week 3 is logged.
+
+### Where it lives
+
+| Piece | File |
+|---|---|
+| Per-lift step from logged sets | new `workout-logs/lift-progression.ts` (pure, tested with the real catalog), using `estimateOneRepMax`, `loadForTarget`, `roundLoadLb` from `load-from-history.ts` |
+| Wiring after a check-in | `workout-logs.service.ts` `applyCheckIn`: currently moves sets and the main lift's effort; adds the load and rep rewrite and the deload trigger, writes `planExercise` rows of the next day in one transaction, returns what changed |
+| Deload trigger | `lift-progression.ts` (plateau) + a two-strike counter on `WorkoutLog` check-ins per day type |
+| Copy | client week and preview screens (one line), row notes from the server |
+
+### Edge cases to decide up front
+
+- Unit: loads are stored in lb; the step rounds to the user's plate (5 lb bar, 2.5 lb dumbbell, 5 lb machine stack) — a small table by equipment in `roundLoadLb`.
+- The next week is the deload week already (calendar style): the ledger rewrites nothing; the deload transform stands.
+- The next occurrence was edited by the user (swapped a lift): rows are matched by `exerciseId`, so a swapped lift is left alone and gets its number from its own first log.
+- Two logs for the same day (a redo): the later log wins.
+- A rebuilt week (preview "Rebuild week"): rebuilt rows start as projections again.
+
+### How to verify before shipping
+
+1. Unit: the table above, row by row, with the real catalog.
+2. Rig: generate a four-week block, log week-1 Monday with every set at the top of the range and an easy check-in, read week-2 Monday: bench up one step, the accessory with no number now has one. Log week-2 Monday two reps short with a hard check-in: week-3 Monday holds. Log two hard weeks: the deload note appears on the following week. None of the thirteen rig runs so far logged a session before reading the next week.
+3. Eval: the scorer does not see the ledger; a short capture of the check-in path (before/after rows) goes in `docs/audits/`.
+
+Estimate: a day for the server pieces and tests, an hour for the client copy, a rig pass. Backend deploys before any client build, as always.
