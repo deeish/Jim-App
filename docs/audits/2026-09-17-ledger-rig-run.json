@@ -1,0 +1,78 @@
+{
+  "steps": [
+    {
+      "step": "generated",
+      "sessions": 16,
+      "builtBy": "ai"
+    },
+    {
+      "step": "applied",
+      "planId": "d655000b-9259-4cfb-9e55-6d946e5c01df",
+      "days": 16,
+      "wk2MonBefore": [
+        "Flat Barbell Bench Press 4x8-12 @135 rir 2 target 8",
+        "Barbell Bent-Over Row 5x10-15 @55 rir 2 target 10",
+        "Barbell Overhead Press 3x10-15 @55 rir 2 target 10",
+        "Dumbbell Lateral Raise 2x12-15 @60 rir 1 target 12",
+        "Standing EZ-Bar Cable Curl 3x12-15 rir 1 target 12"
+      ]
+    },
+    {
+      "step": "week1_monday_top_easy",
+      "applied": true,
+      "summary": "Bumped next Monday: 3 more accessory sets. Next Monday: Flat Barbell Bench Press up to 135 lb, Barbell Bent-Over Row up to 55 lb, Barbell Overhead Press up to 55 lb, and 2 more."
+    },
+    {
+      "step": "wk2_monday_after",
+      "rows": [
+        "Flat Barbell Bench Press 4x8-12 @135 rir 2 target 8 [Ledger: up to 135 lb: you hit the top of the range on every set last week.]",
+        "Barbell Bent-Over Row 5x10-15 @55 rir 2 target 10 [Ledger: up to 55 lb: you hit the top of the range on every set last week.]",
+        "Barbell Overhead Press 4x10-15 @55 rir 2 target 10 [Bumped after an easy check-in: one more set this week. Ledger: up to 55 lb: you hit the to]",
+        "Dumbbell Lateral Raise 3x12-15 @60 rir 1 target 12 [Bumped after an easy check-in: one more set this week. Ledger: up to 60 lb: you hit the to]",
+        "Standing EZ-Bar Cable Curl 4x12-15 @60 rir 1 target 12 [Bumped after an easy check-in: one more set this week. Ledger: your first logged sets set ]"
+      ]
+    },
+    {
+      "step": "wk2_tuesday_untouched",
+      "rows": [
+        "Back Squat 4x8-12 rir 2 target 8",
+        "Barbell Romanian Deadlift 3x10-15 rir 2 target 10"
+      ]
+    },
+    {
+      "step": "week2_monday_short_hard",
+      "applied": true,
+      "summary": "Eased next Monday: 3 accessory sets fewer. Next Monday: Flat Barbell Bench Press back to 130 lb, Barbell Bent-Over Row back to 50 lb, Barbell Overhead Press back to 50 lb, and 2 more."
+    },
+    {
+      "step": "wk3_monday_after",
+      "rows": [
+        "Flat Barbell Bench Press 5x8-12 @130 rir 1 target 8 [Ledger: back to 130 lb: last week was a grind. Build back up.]",
+        "Barbell Bent-Over Row 4x10-15 @50 rir 1 target 10 [Eased after your check-in: one set fewer this week. Ledger: back to 50 lb: last week was a]",
+        "Barbell Overhead Press 2x10-15 @50 rir 1 target 10 [Eased after your check-in: one set fewer this week. Ledger: back to 50 lb: last week was a]",
+        "Dumbbell Lateral Raise 2x12-15 @55 rir 0 target 12 [Ledger: back to 55 lb: last week was a grind. Build back up.]",
+        "Standing EZ-Bar Cable Curl 2x12-15 @60 rir 0 target 12 [Eased after your check-in: one set fewer this week. Ledger: your first logged sets set the]"
+      ]
+    },
+    {
+      "step": "week3_monday_short_hard_again",
+      "applied": true,
+      "summary": "Week 4 is a lighter week: two hard weeks in a row. Sets, reps and weight ease; build back after."
+    },
+    {
+      "step": "wk4_after_trigger",
+      "monday": [
+        "Flat Barbell Bench Press 4x10-14 @125 rir 3 target 10 [Lighter week on purpose: two hard weeks in a row, or a lift that has stalled. Sets, reps a]",
+        "Barbell Bent-Over Row 4x12-17 @60 rir 3 target 12 [Lighter week on purpose: two hard weeks in a row, or a lift that has stalled. Sets, reps a]",
+        "Barbell Overhead Press 3x12-17 @60 rir 3 target 12 [Lighter week on purpose: two hard weeks in a row, or a lift that has stalled. Sets, reps a]",
+        "Dumbbell Lateral Raise 2x14-17 @60 rir 2 target 14 [Lighter week on purpose: two hard weeks in a row, or a lift that has stalled. Sets, reps a]",
+        "Standing EZ-Bar Cable Curl 2x14-17 rir 2 target 14 [Lighter week on purpose: two hard weeks in a row, or a lift that has stalled. Sets, reps a]"
+      ],
+      "tuesday": [
+        "Back Squat 4x10-14 rir 3 target 10 [Lighter week on purpose: two hard weeks in a row, or a lift that has stalled. Sets, reps a]",
+        "Barbell Romanian Deadlift 3x12-17 rir 3 target 12 [Lighter week on purpose: two hard weeks in a row, or a lift that has stalled. Sets, reps a]",
+        "Seated Leg Extension 2x14-17 rir 2 target 14 [Lighter week on purpose: two hard weeks in a row, or a lift that has stalled. Sets, reps a]"
+      ]
+    }
+  ]
+}

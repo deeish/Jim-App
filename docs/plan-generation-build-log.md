@@ -548,3 +548,36 @@ Estimate: a day for the server pieces and tests, an hour for the client copy, a 
 ### Tier 7 addendum: stale history (Dylan's question, 2026-09-17)
 
 Every log carries `performedAt`, and neither the load stamping (`load-from-history.ts`) nor the plateau check reads it: a plan built a year after the last session would prescribe last year's numbers at the block's effort target. Decision for the build: a staleness discount on the history-derived load by age of the newest log for that lift — under 6 weeks none; 6 weeks to 3 months −7.5%; 3 to 6 months −15%; over 6 months treat as no history (the calibration note, and the first logged session sets the number). The form's "Training now" answer sharpens it: "currently sedentary" moves each band one step harsher. The ledger then corrects within a week either way. Plateau detection ignores logs older than 3 months.
+
+## Tier 7: template plus ledger — BUILT (2026-09-17, night)
+
+Dylan: "sounds good, lets work on building everything now." The spec above, built as written, plus the stale-history addendum. Server-side except one line of copy on two client screens.
+
+| # | Change | Where | Verified by |
+|---|---|---|---|
+| 1 | The ledger: after a session is logged and checked in, each lift on the same day next week is rewritten from the logged sets — every set at the top of the range and not "too hard" → one step up (5 lb; 10 lb on a lower-body barbell lift past 200 lb; never under 2.5%) and the target back to the bottom; inside the range → same load, best set + 1; a miss of one rep → hold; further short or "too hard" → 5% off; a row with no number → the logged sets set it (Epley inverted at next week's reps and effort, or the logged load itself when the sets sat above the Epley window). Bodyweight, timed, skipped and unlogged rows are untouched. The ledger follows the load the user actually used, not the forecast, and replaces its own earlier note rather than stacking. | `workout-logs/lift-progression.ts` (new: `stepLiftFromLog`, `loadStepLb`, `deloadRow`) | `lift-progression.spec.ts` (10 cases) |
+| 2 | Wiring: `applyCheckIn` now reads the log's completed sets, runs the set adjustment (Tier 4a) and the ledger on top of it, and writes both in one transaction. Only the next occurrence of the day moves. | `workout-logs.service.ts` (`applyCheckIn`, both call sites pass the user id) | rig drive below |
+| 3 | Deload on trigger: two eased check-ins on the same day type in a row, or a main lift stalled over its last three logs (none older than three months) → every day of the coming week gets the deload transform (sets × 0.7, +2 reps, +2 in reserve, load × 0.9) and a note; a week already shaped by a deload is not touched by the ledger; the check-in summary says why. | `workout-logs.service.ts` (`deloadTrigger`), `lift-progression.ts` (`TRIGGERED_DELOAD_NOTE`, `rowIsDeloaded`) | rig drive below (week 4 after two hard Mondays) |
+| 4 | Stale history: a history-derived load is discounted by the age of the newest log — under 6 weeks as is, to 3 months −7.5%, to 6 months −15%, older ignored (the calibration note runs); "currently sedentary" moves each band one step harsher; plateau detection ignores logs older than 3 months. | `plans/load-from-history.ts` (`staleFactor`, `STALE_BANDS`, `PLATEAU_MAX_AGE_DAYS`), `plans.service.ts` passes `currentActivityLevel` | `stale-history.spec.ts` |
+| 5 | Copy: the preview's stated line ends "week 1 as planned, later weeks adjust to what you log" on a multi-week plan; the week screen header adds "adjusts to what you log" from week 2. Rides the next binary. | `PlanPreviewScreen.tsx`, `PlanCalendarWeekScreen.tsx` | frontend `tsc` |
+
+### Rig drive (API, throwaway database, `docs/audits/2026-09-17-ledger-rig-run.json`)
+
+A 4-week Upper/Lower block generated and applied as a plan, then week-1 Monday logged with every set at the top of the range and an easy check-in; week-2 Monday logged two reps short with a hard check-in; week-3 Monday logged hard again. The driver is `scratchpad/rig/ledger.js` (minted local JWT, `POST /plans/generate-sessions`, `POST /plans`, `POST /workouts/plan-slot/:id/materialize`, `POST /workout-logs` with an inline check-in, `GET /plans/:id`).
+
+| After | Next Monday |
+|---|---|
+| Week 1 at the top of the range, easy | Bench up to 140 lb, target back to 8; the four accessories with no number now have one from the logged load; three accessory sets added by the check-in. Tuesday untouched. |
+| Week 2 two reps short, too hard | Bench back to 135 lb ("last week was a grind"); accessories hold their new numbers; three accessory sets removed. |
+| Week 3 hard again | Week 4, all four days: the lighter-week transform on every row, with the note. Summary: "Week 4 is a lighter week: two hard weeks in a row." |
+
+Found and fixed on the first drive: a fifteen-rep accessory sat above the Epley window, so a row with no number got none; the logged load is now the number in that case.
+
+986 backend tests green; frontend type-checks.
+
+### Deliberately not done
+
+- The ledger writes only the next occurrence; later weeks stay projected until their predecessor is logged (by design, in the spec).
+- The rep target lives in the row's `reps` scalar and the note; the client still shows the `repsMin–repsMax` band. A "aim for N" chip is a client change for the next binary.
+- Per-set effort is not logged (the check-in's session effort stands in); if a set-level RIR field is added to the log later, the ledger can read it in place of the session effort.
+- Plate rounding is by name (dumbbell 5 lb, heavy lower-body barbell 10 lb, otherwise 5 lb); a per-equipment table with 2.5 lb microplates is a follow-up.
