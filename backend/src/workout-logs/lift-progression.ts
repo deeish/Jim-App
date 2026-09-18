@@ -41,7 +41,12 @@ export type LedgerRow = {
   notes: string | null;
 };
 
-export type LoggedSet = { reps: number; weight: number | null };
+export type LoggedSet = {
+  reps: number;
+  weight: number | null;
+  /** 1–10 when the set was rated; the ledger reads it as 10 − RPE reps in reserve. */
+  rpe?: number | null;
+};
 
 export type LiftStepKind = 'up' | 'more_reps' | 'hold' | 'back' | 'set_number';
 
@@ -66,14 +71,42 @@ const HOLD_MISS_REPS = 1;
 const EFFORT_TOO_HARD = 3;
 export const LEDGER_NOTE_TAG = 'Ledger:';
 
-const DUMBBELL = /dumbbell|kettlebell/i;
+const DUMBBELL = /dumbbell/i;
+const KETTLEBELL = /kettlebell/i;
+const STACK =
+  /\b(cable|machine|pulldown|pushdown|pec deck|leg press|leg curl|leg extension|hack squat)\b/i;
 const LOWER_BODY_BARBELL = /\b(squat|deadlift|hip thrust|leg press|hack)\b/i;
 
-/** The smallest honest load increase for this row: a plate a side, a dumbbell step, a stack pin. */
+/**
+ * The smallest honest load increase for this row, by what it is loaded with:
+ * a dumbbell step (5 lb; 2.5 lb below 20), a kettlebell step (about 9 lb,
+ * one bell up), a stack pin (5 lb; 10 lb past 100), a plate a side on a bar
+ * (5 lb; 10 lb on a lower-body lift past 200 lb).
+ */
 export function loadStepLb(name: string, weight: number): number {
-  if (DUMBBELL.test(name)) return 5;
+  if (DUMBBELL.test(name)) return weight < 20 ? 2.5 : 5;
+  if (KETTLEBELL.test(name)) return 9;
+  if (STACK.test(name)) return weight >= 100 ? 10 : 5;
   if (LOWER_BODY_BARBELL.test(name) && weight >= 200) return 10;
   return 5;
+}
+
+/**
+ * Whether the logged sets read as too hard for this lift: the session's
+ * check-in, or, when sets were rated, a set at RPE 10 against an effort
+ * target above zero, or the worst set more than a rep past the target.
+ */
+export function liftTooHard(
+  sets: ReadonlyArray<LoggedSet>,
+  targetRir: number,
+  effort: number,
+): boolean {
+  if (effort >= EFFORT_TOO_HARD) return true;
+  const rated = sets.filter((s) => typeof s.rpe === 'number' && s.rpe! > 0);
+  if (rated.length === 0) return false;
+  const worstRir = Math.min(...rated.map((s) => 10 - s.rpe!));
+  if (worstRir <= 0 && targetRir >= 1) return true;
+  return worstRir < targetRir - 1;
 }
 
 function stripLedgerNote(notes: string | null): string {
@@ -111,7 +144,7 @@ export function stepLiftFromLog(
   const min = row.repsMin ?? row.reps;
   const max = row.repsMax ?? row.reps;
   const rir = row.targetRir ?? DEFAULT_TARGET_RIR;
-  const tooHard = checkIn.effort >= EFFORT_TOO_HARD;
+  const tooHard = liftTooHard(sets, rir, checkIn.effort);
 
   // No number yet: the logged sets set it.
   if (row.weight == null || row.weight <= 0) {

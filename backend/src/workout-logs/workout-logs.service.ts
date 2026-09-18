@@ -178,7 +178,7 @@ export class WorkoutLogsService {
           select: {
             exerciseId: true,
             completedSets: {
-              select: { reps: true, weight: true, completed: true },
+              select: { reps: true, weight: true, completed: true, rpe: true },
             },
           },
         },
@@ -213,7 +213,7 @@ export class WorkoutLogsService {
       if (!e.exerciseId) continue;
       const sets = (e.completedSets ?? [])
         .filter((c) => c.completed !== false && c.reps > 0)
-        .map((c) => ({ reps: c.reps, weight: c.weight }));
+        .map((c) => ({ reps: c.reps, weight: c.weight, rpe: c.rpe }));
       if (!sets.length) continue;
       loggedById.set(e.exerciseId, [
         ...(loggedById.get(e.exerciseId) ?? []),
@@ -245,8 +245,12 @@ export class WorkoutLogsService {
         },
         include: { exercises: true },
       });
+      const mirrors = await this.mirrorRowsForDays(
+        userId,
+        week.map((w) => w.id),
+      );
       const updates = week.flatMap((w) =>
-        w.exercises.map((e) => {
+        w.exercises.flatMap((e) => {
           const eased = deloadRow({
             id: e.id,
             exerciseId: e.exerciseId,
@@ -261,15 +265,24 @@ export class WorkoutLogsService {
             notes: e.notes,
           });
           const base = (e.notes ?? '').trim();
-          return this.prisma.planExercise.update({
-            where: { id: e.id },
-            data: {
-              ...eased,
-              notes: base
-                ? `${base} ${TRIGGERED_DELOAD_NOTE}`
-                : TRIGGERED_DELOAD_NOTE,
-            },
-          });
+          const notes = base
+            ? `${base} ${TRIGGERED_DELOAD_NOTE}`
+            : TRIGGERED_DELOAD_NOTE;
+          // Workout rows carry no effort target.
+          const { targetRir: _rir, ...mirrored } = eased;
+          void _rir;
+          return [
+            this.prisma.planExercise.update({
+              where: { id: e.id },
+              data: { ...eased, notes },
+            }),
+            ...(mirrors.get(`${w.id}|${e.exerciseId}`) ?? []).map((id) =>
+              this.prisma.workoutExercise.update({
+                where: { id },
+                data: { ...mirrored, notes },
+              }),
+            ),
+          ];
         }),
       );
       await this.prisma.$transaction([
@@ -345,23 +358,38 @@ export class WorkoutLogsService {
     if (rowIds.size === 0) {
       return { applied: false, summary: null, reason: 'nothing_to_move' };
     }
-    const updates = [...rowIds].map((id) => {
+    // A day the user already opened has its own workout rows; they get the
+    // same change, or the screen would still show the forecast.
+    const mirrors = await this.mirrorRowsForDays(userId, [next.id]);
+    const exerciseIdOf = new Map(
+      next.exercises.map((e) => [e.id, e.exerciseId]),
+    );
+    const updates = [...rowIds].flatMap((id) => {
       const u = setUpdateById.get(id);
       const st = stepById.get(id);
-      return this.prisma.planExercise.update({
-        where: { id },
-        data: {
-          ...(u?.sets != null ? { sets: u.sets } : {}),
-          ...(u?.targetRir != null ? { targetRir: u.targetRir } : {}),
-          ...(st?.weight != null ? { weight: st.weight } : {}),
-          ...(st ? { reps: st.reps } : {}),
-          ...(st
-            ? { notes: st.notes }
-            : u?.notes != null
-              ? { notes: u.notes }
-              : {}),
-        },
-      });
+      const data = {
+        ...(u?.sets != null ? { sets: u.sets } : {}),
+        ...(st?.weight != null ? { weight: st.weight } : {}),
+        ...(st ? { reps: st.reps } : {}),
+        ...(st
+          ? { notes: st.notes }
+          : u?.notes != null
+            ? { notes: u.notes }
+            : {}),
+      };
+      return [
+        this.prisma.planExercise.update({
+          where: { id },
+          data: {
+            ...data,
+            ...(u?.targetRir != null ? { targetRir: u.targetRir } : {}),
+          },
+        }),
+        ...(mirrors.get(`${next.id}|${exerciseIdOf.get(id)}`) ?? []).map(
+          (wid) =>
+            this.prisma.workoutExercise.update({ where: { id: wid }, data }),
+        ),
+      ];
     });
     await this.prisma.$transaction([
       ...updates,
@@ -391,6 +419,34 @@ export class WorkoutLogsService {
       );
     }
     return { applied: true, summary: parts.join(' ') };
+  }
+
+  /**
+   * The materialized workout rows for these plan days, keyed
+   * `planWorkoutId|exerciseId`, so a plan-row change reaches a day the user
+   * has already opened.
+   */
+  private async mirrorRowsForDays(
+    userId: string,
+    planWorkoutIds: string[],
+  ): Promise<Map<string, string[]>> {
+    const out = new Map<string, string[]>();
+    if (planWorkoutIds.length === 0) return out;
+    const workouts = await this.prisma.workout.findMany({
+      where: { userId, planWorkoutId: { in: planWorkoutIds } },
+      select: {
+        planWorkoutId: true,
+        exercises: { select: { id: true, exerciseId: true } },
+      },
+    });
+    for (const w of workouts) {
+      for (const e of w.exercises) {
+        if (!e.exerciseId || !w.planWorkoutId) continue;
+        const key = `${w.planWorkoutId}|${e.exerciseId}`;
+        out.set(key, [...(out.get(key) ?? []), e.id]);
+      }
+    }
+    return out;
   }
 
   /**

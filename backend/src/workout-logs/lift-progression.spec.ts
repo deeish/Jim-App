@@ -1,5 +1,6 @@
 import {
   deloadRow,
+  liftTooHard,
   loadStepLb,
   stepLiftFromLog,
   type LedgerRow,
@@ -159,6 +160,30 @@ describe('stepLiftFromLog (the ledger)', () => {
     )!;
     expect(second.notes.startsWith('Brace hard. Ledger:')).toBe(true);
     expect(second.notes.split('Ledger:').length).toBe(2);
+  });
+
+  it('rated sets count: an RPE 10 set against a target above zero, or a set more than a rep past the target, reads as too hard', () => {
+    expect(liftTooHard([{ reps: 12, weight: 135, rpe: 10 }], 2, 2)).toBe(true);
+    expect(liftTooHard([{ reps: 12, weight: 135, rpe: 9 }], 2, 2)).toBe(false);
+    expect(liftTooHard([{ reps: 12, weight: 135, rpe: 9 }], 3, 2)).toBe(true);
+    expect(liftTooHard([{ reps: 12, weight: 135 }], 2, 2)).toBe(false);
+    expect(liftTooHard([{ reps: 12, weight: 135 }], 2, 3)).toBe(true);
+    const s = stepLiftFromLog(
+      row(),
+      [12, 12, 12, 12].map((reps) => ({ reps, weight: 135, rpe: 10 })),
+      ok,
+    )!;
+    expect(s.kind).toBe('back');
+  });
+
+  it('steps by what the row is loaded with', () => {
+    expect(loadStepLb('Dumbbell Curl', 15)).toBe(2.5);
+    expect(loadStepLb('Dumbbell Curl', 30)).toBe(5);
+    expect(loadStepLb('Kettlebell Swing', 35)).toBe(9);
+    expect(loadStepLb('Rope Cable Pushdown', 60)).toBe(5);
+    expect(loadStepLb('Wide-Grip Lat Pulldown', 140)).toBe(10);
+    expect(loadStepLb('Back Squat', 225)).toBe(10);
+    expect(loadStepLb('Barbell Overhead Press', 95)).toBe(5);
   });
 
   it('deloadRow eases sets, reps, effort and load; a timed row keeps its shape', () => {
