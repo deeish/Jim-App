@@ -40,23 +40,66 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
-  // The ONE card for build 1.3.0: everything since 1.2.0 (32), which the
-  // Friends/Family group received on 2026-09-13. Contents: the new icon and
-  // splash with the faster launch (no held logo), Connect Apple Health, the
-  // two build-32 bug fixes (the light flash behind the Calendar back control
-  // in dark mode; a day showing its workout twice), and day names without
-  // the A/B letters. Deliberately absent: the Gemini line in the plan
-  // preview, the legal links, and everything internal. Copy rules: headlines
-  // name the part that changed and read on their own; text says what is
-  // different, no marketing lines.
+  // The ONE card for the next binary, 1.4.0: everything since 1.2.0 (32),
+  // the last build external testers received. Build 1.3.0 (34) only ever
+  // reached the internal tester, so its card (id 2026-09-15) is folded in
+  // here rather than kept as a separate release; the id changes so the
+  // sheet shows again for that one phone too.
+  //
+  // Contents, in the order a tester meets them: the rebuilt plan builder
+  // (the coach's questions, weekly volume per muscle, the working weight,
+  // effort target and rest on every set, weeks that adjust to what you log,
+  // the new preview), hidden exercises, similar exercises with "Use
+  // instead", then the 1.3.0 items (icon and launch, Connect Apple Health,
+  // the two fixes, day names). Deliberately absent: the Gemini line in the
+  // preview, the generation allowlist, the logo as loader, the "Build
+  // muscle" goal (part of the builder story), the legal links, and
+  // everything internal. Copy rules: headlines name the part that changed
+  // and read on their own; text says what is different, no marketing lines.
   //
   // ⚠ `date` is a guess until this ships. Set it to the real release date.
   {
-    id: '2026-09-15',
-    version: '1.3.0',
-    date: '2026-09-16',
-    title: 'Apple Health, a new icon, and fixes',
+    id: '2026-09-18',
+    version: '1.4.0',
+    date: '2026-09-19',
+    title: 'Plans built like a coach builds them',
     changes: [
+      {
+        type: 'new',
+        headline: 'A plan builder that asks the right questions',
+        icon: 'clipboard',
+        text: 'Generate a Plan now asks what a coach asks first: your goal, your days and time, the muscle you want to bring up, and the lifts you already do. Every big muscle is trained twice a week, sessions fit the time you have, and each week is checked against a weekly volume band for every muscle.',
+      },
+      {
+        type: 'new',
+        headline: 'Weight, effort and rest on every set',
+        icon: 'barbell',
+        text: 'Each strength row now carries a working weight from your logged sets, an effort target in reps in reserve, and a rest time. A lift you have never logged gets a calibration week to find its weight.',
+      },
+      {
+        type: 'new',
+        headline: 'Weeks that adjust to what you log',
+        icon: 'trending-up',
+        text: 'After a workout, answer how it went in three taps. The same day next week moves its sets, reps and weight one step from what you did, and a lift that stalls gets a lighter week on purpose. When a plan ends, the next block is offered, seeded from the last one.',
+      },
+      {
+        type: 'improved',
+        headline: 'A new plan preview',
+        icon: 'list',
+        text: 'The preview shows the week at a glance with a coach check on it. Open a day to see every lift with its weight and rest, swap an exercise for this week or every week, or rebuild the day. Generation keeps running if you leave the screen.',
+      },
+      {
+        type: 'new',
+        headline: 'Hide exercises you never want',
+        icon: 'eye-off',
+        text: 'On any exercise page, choose Don’t show me this. Hidden exercises never go into a plan, a rebuilt day or a swap. Manage the list under Hidden exercises in your Profile.',
+      },
+      {
+        type: 'new',
+        headline: 'Similar exercises',
+        icon: 'swap-horizontal',
+        text: 'Every exercise page lists the best swaps for it, best first, with the reason for each. Open the page from a workout and tap Use instead to put one in when the machine is taken.',
+      },
       {
         type: 'new',
         headline: 'New icon and a faster launch',
