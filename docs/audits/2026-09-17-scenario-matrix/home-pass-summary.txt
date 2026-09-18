@@ -1,0 +1,115 @@
+====================================================================================================
+generation-1789709158848-71364480.json | hypertrophy intermediate home | 3 lifting days, 4 weeks, 30-45 min | priority None | avoid None | equip ['bands']
+  llm calls 1 tokens 1687 | model gemini:gemini-3.5-flash-lite
+  chunk wk1 path=batch_ok first=[]  second=None
+  notes None
+  progression (first lift): Resistance Band Bent-Over Row: 4x8-12@-rir2 | 4x8-12@-rir2 | 5x8-12@-rir1 | 5x8-12@-rir1; Resistance Band Chest Press: 4x8-12@-rir2 | 4x8-12@-rir2 | 5x8-12@-rir1 | 5x8-12@-rir1; Sumo Squat: 4x8-12@-rir2 | 4x8-12@-rir2 | 5x8-12@-rir1 | 5x8-12@-rir1
+  wk1 Mon [strength] Full Body · Squat + Push-Up: Resistance Band Bent-Over Row 4x8, Bodyweight Squat 4x14, Push-Up 4x10, Front Plank 1min, Resistance Band Overhead Press 2x12
+  wk1 Wed [strength] Full Body · Bridge + Band: Resistance Band Chest Press 4x8, Resistance Band Lat Pulldown 3x10, Glute Bridge 4x10, Side Plank 1min, Bicycle Crunch 3x12
+  wk1 Fri [strength] Full Body · Sumo + Decline: Sumo Squat 4x8, Seated Band Row 4x10, Decline Push-Up 4x10, Dead Bug 2x12, Hollow Body Hold 1min
+  DEFECTS: none
+====================================================================================================
+generation-1789709166365-72493d85.json | hypertrophy intermediate home | 4 lifting days, 4 weeks, 45-60 min | priority Shoulders | avoid None | equip ['dumbbells', 'bands', 'bench', 'pull-up bar']
+  llm calls 1 tokens 2833 | model gemini:gemini-3.5-flash-lite
+  chunk wk1 path=batch_ok first=[]  second=None
+  notes None
+  progression (first lift): Incline Dumbbell Bench Press: 5x8-12@-rir2 | 6x8-12@-rir2 | 6x8-12@-rir1 | 4x10-14@-rir4; Goblet Squat: 4x8-12@-rir2 | 5x8-12@-rir2 | 5x8-12@-rir1 | 3x10-14@-rir4; Flat Dumbbell Bench Press: 5x8-12@-rir2 | 6x8-12@-rir2 | 6x8-12@-rir1 | 4x10-14@-rir4
+  wk1 Mon [strength] Upper · Incline + Row: Incline Dumbbell Bench Press 5x8, Single-Arm Dumbbell Row 4x10, Seated Dumbbell Shoulder Press 4x10, Dumbbell Lateral Raise 3x12, Dumbbell PJR Pullover Extension 3x12
+  wk1 Tue [strength] Lower · Goblet + Bridge: Goblet Squat 4x8, Bodyweight Calf Raise 2x12, Glute Bridge 3x10, Walking Lunge 3x14, Front Plank 1min
+  wk1 Thu [strength] Upper · Flat + Pull: Flat Dumbbell Bench Press 5x8, Pull-Up 4x10, Standing Dumbbell Curl 3x12, Bent-Over Dumbbell Reverse Fly 3x12, Rolling Dumbbell Triceps Extension 3x12
+  wk1 Fri [strength] Lower · RDL + Thrust: Dumbbell Romanian Deadlift 4x8, Dumbbell Step-Up 3x10, Dumbbell Hip Thrust 3x10, Bodyweight Squat 3x14, Dumbbell Bulgarian Split Squat 3x10, Dead Bug 2x12
+  DEFECTS: none
+====================================================================================================
+generation-1789709172957-0b310611.json | hypertrophy beginner home | 3 lifting days, 1 weeks, 30-45 min | priority None | avoid None | equip ['dumbbells', 'bands']
+  llm calls 1 tokens 1833 | model gemini:gemini-3.5-flash-lite
+  chunk wk1 path=batch_ok first=[]  second=None
+  notes ['Adjusted repeated exercise picks so this program week does not reuse the same library movement across sessions.']
+  progression (first lift): Goblet Squat: 4x10-12@-rir3; Chest-Supported Dumbbell Row: 4x10-12@-rir3; Dumbbell Romanian Deadlift: 4x10-12@-rir3
+  wk1 Mon [strength] Full Body · Goblet + Incline: Goblet Squat 4x10, Incline Dumbbell Bench Press 3x10, Resistance Band Lat Pulldown 3x10, Seated Dumbbell Shoulder Press 2x12
+  wk1 Wed [strength] Full Body · Bridge + Push: Chest-Supported Dumbbell Row 4x10, Glute Bridge 3x10, Push-Up 3x10, Dead Bug 3x12
+  wk1 Fri [strength] Full Body · Deadlift + Flat: Dumbbell Romanian Deadlift 4x10, Flat Dumbbell Bench Press 3x10, Dumbbell Shrug 2x12, Standing Dumbbell Curl 2x12, Dumbbell Lateral Raise 2x12
+  DEFECTS: none
+====================================================================================================
+generation-1789709179285-476c96ca.json | hypertrophy beginner gym | 3 lifting days, 4 weeks, 30-45 min | priority None | avoid None | equip ['dumbbells', 'barbell', 'cable', 'machines', 'kettlebells', 'bands', 'pull-up bar']
+  llm calls 1 tokens 1908 | model gemini:gemini-3.5-flash-lite
+  chunk wk1 path=batch_ok first=[]  second=None
+  notes None
+  progression (first lift): Conventional Deadlift: 4x10-12@-rir3 | 4x10-12@-rir3 | 5x10-12@-rir2 | 5x10-12@-rir2; Back Squat: 3x10-12@-rir3 | 3x10-12@-rir3 | 3x10-12@-rir2 | 4x10-12@-rir2; Trap Bar Deadlift: 4x10-12@-rir3 | 4x10-12@-rir3 | 5x10-12@-rir2 | 5x10-12@-rir2
+  wk1 Mon [strength] Full Body · Deadlift + Bench: Conventional Deadlift 4x10, Flat Barbell Bench Press 3x10, Barbell Bent-Over Row 3x10, Hanging Leg Raise 3x12, Barbell Overhead Press 2x12
+  wk1 Wed [strength] Full Body · Squat + Press: Back Squat 3x10, Incline Dumbbell Bench Press 3x10, Single-Arm Dumbbell Row 3x10, Standing Barbell Curl 2x12, Dumbbell Lateral Raise 2x12, Dead Bug 3x12
+  wk1 Fri [strength] Full Body · Trap Bar + Dip: Trap Bar Deadlift 4x10, Chest Dip 3x10, Wide-Grip Lat Pulldown 3x10, Rope Cable Pushdown 2x12, Ab Wheel Rollout 3x12
+  DEFECTS: none
+====================================================================================================
+generation-1789708924427-95d2bef3.json | hypertrophy beginner home | 3 lifting days, 1 weeks, 30-45 min | priority None | avoid None | equip ['dumbbells', 'bands']
+  llm calls 1 tokens 1860 | model gemini:gemini-3.5-flash-lite
+  chunk wk1 path=batch_ok first=[]  second=None
+  notes None
+  progression (first lift): Goblet Squat: 4x10-12@-rir3; Dumbbell Romanian Deadlift: 3x10-12@-rir3; Dumbbell Sumo Squat: 4x10-12@-rir3
+  wk1 Mon [strength] Full Body · Goblet + Incline: Goblet Squat 4x10, Incline Dumbbell Bench Press 3x10, Single-Arm Dumbbell Row 3x10, Resistance Band Lat Pulldown 2x12, Seated Dumbbell Shoulder Press 2x12
+  wk1 Wed [strength] Full Body · Romanian + Flat: Dumbbell Romanian Deadlift 3x10, Flat Dumbbell Bench Press 3x10, Chest-Supported Dumbbell Row 3x10, Standing Dumbbell Curl 2x12, Dumbbell Lateral Raise 2x12, Dead Bug 3x12
+  wk1 Fri [strength] Full Body · Sumo + Push: Dumbbell Sumo Squat 4x10, Bilateral Dumbbell Bent-Over Row 3x10, Push-Up 3x10, Ab Wheel Rollout 3x12, Russian Twist 2x12
+  DEFECTS: none
+====================================================================================================
+generation-1789708932103-e9d2f4cd.json | hypertrophy intermediate home | 4 lifting days, 4 weeks, 45-60 min | priority Shoulders | avoid None | equip ['dumbbells', 'bands', 'bench', 'pull-up bar']
+  llm calls 1 tokens 2808 | model gemini:gemini-3.5-flash-lite
+  chunk wk1 path=batch_ok first=[]  second=None
+  notes None
+  progression (first lift): Incline Dumbbell Bench Press: 5x8-12@-rir2 | 6x8-12@-rir2 | 6x8-12@-rir1 | 4x10-14@-rir4; Goblet Squat: 4x8-12@-rir2 | 5x8-12@-rir2 | 5x8-12@-rir1 | 3x10-14@-rir4; Pull-Up: 5x8-12@-rir2 | 6x8-12@-rir2 | 6x8-12@-rir1 | 4x10-14@-rir4
+  wk1 Mon [strength] Upper · Incline + Row: Incline Dumbbell Bench Press 5x8, Single-Arm Dumbbell Row 4x10, Seated Dumbbell Shoulder Press 4x10, Dumbbell Lateral Raise 3x12, Dumbbell PJR Pullover Extension 3x12
+  wk1 Tue [strength] Lower · Goblet + Bridge: Goblet Squat 4x8, Bodyweight Calf Raise 2x12, Glute Bridge 3x10, Walking Lunge 3x14, Front Plank 1min
+  wk1 Thu [strength] Upper · Push + Pull-Up: Pull-Up 5x8, Push-Up 4x10, Standing Dumbbell Curl 3x12, Standing Dumbbell Overhead Triceps Extension 3x12, Bent-Over Dumbbell Reverse Fly 3x12
+  wk1 Fri [strength] Lower · Deadlift + Thrust: Dumbbell Romanian Deadlift 4x8, Dumbbell Step-Up 3x10, Dumbbell Hip Thrust 3x10, Bodyweight Squat 3x14, Dumbbell Bulgarian Split Squat 3x10, Dead Bug 2x12
+  DEFECTS: none
+====================================================================================================
+generation-1789708941025-27ff2d79.json | balanced beginner gym | 3 lifting days, 4 weeks, 30-45 min | priority None | avoid None | equip ['dumbbells', 'barbell', 'cable', 'machines', 'kettlebells', 'bands', 'pull-up bar']
+  llm calls 1 tokens 2851 | model gemini:gemini-3.5-flash-lite
+  chunk wk1 path=batch_ok first=[]  second=None
+  notes ['Adjusted repeated exercise picks so this program week does not reuse the same library movement across sessions.']
+  progression (first lift): Conventional Deadlift: 3x10-12@-rir3 | 3x10-12@-rir3 | 4x10-12@-rir2 | 2x12-14@-rir4; Ab Wheel Rollout: 3x12@-rirNone | 3x12@-rirNone | 3x12@-rirNone | 3x12@-rirNone; Front Squat: 3x10-12@-rir3 | 3x10-12@-rir3 | 4x10-12@-rir2 | 2x12-14@-rir4
+  wk1 Mon [strength] Full Body: Conventional Deadlift 3x10, Flat Barbell Bench Press 3x10, Barbell Bent-Over Row 3x10, Hanging Leg Raise 3x12, Barbell Overhead Press 2x12, Stationary Bike (Steady / Zone 2) 10min
+  wk1 Tue [cardio] Cardio: Stationary Bike (Steady / Zone 2) 23min, Side Plank 1min, Ab Wheel Rollout 3x12
+  wk1 Wed [strength] Full Body · Front + Incline: Front Squat 3x10, Incline Dumbbell Bench Press 3x10, Single-Arm Dumbbell Row 3x10, Rope Cable Pushdown 2x12, Dead Bug 3x12, Stationary Bike (Steady / Zone 2) 10min
+  wk1 Thu [cardio] Cardio: Stationary Bike Intervals 23min, Floor Crunch 3x12, Kneeling Cable Crunch 3x12
+  wk1 Fri [strength] Full Body · Trap + Push-Up: Trap Bar Deadlift 3x10, Wide-Grip Lat Pulldown 3x10, Push-Up 3x10, Standing Barbell Curl 2x12, Dumbbell Lateral Raise 2x12, Front Plank 1min, Stationary Bike (Steady / Zone 2) 10min
+  DEFECTS: none
+====================================================================================================
+generation-1789708948487-b165916e.json | hypertrophy intermediate gym | 4 lifting days, 4 weeks, 45-60 min | priority None | avoid ['knee'] | equip ['dumbbells', 'barbell', 'cable', 'machines', 'kettlebells', 'bands', 'pull-up bar']
+  llm calls 1 tokens 2857 | model gemini:gemini-3.5-flash-lite
+  chunk wk1 path=batch_ok first=[]  second=None
+  notes None
+  progression (first lift): Flat Barbell Bench Press: 5x8-12@-rir2 | 5x8-12@-rir2 | 6x8-12@-rir1 | 6x8-12@-rir1; Box Squat: 4x8-12@-rir2 | 4x8-12@-rir2 | 5x8-12@-rir1 | 5x8-12@-rir1; Incline Dumbbell Bench Press: 5x8-12@-rir2 | 5x8-12@-rir2 | 6x8-12@-rir1 | 6x8-12@-rir1
+  wk1 Mon [strength] Upper · Bench + Row: Flat Barbell Bench Press 5x8, Barbell Bent-Over Row 4x10, Barbell Overhead Press 3x10, Rope Cable Pushdown 3x12, Dumbbell Lateral Raise 2x12
+  wk1 Tue [strength] Lower · Squat + RDL: Box Squat 4x8, Barbell Romanian Deadlift 3x10, Standing Calf Raise Machine 2x12, Seated Leg Curl 2x12, Dead Bug 3x12
+  wk1 Thu [strength] Upper · Press + Pull: Incline Dumbbell Bench Press 5x8, Wide-Grip Lat Pulldown 4x10, Seated Dumbbell Shoulder Press 4x10, Standing Barbell Curl 3x12, Cable Lateral Raise 2x12
+  wk1 Fri [strength] Lower · Deadlift + Hip: Conventional Deadlift 4x8, Barbell Hip Thrust 3x10, Seated Calf Raise Machine 2x12, Seated Leg Extension 2x12, Front Plank 1min
+  DEFECTS: none
+====================================================================================================
+generation-1789708956470-07c675b2.json | hypertrophy intermediate home | 3 lifting days, 4 weeks, 30-45 min | priority None | avoid None | equip ['bands']
+  llm calls 2 tokens 3363 | model gemini:gemini-3.5-flash-lite
+  chunk wk1 path=batch_ok first=['slot_one_not_anchor'] {'nonAnchorSlotOneExerciseIds': ['glute_bridge']} second=['slot_one_not_anchor']
+  notes ['Adjusted repeated exercise picks so this program week does not reuse the same library movement across sessions.', 'This week used best-available batch output (minor quality warnings present).']
+  progression (first lift): Resistance Band Bent-Over Row: 4x8-12@-rir2 | 4x8-12@-rir2 | 5x8-12@-rir1 | 5x8-12@-rir1; Sumo Squat: 4x8-12@-rir2 | 4x8-12@-rir2 | 5x8-12@-rir1 | 5x8-12@-rir1; Table-Supported Lat Row: 4x8-12@-rir2 | 4x8-12@-rir2 | 5x8-12@-rir1 | 5x8-12@-rir1
+  wk1 Mon [strength] Full Body · Squat + Push-Up: Resistance Band Bent-Over Row 4x8, Bodyweight Squat 4x14, Push-Up 4x10, Resistance Band Lat Pulldown 3x12, Resistance Band Overhead Press 2x12
+  wk1 Wed [strength] Full Body · Squat + Bench: Sumo Squat 4x8, Resistance Band Chest Press 4x10, Seated Band Row 4x10, Dead Bug 2x12, Bicycle Crunch 3x12
+  wk1 Fri [strength] Full Body · Row + Hip Thrust: Table-Supported Lat Row 4x8, Glute Bridge 4x10, Decline Push-Up 4x10, Ab Wheel Rollout 3x12, Hollow Body Hold 1min
+  DEFECTS: none
+====================================================================================================
+generation-1789708964648-7b7d7d58.json | strength beginner gym | 4 lifting days, 4 weeks, 30-45 min | priority None | avoid None | equip ['dumbbells', 'barbell', 'cable', 'machines', 'kettlebells', 'bands', 'pull-up bar']
+  llm calls 1 tokens 3218 | model gemini:gemini-3.5-flash-lite
+  chunk wk1 path=batch_ok first=[]  second=None
+  notes None
+  progression (first lift): Flat Barbell Bench Press: 4x5-8@-rir3 | 4x5-8@-rir3 | 5x5-8@-rir2 | 5x5-8@-rir2; Back Squat: 4x5-8@-rir3 | 4x5-8@-rir3 | 5x5-8@-rir2 | 5x5-8@-rir2; Incline Dumbbell Bench Press: 4x5-8@-rir3 | 4x5-8@-rir3 | 5x5-8@-rir2 | 5x5-8@-rir2
+  wk1 Mon [strength] Upper · Bench + Row: Flat Barbell Bench Press 4x5, Barbell Bent-Over Row 3x6, Barbell Overhead Press 3x6, Dumbbell Lateral Raise 2x8, Wide-Grip Lat Pulldown 2x8
+  wk1 Tue [strength] Lower · Squat + RDL: Back Squat 4x5, Barbell Romanian Deadlift 3x6, Seated Leg Extension 2x8, Standing Calf Raise Machine 2x8, Front Plank 1min
+  wk1 Thu [strength] Upper · Incline + Row: Incline Dumbbell Bench Press 4x5, Single-Arm Dumbbell Row 3x6, Seated Dumbbell Shoulder Press 3x6, Standing Barbell Curl 2x8, Cable Lateral Raise 2x8
+  wk1 Fri [strength] Lower · Deadlift + Hip Thrust: Conventional Deadlift 4x5, Barbell Hip Thrust 3x6, Seated Calf Raise Machine 2x8, Dead Bug 2x12
+  DEFECTS: none
+====================================================================================================
+generation-1789708970340-f95cc643.json | hypertrophy intermediate gym | 2 lifting days, 4 weeks, 60-75 min | priority None | avoid None | equip ['dumbbells', 'barbell', 'cable', 'machines', 'kettlebells', 'bands', 'pull-up bar']
+  llm calls 1 tokens 2295 | model gemini:gemini-3.5-flash-lite
+  chunk wk1 path=batch_ok first=[]  second=None
+  notes None
+  progression (first lift): Flat Barbell Bench Press: 6x8-12@-rir2 | 6x8-12@-rir2 | 6x8-12@-rir1 | 6x8-12@-rir1; Back Squat: 5x8-12@-rir2 | 5x8-12@-rir2 | 6x8-12@-rir1 | 6x8-12@-rir1
+  wk1 Mon [strength] Upper · Bench + Row: Flat Barbell Bench Press 6x8, Barbell Bent-Over Row 4x10, Barbell Overhead Press 4x10, Dumbbell Lateral Raise 3x12, Wide-Grip Lat Pulldown 3x12
+  wk1 Thu [strength] Lower · Squat + RDL: Back Squat 5x8, Barbell Romanian Deadlift 4x10, Seated Leg Extension 3x12, Standing Calf Raise Machine 3x12, Front Plank 1min
+  DEFECTS: none

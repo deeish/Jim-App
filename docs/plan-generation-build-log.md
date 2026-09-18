@@ -596,3 +596,21 @@ Dylan: "fix the last items in the build log". The three left open under Tier 7, 
 Rig drive re-run with the mirror check (`docs/audits/2026-09-17-ledger-rig-run.json`): the opened week-2 Monday workout shows "Bench 4x8 @130, Row 5x10 @55, …" with the ledger notes after week 1 is logged; week 3 backs off after a hard week 2; week 4 is the lighter week after two hard weeks. 106 workout-log tests, full backend suite green.
 
 Still listed from the scenario matrix, unchanged: the peak week's session cap drops one accessory row on two five-row plans; the home dumbbell lower pool is thin; home and beginner openers (glute bridge, box squat) trip the anchor check before enrichment swaps them.
+
+## Home and beginner plans (2026-09-17, late)
+
+Dylan: keep working; the home and beginner group was chosen first (real segment, a three-lift lower day is visible on the first screen, and every home or beginner plan paid a retry on its opener). The second rating of the day sits above this section in the session record: overall 6.5 → 7.5.
+
+| # | Finding | Change | Where | Verified by |
+|---|---|---|---|---|
+| 1 | A home lower day came out as three lifts plus a plank and a carry: the leg accessory slot only offered isolations (clamshells, donkey kicks at home) and the last two slots both offered time rows | The leg accessory slot admits loaded unilateral work (split squat, lunge, step-up); the fourth lower slot is calves or glute work (hip thrust, bridge, abduction); the finisher is core or a carry | `slot-shortlists.ts` (`leg_isolation_or_lunge`, `calves_or_glutes`, `core_or_carry`), `program-templates.ts` (lower slot descriptions) | home Upper/Lower: Lower 2 = dumbbell RDL, step-up, hip thrust, bodyweight squat, Bulgarian split squat, dead bug |
+| 2 | Home and beginner openers (glute bridge, box squat, dumbbell sumo squat) tripped the anchor check and cost a retry | Slot 1 offers the accepted openers only when there are at least two; the anchor lists gain the box squat and hack squat (gym), the dumbbell sumo squat, sumo squat, glute bridge and single-leg RDL (home, light); any deadlift may open a lower day so a home week's second lower day can be hinge-led (staples rank first) | `slot-shortlists.ts`, `anchor-exercises.ts` | six of seven scenarios pass the first validator pass, the knee plan opens with a box squat |
+| 3 | The model sometimes answered out of slot order (a hinge first) | The day's rows go back into slot order before anything reads them | `workout-generator.service.ts` (parse) | bands-only plan |
+| 4 | A bands-only week of three full-body days had two accepted openers; the third day's duplicate opener was repaired into a glute bridge the validator then rejected | A duplicate opener is replaced by another accepted opener for the focus, or left alone (a repeated opener beats a bad one); the rule only applies when the library actually has those openers, so synthetic test libraries keep the old behaviour | `generation-chunk-repair.ts` (`isFirstStrengthRow`, both duplicate passes) | bands-only: bodyweight squat, glute bridge, sumo squat open the three days; first pass clean |
+
+Re-drives after the change: bands-only full body, home dumbbell upper/lower, home beginner full body, gym beginner full body, the knee plan, the beginner strength plan and the two-day upper/lower all pass the first validator pass with four or five lifts per day. 413 backend tests green.
+
+### Deliberately not done
+
+- `getAcceptedOpenerIdsForFocus` inside the duplicate repair runs without the user's level (the repair has no difficulty argument), so a gym intermediate's duplicate opener could be repaired into a goblet squat; enrichment's slot-one swap then replaces it with a staple. Threading the level is a small follow-up.
+- The bands-only pool still has no hinge opener beyond the glute bridge and the single-leg RDL; that is the catalog, not the rules.
