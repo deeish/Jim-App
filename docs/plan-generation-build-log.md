@@ -391,3 +391,32 @@ All three runs: model-built, Upper/Lower, 6–8 s, no console errors, no 4xx, ev
 - Run 7 week-4 Lower 2 is three rows (deadlift, leg press, leg raise): with two lower days in 30–45 minutes, Legs sit at the 22-set ceiling and the calf raise is the only row left to give once both main lifts are at four. A coach might keep the calf raise and take the leg press to two sets; the compound floor of three forbids that on purpose.
 - The farmer carry counts as a core-pattern row for the validator's one-core cap, so a plank plus a carry fails the first pass. Either the carry gets its own pattern in the catalog or the cap allows a carry beside one core row.
 - The bent-over row reached six sets in week 4 (five from the priority fill, times the peak multiplier). The compound ceiling is five in the allocator; the progression multiplier is not subject to it.
+
+### Runs 8–10: the three run-7 findings, root-caused (2026-09-17, night)
+
+Dylan: "look into those issues you found and figure out a solution." Same inputs and rig. Raw captures: `docs/audits/2026-09-17-preview-rig-run-8.json`, `-9.json`, `-10.json`.
+
+**What the three findings had in common.** Every one traced back to the Legs band. The catalog has one "Legs" group for quads, hamstrings, glutes and calves, and the coach band (8–22 sets for an intermediate) is a per-muscle number. Two lower days with four lifts each at their floor sets already read as 22 weighted sets, so week 1 was allocated straight to the ceiling with nowhere to grow, the peak week's multiplier pushed it over, and the trim cut rows back out (the three-row lower day). The other two were small and separate.
+
+| # | Finding | Root cause | Change | Where | Verified by |
+|---|---|---|---|---|---|
+| A | Week-4 Lower 2 at three rows | Legs ceiling too tight for a four-muscle group; week 1 allocated to it; the peak overflowed | `groupBandMax`: Legs = 1.5 × the band (33 for an intermediate). The allocation works toward ceiling ÷ the block's peak multiplier so the peak week lands on the ceiling, and it only ever takes sets (down to the floors, main lift to four); only the post-progression trim may drop a row. The coach report carries each group's own `bandMax`; the preview's bars use it when present. | `coach-check.ts` (`LEGS_BAND_SCALE`, `groupBandMax`, `MuscleVolume.bandMax`), `weekly-volume-allocation.ts` (`peakVolumeMultiplier`, `bandMaxFor`, `allowDrop`), `plans.service.ts`, `frontend/src/types/plan.ts`, `PlanPreviewScreen.tsx` (`coachBars`) | `block-headroom.spec.ts`; run 10: Legs 26 → 26 → 28 → 30.5, five-row lower days all block, no Legs trim |
+| B | A row reached six sets | The peak multiplier ran after the allocator's five-set compound ceiling | Progressed sets stop at the role ceiling (main 6, compound 5, isolation and core 4) when the catalog knows the row | `week-progression.ts` (`PROGRESSED_SET_CEILING`) | `block-headroom.spec.ts`; run 10 week 4: row 5, pulldown 5 |
+| C | Farmer carry plus plank failed the one-core cap | The catalog tags a loaded carry as Core | A row with the Carry pattern is neither a core row nor a pattern row for the budget | `generated-chunk-validators.ts` | `block-headroom.spec.ts`; runs 9 and 10: first pass clean |
+
+Run 8 was the wrong first cut and is kept for the record: the headroom ceiling alone (22 ÷ 1.24 = 17) sent the allocation-time trim through its drop rule and left two- and three-row days in week 1. Run 9 stopped the drops but Legs still sat at 22 from fractional credit (planks and leg raises count half toward Legs), so the trim after progression fired in every week. Run 10 is the fix above.
+
+| Run | First pass | Legs by week | Lower rows wk 1 → wk 4 | Row (priority) wk 4 |
+|---|---|---|---|---|
+| 7 | carry flagged, retry clean | 22 / 22 / 20.5 / 21 | 4, 4 → 4, 3 | 6 sets |
+| 8 | clean | 17 / 17 / 19.5 / 21 | 2, 3 → 2, 3 | 5 |
+| 9 | clean | 22 / 22 / 22 / 20.5 | 4, 4 → 4, 3 | 5 |
+| 10 | clean | 26 / 26 / 28 / 30.5 | 5, 5 → 5, 5 | 5 |
+
+All three: model-built, 6 s, no console errors, no 4xx, every week balanced, reps held, bench 135 → 150. Backend and frontend type-check; 406 backend tests green (coach-check spec now matches per-muscle objects loosely, three allocation fixtures rewritten for the 33-set Legs ceiling).
+
+### Deliberately not done
+
+- Shoulders still sit at 21.5 in week 1 from fractional credit (every press and pull adds half a set), so the peak week drops a lateral raise on Monday. The same accounting question as Legs, one size down; not changed tonight.
+- The client's bar change (per-group ceiling) rides the next binary; old clients draw Legs against 22 and will show it "over" once the plan grows past that.
+- The coach report's `band` stays the per-muscle band; the sheet's "Aim 8–22 a week" line does not mention that Legs is wider.

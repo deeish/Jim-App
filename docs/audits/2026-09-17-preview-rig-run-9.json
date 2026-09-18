@@ -1,0 +1,425 @@
+{
+  "startedAt": "2026-09-18T03:28:20.689Z",
+  "steps": [
+    {
+      "step": "review",
+      "line": "| Goal | Build muscle | Schedule | 4 days/week · 4 weeks | Where | Gym | Time/session | 30–45 min | Training now | 3-4 sessions/wk | Bring up | Back | Your numbers | Bench press 135 lb × 8 | Split | Upper/Lower |"
+    },
+    {
+      "step": "generation",
+      "seconds": 6,
+      "landed": true
+    },
+    {
+      "step": "list",
+      "statedLine": "Week 2",
+      "coach": "A balanced week. Every muscle sits inside its weekly band and no day stacks the same pattern.",
+      "days": [
+        "Wednesday",
+        "Saturday",
+        "Sunday"
+      ]
+    },
+    {
+      "step": "coachSheet"
+    },
+    {
+      "step": "builtSheet",
+      "text": "How this was built | "
+    },
+    {
+      "step": "day",
+      "head": "Upper · Bench + Row | Monday Sep 14 · 30–45 min · 5 exercises · hard day | Rebuild day | CHEST | Flat Barbell Bench Press | A foundational compound press perfor",
+      "howToLines": 6
+    },
+    {
+      "step": "exercise",
+      "opened": "Flat Barbell Bench Press",
+      "head": " | Back | Flat Barbell Bench Press |  | Intermediate |  | Recommended |  | A foundational compound press performed f"
+    },
+    {
+      "step": "backToDay",
+      "ok": true
+    },
+    {
+      "step": "backToList",
+      "ok": true
+    },
+    {
+      "step": "tabs",
+      "week4": "Week 4 "
+    }
+  ],
+  "inputs": {
+    "goal": "muscle",
+    "days": 4,
+    "minutes": [
+      30,
+      45
+    ],
+    "weeks": 4,
+    "experience": "intermediate",
+    "priorityMuscle": "Back",
+    "activity": "3-4",
+    "knownLifts": [
+      {
+        "exerciseId": "flat_barbell_bench_press",
+        "weight": 135,
+        "reps": 8
+      }
+    ]
+  },
+  "builtBy": "ai",
+  "effectiveSplit": "upper-lower",
+  "coachCheck": [
+    {
+      "week": 1,
+      "band": {
+        "min": 8,
+        "max": 22
+      },
+      "findings": [],
+      "volume": {
+        "Chest": "8 sets / 2d",
+        "Back": "14.5 sets / 2d",
+        "Legs": "22 sets / 2d",
+        "Shoulders": "21.5 sets / 2d",
+        "Arms": "16.5 sets / 2d",
+        "Core": "20 sets / 2d"
+      }
+    },
+    {
+      "week": 2,
+      "band": {
+        "min": 8,
+        "max": 22
+      },
+      "findings": [],
+      "volume": {
+        "Chest": "8 sets / 2d",
+        "Back": "14.5 sets / 2d",
+        "Legs": "22 sets / 2d",
+        "Shoulders": "21.5 sets / 2d",
+        "Arms": "16.5 sets / 2d",
+        "Core": "20 sets / 2d"
+      }
+    },
+    {
+      "week": 3,
+      "band": {
+        "min": 8,
+        "max": 22
+      },
+      "findings": [],
+      "volume": {
+        "Chest": "10 sets / 2d",
+        "Back": "15.5 sets / 2d",
+        "Legs": "22 sets / 2d",
+        "Shoulders": "21 sets / 2d",
+        "Arms": "18 sets / 2d",
+        "Core": "19 sets / 2d"
+      }
+    },
+    {
+      "week": 4,
+      "band": {
+        "min": 8,
+        "max": 22
+      },
+      "findings": [],
+      "volume": {
+        "Chest": "10 sets / 2d",
+        "Back": "15.5 sets / 2d",
+        "Legs": "20.5 sets / 2d",
+        "Shoulders": "21.5 sets / 2d",
+        "Arms": "18 sets / 2d",
+        "Core": "19 sets / 2d"
+      }
+    }
+  ],
+  "weeks": [
+    {
+      "week": 1,
+      "days": [
+        {
+          "day": "Monday",
+          "title": "Upper · Bench + Row",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Flat Barbell Bench Press 4x8-12 @135lb rest 120s rir 2",
+            "Barbell Bent-Over Row 5x10-15 rest 90s rir 2",
+            "Barbell Overhead Press 3x10-15 rest 90s rir 2",
+            "Dumbbell Lateral Raise 2x12-15 rest 60s rir 1",
+            "Standing EZ-Bar Cable Curl 2x12-15 rest 60s rir 1"
+          ]
+        },
+        {
+          "day": "Tuesday",
+          "title": "Lower · Squat + RDL",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Back Squat 4x8-12 rest 120s rir 2 [note]",
+            "Barbell Romanian Deadlift 3x10-15 rest 90s rir 2",
+            "Seated Leg Extension 2x12-15 rest 60s rir 1",
+            "Front Plank 3x40 sec rest 60s rir -"
+          ]
+        },
+        {
+          "day": "Thursday",
+          "title": "Upper · Incline + Pulldown",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Incline Dumbbell Bench Press 4x8-12 rest 120s rir 2 [note]",
+            "Wide-Grip Lat Pulldown 4x10-15 rest 90s rir 2",
+            "Seated Dumbbell Shoulder Press 3x10-15 rest 90s rir 2",
+            "Cable Lateral Raise 2x12-15 rest 60s rir 1",
+            "Lying EZ-Bar Triceps Extension 3x12-15 rest 60s rir 1"
+          ]
+        },
+        {
+          "day": "Friday",
+          "title": "Lower · Deadlift + Leg Press",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Conventional Deadlift 4x8-12 rest 120s rir 2 [note]",
+            "45-Degree Leg Press 3x10-15 rest 90s rir 2",
+            "Hanging Leg Raise 3x12-15 rest 60s rir 2",
+            "Seated Calf Raise Machine 2x12-15 rest 60s rir 1"
+          ]
+        }
+      ]
+    },
+    {
+      "week": 2,
+      "days": [
+        {
+          "day": "Monday",
+          "title": "Upper · Bench + Row",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Flat Barbell Bench Press 4x8-12 @140lb rest 120s rir 2",
+            "Barbell Bent-Over Row 5x10-15 rest 90s rir 2",
+            "Barbell Overhead Press 3x10-15 rest 90s rir 2",
+            "Dumbbell Lateral Raise 2x12-15 rest 60s rir 1",
+            "Standing EZ-Bar Cable Curl 2x12-15 rest 60s rir 1"
+          ]
+        },
+        {
+          "day": "Tuesday",
+          "title": "Lower · Squat + RDL",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Back Squat 4x8-12 rest 120s rir 2",
+            "Barbell Romanian Deadlift 3x10-15 rest 90s rir 2",
+            "Seated Leg Extension 2x12-15 rest 60s rir 1",
+            "Front Plank 3x40 sec rest 60s rir -"
+          ]
+        },
+        {
+          "day": "Thursday",
+          "title": "Upper · Incline + Pulldown",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Incline Dumbbell Bench Press 4x8-12 rest 120s rir 2",
+            "Wide-Grip Lat Pulldown 4x10-15 rest 90s rir 2",
+            "Seated Dumbbell Shoulder Press 3x10-15 rest 90s rir 2",
+            "Cable Lateral Raise 2x12-15 rest 60s rir 1",
+            "Lying EZ-Bar Triceps Extension 3x12-15 rest 60s rir 1"
+          ]
+        },
+        {
+          "day": "Friday",
+          "title": "Lower · Deadlift + Leg Press",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Conventional Deadlift 4x8-12 rest 120s rir 2",
+            "45-Degree Leg Press 3x10-15 rest 90s rir 2",
+            "Hanging Leg Raise 3x12-15 rest 60s rir 2",
+            "Seated Calf Raise Machine 2x12-15 rest 60s rir 1"
+          ]
+        }
+      ]
+    },
+    {
+      "week": 3,
+      "days": [
+        {
+          "day": "Monday",
+          "title": "Upper · Bench + Row",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Flat Barbell Bench Press 5x8-12 @145lb rest 120s rir 1",
+            "Barbell Bent-Over Row 5x10-15 rest 90s rir 1",
+            "Barbell Overhead Press 3x10-15 rest 90s rir 1",
+            "Standing EZ-Bar Cable Curl 2x12-15 rest 60s rir 0"
+          ]
+        },
+        {
+          "day": "Tuesday",
+          "title": "Lower · Squat + RDL",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Back Squat 4x8-12 rest 120s rir 1",
+            "Barbell Romanian Deadlift 3x10-15 rest 90s rir 1",
+            "Seated Leg Extension 2x12-15 rest 60s rir 0",
+            "Front Plank 3x40 sec rest 60s rir -"
+          ]
+        },
+        {
+          "day": "Thursday",
+          "title": "Upper · Incline + Pulldown",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Incline Dumbbell Bench Press 5x8-12 rest 120s rir 1",
+            "Wide-Grip Lat Pulldown 5x10-15 rest 90s rir 1",
+            "Seated Dumbbell Shoulder Press 3x10-15 rest 90s rir 1",
+            "Cable Lateral Raise 2x12-15 rest 60s rir 0",
+            "Lying EZ-Bar Triceps Extension 3x12-15 rest 60s rir 0"
+          ]
+        },
+        {
+          "day": "Friday",
+          "title": "Lower · Deadlift + Leg Press",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Conventional Deadlift 4x8-12 rest 120s rir 1",
+            "45-Degree Leg Press 3x10-15 rest 90s rir 1",
+            "Hanging Leg Raise 3x12-15 rest 60s rir 1",
+            "Seated Calf Raise Machine 2x12-15 rest 60s rir 0"
+          ]
+        }
+      ]
+    },
+    {
+      "week": 4,
+      "days": [
+        {
+          "day": "Monday",
+          "title": "Upper · Bench + Row",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Flat Barbell Bench Press 5x8-12 @150lb rest 120s rir 1",
+            "Barbell Bent-Over Row 5x10-15 rest 90s rir 1",
+            "Barbell Overhead Press 3x10-15 rest 90s rir 1",
+            "Standing EZ-Bar Cable Curl 2x12-15 rest 60s rir 0"
+          ]
+        },
+        {
+          "day": "Tuesday",
+          "title": "Lower · Squat + RDL",
+          "type": "strength",
+          "hard": true,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Back Squat 4x8-12 rest 120s rir 1",
+            "Barbell Romanian Deadlift 3x10-15 rest 90s rir 1",
+            "Seated Leg Extension 2x12-15 rest 60s rir 0",
+            "Front Plank 3x40 sec rest 60s rir -"
+          ]
+        },
+        {
+          "day": "Thursday",
+          "title": "Upper · Incline + Pulldown",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Incline Dumbbell Bench Press 5x8-12 rest 120s rir 1",
+            "Wide-Grip Lat Pulldown 5x10-15 rest 90s rir 1",
+            "Seated Dumbbell Shoulder Press 3x10-15 rest 90s rir 1",
+            "Cable Lateral Raise 2x12-15 rest 60s rir 0",
+            "Lying EZ-Bar Triceps Extension 3x12-15 rest 60s rir 0"
+          ]
+        },
+        {
+          "day": "Friday",
+          "title": "Lower · Deadlift + Leg Press",
+          "type": "strength",
+          "hard": false,
+          "minutes": [
+            30,
+            45
+          ],
+          "rows": [
+            "Conventional Deadlift 4x8-12 rest 120s rir 1",
+            "45-Degree Leg Press 3x10-15 rest 90s rir 1",
+            "Hanging Leg Raise 4x12-15 rest 60s rir 1"
+          ]
+        }
+      ]
+    }
+  ],
+  "consoleErrors": [],
+  "finishedAt": "2026-09-18T03:28:55.300Z"
+}
