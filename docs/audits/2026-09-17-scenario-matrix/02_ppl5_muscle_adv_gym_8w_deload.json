@@ -1,0 +1,439 @@
+{
+ "detailLevel": "detailed",
+ "makeItEasier": false,
+ "mesoHint": "Progressive overload when recovery allows; small weekly bumps to load.",
+ "goal": "hypertrophy",
+ "location": "gym",
+ "experienceLevel": "advanced",
+ "equipmentTags": [
+  "dumbbells",
+  "barbell",
+  "cable",
+  "machines",
+  "kettlebells",
+  "bands",
+  "pull-up bar"
+ ],
+ "sessions": [
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Saturday"
+  },
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 2,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 2,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Saturday"
+  },
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 3,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 3,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Saturday"
+  },
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 4,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 4,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Saturday"
+  },
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 5,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 5,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 5,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 5,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 5,
+   "weekday": "Saturday"
+  },
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 6,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 6,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 6,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 6,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 6,
+   "weekday": "Saturday"
+  },
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 7,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 7,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 7,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 7,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 7,
+   "weekday": "Saturday"
+  },
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 8,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 8,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 8,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": false,
+   "weekIndex": 8,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 60,
+   "durationMax": 75,
+   "isHardDay": true,
+   "weekIndex": 8,
+   "weekday": "Saturday"
+  }
+ ],
+ "weekProgression": [
+  {
+   "weekIndex": 1,
+   "phase": "foundation",
+   "intensityPct": 65,
+   "volumeMultiplier": 1.0,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 2,
+   "phase": "progression",
+   "intensityPct": 70,
+   "volumeMultiplier": 1.15,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 3,
+   "phase": "peak",
+   "intensityPct": 75,
+   "volumeMultiplier": 1.25,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 4,
+   "phase": "deload",
+   "intensityPct": 60,
+   "volumeMultiplier": 0.7,
+   "repModifier": 2
+  },
+  {
+   "weekIndex": 5,
+   "phase": "foundation",
+   "intensityPct": 65,
+   "volumeMultiplier": 1.0,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 6,
+   "phase": "progression",
+   "intensityPct": 70,
+   "volumeMultiplier": 1.15,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 7,
+   "phase": "peak",
+   "intensityPct": 75,
+   "volumeMultiplier": 1.25,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 8,
+   "phase": "deload",
+   "intensityPct": 60,
+   "volumeMultiplier": 0.7,
+   "repModifier": 2
+  }
+ ],
+ "priorityMuscle": "Arms",
+ "currentActivityLevel": "5+"
+}

@@ -1,0 +1,192 @@
+{
+ "detailLevel": "detailed",
+ "makeItEasier": false,
+ "mesoHint": "Progressive overload when recovery allows; small weekly bumps to load.",
+ "goal": "hypertrophy",
+ "location": "home",
+ "experienceLevel": "intermediate",
+ "equipmentTags": [
+  "dumbbells",
+  "bands",
+  "bench",
+  "pull-up bar"
+ ],
+ "sessions": [
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 2,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 2,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 3,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 3,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 4,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Upper 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Lower 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 4,
+   "weekday": "Friday"
+  }
+ ],
+ "weekProgression": [
+  {
+   "weekIndex": 1,
+   "phase": "foundation",
+   "intensityPct": 65,
+   "volumeMultiplier": 1.0,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 2,
+   "phase": "progression",
+   "intensityPct": 70,
+   "volumeMultiplier": 1.15,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 3,
+   "phase": "peak",
+   "intensityPct": 75,
+   "volumeMultiplier": 1.25,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 4,
+   "phase": "deload",
+   "intensityPct": 60,
+   "volumeMultiplier": 0.7,
+   "repModifier": 2
+  }
+ ],
+ "priorityMuscle": "Shoulders",
+ "currentActivityLevel": "3-4"
+}

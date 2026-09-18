@@ -1,0 +1,51 @@
+{
+ "detailLevel": "detailed",
+ "makeItEasier": false,
+ "mesoHint": "One week: a complete, balanced week.",
+ "goal": "hypertrophy",
+ "location": "home",
+ "experienceLevel": "beginner",
+ "equipmentTags": [
+  "dumbbells",
+  "bands"
+ ],
+ "sessions": [
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Friday"
+  }
+ ],
+ "weekProgression": [
+  {
+   "weekIndex": 1,
+   "phase": "maintain",
+   "intensityPct": 70,
+   "volumeMultiplier": 1.0,
+   "repModifier": 0
+  }
+ ],
+ "currentActivityLevel": "1-2"
+}

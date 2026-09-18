@@ -1,0 +1,279 @@
+{
+ "detailLevel": "detailed",
+ "makeItEasier": false,
+ "mesoHint": "Progressive overload when recovery allows; small weekly bumps to load.",
+ "goal": "hypertrophy",
+ "location": "gym",
+ "experienceLevel": "intermediate",
+ "equipmentTags": [
+  "dumbbells",
+  "barbell",
+  "cable",
+  "machines",
+  "kettlebells",
+  "bands",
+  "pull-up bar"
+ ],
+ "sessions": [
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Push 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Saturday"
+  },
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 2,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Push 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 2,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 2,
+   "weekday": "Saturday"
+  },
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 3,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Push 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 3,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 3,
+   "weekday": "Saturday"
+  },
+  {
+   "type": "strength",
+   "title": "Push",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 4,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Push 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 4,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Pull 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs 2",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 4,
+   "weekday": "Saturday"
+  }
+ ],
+ "weekProgression": [
+  {
+   "weekIndex": 1,
+   "phase": "foundation",
+   "intensityPct": 65,
+   "volumeMultiplier": 1.0,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 2,
+   "phase": "progression",
+   "intensityPct": 69,
+   "volumeMultiplier": 1.08,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 3,
+   "phase": "progression",
+   "intensityPct": 73,
+   "volumeMultiplier": 1.16,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 4,
+   "phase": "peak",
+   "intensityPct": 77,
+   "volumeMultiplier": 1.24,
+   "repModifier": 0
+  }
+ ],
+ "priorityMuscle": "Chest",
+ "currentActivityLevel": "3-4",
+ "knownLifts": [
+  {
+   "exerciseId": "flat_barbell_bench_press",
+   "weight": 185,
+   "reps": 6
+  },
+  {
+   "exerciseId": "back_squat",
+   "weight": 225,
+   "reps": 5
+  }
+ ]
+}

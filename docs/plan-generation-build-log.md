@@ -448,3 +448,34 @@ Run 12: model-built, 6 s, first validator pass clean, no console errors, no 4xx,
 Week 1: Upper = bench, bent-over row, overhead press, lateral raise, cable curl. Lower = back squat, RDL, leg extension, standing calf raise, farmer carry. Upper 2 = incline dumbbell press, pull-up, seated dumbbell press, reverse pec deck, triceps extension. Lower 2 = deadlift, front squat, hanging leg raise, seated calf raise, leg curl.
 
 Nothing left open from runs 4–12. Twelve logged runs on the same inputs; the write-ups above are the trail from a goblet-squat-led three-lift day to this.
+
+## Scenario matrix: sixteen plans, three passes (2026-09-17, late night)
+
+Dylan: "did you test this with multi week (im willing to burn tokens to fully test this right now)". The rig runs were all one input set. The drive harness replays any request without the UI, so sixteen scenarios were built (`docs/audits/2026-09-17-scenario-matrix/gen_matrix.py`, payloads alongside) and driven three times: push/pull/legs at five and six days, full body at three, upper/lower at two and four, a bro split; muscle, strength, fat loss, balanced and endurance goals; beginner to advanced; gym, home dumbbells, bands only; one, four and eight weeks with and without a deload; a shoulder and a knee limitation; priorities on Chest, Arms, Shoulders and Back; typed lifts; the simple detail level; make-it-easier. `summarize.py` prints each plan's week one, the validator's first pass and a defect checklist (thin days, duplicate calves, light openers in a gym, rows lost by the last week, ignored limitations, unstamped typed lifts).
+
+| Pass | Mean / 168 | Min | Scorer validation ok | Plans with defects |
+|---|---|---|---|---|
+| 1 | 140.6 | 76 | 75% | 11 of 16 |
+| 2 | 146.6 | 76 | 81% | 6 of 16 |
+| 3 | 162.9 | 156 | 100% | 3 of 16 (one row lost by week 4 on two plans; a three-lift home lower day) |
+
+### What pass 1 found, and the fixes
+
+| # | Finding | Root cause | Change | Where |
+|---|---|---|---|---|
+| 1 | Three "Full Body" days: weeks 2+ were the wrong days, then the week dedupe churned them into new exercises | Week 1 was cloned by title, so three identical titles all mapped to the last one | Clone by `weekday|title`, title as the fallback | `plans.service.ts` (`cloneKey`) |
+| 2 | Six-day push/pull/legs: every curl and pushdown gone, Pull days at two lifts | Arms carries half-credit from every press and pull (19 secondary sets before a curl) against a 22-set ceiling; the post-progression trim dropped the isolations | Arms is 1.5 bands, Back 1.25 (lats, upper back, lower back, traps plus credit from curls, carries and hinges) | `coach-check.ts` (`GROUP_BAND_SCALE`) |
+| 3 | An incline press on Back day, a dip opening Arms, a bench on Pull | The count fill and the duplicate replacement drew from a pool that fell through upper, push, pull and every body part | Replacement pools stay inside the day's own muscles; body-part days (chest, back, shoulders, arms) get five slots so a 45–60 minute day fills from its own list; a borrowed id in the model's answer becomes the slot's first unused option or is dropped | `generation-chunk-repair.ts` (`focusTriesForSpec`), `program-templates.ts`, `slot-shortlists.ts`, `workout-generator.service.ts` (`slotsByFocus`) |
+| 4 | Two calf raises on a lower day, four plans | The family swaps and the stacking repair run after the calf cap and pick replacements by id | The one-calf pass runs last, after every row-changing pass | `plans.service.ts` |
+| 5 | Second cardio day with one row, two plans failing the scorer's minimum | The "core" pool was tier-sorted across every group: five core moves in the first forty rows, all excluded by the week's ids | Core pool deepened to 400 | `cardio-day-template.ts` |
+| 6 | Trap-bar deadlift flagged as a non-anchor opener | Not in the anchor lists | Added to lower, legs and full body | `anchor-exercises.ts` |
+| 7 | An opener the catalog does not know was swapped for the first anchor the equipment allowed | No pattern to judge by | Unknown or pattern-less openers are left alone | `session-enrichment.ts` (`ensureAnchorInSlotOne`) |
+
+Rig run 13 on the same build: first pass clean, 6 s, five rows every day, no trims, Back 15.5 → 17, Legs 26 → 30.5, bench 135 → 150. Capture `docs/audits/2026-09-17-preview-rig-run-13.json`.
+
+### Deliberately not done
+
+- Two plans lose one row by week 4 (six-day push days, the bro-split Shoulders day): the peak week's session cap on a five-row day. One accessory at two sets is the price; not changed.
+- The home dumbbell upper/lower has a three-lift lower day (goblet squat, RDL, leg curl plus core and a carry): the home lower pool is thin and the model filled the last slots with time rows. A home lower shortlist with more dumbbell leg options is the next step.
+- `slot_one_not_anchor` still fires on home and beginner plans (glute bridge, sumo squat, box squat) and on a push-up opener under a shoulder limitation; enrichment swaps them and the plans are fine. The anchor list could learn the home openers.
+- The sixteen captures themselves (1.4 MB per pass) stay in the scratchpad; the payloads, the generator and the pass summaries are in the audits folder.

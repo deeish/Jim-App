@@ -1,0 +1,230 @@
+{
+ "detailLevel": "detailed",
+ "makeItEasier": false,
+ "mesoHint": "Progressive overload when recovery allows; small weekly bumps to load.",
+ "goal": "hypertrophy",
+ "location": "gym",
+ "experienceLevel": "intermediate",
+ "equipmentTags": [
+  "dumbbells",
+  "barbell",
+  "cable",
+  "machines",
+  "kettlebells",
+  "bands",
+  "pull-up bar"
+ ],
+ "sessions": [
+  {
+   "type": "strength",
+   "title": "Chest",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Back",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Shoulders",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Arms",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Chest",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Back",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 2,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Shoulders",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 2,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Arms",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Chest",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Back",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 3,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Shoulders",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 3,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Arms",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Chest",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Monday"
+  },
+  {
+   "type": "strength",
+   "title": "Back",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 4,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Shoulders",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "strength",
+   "title": "Legs",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": false,
+   "weekIndex": 4,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Arms",
+   "durationMin": 45,
+   "durationMax": 60,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Friday"
+  }
+ ],
+ "weekProgression": [
+  {
+   "weekIndex": 1,
+   "phase": "foundation",
+   "intensityPct": 65,
+   "volumeMultiplier": 1.0,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 2,
+   "phase": "progression",
+   "intensityPct": 69,
+   "volumeMultiplier": 1.08,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 3,
+   "phase": "progression",
+   "intensityPct": 73,
+   "volumeMultiplier": 1.16,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 4,
+   "phase": "peak",
+   "intensityPct": 77,
+   "volumeMultiplier": 1.24,
+   "repModifier": 0
+  }
+ ],
+ "currentActivityLevel": "3-4"
+}

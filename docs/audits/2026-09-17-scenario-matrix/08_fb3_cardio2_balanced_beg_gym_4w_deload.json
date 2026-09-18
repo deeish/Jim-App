@@ -1,0 +1,233 @@
+{
+ "detailLevel": "detailed",
+ "makeItEasier": false,
+ "mesoHint": "Progressive overload when recovery allows; small weekly bumps to load.",
+ "goal": "balanced",
+ "location": "gym",
+ "experienceLevel": "beginner",
+ "equipmentTags": [
+  "dumbbells",
+  "barbell",
+  "cable",
+  "machines",
+  "kettlebells",
+  "bands",
+  "pull-up bar"
+ ],
+ "cardioModalities": [
+  "bike"
+ ],
+ "sessions": [
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Monday"
+  },
+  {
+   "type": "cardio",
+   "title": "Cardio",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "cardio",
+   "title": "Cardio",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": false,
+   "weekIndex": 1,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 1,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Monday"
+  },
+  {
+   "type": "cardio",
+   "title": "Cardio",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": false,
+   "weekIndex": 2,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "cardio",
+   "title": "Cardio",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": false,
+   "weekIndex": 2,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 2,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Monday"
+  },
+  {
+   "type": "cardio",
+   "title": "Cardio",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": false,
+   "weekIndex": 3,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "cardio",
+   "title": "Cardio",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": false,
+   "weekIndex": 3,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 3,
+   "weekday": "Friday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Monday"
+  },
+  {
+   "type": "cardio",
+   "title": "Cardio",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": false,
+   "weekIndex": 4,
+   "weekday": "Tuesday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Wednesday"
+  },
+  {
+   "type": "cardio",
+   "title": "Cardio",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": false,
+   "weekIndex": 4,
+   "weekday": "Thursday"
+  },
+  {
+   "type": "strength",
+   "title": "Full Body",
+   "durationMin": 30,
+   "durationMax": 45,
+   "isHardDay": true,
+   "weekIndex": 4,
+   "weekday": "Friday"
+  }
+ ],
+ "weekProgression": [
+  {
+   "weekIndex": 1,
+   "phase": "foundation",
+   "intensityPct": 65,
+   "volumeMultiplier": 1.0,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 2,
+   "phase": "progression",
+   "intensityPct": 70,
+   "volumeMultiplier": 1.15,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 3,
+   "phase": "peak",
+   "intensityPct": 75,
+   "volumeMultiplier": 1.25,
+   "repModifier": 0
+  },
+  {
+   "weekIndex": 4,
+   "phase": "deload",
+   "intensityPct": 60,
+   "volumeMultiplier": 0.7,
+   "repModifier": 2
+  }
+ ],
+ "currentActivityLevel": "1-2"
+}
