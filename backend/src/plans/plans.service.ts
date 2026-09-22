@@ -1422,6 +1422,7 @@ export class PlansService {
           equipment,
           effectiveDetailLevel,
           avoidConstraintsGlobal: limitations,
+          difficulty: dto.experienceLevel,
         });
         chunkWarnings.push(...hybridRepaired.notes);
         const hybridVQ = validateGeneratedProgramChunk(
@@ -1562,6 +1563,7 @@ export class PlansService {
           equipment,
           effectiveDetailLevel,
           avoidConstraintsGlobal: limitations,
+          difficulty: dto.experienceLevel,
         });
         chunkWarnings.push(...batchRepaired.notes);
         mapped = batchRepaired.sessions;
@@ -1638,6 +1640,7 @@ export class PlansService {
             equipment,
             effectiveDetailLevel,
             avoidConstraintsGlobal: limitations,
+            difficulty: dto.experienceLevel,
           });
           chunkWarnings.push(...retryRepaired.notes);
           mapped = retryRepaired.sessions;
@@ -1865,6 +1868,7 @@ export class PlansService {
       equipment,
       effectiveDetailLevel,
       avoidConstraintsGlobal: limitations,
+      difficulty: dto.experienceLevel,
     });
     chunkWarnings.push(...perSessionRepaired.notes);
     const repairedResults = perSessionRepaired.sessions;
@@ -2098,6 +2102,7 @@ export class PlansService {
         equipment: generatorEquipment,
         effectiveDetailLevel: mergeEffectiveDetailLevel,
         avoidConstraintsGlobal: limitations,
+        difficulty: dto.experienceLevel,
       });
       for (let i = 0; i < mergedRepaired.sessions.length; i++) {
         orderedResults[i] = mergedRepaired.sessions[i]!;
@@ -2295,6 +2300,7 @@ export class PlansService {
       equipment: generatorEquipment,
       effectiveDetailLevel: mergeEffectiveDetailLevel,
       avoidConstraintsGlobal: limitations,
+      difficulty: dto.experienceLevel,
     });
 
     const enrichDto: GenerateSessionsDto = {
@@ -2442,6 +2448,7 @@ export class PlansService {
       library: this.exercises,
       equipment,
       avoidConstraintsGlobal: dto.avoidConstraints,
+      difficulty: dto.experienceLevel,
     });
     if (deduped.repairs > 0) {
       this.logger.log(

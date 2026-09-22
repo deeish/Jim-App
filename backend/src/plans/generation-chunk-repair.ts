@@ -413,6 +413,7 @@ function runDuplicatePass(
   equipment: string[] | undefined,
   tierFlags: ChunkRepairTierFlags,
   avoidConstraintsGlobal: string[] | undefined,
+  difficulty: string | undefined,
 ): number {
   const seenChunkIds = new Set<string>();
   let repairs = 0;
@@ -445,7 +446,10 @@ function runDuplicatePass(
           !cardio &&
           spec.type === 'strength' &&
           isFirstStrengthRow(library, exercises, ei)
-            ? getAcceptedOpenerIdsForFocus(spec.title ?? '', { equipment })
+            ? getAcceptedOpenerIdsForFocus(spec.title ?? '', {
+                equipment,
+                difficulty,
+              })
             : [];
         // Only when the library knows those openers (synthetic test
         // libraries and narrow focuses do not): otherwise any replacement.
@@ -493,6 +497,7 @@ function runDuplicatePassReverse(
   equipment: string[] | undefined,
   tierFlags: ChunkRepairTierFlags,
   avoidConstraintsGlobal: string[] | undefined,
+  difficulty: string | undefined,
 ): number {
   const seenChunkIds = new Set<string>();
   let repairs = 0;
@@ -525,7 +530,10 @@ function runDuplicatePassReverse(
           !cardio &&
           spec.type === 'strength' &&
           isFirstStrengthRow(library, exercises, ei)
-            ? getAcceptedOpenerIdsForFocus(spec.title ?? '', { equipment })
+            ? getAcceptedOpenerIdsForFocus(spec.title ?? '', {
+                equipment,
+                difficulty,
+              })
             : [];
         // Only when the library knows those openers (synthetic test
         // libraries and narrow focuses do not): otherwise any replacement.
@@ -825,8 +833,16 @@ export function repairChunkGeneratedSessions(args: {
   effectiveDetailLevel?: 'simple' | 'detailed';
   /** Merged with each spec’s `avoidConstraints` when choosing library replacements. */
   avoidConstraintsGlobal?: string[];
+  /**
+   * The user's level, so a duplicate opener is repaired into an opener the
+   * slot-one check accepts for them: in a gym, a light anchor (goblet squat,
+   * push-up) only for a beginner. Without it the repair picked from the
+   * gym-intermediate list for everyone and enrichment swapped the row again
+   * (open items 2026-09-21).
+   */
+  difficulty?: string;
 }): RepairChunkGeneratedSessionsResult {
-  const { specs, library, equipment } = args;
+  const { specs, library, equipment, difficulty } = args;
   const avoidConstraintsGlobal = args.avoidConstraintsGlobal;
   const effectiveDetailLevel = args.effectiveDetailLevel ?? 'detailed';
   if (args.sessions.length !== specs.length) {
@@ -862,6 +878,7 @@ export function repairChunkGeneratedSessions(args: {
         equipment,
         tierFlags,
         avoidConstraintsGlobal,
+        difficulty,
       );
     }
     return repairs;
@@ -977,8 +994,11 @@ export function dedupeEnrichedProgramSessions(args: {
   library: ChunkRepairExerciseLibrary;
   equipment: string[] | undefined;
   avoidConstraintsGlobal?: string[];
+  /** See `repairChunkGeneratedSessions`. */
+  difficulty?: string;
 }): { sessions: GeneratedSession[]; repairs: number } {
-  const { specs, library, equipment, avoidConstraintsGlobal } = args;
+  const { specs, library, equipment, avoidConstraintsGlobal, difficulty } =
+    args;
   if (args.sessions.length !== specs.length) {
     return { sessions: cloneSessions(args.sessions), repairs: 0 };
   }
@@ -1002,6 +1022,7 @@ export function dedupeEnrichedProgramSessions(args: {
       equipment,
       tierFlags,
       avoidConstraintsGlobal,
+      difficulty,
     );
     if (chunkHasDuplicateLibraryIds(weekSessions, library)) {
       repairs += runDuplicatePassReverse(
@@ -1011,6 +1032,7 @@ export function dedupeEnrichedProgramSessions(args: {
         equipment,
         tierFlags,
         avoidConstraintsGlobal,
+        difficulty,
       );
     }
   }
