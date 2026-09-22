@@ -31,6 +31,10 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'chin_up',
     'single_arm_dumbbell_row',
   ],
+  // A bands-only home ends each lower list with the band hinges (scenario
+  // matrix 2026-09-17, plan 15: the pool had no hinge opener beyond the
+  // glute bridge and the single-leg RDL, so a "Deadlift" day opened with the
+  // bodyweight single-leg RDL every week).
   legs: [
     'back_squat',
     'front_squat',
@@ -42,6 +46,9 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'barbell_sumo_deadlift',
     'goblet_squat',
     'dumbbell_romanian_deadlift',
+    'resistance_band_romanian_deadlift',
+    'resistance_band_pull_through',
+    'resistance_band_good_morning',
     'bodyweight_squat',
     'dumbbell_sumo_squat',
     'sumo_squat',
@@ -69,6 +76,9 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'trap_bar_deadlift',
     'goblet_squat',
     'dumbbell_romanian_deadlift',
+    'resistance_band_romanian_deadlift',
+    'resistance_band_pull_through',
+    'resistance_band_good_morning',
     'bodyweight_squat',
     'dumbbell_sumo_squat',
     'sumo_squat',
@@ -90,6 +100,9 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'forty_five_degree_leg_press',
     'goblet_squat',
     'dumbbell_romanian_deadlift',
+    'resistance_band_romanian_deadlift',
+    'resistance_band_pull_through',
+    'resistance_band_good_morning',
     'bodyweight_squat',
   ],
   'full body': [
@@ -103,6 +116,9 @@ export const ANCHOR_EXERCISES_BY_FOCUS: Record<string, string[]> = {
     'goblet_squat',
     'flat_dumbbell_bench_press',
     'dumbbell_romanian_deadlift',
+    'resistance_band_romanian_deadlift',
+    'resistance_band_pull_through',
+    'resistance_band_good_morning',
     'single_arm_dumbbell_row',
     'push_up',
     'bodyweight_squat',
@@ -190,6 +206,9 @@ export const LIGHT_ANCHOR_IDS: ReadonlySet<string> = new Set([
   'push_up',
   'single_arm_dumbbell_row',
   'dumbbell_romanian_deadlift',
+  'resistance_band_romanian_deadlift',
+  'resistance_band_pull_through',
+  'resistance_band_good_morning',
 ]);
 
 export type OpenerContext = {
