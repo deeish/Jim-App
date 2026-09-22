@@ -75,6 +75,18 @@ import {
 } from '../lib/planCalendarPrototypeStore';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { suggestedEntry, validateSetEntry, weightRequired } from '../lib/setEntryRules';
+import HoldStopwatch from '../components/HoldStopwatch';
+import {
+  cuesBetween,
+  elapsedSeconds,
+  goNow,
+  pauseHold,
+  resumeHold,
+  settleHold,
+  startHold,
+  stopHold,
+  type Hold,
+} from '../lib/holdTimer';
 import { confirmCompleteWorkout } from '../lib/confirmCompleteWorkout';
 import {
   formatWeightFromLb,
@@ -725,6 +737,7 @@ function SetDeck({
   useEffect(() => {
     setReps('');
     setWeightIn('');
+    setHold(null);
     busy.current = false;
     cardX.value = 0;
     goldOp.value = 0;
@@ -777,6 +790,48 @@ function SetDeck({
   const entry = validateSetEntry(entryCtx, reps, weightIn);
   const suggestion = suggestedEntry(entryCtx);
   const askWeight = weightRequired(entryCtx);
+
+  // The stopwatch on a timed set (GitHub #58, lib/holdTimer.ts). The deck
+  // owns the clock: a quarter-second tick while the hold is live, a fresh
+  // read on every foreground, and one buzz per cue however uneven the ticks.
+  // Stop writes the seconds into the time field; the check logs them as any
+  // typed time. The rest timer still starts on the check, not here.
+  const targetSec = timedMatch
+    ? Number(timedMatch[1]) * (timedUnit === 'min' ? 60 : 1)
+    : 0;
+  const [hold, setHold] = useState<Hold | null>(null);
+  const [holdNowMs, setHoldNowMs] = useState(() => Date.now());
+  const holdPrevMs = useRef(Date.now());
+  const holdLive = hold != null && hold.phase !== 'stopped' && hold.phase !== 'paused';
+  useEffect(() => {
+    if (!holdLive) return;
+    const tick = () => setHoldNowMs(Date.now());
+    tick();
+    const id = setInterval(tick, 250);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') tick();
+    });
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
+  }, [holdLive]);
+  useEffect(() => {
+    if (!hold) return;
+    const prev = holdPrevMs.current;
+    holdPrevMs.current = holdNowMs;
+    for (const cue of cuesBetween(hold, prev, holdNowMs)) {
+      if (cue === 'go') buzzAllSetsComplete();
+      else if (cue === 'target') buzzRestOver();
+      else buzzTap();
+    }
+    const settled = settleHold(hold, holdNowMs);
+    if (settled !== hold) setHold(settled);
+  }, [hold, holdNowMs]);
+  const fillTimeFromHold = (h: Hold) => {
+    const secs = elapsedSeconds(h, Date.now());
+    setReps(String(timedUnit === 'min' ? Math.max(1, Math.round(secs / 60)) : secs));
+  };
 
   const onCheck = () => {
     if (busy.current) return;
@@ -845,7 +900,45 @@ function SetDeck({
         {/* The one-tap path: fills the fields from what the placeholder
             shows, so the check can stay strict without costing the common
             set more than a second tap. */}
-        {suggestion ? (
+        {timedUnit ? (
+          <HoldStopwatch
+            hold={hold}
+            nowMs={holdNowMs}
+            targetSec={targetSec}
+            colors={colors}
+            onStart={() => {
+              buzzTap();
+              holdPrevMs.current = Date.now();
+              setHold(startHold(targetSec, Date.now()));
+            }}
+            onGoNow={() => {
+              buzzAllSetsComplete();
+              setHold((h) => (h ? goNow(h, Date.now()) : h));
+            }}
+            onPause={() => {
+              buzzTap();
+              setHold((h) => (h ? pauseHold(h, Date.now()) : h));
+            }}
+            onResume={() => {
+              buzzTap();
+              holdPrevMs.current = Date.now();
+              setHold((h) => (h ? resumeHold(h, Date.now()) : h));
+            }}
+            onStop={() => {
+              if (!hold) return;
+              buzzSetComplete();
+              const stopped = stopHold(hold, Date.now());
+              setHold(stopped);
+              fillTimeFromHold(stopped);
+            }}
+            onRestart={() => {
+              buzzTap();
+              setReps('');
+              holdPrevMs.current = Date.now();
+              setHold(startHold(targetSec, Date.now()));
+            }}
+          />
+        ) : suggestion ? (
           <TouchableOpacity
             style={styles.suggestChip}
             activeOpacity={0.8}
