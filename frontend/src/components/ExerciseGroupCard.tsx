@@ -78,7 +78,18 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
           flex: 1,
           flexDirection: 'row',
           alignItems: 'center',
-          marginRight: spacing.sm,
+          // The target reaches the card's edges (GitHub #51: the padding
+          // around the name was dead): the card's own padding is folded
+          // into it on the three sides no other button touches.
+          marginVertical: -spacing.md,
+          paddingVertical: spacing.md,
+          marginLeft: -spacing.lg,
+          paddingLeft: spacing.lg,
+          paddingRight: spacing.sm,
+          minHeight: 44,
+        },
+        trailingIcon: {
+          marginLeft: spacing.sm,
         },
         muscleDisc: {
           marginRight: TILE_GAP,
@@ -218,44 +229,54 @@ function ExerciseGroupCard({ group, onPress, onPressVariation, onPressInfo, isSe
                 </Text>
               )}
             </View>
-          </TouchableOpacity>
-
-          <View style={styles.rowRight}>
-            {onLikePress != null && (
-              <ExerciseLikeButton
-                exerciseId={exercise.id}
-                saved={saved ?? false}
-                onSave={onLikePress}
-                onUnsave={onLikePress}
-                size={20}
+            {/* The trailing mark is decoration, so it lives INSIDE the main
+                target: the right edge of the row used to be dead space
+                (GitHub #51). Only the heart and the info button are their
+                own buttons. */}
+            {selectMode ? (
+              !isDisabled && (
+                <Ionicons
+                  name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={24}
+                  color={isSelected ? colors.primary : colors.textMuted}
+                  style={styles.trailingIcon}
+                />
+              )
+            ) : (
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.textMuted}
+                style={styles.trailingIcon}
               />
             )}
-            {selectMode ? (
-              <>
-                {onPressInfo && !isDisabled && (
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={() => onPressInfo(exercise)}
-                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                    activeOpacity={0.6}
-                    accessibilityRole="button"
-                    accessibilityLabel={`View details for ${exercise.name}`}
-                  >
-                    <Ionicons name="information-circle-outline" size={22} color={colors.textMuted} />
-                  </TouchableOpacity>
-                )}
-                {!isDisabled && (
-                  <Ionicons
-                    name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-                    size={24}
-                    color={isSelected ? colors.primary : colors.textMuted}
-                  />
-                )}
-              </>
-            ) : (
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            )}
-          </View>
+          </TouchableOpacity>
+
+          {(onLikePress != null || (selectMode && onPressInfo && !isDisabled)) && (
+            <View style={styles.rowRight}>
+              {selectMode && onPressInfo && !isDisabled && (
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={() => onPressInfo(exercise)}
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View details for ${exercise.name}`}
+                >
+                  <Ionicons name="information-circle-outline" size={22} color={colors.textMuted} />
+                </TouchableOpacity>
+              )}
+              {onLikePress != null && (
+                <ExerciseLikeButton
+                  exerciseId={exercise.id}
+                  saved={saved ?? false}
+                  onSave={onLikePress}
+                  onUnsave={onLikePress}
+                  size={20}
+                />
+              )}
+            </View>
+          )}
         </View>
 
         {hasVars && (
