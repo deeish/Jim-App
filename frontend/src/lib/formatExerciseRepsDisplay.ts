@@ -109,3 +109,19 @@ export function formatDraftReps(reps: number, goal: GoalId): string {
   if (hi < lo) hi = lo;
   return `${lo}–${hi}`;
 }
+
+/**
+ * The ledger's rep target for the week: the working scalar when it sits
+ * strictly inside the stored band (`8–12 · aim 10`). The rule the applied
+ * plan draws with; the preview draws the same so a draft reads like the plan
+ * it becomes (open items 2026-09-21).
+ */
+export function aimRepsInBand(
+  reps: number | null | undefined,
+  repsMin: number | null | undefined,
+  repsMax: number | null | undefined,
+): number | undefined {
+  if (reps == null || !Number.isFinite(reps)) return undefined;
+  if (repsMin == null || repsMax == null || repsMax <= repsMin) return undefined;
+  return reps > repsMin && reps <= repsMax ? reps : undefined;
+}

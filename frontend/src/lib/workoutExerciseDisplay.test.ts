@@ -55,3 +55,29 @@ describe('workoutExerciseDisplay (stored rep range == preview == live)', () => {
     expect(formatPlanTargetRepDisplay(legacy, 'balanced')).toBe('10');
   });
 });
+
+describe('workoutExerciseDisplay (the preview draws the aim like the applied plan)', () => {
+  const base = {
+    name: 'Flat Barbell Bench Press',
+    sets: 4,
+    prescriptionType: 'reps' as const,
+    primaryMuscleGroup: 'Chest',
+    durationSeconds: undefined,
+  };
+  it('compact row appends the aim when the working reps sit inside the band', () => {
+    expect(
+      formatExercisePrescriptionCompact({ ...base, reps: 10, repsMin: 8, repsMax: 12 }, 'balanced'),
+    ).toBe('4 × 8–12 · aim 10');
+  });
+  it('no aim at the bottom of the band, outside it, or without a band', () => {
+    expect(
+      formatExercisePrescriptionCompact({ ...base, reps: 8, repsMin: 8, repsMax: 12 }, 'balanced'),
+    ).toBe('4 × 8–12');
+    expect(
+      formatExercisePrescriptionCompact({ ...base, reps: 15, repsMin: 8, repsMax: 12 }, 'balanced'),
+    ).toBe('4 × 8–12');
+    expect(
+      formatExercisePrescriptionCompact({ ...base, reps: 10, repsMin: undefined, repsMax: undefined }, 'balanced'),
+    ).toBe('4 × 10');
+  });
+});

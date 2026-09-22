@@ -27,6 +27,7 @@
  * start) and on every later edit.
  */
 
+import { aimRepsInBand } from './formatExerciseRepsDisplay';
 import { formatRestClock } from './exercisePrescription';
 import {
   WEEKDAYS,
@@ -851,10 +852,9 @@ function formatRepsDisplay(ex: ApiPlanExercise): string {
   return `${ex.reps}`;
 }
 
-/** The ledger's rep target for the week: the scalar sits strictly inside the band. */
+/** The ledger's rep target for the week (formatExerciseRepsDisplay.ts, shared with the preview). */
 function aimRepsOf(ex: ApiPlanExercise): number | undefined {
-  if (ex.repsMin == null || ex.repsMax == null || ex.repsMax <= ex.repsMin) return undefined;
-  return ex.reps > ex.repsMin && ex.reps <= ex.repsMax ? ex.reps : undefined;
+  return aimRepsInBand(ex.reps, ex.repsMin, ex.repsMax);
 }
 
 function formatEquipment(equipment: string[] | undefined): string {

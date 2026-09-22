@@ -4,6 +4,7 @@ import type { WeightUnit } from './weightDisplay';
 import { formatWeightCompactFromLb } from './weightDisplay';
 import { exerciseUsesTimeDisplay } from './exercisePrescription';
 import {
+  aimRepsInBand,
   formatExerciseRepsDisplay,
   formatRepRange,
 } from './formatExerciseRepsDisplay';
@@ -97,9 +98,16 @@ export function formatExercisePrescriptionCompact(
       exercise.primaryMuscleGroup,
     );
   } else {
-    // Prefer the stored range ("8–12"); fall back to the single working value.
+    // Prefer the stored range ("8–12"), with the week's target when the
+    // working value sits inside it; fall back to the single working value.
+    const range = formatRepRange(exercise.repsMin, exercise.repsMax);
+    const aim = aimRepsInBand(
+      Number.isFinite(repsNum) ? repsNum : undefined,
+      exercise.repsMin,
+      exercise.repsMax,
+    );
     repPart =
-      formatRepRange(exercise.repsMin, exercise.repsMax) ??
+      (range && aim != null ? `${range} · aim ${aim}` : range) ??
       String(Number.isFinite(repsNum) ? repsNum : raw);
   }
   return `${exercise.sets} × ${repPart}`;
