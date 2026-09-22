@@ -324,6 +324,10 @@ export default function PlanCalendarWorkoutScreen() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     if (!restTimer) return;
+    // A fresh rest reads the clock now, not the last tick of the previous
+    // one (GitHub #59); the lib also clamps, so the first frame is right
+    // even before this state lands.
+    setNowMs(Date.now());
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     // Coming back from a locked screen has to recompute immediately rather
     // than wait out the rest of a tick — by then the answer is usually "0".

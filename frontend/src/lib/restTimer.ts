@@ -56,11 +56,18 @@ export function makeRestTimer(seconds: number, nowMs: number): RestTimer | null 
 /**
  * Seconds still owed. Rounded UP so any fraction of a second still reads as
  * one — a display that shows 0 while time remains would fire the "rest over"
- * branch early.
+ * branch early. Never more than the timer was started from: the screen's
+ * clock is a state value that ticks once a second, so the first frame after
+ * a start can read it seconds (or minutes) stale and would otherwise show a
+ * number above the rest itself (GitHub #59: "a different number first, then
+ * the real rest number").
  */
 export function remainingSeconds(timer: RestTimer | null, nowMs: number): number {
   if (!timer) return 0;
-  return Math.max(0, Math.ceil((timer.endsAtMs - nowMs) / 1000));
+  return Math.min(
+    timer.totalSeconds,
+    Math.max(0, Math.ceil((timer.endsAtMs - nowMs) / 1000)),
+  );
 }
 
 export function isRestOver(timer: RestTimer | null, nowMs: number): boolean {

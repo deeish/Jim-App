@@ -48,6 +48,16 @@ describe('remainingSeconds', () => {
     expect(remainingSeconds(timer, T0 + 150_000)).toBe(0);
   });
 
+  it('never reads above the rest it was started from, however stale the clock', () => {
+    // The screen's clock state can be minutes old when a new rest starts
+    // (it last ticked during the previous rest). GitHub #59.
+    const t = makeRestTimer(120, 600_000)!;
+    expect(remainingSeconds(t, 0)).toBe(120);
+    expect(remainingSeconds(t, 599_000)).toBe(120);
+    expect(remainingSeconds(t, 600_000)).toBe(120);
+    expect(remainingSeconds(t, 601_000)).toBe(119);
+  });
+
   it('never goes negative, however long the app was asleep', () => {
     // The whole point of the wall clock: the phone was locked for ten minutes.
     expect(remainingSeconds(timer, T0 + 600_000)).toBe(0);
