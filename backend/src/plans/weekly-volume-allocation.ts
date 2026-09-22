@@ -82,6 +82,15 @@ const MAIN_TRIM_CAP = 5;
 /** ...and down to four when dropping a row would leave the day with three or fewer lifts (rig run 6). */
 const MAIN_TRIM_CAP_THIN_DAY = 4;
 const THIN_DAY_ROWS = 3;
+/**
+ * A day of this many lifts or fewer never loses a row to the band: once its
+ * accessories sit at their floors and the main lift at its cap, the peak
+ * week runs a little over the band instead (scenario matrix 2026-09-17,
+ * plans 01 and 11: Shoulders half a set over 28 cost a two-set reverse
+ * fly, and a five-row push day shipped as four). Only a sixth row and up
+ * may still go.
+ */
+const FULL_DAY_ROWS = 5;
 
 const ROLE_SET_CEILING: Record<CoachRole, number> = {
   main: 6,
@@ -271,15 +280,21 @@ function trimWeekOverBand(ctx: {
         break;
       }
       // Then drop one row rather than cut a compound to two sets. Isolation
-      // first, then core, then the day's last secondary compound; a session
-      // keeps at least two rows.
+      // first, then core, then the day's last secondary compound; only a
+      // day with more than FULL_DAY_ROWS lifts gives one up, a full or
+      // thinner day keeps every row at its floor and stays over the band.
       if (!allowDrop) continue;
       const droppable = refs
         .filter((r) => r.group === group && r.role !== 'main')
-        .filter((r) => (sessions[r.sessionIndex]!.exercises?.length ?? 0) > 2)
+        .filter((r) => liftRows(r.sessionIndex) > FULL_DAY_ROWS)
         .sort((a, b) => rank(a) - rank(b) || b.rowIndex - a.rowIndex);
       const drop = droppable[0];
-      if (!drop) continue;
+      if (!drop) {
+        const over = volume()[group]?.weighted ?? 0;
+        const kept = `kept every ${group} row (${over} over ${bandMaxFor(group)}/wk, accessories at their floor on full days)`;
+        if (!notes.includes(kept)) notes.push(kept);
+        continue;
+      }
       const session = sessions[drop.sessionIndex]!;
       const row = session.exercises[drop.rowIndex]!;
       removed += Math.max(0, row.sets ?? 0);
