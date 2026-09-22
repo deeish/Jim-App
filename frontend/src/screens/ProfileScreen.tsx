@@ -627,7 +627,7 @@ export default function ProfileScreen() {
   // The row exists only on an iPhone whose binary links HealthKit. Turning it
   // off here stops Jim writing; the Health app's own Sharing screen is where
   // access is revoked, and the alert says so.
-  const { appleHealth, setAppleHealth } = useUserPreferences();
+  const { appleHealth, setAppleHealth, restTimerSound, setRestTimerSound } = useUserPreferences();
   const appleHealthAvailable = useMemo(() => isAppleHealthAvailable(), []);
   const [appleHealthBusy, setAppleHealthBusy] = useState(false);
   const handleAppleHealthRow = useCallback(() => {
@@ -1521,6 +1521,16 @@ export default function ProfileScreen() {
               />
             </>
           ) : null}
+          <View style={[styles.rowDivider, themedStyles.rowDivider]} />
+          {/* The end-of-rest beep (#55). The silent switch still wins. */}
+          <ChipRow
+            icon="volume-medium-outline"
+            tint={colors.accent}
+            label="Rest timer sound"
+            value={restTimerSound ? 'On' : 'Off'}
+            onPress={() => setRestTimerSound(!restTimerSound)}
+            colors={colors}
+          />
           {user ? (
             <>
               <View style={[styles.rowDivider, themedStyles.rowDivider]} />

@@ -76,6 +76,19 @@ import {
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { suggestedEntry, validateSetEntry, weightRequired } from '../lib/setEntryRules';
 import HoldStopwatch from '../components/HoldStopwatch';
+import { playRestBeep } from '../lib/restBeep';
+import {
+  cancelRestNudge,
+  isRestNudgeAvailable,
+  requestRestNudgePermission,
+  scheduleRestNudge,
+} from '../lib/restNudge';
+import {
+  restEndedWhileAway,
+  restNudgeBody,
+  shouldOfferRestNudge,
+  shouldScheduleRestNudge,
+} from '../lib/restNudgeRules';
 import {
   cuesBetween,
   elapsedSeconds,
@@ -211,7 +224,7 @@ export default function PlanCalendarWorkoutScreen() {
     }
   }, [rowName, route.params.exerciseName, navigation]);
 
-  const { weightUnit } = useUserPreferences();
+  const { weightUnit, restTimerSound, restNudge, setRestNudge } = useUserPreferences();
   const unit: WeightUnit = weightUnit === 'kg' ? 'kg' : 'lb';
 
   // Last logged session of this exercise — drives the set-aware "Last time"
@@ -367,9 +380,58 @@ export default function PlanCalendarWorkoutScreen() {
     // when we only noticed late — see `shouldSignalRestOver`.
     if (shouldSignalRestOver(restTimer, nowMs, AppState.currentState === 'active')) {
       buzzRestOver();
+      // One short beep on top of the buzz (#55). Off in Profile; the ringer
+      // switch wins either way.
+      if (restTimerSound) playRestBeep();
     }
     clearRest();
-  }, [restTimer, nowMs]);
+  }, [restTimer, nowMs, restTimerSound]);
+
+  // The rest-over nudge for a locked phone (#55, lib/restNudge.ts): a granted
+  // phone schedules one notification for the instant the rest ends and
+  // cancels it when the rest is cleared, skipped or seen ending here.
+  useEffect(() => {
+    if (!shouldScheduleRestNudge(restNudge, restTimer, Date.now())) return;
+    void scheduleRestNudge(
+      restTimer!.endsAtMs,
+      restNudgeBody(Math.min(logs.length + 1, plannedSets), plannedSets, exercise?.name ?? 'Next set'),
+    );
+    return () => {
+      void cancelRestNudge();
+    };
+    // The set number and name are fixed for the life of one rest.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restTimer, restNudge]);
+
+  // The one ask, earned: the first time a rest ends while the app is away,
+  // the card below the tiles offers the nudge. Never at launch, never after
+  // a decline, never when the app saw the end itself.
+  const [restNudgeOffer, setRestNudgeOffer] = useState(false);
+  const restNudgeOfferedRef = useRef(false);
+  const backgroundedAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background' || state === 'inactive') {
+        if (getRestTimer() && backgroundedAtRef.current == null) backgroundedAtRef.current = Date.now();
+        return;
+      }
+      if (state !== 'active') return;
+      const endedWhileAway = restEndedWhileAway(getRestTimer(), backgroundedAtRef.current, Date.now());
+      backgroundedAtRef.current = null;
+      if (
+        shouldOfferRestNudge({
+          status: restNudge,
+          endedWhileAway,
+          offeredThisSession: restNudgeOfferedRef.current,
+          available: isRestNudgeAvailable(),
+        })
+      ) {
+        restNudgeOfferedRef.current = true;
+        setRestNudgeOffer(true);
+      }
+    });
+    return () => sub.remove();
+  }, [restNudge]);
 
   const restLeft = restTimer ? remainingSeconds(restTimer, nowMs) : null;
 
@@ -480,6 +542,41 @@ export default function PlanCalendarWorkoutScreen() {
           third-of-screen tile and wrapped mid-word ("Bodyweig / ht") on
           device. All three tiles get the same treatment so a shrunk value
           never sits next to a full-size one of the same length. */}
+      {restNudgeOffer && (
+        <View style={styles.nudgeCard}>
+          <Text style={styles.nudgeTitle}>Want a nudge when your rest is up?</Text>
+          <Text style={styles.nudgeBody}>
+            Even with the phone in your pocket. One notification per rest, only while a workout is running. Nothing else.
+          </Text>
+          <View style={styles.nudgeButtons}>
+            <TouchableOpacity
+              style={styles.nudgeSecondary}
+              onPress={() => {
+                buzzTap();
+                setRestNudge('declined');
+                setRestNudgeOffer(false);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Not now"
+            >
+              <Text style={styles.nudgeSecondaryLabel}>Not now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.nudgePrimary}
+              onPress={() => {
+                buzzTap();
+                setRestNudgeOffer(false);
+                void requestRestNudgePermission().then((r) => setRestNudge(r));
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Nudge me"
+            >
+              <Text style={styles.nudgePrimaryLabel}>Nudge me</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <View style={styles.statsRow}>
         <View style={styles.statTile}>
           <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
@@ -1128,6 +1225,59 @@ function createStyles(c: ColorPalette) {
     statsRow: {
       flexDirection: 'row',
       gap: spacing.md,
+    },
+    nudgeCard: {
+      marginBottom: spacing.md,
+      padding: spacing.md,
+      borderRadius: radius.lg,
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.primary,
+      gap: spacing.sm,
+    },
+    nudgeTitle: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: '700',
+      color: c.text,
+    },
+    nudgeBody: {
+      ...sfPro,
+      fontSize: text.footnote,
+      lineHeight: 18,
+      color: c.textMuted,
+    },
+    nudgeButtons: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: spacing.sm,
+    },
+    nudgeSecondary: {
+      height: 40,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: c.border,
+      justifyContent: 'center',
+    },
+    nudgeSecondaryLabel: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: '600',
+      color: c.textSecondary,
+    },
+    nudgePrimary: {
+      height: 40,
+      paddingHorizontal: spacing.lg,
+      borderRadius: radius.pill,
+      backgroundColor: c.primary,
+      justifyContent: 'center',
+    },
+    nudgePrimaryLabel: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: '700',
+      color: c.onPrimary,
     },
     statTile: {
       flex: 1,

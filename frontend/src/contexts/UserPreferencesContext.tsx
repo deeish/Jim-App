@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { RestNudgeStatus } from '../lib/restNudgeRules';
 import {
   createContext,
   useCallback,
@@ -115,6 +116,10 @@ export type UserPreferencesState = {
   /** Optional free-text for the generator (“restrictions”). */
   injuryNotes: string;
   appleHealth: AppleHealthStatus;
+  /** A short beep when the rest timer ends with the app open (#55). */
+  restTimerSound: boolean;
+  /** The rest-over notification for a locked phone: asked once, from the workout screen (#55). */
+  restNudge: RestNudgeStatus;
 };
 
 const DEFAULTS: UserPreferencesState = {
@@ -135,6 +140,8 @@ const DEFAULTS: UserPreferencesState = {
   injuryTagIds: [],
   injuryNotes: '',
   appleHealth: 'unasked',
+  restTimerSound: true,
+  restNudge: 'unasked',
 };
 
 type UserPreferencesContextValue = {
@@ -169,6 +176,10 @@ type UserPreferencesContextValue = {
   setInjuryNotes: (notes: string) => void;
   appleHealth: AppleHealthStatus;
   setAppleHealth: (status: AppleHealthStatus) => void;
+  restTimerSound: boolean;
+  setRestTimerSound: (on: boolean) => void;
+  restNudge: RestNudgeStatus;
+  setRestNudge: (status: RestNudgeStatus) => void;
 };
 
 const UserPreferencesContext = createContext<UserPreferencesContextValue | null>(
@@ -247,6 +258,10 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
     p.appleHealth === 'connected' || p.appleHealth === 'declined'
       ? p.appleHealth
       : DEFAULTS.appleHealth;
+  const restTimerSound =
+    typeof p.restTimerSound === 'boolean' ? p.restTimerSound : DEFAULTS.restTimerSound;
+  const restNudge: RestNudgeStatus =
+    p.restNudge === 'granted' || p.restNudge === 'declined' ? p.restNudge : DEFAULTS.restNudge;
   return {
     weightUnit,
     goal,
@@ -263,6 +278,8 @@ function mergeDefaults(p: Partial<UserPreferencesState> | null): UserPreferences
     injuryTagIds,
     injuryNotes,
     appleHealth,
+    restTimerSound,
+    restNudge,
   };
 }
 
@@ -487,6 +504,28 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     [persist],
   );
 
+  const setRestTimerSound = useCallback(
+    (restTimerSound: boolean) => {
+      setState((s) => {
+        const next = { ...s, restTimerSound };
+        persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
+
+  const setRestNudge = useCallback(
+    (restNudge: RestNudgeStatus) => {
+      setState((s) => {
+        const next = { ...s, restNudge };
+        persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
+
   const value = useMemo(
     () => ({
       hydrated,
@@ -494,6 +533,10 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       setWeightUnit,
       appleHealth: state.appleHealth,
       setAppleHealth,
+      restTimerSound: state.restTimerSound,
+      setRestTimerSound,
+      restNudge: state.restNudge,
+      setRestNudge,
       goal: state.goal,
       setGoal,
       secondaryGoal: state.secondaryGoal,
@@ -540,6 +583,8 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
       state.injuryNotes,
       setWeightUnit,
       setAppleHealth,
+      setRestTimerSound,
+      setRestNudge,
       setGoal,
       setSecondaryGoal,
       setExperience,
