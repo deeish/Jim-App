@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { confirmCompleteWorkout } from '../lib/confirmCompleteWorkout';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -594,17 +595,19 @@ export default function PlanCalendarDayScreen() {
         <TouchableOpacity
           style={styles.completeButton}
           activeOpacity={0.85}
-          onPress={() => {
-            // The session-complete thump fires on the action, not the ack.
-            buzzAllSetsComplete();
-            navigation.navigate('PlanCalendarWorkoutComplete', { dateIso: iso });
-            // Celebrate immediately; sync AFTER the baselines land — a log
-            // that POSTs first becomes the record its own claims compare to.
-            void (async () => {
-              await primeCelebrationBaselines(iso).catch(() => {});
-              finishDaySession(iso);
-            })();
-          }}
+          onPress={() =>
+            confirmCompleteWorkout(iso, () => {
+              // The session-complete thump fires on the action, not the ack.
+              buzzAllSetsComplete();
+              navigation.navigate('PlanCalendarWorkoutComplete', { dateIso: iso });
+              // Celebrate immediately; sync AFTER the baselines land — a log
+              // that POSTs first becomes the record its own claims compare to.
+              void (async () => {
+                await primeCelebrationBaselines(iso).catch(() => {});
+                finishDaySession(iso);
+              })();
+            })
+          }
           accessibilityRole="button"
           accessibilityLabel="Complete workout"
         >
