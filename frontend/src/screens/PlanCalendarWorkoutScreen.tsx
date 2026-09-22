@@ -74,7 +74,14 @@ import {
   type SetLog,
 } from '../lib/planCalendarPrototypeStore';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
-import { suggestedEntry, validateSetEntry, weightRequired } from '../lib/setEntryRules';
+import {
+  plannedWeightNumber,
+  suggestedEntry,
+  validateSetEntry,
+  weightRequired,
+} from '../lib/setEntryRules';
+import PlateSheet from '../components/PlateSheet';
+import { BARS, formatEachSide, isBarbellRow, platesFor, stepWeight } from '../lib/plateMath';
 import HoldStopwatch from '../components/HoldStopwatch';
 import { playRestBeep } from '../lib/restBeep';
 import {
@@ -888,6 +895,25 @@ function SetDeck({
   const suggestion = suggestedEntry(entryCtx);
   const askWeight = weightRequired(entryCtx);
 
+  // Weight without the mental math (GitHub #52, lib/plateMath.ts). The box's
+  // effective weight is what the check would log: typed, else last time's,
+  // else the plan's. The − / + step it on every loaded row; a barbell row
+  // also reads its plates off it, and the sheet is a bar you build.
+  const typedWeight = Number(weightIn.trim());
+  const boxWeight: number | null =
+    weightIn.trim() !== '' && Number.isFinite(typedWeight) && typedWeight > 0
+      ? typedWeight
+      : lastSet?.weightLb != null
+        ? Math.round(unit === 'kg' ? lbToKg(lastSet.weightLb) : lastSet.weightLb)
+        : plannedWeightNumber(exercise.weight, unit);
+  const stepBy = (direction: 1 | -1) => {
+    buzzTap();
+    setWeightIn(String(stepWeight(boxWeight, direction, unit)));
+  };
+  const barbell = !timedUnit && isBarbellRow(exercise.equipment);
+  const plateLoad = barbell && boxWeight != null ? platesFor(boxWeight, BARS[unit][0]!, unit) : null;
+  const [plateSheet, setPlateSheet] = useState(false);
+
   // The stopwatch on a timed set (GitHub #58, lib/holdTimer.ts). The deck
   // owns the clock: a quarter-second tick while the hold is live, a fresh
   // read on every foreground, and one buzz per cue however uneven the ticks.
@@ -1079,27 +1105,82 @@ function SetDeck({
             <Text style={styles.inputLabel}>
               WEIGHT ({unit.toUpperCase()}){askWeight ? '' : ' · OPTIONAL'}
             </Text>
-            <TextInput
-              ref={weightRef}
-              style={styles.input}
-              accessibilityLabel={`Weight in ${unit}`}
-              value={weightIn}
-              onChangeText={setWeightIn}
-              placeholder={
-                lastSet?.weightLb != null
-                  ? String(
-                      Math.round(unit === 'kg' ? lbToKg(lastSet.weightLb) : lastSet.weightLb),
-                    )
-                  : weightInputPlaceholder(exercise.weight, unit)
-              }
-              placeholderTextColor={colors.textMuted}
-              keyboardType="decimal-pad"
-              maxLength={6}
-            />
+            <View style={styles.stepRow}>
+              {askWeight && (
+                <TouchableOpacity
+                  style={styles.stepButton}
+                  onPress={() => stepBy(-1)}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${unit === 'kg' ? '2.5 kilograms' : '5 pounds'} less`}
+                >
+                  <Ionicons name="remove" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+              <TextInput
+                ref={weightRef}
+                style={[styles.input, askWeight && styles.inputStepped]}
+                accessibilityLabel={`Weight in ${unit}`}
+                value={weightIn}
+                onChangeText={setWeightIn}
+                placeholder={
+                  lastSet?.weightLb != null
+                    ? String(
+                        Math.round(unit === 'kg' ? lbToKg(lastSet.weightLb) : lastSet.weightLb),
+                      )
+                    : weightInputPlaceholder(exercise.weight, unit)
+                }
+                placeholderTextColor={colors.textMuted}
+                keyboardType="decimal-pad"
+                maxLength={6}
+              />
+              {askWeight && (
+                <TouchableOpacity
+                  style={styles.stepButton}
+                  onPress={() => stepBy(1)}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${unit === 'kg' ? '2.5 kilograms' : '5 pounds'} more`}
+                >
+                  <Ionicons name="add" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </Animated.View>
 
         <View style={styles.checkRow}>
+          {barbell ? (
+            <TouchableOpacity
+              style={styles.plateLine}
+              onPress={() => {
+                buzzTap();
+                setPlateSheet(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={
+                plateLoad
+                  ? `Each side: ${formatEachSide(plateLoad.perSide)}. Show the plates`
+                  : 'Load the bar'
+              }
+            >
+              <View style={styles.plateMarks}>
+                <View style={[styles.plateMark, { height: 16, backgroundColor: colors.primary }]} />
+                <View style={[styles.plateMark, { height: 10, backgroundColor: colors.textSecondary }]} />
+              </View>
+              <Text style={styles.plateLineText} numberOfLines={1}>
+                {'Each side: '}
+                <Text style={styles.plateLineValue}>
+                  {plateLoad
+                    ? `${plateLoad.rounded ? '≈ ' : ''}${formatEachSide(plateLoad.perSide)}`
+                    : 'tap to load'}
+                </Text>
+              </Text>
+              <Ionicons name="chevron-forward" size={12} color={colors.textMuted} />
+            </TouchableOpacity>
+          ) : (
+            <View />
+          )}
           <TouchableOpacity
             style={[styles.checkButton, !entry.ok && styles.checkButtonOff]}
             activeOpacity={0.8}
@@ -1119,6 +1200,20 @@ function SetDeck({
 
         <Animated.View pointerEvents="none" style={[styles.goldOutline, goldStyle]} />
       </Animated.View>
+      {barbell && (
+        <PlateSheet
+          visible={plateSheet}
+          onClose={() => setPlateSheet(false)}
+          unit={unit}
+          initialTotal={boxWeight}
+          colors={colors}
+          onUse={(total) => {
+            buzzTap();
+            setWeightIn(String(total));
+            setPlateSheet(false);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -1425,8 +1520,53 @@ function createStyles(c: ColorPalette) {
     },
     checkRow: {
       flexDirection: 'row',
-      justifyContent: 'flex-end',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: spacing.sm,
       marginTop: spacing.md,
+    },
+    stepRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'stretch',
+    },
+    stepButton: {
+      width: 36,
+      height: 36,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    inputStepped: {
+      minWidth: 56,
+      flexShrink: 1,
+    },
+    plateLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs + 2,
+      flexShrink: 1,
+      minHeight: 40,
+    },
+    plateMarks: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+    },
+    plateMark: {
+      width: 5,
+      borderRadius: 2,
+    },
+    plateLineText: {
+      ...sfPro,
+      fontSize: text.footnote,
+      color: c.textMuted,
+      flexShrink: 1,
+    },
+    plateLineValue: {
+      color: c.text,
+      fontWeight: weight.semibold,
     },
     checkButton: {
       width: 40,
