@@ -1,5 +1,5 @@
-import type { WeightUnit } from "./weightDisplay";
-import { formatWeightFromLb, lbToKg } from "./weightDisplay";
+import type { WeightUnit } from './weightDisplay';
+import { formatWeightFromLb, lbToKg } from './weightDisplay';
 
 /**
  * What a set needs before its check can log it (GitHub #56, 2026-09-21).
@@ -29,14 +29,14 @@ export type SetEntryContext = {
 
 export function weightRequired(ctx: SetEntryContext): boolean {
   if (ctx.timedUnit) return false;
-  if (ctx.muscle === "Cardio") return false;
-  return ctx.plannedWeight !== "Bodyweight";
+  if (ctx.muscle === 'Cardio') return false;
+  return ctx.plannedWeight !== 'Bodyweight';
 }
 
 export type SetEntryValidation = {
   ok: boolean;
   /** The first field that still needs a number, for the shake and the focus. */
-  missing: "reps" | "weight" | null;
+  missing: 'reps' | 'weight' | null;
   /** Parsed values; null when blank or unusable. */
   reps: number | null;
   weight: number | null;
@@ -44,7 +44,7 @@ export type SetEntryValidation = {
 
 function positiveNumber(text: string): number | null {
   const t = text.trim();
-  if (t === "") return null;
+  if (t === '') return null;
   const n = Number(t);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
@@ -56,9 +56,9 @@ export function validateSetEntry(
 ): SetEntryValidation {
   const reps = positiveNumber(repsText);
   const weight = positiveNumber(weightText);
-  if (reps == null) return { ok: false, missing: "reps", reps, weight };
+  if (reps == null) return { ok: false, missing: 'reps', reps, weight };
   if (weightRequired(ctx) && weight == null) {
-    return { ok: false, missing: "weight", reps, weight };
+    return { ok: false, missing: 'weight', reps, weight };
   }
   return { ok: true, missing: null, reps, weight };
 }
@@ -76,14 +76,11 @@ export function plannedRepsNumber(plannedReps: string): number | null {
 }
 
 /** '135 lb' → the bare number in the user's unit; bodyweight / dash → null. */
-export function plannedWeightNumber(
-  plannedWeight: string,
-  unit: WeightUnit,
-): number | null {
+export function plannedWeightNumber(plannedWeight: string, unit: WeightUnit): number | null {
   const m = plannedWeight.match(/^\+?([\d.]+)\s*lb$/i);
   if (!m) return null;
   const lb = Number(m[1]);
-  return Math.round(unit === "kg" ? lbToKg(lb) : lb);
+  return Math.round(unit === 'kg' ? lbToKg(lb) : lb);
 }
 
 export type SuggestedEntry = {
@@ -103,13 +100,12 @@ export function suggestedEntry(ctx: SetEntryContext): SuggestedEntry | null {
     return {
       label: `Use target: ${n} ${ctx.timedUnit}`,
       reps: String(n),
-      weight: "",
+      weight: '',
     };
   }
   if (ctx.lastSet) {
     const w = ctx.lastSet.weightLb;
-    const weightText =
-      w != null ? String(Math.round(ctx.unit === "kg" ? lbToKg(w) : w)) : "";
+    const weightText = w != null ? String(Math.round(ctx.unit === 'kg' ? lbToKg(w) : w)) : '';
     const label =
       w != null
         ? `Same as last time: ${ctx.lastSet.reps} × ${formatWeightFromLb(w, ctx.unit)}`
@@ -121,10 +117,8 @@ export function suggestedEntry(ctx: SetEntryContext): SuggestedEntry | null {
   const weight = plannedWeightNumber(ctx.plannedWeight, ctx.unit);
   return {
     label:
-      weight != null
-        ? `Use target: ${reps} × ${weight} ${ctx.unit}`
-        : `Use target: ${reps} reps`,
+      weight != null ? `Use target: ${reps} × ${weight} ${ctx.unit}` : `Use target: ${reps} reps`,
     reps: String(reps),
-    weight: weight != null ? String(weight) : "",
+    weight: weight != null ? String(weight) : '',
   };
 }
