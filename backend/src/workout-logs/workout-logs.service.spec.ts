@@ -158,4 +158,84 @@ describe('WorkoutLogsService findAll bounds', () => {
     expect(w.gte).toEqual(new Date('2026-08-01'));
     expect(w.lte.getHours()).toBe(23); // end-of-day inclusive
   });
+
+  describe('updateSets (#57: correcting a logged session)', () => {
+    let svc: WorkoutLogsService;
+    const p = {
+      workoutLog: { findFirst: jest.fn(), update: jest.fn() },
+      $transaction: jest.fn(),
+    };
+    beforeEach(async () => {
+      jest.clearAllMocks();
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          WorkoutLogsService,
+          { provide: PrismaService, useValue: p },
+          { provide: WorkoutsService, useValue: {} },
+        ],
+      }).compile();
+      svc = moduleRef.get(WorkoutLogsService);
+    });
+    const dto = {
+      entries: [
+        {
+          exerciseId: 'flat_barbell_bench_press',
+          name: 'Flat Barbell Bench Press',
+          orderIndex: 0,
+          sets: [
+            { setNumber: 1, reps: 8, weight: 135, completed: true },
+            { setNumber: 2, reps: 10, weight: 135, completed: true },
+            { setNumber: 3, reps: 6, weight: 145, completed: false },
+          ],
+        },
+        {
+          name: 'Dead Hang',
+          orderIndex: 1,
+          sets: [{ setNumber: 1, reps: 45, completed: true }],
+        },
+      ],
+    };
+
+    it('refuses a log the user does not own', async () => {
+      p.workoutLog.findFirst.mockResolvedValue(null);
+      await expect(svc.updateSets('log-1', dto, 'u1')).rejects.toThrow(
+        'Workout log with ID log-1 not found',
+      );
+      expect(p.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('replaces the entries and recomputes the totals from the completed sets', async () => {
+      p.workoutLog.findFirst.mockResolvedValue({ id: 'log-1' });
+      const tx = {
+        workoutLogEntry: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 2 }),
+        },
+        workoutLog: { update: jest.fn().mockResolvedValue({ id: 'log-1' }) },
+      };
+      p.$transaction.mockImplementation(async (fn: (t: typeof tx) => unknown) =>
+        fn(tx),
+      );
+      const out = await svc.updateSets('log-1', dto, 'u1');
+      expect(out).toEqual({ id: 'log-1' });
+      expect(tx.workoutLogEntry.deleteMany).toHaveBeenCalledWith({
+        where: { workoutLogId: 'log-1' },
+      });
+      const update = tx.workoutLog.update.mock.calls[0][0];
+      // 8×135 + 10×135 = 2430; the uncompleted third set and the bodyweight hang add nothing
+      expect(update.data.totalSets).toBe(3);
+      expect(update.data.totalVolume).toBe(2430);
+      const created = update.data.entries.create;
+      expect(created[0].exerciseId).toBe('flat_barbell_bench_press');
+      expect(created[0].completedSets.create).toHaveLength(2);
+      expect(created[1].exerciseId).toBe('manual');
+      expect(created[1].completedSets.create[0]).toMatchObject({
+        reps: 45,
+        completed: true,
+      });
+      expect(update.include).toEqual({
+        entries: { include: { completedSets: true } },
+        workout: true,
+      });
+    });
+  });
 });

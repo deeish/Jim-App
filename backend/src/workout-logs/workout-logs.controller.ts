@@ -13,6 +13,7 @@ import {
 import { WorkoutLogsService } from './workout-logs.service';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
 import { CheckInDto } from './dto/check-in.dto';
+import { UpdateWorkoutLogSetsDto } from './dto/update-workout-log-sets.dto';
 import { ExerciseHistoryQueryDto } from './dto/exercise-history-query.dto';
 import { LastPerformanceQueryDto } from './dto/last-performance-query.dto';
 import { PersonalBestsQueryDto } from './dto/personal-bests-query.dto';
@@ -91,6 +92,16 @@ export class WorkoutLogsController {
   @Get(':id')
   findOne(@Param('id') id: string, @UserId() userId: string) {
     return this.workoutLogsService.findOne(id, userId);
+  }
+
+  /** Corrected sets for a logged session; replaces its entries (#57). */
+  @Patch(':id/sets')
+  updateSets(
+    @Param('id') id: string,
+    @Body() dto: UpdateWorkoutLogSetsDto,
+    @UserId() userId: string,
+  ) {
+    return this.workoutLogsService.updateSets(id, dto, userId);
   }
 
   /** Three answers after a session; moves the same day next week by one step. */

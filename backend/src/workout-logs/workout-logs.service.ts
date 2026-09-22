@@ -21,6 +21,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkoutsService } from '../workouts/workouts.service';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
+import { UpdateWorkoutLogSetsDto } from './dto/update-workout-log-sets.dto';
 import {
   fetchLastEntriesForExercises,
   fetchRecentEntriesForExercises,
@@ -120,6 +121,62 @@ export class WorkoutLogsService {
    * Post-session check-in (Tier 4a): stores the three answers and, once,
    * moves the same day next week by one step (checkin-adjustment.ts).
    */
+  /**
+   * Replace a logged session's sets with corrected ones (GitHub #57: a set
+   * checked with the wrong number could not be changed once the workout was
+   * complete). The entries are recreated from the list, the same shape the
+   * create takes, and the set and volume totals are recomputed from them;
+   * timings, notes and the check-in are untouched. Ownership is the log's.
+   */
+  async updateSets(id: string, dto: UpdateWorkoutLogSetsDto, userId: string) {
+    const existing = await this.prisma.workoutLog.findFirst({
+      where: { id, userId },
+      select: { id: true },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Workout log with ID ${id} not found`);
+    }
+    let totalSets = 0;
+    let totalVolume = 0;
+    const entries = dto.entries.map((entry) => ({
+      exerciseId: entry.exerciseId ?? 'manual',
+      name: entry.name,
+      orderIndex: entry.orderIndex,
+      notes: entry.notes ?? undefined,
+      completedSets: {
+        create: entry.sets
+          .filter((s) => s.completed)
+          .map((s) => {
+            totalSets += 1;
+            if (s.weight != null) totalVolume += s.weight * s.reps;
+            return {
+              setNumber: s.setNumber,
+              reps: s.reps,
+              weight: s.weight ?? undefined,
+              rpe: s.rpe ?? undefined,
+              completed: true,
+              notes: s.notes ?? undefined,
+            };
+          }),
+      },
+    }));
+    return this.prisma.$transaction(async (tx) => {
+      await tx.workoutLogEntry.deleteMany({ where: { workoutLogId: id } });
+      return tx.workoutLog.update({
+        where: { id },
+        data: {
+          totalSets,
+          totalVolume: Math.round(totalVolume),
+          entries: { create: entries },
+        },
+        include: {
+          entries: { include: { completedSets: true } },
+          workout: true,
+        },
+      });
+    });
+  }
+
   async checkIn(id: string, dto: CheckInDto, userId: string) {
     const existing = await this.prisma.workoutLog.findFirst({
       where: { id, userId },
