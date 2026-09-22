@@ -1005,11 +1005,15 @@ export default function PlanCalendarWorkoutCompleteScreen() {
           </View>
 
           {/* Check-in: three answers, one honest step next week. A recap of an
-              older day can still answer (the server applies it once). */}
+              older day can still answer (the server applies it once). The
+              copy names the consequence, not the question: "How did it go?"
+              read as a survey (open items 2026-09-21). */}
           {day.exercises.length > 0 && (
             <View style={styles.checkInCard}>
-              <Text style={styles.checkInTitle}>How did it go?</Text>
-              <Text style={styles.checkInSub}>Three taps shape the same day next week.</Text>
+              <Text style={styles.checkInTitle}>Set up next week</Text>
+              <Text style={styles.checkInSub}>
+                Three taps decide the same day next week: a step up, a step back, or as planned.
+              </Text>
               {(
                 [
                   { key: 'effort', label: 'It felt', options: [[1, 'Easy'], [2, 'About right'], [3, 'Too hard']] },
