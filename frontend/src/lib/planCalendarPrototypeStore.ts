@@ -451,7 +451,7 @@ export function noteCalendarAccount(userId: string | null): void {
     liveWorkouts = [];
     anchorAutoJumpConsumed = false;
     emit();
-    if (liveStatus !== 'loading') {
+    if (!fetchInFlight) {
       liveStatus = 'idle';
       ensureLiveCalendarData();
     }
@@ -522,6 +522,28 @@ export function getLivePlan(): ApiPlan | null {
 export function ensureLiveCalendarData(): void {
   if (liveStatus !== 'idle') return;
   liveStatus = 'loading';
+  startPlanFetch();
+}
+
+/**
+ * One plan fetch at a time. The FIRST load sets `liveStatus` to 'loading'
+ * around it; a refetch of a plan already on screen does not touch the status
+ * at all, so the plan stays readable while the answer is out, and stays if
+ * the answer never comes.
+ *
+ * GitHub #53/#54 (2026-09-21): locking the phone mid-workout and coming back
+ * flashed "not in the plan" and then the workout again. Home refetches the
+ * plan on every foreground, and the refetch used to drop the store to 'idle'
+ * then 'loading', during which `readablePlan()` returned null: every day
+ * read as rest, and the workout screen (re-rendering each second for the
+ * rest timer) lost its exercise until the fetch landed. With no signal the
+ * fetch failed, the store went 'unavailable', and the plan stayed gone.
+ */
+let fetchInFlight = false;
+
+function startPlanFetch(): void {
+  if (fetchInFlight) return;
+  fetchInFlight = true;
   void (async () => {
     try {
       // The new-plan check below compares against the persisted plan id, and
@@ -533,8 +555,8 @@ export function ensureLiveCalendarData(): void {
       if (writeSeq !== writesBefore) {
         // A slot write finished while this fetch was out, so this answer may
         // predate it. Ask again rather than show the day as it used to be.
-        liveStatus = 'idle';
-        ensureLiveCalendarData();
+        fetchInFlight = false;
+        startPlanFetch();
         return;
       }
       // Before the base swaps: a write whose answer never arrived may be
@@ -614,9 +636,15 @@ export function ensureLiveCalendarData(): void {
       drainPendingEdits();
       drainPendingCompletions();
     } catch {
-      liveStatus = 'unavailable';
+      // Only a first load can leave the calendar offline. A refetch that
+      // fails keeps whatever was on screen: the plan is still the plan.
+      if (liveStatus === 'loading') {
+        liveStatus = 'unavailable';
+        emit();
+      }
       lastFetchMs = Date.now();
-      emit();
+    } finally {
+      fetchInFlight = false;
     }
   })();
 }
@@ -628,13 +656,14 @@ export function ensureLiveCalendarData(): void {
  * template can be applied within seconds of the first fetch.
  */
 export function refreshLiveCalendarData(force = false): void {
-  if (liveStatus === 'loading' || liveStatus === 'idle') {
+  if (liveStatus === 'idle') {
     ensureLiveCalendarData();
     return;
   }
+  if (fetchInFlight) return;
   if (!force && Date.now() - lastFetchMs < 10_000) return;
-  liveStatus = 'idle';
-  ensureLiveCalendarData();
+  // The status is left alone on purpose: see startPlanFetch.
+  startPlanFetch();
 }
 
 /** Resolve muscle/equipment for every exercise id the plan references. */

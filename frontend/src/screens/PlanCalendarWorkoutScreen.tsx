@@ -374,7 +374,7 @@ export default function PlanCalendarWorkoutScreen() {
   if (!exercise) {
     return (
       <View style={[styles.container, styles.missingWrap]}>
-        <Text style={styles.missingText}>This exercise is not in the sample plan.</Text>
+        <Text style={styles.missingText}>This exercise is no longer on this day.</Text>
       </View>
     );
   }

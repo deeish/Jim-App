@@ -603,7 +603,8 @@ describe('finding 4: an edit during a plan refetch', () => {
     );
     store.refreshLiveCalendarData(true);
     await flush();
-    expect(store.calendarDataMode()).toBe('loading');
+    // The plan already on screen stays readable while the refetch is out.
+    expect(store.calendarDataMode()).toBe('live');
 
     store.addExercisesToDay(MONDAY_ISO, [CABLE_FLY]);
     await flush();
@@ -1077,5 +1078,70 @@ describe('finding 9: the day write lands on the server but its response never re
     expect(serverDay(server, 1, 'Monday')).toEqual([
       ['Barbell Bench Press', 'Barbell Row', 'Barbell Row', 'Cable Fly'],
     ]);
+  });
+});
+
+// ===========================================================================
+// GitHub #53 / #54 — lock the phone mid-workout, come back: "not in the plan"
+// ===========================================================================
+
+describe('issue 53: coming back to a running workout refetches the plan', () => {
+  it('the workout stays on screen while the foreground refetch is out', async () => {
+    const server = installServer(plan());
+    const store = await coldStart();
+    expect(names(store, MONDAY_ISO)).toEqual(['Barbell Bench Press', 'Barbell Row']);
+
+    // Home refetches on every foreground; the phone is slow to answer.
+    let landFetch!: (v: { plan: ApiPlan | null; weeklyWorkouts: never[] }) => void;
+    server.getCurrentPlanWithWeekly.mockImplementationOnce(
+      () => new Promise((r) => { landFetch = r; }),
+    );
+    store.refreshLiveCalendarData(true);
+    await flush();
+    // What the workout screen reads every second while the rest timer runs.
+    expect(store.calendarDataMode()).toBe('live');
+    expect(names(store, MONDAY_ISO)).toEqual(['Barbell Bench Press', 'Barbell Row']);
+    expect(store.getLivePlan()).not.toBeNull();
+
+    landFetch({ plan: clone(server.plan), weeklyWorkouts: [] });
+    await flush(20);
+    expect(store.calendarDataMode()).toBe('live');
+    expect(names(store, MONDAY_ISO)).toEqual(['Barbell Bench Press', 'Barbell Row']);
+  });
+
+  it('a refetch that fails (no signal at the gym) keeps the plan on screen', async () => {
+    const server = installServer(plan());
+    const store = await coldStart();
+
+    server.getCurrentPlanWithWeekly.mockImplementationOnce(() => Promise.reject(new Error('offline')));
+    store.refreshLiveCalendarData(true);
+    await flush(20);
+    expect(store.calendarDataMode()).toBe('live');
+    expect(names(store, MONDAY_ISO)).toEqual(['Barbell Bench Press', 'Barbell Row']);
+
+    // Signal returns: the next foreground refetch lands normally.
+    store.refreshLiveCalendarData(true);
+    await flush(20);
+    expect(store.calendarDataMode()).toBe('live');
+  });
+
+  it('only one refetch is out at a time, and a first load that fails still reads as offline', async () => {
+    const server = installServer(plan());
+    server.getCurrentPlanWithWeekly.mockImplementationOnce(() => Promise.reject(new Error('offline')));
+    const store = await coldStart();
+    expect(store.calendarDataMode()).toBe('offline');
+
+    let calls = 0;
+    server.getCurrentPlanWithWeekly.mockImplementation(async () => {
+      calls += 1;
+      await new Promise((r) => setTimeout(r, 5));
+      return { plan: clone(server.plan), weeklyWorkouts: [] };
+    });
+    store.refreshLiveCalendarData(true);
+    store.refreshLiveCalendarData(true);
+    store.refreshLiveCalendarData(true);
+    await flush(20);
+    expect(calls).toBe(1);
+    expect(store.calendarDataMode()).toBe('live');
   });
 });
