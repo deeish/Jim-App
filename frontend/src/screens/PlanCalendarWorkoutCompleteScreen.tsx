@@ -123,9 +123,7 @@ const HEADER_SEAL = 26;
 /** How far the Moment/Ledger layers slide during the crossfade. */
 const LAYER_SHIFT = 32;
 /** The Moment advances to the Ledger on its own after this long. */
-const AUTO_ADVANCE_MS = 2800;
 /** Longest the poster will hold for its record claims before going anyway. */
-const BASELINE_WAIT_CAP_MS = 4000;
 
 /** '47 min' — the receipt's grammar for a duration; the poster keeps the clock. */
 function formatMinutes(seconds: number): string {
@@ -259,8 +257,9 @@ function Rise({
  *
  * THE MOMENT: a charcoal poster (dark mode; the day's muscle gradient in
  * light) where the rosette seal stamps in, the duration counts up, and the
- * session's PB / beat-last-time claims rise in. Auto-advances, or tap /
- * swipe up.
+ * session's PB / beat-last-time claims rise in. Holds until a tap or a
+ * swipe up (GitHub #61, 2026-09-22: it used to advance on its own after
+ * 2.8 s, which read as the screen leaving before you had looked at it).
  *
  * THE LEDGER: the session receipt — sets/volume tiles, a per-exercise ledger
  * in the deck's reps × weight grammar, "Save this workout", Done. The hero
@@ -389,15 +388,12 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   const [phase, setPhase] = useState<'moment' | 'ledger'>(recap ? 'ledger' : 'moment');
   const phaseRef = useRef<'moment' | 'ledger'>(recap ? 'ledger' : 'moment');
   const phaseT = useSharedValue(recap ? 1 : 0);
-  const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The morph is over and the seal now belongs to the Ledger's scrolling
   // content rather than to the screen-positioned overlay. A recap never
   // morphs, so it is settled from the first frame.
   const [sealSettled, setSealSettled] = useState(recap);
 
   const goLedger = useCallback(() => {
-    if (autoTimer.current) clearTimeout(autoTimer.current);
-    autoTimer.current = null;
     if (phaseRef.current === 'ledger') return;
     phaseRef.current = 'ledger';
     buzzSelection();
@@ -418,10 +414,8 @@ export default function PlanCalendarWorkoutCompleteScreen() {
     );
   }, [phaseT]);
 
-  // "‹ Summary" — returning disables the auto-advance so the Moment holds.
+  // "‹ Summary" — back to the poster.
   const goMoment = useCallback(() => {
-    if (autoTimer.current) clearTimeout(autoTimer.current);
-    autoTimer.current = null;
     if (phaseRef.current === 'moment') return;
     phaseRef.current = 'moment';
     buzzTap();
@@ -433,41 +427,6 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       easing: Easing.bezier(...motionEasing.inOut),
     });
   }, [phaseT]);
-
-  useEffect(() => {
-    // A recap already starts on the Ledger; nothing to advance to.
-    if (recap) return;
-    // Do not start counting until the baselines have landed.
-    //
-    // They are primed while the day is trained and again before the log
-    // POSTs, but they are still a network round trip: `celebrationBaselines`
-    // returns null until it resolves, and the streak pill and every record
-    // claim render nothing while it is null. A poster that started its 2.8s
-    // timer regardless could therefore slide past a personal best entirely —
-    // on the one screen whose whole purpose is to show it.
-    //
-    // Waiting on `baselines` rather than a timeout means a slow response
-    // delays the poster instead of emptying it; the user can still tap
-    // through at any point.
-    const start = () => {
-      autoTimer.current = setTimeout(goLedger, AUTO_ADVANCE_MS);
-    };
-    if (baselines) {
-      start();
-      return () => {
-        if (autoTimer.current) clearTimeout(autoTimer.current);
-      };
-    }
-    // ...but never STRAND the poster. Offline, or on a request that simply
-    // never answers, `baselines` stays null forever; the cap means a failure
-    // costs a pause, not a screen the celebration never leaves.
-    const cap = setTimeout(start, BASELINE_WAIT_CAP_MS);
-    return () => {
-      clearTimeout(cap);
-      if (autoTimer.current) clearTimeout(autoTimer.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!baselines]);
 
   const backToDay = useCallback(() => {
     buzzTap();
