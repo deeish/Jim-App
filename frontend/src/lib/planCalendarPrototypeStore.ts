@@ -28,6 +28,7 @@
  */
 
 import { aimRepsInBand } from './formatExerciseRepsDisplay';
+import { roundLb } from './weightDisplay';
 import { formatRestClock } from './exercisePrescription';
 import {
   WEEKDAYS,
@@ -243,6 +244,18 @@ const reopenedDays = new Set<string>();
  *  syncDayCompletion subtracts these so a reopened day's second log carries
  *  only the NEW work — never a double-count of the morning session. */
 const syncedSetCounts = new Map<string, number[]>();
+/** A log whose corrected entries have not reached the server yet. */
+type PendingSetEdit = {
+  dateIso: string;
+  entries: Array<{
+    exerciseId?: string;
+    name: string;
+    orderIndex: number;
+    sets: Array<{ setNumber: number; reps: number; weight?: number; completed: true }>;
+  }>;
+};
+const pendingSetEdits = new Map<string, PendingSetEdit>();
+const setEditInFlight = new Set<string>();
 /** Missed days the user dismissed via "Skip this workout" (dates, not slots —
  *  the plan itself is never touched, so repeating weeks keep the workout). */
 const skippedDays = new Set<string>();
@@ -297,6 +310,7 @@ const sessionHydrated: Promise<void> = (async () => {
       pendingCheckIns?: Record<string, SessionCheckIn>;
       checkInResults?: Record<string, CheckInResult>;
       attemptedWrites?: Record<string, AttemptedWrite>;
+      pendingSetEdits?: Record<string, PendingSetEdit>;
       snapshotUserId?: string | null;
     };
     if (snapshotUserId == null) snapshotUserId = data.snapshotUserId ?? null;
@@ -350,6 +364,9 @@ const sessionHydrated: Promise<void> = (async () => {
     for (const d of data.syncedDays ?? []) {
       if (d >= cutoff) syncedDays.add(d);
     }
+    for (const [logId, owed] of Object.entries(data.pendingSetEdits ?? {})) {
+      pendingSetEdits.set(logId, owed);
+    }
     for (const d of data.reopenedDays ?? []) {
       if (d >= cutoff) reopenedDays.add(d);
     }
@@ -398,6 +415,7 @@ function scheduleSessionSave(): void {
           pendingCheckIns: Object.fromEntries(pendingCheckIns),
           checkInResults: Object.fromEntries(checkInResults),
           attemptedWrites: Object.fromEntries(attemptedWrites),
+          pendingSetEdits: Object.fromEntries(pendingSetEdits),
           snapshotUserId,
         }),
       ).catch(() => {}),
@@ -492,7 +510,14 @@ const loggedSessions = new Map<string, WorkoutLog[]>();
 
 function recordLoggedSession(dateIso: string, log: WorkoutLog): void {
   const existing = loggedSessions.get(dateIso) ?? [];
-  if (existing.some((l) => l.id === log.id)) return;
+  if (existing.some((l) => l.id === log.id)) {
+    // A corrected log (editLoggedSet) replaces its earlier copy.
+    loggedSessions.set(
+      dateIso,
+      existing.map((l) => (l.id === log.id ? log : l)),
+    );
+    return;
+  }
   loggedSessions.set(dateIso, [...existing, log]);
 }
 
@@ -2120,6 +2145,135 @@ const completionInFlight = new Set<string>();
 /** Retry every finished day whose log never posted (after a plan fetch). */
 function drainPendingCompletions(): void {
   for (const dateIso of [...pendingCompletions]) void syncDayCompletion(dateIso);
+  for (const logId of [...pendingSetEdits.keys()]) void pushSetEdit(logId);
+}
+
+// ---------------------------------------------------------------------------
+// Correcting a logged set (GitHub #57)
+// ---------------------------------------------------------------------------
+
+
+/** The server shape of a stored log's entries, the edit already applied. */
+function entriesForLog(log: WorkoutLog): PendingSetEdit['entries'] {
+  return [...(log.entries ?? [])]
+    .sort((a, b) => a.orderIndex - b.orderIndex)
+    .map((entry) => ({
+      ...(entry.exerciseId && entry.exerciseId !== 'manual'
+        ? { exerciseId: entry.exerciseId }
+        : null),
+      name: entry.name ?? 'Exercise',
+      orderIndex: entry.orderIndex,
+      sets: (entry.completedSets ?? [])
+        .filter((s) => s.completed)
+        .map((s, i) => ({
+          setNumber: i + 1,
+          reps: s.reps,
+          ...(s.weight != null && s.weight > 0 ? { weight: s.weight } : null),
+          completed: true as const,
+        })),
+    }));
+}
+
+async function pushSetEdit(logId: string): Promise<void> {
+  const owed = pendingSetEdits.get(logId);
+  if (!owed || setEditInFlight.has(logId)) return;
+  setEditInFlight.add(logId);
+  try {
+    const saved = await api.patch<WorkoutLog>(`/workout-logs/${logId}/sets`, {
+      entries: owed.entries,
+    });
+    pendingSetEdits.delete(logId);
+    if (saved.data?.id) recordLoggedSession(owed.dateIso, saved.data);
+    scheduleSessionSave();
+    emit();
+  } catch (err) {
+    // Keep the local correction; the PATCH goes out after the next plan fetch.
+    console.warn('[calendar] failed to persist set edit (will retry):', err);
+  } finally {
+    setEditInFlight.delete(logId);
+  }
+}
+
+export type SetEditPatch = {
+  /** Reps, or seconds on a timed set. */
+  count: number;
+  /** Pounds; null clears the load (bodyweight). */
+  weightLb: number | null;
+};
+
+/**
+ * Whether a set of this day can be corrected: this device's own log of the
+ * day, or exactly one stored log of it. A reopened day holds two logs, the
+ * second a delta of the first, and a set edited there could land in the
+ * wrong one, so those stay read-only.
+ */
+export function canEditLoggedSets(dateIso: string): boolean {
+  if (dayHasLocalLogs(dateIso)) return (loggedSessions.get(dateIso)?.length ?? 0) <= 1;
+  return (loggedSessions.get(dateIso)?.length ?? 0) === 1;
+}
+
+/**
+ * Correct one set of a finished day (GitHub #57). `exerciseIndex` is the
+ * day's slot for a session trained here (the entry's orderIndex in the
+ * stored log), or the entry's orderIndex for a session read back from
+ * history. The local set log and the stored log both take the change, so
+ * the receipt, the personal-best chips and "last time" read the new number
+ * at once; the server gets the whole corrected entry list, retried like an
+ * owed completion when it fails. A day whose log has not posted yet needs
+ * nothing more: the completion carries the corrected sets when it goes.
+ */
+export function editLoggedSet(
+  dateIso: string,
+  exerciseIndex: number,
+  setIndex: number,
+  patch: SetEditPatch,
+): boolean {
+  if (!canEditLoggedSets(dateIso)) return false;
+  const count = Math.max(0, Math.round(patch.count));
+  const weightLb = patch.weightLb != null && patch.weightLb > 0 ? roundLb(patch.weightLb) : null;
+  let changed = false;
+
+  const key = slotKey(dateIso, exerciseIndex);
+  const local = setLogs.get(key);
+  if (local && local[setIndex]) {
+    const prev = local[setIndex]!;
+    const unit = prev.reps.match(/(min|sec)/i)?.[1];
+    const next: SetLog = {
+      reps: unit ? `${count} ${unit.toLowerCase()}` : String(count),
+      weight: weightLb != null ? `${weightLb} lb` : prev.weight.match(/lb/i) ? 'Bodyweight' : prev.weight,
+    };
+    setLogs.set(key, local.map((l, i) => (i === setIndex ? next : l)));
+    changed = true;
+  }
+
+  const stored = loggedSessions.get(dateIso)?.[0];
+  if (stored) {
+    const entry = (stored.entries ?? []).find((e) => e.orderIndex === exerciseIndex);
+    const completed = entry ? entry.completedSets.filter((s) => s.completed) : [];
+    const target = completed[setIndex];
+    if (entry && target) {
+      const nextEntry = {
+        ...entry,
+        completedSets: entry.completedSets.map((s) =>
+          s === target ? { ...s, reps: count, weight: weightLb ?? undefined } : s,
+        ),
+      };
+      const nextLog: WorkoutLog = {
+        ...stored,
+        entries: stored.entries.map((e) => (e === entry ? nextEntry : e)),
+      };
+      recordLoggedSession(dateIso, nextLog);
+      pendingSetEdits.set(stored.id, { dateIso, entries: entriesForLog(nextLog) });
+      changed = true;
+      void pushSetEdit(stored.id);
+    }
+  }
+
+  if (changed) {
+    scheduleSessionSave();
+    emit();
+  }
+  return changed;
 }
 
 /** This day is finished here but its log has not reached the server yet. */

@@ -72,6 +72,7 @@ jest.mock('../api/client', () => ({
   api: {
     get: delegate('apiGet'),
     post: delegate('apiPost'),
+    patch: delegate('apiPatch'),
     put: delegate('apiPut'),
     delete: delegate('apiDelete'),
   },
@@ -209,6 +210,7 @@ type FakeServer = {
   getExerciseById: jest.Mock;
   apiGet: jest.Mock;
   apiPost: jest.Mock;
+  apiPatch: jest.Mock;
   apiPut: jest.Mock;
   apiDelete: jest.Mock;
 };
@@ -272,8 +274,38 @@ function makeServer(initialPlan: ApiPlan | null): FakeServer {
       throw new Error('catalog offline in this test');
     }),
     apiGet: jest.fn(async () => ({ data: { dates: [] } })),
-    apiPost: jest.fn(async (url: string) => ({
-      data: url === '/workout-logs' ? { id: 'log-1', completedAt: new Date().toISOString() } : {},
+    apiPost: jest.fn(async (url: string, body?: { entries?: Array<Record<string, unknown>> }) => ({
+      data:
+        url === '/workout-logs'
+          ? {
+              id: 'log-1',
+              completedAt: new Date().toISOString(),
+              // The server echoes the entries it stored, ids and all.
+              entries: (body?.entries ?? []).map((e, i) => ({
+                id: `entry-${i}`,
+                exerciseId: (e.exerciseId as string | undefined) ?? 'manual',
+                name: e.name,
+                orderIndex: e.orderIndex,
+                notes: null,
+                completedSets: e.sets,
+              })),
+            }
+          : {},
+    })),
+    apiPatch: jest.fn(async (url: string, body?: { entries?: Array<Record<string, unknown>> }) => ({
+      data: url.endsWith('/sets')
+        ? {
+            id: url.split('/')[2],
+            entries: (body?.entries ?? []).map((e, i) => ({
+              id: `entry-${i}`,
+              exerciseId: (e.exerciseId as string | undefined) ?? 'manual',
+              name: e.name,
+              orderIndex: e.orderIndex,
+              notes: null,
+              completedSets: e.sets,
+            })),
+          }
+        : {},
     })),
     apiPut: jest.fn(async () => ({ data: {} })),
     apiDelete: jest.fn(async () => ({ data: {} })),
@@ -1143,5 +1175,75 @@ describe('issue 53: coming back to a running workout refetches the plan', () => 
     await flush(20);
     expect(calls).toBe(1);
     expect(store.calendarDataMode()).toBe('live');
+  });
+});
+
+// ===========================================================================
+// GitHub #57 — a set checked with the wrong number, corrected after the finish
+// ===========================================================================
+
+describe('issue 57: correcting a set after Complete Workout', () => {
+  async function finishedMonday() {
+    const server = installServer(plan());
+    const store = await coldStart();
+    // Bench 8×135, 8×135, 8×145 ; Row 10×95 ×3
+    for (const w of ['135 lb', '135 lb', '145 lb']) store.logSet(MONDAY_ISO, 0, { reps: '8', weight: w });
+    for (let i = 0; i < 3; i++) store.logSet(MONDAY_ISO, 1, { reps: '10', weight: '95 lb' });
+    store.finishDaySession(MONDAY_ISO);
+    await flush(20);
+    expect(server.apiPost.mock.calls.filter(([url]) => url === '/workout-logs')).toHaveLength(1);
+    return { server, store };
+  }
+
+  it('changes the set here and sends the whole corrected entry list to the server', async () => {
+    const { server, store } = await finishedMonday();
+    expect(store.canEditLoggedSets(MONDAY_ISO)).toBe(true);
+    // Set 2 of the bench was 10 reps, not 8.
+    expect(store.editLoggedSet(MONDAY_ISO, 0, 1, { count: 10, weightLb: 135 })).toBe(true);
+    await flush();
+    expect(store.getSetLogs(MONDAY_ISO, 0).map((l) => l.reps)).toEqual(['8', '10', '8']);
+    const patches = server.apiPatch.mock.calls.filter(([url]) => url === '/workout-logs/log-1/sets');
+    expect(patches).toHaveLength(1);
+    const body = patches[0][1] as { entries: Array<{ orderIndex: number; sets: Array<{ reps: number; weight?: number }> }> };
+    expect(body.entries.map((e) => e.orderIndex)).toEqual([0, 1]);
+    expect(body.entries[0].sets.map((x) => [x.reps, x.weight])).toEqual([[8, 135], [10, 135], [8, 145]]);
+    expect(body.entries[1].sets).toHaveLength(3);
+    // The stored copy of the log carries the correction too (the recap reads it).
+    const stored = store.loggedSessionsFor(MONDAY_ISO)[0];
+    expect(stored.entries[0].completedSets[1]).toMatchObject({ reps: 10, weight: 135 });
+  });
+
+  it('a blank weight clears the load; a failed PATCH is retried after the next plan fetch and survives a restart', async () => {
+    let { server, store } = await finishedMonday();
+    server.apiPatch.mockRejectedValueOnce(new Error('offline'));
+    store.editLoggedSet(MONDAY_ISO, 1, 2, { count: 12, weightLb: null });
+    await flush();
+    expect(store.getSetLogs(MONDAY_ISO, 1)[2]).toEqual({ reps: '12', weight: 'Bodyweight' });
+    expect(server.apiPatch).toHaveBeenCalledTimes(1);
+
+    // Hours later, a cold start: the owed correction is still known here.
+    store = await hoursLaterReopen();
+    expect(store.getSetLogs(MONDAY_ISO, 1)[2]).toEqual({ reps: '12', weight: 'Bodyweight' });
+    store.refreshLiveCalendarData(true);
+    await flush(20);
+    const patches = server.apiPatch.mock.calls.filter(([url]) => url === '/workout-logs/log-1/sets');
+    expect(patches).toHaveLength(2);
+    const body = patches[1][1] as { entries: Array<{ sets: Array<{ reps: number; weight?: number }> }> };
+    expect(body.entries[1].sets[2]).toEqual({ setNumber: 3, reps: 12, completed: true });
+  });
+
+  it('a set logged before the finish posts corrected, with no PATCH at all', async () => {
+    const server = installServer(plan());
+    const store = await coldStart();
+    for (let i = 0; i < 3; i++) store.logSet(MONDAY_ISO, 0, { reps: '8', weight: '135 lb' });
+    // Nothing stored yet: the edit is local, and the completion carries it.
+    expect(store.editLoggedSet(MONDAY_ISO, 0, 0, { count: 9, weightLb: 135 })).toBe(true);
+    store.finishDaySession(MONDAY_ISO);
+    await flush(20);
+    const post = server.apiPost.mock.calls.find(([url]) => url === '/workout-logs')![1] as {
+      entries: Array<{ sets: Array<{ reps: number }> }>;
+    };
+    expect(post.entries[0].sets.map((x) => x.reps)).toEqual([9, 8, 8]);
+    expect(server.apiPatch).not.toHaveBeenCalled();
   });
 });

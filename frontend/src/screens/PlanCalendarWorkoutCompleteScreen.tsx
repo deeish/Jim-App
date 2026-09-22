@@ -7,6 +7,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  TextInput,
 } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -63,10 +64,12 @@ import {
   type PrototypeMuscle,
 } from '../lib/planCalendarPrototype';
 import {
+  canEditLoggedSets,
   celebrationBaselines,
   checkInFor,
   checkInResultFor,
   dayHasLocalLogs,
+  editLoggedSet,
   getSetLogs,
   isDayFullyLogged,
   loggedSessionsFor,
@@ -103,7 +106,9 @@ import {
   type SessionAchievement,
 } from '../lib/sessionAchievements';
 import { formatLastTimeLine } from '../lib/lastPerformanceDisplay';
-import { formatWeightCompactFromLb, type WeightUnit } from '../lib/weightDisplay';
+import { formatWeightCompactFromLb,
+  kgToLb,
+  lbToKg, type WeightUnit } from '../lib/weightDisplay';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import {
   connectAppleHealth,
@@ -152,6 +157,10 @@ type LedgerRow = {
   sub: string;
   /** Every set, printed, for the row's expanded state. Empty = nothing to open. */
   setLines: SetDetail[];
+  /** The same sets as numbers, for the inline editor (#57). */
+  setValues: Array<{ count: number; weightLb: number | null; timed: boolean }>;
+  /** The day slot (local) or the entry's orderIndex (stored) a correction writes to; null = read-only. */
+  exerciseIndex: number | null;
   /**
    * The session's best set, marked in the opened list — it shows WHICH set hit
    * the top of the load range the closed row reports. Null when the sets tie
@@ -561,6 +570,31 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   // Which exercises have been opened to show their sets. Independent per row:
   // the receipt is read one lift at a time, not toggled wholesale.
   const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
+  // Inline set editor (#57): which chip is open, and its two fields.
+  const editable = canEditLoggedSets(dateIso);
+  const [editing, setEditing] = useState<{ rowKey: string; setIndex: number } | null>(null);
+  const [editCount, setEditCount] = useState('');
+  const [editWeight, setEditWeight] = useState('');
+  const openEditor = (row: LedgerRow, setIndex: number) => {
+    const v = row.setValues[setIndex];
+    if (!v) return;
+    buzzTap();
+    setEditCount(String(v.count));
+    setEditWeight(
+      v.weightLb != null ? String(Math.round(unit === 'kg' ? lbToKg(v.weightLb) : v.weightLb)) : '',
+    );
+    setEditing({ rowKey: row.key, setIndex });
+  };
+  const saveEditor = (row: LedgerRow) => {
+    if (!editing || row.exerciseIndex == null) return;
+    const count = Number(editCount.trim());
+    if (!Number.isFinite(count) || count <= 0) return;
+    const w = editWeight.trim() === '' ? null : Number(editWeight.trim());
+    const weightLb = w != null && Number.isFinite(w) && w > 0 ? (unit === 'kg' ? kgToLb(w) : w) : null;
+    buzzSelection();
+    editLoggedSet(dateIso, row.exerciseIndex, editing.setIndex, { count, weightLb });
+    setEditing(null);
+  };
 
   // ---- Save this workout ---------------------------------------------------
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -687,6 +721,15 @@ export default function PlanCalendarWorkoutCompleteScreen() {
   const muscleById = new Map(
     day.exercises.filter((ex) => ex.exerciseId).map((ex) => [ex.exerciseId as string, ex.muscle]),
   );
+  // sessionsFromWorkoutLogs walks the stored logs' entries by orderIndex and
+  // keeps those with a completed set; the same walk here gives each history
+  // row the entry it came from, so a correction can name it.
+  const storedOrder = storedLogs.flatMap((log) =>
+    [...(log.entries ?? [])]
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+      .filter((e) => (e.completedSets ?? []).some((set) => set.completed))
+      .map((e) => e.orderIndex),
+  );
   const historyRows: LedgerRow[] = sessions.map((s, i) => {
     const count = s.completedSets.length;
     // Timed work (planks, cardio bouts) logs zero reps and the log keeps no
@@ -706,6 +749,12 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       setLines: usefulSetLines(
         s.completedSets.map((set) => storedSetDetail(set.reps, set.weight, unit)),
       ),
+      setValues: s.completedSets.map((set) => ({
+        count: set.reps,
+        weightLb: set.weight ?? null,
+        timed: false,
+      })),
+      exerciseIndex: storedOrder[i] ?? null,
       topSetIndex: uniqueTopSetIndex(
         s.completedSets.map((set) => ({ reps: set.reps, weightLb: set.weight })),
       ),
@@ -753,6 +802,15 @@ export default function PlanCalendarWorkoutCompleteScreen() {
       main,
       sub,
       setLines: usefulSetLines(logs.map((l) => loggedSetDetail(l.reps, l.weight, unit))),
+      setValues: logs.map((l) => {
+        const timed = /min|sec/i.test(l.reps);
+        return {
+          count: timed ? Number(l.reps.match(/\d+/)?.[0] ?? 0) : parseRepsCount(l.reps),
+          weightLb: parseWeightLb(l.weight) ?? null,
+          timed,
+        };
+      }),
+      exerciseIndex: i,
       topSetIndex: uniqueTopSetIndex(
         logs.map((l) => ({ reps: parseRepsCount(l.reps), weightLb: parseWeightLb(l.weight) })),
       ),
@@ -931,14 +989,23 @@ export default function PlanCalendarWorkoutCompleteScreen() {
                   <Animated.View entering={FadeIn.duration(160)} style={styles.setChips}>
                     {row.setLines.map((detail, i) => {
                       const top = i === row.topSetIndex;
+                      const canEdit = editable && row.exerciseIndex != null;
+                      const isEditing = editing?.rowKey === row.key && editing.setIndex === i;
                       return (
-                        <View
+                        <TouchableOpacity
                           key={i}
                           style={[
                             styles.setChip,
                             dark ? styles.setChipDark : styles.setChipLight,
                             top && styles.setChipTop,
+                            isEditing && styles.setChipEditing,
                           ]}
+                          disabled={!canEdit}
+                          activeOpacity={0.7}
+                          onPress={() => (isEditing ? setEditing(null) : openEditor(row, i))}
+                          accessibilityRole={canEdit ? 'button' : 'text'}
+                          accessibilityLabel={`Set ${i + 1}: ${detail.text}${detail.unit ? ` ${detail.unit}` : ''}`}
+                          accessibilityHint={canEdit ? 'Change this set' : undefined}
                         >
                           <Text style={[styles.setChipText, top && styles.setChipTextTop]}>
                             {detail.text}
@@ -948,9 +1015,67 @@ export default function PlanCalendarWorkoutCompleteScreen() {
                               </Text>
                             ) : null}
                           </Text>
-                        </View>
+                        </TouchableOpacity>
                       );
                     })}
+                    {editable && row.exerciseIndex != null && !editing && (
+                      <Text style={styles.editHint}>Tap a set to change it</Text>
+                    )}
+                    {editing?.rowKey === row.key && (
+                      <View style={styles.editCard}>
+                        <Text style={styles.editLabel}>{`SET ${editing.setIndex + 1}`}</Text>
+                        <View style={styles.editInputs}>
+                          <View style={styles.editField}>
+                            <Text style={styles.editFieldLabel}>
+                              {row.setValues[editing.setIndex]?.timed ? 'TIME (SEC)' : 'REPS'}
+                            </Text>
+                            <TextInput
+                              style={styles.editInput}
+                              value={editCount}
+                              onChangeText={setEditCount}
+                              keyboardType="number-pad"
+                              maxLength={5}
+                              autoFocus
+                              selectTextOnFocus
+                              accessibilityLabel={row.setValues[editing.setIndex]?.timed ? 'Time in seconds' : 'Reps'}
+                            />
+                          </View>
+                          {!row.setValues[editing.setIndex]?.timed && (
+                            <View style={styles.editField}>
+                              <Text style={styles.editFieldLabel}>{`WEIGHT (${unit.toUpperCase()})`}</Text>
+                              <TextInput
+                                style={styles.editInput}
+                                value={editWeight}
+                                onChangeText={setEditWeight}
+                                keyboardType="decimal-pad"
+                                maxLength={6}
+                                placeholder="BW"
+                                placeholderTextColor={colors.textMuted}
+                                accessibilityLabel={`Weight in ${unit}`}
+                              />
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.editButtons}>
+                          <TouchableOpacity
+                            style={styles.editCancel}
+                            onPress={() => setEditing(null)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Cancel"
+                          >
+                            <Text style={styles.editCancelLabel}>Cancel</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.editSave}
+                            onPress={() => saveEditor(row)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Save set"
+                          >
+                            <Text style={styles.editSaveLabel}>Save set</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
                     {row.lastTimeLine && (
                       // Without this the chip is an assertion; with it the
                       // claim can be checked in a glance.
@@ -1682,6 +1807,92 @@ function createStyles(c: ColorPalette) {
      *  review already found gold FILLS drown the PB pill they sit beside. */
     setChipTop: {
       borderColor: 'rgba(245,166,35,0.55)',
+    },
+    setChipEditing: {
+      borderColor: c.primary,
+      borderWidth: 1.5,
+    },
+    editHint: {
+      ...sfPro,
+      fontSize: text.caption,
+      color: c.textMuted,
+      width: '100%',
+    },
+    editCard: {
+      width: '100%',
+      marginTop: spacing.xs,
+      padding: spacing.md,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: c.primary,
+      backgroundColor: c.surface,
+      gap: spacing.sm,
+    },
+    editLabel: {
+      ...sfPro,
+      fontSize: text.caption,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      color: c.textSecondary,
+    },
+    editInputs: {
+      flexDirection: 'row',
+      gap: spacing.md,
+    },
+    editField: {
+      flex: 1,
+      gap: 5,
+    },
+    editFieldLabel: {
+      ...sfPro,
+      fontSize: text.caption,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      color: c.textMuted,
+    },
+    editInput: {
+      ...sfPro,
+      height: 44,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.background,
+      color: c.text,
+      fontSize: text.title,
+      fontWeight: '600',
+      paddingHorizontal: spacing.sm + 4,
+    },
+    editButtons: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    editCancel: {
+      height: 40,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: c.border,
+      justifyContent: 'center',
+    },
+    editCancelLabel: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: '600',
+      color: c.textSecondary,
+    },
+    editSave: {
+      height: 40,
+      paddingHorizontal: spacing.lg,
+      borderRadius: radius.pill,
+      backgroundColor: c.primary,
+      justifyContent: 'center',
+    },
+    editSaveLabel: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: '700',
+      color: c.onPrimary,
     },
     setChipText: {
       ...sfPro,
