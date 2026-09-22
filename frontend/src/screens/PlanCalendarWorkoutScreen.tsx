@@ -29,6 +29,7 @@ import Animated, {
   withDelay,
   withSpring,
   withTiming,
+  withSequence,
 } from 'react-native-reanimated';
 import {
   elevation,
@@ -73,6 +74,8 @@ import {
   type SetLog,
 } from '../lib/planCalendarPrototypeStore';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { suggestedEntry, validateSetEntry, weightRequired } from '../lib/setEntryRules';
+import { confirmCompleteWorkout } from '../lib/confirmCompleteWorkout';
 import {
   formatWeightFromLb,
   kgToLb,
@@ -109,6 +112,9 @@ type Nav = NativeStackNavigationProp<PlanCalendarParamList, 'PlanCalendarWorkout
 const SCREEN_W = Dimensions.get('window').width;
 /** How long the gold outline shows before the card swipes to the back. */
 const GOLD_HOLD_MS = 500;
+/** The Complete Workout button ignores taps for this long after it appears. */
+const COMPLETE_ARM_MS = 900;
+
 
 /**
  * A last log older than this stops driving the Target suggestion — a
@@ -384,6 +390,20 @@ export default function PlanCalendarWorkoutScreen() {
   // A submitted session is closed — the deck never returns, even for sets a
   // partial finish skipped (the write-once log would silently ignore them).
   const dayLogged = isDayLogged(dateIso);
+
+  // The Complete Workout button takes the deck's place the moment the last
+  // set flies off, a few hundred milliseconds under the finger that just
+  // tapped the check (GitHub #47). It arms after a beat, and asks once.
+  const completeOffered = !!exercise && isDayFullyLogged(dateIso) && !dayLogged;
+  const [completeArmed, setCompleteArmed] = useState(false);
+  useEffect(() => {
+    if (!completeOffered) {
+      setCompleteArmed(false);
+      return;
+    }
+    const id = setTimeout(() => setCompleteArmed(true), COMPLETE_ARM_MS);
+    return () => clearTimeout(id);
+  }, [completeOffered]);
   // With local logs the record is authoritative: sets it lacks were skipped.
   // A logged day with NO local record (finished on another device, snapshot
   // pruned) shows the prescription as the completed values instead.
@@ -548,18 +568,21 @@ export default function PlanCalendarWorkoutScreen() {
             day view's button, not a screen showing one exercise. */}
         {isDayFullyLogged(dateIso) && !dayLogged && (
           <TouchableOpacity
-            style={styles.completeButton}
+            style={[styles.completeButton, !completeArmed && styles.completeButtonDisarmed]}
             activeOpacity={0.85}
-            onPress={() => {
-              buzzAllSetsComplete();
-              navigation.navigate('PlanCalendarWorkoutComplete', { dateIso });
-              // Celebrate immediately; sync AFTER the baselines land — a log
-              // that POSTs first becomes the record its own claims compare to.
-              void (async () => {
-                await primeCelebrationBaselines(dateIso).catch(() => {});
-                finishDaySession(dateIso);
-              })();
-            }}
+            disabled={!completeArmed}
+            onPress={() =>
+              confirmCompleteWorkout(dateIso, () => {
+                buzzAllSetsComplete();
+                navigation.navigate('PlanCalendarWorkoutComplete', { dateIso });
+                // Celebrate immediately; sync AFTER the baselines land — a log
+                // that POSTs first becomes the record its own claims compare to.
+                void (async () => {
+                  await primeCelebrationBaselines(dateIso).catch(() => {});
+                  finishDaySession(dateIso);
+                })();
+              })
+            }
             accessibilityRole="button"
             accessibilityLabel="Complete workout"
           >
@@ -686,6 +709,9 @@ function SetDeck({
   const [reps, setReps] = useState('');
   const [weightIn, setWeightIn] = useState('');
   const busy = useRef(false);
+  const repsRef = useRef<TextInput>(null);
+  const weightRef = useRef<TextInput>(null);
+  const shakeX = useSharedValue(0);
 
   const cardX = useSharedValue(0);
   const cardScale = useSharedValue(1);
@@ -709,6 +735,7 @@ function SetDeck({
       { scale: cardScale.value },
     ],
   }));
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
   const goldStyle = useAnimatedStyle(() => ({ opacity: goldOp.value }));
 
   const commit = (log: SetLog, isLast: boolean) => {
@@ -732,31 +759,46 @@ function SetDeck({
     timedUnit != null,
   );
 
+  // What this set needs before the check logs it (lib/setEntryRules.ts,
+  // GitHub #56): reps always, weight only on a loaded row. A blank weight
+  // on a bodyweight row logs as bodyweight; a number there is added load.
+  const entryCtx = {
+    plannedWeight: exercise.weight,
+    plannedReps: exercise.reps,
+    muscle: exercise.muscle,
+    timedUnit,
+    lastSet: lastSet ? { reps: lastSet.reps, weightLb: lastSet.weightLb } : null,
+    unit,
+  };
+  const entry = validateSetEntry(entryCtx, reps, weightIn);
+  const suggestion = suggestedEntry(entryCtx);
+  const askWeight = weightRequired(entryCtx);
+
   const onCheck = () => {
     if (busy.current) return;
+    if (!entry.ok) {
+      // Nothing logs silently: the empty field shakes and takes the cursor.
+      shakeX.value = withSequence(
+        withTiming(-8, { duration: 50 }),
+        withTiming(8, { duration: 50 }),
+        withTiming(-5, { duration: 50 }),
+        withTiming(0, { duration: 50 }),
+      );
+      (entry.missing === 'weight' ? weightRef : repsRef).current?.focus();
+      return;
+    }
     busy.current = true;
     // Typed weight arrives in the user's unit; the store (and backend logs)
-    // stay canonical in POUNDS. Empty inputs log what the placeholder shows
-    // (this set's last performance when known, the prescription otherwise).
-    const typedWeight = Number(weightIn.trim());
-    const weightValid = weightIn.trim() !== '' && Number.isFinite(typedWeight) && typedWeight > 0;
-    const typedReps = Number(reps.trim());
-    const repsValid = reps.trim() !== '' && Number.isFinite(typedReps) && typedReps > 0;
+    // stay canonical in POUNDS.
+    const typedReps = entry.reps!;
     const log: SetLog = {
-      reps: timedUnit
-        ? repsValid
-          ? `${typedReps} ${timedUnit}`
-          : exercise.reps
-        : repsValid
-          ? String(typedReps)
-          : lastSet
-            ? String(lastSet.reps)
-            : exercise.reps,
-      weight: weightValid
-        ? `${roundLb(unit === 'kg' ? kgToLb(typedWeight) : typedWeight)} lb`
-        : lastSet?.weightLb != null
-          ? `${roundLb(lastSet.weightLb)} lb`
-          : exercise.weight,
+      reps: timedUnit ? `${typedReps} ${timedUnit}` : String(typedReps),
+      weight:
+        entry.weight != null
+          ? `${roundLb(unit === 'kg' ? kgToLb(entry.weight) : entry.weight)} lb`
+          : exercise.weight === 'Bodyweight' || askWeight
+            ? 'Bodyweight'
+            : exercise.weight,
     };
     const isLast = completed + 1 >= exercise.sets;
     buzzSetComplete();
@@ -796,12 +838,33 @@ function SetDeck({
         <Text style={styles.lastTimeLine} numberOfLines={1}>
           {lastTimeLine ?? ' '}
         </Text>
-        <View style={styles.inputRow}>
+        {/* The one-tap path: fills the fields from what the placeholder
+            shows, so the check can stay strict without costing the common
+            set more than a second tap. */}
+        {suggestion ? (
+          <TouchableOpacity
+            style={styles.suggestChip}
+            activeOpacity={0.8}
+            onPress={() => {
+              setReps(suggestion.reps);
+              setWeightIn(suggestion.weight);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={suggestion.label}
+          >
+            <Ionicons name="flash-outline" size={14} color={colors.primary} />
+            <Text style={styles.suggestChipText} numberOfLines={1}>
+              {suggestion.label}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+        <Animated.View style={[styles.inputRow, shakeStyle]}>
           <View style={styles.inputBox}>
             <Text style={styles.inputLabel}>
               {timedUnit ? `TIME (${timedUnit.toUpperCase()})` : 'REPS'}
             </Text>
             <TextInput
+              ref={repsRef}
               style={styles.input}
               accessibilityLabel={timedUnit ? `Time in ${timedUnit}` : 'Reps'}
               value={reps}
@@ -819,8 +882,11 @@ function SetDeck({
             />
           </View>
           <View style={styles.inputBox}>
-            <Text style={styles.inputLabel}>WEIGHT ({unit.toUpperCase()})</Text>
+            <Text style={styles.inputLabel}>
+              WEIGHT ({unit.toUpperCase()}){askWeight ? '' : ' · OPTIONAL'}
+            </Text>
             <TextInput
+              ref={weightRef}
               style={styles.input}
               accessibilityLabel={`Weight in ${unit}`}
               value={weightIn}
@@ -837,17 +903,21 @@ function SetDeck({
               maxLength={6}
             />
           </View>
-        </View>
+        </Animated.View>
 
         <View style={styles.checkRow}>
           <TouchableOpacity
-            style={styles.checkButton}
+            style={[styles.checkButton, !entry.ok && styles.checkButtonOff]}
             activeOpacity={0.8}
             // 40x40 on its own row; the slop takes the real target past 44.
             hitSlop={8}
             onPress={onCheck}
             accessibilityRole="button"
+            accessibilityState={{ disabled: !entry.ok }}
             accessibilityLabel={`Complete set ${completed + 1}`}
+            accessibilityHint={
+              entry.ok ? undefined : entry.missing === 'weight' ? 'Enter the weight first' : 'Enter the reps first'
+            }
           >
             <Ionicons name="checkmark" size={22} color="#FFFFFF" />
           </TouchableOpacity>
@@ -1120,6 +1190,29 @@ function createStyles(c: ColorPalette) {
       justifyContent: 'center',
       shadowColor: c.shadow,
       ...elevation.level2,
+    },
+    checkButtonOff: {
+      opacity: 0.35,
+    },
+    suggestChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: spacing.xs,
+      marginTop: spacing.sm,
+      paddingVertical: 6,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radius.pill,
+      backgroundColor: c.primarySoft,
+    },
+    suggestChipText: {
+      ...sfPro,
+      fontSize: text.footnote,
+      fontWeight: '600',
+      color: c.primary,
+    },
+    completeButtonDisarmed: {
+      opacity: 0.5,
     },
     goldOutline: {
       ...StyleSheet.absoluteFillObject,
