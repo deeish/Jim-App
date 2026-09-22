@@ -340,13 +340,24 @@ export default function PlanCalendarDayScreen() {
             before the plan lands, `pPlan` is the store's Rest Day fallback,
             so this read "Rest Day · Aug 26 · 0 exercises". The date is the
             only part of it that is knowable yet. */}
-        <Text style={styles.lede} numberOfLines={1}>
-          {pLoading
-            ? shortDate(pDate)
-            : `${pPlan.title} · ${shortDate(pDate)} · ${pPlan.exercises.length} exercises${
-                pDoneCount > 0 && !pAllDone ? ` · ${pDoneCount} done` : ''
-              }`}
-        </Text>
+        {/* Two lines, not one (GitHub #50): a two-lift title such as
+            "Push · Incline + Press" pushed the count and the progress off
+            the edge when they shared its line. The title shrinks to fit a
+            long name; the facts sit under it in the muted size. */}
+        <View style={styles.ledeCol}>
+          {!pLoading && (
+            <Text style={styles.ledeTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+              {pPlan.title}
+            </Text>
+          )}
+          <Text style={styles.lede} numberOfLines={1}>
+            {pLoading
+              ? shortDate(pDate)
+              : `${shortDate(pDate)} · ${pPlan.exercises.length} exercises${
+                  pDoneCount > 0 && !pAllDone ? ` · ${pDoneCount} done` : ''
+                }`}
+          </Text>
+        </View>
         <TouchableOpacity
           onPress={() => pageBy(1)}
           hitSlop={10}
@@ -760,13 +771,25 @@ function createStyles(c: ColorPalette) {
       gap: spacing.xs,
       marginBottom: spacing.xs,
     },
+    ledeCol: {
+      flex: 1,
+      alignItems: 'center',
+      gap: 2,
+    },
+    ledeTitle: {
+      ...sfPro,
+      textAlign: 'center',
+      fontSize: text.headline,
+      lineHeight: 22,
+      fontWeight: '600',
+      color: c.text,
+    },
     lede: {
       ...sfPro,
-      flex: 1,
       textAlign: 'center',
-      fontSize: text.body,
-      lineHeight: 20,
-      color: c.textSecondary,
+      fontSize: text.footnote,
+      lineHeight: 18,
+      color: c.textMuted,
     },
     quickRow: {
       flexDirection: 'row',
