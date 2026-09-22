@@ -745,4 +745,4 @@ Backend: 1005 tests green. Items 2, 4 and 5 are server-side and live on the next
 
 - No system-following default for the theme. Reading the phone's appearance when nothing is saved would have hidden the splash bug for Dylan and changes the first-run theme for every dark-phone user, which is a product call (the theme is manual and binary by Dylan's decision).
 - No sixteen-scenario re-drive. The three rules changes are covered by specs built from the matrix's own plans; a re-drive spends tokens on the same answers.
-- Friends/Family distribution and the Gemini checks stay with Dylan.
+- Friends/Family distribution stays with Dylan. Later the same day: Google billing checked by Dylan (single dollars), and the Sentry alert made together in his browser (rule "Plan generation falling back to rules" on jim-api, alert 6049117; the account is the myjimplanner@gmail.com login, not the GitHub one, which offered to create a second empty org). That closes item 7.
