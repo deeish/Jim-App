@@ -1,7 +1,8 @@
 import { getMuscleGroupVisual } from '../../constants/muscleGroupMeta';
 import { palette } from '../../theme/colors';
 import { BodyMapHighlight, pickBodyMapView } from '../../lib/exerciseToHighlights';
-import { BODY_MAP_REGIONS, BODY_OUTLINE_PATH, BodyMapView } from './bodyMapPaths';
+import { BODY_MAP_REGIONS, BODY_OUTLINE_PATH, BodyMapRegion, BodyMapView } from './bodyMapPaths';
+import { highlightBoundsFor, highlightGroup, regionMatches } from './bodyMapRegions';
 
 /**
  * Pure render model for the body map, shared by the platform renderers:
@@ -69,7 +70,9 @@ const MIN_WINDOW_H = 250;
 const MIN_WINDOW_W = 130;
 const WINDOW_PAD = 14;
 const HEAD_SNAP_Y = 80;
-const FEET_SNAP_Y = 388;
+// Ankles sit at ~409 on the v2 figure (feet end at 434); a window edge below
+// this would slice through the feet, so the camera snaps to the floor instead.
+const FEET_SNAP_Y = 400;
 // Tile squares: min side caps zoom so chest/shoulders can snap to include the
 // whole head; max side keeps the tallest groups (legs, back) from shrinking
 // the figure back to a full-body speck at 44px.
@@ -95,14 +98,12 @@ function highlightBounds(
   let x1 = -Infinity;
   let y1 = -Infinity;
   for (const h of highlights) {
-    for (const view of ['front', 'back'] as const) {
-      const region = BODY_MAP_REGIONS[view][h.region];
-      if (!region) continue;
-      x0 = Math.min(x0, region.bounds.x0);
-      y0 = Math.min(y0, region.bounds.y0);
-      x1 = Math.max(x1, region.bounds.x1);
-      y1 = Math.max(y1, region.bounds.y1);
-    }
+    const b = highlightBoundsFor(h.region);
+    if (!b) continue;
+    x0 = Math.min(x0, b.x0);
+    y0 = Math.min(y0, b.y0);
+    x1 = Math.max(x1, b.x1);
+    y1 = Math.max(y1, b.y1);
   }
   if (!Number.isFinite(x0)) return null;
   return { x0, y0, x1, y1 };
@@ -119,13 +120,20 @@ export function focusWindow(highlights: BodyMapHighlight[]): BodyMapWindow {
   if (!bounds) return full;
   const { x0, y0, x1, y1 } = bounds;
 
-  const winH = Math.max(y1 - y0 + 2 * WINDOW_PAD, MIN_WINDOW_H);
-  // A near-full window isn't worth the crop (and head + feet snaps would fight).
-  if (winH >= 360) return full;
+  let winH = Math.max(y1 - y0 + 2 * WINDOW_PAD, MIN_WINDOW_H);
   let winY = (y0 + y1) / 2 - winH / 2;
-  // Snap rather than slice through the head or feet.
-  if (winY < HEAD_SNAP_Y) winY = 0;
-  if (winY + winH > FEET_SNAP_Y) winY = 440 - winH;
+  // Snap rather than slice through the head or feet — growing the window when
+  // the snap alone would push the highlighted anatomy out of frame.
+  if (winY < HEAD_SNAP_Y) {
+    winY = 0;
+    winH = Math.max(winH, y1 + WINDOW_PAD);
+  }
+  if (winY + winH > FEET_SNAP_Y) {
+    winH = Math.max(winH, 440 - (y0 - WINDOW_PAD));
+    winY = 440 - winH;
+  }
+  // A near-full window isn't worth the crop.
+  if (winH >= 360) return full;
   winY = Math.max(0, Math.min(440 - winH, winY));
   // A snap must never push highlighted anatomy out of frame.
   if (y0 < winY || y1 > winY + winH) return full;
@@ -160,7 +168,8 @@ export function tileWindow(highlights: BodyMapHighlight[]): BodyMapWindow {
   const { x0, y0, x1, y1 } = bounds;
 
   const span = Math.max(x1 - x0, y1 - y0);
-  const side = Math.round(Math.min(TILE_MAX_SIDE, Math.max(TILE_MIN_SIDE, span + 2 * WINDOW_PAD)));
+  // Even side so the square centres exactly on x=100 (an odd side lands half a unit off).
+  const side = 2 * Math.round(Math.min(TILE_MAX_SIDE, Math.max(TILE_MIN_SIDE, span + 2 * WINDOW_PAD)) / 2);
   let winY = (y0 + y1) / 2 - side / 2;
   if (winY < HEAD_SNAP_Y && y1 + WINDOW_PAD <= side) winY = 0;
   else if (winY + side > FEET_SNAP_Y && 440 - side <= y0 - WINDOW_PAD) winY = 440 - side;
@@ -222,7 +231,16 @@ export function buildBodyMapFigure(opts: {
         : FULL_WINDOW;
 
   const quietColor = palette.bodyMapQuiet;
-  const intensityByRegion = new Map(highlights.map((h) => [h.region, h.intensity]));
+  // Highlights name catalog sub-muscles ("Quads") or region keys ("Rectus
+  // Femoris"); a region takes the strongest highlight that names it either way.
+  const intensityFor = (key: string, region: BodyMapRegion): number | undefined => {
+    let best: number | undefined;
+    for (const h of highlights) {
+      if (!regionMatches(key, region, h.region)) continue;
+      if (best === undefined || h.intensity > best) best = h.intensity;
+    }
+    return best;
+  };
 
   // The figure's accent is the target's group hue: primaries wear it at full
   // strength, assisting muscles wear the SAME hue pale (see ASSIST_STRENGTH).
@@ -231,17 +249,14 @@ export function buildBodyMapFigure(opts: {
   // chest-red, not gray. The gray token is only a defensive fallback for
   // direct callers that pass no primary at all.
   const primaryHighlight = highlights.find((h) => h.intensity >= 1);
-  const primaryGroup = primaryHighlight
-    ? (BODY_MAP_REGIONS.front[primaryHighlight.region] ??
-        BODY_MAP_REGIONS.back[primaryHighlight.region])?.group
-    : undefined;
+  const primaryGroup = primaryHighlight ? highlightGroup(primaryHighlight.region) : undefined;
   const accentHue = primaryGroup
     ? getMuscleGroupVisual(primaryGroup).color
     : palette.bodyMapAssist;
 
   const regions: BodyMapFigureRegion[] = Object.entries(BODY_MAP_REGIONS[view]).map(
     ([key, region]) => {
-      const intensity = intensityByRegion.get(key);
+      const intensity = intensityFor(key, region);
       if (intensity && intensity >= 1) {
         const hue = getMuscleGroupVisual(region.group).color;
         return {

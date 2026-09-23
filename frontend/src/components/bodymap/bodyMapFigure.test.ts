@@ -33,12 +33,27 @@ describe('buildBodyMapFigure', () => {
     // Assists wear the TARGET's hue pale (monochromatic hierarchy), never
     // their own group hue and never a gray that sinks into the silhouette.
     expect(byKey['Front Delts']).toBe(`${muscleGroupColors.chest}40`); // 0.25 -> 0x40
-    expect(byKey['Quads']).toBe(palette.bodyMapQuiet);
+    expect(byKey['Rectus Femoris']).toBe(palette.bodyMapQuiet);
     // Only the primary emits a glow halo; assists and quiet regions never do.
     const glowByKey = Object.fromEntries(figure.regions.map((r) => [r.key, r.glowColor]));
     expect(glowByKey['Upper Chest']).toBe(`${muscleGroupColors.chest}59`); // 0.35 -> 0x59
     expect(glowByKey['Front Delts']).toBeUndefined();
-    expect(glowByKey['Quads']).toBeUndefined();
+    expect(glowByKey['Rectus Femoris']).toBeUndefined();
+  });
+
+  it('lights every anatomical region of a catalog sub-muscle', () => {
+    // "Quads" is not a region key; it is the `sub` of three quad heads.
+    const figure = buildBodyMapFigure({
+      highlights: [{ region: 'Quads', intensity: 1 }],
+      view: 'front',
+      size: 180,
+    });
+    const byKey = Object.fromEntries(figure.regions.map((r) => [r.key, r.color]));
+    for (const head of ['Rectus Femoris', 'Vastus Lateralis', 'Vastus Medialis']) {
+      expect(byKey[head]).toBe(`${muscleGroupColors.legs}ff`);
+    }
+    // detail-only anatomy (sub: null) never lights, even for its own group
+    expect(byKey['Tibialis Anterior']).toBe(palette.bodyMapQuiet);
   });
 
   it('back view of a front-target exercise still tints assists in the target hue', () => {

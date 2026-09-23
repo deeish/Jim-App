@@ -1,4 +1,5 @@
-import { BODY_MAP_REGIONS, BodyMapView } from '../components/bodymap/bodyMapPaths';
+import { BodyMapView } from '../components/bodymap/bodyMapPaths';
+import { BODY_MAP_HIGHLIGHT_NAMES, hasRegionOnView } from '../components/bodymap/bodyMapRegions';
 
 /**
  * Maps a catalog exercise's muscle metadata onto body-map regions so
@@ -40,20 +41,18 @@ const GROUP_DEFAULT_REGIONS: Record<string, string[]> = {
   core: ['Upper Abs', 'Lower Abs', 'Obliques'],
 };
 
-const KNOWN_REGIONS = new Set([
-  ...Object.keys(BODY_MAP_REGIONS.front),
-  ...Object.keys(BODY_MAP_REGIONS.back),
-]);
+const KNOWN_REGIONS = BODY_MAP_HIGHLIGHT_NAMES;
 
 /**
- * The view a region "belongs" to when choosing which figure to show. Calves
- * and Forearms exist on both views; their canonical home is where the bulk of
- * the muscle is (gastrocnemius -> back, wrist flexors -> front).
+ * The view a region "belongs" to when choosing which figure to show. Calves,
+ * Forearms, Traps and Obliques exist on both views; their canonical home is
+ * where the bulk of the muscle is (gastrocnemius -> back, wrist flexors ->
+ * front, traps -> back, obliques -> front).
  */
 function canonicalView(region: string): BodyMapView {
-  if (region === 'Calves') return 'back';
-  if (region === 'Forearms') return 'front';
-  return BODY_MAP_REGIONS.front[region] ? 'front' : 'back';
+  if (region === 'Calves' || region === 'Traps' || region === 'Side Delts') return 'back';
+  if (region === 'Forearms' || region === 'Obliques') return 'front';
+  return hasRegionOnView('front', region) ? 'front' : 'back';
 }
 
 /** Picks front/back by where the highlight intensity concentrates; ties go front. */
