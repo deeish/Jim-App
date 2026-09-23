@@ -57,11 +57,14 @@ export const CHANGELOG: ChangelogEntry[] = [
   // everything internal. Copy rules: headlines name the part that changed
   // and read on their own; text says what is different, no marketing lines.
   //
-  // Shipped as build 1.4.0 (35), TestFlight internal, 2026-09-18.
+  // Build 1.4.0 (35) reached only the internal tester (Dylan) on 2026-09-18;
+  // no external tester has seen anything since 1.2.0 (32). So the 1.5.0 card
+  // is that card plus everything from 2026-09-22 (GitHub issues #45 to #61),
+  // under one id: the first release external testers get after 1.2.0.
   {
-    id: '2026-09-18',
-    version: '1.4.0',
-    date: '2026-09-18',
+    id: '2026-09-22',
+    version: '1.5.0',
+    date: '2026-09-22',
     title: 'Plans built like a coach builds them',
     changes: [
       {
@@ -113,10 +116,64 @@ export const CHANGELOG: ChangelogEntry[] = [
         text: 'Turn it on in your Profile, or when you finish a workout. Finished workouts are added to Apple Health, and your body weight from Health is used to estimate the energy of each session.',
       },
       {
+        type: 'new',
+        headline: 'Correct a set after the workout',
+        icon: 'create',
+        text: 'On the finish screen, open an exercise and tap any set to change its reps or weight. Your history, records and next week read the corrected number.',
+      },
+      {
+        type: 'new',
+        headline: 'A stopwatch for holds and carries',
+        icon: 'stopwatch',
+        text: 'A timed exercise gets a stopwatch on its set card. Start gives you five seconds to get into position, then the clock counts up with your target on the ring, buzzes when you reach it, and keeps going if you hold longer. Stop fills in your time.',
+      },
+      {
+        type: 'new',
+        headline: 'Plates for the bar',
+        icon: 'disc',
+        text: 'The weight box has minus and plus for five pound steps. On a barbell lift, a line under the inputs shows what to load on each side, and tapping it opens a bar you can build plate by plate.',
+      },
+      {
+        type: 'new',
+        headline: 'A beep when rest ends',
+        icon: 'notifications',
+        text: 'The rest timer beeps at zero on top of the buzz, and respects your ringer switch. Turn it off under Rest timer sound in your Profile. If a rest ends while your phone is locked, the app offers to nudge you with a notification, once, and only while a workout is running.',
+      },
+      {
+        type: 'improved',
+        headline: 'Every set needs its numbers',
+        icon: 'checkmark-circle',
+        text: 'The check waits until reps are entered, and a weight on a loaded lift. A chip above the inputs fills both from last time or from the target in one tap. Bodyweight exercises take a blank weight as bodyweight.',
+      },
+      {
+        type: 'improved',
+        headline: 'Complete Workout asks first',
+        icon: 'flag',
+        text: 'The button asks before it posts your session, shows how many sets were logged, and no longer catches the tap that finished your last set.',
+      },
+      {
+        type: 'improved',
+        headline: 'Finish screen and rest timer',
+        icon: 'timer',
+        text: 'The finish screen waits for your tap or swipe instead of moving on by itself. The rest tile shows its full time from the first frame.',
+      },
+      {
         type: 'fixed',
-        headline: 'Dark mode headers',
+        headline: 'Workouts stay on screen',
+        icon: 'lock-closed',
+        text: 'Locking the phone mid-workout no longer flashes a message that the workout is not part of your plan. The plan also stays on screen when the connection drops at the gym.',
+      },
+      {
+        type: 'fixed',
+        headline: 'Day header and exercise cards',
+        icon: 'resize',
+        text: 'The session title on a day has its own line, so a long name no longer pushes the date and set count off the edge. On the Exercises tab the whole card responds to a tap, not just the name.',
+      },
+      {
+        type: 'fixed',
+        headline: 'Dark mode headers and launch',
         icon: 'moon',
-        text: 'The back control at the top of the Calendar no longer flashes light while you move between Month, Week and Day.',
+        text: 'The back control at the top of the Calendar no longer flashes light while you move between Month, Week and Day, and the launch screen is dark on a dark phone.',
       },
       {
         type: 'fixed',
