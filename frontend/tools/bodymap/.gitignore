@@ -1,3 +1,12 @@
 preview.html
 detail.html
 paths.json
+
+# Purchased Etsy muscle SVG bundle (Create4decor). Licence forbids redistributing the raw files;
+# only the derived src/components/bodymap/bodyMapPaths.ts is committed.
+source/
+traced.json
+traced.html
+built.json
+preview2.html
+snapshots/
