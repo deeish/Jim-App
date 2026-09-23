@@ -746,3 +746,27 @@ Backend: 1005 tests green. Items 2, 4 and 5 are server-side and live on the next
 - No system-following default for the theme. Reading the phone's appearance when nothing is saved would have hidden the splash bug for Dylan and changes the first-run theme for every dark-phone user, which is a product call (the theme is manual and binary by Dylan's decision).
 - No sixteen-scenario re-drive. The three rules changes are covered by specs built from the matrix's own plans; a re-drive spends tokens on the same answers.
 - Friends/Family distribution stays with Dylan. Later the same day: Google billing checked by Dylan (single dollars), and the Sentry alert made together in his browser (rule "Plan generation falling back to rules" on jim-api, alert 6049117; the account is the myjimplanner@gmail.com login, not the GitHub one, which offered to create a second empty org). That closes item 7.
+
+## GitHub issues #45 to #61, worked, and build 1.5.0 (36) cut (2026-09-22)
+
+Dylan moved the new work into GitHub issues (deeish/Jim-App #40 to #61). Every bug, fix and ui item was worked the same day; the ideas (#40 to #44, #46, #48, #49, #60) are untouched. Each design that needed a look went through the canvas first (https://claude.ai/artifact/T8hYknZVXkUQty37DtdByw): the ledger editor, the stopwatch (count-up with a five-second lead-in, after Dylan's two rounds), the rest beep and nudge, the day header, the plates sheet (five rounds: title, the drawing's plate order, the bar list, a bar you build, "Each side").
+
+| Issue | Change | Where |
+|---|---|---|
+| #53 #54 | A plan refetch keeps the plan readable; a failed refetch keeps what was on screen | `planCalendarPrototypeStore.ts` (`startPlanFetch`), 3 store tests |
+| #56 | Reps always required, weight only on a loaded row; check dims, shakes and focuses; a one-tap chip fills from last time or the target | `lib/setEntryRules.ts` + tests, `PlanCalendarWorkoutScreen.tsx` |
+| #47 | Complete Workout arms after 900 ms and asks once with the set count, both screens | `lib/confirmCompleteWorkout.ts` |
+| #61 | The finish poster holds until a tap or a swipe; the 2.8 s auto-advance is gone | `PlanCalendarWorkoutCompleteScreen.tsx` |
+| #59 | `remainingSeconds` clamps to the rest length; the screen reads the clock when a rest starts | `lib/restTimer.ts` + test |
+| #57 | `PATCH /workout-logs/:id/sets` replaces a log's entries (backend, deployed); tap a ledger chip to edit; local + stored log updated, PATCH retried and persisted; two-log days read-only | `workout-logs.service.ts`, store `editLoggedSet`, finish screen |
+| #58 | Stopwatch on timed sets: 5 s lead-in with buzzes, counts UP on the wall clock, gold past the target, Pause/Stop/Restart, Stop fills the time | `lib/holdTimer.ts` + tests, `components/HoldStopwatch.tsx` |
+| #50 | The day lede is two lines: title (shrinks) over date · count · done | `PlanCalendarDayScreen.tsx` |
+| #55 | Beep at zero via expo-audio (silent switch wins; Profile toggle); locked phone gets one local notification via expo-notifications, permission asked once from a card the first time a rest ends while away | `lib/restBeep.ts`, `lib/restNudge.ts`, `lib/restNudgeRules.ts` + tests, prefs, Profile |
+| #51 | The whole exercise card is the tap target; chevron and selection circle ride inside it; heart and info stay their own buttons | `ExerciseGroupCard.tsx` |
+| #52 | − / + on every loaded weight box (5 lb / 2.5 kg, grid-snapped); barbell rows get "Each side: 45 + 2.5" on the check's row and a plates sheet that is a bar you build (8 a side, thins past four, labels drop past seven); the bar picked is remembered per exercise | `lib/plateMath.ts` + tests, `components/PlateSheet.tsx` |
+
+Also today, before the issues: the week-of-09-21 open items (peak-week row keep, duplicate-repair level, band hinge anchors, iOS dark splash, check-in copy, preview "aim N"), the Sentry fallback alert, and the billing check.
+
+**Build 1.5.0 (36):** EAS `4798c2ec`, production profile, auto-submit, queued 17:12. App version 1.4.0 → 1.5.0 (two new native modules: expo-audio, expo-notifications, both behind guarded requires; no new App ID capability, local notifications need none). The What's New card `2026-09-22` folds the 1.4.0 card (internal only) and today's rows into one, since external testers are still on 1.2.0 (32). Internal only, Dylan's call: Friends/Family after his phone pass.
+
+**Phone checks owed on 36:** dark launch on a dark phone; the check greys until numbers are in; Complete asks; the poster waits; a corrected set shows on the ledger and in history; the stopwatch's lead-in buzzes and the ring text fits; the beep's volume at gym noise; the nudge card after a locked rest, then a real notification; the Each side line and the plates sheet on a barbell lift; the day header; the exercise card edge tap.
