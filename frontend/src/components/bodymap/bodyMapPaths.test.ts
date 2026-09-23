@@ -26,6 +26,11 @@ const ALL_SUB_MUSCLES = Object.values(SUB_MUSCLES).flat();
 
 const VIEWS: BodyMapView[] = ['front', 'back'];
 const ALL_REGION_KEYS = new Set(VIEWS.flatMap((v) => Object.keys(BODY_MAP_REGIONS[v])));
+const ALL_SUBS = new Set(
+  VIEWS.flatMap((v) => Object.values(BODY_MAP_REGIONS[v]).map((r) => r.sub)).filter(
+    (s): s is string => s !== null,
+  ),
+);
 
 /** Tiny validator for the generator's output: M x y (C x y x y x y)* Z, repeated. */
 function parseSubpaths(d: string): number {
@@ -59,14 +64,25 @@ function parseSubpaths(d: string): number {
 describe('bodyMapPaths', () => {
   it('covers every catalog sub-muscle with at least one region', () => {
     for (const subMuscle of ALL_SUB_MUSCLES) {
-      expect(ALL_REGION_KEYS.has(subMuscle)).toBe(true);
+      expect({ subMuscle, covered: ALL_SUBS.has(subMuscle) }).toEqual({ subMuscle, covered: true });
     }
   });
 
-  it('has no region keys outside the sub-muscle vocabulary', () => {
-    for (const key of ALL_REGION_KEYS) {
-      expect(ALL_SUB_MUSCLES).toContain(key);
+  it('tags regions only with sub-muscles from the vocabulary (or null for detail-only anatomy)', () => {
+    for (const sub of ALL_SUBS) {
+      expect(ALL_SUB_MUSCLES).toContain(sub);
     }
+  });
+
+  it('never reuses a sub-muscle name as a key for a different muscle', () => {
+    // A key equal to a sub-muscle name must also carry that sub, otherwise the
+    // two vocabularies would disagree about what "Upper Chest" lights up.
+    for (const view of VIEWS) {
+      for (const [key, region] of Object.entries(BODY_MAP_REGIONS[view])) {
+        if (ALL_SUB_MUSCLES.includes(key)) expect({ key, sub: region.sub }).toEqual({ key, sub: key });
+      }
+    }
+    void ALL_REGION_KEYS;
   });
 
   it('tags every region with a known muscle-group hue key', () => {
