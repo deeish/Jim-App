@@ -31,6 +31,7 @@ export default function PlateSheet({
   onClose,
   unit,
   initialTotal,
+  initialBar,
   colors,
   onUse,
 }: {
@@ -39,23 +40,25 @@ export default function PlateSheet({
   unit: WeightUnit;
   /** The weight the card will log, in the user's unit; null = nothing known yet. */
   initialTotal: number | null;
+  /** The bar the card last used for this exercise (BARS[unit][0] by default). */
+  initialBar?: number;
   colors: ColorPalette;
-  onUse: (total: number) => void;
+  onUse: (total: number, bar: number) => void;
 }) {
-  const [bar, setBar] = useState<number>(BARS[unit][0]!);
+  const [bar, setBar] = useState<number>(initialBar ?? BARS[unit][0]!);
   const [perSide, setPerSide] = useState<number[]>([]);
   const [barPicker, setBarPicker] = useState(false);
 
   // Every open starts from what the card holds now.
   useEffect(() => {
     if (!visible) return;
-    const b = BARS[unit][0]!;
+    const b = initialBar ?? BARS[unit][0]!;
     setBar(b);
     setBarPicker(false);
     setPerSide(
       initialTotal != null && initialTotal > b ? platesFor(initialTotal, b, unit).perSide : [],
     );
-  }, [visible, initialTotal, unit]);
+  }, [visible, initialTotal, initialBar, unit]);
 
   const total = totalFor(bar, perSide);
   const full = perSide.length >= MAX_PLATES_PER_SIDE;
@@ -207,7 +210,7 @@ export default function PlateSheet({
 
         <TouchableOpacity
           style={styles.use}
-          onPress={() => onUse(total)}
+          onPress={() => onUse(total, bar)}
           activeOpacity={0.85}
           accessibilityRole="button"
           accessibilityLabel={`Use ${total} ${unit}`}

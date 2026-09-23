@@ -908,10 +908,15 @@ function SetDeck({
         : plannedWeightNumber(exercise.weight, unit);
   const stepBy = (direction: 1 | -1) => {
     buzzTap();
-    setWeightIn(String(stepWeight(boxWeight, direction, unit)));
+    const next = stepWeight(boxWeight, direction, unit);
+    // Down to nothing is an empty box, not a "0" the check would refuse.
+    setWeightIn(next > 0 ? String(next) : '');
   };
   const barbell = !timedUnit && isBarbellRow(exercise.equipment);
-  const plateLoad = barbell && boxWeight != null ? platesFor(boxWeight, BARS[unit][0]!, unit) : null;
+  // The bar the user picked in the sheet is remembered for this exercise,
+  // so the card's line and the sheet agree (a 35 lb bar reads 35 here too).
+  const [bar, setBar] = useState<number>(BARS[unit][0]!);
+  const plateLoad = barbell && boxWeight != null ? platesFor(boxWeight, bar, unit) : null;
   const [plateSheet, setPlateSheet] = useState(false);
 
   // The stopwatch on a timed set (GitHub #58, lib/holdTimer.ts). The deck
@@ -1172,7 +1177,9 @@ function SetDeck({
                 {'Each side: '}
                 <Text style={styles.plateLineValue}>
                   {plateLoad
-                    ? `${plateLoad.rounded ? '≈ ' : ''}${formatEachSide(plateLoad.perSide)}`
+                    ? `${plateLoad.rounded ? '≈ ' : ''}${formatEachSide(plateLoad.perSide)}${
+                        bar !== BARS[unit][0] ? ` on a ${bar} bar` : ''
+                      }`
                     : 'tap to load'}
                 </Text>
               </Text>
@@ -1206,9 +1213,11 @@ function SetDeck({
           onClose={() => setPlateSheet(false)}
           unit={unit}
           initialTotal={boxWeight}
+          initialBar={bar}
           colors={colors}
-          onUse={(total) => {
+          onUse={(total, usedBar) => {
             buzzTap();
+            setBar(usedBar);
             setWeightIn(String(total));
             setPlateSheet(false);
           }}
@@ -1532,7 +1541,7 @@ function createStyles(c: ColorPalette) {
       alignSelf: 'stretch',
     },
     stepButton: {
-      width: 36,
+      width: 32,
       height: 36,
       borderRadius: radius.pill,
       alignItems: 'center',
