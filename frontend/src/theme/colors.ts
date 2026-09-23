@@ -136,7 +136,7 @@ export const palette: ColorPalette = {
 
   bodyMapBody: '#E5E5EA',
   bodyMapOutline: '#C6C6C8',
-  bodyMapQuiet: 'rgba(0, 0, 0, 0.07)',
+  bodyMapQuiet: 'rgba(0, 0, 0, 0.10)', // matches how dark's 0.08 white reads; 0.07 left the unlit figure almost blank
   bodyMapAssist: '#8E8E93',
   bodyMapTileBg: '#F2F2F7',
   bodyMapBodyShade: '#D6D6DC',
