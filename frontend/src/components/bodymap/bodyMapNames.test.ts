@@ -1,4 +1,5 @@
 import { BODY_MAP_REGIONS } from './bodyMapPaths';
+import { primaryRegionFor } from './bodyMapRegions';
 import {
   BODY_MAP_PLAIN_NAMES,
   describeRegion,
@@ -38,6 +39,15 @@ describe('bodyMapNames', () => {
   it('lists the other heads of the same muscle', () => {
     expect(siblingRegionKeys('front', 'Rectus Femoris').sort()).toEqual(['Vastus Lateralis', 'Vastus Medialis']);
     expect(siblingRegionKeys('front', 'Sartorius')).toEqual([]);
+  });
+
+  it('picks one region to open for a highlight name', () => {
+    expect(primaryRegionFor('Vastus Medialis')).toEqual({ view: 'front', key: 'Vastus Medialis' });
+    const quads = primaryRegionFor('Quads');
+    expect(quads?.view).toBe('front');
+    expect(['Rectus Femoris', 'Vastus Lateralis', 'Vastus Medialis']).toContain(quads?.key);
+    expect(primaryRegionFor('Lats')).toEqual({ view: 'back', key: 'Lats' });
+    expect(primaryRegionFor('Cardio')).toBeNull();
   });
 
   it('spells the group the way the Exercises filters do', () => {

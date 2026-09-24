@@ -45,6 +45,23 @@ export function highlightGroup(name: string): string | undefined {
   return undefined;
 }
 
+/**
+ * The one region to select when a highlight name is opened in the explorer:
+ * the largest region carrying that name, on whichever view holds it (front
+ * wins a tie). A region key returns itself.
+ */
+export function primaryRegionFor(name: string): { view: BodyMapView; key: string } | null {
+  let best: { view: BodyMapView; key: string; area: number } | null = null;
+  for (const view of VIEWS) {
+    for (const { key, region } of regionsForHighlight(view, name)) {
+      const b = region.bounds;
+      const area = (b.x1 - b.x0) * (b.y1 - b.y0);
+      if (!best || area > best.area) best = { view, key, area };
+    }
+  }
+  return best ? { view: best.view, key: best.key } : null;
+}
+
 /** Union of the bounds of every region the name lights up, across BOTH views. */
 export function highlightBoundsFor(name: string): BodyMapRegionBounds | null {
   let out: BodyMapRegionBounds | null = null;

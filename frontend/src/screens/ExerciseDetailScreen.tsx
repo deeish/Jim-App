@@ -122,7 +122,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
     route.params?.returnToPlanExerciseContext ??
     (returnToPlanPreview ? ('preview' as const) : undefined);
   const leaveExerciseForPlanFlow = returnToPlanExerciseContext != null;
-  const { colors } = useTheme();
+  const { colors, mode } = useTheme();
   const { weightUnit, equipment: profileGear, goal, experience } = useUserPreferences();
   // The tab bar floats over this screen; keep the last sections clear of it.
   const tabBarInset = useTabBarInset();
@@ -303,6 +303,8 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           fontSize: text.footnote,
           color: colors.textSecondary,
         },
+        exploreLink: { marginLeft: spacing.md },
+        exploreLinkText: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.primary },
         exerciseName: { fontSize: text.display, fontWeight: weight.bold, color: colors.text, flex: 1, marginRight: spacing.md },
         titleNameRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
         badgeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
@@ -789,6 +791,15 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   // Body-map hero: null for cardio/unknown metadata, in which case the section
   // keeps its tags-only layout (the disc stays the fallback mark).
   const bodyMap = exerciseToHighlights(exercise);
+  // The strongest highlight names the target the Muscles section opens on.
+  const primaryMuscleName =
+    bodyMap?.highlights.find((h) => h.intensity >= 1)?.region ?? bodyMap?.highlights[0]?.region ?? null;
+  const openInMuscles = () => {
+    if (!primaryMuscleName) return;
+    const tabNav = getBottomTabNavigator(navigation);
+    if (!tabNav) return;
+    tabNav.navigate('Search', { screen: 'SearchList', params: { openMuscle: primaryMuscleName } });
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -1042,7 +1053,15 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
           <Text style={styles.sectionTitle}>Muscles</Text>
           {bodyMap && (
             <>
-              <View style={styles.bodyMapRow}>
+              {/* Tap-through: the figure opens the Muscles section framed on the
+                  target muscle, where the person is already thinking about it. */}
+              <TouchableOpacity
+                style={styles.bodyMapRow}
+                onPress={openInMuscles}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={`Explore ${primaryMuscleName ?? 'this muscle'} on the body`}
+              >
                 {/* Lead with the view holding the primary work so the lit figure is read first. */}
                 {(bodyMap.view === 'back' ? (['back', 'front'] as const) : (['front', 'back'] as const)).map(
                   (mapView) => (
@@ -1055,7 +1074,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                     />
                   ),
                 )}
-              </View>
+              </TouchableOpacity>
               {/* Decoder for the figure's two strengths — no interaction needed. */}
               <View style={styles.legendRow}>
                 <View style={[styles.legendDot, { backgroundColor: muscleVisual.color }]} />
@@ -1066,12 +1085,15 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                       style={[
                         styles.legendDot,
                         styles.legendDotAssist,
-                        { backgroundColor: assistColorFor(muscleVisual.color) },
+                        { backgroundColor: assistColorFor(muscleVisual.color, mode) },
                       ]}
                     />
                     <Text style={styles.legendLabel}>Also works</Text>
                   </>
                 )}
+                <TouchableOpacity onPress={openInMuscles} hitSlop={8} accessibilityRole="button" style={styles.exploreLink}>
+                  <Text style={styles.exploreLinkText}>Explore on the body ›</Text>
+                </TouchableOpacity>
               </View>
             </>
           )}
@@ -1099,7 +1121,7 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
                 style={[
                   styles.tag,
                   {
-                    backgroundColor: assistColorFor(muscleVisual.color),
+                    backgroundColor: assistColorFor(muscleVisual.color, mode),
                     borderColor: 'transparent',
                   },
                 ]}

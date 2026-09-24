@@ -62,6 +62,7 @@ export default function SearchScreen({ navigation }: Props) {
   const tabBarInset = useTabBarInset();
   const addToPlan = route.params?.addToPlan;
   const addToWorkout = route.params?.addToWorkout;
+  const openMuscle = route.params?.openMuscle;
   const addMode = addToPlan ? 'plan' : addToWorkout ? 'workout' : null;
   const { colors } = useTheme();
 
@@ -88,6 +89,18 @@ export default function SearchScreen({ navigation }: Props) {
   const [activeTab, setActiveTab] = useState<'all' | 'saved' | 'muscles'>('all');
   // "New: tap Muscles to browse the body" — shows until dismissed or Muscles is opened once.
   const musclesHint = useMusclesHint();
+  // Tap-through from an exercise page: `openMuscle` opens the Muscles segment
+  // framed on that muscle. Consumed into local state and cleared from the
+  // route, so a later plain visit to the tab starts at the whole body again.
+  const [muscleToOpen, setMuscleToOpen] = useState<string | null>(null);
+  useEffect(() => {
+    if (!openMuscle) return;
+    setMuscleToOpen(openMuscle);
+    setActiveTab('muscles');
+    musclesHint.dismiss();
+    navigation.setParams({ openMuscle: undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openMuscle]);
 
   // Re-tapping the Exercises tab scrolls the visible list back to the top —
   // standard iOS muscle memory for escaping a deep scroll. One ref per list;
@@ -129,6 +142,8 @@ export default function SearchScreen({ navigation }: Props) {
     (tab: 'all' | 'saved' | 'muscles') => {
       if (tab === 'saved') loadSavedList();
       if (tab === 'muscles') musclesHint.dismiss();
+      // A plain switch (not a tap-through) starts at the whole body.
+      setMuscleToOpen(null);
       setActiveTab(tab);
     },
     [loadSavedList, musclesHint],
@@ -607,7 +622,12 @@ export default function SearchScreen({ navigation }: Props) {
       {/* Muscles: the anatomy figure with zoom and tap-to-name. Mounted only
           while shown — the section resets to the whole body on every visit. */}
       {activeTab === 'muscles' && (
-        <MuscleExplorer onExercises={showExercisesForMuscle} bottomInset={tabBarInset} />
+        <MuscleExplorer
+          key={muscleToOpen ?? 'plain'}
+          onExercises={showExercisesForMuscle}
+          bottomInset={tabBarInset}
+          initialSelection={muscleToOpen ?? undefined}
+        />
       )}
 
       {activeTab === 'saved' && (

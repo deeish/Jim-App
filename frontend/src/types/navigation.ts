@@ -61,6 +61,8 @@ export type RootStackParamList = {
        */
       origin?: 'plan' | 'workoutDetail' | 'workout' | 'session';
     };
+    /** Open the Muscles segment framed on this muscle (a catalog sub-muscle or region key). */
+    openMuscle?: string;
   } | undefined;
   SearchList: {
     addToPlan?: {
@@ -84,6 +86,8 @@ export type RootStackParamList = {
        */
       origin?: 'plan' | 'workoutDetail' | 'workout' | 'session';
     };
+    /** Open the Muscles segment framed on this muscle (a catalog sub-muscle or region key). */
+    openMuscle?: string;
   } | undefined;
   ExerciseDetail: {
     exerciseId: string;

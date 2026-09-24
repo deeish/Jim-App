@@ -21,6 +21,7 @@ import { getMuscleGroupVisual } from '../../constants/muscleGroupMeta';
 import { haptics } from '../../lib/haptics';
 import { duration, easing, radius, spacing, text, useTheme, weight } from '../../theme';
 import { BODY_MAP_REGIONS, BodyMapView } from './bodyMapPaths';
+import { primaryRegionFor } from './bodyMapRegions';
 import {
   BODY_MAP_PLAIN_NAMES,
   BodyMapRegionDescription,
@@ -66,11 +67,19 @@ type Props = {
   /** Space the floating tab bar covers at the bottom of the pane. */
   bottomInset: number;
   initialView?: BodyMapView;
+  /**
+   * Open already framed on this muscle (a catalog sub-muscle like "Quads" or a
+   * region key). Used by the exercise page's tap-through. Read once, at mount.
+   */
+  initialSelection?: string;
 };
 
-export default function MuscleExplorer({ onExercises, bottomInset, initialView = 'front' }: Props) {
+export default function MuscleExplorer({ onExercises, bottomInset, initialView = 'front', initialSelection }: Props) {
   const { colors } = useTheme();
-  const [view, setView] = useState<BodyMapView>(initialView);
+  // Resolved once: the view holding the muscle wins over initialView.
+  const [initialTarget] = useState(() => (initialSelection ? primaryRegionFor(initialSelection) : null));
+  const initialTargetDone = useRef(false);
+  const [view, setView] = useState<BodyMapView>(initialTarget?.view ?? initialView);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [stage, setStage] = useState({ width: 0, height: 0 });
   const [zoomed, setZoomed] = useState(false);
@@ -155,6 +164,14 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
     },
     [frameRegion, animateTo],
   );
+
+  // Tap-through from an exercise page: once the stage has a size (framing needs
+  // it), select the requested muscle exactly as a tap would.
+  useEffect(() => {
+    if (!initialTarget || initialTargetDone.current || stage.height === 0) return;
+    initialTargetDone.current = true;
+    select(initialTarget.key);
+  }, [initialTarget, stage.height, select]);
 
   const handleTap = useCallback(
     (x: number, y: number) => {
