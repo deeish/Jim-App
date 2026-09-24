@@ -44,6 +44,9 @@ import { toWorkoutExercisePayloads } from '../lib/workoutExercisePayload';
 import { defaultPrescriptionForNewExercise } from '../lib/exercisePrescription';
 import { radius, spacing, text, weight } from '../theme';
 import { useTabBarInset } from '../navigation/useTabBarInset';
+import MuscleExplorer from '../components/bodymap/MuscleExplorer';
+import type { BodyMapRegionDescription } from '../components/bodymap/bodyMapNames';
+import MusclesHintBanner, { useMusclesHint } from '../components/MusclesHintBanner';
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Search'>;
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
@@ -82,7 +85,9 @@ export default function SearchScreen({ navigation }: Props) {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addingToPlan, setAddingToPlan] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'saved'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'saved' | 'muscles'>('all');
+  // "New: tap Muscles to browse the body" — shows until dismissed or Muscles is opened once.
+  const musclesHint = useMusclesHint();
 
   // Re-tapping the Exercises tab scrolls the visible list back to the top —
   // standard iOS muscle memory for escaping a deep scroll. One ref per list;
@@ -99,7 +104,7 @@ export default function SearchScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (activeTab === 'saved') {
+        if (activeTab !== 'all') {
           setActiveTab('all');
           return true;
         }
@@ -121,11 +126,26 @@ export default function SearchScreen({ navigation }: Props) {
   );
 
   const switchTab = useCallback(
-    (tab: 'all' | 'saved') => {
+    (tab: 'all' | 'saved' | 'muscles') => {
       if (tab === 'saved') loadSavedList();
+      if (tab === 'muscles') musclesHint.dismiss();
       setActiveTab(tab);
     },
-    [loadSavedList],
+    [loadSavedList, musclesHint],
+  );
+
+  // The Muscles sheet's "Exercises for Quads": filter the library to that
+  // catalog sub-muscle (with its parent group, as the chips would) and land on
+  // All at the top of the list. Text search is cleared so the chips apply.
+  const showExercisesForMuscle = useCallback(
+    (region: BodyMapRegionDescription) => {
+      if (!region.sub) return;
+      const sub = region.sub;
+      setFilters(prev => ({ ...prev, searchQuery: '', muscleGroups: [region.groupLabel], subMuscles: [sub] }));
+      setActiveTab('all');
+      allListRef.current?.scrollToOffset({ offset: 0, animated: false });
+    },
+    [setFilters],
   );
 
   // Selected exercise objects for add-mode, keyed by id, alongside selectedIds.
@@ -547,6 +567,16 @@ export default function SearchScreen({ navigation }: Props) {
               {savedExerciseIds.length > 0 ? `Saved (${savedExerciseIds.length})` : 'Saved'}
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.segmentBtn, activeTab === 'muscles' && styles.segmentBtnActive]}
+            onPress={() => switchTab('muscles')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === 'muscles' }}
+          >
+            <Text style={[styles.segmentBtnText, activeTab === 'muscles' && styles.segmentBtnTextActive]}>
+              Muscles
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -570,8 +600,15 @@ export default function SearchScreen({ navigation }: Props) {
           onToggleLike={onToggleLike}
           bottomInset={tabBarInset}
           listRef={allListRef}
+          headerSlot={musclesHint.visible ? <MusclesHintBanner onDismiss={musclesHint.dismiss} /> : undefined}
         />
       </View>
+
+      {/* Muscles: the anatomy figure with zoom and tap-to-name. Mounted only
+          while shown — the section resets to the whole body on every visit. */}
+      {activeTab === 'muscles' && (
+        <MuscleExplorer onExercises={showExercisesForMuscle} bottomInset={tabBarInset} />
+      )}
 
       {activeTab === 'saved' && (
         // Virtualized like the main results list — the saved list can grow unbounded,
