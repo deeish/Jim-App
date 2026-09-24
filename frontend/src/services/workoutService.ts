@@ -7,7 +7,15 @@ import {
   WorkoutStats,
 } from '../types/workout';
 import type { ExerciseHistory } from '../lib/exerciseHistory';
+import type { MuscleHeat } from '../lib/muscleHeat';
 import { api } from '../api/client';
+
+/** "Trained this week" per catalog sub-muscle, for the Muscles figure. */
+export const getMuscleHeat = async (days?: number): Promise<MuscleHeat> => {
+  const suffix = days != null ? `?days=${days}` : '';
+  const response = await api.get<MuscleHeat>(`/workout-logs/muscle-heat${suffix}`);
+  return response.data;
+};
 
 // ---------------------------------------------------------------------------
 // Quick Workout (deterministic catalog builder — no LLM, instant)
