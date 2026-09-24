@@ -9,6 +9,12 @@ import {
 } from './exercise-prescription';
 import type { ExerciseTier } from './exercise-tiers';
 import { MOVEMENT_PATTERN_FILLINS } from './movement-pattern-fillins';
+// Cycle on purpose: the involvement module reads SUB_MUSCLE_MAP at call time,
+// never at load time, so the partial export during import is harmless.
+import {
+  involvementFor,
+  type MuscleInvolvement,
+} from './exercise-muscle-involvement';
 
 // Primary Muscle Group ID → Display Name
 export const PRIMARY_MUSCLE_GROUP_MAP: Record<string, string> = {
@@ -544,6 +550,13 @@ export interface TransformedExercise {
    * would starve; see exercise-tiers.ts).
    */
   tier?: ExerciseTier;
+  /**
+   * Anatomical regions the exercise works, with weights — the retag. Primaries
+   * carry emphasis where the evidence supports it, secondaries are resolved
+   * to specific muscles from the movement family. See
+   * exercise-muscle-involvement.ts. Empty for cardio/unknown rows.
+   */
+  muscles: MuscleInvolvement[];
   [key: string]: any; // Preserve other fields
 }
 
@@ -620,6 +633,7 @@ export function transformExercise(raw: RawExercise): TransformedExercise {
     movementPatterns,
     type: raw.type,
     prescriptionType,
+    muscles: involvementFor(raw),
     // Remove old ID fields
     primaryMuscleGroupId: undefined,
     subMuscleIds: undefined,

@@ -16,6 +16,7 @@ function toTransformed(r: EvalCatalogExercise): TransformedExercise {
     movementPatterns: r.movementPatterns?.length ? [...r.movementPatterns] : [],
     prescriptionType,
     type: 'compound',
+    muscles: [],
   };
 }
 
