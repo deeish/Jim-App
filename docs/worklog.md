@@ -15,6 +15,20 @@ session can summarise the work without re-deriving it.
 
 ---
 
+## 2026-09-23 — Muscles section on the Exercises tab (zoom + tap-to-name on the v2 figure)
+
+Decided through four artifacts (explorer v2 + three placements); Dylan picked the third-segment placement with words only ("Muscles", no glyph), plain names first, readout-aware framing, a tighter peek sheet, and a dismissible first-visit hint. Built and verified on the web rig (frontend-only boot, seeded session) in dark and light.
+
+| # | Task | Status | Where | Notes |
+|---|------|--------|-------|-------|
+| 1 | Plain-name table | `DONE` | `src/components/bodymap/bodyMapNames.ts` (+ test) | 43 distinct regions: plain name (header), anatomical (under), optional hint for the three with no everyday name (brachialis, sartorius, gracilis). `describeRegion` also yields the catalog sub-muscle + the filter-facing group label; `siblingRegionKeys` = the other heads of the same muscle. Test asserts every figure region has a name and no name is orphaned. |
+| 2 | Camera math | `DONE` | `src/components/bodymap/muscleExplorerCamera.ts` (+ test) | Pure + worklet-safe: aspect-fit metrics, clamp (1x–4x, figure always covers the viewbox), pixel→viewbox→local, zoom-about-point, pan, `visibleWindow` (stage minus the sheet), `frameBounds` (fits both mirrored halves into the uncovered window), `composeCamera` (base + pan + pinch with per-gesture offsets so one gesture can commit while the other runs), bounds prefilter for hit-tests. |
+| 3 | Explorer | `DONE` | `MuscleExplorer.tsx` (shell) + `MuscleExplorerFigure.tsx` (Skia) / `.web.tsx` (svg) + `muscleExplorerFigureProps.ts` | RNGH `Race(tap, Simultaneous(pan, pinch))`; camera = Reanimated shared values on the UI thread, React renders only on selection. Tap → hit-test with the real region path (Skia `path.contains`; web `isPointInFill` via a real SVGPoint — older Chromium rejects DOMPointInit) after undoing the camera → 340 ms ease-out frame into the area the sheet leaves uncovered. Tap the same muscle, or the body outside any muscle, or Reset → zoom out. Sheet: dot + plain name + "Quads · Legs" pill, anatomical in italics (+ hint), sibling chips, compact "Exercises for Quads" (the app Button was too tall for the peek row). Front/Back live on the figure. Bottom copy: "Tap a muscle to see what it's called and the exercises that train it". No double-tap gesture on purpose (would delay single taps ~300 ms). |
+| 4 | Exercises tab wiring | `DONE` | `src/screens/SearchScreen.tsx` | Third segment "Muscles" (All · Saved · Muscles). Mounted only while shown, so every visit starts at the whole body. "Exercises for X" → `subMuscles: [X]` + its parent group (as the chips would), search text cleared, All tab, list to top — verified: badge 2, "Back ✕ / Lats ✕" tokens, "Back · narrowed to 1 of 5". Android back from Muscles/Saved → All. The 24 catalog sub-muscle names on the figure already match the filter vocabulary, so this needed no retag. |
+| 5 | First-visit hint | `DONE` | `src/components/MusclesHintBanner.tsx`, `src/lib/musclesHintStore.ts` | One line under the search field via the library's `headerSlot`: "New: tap Muscles to browse the body" with a two-shape pictogram (a 9-pt anatomy figure in the segment was rejected: mud). Starts hidden, shows only when `jim_muscles_hint_seen_v1` is unset, gone for good on × or on the first Muscles open. |
+
+Deliberately NOT done: double-tap-to-reset (delays single taps); the exercise-detail body-map tile tapping through to the section (strongest entry point, next); What's New card at the next binary; catalog retag to finer heads (additive field, batch by batch — nothing blocks on it, everything works at sub-muscle level). Not verifiable on web: Skia rendering, native gesture feel, haptics — first phone check list: pinch smoothness, sheet height on a real safe area, the Reset pill over the floating tab bar.
+
 ## 2026-09-22 — Body map v2: a real anatomy figure (50 named regions) replaces the 26-blob silhouette
 
 Dylan's next feature after the 1.5.0 push is the body map (issues #42/#43/#44:
