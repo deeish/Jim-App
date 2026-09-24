@@ -1,5 +1,15 @@
 import { api } from '../api/client';
 
+/** One anatomical region an exercise works (the retag); region keys match the body map. */
+export interface MuscleInvolvement {
+  region: string;
+  /** Catalog sub-muscle the region belongs to, or null for detail-only regions. */
+  sub: string | null;
+  role: 'primary' | 'secondary';
+  /** 0..1: primaries 0.6–1 with emphasis, secondaries 0.2–0.5. */
+  weight: number;
+}
+
 export interface Exercise {
   id: string;
   name: string;
@@ -8,6 +18,8 @@ export interface Exercise {
   primaryMuscleGroup: string;
   subMuscles: string[];
   secondaryMuscleGroups: string[];
+  /** Region-level involvement from the backend; absent on older payloads. */
+  muscles?: MuscleInvolvement[];
   equipment: string[];
   movementPatterns: string[];
   difficulty?: string;

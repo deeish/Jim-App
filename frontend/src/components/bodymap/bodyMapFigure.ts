@@ -1,6 +1,6 @@
 import { getMuscleGroupVisual } from '../../constants/muscleGroupMeta';
 import { ColorPalette, palette } from '../../theme/colors';
-import { BodyMapHighlight, pickBodyMapView } from '../../lib/exerciseToHighlights';
+import { BodyMapHighlight, pickBodyMapView, PRIMARY_THRESHOLD } from '../../lib/exerciseToHighlights';
 import { BODY_MAP_REGIONS, BODY_OUTLINE_PATH, BodyMapRegion, BodyMapView } from './bodyMapPaths';
 import { highlightBoundsFor, highlightGroup, regionMatches } from './bodyMapRegions';
 
@@ -204,6 +204,8 @@ function withIntensity(hex: string, intensity: number): string {
  * into the gray silhouette the way a neutral wash does.
  */
 const ASSIST_STRENGTH = 0.25;
+/** Alpha of a target region at the weakest emphasis the retag emits (0.6); full at 1. */
+const PRIMARY_MIN_ALPHA = 0.62;
 /** The dark body is much closer to the hues than the pale one, so the wash needs more ink to read. */
 const ASSIST_STRENGTH_DARK = 0.45;
 
@@ -262,7 +264,10 @@ export function buildBodyMapFigure(opts: {
   // chest exercise has no chest regions, but its assists must still tint
   // chest-red, not gray. The gray token is only a defensive fallback for
   // direct callers that pass no primary at all.
-  const primaryHighlight = highlights.find((h) => h.intensity >= 1);
+  // The strongest highlight names the accent; ties resolve to the first listed.
+  const primaryHighlight = highlights
+    .filter((h) => h.intensity >= PRIMARY_THRESHOLD)
+    .sort((a, b) => b.intensity - a.intensity)[0];
   const primaryGroup = primaryHighlight ? highlightGroup(primaryHighlight.region) : undefined;
   const accentHue = primaryGroup
     ? getMuscleGroupVisual(primaryGroup).color
@@ -271,13 +276,17 @@ export function buildBodyMapFigure(opts: {
   const regions: BodyMapFigureRegion[] = Object.entries(BODY_MAP_REGIONS[view]).map(
     ([key, region]) => {
       const intensity = intensityFor(key, region);
-      if (intensity && intensity >= 1) {
+      if (intensity && intensity >= PRIMARY_THRESHOLD) {
+        // Target work: the group hue, full at 1 and visibly lighter for a
+        // head the exercise emphasises less (the retag's 0.6–0.8), but never
+        // as pale as the assist wash.
         const hue = getMuscleGroupVisual(region.group).color;
+        const alpha = intensity >= 1 ? 1 : PRIMARY_MIN_ALPHA + (1 - PRIMARY_MIN_ALPHA) * ((intensity - PRIMARY_THRESHOLD) / (1 - PRIMARY_THRESHOLD));
         return {
           key,
           path: region.path,
-          color: withIntensity(hue, intensity),
-          glowColor: withIntensity(hue, 0.35),
+          color: withIntensity(hue, alpha),
+          glowColor: withIntensity(hue, 0.35 * alpha),
         };
       }
       return {

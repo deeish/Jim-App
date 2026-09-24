@@ -1,4 +1,4 @@
-import { buildBodyMapFigure, focusWindow, tileWindow } from './bodyMapFigure';
+import { assistColorFor, buildBodyMapFigure, focusWindow, tileWindow } from './bodyMapFigure';
 import { BODY_MAP_REGIONS } from './bodyMapPaths';
 import { exerciseToTileHighlights } from '../../lib/exerciseToHighlights';
 import { muscleGroupColors, palette } from '../../theme/colors';
@@ -39,6 +39,26 @@ describe('buildBodyMapFigure', () => {
     expect(glowByKey['Upper Chest']).toBe(`${muscleGroupColors.chest}59`); // 0.35 -> 0x59
     expect(glowByKey['Front Delts']).toBeUndefined();
     expect(glowByKey['Rectus Femoris']).toBeUndefined();
+  });
+
+  it('draws an emphasised-less head in the group hue, lighter than full but never as the assist wash', () => {
+    const figure = buildBodyMapFigure({
+      highlights: [
+        { region: 'Semitendinosus', intensity: 1 },
+        { region: 'Biceps Femoris', intensity: 0.6 },
+        { region: 'Erector Spinae', intensity: 0.4 },
+      ],
+      view: 'back',
+      size: 200,
+    });
+    const byKey = Object.fromEntries(figure.regions.map((r) => [r.key, r.color]));
+    expect(byKey['Semitendinosus']).toBe(`${muscleGroupColors.legs}ff`);
+    expect(byKey['Biceps Femoris'].startsWith(muscleGroupColors.legs)).toBe(true);
+    const alpha = parseInt(byKey['Biceps Femoris'].slice(-2), 16) / 255;
+    expect(alpha).toBeGreaterThan(0.55);
+    expect(alpha).toBeLessThan(0.8);
+    // the assist keeps the target's hue at the pale strength
+    expect(byKey['Erector Spinae']).toBe(assistColorFor(muscleGroupColors.legs));
   });
 
   it('lights every anatomical region of a catalog sub-muscle', () => {

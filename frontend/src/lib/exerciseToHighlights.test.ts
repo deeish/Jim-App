@@ -1,3 +1,4 @@
+import { PRIMARY_THRESHOLD } from './exerciseToHighlights';
 import {
   exerciseToHighlights,
   exerciseToTileHighlights,
@@ -10,6 +11,37 @@ const intensityOf = (
 ): number | undefined => result?.highlights.find((h) => h.region === region)?.intensity;
 
 describe('exerciseToHighlights', () => {
+  it('uses region-level involvement when the payload carries it', () => {
+    const result = exerciseToHighlights({
+      primaryMuscleGroup: 'Legs',
+      subMuscles: ['Hamstrings'],
+      secondaryMuscleGroups: ['Core'],
+      muscles: [
+        { region: 'Semitendinosus', role: 'primary', weight: 1 },
+        { region: 'Biceps Femoris', role: 'primary', weight: 0.6 },
+        { region: 'Lower Abs', role: 'secondary', weight: 0.2 },
+        { region: 'Not A Region', role: 'secondary', weight: 0.5 },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.view).toBe('back');
+    expect(intensityOf(result, 'Semitendinosus')).toBe(1);
+    expect(intensityOf(result, 'Biceps Femoris')).toBe(0.6);
+    expect(intensityOf(result, 'Biceps Femoris')!).toBeGreaterThanOrEqual(PRIMARY_THRESHOLD);
+    expect(intensityOf(result, 'Lower Abs')!).toBeLessThan(PRIMARY_THRESHOLD);
+    expect(intensityOf(result, 'Not A Region')).toBeUndefined();
+    // the whole-group fallback must not fire when regions are present
+    expect(intensityOf(result, 'Hamstrings')).toBeUndefined();
+    // tiles keep only the targets
+    const tile = exerciseToTileHighlights({ muscles: result!.highlights.map((h) => ({ region: h.region, role: h.intensity >= PRIMARY_THRESHOLD ? 'primary' : 'secondary', weight: h.intensity })) });
+    expect(tile!.highlights.map((h) => h.region).sort()).toEqual(['Biceps Femoris', 'Semitendinosus']);
+  });
+
+  it('falls back to the group mapping when involvement is empty', () => {
+    const result = exerciseToHighlights({ primaryMuscleGroup: 'Chest', subMuscles: ['Upper Chest'], secondaryMuscleGroups: [], muscles: [] });
+    expect(intensityOf(result, 'Upper Chest')).toBe(1);
+  });
+
   it('maps an incline press to upper chest with softer delts/triceps', () => {
     const result = exerciseToHighlights({
       primaryMuscleGroup: 'Chest',

@@ -6,7 +6,9 @@ import { BODY_MAP_REGIONS, BodyMapView } from '../components/bodymap/bodyMapPath
  */
 
 export interface MuscleHeatEntry {
-  /** Catalog sub-muscle ("Quads"). */
+  /** Anatomical region key on the figure ("Semitendinosus"); absent on older payloads. */
+  region?: string;
+  /** Catalog sub-muscle ("Quads"), or the region itself when it has none. */
   muscle: string;
   group: string;
   score: number;
@@ -34,22 +36,41 @@ export function hexWithAlpha(hex: string, alpha: number): string {
   return hex + a;
 }
 
+/**
+ * Entries keyed for lookup: by region key when the payload carries regions
+ * (the retag), and by catalog sub-muscle as the fallback (older payloads, or
+ * the strongest entry of a sub when a caller only knows the sub).
+ */
 export function heatByMuscle(heat: MuscleHeat | null): Map<string, MuscleHeatEntry> {
   const out = new Map<string, MuscleHeatEntry>();
   if (!heat) return out;
-  for (const m of heat.muscles) out.set(m.muscle, m);
+  for (const m of heat.muscles) {
+    if (m.region) out.set(m.region, m);
+    // Sub-level fallback keeps the hottest region of that muscle (entries arrive hottest first).
+    if (!out.has(m.muscle)) out.set(m.muscle, m);
+  }
   return out;
 }
 
+/** The entry for a figure region: its own, else its catalog sub-muscle's. */
+export function heatEntryForRegion(
+  entries: Map<string, MuscleHeatEntry>,
+  key: string,
+  sub: string | null,
+): MuscleHeatEntry | undefined {
+  return entries.get(key) ?? (sub ? entries.get(sub) : undefined);
+}
+
 /**
- * Fill alpha per region key on a view: the intensity of the region's catalog
- * sub-muscle, lifted to a visible floor; regions without heat get 0.
+ * Fill alpha per region key on a view: the region's own heat when the payload
+ * is region-level, else its catalog sub-muscle's, lifted to a visible floor;
+ * regions without heat get 0.
  */
 export function heatAlphaByRegion(view: BodyMapView, heat: MuscleHeat | null): Record<string, number> {
-  const byMuscle = heatByMuscle(heat);
+  const entries = heatByMuscle(heat);
   const out: Record<string, number> = {};
   for (const [key, region] of Object.entries(BODY_MAP_REGIONS[view])) {
-    const entry = region.sub ? byMuscle.get(region.sub) : undefined;
+    const entry = heatEntryForRegion(entries, key, region.sub);
     out[key] = entry ? Math.max(MIN_VISIBLE_ALPHA, Math.min(1, entry.intensity)) : 0;
   }
   return out;

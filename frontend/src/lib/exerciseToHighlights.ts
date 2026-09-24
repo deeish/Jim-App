@@ -16,18 +16,36 @@ import { BODY_MAP_HIGHLIGHT_NAMES, hasRegionOnView } from '../components/bodymap
  *   blank a row.
  */
 
+/**
+ * A highlight names a region key ("Semitendinosus") or a catalog sub-muscle
+ * ("Hamstrings"). Intensity >= PRIMARY_THRESHOLD is target work, drawn in the
+ * group hue (full at 1, lighter for emphasised-but-secondary heads); below it
+ * is assisting work, drawn as the pale wash.
+ */
 export type BodyMapHighlight = { region: string; intensity: number };
 export type ExerciseBodyMap = { highlights: BodyMapHighlight[]; view: BodyMapView };
+
+/** Region-level involvement as the backend serves it (see MuscleInvolvement in exerciseService). */
+export type BodyMappableInvolvement = {
+  region: string;
+  role: 'primary' | 'secondary';
+  weight: number;
+};
 
 /** Structural subset of Exercise this mapping needs (works for plan-day exercises too). */
 export type BodyMappableExercise = {
   primaryMuscleGroup?: string | null;
   subMuscles?: string[] | null;
   secondaryMuscleGroups?: string[] | null;
+  muscles?: BodyMappableInvolvement[] | null;
 };
 
 const PRIMARY_INTENSITY = 1;
 const SECONDARY_INTENSITY = 0.4;
+/** Highlights at or above this are targets; the retag's weakest primary emphasis is 0.6. */
+export const PRIMARY_THRESHOLD = 0.5;
+/** Secondaries from the retag are capped below the threshold so they always read as assists. */
+const SECONDARY_CAP = 0.45;
 
 // Region sets per muscle group — the group's sub-muscles, same vocabulary as
 // MUSCLE_HIERARCHY / the backend's SUB_MUSCLE_MAP. Cardio has no regions on
@@ -77,11 +95,35 @@ export function pickBodyMapView(highlights: BodyMapHighlight[]): BodyMapView {
 export function exerciseToTileHighlights(exercise: BodyMappableExercise): ExerciseBodyMap | null {
   const mapped = exerciseToHighlights(exercise);
   if (!mapped) return null;
-  const highlights = mapped.highlights.filter((h) => h.intensity >= PRIMARY_INTENSITY);
+  const highlights = mapped.highlights.filter((h) => h.intensity >= PRIMARY_THRESHOLD);
   return { highlights, view: pickBodyMapView(highlights) };
 }
 
+/**
+ * Region-level highlights from the backend's retag: primaries keep their
+ * emphasis weight (0.6–1), secondaries are scaled under the threshold so the
+ * renderer draws them as the assist wash. Unknown region names are skipped.
+ */
+function highlightsFromInvolvement(muscles: BodyMappableInvolvement[]): BodyMapHighlight[] {
+  const out: BodyMapHighlight[] = [];
+  for (const m of muscles) {
+    if (!KNOWN_REGIONS.has(m.region)) continue;
+    const intensity =
+      m.role === 'primary'
+        ? Math.max(PRIMARY_THRESHOLD, Math.min(1, m.weight))
+        : Math.min(SECONDARY_CAP, Math.max(0.15, m.weight * 0.9));
+    out.push({ region: m.region, intensity });
+  }
+  return out;
+}
+
 export function exerciseToHighlights(exercise: BodyMappableExercise): ExerciseBodyMap | null {
+  if (exercise.muscles && exercise.muscles.length > 0) {
+    const highlights = highlightsFromInvolvement(exercise.muscles);
+    if (highlights.some((h) => h.intensity >= PRIMARY_THRESHOLD)) {
+      return { highlights, view: pickBodyMapView(highlights) };
+    }
+  }
   const group = (exercise.primaryMuscleGroup ?? '').trim().toLowerCase();
   const namedRegions = (exercise.subMuscles ?? []).filter((m) => KNOWN_REGIONS.has(m));
   const primaries = namedRegions.length > 0 ? namedRegions : GROUP_DEFAULT_REGIONS[group] ?? [];

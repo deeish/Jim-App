@@ -28,6 +28,20 @@ describe('muscleHeat', () => {
     expect(b['Glute Max']).toBe(0);
   });
 
+  it('prefers a region-level entry over the sub-muscle fallback', () => {
+    const regional: MuscleHeat = {
+      ...heat,
+      muscles: [
+        { region: 'Semitendinosus', muscle: 'Hamstrings', group: 'Legs', score: 8, intensity: 0.55, sets: 8, assistSets: 0, lastTrainedAt: heat.muscles[0].lastTrainedAt },
+        { region: 'Biceps Femoris', muscle: 'Hamstrings', group: 'Legs', score: 4, intensity: 0.33, sets: 8, assistSets: 0, lastTrainedAt: heat.muscles[0].lastTrainedAt },
+      ],
+    };
+    const b = heatAlphaByRegion('back', regional);
+    expect(b['Semitendinosus']).toBeCloseTo(0.55);
+    expect(b['Biceps Femoris']).toBeCloseTo(0.33);
+    expect(b['Glute Max']).toBe(0);
+  });
+
   it('gives detail-only regions no heat', () => {
     const a = heatAlphaByRegion('front', heat);
     expect(a['Sartorius']).toBe(0);

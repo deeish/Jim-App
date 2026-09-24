@@ -791,9 +791,13 @@ export default function ExerciseDetailScreen({ navigation, route }: Props) {
   // Body-map hero: null for cardio/unknown metadata, in which case the section
   // keeps its tags-only layout (the disc stays the fallback mark).
   const bodyMap = exerciseToHighlights(exercise);
-  // The strongest highlight names the target the Muscles section opens on.
+  // The Muscles section opens on the muscle the exercise is named for: its
+  // first catalog sub-muscle (the explorer picks that muscle's main region),
+  // else the strongest highlighted region.
   const primaryMuscleName =
-    bodyMap?.highlights.find((h) => h.intensity >= 1)?.region ?? bodyMap?.highlights[0]?.region ?? null;
+    exercise.subMuscles?.[0] ??
+    bodyMap?.highlights.slice().sort((a, b) => b.intensity - a.intensity)[0]?.region ??
+    null;
   const openInMuscles = () => {
     if (!primaryMuscleName) return;
     const tabNav = getBottomTabNavigator(navigation);

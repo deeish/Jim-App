@@ -20,7 +20,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { getMuscleGroupVisual } from '../../constants/muscleGroupMeta';
 import { haptics } from '../../lib/haptics';
-import { describeHeat, heatAlphaByRegion, heatByMuscle, hexWithAlpha, MuscleHeat } from '../../lib/muscleHeat';
+import {
+  describeHeat,
+  heatAlphaByRegion,
+  heatByMuscle,
+  heatEntryForRegion,
+  hexWithAlpha,
+  MuscleHeat,
+} from '../../lib/muscleHeat';
 import { getMuscleHeat } from '../../services/workoutService';
 import { duration, easing, radius, spacing, text, useTheme, weight } from '../../theme';
 import { BODY_MAP_REGIONS, BodyMapView } from './bodyMapPaths';
@@ -466,7 +473,7 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
   );
 
   const showHint = layer === 'explore' && !everSelected && !zoomed;
-  const shownHeat = shown && shown.sub ? heatEntries.get(shown.sub) : undefined;
+  const shownHeat = shown ? heatEntryForRegion(heatEntries, shown.key, shown.sub) : undefined;
 
   return (
     <View style={styles.root}>
