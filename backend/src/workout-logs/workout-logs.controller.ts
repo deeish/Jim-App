@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   Get,
   Patch,
   Post,
@@ -19,6 +20,7 @@ import { LastPerformanceQueryDto } from './dto/last-performance-query.dto';
 import { PersonalBestsQueryDto } from './dto/personal-bests-query.dto';
 import { StatsQueryDto } from './dto/stats-query.dto';
 import { MuscleHeatQueryDto } from './dto/muscle-heat-query.dto';
+import { RecoveryNoteDto, RecoveryQueryDto } from './dto/recovery-note.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 
@@ -62,6 +64,36 @@ export class WorkoutLogsController {
   @Get('stats')
   getStats(@Query() query: StatsQueryDto, @UserId() userId: string) {
     return this.workoutLogsService.getStats(userId, query.months);
+  }
+
+  // Literal routes: must stay above the ':id' catch-all or they get shadowed.
+  @Get('recovery')
+  getMuscleRecovery(
+    @Query() query: RecoveryQueryDto,
+    @UserId() userId: string,
+  ) {
+    const ids = (query.exerciseIds ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+    return this.workoutLogsService.getMuscleRecovery(
+      userId,
+      ids.length ? ids : undefined,
+    );
+  }
+
+  @Post('recovery/notes')
+  setRecoveryNote(@Body() dto: RecoveryNoteDto, @UserId() userId: string) {
+    return this.workoutLogsService.setRecoveryNote(
+      userId,
+      dto.region,
+      dto.kind,
+    );
+  }
+
+  @Delete('recovery/notes/:region')
+  clearRecoveryNote(@Param('region') region: string, @UserId() userId: string) {
+    return this.workoutLogsService.clearRecoveryNote(userId, region);
   }
 
   // Literal route: must stay above the ':id' catch-all or it gets shadowed.

@@ -30,6 +30,7 @@ model User {
   savedWorkouts     SavedWorkout[]
   savedExercises    SavedExercise[]
   dislikedExercises DislikedExercise[]
+  muscleRecoveryNotes MuscleRecoveryNote[]
   bodyWeightEntries BodyWeightEntry[]
   shares            Share[]           @relation("SharesOwned")
   shareRedemptions  ShareRedemption[]
@@ -441,4 +442,24 @@ model BodyWeightEntry {
   @@map("body_weight_entries")
   @@unique([userId, dayKey])
   @@index([userId, loggedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Recovery corrections (2026-09-24): "Still sore" / "Feeling fine" per body-map
+// region, layered over the recovery estimate. One live note per user+region.
+// ---------------------------------------------------------------------------
+model MuscleRecoveryNote {
+  id        String   @id @default(uuid())
+  userId    String
+  /// Body-map region key ("Semitendinosus").
+  region    String
+  /// 'sore' pins the region to the top step and fades over 3 days; 'fine' clears it until the next session.
+  kind      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, region])
+  @@map("muscle_recovery_notes")
+  @@index([userId])
 }

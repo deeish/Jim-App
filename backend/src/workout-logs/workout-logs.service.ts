@@ -24,6 +24,11 @@ import {
   heatRangeStart,
   resolveHeatDays,
 } from './muscle-heat';
+import {
+  computeMuscleRecovery,
+  NOVELTY_LOOKBACK_DAYS,
+  type RecoveryNote,
+} from './muscle-recovery';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkoutsService } from '../workouts/workouts.service';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
@@ -90,6 +95,61 @@ export class WorkoutLogsService {
       now,
       resolvedDays,
     );
+  }
+
+  /**
+   * Recovery estimate per body-map region (see `muscle-recovery.ts`), with
+   * the user's live corrections applied. Fetches six weeks of logs so the
+   * novelty bump can tell a first-time exercise from a repeated one.
+   */
+  async getMuscleRecovery(userId: string, exerciseIdsToday?: string[]) {
+    const now = new Date();
+    const since = new Date(now.getTime() - NOVELTY_LOOKBACK_DAYS * 86_400_000);
+    const [logs, notes] = await Promise.all([
+      this.prisma.workoutLog.findMany({
+        where: { userId, startedAt: { gte: since } },
+        select: {
+          startedAt: true,
+          soreness: true,
+          entries: {
+            select: {
+              exerciseId: true,
+              completedSets: { select: { completed: true, rpe: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.muscleRecoveryNote.findMany({
+        where: { userId },
+        select: { region: true, kind: true, createdAt: true },
+      }),
+    ]);
+    return computeMuscleRecovery({
+      logs,
+      lookup: (id) => this.exercisesService.findOne(id),
+      notes: notes.filter(
+        (n): n is RecoveryNote => n.kind === 'sore' || n.kind === 'fine',
+      ),
+      now,
+      exerciseIdsToday,
+    });
+  }
+
+  /** "Still sore" / "Feeling fine" for a region: one live note per region, replaced on write. */
+  async setRecoveryNote(userId: string, region: string, kind: 'sore' | 'fine') {
+    await this.prisma.muscleRecoveryNote.upsert({
+      where: { userId_region: { userId, region } },
+      create: { userId, region, kind },
+      update: { kind, createdAt: new Date() },
+    });
+    return this.getMuscleRecovery(userId);
+  }
+
+  async clearRecoveryNote(userId: string, region: string) {
+    await this.prisma.muscleRecoveryNote.deleteMany({
+      where: { userId, region },
+    });
+    return this.getMuscleRecovery(userId);
   }
 
   async create(dto: CreateWorkoutLogDto, userId: string) {
