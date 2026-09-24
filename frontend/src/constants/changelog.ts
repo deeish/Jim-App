@@ -61,12 +61,31 @@ export const CHANGELOG: ChangelogEntry[] = [
   // no external tester has seen anything since 1.2.0 (32). So the 1.5.0 card
   // is that card plus everything from 2026-09-22 (GitHub issues #45 to #61),
   // under one id: the first release external testers get after 1.2.0.
+  //
+  // Build 1.5.0 (37) was internal only as well (Dylan's phone pass of
+  // 2026-09-24 found four things, fixed the same day). So 1.6.0 (38) folds
+  // in again: the Muscles section on the Exercises tab (the new body, zoom
+  // and tap-to-name, tap-through from an exercise page) and the Recovery
+  // layer (the estimate, the corrections, the Home card) join the card, and
+  // the id moves so the one phone that saw 1.5.0 sees the sheet again.
   {
-    id: '2026-09-22',
-    version: '1.5.0',
-    date: '2026-09-22',
+    id: '2026-09-24',
+    version: '1.6.0',
+    date: '2026-09-24',
     title: 'Plans built like a coach builds them',
     changes: [
+      {
+        type: 'new',
+        headline: 'Browse the body by muscle',
+        icon: 'body',
+        text: 'The Exercises tab has a Muscles view: a body you can pinch and drag, front and back. Tap a muscle to frame it and see what it is called, in plain words and the anatomical name, with a button to the exercises that train it. Every exercise page links to its muscle on the body.',
+      },
+      {
+        type: 'new',
+        headline: 'Recovery on the body',
+        icon: 'pulse',
+        text: 'Turn on Recovery in the Muscles view to see which muscles are still recovering from your last sessions, estimated from the sets you logged and how hard they were. Tap a muscle and tell Jim it feels fine or is still sore, and the estimate follows you. Before a workout, Home says when a muscle it trains is still recovering, so you can shoot for the range and go by feel.',
+      },
       {
         type: 'new',
         headline: 'A plan builder that asks the right questions',
