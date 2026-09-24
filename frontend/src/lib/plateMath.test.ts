@@ -4,7 +4,6 @@ import {
   MAX_PLATES_PER_SIDE,
   plateGeometry,
   platesFor,
-  stepWeight,
   totalFor,
 } from './plateMath';
 
@@ -18,17 +17,6 @@ describe('plateMath: weight without the mental math (#52)', () => {
     expect(isBarbellRow('Trap Bar')).toBe(false);
     expect(isBarbellRow('—')).toBe(false);
     expect(isBarbellRow(undefined)).toBe(false);
-  });
-
-  it('steps by 5 lb or 2.5 kg, snapping an odd number to the grid first, never below zero', () => {
-    expect(stepWeight(135, 1, 'lb')).toBe(140);
-    expect(stepWeight(135, -1, 'lb')).toBe(130);
-    expect(stepWeight(137, 1, 'lb')).toBe(140);
-    expect(stepWeight(137, -1, 'lb')).toBe(135);
-    expect(stepWeight(null, 1, 'lb')).toBe(5);
-    expect(stepWeight(2, -1, 'lb')).toBe(0);
-    expect(stepWeight(60, 1, 'kg')).toBe(62.5);
-    expect(stepWeight(61, -1, 'kg')).toBe(60);
   });
 
   it('computes the fewest plates a side, heaviest first, on the bar the user has', () => {

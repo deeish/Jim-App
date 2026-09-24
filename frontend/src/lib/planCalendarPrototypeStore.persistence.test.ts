@@ -1232,6 +1232,27 @@ describe('issue 57: correcting a set after Complete Workout', () => {
     expect(body.entries[1].sets[2]).toEqual({ setNumber: 3, reps: 12, completed: true });
   });
 
+  it('the set breakdown edits a set before Complete Workout with no PATCH, and a timed set keeps its unit', async () => {
+    const server = installServer(plan());
+    const store = await coldStart();
+    store.logSet(MONDAY_ISO, 0, { reps: '8', weight: '135 lb' });
+    store.logSet(MONDAY_ISO, 0, { reps: '45 sec', weight: '—' });
+    expect(store.editSetLog(MONDAY_ISO, 0, 0, { count: 10, weightLb: null })).toBe(true);
+    expect(store.editSetLog(MONDAY_ISO, 0, 1, { count: 60, weightLb: null })).toBe(true);
+    expect(store.editSetLog(MONDAY_ISO, 0, 5, { count: 10, weightLb: null })).toBe(false);
+    expect(store.getSetLogs(MONDAY_ISO, 0)).toEqual([
+      { reps: '10', weight: 'Bodyweight' },
+      { reps: '60 sec', weight: '—' },
+    ]);
+    expect(server.apiPatch).not.toHaveBeenCalled();
+    // Once the day is submitted the same door corrects the stored log.
+    store.finishDaySession(MONDAY_ISO);
+    await flush(20);
+    expect(store.editSetLog(MONDAY_ISO, 0, 0, { count: 9, weightLb: 135 })).toBe(true);
+    await flush();
+    expect(server.apiPatch.mock.calls.filter(([url]) => url === '/workout-logs/log-1/sets')).toHaveLength(1);
+  });
+
   it('a set logged before the finish posts corrected, with no PATCH at all', async () => {
     const server = installServer(plan());
     const store = await coldStart();

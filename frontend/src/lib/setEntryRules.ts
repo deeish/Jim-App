@@ -33,6 +33,28 @@ export function weightRequired(ctx: SetEntryContext): boolean {
   return ctx.plannedWeight !== 'Bodyweight';
 }
 
+/**
+ * Equipment that carries no load of its own: the row is a bodyweight row,
+ * so the weight box is optional and a blank logs as bodyweight. A dead hang
+ * on a pull-up bar used to read as a LOADED row (build 37), and the check
+ * refused it until a number was typed. Accepts the catalog's ids
+ * ('pull_up_bar') and the calendar's display text ('Pull up bar').
+ */
+export function isBodyweightEquipment(equipment: string | readonly string[] | undefined): boolean {
+  const list = Array.isArray(equipment) ? equipment : [equipment ?? ''];
+  const text = list
+    .join(' ')
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/body ?weight/g, '')
+    .trim();
+  // A row is loaded when anything on it can be loaded; a bar to hang from,
+  // a box, a mat or rings cannot.
+  return !/\b(barbell|dumbbell|kettlebell|machine|cable|band|plate|smith|sled|trap bar|ez bar|vest|belt|medicine ball|slam ball|sandbag|landmine|chain|weights?)\b/.test(
+    text,
+  );
+}
+
 export type SetEntryValidation = {
   ok: boolean;
   /** The first field that still needs a number, for the shake and the focus. */

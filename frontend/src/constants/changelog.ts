@@ -119,7 +119,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         type: 'new',
         headline: 'Correct a set after the workout',
         icon: 'create',
-        text: 'On the finish screen, open an exercise and tap any set to change its reps or weight. Your history, records and next week read the corrected number.',
+        text: 'In the set breakdown, and on the finish screen, tap any set to change its reps or weight. Your history, records and next week read the corrected number.',
       },
       {
         type: 'new',
@@ -131,7 +131,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         type: 'new',
         headline: 'Plates for the bar',
         icon: 'disc',
-        text: 'The weight box has minus and plus for five pound steps. On a barbell lift, a line under the inputs shows what to load on each side, and tapping it opens a bar you can build plate by plate.',
+        text: 'On a barbell lift, a line under the inputs shows what to load on each side, and tapping it opens a bar you can build plate by plate.',
       },
       {
         type: 'new',
@@ -143,7 +143,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         type: 'improved',
         headline: 'Every set needs its numbers',
         icon: 'checkmark-circle',
-        text: 'The check waits until reps are entered, and a weight on a loaded lift. A chip above the inputs fills both from last time or from the target in one tap. Bodyweight exercises take a blank weight as bodyweight.',
+        text: 'The check waits until reps are entered, and a weight on a loaded lift. A chip above the inputs fills both from last time or from the target in one tap. Bodyweight exercises take a blank weight as bodyweight, and a BW chip in the weight box logs any set at bodyweight.',
       },
       {
         type: 'improved',

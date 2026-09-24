@@ -19,28 +19,12 @@ export const BARS: Record<WeightUnit, readonly number[]> = {
   kg: [20, 15, 10],
 };
 
-/** The − / + step on the weight box. */
-export const WEIGHT_STEP: Record<WeightUnit, number> = { lb: 5, kg: 2.5 };
-
 /** A real sleeve holds about this many; past it the plate chips grey out. */
 export const MAX_PLATES_PER_SIDE = 8;
 
 /** Barbell only: an EZ bar, a Smith machine and a trap bar weigh anything, so the arithmetic would lie. */
 export function isBarbellRow(equipment: string | undefined): boolean {
   return /\bbarbell\b/i.test(equipment ?? '');
-}
-
-/** One step up or down, snapped to the step grid, never below zero. */
-export function stepWeight(value: number | null, direction: 1 | -1, unit: WeightUnit): number {
-  const step = WEIGHT_STEP[unit];
-  const base = value != null && Number.isFinite(value) ? value : 0;
-  const onGrid = Math.abs(base / step - Math.round(base / step)) < 1e-9;
-  const next = onGrid
-    ? base + direction * step
-    : direction > 0
-      ? Math.ceil(base / step) * step
-      : Math.floor(base / step) * step;
-  return Math.max(0, Math.round(next * 100) / 100);
 }
 
 export type PlateLoad = {

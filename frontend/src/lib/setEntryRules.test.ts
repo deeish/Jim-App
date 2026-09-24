@@ -1,4 +1,5 @@
 import {
+  isBodyweightEquipment,
   plannedRepsNumber,
   plannedWeightNumber,
   suggestedEntry,
@@ -40,6 +41,27 @@ describe('setEntryRules: what a set needs before the check logs it (#56)', () =>
       ok: false,
       missing: 'weight',
     });
+  });
+
+  it('a bar to hang from, a box or rings make a bodyweight row; anything loadable makes a loaded one', () => {
+    // Build 37: a dead hang on a pull-up bar read as loaded, so the check
+    // refused the set until a number was typed.
+    expect(isBodyweightEquipment(['pull_up_bar'])).toBe(true);
+    expect(isBodyweightEquipment('Pull up bar')).toBe(true);
+    expect(isBodyweightEquipment('Pull-Up Bar')).toBe(true);
+    expect(isBodyweightEquipment('Dip station')).toBe(true);
+    expect(isBodyweightEquipment('Gymnastic rings')).toBe(true);
+    expect(isBodyweightEquipment('Box')).toBe(true);
+    expect(isBodyweightEquipment('Bodyweight')).toBe(true);
+    expect(isBodyweightEquipment('—')).toBe(true);
+    expect(isBodyweightEquipment([])).toBe(true);
+    expect(isBodyweightEquipment(undefined)).toBe(true);
+    expect(isBodyweightEquipment('Barbell + Bench')).toBe(false);
+    expect(isBodyweightEquipment(['dumbbell', 'mat'])).toBe(false);
+    expect(isBodyweightEquipment('Cable machine')).toBe(false);
+    expect(isBodyweightEquipment('Pull up bar + Dip belt')).toBe(false);
+    expect(isBodyweightEquipment('Kettlebell')).toBe(false);
+    expect(isBodyweightEquipment('Resistance band')).toBe(false);
   });
 
   it('a bodyweight row (dead hang, pull-up) takes a blank weight, and a number as added load', () => {

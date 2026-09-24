@@ -29,6 +29,7 @@
 
 import { aimRepsInBand } from './formatExerciseRepsDisplay';
 import { roundLb } from './weightDisplay';
+import { isBodyweightEquipment } from './setEntryRules';
 import { formatRestClock } from './exercisePrescription';
 import {
   WEEKDAYS,
@@ -850,8 +851,7 @@ function toPlannedExercise(ex: ApiPlanExercise, slot: ApiPlanWorkout): PlannedEx
   // An unloaded slot is only "Bodyweight" when the movement actually is (same
   // rule as plannedExerciseFromCatalog) — an unweighted barbell slot reads '—'
   // until a weight exists. No meta yet keeps the bodyweight default.
-  const bodyweightOnly =
-    meta == null || meta.equipment === '—' || /bodyweight/i.test(meta.equipment);
+  const bodyweightOnly = meta == null || isBodyweightEquipment(meta.equipment);
   return {
     name,
     exerciseId: ex.exerciseId ?? undefined,
@@ -1114,9 +1114,7 @@ export function plannedExerciseFromCatalog(
     catalog.name,
   );
   const isCardio = muscle === 'Cardio';
-  const equipmentText = (catalog.equipment ?? []).join(' ').toLowerCase();
-  const bodyweightOnly =
-    (catalog.equipment ?? []).length === 0 || equipmentText.includes('bodyweight');
+  const bodyweightOnly = isBodyweightEquipment(catalog.equipment);
   const inheritedWeight =
     inherit && inherit.weight !== 'Bodyweight' && inherit.weight !== '—'
       ? inherit.weight
@@ -2274,6 +2272,38 @@ export function editLoggedSet(
     emit();
   }
   return changed;
+}
+
+/**
+ * Correct a set from the workout screen's set breakdown (GitHub #57, the
+ * place the issue named). Before the day is submitted the set exists only
+ * here, so the edit touches the local log alone, whatever else the day
+ * holds on the server (a session finished earlier today must not take this
+ * one's correction). After submission it is a correction of the stored log,
+ * with the one-log-per-day rule that path already has.
+ */
+export function editSetLog(
+  dateIso: string,
+  exerciseIndex: number,
+  setIndex: number,
+  patch: SetEditPatch,
+): boolean {
+  if (isDayLogged(dateIso)) return editLoggedSet(dateIso, exerciseIndex, setIndex, patch);
+  const key = slotKey(dateIso, exerciseIndex);
+  const local = setLogs.get(key);
+  const prev = local?.[setIndex];
+  if (!local || !prev) return false;
+  const count = Math.max(0, Math.round(patch.count));
+  const weightLb = patch.weightLb != null && patch.weightLb > 0 ? roundLb(patch.weightLb) : null;
+  const unit = prev.reps.match(/(min|sec)/i)?.[1];
+  const next: SetLog = {
+    reps: unit ? `${count} ${unit.toLowerCase()}` : String(count),
+    weight: weightLb != null ? `${weightLb} lb` : prev.weight.match(/lb/i) ? 'Bodyweight' : prev.weight,
+  };
+  setLogs.set(key, local.map((l, i) => (i === setIndex ? next : l)));
+  scheduleSessionSave();
+  emit();
+  return true;
 }
 
 /** This day is finished here but its log has not reached the server yet. */

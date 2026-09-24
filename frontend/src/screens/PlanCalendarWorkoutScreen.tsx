@@ -61,6 +61,7 @@ import {
 import {
   canMoveDay,
   dayHasLocalLogs,
+  editSetLog,
   finishDaySession,
   getSetLogs,
   isDayFullyLogged,
@@ -81,7 +82,7 @@ import {
   weightRequired,
 } from '../lib/setEntryRules';
 import PlateSheet from '../components/PlateSheet';
-import { BARS, formatEachSide, isBarbellRow, platesFor, stepWeight } from '../lib/plateMath';
+import { BARS, formatEachSide, isBarbellRow, platesFor } from '../lib/plateMath';
 import HoldStopwatch from '../components/HoldStopwatch';
 import { playRestBeep } from '../lib/restBeep';
 import {
@@ -495,6 +496,34 @@ export default function PlanCalendarWorkoutScreen() {
   const daySkipsKnown = dayHasLocalLogs(dateIso);
   const showGrid = allDone || dayLogged;
 
+  // Correct a logged set from the breakdown (GitHub #57): tap a card, change
+  // its numbers, save. Before Complete Workout the edit is local; after it,
+  // the stored log takes it too (store editSetLog).
+  const [editingSet, setEditingSet] = useState<number | null>(null);
+  const [editCount, setEditCount] = useState('');
+  const [editWeight, setEditWeight] = useState('');
+  const openSetEditor = (index: number, log: SetLog) => {
+    buzzTap();
+    const timed = /(min|sec)/i.test(log.reps);
+    setEditCount(String(parseInt(log.reps, 10) || ''));
+    const lbMatch = log.weight.match(/([\d.]+)\s*lb/i);
+    setEditWeight(
+      lbMatch && !timed
+        ? String(Math.round(unit === 'kg' ? lbToKg(Number(lbMatch[1])) : Number(lbMatch[1])))
+        : '',
+    );
+    setEditingSet(index);
+  };
+  const saveSetEditor = () => {
+    if (editingSet == null) return;
+    const count = Number(editCount.trim());
+    if (!Number.isFinite(count) || count <= 0) return;
+    const w = editWeight.trim() === '' ? null : Number(editWeight.trim());
+    const weightLb = w != null && Number.isFinite(w) && w > 0 ? (unit === 'kg' ? kgToLb(w) : w) : null;
+    if (editSetLog(dateIso, exerciseIndex, editingSet, { count, weightLb })) buzzEditApplied();
+    setEditingSet(null);
+  };
+
   // No per-exercise celebration: the round-13 CompletionBurst was removed
   // (Dylan, 2026-08-18) — a WORKOUT-finish celebration will replace it later;
   // resurrect the burst component from git history (commit 1f33f34's parent)
@@ -644,12 +673,33 @@ export default function PlanCalendarWorkoutScreen() {
             const log: SetLog | undefined = logs[i];
             const done = log != null || !daySkipsKnown;
             const repsText = log?.reps ?? exercise.reps;
+            const canEdit = log != null;
+            const isEditing = editingSet === i;
             return (
-              <View key={i} style={[styles.gridCard, !done && styles.gridCardSkipped]}>
+              <TouchableOpacity
+                key={i}
+                style={[
+                  styles.gridCard,
+                  !done && styles.gridCardSkipped,
+                  isEditing && styles.gridCardEditing,
+                ]}
+                disabled={!canEdit}
+                activeOpacity={0.7}
+                onPress={() => (isEditing ? setEditingSet(null) : openSetEditor(i, log!))}
+                accessibilityRole={canEdit ? 'button' : 'text'}
+                accessibilityLabel={`Set ${i + 1}: ${repsText}, ${
+                  done ? displayWeight(log?.weight ?? exercise.weight, unit) : 'not logged'
+                }`}
+                accessibilityHint={canEdit ? 'Change this set' : undefined}
+              >
                 <View style={styles.gridCardHeader}>
                   <Text style={styles.gridCardTitle}>SET {i + 1}</Text>
                   {done ? (
-                    <Ionicons name="checkmark-circle" size={16} color={GOLD} />
+                    <Ionicons
+                      name={canEdit ? 'create-outline' : 'checkmark-circle'}
+                      size={16}
+                      color={canEdit ? colors.textMuted : GOLD}
+                    />
                   ) : (
                     <Ionicons name="remove-circle-outline" size={16} color={colors.textMuted} />
                   )}
@@ -660,10 +710,70 @@ export default function PlanCalendarWorkoutScreen() {
                 <Text style={styles.gridCardWeight}>
                   {done ? displayWeight(log?.weight ?? exercise.weight, unit) : 'Not logged'}
                 </Text>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
+        {logs.length > 0 && editingSet == null && (
+          <Text style={styles.editHint}>Tap a set to change it</Text>
+        )}
+        {editingSet != null && logs[editingSet] && (
+          <View style={styles.editCard}>
+            <Text style={styles.editLabel}>{`SET ${editingSet + 1}`}</Text>
+            <View style={styles.editInputs}>
+              <View style={styles.editField}>
+                <Text style={styles.editFieldLabel}>
+                  {/(min|sec)/i.test(logs[editingSet]!.reps)
+                    ? `TIME (${logs[editingSet]!.reps.match(/(min|sec)/i)![1]!.toUpperCase()})`
+                    : 'REPS'}
+                </Text>
+                <TextInput
+                  style={styles.editInput}
+                  value={editCount}
+                  onChangeText={setEditCount}
+                  keyboardType="number-pad"
+                  maxLength={5}
+                  autoFocus
+                  selectTextOnFocus
+                  accessibilityLabel={/(min|sec)/i.test(logs[editingSet]!.reps) ? 'Time' : 'Reps'}
+                />
+              </View>
+              {!/(min|sec)/i.test(logs[editingSet]!.reps) && (
+                <View style={styles.editField}>
+                  <Text style={styles.editFieldLabel}>{`WEIGHT (${unit.toUpperCase()})`}</Text>
+                  <TextInput
+                    style={styles.editInput}
+                    value={editWeight}
+                    onChangeText={setEditWeight}
+                    keyboardType="decimal-pad"
+                    maxLength={6}
+                    placeholder="BW"
+                    placeholderTextColor={colors.textMuted}
+                    accessibilityLabel={`Weight in ${unit}`}
+                  />
+                </View>
+              )}
+            </View>
+            <View style={styles.editButtons}>
+              <TouchableOpacity
+                style={styles.editCancel}
+                onPress={() => setEditingSet(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+              >
+                <Text style={styles.editCancelLabel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.editSave}
+                onPress={saveSetEditor}
+                accessibilityRole="button"
+                accessibilityLabel="Save set"
+              >
+                <Text style={styles.editSaveLabel}>Save set</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
         {/* One more beyond the prescription — hidden once the day's log is
             submitted (write-once: a set logged after submission could never
             reach the server record). */}
@@ -828,6 +938,10 @@ function SetDeck({
 }) {
   const [reps, setReps] = useState('');
   const [weightIn, setWeightIn] = useState('');
+  // The BW chip: this set is at bodyweight on a row that normally carries a
+  // load (a dead hang the plan wrote as a loaded row, a pull-up day without
+  // the belt). Typing a number takes it back off.
+  const [bodyweight, setBodyweight] = useState(false);
   const busy = useRef(false);
   const repsRef = useRef<TextInput>(null);
   const weightRef = useRef<TextInput>(null);
@@ -841,6 +955,7 @@ function SetDeck({
   useEffect(() => {
     setReps('');
     setWeightIn('');
+    setBodyweight(false);
     setHold(null);
     busy.current = false;
     cardX.value = 0;
@@ -883,7 +998,7 @@ function SetDeck({
   // What this set needs before the check logs it (lib/setEntryRules.ts,
   // GitHub #56): reps always, weight only on a loaded row. A blank weight
   // on a bodyweight row logs as bodyweight; a number there is added load.
-  const entryCtx = {
+  const rowCtx = {
     plannedWeight: exercise.weight,
     plannedReps: exercise.reps,
     muscle: exercise.muscle,
@@ -891,14 +1006,18 @@ function SetDeck({
     lastSet: lastSet ? { reps: lastSet.reps, weightLb: lastSet.weightLb } : null,
     unit,
   };
-  const entry = validateSetEntry(entryCtx, reps, weightIn);
-  const suggestion = suggestedEntry(entryCtx);
+  // A loaded row offers the BW chip; with it on, the set validates and logs
+  // as a bodyweight set.
+  const loadedRow = weightRequired(rowCtx);
+  const entryCtx = bodyweight ? { ...rowCtx, plannedWeight: 'Bodyweight' } : rowCtx;
+  const entry = validateSetEntry(entryCtx, reps, bodyweight ? '' : weightIn);
+  const suggestion = suggestedEntry(rowCtx);
   const askWeight = weightRequired(entryCtx);
 
   // Weight without the mental math (GitHub #52, lib/plateMath.ts). The box's
   // effective weight is what the check would log: typed, else last time's,
-  // else the plan's. The − / + step it on every loaded row; a barbell row
-  // also reads its plates off it, and the sheet is a bar you build.
+  // else the plan's. A barbell row reads its plates off it, and the sheet
+  // is a bar you build.
   const typedWeight = Number(weightIn.trim());
   const boxWeight: number | null =
     weightIn.trim() !== '' && Number.isFinite(typedWeight) && typedWeight > 0
@@ -906,12 +1025,6 @@ function SetDeck({
       : lastSet?.weightLb != null
         ? Math.round(unit === 'kg' ? lbToKg(lastSet.weightLb) : lastSet.weightLb)
         : plannedWeightNumber(exercise.weight, unit);
-  const stepBy = (direction: 1 | -1) => {
-    buzzTap();
-    const next = stepWeight(boxWeight, direction, unit);
-    // Down to nothing is an empty box, not a "0" the check would refuse.
-    setWeightIn(next > 0 ? String(next) : '');
-  };
   const barbell = !timedUnit && isBarbellRow(exercise.equipment);
   // The bar the user picked in the sheet is remembered for this exercise,
   // so the card's line and the sheet agree (a 35 lb bar reads 35 here too).
@@ -983,7 +1096,7 @@ function SetDeck({
       weight:
         entry.weight != null
           ? `${roundLb(unit === 'kg' ? kgToLb(entry.weight) : entry.weight)} lb`
-          : exercise.weight === 'Bodyweight' || askWeight
+          : bodyweight || exercise.weight === 'Bodyweight' || askWeight
             ? 'Bodyweight'
             : exercise.weight,
     };
@@ -1108,46 +1221,49 @@ function SetDeck({
           </View>
           <View style={styles.inputBox}>
             <Text style={styles.inputLabel}>
-              WEIGHT ({unit.toUpperCase()}){askWeight ? '' : ' · OPTIONAL'}
+              {bodyweight
+                ? 'BODYWEIGHT'
+                : `WEIGHT (${unit.toUpperCase()})${askWeight ? '' : ' · OPTIONAL'}`}
             </Text>
-            <View style={styles.stepRow}>
-              {askWeight && (
-                <TouchableOpacity
-                  style={styles.stepButton}
-                  onPress={() => stepBy(-1)}
-                  hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${unit === 'kg' ? '2.5 kilograms' : '5 pounds'} less`}
-                >
-                  <Ionicons name="remove" size={18} color={colors.textSecondary} />
-                </TouchableOpacity>
-              )}
+            <View style={styles.weightRow}>
               <TextInput
                 ref={weightRef}
-                style={[styles.input, askWeight && styles.inputStepped]}
+                style={[styles.input, loadedRow && styles.inputWithChip]}
                 accessibilityLabel={`Weight in ${unit}`}
-                value={weightIn}
-                onChangeText={setWeightIn}
+                value={bodyweight ? '' : weightIn}
+                onChangeText={(t) => {
+                  setBodyweight(false);
+                  setWeightIn(t);
+                }}
                 placeholder={
-                  lastSet?.weightLb != null
-                    ? String(
-                        Math.round(unit === 'kg' ? lbToKg(lastSet.weightLb) : lastSet.weightLb),
-                      )
-                    : weightInputPlaceholder(exercise.weight, unit)
+                  bodyweight
+                    ? 'BW'
+                    : lastSet?.weightLb != null
+                      ? String(
+                          Math.round(unit === 'kg' ? lbToKg(lastSet.weightLb) : lastSet.weightLb),
+                        )
+                      : weightInputPlaceholder(exercise.weight, unit)
                 }
                 placeholderTextColor={colors.textMuted}
                 keyboardType="decimal-pad"
                 maxLength={6}
               />
-              {askWeight && (
+              {loadedRow && (
+                // One tap past a weight box that has nothing to hold: a set
+                // done at bodyweight on a row the plan wrote as loaded.
                 <TouchableOpacity
-                  style={styles.stepButton}
-                  onPress={() => stepBy(1)}
+                  style={[styles.bwChip, bodyweight && styles.bwChipOn]}
+                  onPress={() => {
+                    buzzTap();
+                    setBodyweight((b) => !b);
+                    if (!bodyweight) weightRef.current?.blur();
+                  }}
                   hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${unit === 'kg' ? '2.5 kilograms' : '5 pounds'} more`}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: bodyweight }}
+                  accessibilityLabel="Bodyweight, no added weight"
                 >
-                  <Ionicons name="add" size={18} color={colors.textSecondary} />
+                  <Text style={[styles.bwChipText, bodyweight && styles.bwChipTextOn]}>BW</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -1534,22 +1650,39 @@ function createStyles(c: ColorPalette) {
       gap: spacing.sm,
       marginTop: spacing.md,
     },
-    stepRow: {
+    weightRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       alignSelf: 'stretch',
+      gap: spacing.xs,
     },
-    stepButton: {
-      width: 32,
-      height: 36,
+    inputWithChip: {
+      minWidth: 56,
+      flexShrink: 1,
+    },
+    bwChip: {
+      height: 28,
+      paddingHorizontal: spacing.sm,
       borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: c.border,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    inputStepped: {
-      minWidth: 56,
-      flexShrink: 1,
+    bwChipOn: {
+      backgroundColor: c.primary,
+      borderColor: c.primary,
+    },
+    bwChipText: {
+      ...sfPro,
+      fontSize: text.caption,
+      fontWeight: weight.bold,
+      letterSpacing: tracking.wider,
+      color: c.textSecondary,
+    },
+    bwChipTextOn: {
+      color: c.onPrimary,
     },
     plateLine: {
       flexDirection: 'row',
@@ -1638,6 +1771,91 @@ function createStyles(c: ColorPalette) {
     },
     gridCardRepsSkipped: {
       color: c.textMuted,
+    },
+    gridCardEditing: {
+      borderColor: c.primary,
+    },
+    // The breakdown's inline set editor (#57), the finish screen's twin.
+    editHint: {
+      ...sfPro,
+      fontSize: text.caption,
+      color: c.textMuted,
+      marginTop: spacing.sm,
+    },
+    editCard: {
+      marginTop: spacing.sm,
+      padding: spacing.md,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: c.primary,
+      backgroundColor: c.surface,
+      gap: spacing.sm,
+    },
+    editLabel: {
+      ...sfPro,
+      fontSize: text.caption,
+      fontWeight: weight.bold,
+      letterSpacing: tracking.wider,
+      color: c.textSecondary,
+    },
+    editInputs: {
+      flexDirection: 'row',
+      gap: spacing.md,
+    },
+    editField: {
+      flex: 1,
+      gap: 5,
+    },
+    editFieldLabel: {
+      ...sfPro,
+      fontSize: text.caption,
+      fontWeight: weight.bold,
+      letterSpacing: tracking.wider,
+      color: c.textMuted,
+    },
+    editInput: {
+      ...sfPro,
+      height: 44,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.background,
+      color: c.text,
+      fontSize: text.title,
+      fontWeight: weight.semibold,
+      paddingHorizontal: spacing.sm + 4,
+    },
+    editButtons: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    editCancel: {
+      height: 40,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: c.border,
+      justifyContent: 'center',
+    },
+    editCancelLabel: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: weight.semibold,
+      color: c.textSecondary,
+    },
+    editSave: {
+      height: 40,
+      paddingHorizontal: spacing.lg,
+      borderRadius: radius.pill,
+      backgroundColor: c.primary,
+      justifyContent: 'center',
+    },
+    editSaveLabel: {
+      ...sfPro,
+      fontSize: text.callout,
+      fontWeight: weight.bold,
+      color: c.onPrimary,
     },
     gridCardHeader: {
       flexDirection: 'row',
