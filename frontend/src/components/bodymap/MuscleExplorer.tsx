@@ -19,6 +19,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { getMuscleGroupVisual } from '../../constants/muscleGroupMeta';
 import { haptics } from '../../lib/haptics';
+import { describeHeat, heatAlphaByRegion, heatByMuscle, hexWithAlpha, MuscleHeat } from '../../lib/muscleHeat';
+import { getMuscleHeat } from '../../services/workoutService';
 import { duration, easing, radius, spacing, text, useTheme, weight } from '../../theme';
 import { BODY_MAP_REGIONS, BodyMapView } from './bodyMapPaths';
 import { primaryRegionFor } from './bodyMapRegions';
@@ -60,6 +62,11 @@ const FRAME_MS = 340;
 const SHEET_ESTIMATE_PX = 150;
 /** Sibling heads wear the hue at ~38% alpha (8-digit hex). */
 const SIBLING_ALPHA = '61';
+/** "This week" window the trained layer asks the backend for. */
+const HEAT_DAYS = 7;
+
+type Layer = 'explore' | 'trained';
+type HeatStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 type Props = {
   /** "Exercises for Quads": the host applies the filter and switches to the list. */
@@ -84,6 +91,40 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
   const [stage, setStage] = useState({ width: 0, height: 0 });
   const [zoomed, setZoomed] = useState(false);
   const [everSelected, setEverSelected] = useState(false);
+  // "Trained this week" layer: fetched the first time it is switched on.
+  const [layer, setLayer] = useState<Layer>('explore');
+  const [heat, setHeat] = useState<MuscleHeat | null>(null);
+  const [heatStatus, setHeatStatus] = useState<HeatStatus>('idle');
+  // One request per mount, started the first time the layer is switched on.
+  // A response that lands after the layer was switched off is still kept
+  // (the component is alive; switching back must not refetch). Only unmount
+  // drops it.
+  const heatRequested = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (layer !== 'trained' || heatRequested.current) return;
+    heatRequested.current = true;
+    setHeatStatus('loading');
+    getMuscleHeat(HEAT_DAYS)
+      .then((data) => {
+        if (!mounted.current) return;
+        setHeat(data);
+        setHeatStatus('ready');
+      })
+      .catch(() => {
+        if (!mounted.current) return;
+        // Allow a retry on the next switch-on.
+        heatRequested.current = false;
+        setHeatStatus('error');
+      });
+  }, [layer]);
+  const heatEntries = useMemo(() => heatByMuscle(heat), [heat]);
   const sheetHeightRef = useRef(SHEET_ESTIMATE_PX);
   // The sheet keeps its last content while sliding out (no blank card mid-slide),
   // which also means its measured height is the real one from the first open on.
@@ -255,12 +296,31 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
 
   const fills = useMemo(() => {
     const out: Record<string, string> = {};
+    const regions = BODY_MAP_REGIONS[view];
+    if (layer === 'trained') {
+      // Every region wears its own group hue at the strength it was trained;
+      // the selected one goes solid so the tap still reads.
+      const alpha = heatAlphaByRegion(view, heat);
+      for (const [key, region] of Object.entries(regions)) {
+        const groupHue = getMuscleGroupVisual(region.group).color;
+        out[key] = key === selectedKey ? groupHue : alpha[key] > 0 ? hexWithAlpha(groupHue, alpha[key]) : colors.bodyMapQuiet;
+      }
+      return out;
+    }
     const sibs = new Set(siblings);
-    for (const key of Object.keys(BODY_MAP_REGIONS[view])) {
+    for (const key of Object.keys(regions)) {
       out[key] = key === selectedKey ? hue : sibs.has(key) ? hue + SIBLING_ALPHA : colors.bodyMapQuiet;
     }
     return out;
-  }, [view, selectedKey, siblings, hue, colors.bodyMapQuiet]);
+  }, [view, layer, heat, selectedKey, siblings, hue, colors.bodyMapQuiet]);
+
+  const heatCaption = useMemo(() => {
+    if (layer !== 'trained') return null;
+    if (heatStatus === 'loading' || heatStatus === 'idle') return 'Loading your week…';
+    if (heatStatus === 'error') return "Couldn't load your week. Try again later.";
+    if (!heat || heat.muscles.length === 0) return `Nothing logged in the last ${HEAT_DAYS} days`;
+    return null;
+  }, [layer, heatStatus, heat]);
 
   // Readout sheet slides in from below; its measured height feeds the framing.
   const sheetY = useSharedValue(400);
@@ -289,10 +349,15 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
         root: { flex: 1, backgroundColor: colors.bodyMapTileBg },
         passThrough: { pointerEvents: 'none' },
         stage: { flex: 1, overflow: 'hidden' },
+        controls: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.sm,
+          paddingBottom: spacing.xs,
+        },
         sideSeg: {
-          position: 'absolute',
-          top: spacing.md,
-          left: spacing.lg,
           flexDirection: 'row',
           borderRadius: radius.md,
           borderWidth: 1,
@@ -304,10 +369,8 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
         sideBtnActive: { backgroundColor: colors.primary },
         sideText: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.textSecondary },
         sideTextActive: { color: colors.onPrimary },
+        resetSlot: { flex: 1, alignItems: 'center' },
         reset: {
-          position: 'absolute',
-          top: spacing.md,
-          right: spacing.lg,
           paddingVertical: spacing.xs + 2,
           paddingHorizontal: spacing.md,
           borderRadius: radius.pill,
@@ -346,6 +409,8 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
         names: { flex: 1, minWidth: 0 },
         plain: { fontSize: text.headline, fontWeight: weight.bold, color: colors.text },
         anatomical: { fontSize: text.footnote, color: colors.textSecondary, fontStyle: 'italic', marginTop: 1 },
+        heatLine: { fontSize: text.footnote, color: colors.textSecondary, marginTop: 2 },
+        heatLineHot: { color: colors.text, fontWeight: weight.semibold },
         hintText: { fontStyle: 'normal', color: colors.textTertiary },
         groupPill: {
           paddingVertical: spacing.xs,
@@ -384,10 +449,55 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
     [colors, bottomInset],
   );
 
-  const showHint = !everSelected && !zoomed;
+  const showHint = layer === 'explore' && !everSelected && !zoomed;
+  const shownHeat = shown && shown.sub ? heatEntries.get(shown.sub) : undefined;
 
   return (
     <View style={styles.root}>
+      {/* Front / Back on the left, the layer on the right; the page header stays the host's. */}
+      <View style={styles.controls}>
+        <View style={styles.sideSeg} accessibilityRole="tablist">
+          {(['front', 'back'] as BodyMapView[]).map((v) => (
+            <Pressable
+              key={v}
+              onPress={() => switchView(v)}
+              style={[styles.sideBtn, view === v && styles.sideBtnActive]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: view === v }}
+            >
+              <Text style={[styles.sideText, view === v && styles.sideTextActive]}>
+                {v === 'front' ? 'Front' : 'Back'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        {/* Reset lives between the two switches so it never covers either. */}
+        <View style={styles.resetSlot}>
+          {zoomed && (
+            <Pressable onPress={() => select(null)} style={styles.reset} accessibilityRole="button">
+              <Text style={styles.resetText}>Reset</Text>
+            </Pressable>
+          )}
+        </View>
+        <View style={styles.sideSeg} accessibilityRole="tablist">
+          {(
+            [
+              ['explore', 'Explore'],
+              ['trained', 'This week'],
+            ] as [Layer, string][]
+          ).map(([l, label]) => (
+            <Pressable
+              key={l}
+              onPress={() => setLayer(l)}
+              style={[styles.sideBtn, layer === l && styles.sideBtnActive]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: layer === l }}
+            >
+              <Text style={[styles.sideText, layer === l && styles.sideTextActive]}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
       <GestureDetector gesture={gesture}>
         <Animated.View style={styles.stage} onLayout={onStageLayout} collapsable={false}>
           {stage.width > 0 && stage.height > 0 && (
@@ -409,33 +519,13 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
         </Animated.View>
       </GestureDetector>
 
-      {/* Front / Back, on the figure so the page header stays the host's. */}
-      <View style={styles.sideSeg} accessibilityRole="tablist">
-        {(['front', 'back'] as BodyMapView[]).map((v) => (
-          <Pressable
-            key={v}
-            onPress={() => switchView(v)}
-            style={[styles.sideBtn, view === v && styles.sideBtnActive]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: view === v }}
-          >
-            <Text style={[styles.sideText, view === v && styles.sideTextActive]}>
-              {v === 'front' ? 'Front' : 'Back'}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {zoomed && (
-        <Pressable onPress={() => select(null)} style={styles.reset} accessibilityRole="button">
-          <Text style={styles.resetText}>Reset</Text>
-        </Pressable>
-      )}
-
       {showHint && (
         <Text style={[styles.hint, styles.passThrough]}>
           Tap a muscle to see what it's called and the exercises that train it
         </Text>
+      )}
+      {heatCaption && !sheetOpen && (
+        <Text style={[styles.hint, styles.passThrough]}>{heatCaption}</Text>
       )}
 
       <Animated.View
@@ -457,6 +547,11 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
                   {shown.anatomical}
                   {shown.hint ? <Text style={styles.hintText}> · {shown.hint}</Text> : null}
                 </Text>
+                {layer === 'trained' && heatStatus === 'ready' && shown.sub && (
+                  <Text style={[styles.heatLine, shownHeat && styles.heatLineHot]} numberOfLines={1}>
+                    {describeHeat(shownHeat, heat?.days ?? HEAT_DAYS, new Date())}
+                  </Text>
+                )}
               </View>
               <View style={styles.groupPill}>
                 <Text style={styles.groupText}>
