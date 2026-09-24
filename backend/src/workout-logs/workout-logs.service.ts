@@ -18,6 +18,12 @@ import {
 } from '../plans/load-from-history';
 import { CheckInDto } from './dto/check-in.dto';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ExercisesService } from '../exercises/exercises.service';
+import {
+  computeMuscleHeat,
+  heatRangeStart,
+  resolveHeatDays,
+} from './muscle-heat';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkoutsService } from '../workouts/workouts.service';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
@@ -55,7 +61,36 @@ export class WorkoutLogsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly workoutsService: WorkoutsService,
+    private readonly exercisesService: ExercisesService,
   ) {}
+
+  /**
+   * "Trained this week" for the body map: per catalog sub-muscle, decayed
+   * set-equivalents over the last `days` days (see `muscle-heat.ts`).
+   * Exercises no longer in the catalog contribute nothing.
+   */
+  async getMuscleHeat(userId: string, days?: number) {
+    const resolvedDays = resolveHeatDays(days);
+    const now = new Date();
+    const logs = await this.prisma.workoutLog.findMany({
+      where: { userId, startedAt: { gte: heatRangeStart(resolvedDays, now) } },
+      select: {
+        startedAt: true,
+        entries: {
+          select: {
+            exerciseId: true,
+            completedSets: { select: { completed: true } },
+          },
+        },
+      },
+    });
+    return computeMuscleHeat(
+      logs,
+      (id) => this.exercisesService.findOne(id),
+      now,
+      resolvedDays,
+    );
+  }
 
   async create(dto: CreateWorkoutLogDto, userId: string) {
     // Throws NotFoundException if the workout doesn't exist or the user can't access it

@@ -5,6 +5,7 @@ import {
 } from './workout-logs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkoutsService } from '../workouts/workouts.service';
+import { ExercisesService } from '../exercises/exercises.service';
 
 describe('WorkoutLogsService', () => {
   let service: WorkoutLogsService;
@@ -21,6 +22,7 @@ describe('WorkoutLogsService', () => {
         WorkoutLogsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: WorkoutsService, useValue: {} },
+        { provide: ExercisesService, useValue: {} },
       ],
     }).compile();
     service = module.get(WorkoutLogsService);
@@ -129,6 +131,7 @@ describe('WorkoutLogsService findAll bounds', () => {
         WorkoutLogsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: WorkoutsService, useValue: {} },
+        { provide: ExercisesService, useValue: {} },
       ],
     }).compile();
     service = moduleRef.get(WorkoutLogsService);
@@ -172,6 +175,7 @@ describe('WorkoutLogsService findAll bounds', () => {
           WorkoutLogsService,
           { provide: PrismaService, useValue: p },
           { provide: WorkoutsService, useValue: {} },
+          { provide: ExercisesService, useValue: {} },
         ],
       }).compile();
       svc = moduleRef.get(WorkoutLogsService);

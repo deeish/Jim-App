@@ -18,6 +18,7 @@ import { ExerciseHistoryQueryDto } from './dto/exercise-history-query.dto';
 import { LastPerformanceQueryDto } from './dto/last-performance-query.dto';
 import { PersonalBestsQueryDto } from './dto/personal-bests-query.dto';
 import { StatsQueryDto } from './dto/stats-query.dto';
+import { MuscleHeatQueryDto } from './dto/muscle-heat-query.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user-id.decorator';
 
@@ -61,6 +62,12 @@ export class WorkoutLogsController {
   @Get('stats')
   getStats(@Query() query: StatsQueryDto, @UserId() userId: string) {
     return this.workoutLogsService.getStats(userId, query.months);
+  }
+
+  // Literal route: must stay above the ':id' catch-all or it gets shadowed.
+  @Get('muscle-heat')
+  getMuscleHeat(@Query() query: MuscleHeatQueryDto, @UserId() userId: string) {
+    return this.workoutLogsService.getMuscleHeat(userId, query.days);
   }
 
   // Literal route: must stay above the ':id' catch-all or it gets shadowed.

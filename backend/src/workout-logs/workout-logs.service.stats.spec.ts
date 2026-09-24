@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { WorkoutLogsService } from './workout-logs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkoutsService } from '../workouts/workouts.service';
+import { ExercisesService } from '../exercises/exercises.service';
 import { STATS_DEFAULT_MONTHS, STATS_MAX_MONTHS } from './progress-stats';
 
 describe('WorkoutLogsService progress reads', () => {
@@ -20,6 +21,7 @@ describe('WorkoutLogsService progress reads', () => {
         WorkoutLogsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: WorkoutsService, useValue: {} },
+        { provide: ExercisesService, useValue: {} },
       ],
     }).compile();
     service = module.get(WorkoutLogsService);
