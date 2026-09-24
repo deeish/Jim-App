@@ -1,6 +1,7 @@
 import React, { useId } from 'react';
 import { StyleProp, View, ViewStyle } from 'react-native';
 import { BodyMapHighlight } from '../../lib/exerciseToHighlights';
+import { useTheme } from '../../theme';
 import { BodyMapView } from './bodyMapPaths';
 import {
   BODY_VIEWBOX_HEIGHT,
@@ -41,6 +42,7 @@ function MuscleBodyMap({
   view,
   size,
   frame,
+  hideQuiet,
   style,
 }: {
   highlights: BodyMapHighlight[];
@@ -50,9 +52,12 @@ function MuscleBodyMap({
   size: number;
   /** 'focus' frames the highlighted anatomy, 'tile' is the square mini-tile crop; default shows the whole body. */
   frame?: 'body' | 'focus' | 'tile';
+  /** Draw only the lit regions (mini tiles). */
+  hideQuiet?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
-  const figure = buildBodyMapFigure({ highlights, view, size, frame });
+  const { colors, mode } = useTheme();
+  const figure = buildBodyMapFigure({ highlights, view, size, frame, colors, mode, hideQuiet });
   const { window: win } = figure;
   const needsFade = win.fadeTop || win.fadeBottom;
   const maskId = `bm-fade-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleProp, ViewStyle } from 'react-native';
-import { palette } from '../theme/colors';
+import { useTheme } from '../theme';
 import { BodyMappableExercise, exerciseToTileHighlights } from '../lib/exerciseToHighlights';
 import MuscleBodyMap from './bodymap/MuscleBodyMap';
 import MuscleGroupDisc from './MuscleGroupDisc';
@@ -19,6 +19,9 @@ import MuscleGroupDisc from './MuscleGroupDisc';
  * Cardio and unknown groups have no body-map regions and keep the disc
  * (heart-pulse reads better for cardio than anatomy would anyway).
  */
+/** Tiles smaller than this skip the quiet (unlit) regions. */
+const QUIET_DETAIL_MIN_PT = 60;
+
 function MuscleBodyTile({
   exercise,
   size,
@@ -29,6 +32,7 @@ function MuscleBodyTile({
   size: number;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { colors } = useTheme();
   const bodyMap = exerciseToTileHighlights(exercise);
   if (!bodyMap) {
     return <MuscleGroupDisc group={exercise.primaryMuscleGroup} size={size} style={style} />;
@@ -40,17 +44,19 @@ function MuscleBodyTile({
           width: size,
           height: size,
           borderRadius: Math.round(size * 0.28),
-          backgroundColor: palette.bodyMapTileBg,
+          backgroundColor: colors.bodyMapTileBg,
           overflow: 'hidden',
         },
         style,
       ]}
     >
+      {/* Below ~60pt the quiet anatomy is noise: silhouette + the lit muscle only. */}
       <MuscleBodyMap
         highlights={bodyMap.highlights}
         view={bodyMap.view}
         size={size}
         frame="tile"
+        hideQuiet={size < QUIET_DETAIL_MIN_PT}
       />
     </View>
   );

@@ -1,5 +1,5 @@
 import { getMuscleGroupVisual } from '../../constants/muscleGroupMeta';
-import { palette } from '../../theme/colors';
+import { ColorPalette, palette } from '../../theme/colors';
 import { BodyMapHighlight, pickBodyMapView } from '../../lib/exerciseToHighlights';
 import { BODY_MAP_REGIONS, BODY_OUTLINE_PATH, BodyMapRegion, BodyMapView } from './bodyMapPaths';
 import { highlightBoundsFor, highlightGroup, regionMatches } from './bodyMapRegions';
@@ -204,10 +204,14 @@ function withIntensity(hex: string, intensity: number): string {
  * into the gray silhouette the way a neutral wash does.
  */
 const ASSIST_STRENGTH = 0.25;
+/** The dark body is much closer to the hues than the pale one, so the wash needs more ink to read. */
+const ASSIST_STRENGTH_DARK = 0.45;
 
-/** The assist wash for a target hue — shared with the detail-page legend dot. */
-export function assistColorFor(targetHex: string): string {
-  return withIntensity(targetHex, ASSIST_STRENGTH);
+export type BodyMapThemeMode = 'light' | 'dark';
+
+/** The assist wash for a target hue — shared with the detail-page legend dot and chips. */
+export function assistColorFor(targetHex: string, mode: BodyMapThemeMode = 'light'): string {
+  return withIntensity(targetHex, mode === 'dark' ? ASSIST_STRENGTH_DARK : ASSIST_STRENGTH);
 }
 
 export function buildBodyMapFigure(opts: {
@@ -220,8 +224,18 @@ export function buildBodyMapFigure(opts: {
    * mini list tiles; 'body' (default) shows the whole figure.
    */
   frame?: 'body' | 'focus' | 'tile';
+  /** Theme tokens for the silhouette and quiet tone; defaults to the light palette. */
+  colors?: ColorPalette;
+  /** Which theme `colors` belongs to; the assist wash is stronger on the dark body. */
+  mode?: BodyMapThemeMode;
+  /**
+   * Draw only the lit regions. Mini tiles (~44pt) use this: at that size the
+   * quiet anatomy is noise, and a silhouette plus one lit muscle reads cleaner.
+   */
+  hideQuiet?: boolean;
 }): BodyMapFigure {
   const { highlights, size } = opts;
+  const tokens = opts.colors ?? palette;
   const view = opts.view === 'auto' ? pickBodyMapView(highlights) : opts.view;
   const window =
     opts.frame === 'focus'
@@ -230,7 +244,7 @@ export function buildBodyMapFigure(opts: {
         ? tileWindow(highlights)
         : FULL_WINDOW;
 
-  const quietColor = palette.bodyMapQuiet;
+  const quietColor = tokens.bodyMapQuiet;
   // Highlights name catalog sub-muscles ("Quads") or region keys ("Rectus
   // Femoris"); a region takes the strongest highlight that names it either way.
   const intensityFor = (key: string, region: BodyMapRegion): number | undefined => {
@@ -252,7 +266,7 @@ export function buildBodyMapFigure(opts: {
   const primaryGroup = primaryHighlight ? highlightGroup(primaryHighlight.region) : undefined;
   const accentHue = primaryGroup
     ? getMuscleGroupVisual(primaryGroup).color
-    : palette.bodyMapAssist;
+    : tokens.bodyMapAssist;
 
   const regions: BodyMapFigureRegion[] = Object.entries(BODY_MAP_REGIONS[view]).map(
     ([key, region]) => {
@@ -269,7 +283,7 @@ export function buildBodyMapFigure(opts: {
       return {
         key,
         path: region.path,
-        color: intensity ? assistColorFor(accentHue) : quietColor,
+        color: intensity ? assistColorFor(accentHue, opts.mode) : quietColor,
       };
     },
   );
@@ -281,9 +295,9 @@ export function buildBodyMapFigure(opts: {
     scale: size / window.h,
     window,
     outlinePath: BODY_OUTLINE_PATH,
-    bodyColor: palette.bodyMapBody,
-    bodyColorShade: palette.bodyMapBodyShade,
-    outlineColor: palette.bodyMapOutline,
-    regions,
+    bodyColor: tokens.bodyMapBody,
+    bodyColorShade: tokens.bodyMapBodyShade,
+    outlineColor: tokens.bodyMapOutline,
+    regions: opts.hideQuiet ? regions.filter((r) => r.color !== quietColor) : regions,
   };
 }
