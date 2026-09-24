@@ -76,6 +76,10 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
   const [zoomed, setZoomed] = useState(false);
   const [everSelected, setEverSelected] = useState(false);
   const sheetHeightRef = useRef(SHEET_ESTIMATE_PX);
+  // The sheet keeps its last content while sliding out (no blank card mid-slide),
+  // which also means its measured height is the real one from the first open on.
+  const lastDescriptionRef = useRef<BodyMapRegionDescription | null>(null);
+  const sheetMeasuredWithContent = useRef(false);
   const hitRef = useRef<HitTester | null>(null);
 
   const fit = useMemo(() => fitMetrics(stage.width || 1, stage.height || 1), [stage.width, stage.height]);
@@ -127,7 +131,12 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
     (key: string) => {
       const region = BODY_MAP_REGIONS[view][key];
       if (!region) return;
-      const win = visibleWindow(stage.height, fit, sheetHeightRef.current);
+      // Before the sheet has ever held content its layout height is just the
+      // grab handle, so the first framing uses the estimate instead.
+      const covered = sheetMeasuredWithContent.current
+        ? sheetHeightRef.current
+        : Math.max(sheetHeightRef.current, SHEET_ESTIMATE_PX);
+      const win = visibleWindow(stage.height, fit, covered);
       animateTo(frameBounds(region.bounds, win));
     },
     [view, stage.height, fit, animateTo],
@@ -217,8 +226,15 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
   );
 
   const description = selectedKey ? describeRegion(view, selectedKey) : null;
+  if (description) lastDescriptionRef.current = description;
+  /** What the sheet shows: the live selection, or the last one while it slides away. */
+  const shown = description ?? lastDescriptionRef.current;
+  // Sibling lookup is by the current view; a stale description from the other
+  // view (after a Front/Back switch) simply yields none while it slides away.
+  const shownSiblings = useMemo(() => (shown ? siblingRegionKeys(view, shown.key) : []), [view, shown]);
   const siblings = useMemo(() => (selectedKey ? siblingRegionKeys(view, selectedKey) : []), [view, selectedKey]);
   const hue = description ? getMuscleGroupVisual(description.group).color : colors.bodyMapAssist;
+  const shownHue = shown ? getMuscleGroupVisual(shown.group).color : hue;
 
   const fills = useMemo(() => {
     const out: Record<string, string> = {};
@@ -242,6 +258,7 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: sheetY.value }] }));
   const onSheetLayout = useCallback((e: LayoutChangeEvent) => {
     sheetHeightRef.current = e.nativeEvent.layout.height;
+    if (lastDescriptionRef.current) sheetMeasuredWithContent.current = true;
   }, []);
 
   const onStageLayout = useCallback((e: LayoutChangeEvent) => {
@@ -253,6 +270,7 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
     () =>
       StyleSheet.create({
         root: { flex: 1, backgroundColor: colors.bodyMapTileBg },
+        passThrough: { pointerEvents: 'none' },
         stage: { flex: 1, overflow: 'hidden' },
         sideSeg: {
           position: 'absolute',
@@ -398,35 +416,34 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
       )}
 
       {showHint && (
-        <Text style={styles.hint} pointerEvents="none">
+        <Text style={[styles.hint, styles.passThrough]}>
           Tap a muscle to see what it's called and the exercises that train it
         </Text>
       )}
 
       <Animated.View
-        style={[styles.sheet, sheetStyle]}
+        style={[styles.sheet, sheetStyle, !sheetOpen && styles.passThrough]}
         onLayout={onSheetLayout}
-        pointerEvents={sheetOpen ? 'auto' : 'none'}
         accessibilityElementsHidden={!sheetOpen}
         importantForAccessibility={sheetOpen ? 'auto' : 'no-hide-descendants'}
       >
         <View style={styles.grab} />
-        {description && (
+        {shown && (
           <>
             <View style={styles.head}>
-              <View style={[styles.dot, { backgroundColor: hue }]} />
+              <View style={[styles.dot, { backgroundColor: shownHue }]} />
               <View style={styles.names}>
                 <Text style={styles.plain} numberOfLines={1}>
-                  {description.plain}
+                  {shown.plain}
                 </Text>
                 <Text style={styles.anatomical} numberOfLines={1}>
-                  {description.anatomical}
-                  {description.hint ? <Text style={styles.hintText}> · {description.hint}</Text> : null}
+                  {shown.anatomical}
+                  {shown.hint ? <Text style={styles.hintText}> · {shown.hint}</Text> : null}
                 </Text>
               </View>
               <View style={styles.groupPill}>
                 <Text style={styles.groupText}>
-                  {description.sub ? `${description.sub} · ${description.groupLabel}` : `Detail only · ${description.groupLabel}`}
+                  {shown.sub ? `${shown.sub} · ${shown.groupLabel}` : `Detail only · ${shown.groupLabel}`}
                 </Text>
               </View>
             </View>
@@ -438,24 +455,24 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
                 contentContainerStyle={styles.sibsContent}
                 keyboardShouldPersistTaps="handled"
               >
-                {siblings.map((key) => (
+                {shownSiblings.map((key) => (
                   <Pressable key={key} onPress={() => select(key)} style={styles.chip} accessibilityRole="button">
                     <Text style={styles.chipText}>{BODY_MAP_PLAIN_NAMES[key]?.plain ?? key}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
               <Pressable
-                onPress={() => onExercises(description)}
-                disabled={!description.sub}
+                onPress={() => onExercises(shown)}
+                disabled={!shown.sub}
                 style={({ pressed }) => [
                   styles.exercisesBtn,
-                  !description.sub && styles.exercisesBtnDisabled,
+                  !shown.sub && styles.exercisesBtnDisabled,
                   pressed && styles.exercisesBtnPressed,
                 ]}
                 accessibilityRole="button"
               >
-                <Text style={[styles.exercisesText, !description.sub && styles.exercisesTextDisabled]} numberOfLines={1}>
-                  {description.sub ? `Exercises for ${description.sub}` : 'No exercises tagged yet'}
+                <Text style={[styles.exercisesText, !shown.sub && styles.exercisesTextDisabled]} numberOfLines={1}>
+                  {shown.sub ? `Exercises for ${shown.sub}` : 'No exercises tagged yet'}
                 </Text>
               </Pressable>
             </View>
