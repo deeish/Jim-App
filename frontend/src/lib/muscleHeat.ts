@@ -63,9 +63,9 @@ export function daysAgo(iso: string, now: Date): number {
   return Math.max(0, Math.round((a - b) / 86_400_000));
 }
 
-/** "Trained today · 12 sets" / "Trained 3 days ago · 6 sets, assisted in 4" / "Not trained in the last 7 days". */
-export function describeHeat(entry: MuscleHeatEntry | undefined, days: number, now: Date): string {
-  if (!entry) return `Not trained in the last ${days} days`;
+/** "Trained today · 12 sets" / "Trained 3 days ago · 6 sets, assisted in 4" / "Not trained recently". */
+export function describeHeat(entry: MuscleHeatEntry | undefined, now: Date): string {
+  if (!entry) return 'Not trained recently';
   const d = daysAgo(entry.lastTrainedAt, now);
   const when = d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
   const parts: string[] = [];

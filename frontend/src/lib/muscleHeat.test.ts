@@ -40,9 +40,9 @@ describe('muscleHeat', () => {
   });
 
   it('writes the caption', () => {
-    expect(describeHeat(heat.muscles[0], 7, NOW)).toBe('Trained today · 12 sets');
-    expect(describeHeat(heat.muscles[1], 7, NOW)).toBe('Trained 3 days ago · assisted in 4');
-    expect(describeHeat(undefined, 7, NOW)).toBe('Not trained in the last 7 days');
-    expect(describeHeat({ ...heat.muscles[0], sets: 1, lastTrainedAt: new Date(2026, 8, 22, 9).toISOString() }, 7, NOW)).toBe('Trained yesterday · 1 set');
+    expect(describeHeat(heat.muscles[0], NOW)).toBe('Trained today · 12 sets');
+    expect(describeHeat(heat.muscles[1], NOW)).toBe('Trained 3 days ago · assisted in 4');
+    expect(describeHeat(undefined, NOW)).toBe('Not trained recently');
+    expect(describeHeat({ ...heat.muscles[0], sets: 1, lastTrainedAt: new Date(2026, 8, 22, 9).toISOString() }, NOW)).toBe('Trained yesterday · 1 set');
   });
 });

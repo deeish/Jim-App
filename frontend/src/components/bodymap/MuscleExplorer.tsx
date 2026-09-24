@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -62,7 +63,7 @@ const FRAME_MS = 340;
 const SHEET_ESTIMATE_PX = 150;
 /** Sibling heads wear the hue at ~38% alpha (8-digit hex). */
 const SIBLING_ALPHA = '61';
-/** "This week" window the trained layer asks the backend for. */
+/** Rolling window the "Recently trained" layer asks the backend for (the model decays inside it). */
 const HEAT_DAYS = 7;
 
 type Layer = 'explore' | 'trained';
@@ -91,7 +92,7 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
   const [stage, setStage] = useState({ width: 0, height: 0 });
   const [zoomed, setZoomed] = useState(false);
   const [everSelected, setEverSelected] = useState(false);
-  // "Trained this week" layer: fetched the first time it is switched on.
+  // "Recently trained" layer: fetched the first time it is switched on.
   const [layer, setLayer] = useState<Layer>('explore');
   const [heat, setHeat] = useState<MuscleHeat | null>(null);
   const [heatStatus, setHeatStatus] = useState<HeatStatus>('idle');
@@ -316,8 +317,8 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
 
   const heatCaption = useMemo(() => {
     if (layer !== 'trained') return null;
-    if (heatStatus === 'loading' || heatStatus === 'idle') return 'Loading your week…';
-    if (heatStatus === 'error') return "Couldn't load your week. Try again later.";
+    if (heatStatus === 'loading' || heatStatus === 'idle') return 'Loading recent training…';
+    if (heatStatus === 'error') return "Couldn't load recent training. Try again later.";
     if (!heat || heat.muscles.length === 0) return `Nothing logged in the last ${HEAT_DAYS} days`;
     return null;
   }, [layer, heatStatus, heat]);
@@ -370,6 +371,21 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
         sideText: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.textSecondary },
         sideTextActive: { color: colors.onPrimary },
         resetSlot: { flex: 1, alignItems: 'center' },
+        // Single toggle for the trained layer: outlined off, filled with a check on.
+        togglePill: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.xs,
+          paddingVertical: spacing.xs + 2,
+          paddingHorizontal: spacing.md,
+          borderRadius: radius.pill,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.background,
+        },
+        togglePillOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+        toggleText: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.textSecondary },
+        toggleTextOn: { color: colors.onPrimary },
         reset: {
           paddingVertical: spacing.xs + 2,
           paddingHorizontal: spacing.md,
@@ -479,24 +495,16 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
             </Pressable>
           )}
         </View>
-        <View style={styles.sideSeg} accessibilityRole="tablist">
-          {(
-            [
-              ['explore', 'Explore'],
-              ['trained', 'This week'],
-            ] as [Layer, string][]
-          ).map(([l, label]) => (
-            <Pressable
-              key={l}
-              onPress={() => setLayer(l)}
-              style={[styles.sideBtn, layer === l && styles.sideBtnActive]}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: layer === l }}
-            >
-              <Text style={[styles.sideText, layer === l && styles.sideTextActive]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <Pressable
+          onPress={() => setLayer(layer === 'trained' ? 'explore' : 'trained')}
+          style={[styles.togglePill, layer === 'trained' && styles.togglePillOn]}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: layer === 'trained' }}
+          accessibilityLabel="Recently trained"
+        >
+          {layer === 'trained' && <Ionicons name="checkmark" size={14} color={colors.onPrimary} />}
+          <Text style={[styles.toggleText, layer === 'trained' && styles.toggleTextOn]}>Recently trained</Text>
+        </Pressable>
       </View>
       <GestureDetector gesture={gesture}>
         <Animated.View style={styles.stage} onLayout={onStageLayout} collapsable={false}>
@@ -549,7 +557,7 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
                 </Text>
                 {layer === 'trained' && heatStatus === 'ready' && shown.sub && (
                   <Text style={[styles.heatLine, shownHeat && styles.heatLineHot]} numberOfLines={1}>
-                    {describeHeat(shownHeat, heat?.days ?? HEAT_DAYS, new Date())}
+                    {describeHeat(shownHeat, new Date())}
                   </Text>
                 )}
               </View>
