@@ -146,12 +146,22 @@ export default function PlateSheet({
 
         <View style={styles.drawing} accessibilityLabel={`Each side: ${formatEachSide(perSide)}`}>
           <View style={styles.barRow}>
+            {/* The sleeve is drawn as a bar of its own, under the plates. Build
+                37 left it transparent, so an empty or lightly loaded bar was
+                two tips floating either side of a short shaft, and in dark
+                mode there was no bar to see at all. */}
             <View style={styles.sleeveTip} />
-            <View style={styles.sleeve}>{sleeve(false)}</View>
+            <View style={styles.sleeve}>
+              <View pointerEvents="none" style={styles.sleeveBar} />
+              {sleeve(false)}
+            </View>
             <View style={styles.collar} />
             <View style={styles.shaft} />
             <View style={styles.collar} />
-            <View style={styles.sleeve}>{sleeve(true)}</View>
+            <View style={styles.sleeve}>
+              <View pointerEvents="none" style={styles.sleeveBar} />
+              {sleeve(true)}
+            </View>
             <View style={styles.sleeveTip} />
           </View>
           <Text style={styles.eachSide}>
@@ -310,6 +320,13 @@ function createStyles(c: ColorPalette) {
       justifyContent: 'center',
       gap: 2,
     },
+    sleeveBar: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      height: 12,
+      backgroundColor: c.textTertiary,
+    },
     collar: {
       width: 8,
       height: 30,
@@ -319,7 +336,7 @@ function createStyles(c: ColorPalette) {
     shaft: {
       width: 40,
       height: 12,
-      backgroundColor: c.textMuted,
+      backgroundColor: c.textTertiary,
     },
     plate: {
       borderRadius: 3,
