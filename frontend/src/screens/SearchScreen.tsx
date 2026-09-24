@@ -63,6 +63,7 @@ export default function SearchScreen({ navigation }: Props) {
   const addToPlan = route.params?.addToPlan;
   const addToWorkout = route.params?.addToWorkout;
   const openMuscle = route.params?.openMuscle;
+  const openRecovery = route.params?.openRecovery;
   const addMode = addToPlan ? 'plan' : addToWorkout ? 'workout' : null;
   const { colors } = useTheme();
 
@@ -93,14 +94,17 @@ export default function SearchScreen({ navigation }: Props) {
   // framed on that muscle. Consumed into local state and cleared from the
   // route, so a later plain visit to the tab starts at the whole body again.
   const [muscleToOpen, setMuscleToOpen] = useState<string | null>(null);
+  // The pre-workout card's "See on the body" opens with the Recovery layer on.
+  const [recoveryToOpen, setRecoveryToOpen] = useState(false);
   useEffect(() => {
-    if (!openMuscle) return;
-    setMuscleToOpen(openMuscle);
+    if (!openMuscle && !openRecovery) return;
+    setMuscleToOpen(openMuscle ?? null);
+    setRecoveryToOpen(!!openRecovery);
     setActiveTab('muscles');
     musclesHint.dismiss();
-    navigation.setParams({ openMuscle: undefined });
+    navigation.setParams({ openMuscle: undefined, openRecovery: undefined });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openMuscle]);
+  }, [openMuscle, openRecovery]);
 
   // Re-tapping the Exercises tab scrolls the visible list back to the top —
   // standard iOS muscle memory for escaping a deep scroll. One ref per list;
@@ -142,8 +146,9 @@ export default function SearchScreen({ navigation }: Props) {
     (tab: 'all' | 'saved' | 'muscles') => {
       if (tab === 'saved') loadSavedList();
       if (tab === 'muscles') musclesHint.dismiss();
-      // A plain switch (not a tap-through) starts at the whole body.
+      // A plain switch (not a tap-through) starts at the whole body, quiet.
       setMuscleToOpen(null);
+      setRecoveryToOpen(false);
       setActiveTab(tab);
     },
     [loadSavedList, musclesHint],
@@ -623,10 +628,11 @@ export default function SearchScreen({ navigation }: Props) {
           while shown — the section resets to the whole body on every visit. */}
       {activeTab === 'muscles' && (
         <MuscleExplorer
-          key={muscleToOpen ?? 'plain'}
+          key={`${muscleToOpen ?? 'plain'}:${recoveryToOpen ? 'recovery' : 'explore'}`}
           onExercises={showExercisesForMuscle}
           bottomInset={tabBarInset}
           initialSelection={muscleToOpen ?? undefined}
+          initialLayer={recoveryToOpen ? 'recovery' : 'explore'}
         />
       )}
 

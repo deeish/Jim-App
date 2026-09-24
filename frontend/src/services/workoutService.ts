@@ -8,7 +8,27 @@ import {
 } from '../types/workout';
 import type { ExerciseHistory } from '../lib/exerciseHistory';
 import type { MuscleHeat } from '../lib/muscleHeat';
+import type { MuscleRecovery, RecoveryNoteKind } from '../lib/muscleRecovery';
 import { api } from '../api/client';
+
+/** Recovery estimate per body-map region, with the user's corrections applied. */
+export const getMuscleRecovery = async (exerciseIdsToday?: string[]): Promise<MuscleRecovery> => {
+  const ids = (exerciseIdsToday ?? []).filter((id) => id && id !== 'manual');
+  const suffix = ids.length ? `?exerciseIds=${encodeURIComponent(ids.join(','))}` : '';
+  const response = await api.get<MuscleRecovery>(`/workout-logs/recovery${suffix}`);
+  return response.data;
+};
+
+/** "Still sore" / "Feeling fine" for a region; returns the refreshed estimate. */
+export const setRecoveryNote = async (region: string, kind: RecoveryNoteKind): Promise<MuscleRecovery> => {
+  const response = await api.post<MuscleRecovery>('/workout-logs/recovery/notes', { region, kind });
+  return response.data;
+};
+
+export const clearRecoveryNote = async (region: string): Promise<MuscleRecovery> => {
+  const response = await api.delete<MuscleRecovery>(`/workout-logs/recovery/notes/${encodeURIComponent(region)}`);
+  return response.data;
+};
 
 /** "Trained this week" per catalog sub-muscle, for the Muscles figure. */
 export const getMuscleHeat = async (days?: number): Promise<MuscleHeat> => {

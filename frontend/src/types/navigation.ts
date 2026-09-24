@@ -63,6 +63,8 @@ export type RootStackParamList = {
     };
     /** Open the Muscles segment framed on this muscle (a catalog sub-muscle or region key). */
     openMuscle?: string;
+    /** Open the Muscles segment with the Recovery layer on. */
+    openRecovery?: boolean;
   } | undefined;
   SearchList: {
     addToPlan?: {
@@ -88,6 +90,8 @@ export type RootStackParamList = {
     };
     /** Open the Muscles segment framed on this muscle (a catalog sub-muscle or region key). */
     openMuscle?: string;
+    /** Open the Muscles segment with the Recovery layer on. */
+    openRecovery?: boolean;
   } | undefined;
   ExerciseDetail: {
     exerciseId: string;

@@ -27,6 +27,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { getCurrentPlanWithWeekly, planSlotForWorkout } from '../services/planService';
 import type { ApiPlan, ApiPlanWorkout } from '../services/planService';
 import { getWorkoutStats } from '../services/workoutService';
+import RecoveryCard from '../components/RecoveryCard';
 import {
   MUSCLE_EDGE,
   MUSCLE_INK,
@@ -313,6 +314,17 @@ export default function HomeScreen() {
 
   const goToWorkout = () => goToDay(todayIso());
 
+  // Pre-workout recovery card: "See on the body" opens Muscles with the
+  // Recovery layer on, framed on the tiredest muscle of today's session.
+  const goToRecovery = (region: string | null) => {
+    haptics.tap();
+    const parent = navigation.getParent();
+    (parent as unknown as { navigate?: (name: string, params?: object) => void })?.navigate?.('Search', {
+      screen: 'SearchList',
+      params: { openRecovery: true, openMuscle: region ?? undefined },
+    });
+  };
+
   const themedStyles = useMemo(
     () => ({
       container: { backgroundColor: colors.background },
@@ -394,6 +406,12 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calVersion, loading]);
   const heroMuscles = todayPlanned ? dayMuscles(todayPlanned).slice(0, 4) : [];
+  // Today's exercise ids for the recovery card (it fetches the estimate itself
+  // and renders nothing when everything is fresh).
+  const todayExerciseIds = useMemo(
+    () => (todayPlanned?.exercises ?? []).map((ex) => ex.exerciseId).filter((id): id is string => !!id && id !== 'manual'),
+    [todayPlanned],
+  );
 
   // WHICH today card shows is answered by the calendar store first — it holds
   // every edit the server has not confirmed yet (a Quick Workout built with
@@ -622,6 +640,11 @@ export default function HomeScreen() {
                   </Text>
                 ) : null}
               </View>
+            ) : null}
+
+            {/* Only before a session, only when one of its muscles is still tired. */}
+            {!loadError && todayPlanned && !resumeSession && todayExerciseIds.length > 0 ? (
+              <RecoveryCard exerciseIds={todayExerciseIds} onSeeOnBody={goToRecovery} />
             ) : null}
 
             {!loadError && todayStatus === 'planned_pending' && homeToday?.status === 'planned_pending' ? (

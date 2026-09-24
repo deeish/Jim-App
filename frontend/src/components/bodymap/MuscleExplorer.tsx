@@ -21,14 +21,14 @@ import Animated, {
 import { getMuscleGroupVisual } from '../../constants/muscleGroupMeta';
 import { haptics } from '../../lib/haptics';
 import {
-  describeHeat,
-  heatAlphaByRegion,
-  heatByMuscle,
-  heatEntryForRegion,
-  hexWithAlpha,
-  MuscleHeat,
-} from '../../lib/muscleHeat';
-import { getMuscleHeat } from '../../services/workoutService';
+  describeNote,
+  describeRecovery,
+  MuscleRecovery,
+  recoveryByRegion,
+  recoveryFillsByRegion,
+  RecoveryNoteKind,
+} from '../../lib/muscleRecovery';
+import { clearRecoveryNote, getMuscleRecovery, setRecoveryNote } from '../../services/workoutService';
 import { duration, easing, radius, spacing, text, useTheme, weight } from '../../theme';
 import { BODY_MAP_REGIONS, BodyMapView } from './bodyMapPaths';
 import { primaryRegionFor } from './bodyMapRegions';
@@ -70,11 +70,8 @@ const FRAME_MS = 340;
 const SHEET_ESTIMATE_PX = 150;
 /** Sibling heads wear the hue at ~38% alpha (8-digit hex). */
 const SIBLING_ALPHA = '61';
-/** Rolling window the "Recently trained" layer asks the backend for (the model decays inside it). */
-const HEAT_DAYS = 7;
-
-type Layer = 'explore' | 'trained';
-type HeatStatus = 'idle' | 'loading' | 'ready' | 'error';
+type Layer = 'explore' | 'recovery';
+type RecoveryStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 type Props = {
   /** "Exercises for Quads": the host applies the filter and switches to the list. */
@@ -87,9 +84,17 @@ type Props = {
    * region key). Used by the exercise page's tap-through. Read once, at mount.
    */
   initialSelection?: string;
+  /** Open with the Recovery layer already on (the pre-workout card's "See on the body"). */
+  initialLayer?: Layer;
 };
 
-export default function MuscleExplorer({ onExercises, bottomInset, initialView = 'front', initialSelection }: Props) {
+export default function MuscleExplorer({
+  onExercises,
+  bottomInset,
+  initialView = 'front',
+  initialSelection,
+  initialLayer = 'explore',
+}: Props) {
   const { colors } = useTheme();
   // Resolved once: the view holding the muscle wins over initialView.
   const [initialTarget] = useState(() => (initialSelection ? primaryRegionFor(initialSelection) : null));
@@ -99,15 +104,15 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
   const [stage, setStage] = useState({ width: 0, height: 0 });
   const [zoomed, setZoomed] = useState(false);
   const [everSelected, setEverSelected] = useState(false);
-  // "Recently trained" layer: fetched the first time it is switched on.
-  const [layer, setLayer] = useState<Layer>('explore');
-  const [heat, setHeat] = useState<MuscleHeat | null>(null);
-  const [heatStatus, setHeatStatus] = useState<HeatStatus>('idle');
+  // Recovery layer: fetched the first time it is switched on.
+  const [layer, setLayer] = useState<Layer>(initialLayer);
+  const [recovery, setRecovery] = useState<MuscleRecovery | null>(null);
+  const [recoveryStatus, setRecoveryStatus] = useState<RecoveryStatus>('idle');
   // One request per mount, started the first time the layer is switched on.
   // A response that lands after the layer was switched off is still kept
   // (the component is alive; switching back must not refetch). Only unmount
   // drops it.
-  const heatRequested = useRef(false);
+  const recoveryRequested = useRef(false);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -116,23 +121,38 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
     };
   }, []);
   useEffect(() => {
-    if (layer !== 'trained' || heatRequested.current) return;
-    heatRequested.current = true;
-    setHeatStatus('loading');
-    getMuscleHeat(HEAT_DAYS)
+    if (layer !== 'recovery' || recoveryRequested.current) return;
+    recoveryRequested.current = true;
+    setRecoveryStatus('loading');
+    getMuscleRecovery()
       .then((data) => {
         if (!mounted.current) return;
-        setHeat(data);
-        setHeatStatus('ready');
+        setRecovery(data);
+        setRecoveryStatus('ready');
       })
       .catch(() => {
         if (!mounted.current) return;
         // Allow a retry on the next switch-on.
-        heatRequested.current = false;
-        setHeatStatus('error');
+        recoveryRequested.current = false;
+        setRecoveryStatus('error');
       });
   }, [layer]);
-  const heatEntries = useMemo(() => heatByMuscle(heat), [heat]);
+  const recoveryEntries = useMemo(() => recoveryByRegion(recovery), [recovery]);
+  // Corrections: the backend answers with the refreshed estimate.
+  const [noteBusy, setNoteBusy] = useState(false);
+  const correct = useCallback((region: string, kind: RecoveryNoteKind | null) => {
+    setNoteBusy(true);
+    (kind ? setRecoveryNote(region, kind) : clearRecoveryNote(region))
+      .then((data) => {
+        if (mounted.current) setRecovery(data);
+      })
+      .catch(() => {
+        /* keep the old estimate; the line stays as it was */
+      })
+      .finally(() => {
+        if (mounted.current) setNoteBusy(false);
+      });
+  }, []);
   const sheetHeightRef = useRef(SHEET_ESTIMATE_PX);
   // The sheet keeps its last content while sliding out (no blank card mid-slide),
   // which also means its measured height is the real one from the first open on.
@@ -305,30 +325,25 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
   const fills = useMemo(() => {
     const out: Record<string, string> = {};
     const regions = BODY_MAP_REGIONS[view];
-    if (layer === 'trained') {
-      // Every region wears its own group hue at the strength it was trained;
-      // the selected one goes solid so the tap still reads.
-      const alpha = heatAlphaByRegion(view, heat);
-      for (const [key, region] of Object.entries(regions)) {
-        const groupHue = getMuscleGroupVisual(region.group).color;
-        out[key] = key === selectedKey ? groupHue : alpha[key] > 0 ? hexWithAlpha(groupHue, alpha[key]) : colors.bodyMapQuiet;
-      }
-      return out;
+    if (layer === 'recovery') {
+      // One five-step scale: every region wears the colour of its recovery
+      // step; the selected one keeps its colour and gets the hairline.
+      return recoveryFillsByRegion(view, recovery, colors.bodyMapQuiet);
     }
     const sibs = new Set(siblings);
     for (const key of Object.keys(regions)) {
       out[key] = key === selectedKey ? hue : sibs.has(key) ? hue + SIBLING_ALPHA : colors.bodyMapQuiet;
     }
     return out;
-  }, [view, layer, heat, selectedKey, siblings, hue, colors.bodyMapQuiet]);
+  }, [view, layer, recovery, selectedKey, siblings, hue, colors.bodyMapQuiet]);
 
-  const heatCaption = useMemo(() => {
-    if (layer !== 'trained') return null;
-    if (heatStatus === 'loading' || heatStatus === 'idle') return 'Loading recent training…';
-    if (heatStatus === 'error') return "Couldn't load recent training. Try again later.";
-    if (!heat || heat.muscles.length === 0) return `Nothing logged in the last ${HEAT_DAYS} days`;
+  const recoveryCaption = useMemo(() => {
+    if (layer !== 'recovery') return null;
+    if (recoveryStatus === 'loading' || recoveryStatus === 'idle') return 'Loading recovery…';
+    if (recoveryStatus === 'error') return "Couldn't load recovery. Try again later.";
+    if (!recovery || recovery.regions.length === 0) return 'Nothing logged recently';
     return null;
-  }, [layer, heatStatus, heat]);
+  }, [layer, recoveryStatus, recovery]);
 
   // Readout sheet slides in from below; its measured height feeds the framing.
   const sheetY = useSharedValue(400);
@@ -434,6 +449,17 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
         anatomical: { fontSize: text.footnote, color: colors.textSecondary, fontStyle: 'italic', marginTop: 1 },
         heatLine: { fontSize: text.footnote, color: colors.textSecondary, marginTop: 2 },
         heatLineHot: { color: colors.text, fontWeight: weight.semibold },
+        correctRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: 4, flexWrap: 'wrap' },
+        correctLink: { fontSize: text.footnote, fontWeight: weight.semibold, color: colors.primary },
+        noteTag: {
+          fontSize: text.caption,
+          fontWeight: weight.semibold,
+          color: colors.accent,
+          backgroundColor: colors.warningSoft,
+          paddingVertical: 2,
+          paddingHorizontal: spacing.sm,
+          borderRadius: radius.pill,
+        },
         hintText: { fontStyle: 'normal', color: colors.textTertiary },
         groupPill: {
           paddingVertical: spacing.xs,
@@ -473,7 +499,8 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
   );
 
   const showHint = layer === 'explore' && !everSelected && !zoomed;
-  const shownHeat = shown ? heatEntryForRegion(heatEntries, shown.key, shown.sub) : undefined;
+  const shownRecovery = shown ? recoveryEntries.get(shown.key) : undefined;
+  const shownNoteLine = shownRecovery ? describeNote(shownRecovery.note, new Date()) : null;
 
   return (
     <View style={styles.root}>
@@ -503,14 +530,14 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
           )}
         </View>
         <Pressable
-          onPress={() => setLayer(layer === 'trained' ? 'explore' : 'trained')}
-          style={[styles.togglePill, layer === 'trained' && styles.togglePillOn]}
+          onPress={() => setLayer(layer === 'recovery' ? 'explore' : 'recovery')}
+          style={[styles.togglePill, layer === 'recovery' && styles.togglePillOn]}
           accessibilityRole="switch"
-          accessibilityState={{ checked: layer === 'trained' }}
-          accessibilityLabel="Recently trained"
+          accessibilityState={{ checked: layer === 'recovery' }}
+          accessibilityLabel="Recovery"
         >
-          {layer === 'trained' && <Ionicons name="checkmark" size={14} color={colors.onPrimary} />}
-          <Text style={[styles.toggleText, layer === 'trained' && styles.toggleTextOn]}>Recently trained</Text>
+          {layer === 'recovery' && <Ionicons name="checkmark" size={14} color={colors.onPrimary} />}
+          <Text style={[styles.toggleText, layer === 'recovery' && styles.toggleTextOn]}>Recovery</Text>
         </Pressable>
       </View>
       <GestureDetector gesture={gesture}>
@@ -539,8 +566,8 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
           Tap a muscle to see what it's called and the exercises that train it
         </Text>
       )}
-      {heatCaption && !sheetOpen && (
-        <Text style={[styles.hint, styles.passThrough]}>{heatCaption}</Text>
+      {recoveryCaption && !sheetOpen && (
+        <Text style={[styles.hint, styles.passThrough]}>{recoveryCaption}</Text>
       )}
 
       <Animated.View
@@ -562,10 +589,35 @@ export default function MuscleExplorer({ onExercises, bottomInset, initialView =
                   {shown.anatomical}
                   {shown.hint ? <Text style={styles.hintText}> · {shown.hint}</Text> : null}
                 </Text>
-                {layer === 'trained' && heatStatus === 'ready' && shown.sub && (
-                  <Text style={[styles.heatLine, shownHeat && styles.heatLineHot]} numberOfLines={1}>
-                    {describeHeat(shownHeat, new Date())}
-                  </Text>
+                {layer === 'recovery' && recoveryStatus === 'ready' && (
+                  <>
+                    <Text
+                      style={[styles.heatLine, shownRecovery && shownRecovery.step >= 3 && styles.heatLineHot]}
+                      numberOfLines={1}
+                    >
+                      {describeRecovery(shownRecovery, new Date())}
+                    </Text>
+                    {/* Corrections: the estimate is a guess until you say otherwise. */}
+                    <View style={styles.correctRow}>
+                      {shownNoteLine ? (
+                        <>
+                          <Text style={styles.noteTag}>{shownNoteLine}</Text>
+                          <Pressable onPress={() => correct(shown.key, null)} disabled={noteBusy} hitSlop={6} accessibilityRole="button">
+                            <Text style={styles.correctLink}>Undo</Text>
+                          </Pressable>
+                        </>
+                      ) : (
+                        <>
+                          <Pressable onPress={() => correct(shown.key, 'fine')} disabled={noteBusy} hitSlop={6} accessibilityRole="button">
+                            <Text style={styles.correctLink}>Feeling fine</Text>
+                          </Pressable>
+                          <Pressable onPress={() => correct(shown.key, 'sore')} disabled={noteBusy} hitSlop={6} accessibilityRole="button">
+                            <Text style={styles.correctLink}>Still sore</Text>
+                          </Pressable>
+                        </>
+                      )}
+                    </View>
+                  </>
                 )}
               </View>
               <View style={styles.groupPill}>
